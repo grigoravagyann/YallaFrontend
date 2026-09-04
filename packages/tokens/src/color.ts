@@ -1,165 +1,107 @@
 /**
  * Raw palette. Nothing outside this file should reference a hex literal.
+ *
+ * Solid fills only. There is no colour in this system expressed as another
+ * colour at reduced opacity: a translucent tint composites differently over
+ * white, over `paper` and over a state fill, so its contrast cannot be checked
+ * once and trusted. `greenTint` is a real pale green, not `primary` at 12%.
  */
 const palette = {
-  ink900: '#12100E',
-  ink700: '#3A3733',
-  ink500: '#6B655D',
-  ink300: '#A8A199',
-  ink100: '#E4DFD8',
-  ink50: '#F5F2EE',
   white: '#FFFFFF',
+  paper: '#F5F7F6',
 
-  apricot600: '#C2410C',
-  apricot500: '#EA580C',
-  apricot100: '#FFEDD5',
+  /** Deep green-black. The product's text colour, not pure black. */
+  ink: '#12211A',
+  inkMuted: '#57685F',
+  /**
+   * Darkened from the brief's `#8A9990`, which scored 2.58–2.98:1 and failed AA
+   * on every background it is used over. Section 9 of the brief calls this pair
+   * out in advance and says to fix it by darkening rather than by lowering the
+   * standard — this is that fix. See `contrast.test.ts`.
+   */
+  inkSubtle: '#616E65',
 
-  pomegranate600: '#B91C1C',
-  pomegranate500: '#DC2626',
-  pomegranate100: '#FEE2E2',
+  /** Decorative hairlines: dividers, card edges, table rules. */
+  line: '#D5E0DA',
+  lineStrong: '#B3C4BB',
+  /**
+   * Control boundaries — input and button outlines.
+   *
+   * Not the same value as `line`, and deliberately so. A 1px `#D5E0DA` edge is
+   * 1.35:1 against white: fine as a divider, which WCAG treats as decoration,
+   * but an input outline is a control boundary and owes 3:1. Anyone who has
+   * hunted for a form field on a bright screen knows why.
+   */
+  lineInteractive: '#7E8D84',
 
-  basil600: '#15803D',
-  basil500: '#16A34A',
-  basil100: '#DCFCE7',
+  greenTint: '#E6F1EB',
+  green: '#1B5638',
+  greenPressed: '#144229',
 
-  sky600: '#0369A1',
-  sky500: '#0284C7',
-  sky100: '#E0F2FE',
+  // --- The protected six ---------------------------------------------------
+  // The only colours in the product that carry meaning. See `tableState.ts`.
+  stateFree: '#35B37E',
+  stateReservedSoon: '#C98A0E',
+  stateHeld: '#3B6FD4',
+  stateOccupied: '#B93B3B',
+  stateOutOfService: '#8B95A1',
 
-  amber600: '#B45309',
-  amber500: '#D97706',
-  amber100: '#FEF3C7',
-
-  slate500: '#64748B',
-  slate100: '#F1F5F9',
+  /** Ink lifted, for the pressed state of an ink button beside a floor plan. */
+  inkPressed: '#2B3D33',
 } as const;
 
 export const color = {
-  background: palette.ink50,
+  /** Cards, panels, the floor plan canvas. */
   surface: palette.white,
-  surfaceMuted: palette.ink100,
-  border: palette.ink300,
+  /** Page background. */
+  paper: palette.paper,
 
-  textPrimary: palette.ink900,
-  textSecondary: palette.ink500,
-  textInverse: palette.white,
+  foreground: palette.ink,
+  mutedForeground: palette.inkMuted,
+  subtleForeground: palette.inkSubtle,
 
-  accent: palette.apricot500,
-  accentStrong: palette.apricot600,
-  accentMuted: palette.apricot100,
+  border: palette.line,
+  borderStrong: palette.lineStrong,
+  borderInteractive: palette.lineInteractive,
 
-  danger: palette.pomegranate500,
-  success: palette.basil500,
-  warning: palette.amber500,
-  info: palette.sky500,
+  /** Selected rows, icon backgrounds, soft fills. A solid pale green. */
+  greenTint: palette.greenTint,
+
+  primary: palette.green,
+  primaryPressed: palette.greenPressed,
+  primaryForeground: palette.white,
+
+  /**
+   * What `primary` becomes on any screen showing a floor plan.
+   *
+   * Brand green and free-table green are both green. They stay legible as
+   * different things because brand green is deep and desaturated while free is
+   * bright and saturated — but that separation collapses the moment they sit
+   * side by side. A green "Reserve" button next to green free tables teaches
+   * people that green means nothing in particular, and the floor plan is the
+   * one place in this product where a colour has to mean exactly one thing.
+   *
+   * So on those screens the primary action renders in ink instead. This is a
+   * token, not an override inside one component, because the rule applies to
+   * every control on such a screen — buttons, chips, active states.
+   */
+  primaryOnFloorPlan: palette.ink,
+  primaryOnFloorPlanPressed: palette.inkPressed,
+
+  /**
+   * Feedback reuses the state hues. One green, one amber, one red and one blue
+   * in the entire product: a second red would be a second thing red means.
+   */
+  danger: palette.stateOccupied,
+  warning: palette.stateReservedSoon,
+  success: palette.stateFree,
+  info: palette.stateHeld,
+
+  /** Text on a `danger` fill. White clears AA there; on `success` it does not. */
+  dangerForeground: palette.white,
 } as const;
 
 export type ColorToken = keyof typeof color;
 
-/**
- * The six states a table can be in on a floor plan.
- *
- * `yourPick` is the diner-side-only state for the table the diner is currently
- * selecting; staff never see it.
- */
-export type TableStatus =
-  'free' | 'reservedSoon' | 'occupied' | 'yourPick' | 'held' | 'outOfService';
-
-/**
- * How a table state is drawn.
- *
- * Colour alone is not enough: roughly 1 in 12 men has a red/green deficiency, and
- * a terrace in Yerevan in July is bright enough to wash out hue differences on a
- * phone at any brightness. Every state therefore also differs in its border
- * treatment and fill pattern, so the floor plan stays readable in greyscale.
- */
-export interface TableStatusStyle {
-  /** Fill of the table shape. */
-  readonly fill: string;
-  /** Border/stroke colour. */
-  readonly stroke: string;
-  /** Stroke width in canvas units. */
-  readonly strokeWidth: number;
-  /**
-   * SVG dash array for the border, or `null` for a solid border.
-   * Expressed as a tuple so consumers can join it however their renderer wants.
-   */
-  readonly strokeDash: readonly number[] | null;
-  /** Fill pattern layered over `fill`. Redundant encoding for the colour channel. */
-  readonly pattern: 'none' | 'diagonalStripes' | 'crosshatch' | 'dots';
-  /** Colour for the table label drawn on top of the shape. */
-  readonly label: string;
-  /**
-   * Stable key for the translated legend entry, resolved by the consuming app
-   * against the `common` i18n namespace. Never a human-readable string: the
-   * legend is rendered in three languages.
-   */
-  readonly legendKey: `tableStatus.${TableStatus}`;
-}
-
-export const tableStatusStyle: Readonly<Record<TableStatus, TableStatusStyle>> = {
-  free: {
-    fill: palette.basil100,
-    stroke: palette.basil600,
-    strokeWidth: 2,
-    strokeDash: null,
-    pattern: 'none',
-    label: palette.ink900,
-    legendKey: 'tableStatus.free',
-  },
-  reservedSoon: {
-    fill: palette.amber100,
-    stroke: palette.amber600,
-    strokeWidth: 2,
-    strokeDash: [6, 4],
-    pattern: 'diagonalStripes',
-    label: palette.ink900,
-    legendKey: 'tableStatus.reservedSoon',
-  },
-  occupied: {
-    fill: palette.pomegranate100,
-    stroke: palette.pomegranate600,
-    strokeWidth: 2,
-    strokeDash: null,
-    pattern: 'crosshatch',
-    label: palette.ink900,
-    legendKey: 'tableStatus.occupied',
-  },
-  yourPick: {
-    fill: palette.apricot100,
-    stroke: palette.apricot600,
-    strokeWidth: 4,
-    strokeDash: null,
-    pattern: 'none',
-    label: palette.ink900,
-    legendKey: 'tableStatus.yourPick',
-  },
-  held: {
-    fill: palette.sky100,
-    stroke: palette.sky600,
-    strokeWidth: 2,
-    strokeDash: [2, 3],
-    pattern: 'dots',
-    label: palette.ink900,
-    legendKey: 'tableStatus.held',
-  },
-  outOfService: {
-    fill: palette.slate100,
-    stroke: palette.slate500,
-    strokeWidth: 1,
-    strokeDash: [1, 4],
-    pattern: 'diagonalStripes',
-    label: palette.ink500,
-    legendKey: 'tableStatus.outOfService',
-  },
-} as const;
-
-/** Order the legend is rendered in, shared by the diner and staff apps. */
-export const tableStatusLegendOrder: readonly TableStatus[] = [
-  'free',
-  'reservedSoon',
-  'occupied',
-  'held',
-  'outOfService',
-  'yourPick',
-] as const;
+/** Every background that body text is set on, for the contrast tests. */
+export const textBackgrounds = [color.surface, color.paper, color.greenTint] as const;

@@ -8,9 +8,9 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../../src/components/Text';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { useLeaveTab, useTab } from '../../../src/data/queries';
 import { newCommandId } from '../../../src/lib/commandId';
@@ -76,7 +76,7 @@ export default function PendingScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         {isLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={color.accent} />
+            <ActivityIndicator color={color.primary} />
             <Text style={styles.muted}>{t('tab.loading')}</Text>
           </View>
         ) : rejected || removed ? (
@@ -101,7 +101,7 @@ export default function PendingScreen() {
         ) : (
           <>
             <View style={styles.spinnerRow}>
-              <ActivityIndicator color={color.accent} />
+              <ActivityIndicator color={color.primary} />
               <Text style={styles.title}>{t('pending.title')}</Text>
             </View>
 
@@ -176,48 +176,52 @@ export default function PendingScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { padding: space.xl, gap: space.md },
-  bodyText: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.textSecondary },
+  bodyText: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
   spinnerRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   title: {
     flex: 1,
     fontSize: fontSize.xl,
     lineHeight: lineHeight.xl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.textSecondary },
+  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
   card: {
     padding: space.lg,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     gap: space.xs,
   },
-  where: { fontSize: fontSize.sm, color: color.textSecondary },
-  table: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  muted: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
+  where: { fontSize: fontSize.sm, color: color.mutedForeground },
+  table: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  muted: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   primary: {
     marginTop: space.sm,
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
-  primaryText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.textInverse },
+  primaryPressed: { backgroundColor: color.primaryPressed },
+  primaryText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
+  },
   secondary: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  secondaryPressed: { backgroundColor: color.surfaceMuted },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  secondaryPressed: { backgroundColor: color.greenTint },
+  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   leave: { minHeight: touchTarget.minimum, alignItems: 'center', justifyContent: 'center' },
   leaveText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: color.danger },
   centered: { alignItems: 'center', gap: space.sm, paddingTop: space.xxl },

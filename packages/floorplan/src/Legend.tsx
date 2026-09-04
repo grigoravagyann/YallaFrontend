@@ -1,4 +1,4 @@
-import { color, fontSize, space, tableStatusStyle, type TableStatus } from '@yalla/tokens';
+import { color, radius, space, tableStatusStyle, typeScale, type TableStatus } from '@yalla/tokens';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, Line, Pattern, Rect } from 'react-native-svg';
 import type { FloorPlanMode } from './types';
@@ -33,37 +33,61 @@ export interface LegendProps {
  * same colour differently.
  */
 export function Legend({ mode, translate }: LegendProps) {
+  // The legend is read at the same distance as the plan it explains: two
+  // metres on a counter tablet, arm's length on a phone. So it takes its size
+  // from the surface's own scale rather than from one fixed number.
+  const scale = mode === 'staff' ? typeScale.staff : typeScale.diner;
+
   return (
     <View style={styles.row} accessibilityRole="list">
       {LEGEND_ITEMS[mode].map((status) => {
         const style = tableStatusStyle[status];
+        // Leave room for the ring on the one state that has one.
+        const inset = style.ring ? 1 + style.ring.width : 1;
         return (
           <View key={status} style={styles.item} accessibilityRole="text">
             <Svg width={SWATCH} height={SWATCH}>
               <Defs>{patternFor(status)}</Defs>
+              {style.ring ? (
+                <Rect
+                  x={inset}
+                  y={inset}
+                  width={SWATCH - inset * 2}
+                  height={SWATCH - inset * 2}
+                  rx={radius.table}
+                  fill="none"
+                  stroke={style.ring.color}
+                  strokeWidth={style.strokeWidth + style.ring.width * 2}
+                />
+              ) : null}
               <Rect
-                x={1}
-                y={1}
-                width={SWATCH - 2}
-                height={SWATCH - 2}
-                rx={3}
+                x={inset}
+                y={inset}
+                width={SWATCH - inset * 2}
+                height={SWATCH - inset * 2}
+                rx={radius.table}
                 fill={style.fill}
+                fillOpacity={style.fillOpacity}
                 stroke={style.stroke}
                 strokeWidth={style.strokeWidth}
                 {...(style.strokeDash ? { strokeDasharray: style.strokeDash.join(',') } : {})}
               />
               {style.pattern === 'none' ? null : (
                 <Rect
-                  x={1}
-                  y={1}
-                  width={SWATCH - 2}
-                  height={SWATCH - 2}
-                  rx={3}
+                  x={inset}
+                  y={inset}
+                  width={SWATCH - inset * 2}
+                  height={SWATCH - inset * 2}
+                  rx={radius.table}
                   fill={`url(#legend-${status})`}
                 />
               )}
             </Svg>
-            <Text style={styles.label}>{translate(style.legendKey)}</Text>
+            <Text
+              style={[styles.label, { fontSize: scale.size.xs, lineHeight: scale.lineHeight.xs }]}
+            >
+              {translate(style.legendKey)}
+            </Text>
           </View>
         );
       })}
@@ -83,25 +107,39 @@ function patternFor(status: TableStatus) {
   const style = tableStatusStyle[status];
   if (style.pattern === 'none') return null;
   const id = `legend-${status}`;
+  const ink = color.foreground;
+  const angle = style.patternAngleDegrees;
 
   if (style.pattern === 'dots') {
     return (
       <Pattern id={id} patternUnits="userSpaceOnUse" width={5} height={5}>
-        <Circle cx={2} cy={2} r={1} fill={style.stroke} opacity={0.55} />
+        <Circle cx={2} cy={2} r={1} fill={ink} opacity={0.35} />
       </Pattern>
     );
   }
   if (style.pattern === 'crosshatch') {
     return (
-      <Pattern id={id} patternUnits="userSpaceOnUse" width={6} height={6}>
-        <Line x1={0} y1={0} x2={6} y2={6} stroke={style.stroke} strokeWidth={1} opacity={0.5} />
-        <Line x1={6} y1={0} x2={0} y2={6} stroke={style.stroke} strokeWidth={1} opacity={0.5} />
+      <Pattern
+        id={id}
+        patternUnits="userSpaceOnUse"
+        width={6}
+        height={6}
+        patternTransform={`rotate(${angle})`}
+      >
+        <Line x1={0} y1={3} x2={6} y2={3} stroke={ink} strokeWidth={1} opacity={0.3} />
+        <Line x1={3} y1={0} x2={3} y2={6} stroke={ink} strokeWidth={1} opacity={0.3} />
       </Pattern>
     );
   }
   return (
-    <Pattern id={id} patternUnits="userSpaceOnUse" width={6} height={6}>
-      <Line x1={0} y1={6} x2={6} y2={0} stroke={style.stroke} strokeWidth={1.5} opacity={0.5} />
+    <Pattern
+      id={id}
+      patternUnits="userSpaceOnUse"
+      width={6}
+      height={6}
+      patternTransform={`rotate(${angle})`}
+    >
+      <Line x1={0} y1={3} x2={6} y2={3} stroke={ink} strokeWidth={1.5} opacity={0.3} />
     </Pattern>
   );
 }
@@ -123,7 +161,6 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   label: {
-    fontSize: fontSize.xs,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
 });

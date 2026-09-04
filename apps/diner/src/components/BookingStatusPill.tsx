@@ -1,7 +1,8 @@
 import type { BookingStatus } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, radius, space } from '@yalla/tokens';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 
 /**
  * Status treatment, shared by the list and the detail screen so the two cannot
@@ -14,9 +15,9 @@ import { StyleSheet, Text, View } from 'react-native';
 const TREATMENT: Readonly<Record<BookingStatus, { fg: string; bg: string; dashed: boolean }>> = {
   confirmed: { fg: color.success, bg: color.surface, dashed: false },
   pendingApproval: { fg: color.info, bg: color.surface, dashed: true },
-  cancelled: { fg: color.textSecondary, bg: color.surfaceMuted, dashed: false },
-  completed: { fg: color.textSecondary, bg: color.surfaceMuted, dashed: false },
-  noShow: { fg: color.danger, bg: color.surfaceMuted, dashed: false },
+  cancelled: { fg: color.mutedForeground, bg: color.greenTint, dashed: false },
+  completed: { fg: color.mutedForeground, bg: color.greenTint, dashed: false },
+  noShow: { fg: color.danger, bg: color.greenTint, dashed: false },
 };
 
 export function BookingStatusPill({ status }: { status: BookingStatus }) {
@@ -44,8 +45,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: space.sm,
     paddingVertical: 2,
-    borderRadius: radius.pill,
+    borderRadius: radius.control,
     borderWidth: 1,
   },
-  text: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
+  text: { fontSize: fontSize.xs, fontWeight: fontWeight.medium },
 });

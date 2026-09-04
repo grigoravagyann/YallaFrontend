@@ -39,7 +39,9 @@ export function FloorRoute({ user }: FloorRouteProps) {
   const state = useConnectionState();
 
   return (
-    <div className="floor">
+    // `data-surface` switches every font-size and line-height variable to the
+    // staff scale. One attribute, and the whole screen is sized for a counter.
+    <div className="floor" data-surface="staff">
       <StaffHeader
         title={t('floor.title')}
         subtitle={

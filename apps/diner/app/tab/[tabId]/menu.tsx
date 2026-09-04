@@ -2,7 +2,8 @@ import { formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../../../src/components/Text';
 import { useBranchMenu, useTab } from '../../../src/data/queries';
 
 /**
@@ -39,7 +40,7 @@ export default function MenuScreen() {
 
         {isLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={color.accent} />
+            <ActivityIndicator color={color.primary} />
             <Text style={styles.muted}>{t('menu.loading')}</Text>
           </View>
         ) : isError || !menu ? (
@@ -90,27 +91,27 @@ export default function MenuScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { padding: space.lg, paddingBottom: space.xxxl, gap: space.xs },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  where: { fontSize: fontSize.sm, color: color.textSecondary },
-  note: { marginBottom: space.md, fontSize: fontSize.sm, color: color.textSecondary },
+  where: { fontSize: fontSize.sm, color: color.mutedForeground },
+  note: { marginBottom: space.md, fontSize: fontSize.sm, color: color.mutedForeground },
   section: {
     marginTop: space.md,
     padding: space.lg,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     gap: space.sm,
   },
   sectionName: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
   item: {
     flexDirection: 'row',
@@ -119,18 +120,22 @@ const styles = StyleSheet.create({
     gap: space.lg,
     paddingVertical: space.xs,
   },
-  itemText: { flex: 1, gap: space.xxs },
+  itemText: { flex: 1, gap: space.xs },
   itemName: {
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  itemDescription: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
-  itemGone: { color: color.textSecondary, textDecorationLine: 'line-through' },
+  itemDescription: {
+    fontSize: fontSize.sm,
+    lineHeight: lineHeight.sm,
+    color: color.mutedForeground,
+  },
+  itemGone: { color: color.mutedForeground, textDecorationLine: 'line-through' },
   unavailable: { fontSize: fontSize.xs, color: color.warning },
-  price: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
-  updated: { marginTop: space.lg, fontSize: fontSize.xs, color: color.textSecondary },
+  price: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
+  updated: { marginTop: space.lg, fontSize: fontSize.xs, color: color.mutedForeground },
   centered: { alignItems: 'center', gap: space.sm, paddingTop: space.xxl },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  muted: { fontSize: fontSize.sm, color: color.textSecondary, textAlign: 'center' },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  muted: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
 });

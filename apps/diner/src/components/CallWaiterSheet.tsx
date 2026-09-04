@@ -1,8 +1,18 @@
 import { WAITER_CALL_REASONS, isEndpointNotWired, type WaiterCallReason } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
+import {
+  color,
+  elevation,
+  fontSize,
+  fontWeight,
+  lineHeight,
+  radius,
+  space,
+  touchTarget,
+} from '@yalla/tokens';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { useCallWaiter } from '../data/queries';
 import { newCommandId } from '../lib/commandId';
 
@@ -84,7 +94,7 @@ export function CallWaiterSheet({ tabId, visible, onClose }: CallWaiterSheetProp
 
         {call.isPending ? (
           <View style={styles.busyRow}>
-            <ActivityIndicator color={color.accent} />
+            <ActivityIndicator color={color.primary} />
             <Text style={styles.body}>{t('waiter.sending')}</Text>
           </View>
         ) : null}
@@ -104,7 +114,7 @@ export function CallWaiterSheet({ tabId, visible, onClose }: CallWaiterSheetProp
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(18, 16, 14, 0.45)' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(18, 33, 26, 0.45)' },
   sheet: {
     position: 'absolute',
     left: 0,
@@ -112,13 +122,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     padding: space.xl,
     paddingBottom: space.xxl,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     backgroundColor: color.surface,
+    ...elevation.sheet.native,
     gap: space.sm,
   },
-  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.textPrimary },
-  body: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  body: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
   preset: {
     flexGrow: 1,
@@ -126,12 +137,12 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum + 8,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
-    backgroundColor: color.background,
+    backgroundColor: color.paper,
   },
-  presetText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  presetText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   sent: {
     marginTop: space.sm,
     fontSize: fontSize.md,
@@ -146,9 +157,9 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
   },
-  closeText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  closeText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   pressed: { opacity: 0.75 },
   disabled: { opacity: 0.6 },
 });

@@ -9,10 +9,9 @@ import {
   Pressable,
   SafeAreaView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Text, TextInput } from '../../src/components/Text';
 import { VenueCard } from '../../src/components/VenueCard';
 import { useVenues } from '../../src/data/queries';
 import { useActiveTab } from '../../src/stores/tab';
@@ -95,7 +94,7 @@ export default function ExploreScreen() {
           value={query}
           onChangeText={setQuery}
           placeholder={t('explore.searchPlaceholder')}
-          placeholderTextColor={color.textSecondary}
+          placeholderTextColor={color.mutedForeground}
           autoCorrect={false}
           returnKeyType="search"
           accessibilityLabel={t('explore.searchPlaceholder')}
@@ -124,7 +123,7 @@ export default function ExploreScreen() {
 
       {isLoading ? (
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
           <Text style={styles.emptyBody}>{t('explore.loading')}</Text>
         </View>
       ) : isError ? (
@@ -155,7 +154,7 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   header: {
     paddingHorizontal: space.lg,
     paddingTop: space.lg,
@@ -165,12 +164,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   count: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   resume: {
     marginHorizontal: space.lg,
@@ -180,25 +179,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: space.lg,
-    borderRadius: radius.md,
-    backgroundColor: color.accentMuted,
+    borderRadius: radius.control,
+    backgroundColor: color.greenTint,
   },
   resumePressed: { opacity: 0.8 },
-  resumeTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: color.accentStrong },
+  resumeTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: color.primaryPressed,
+  },
   resumeAction: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: color.accentStrong,
+    fontWeight: fontWeight.medium,
+    color: color.primaryPressed,
   },
   searchWrap: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   search: {
     minHeight: touchTarget.minimum,
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
-    color: color.textPrimary,
+    color: color.foreground,
     fontSize: fontSize.md,
   },
   chips: {
@@ -211,27 +214,27 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum - 8,
     justifyContent: 'center',
     paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
   },
   chipActive: {
-    borderColor: color.accentStrong,
-    backgroundColor: color.accentMuted,
+    borderColor: color.primaryPressed,
+    backgroundColor: color.greenTint,
   },
-  chipText: { fontSize: fontSize.sm, color: color.textPrimary },
-  chipTextActive: { color: color.accentStrong, fontWeight: fontWeight.semibold },
+  chipText: { fontSize: fontSize.sm, color: color.foreground },
+  chipTextActive: { color: color.primaryPressed, fontWeight: fontWeight.medium },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   centered: { alignItems: 'center', paddingTop: space.xxl, gap: space.sm },
   emptyTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
   emptyBody: {
     fontSize: fontSize.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
     textAlign: 'center',
   },
 });

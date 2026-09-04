@@ -11,9 +11,9 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../src/components/Text';
 import { keys, useCreateBooking, useTableAvailability, useVenue } from '../../src/data/queries';
 import { newCommandId } from '../../src/lib/commandId';
 import { useConflict } from '../../src/stores/conflict';
@@ -211,7 +211,7 @@ export default function ConfirmScreen() {
               not is the worst possible lie in this app. */}
           {pending ? (
             <View style={styles.pendingRow}>
-              <ActivityIndicator color={color.textInverse} />
+              <ActivityIndicator color={color.primaryForeground} />
               <Text style={styles.primaryText}>{t('confirm.submitting')}</Text>
             </View>
           ) : (
@@ -235,13 +235,13 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { padding: space.xl, gap: space.sm },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
     marginBottom: space.md,
   },
   row: {
@@ -251,31 +251,31 @@ const styles = StyleSheet.create({
     gap: space.lg,
     paddingVertical: space.sm,
     borderBottomWidth: 1,
-    borderBottomColor: color.surfaceMuted,
+    borderBottomColor: color.border,
   },
-  rowLabel: { fontSize: fontSize.sm, color: color.textSecondary },
+  rowLabel: { fontSize: fontSize.sm, color: color.mutedForeground },
   rowValue: {
     flex: 1,
     textAlign: 'right',
     fontSize: fontSize.md,
     fontWeight: fontWeight.medium,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   windowBlock: {
     marginTop: space.lg,
     padding: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
-    gap: space.xxs,
+    gap: space.xs,
   },
   windowPrimary: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
   shortWindow: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.warning },
-  noLimit: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.success },
-  cancellation: { marginTop: space.sm, fontSize: fontSize.sm, color: color.textSecondary },
+  noLimit: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.success },
+  cancellation: { marginTop: space.sm, fontSize: fontSize.sm, color: color.mutedForeground },
   approval: {
     marginTop: space.sm,
     fontSize: fontSize.sm,
@@ -291,22 +291,22 @@ const styles = StyleSheet.create({
   footer: {
     padding: space.xl,
     borderTopWidth: 1,
-    borderTopColor: color.surfaceMuted,
+    borderTopColor: color.border,
     backgroundColor: color.surface,
   },
   primary: {
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
+  primaryPressed: { backgroundColor: color.primaryPressed },
   primaryDisabled: { opacity: 0.6 },
   primaryText: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    color: color.textInverse,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
   },
   pendingRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
 });

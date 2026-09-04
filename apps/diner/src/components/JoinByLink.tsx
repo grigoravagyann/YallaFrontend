@@ -2,7 +2,8 @@ import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { useJoinByCode } from '../hooks/useJoinByCode';
 
 export interface JoinByLinkProps {
@@ -41,7 +42,7 @@ export function JoinByLink({ code }: JoinByLinkProps) {
       <View style={styles.centered}>
         {isWorking || !failure ? (
           <>
-            <ActivityIndicator color={color.accent} />
+            <ActivityIndicator color={color.primary} />
             <Text style={styles.muted}>{t('join.working')}</Text>
           </>
         ) : (
@@ -64,7 +65,7 @@ export function JoinByLink({ code }: JoinByLinkProps) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
     gap: space.md,
     padding: space.xl,
   },
-  title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: color.textPrimary },
+  title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: color.foreground },
   body: {
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
   muted: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
     textAlign: 'center',
   },
   primary: {
@@ -90,9 +91,13 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.xl,
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
-  primaryText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.textInverse },
+  primaryPressed: { backgroundColor: color.primaryPressed },
+  primaryText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
+  },
 });

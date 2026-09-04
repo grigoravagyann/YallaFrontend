@@ -1,6 +1,7 @@
 import { LOCALES, useLocale, useTranslation, type Locale } from '@yalla/i18n';
 import { color, fontSize, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
+import { Text } from './components/Text';
 
 export interface PlaceholderScreenProps {
   /** Key in the `diner` namespace, e.g. `explore.title`. */
@@ -55,7 +56,7 @@ export function PlaceholderScreen({ titleKey }: PlaceholderScreenProps) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: color.background,
+    backgroundColor: color.paper,
   },
   container: {
     flex: 1,
@@ -66,12 +67,12 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: '700',
-    color: color.textPrimary,
+    color: color.foreground,
   },
   body: {
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   languageRow: {
     marginTop: space.xl,
@@ -79,7 +80,7 @@ const styles = StyleSheet.create({
   },
   languageLabel: {
     fontSize: fontSize.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   languageButtons: {
     flexDirection: 'row',
@@ -89,21 +90,21 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.lg,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
   },
   languageButtonActive: {
-    borderColor: color.accentStrong,
-    backgroundColor: color.accentMuted,
+    borderColor: color.primaryPressed,
+    backgroundColor: color.greenTint,
   },
   languageText: {
     fontSize: fontSize.md,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   languageTextActive: {
-    color: color.accentStrong,
+    color: color.primaryPressed,
     fontWeight: '600',
   },
 });

@@ -18,6 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "i18n:check": "pnpm --filter @yalla/i18n run i18n:check",
+    "tokens:css": "pnpm --filter @yalla/tokens run css",
     "api:generate": "pnpm --filter @yalla/api run api:generate"
   },
   "devDependencies": {

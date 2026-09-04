@@ -11,9 +11,9 @@ import {
   ScrollView,
   Share,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../../src/components/Text';
 import QRCode from 'react-native-qrcode-svg';
 import { useTab, useTabInvite } from '../../../src/data/queries';
 import { useNow } from '../../../src/hooks/useNow';
@@ -84,7 +84,7 @@ export default function InviteScreen() {
 
         {isLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={color.accent} />
+            <ActivityIndicator color={color.primary} />
             <Text style={styles.muted}>{t('invite.loading')}</Text>
           </View>
         ) : isError || !invite ? (
@@ -106,7 +106,7 @@ export default function InviteScreen() {
                   value={invite.url}
                   size={QR_SIZE}
                   backgroundColor={color.surface}
-                  color={color.textPrimary}
+                  color={color.foreground}
                 />
               </View>
               <Text style={styles.url} numberOfLines={2}>
@@ -159,26 +159,26 @@ export default function InviteScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { padding: space.xl, paddingBottom: space.xxxl, gap: space.sm, alignItems: 'stretch' },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.textSecondary },
+  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
   qrCard: {
     marginTop: space.lg,
     padding: space.lg,
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     alignItems: 'center',
     gap: space.md,
   },
-  qrFrame: { padding: space.md, backgroundColor: color.surface, borderRadius: radius.md },
-  url: { fontSize: fontSize.xs, color: color.textSecondary, textAlign: 'center' },
-  expiry: { marginTop: space.sm, fontSize: fontSize.sm, color: color.textSecondary },
+  qrFrame: { padding: space.md, backgroundColor: color.surface, borderRadius: radius.card },
+  url: { fontSize: fontSize.xs, color: color.mutedForeground, textAlign: 'center' },
+  expiry: { marginTop: space.sm, fontSize: fontSize.sm, color: color.mutedForeground },
   expired: {
     marginTop: space.sm,
     fontSize: fontSize.sm,
@@ -190,27 +190,31 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
-  primaryText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.textInverse },
+  primaryPressed: { backgroundColor: color.primaryPressed },
+  primaryText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
+  },
   secondary: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  secondaryPressed: { backgroundColor: color.surfaceMuted },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  secondaryPressed: { backgroundColor: color.greenTint },
+  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   linkRow: { minHeight: touchTarget.minimum, alignItems: 'center', justifyContent: 'center' },
-  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.accentStrong },
+  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
   notice: { fontSize: fontSize.sm, color: color.success, textAlign: 'center' },
   error: { fontSize: fontSize.sm, color: color.danger, textAlign: 'center' },
   centered: { alignItems: 'center', gap: space.md, paddingTop: space.xxl },
-  muted: { fontSize: fontSize.sm, color: color.textSecondary },
+  muted: { fontSize: fontSize.sm, color: color.mutedForeground },
   pressed: { opacity: 0.75 },
 });

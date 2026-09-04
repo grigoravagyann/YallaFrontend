@@ -8,9 +8,9 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../../src/components/Text';
 import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import {
@@ -87,7 +87,7 @@ export default function TabScreen() {
     return (
       <Shell title="">
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
           <Text style={styles.muted}>{t('tab.loading')}</Text>
         </View>
       </Shell>
@@ -257,71 +257,75 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { padding: space.lg, paddingBottom: space.xxxl, gap: space.md },
-  header: { gap: space.xxs },
+  header: { gap: space.xs },
   table: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  where: { fontSize: fontSize.sm, color: color.textSecondary },
+  where: { fontSize: fontSize.sm, color: color.mutedForeground },
   count: {
     marginTop: space.xs,
     fontSize: fontSize.md,
     fontWeight: fontWeight.medium,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  summary: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
+  summary: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   offline: {
     padding: space.sm,
-    borderRadius: radius.md,
-    backgroundColor: color.surfaceMuted,
+    borderRadius: radius.card,
+    backgroundColor: color.greenTint,
     fontSize: fontSize.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   card: {
     padding: space.lg,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     gap: space.sm,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
+  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
   placeholder: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
     fontStyle: 'italic',
   },
   textAction: { minHeight: touchTarget.minimum - 12, justifyContent: 'center' },
   textActionLabel: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: color.accentStrong,
+    color: color.primaryPressed,
   },
   primary: {
     marginTop: space.sm,
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
-  primaryText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.textInverse },
+  primaryPressed: { backgroundColor: color.primaryPressed },
+  primaryText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
+  },
   secondary: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  secondaryPressed: { backgroundColor: color.surfaceMuted },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  secondaryPressed: { backgroundColor: color.greenTint },
+  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   leave: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
@@ -331,19 +335,19 @@ const styles = StyleSheet.create({
   footer: {
     padding: space.lg,
     borderTopWidth: 1,
-    borderTopColor: color.surfaceMuted,
+    borderTopColor: color.border,
     backgroundColor: color.surface,
   },
   waiter: {
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 2,
-    borderColor: color.accentStrong,
-    backgroundColor: color.accentMuted,
+    borderColor: color.primaryPressed,
+    backgroundColor: color.greenTint,
   },
-  waiterText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.accentStrong },
+  waiterText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -351,11 +355,11 @@ const styles = StyleSheet.create({
     gap: space.sm,
     padding: space.xl,
   },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
   muted: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
     textAlign: 'center',
   },
   pressed: { opacity: 0.75 },

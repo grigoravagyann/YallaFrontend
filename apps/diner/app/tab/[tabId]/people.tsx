@@ -16,9 +16,9 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../../src/components/Text';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { ParticipantRow, onTab, waitingToJoin } from '../../../src/components/Participants';
 import {
@@ -134,7 +134,7 @@ export default function PeopleScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
           <Text style={styles.muted}>{t('tab.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -304,8 +304,8 @@ function PermissionToggles({
           <Switch
             value={permissions[key]}
             onValueChange={(value) => onToggle(key, value)}
-            trackColor={{ true: color.accentMuted, false: color.surfaceMuted }}
-            thumbColor={permissions[key] ? color.accentStrong : color.border}
+            trackColor={{ true: color.greenTint, false: color.greenTint }}
+            thumbColor={permissions[key] ? color.primaryPressed : color.border}
             accessibilityLabel={t(`people.${key}`)}
           />
         </View>
@@ -322,33 +322,33 @@ function PermissionToggles({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { padding: space.lg, paddingBottom: space.xxxl, gap: space.md },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   notice: {
     padding: space.md,
-    borderRadius: radius.md,
-    backgroundColor: color.surfaceMuted,
+    borderRadius: radius.card,
+    backgroundColor: color.greenTint,
     gap: space.xs,
   },
-  noticeText: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textPrimary },
-  noticeWhy: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
+  noticeText: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.foreground },
+  noticeWhy: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   card: {
     padding: space.lg,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     gap: space.sm,
   },
-  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
+  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
   personBlock: {
     paddingBottom: space.sm,
     borderBottomWidth: 1,
-    borderBottomColor: color.surfaceMuted,
+    borderBottomColor: color.border,
   },
   toggles: { gap: space.xs, paddingLeft: space.xxl },
   toggleRow: {
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.md,
   },
-  toggleLabel: { flex: 1, fontSize: fontSize.sm, color: color.textPrimary },
+  toggleLabel: { flex: 1, fontSize: fontSize.sm, color: color.foreground },
   explain: {
     fontSize: fontSize.xs,
     lineHeight: lineHeight.xs,
@@ -369,34 +369,38 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum - 8,
     justifyContent: 'center',
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  approveText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: color.textInverse },
+  approveText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
+  },
   rejectBtn: {
     minHeight: touchTarget.minimum - 8,
     justifyContent: 'center',
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
   },
-  rejectText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: color.textPrimary },
+  rejectText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: color.foreground },
   secondary: {
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.xl,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
   },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   error: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.danger },
-  muted: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
+  muted: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   emptyTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
     textAlign: 'center',
   },
   centered: {

@@ -11,9 +11,9 @@ import {
   Pressable,
   SafeAreaView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../src/components/Text';
 
 /**
  * Branches for one venue.
@@ -42,7 +42,7 @@ export default function BranchesScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
           <Text style={styles.emptyBody}>{t('branches.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -158,25 +158,25 @@ function BranchRow({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   header: { paddingHorizontal: space.lg, paddingTop: space.lg, gap: 2 },
   venueName: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  venueMeta: { fontSize: fontSize.sm, color: color.textSecondary },
-  openState: { marginTop: space.xs, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
+  venueMeta: { fontSize: fontSize.sm, color: color.mutedForeground },
+  openState: { marginTop: space.xs, fontSize: fontSize.sm, fontWeight: fontWeight.medium },
   openNow: { color: color.success },
-  closedNow: { color: color.textSecondary },
+  closedNow: { color: color.mutedForeground },
   sectionTitle: {
     paddingHorizontal: space.lg,
     paddingTop: space.xl,
     paddingBottom: space.sm,
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   row: {
@@ -187,40 +187,40 @@ const styles = StyleSheet.create({
     padding: space.md,
     marginBottom: space.sm,
     backgroundColor: color.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: color.surfaceMuted,
+    borderColor: color.border,
   },
-  rowPressed: { backgroundColor: color.surfaceMuted },
+  rowPressed: { backgroundColor: color.greenTint },
   rowBody: { flex: 1, gap: 2 },
   branchName: {
     fontSize: fontSize.lg,
     lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
   distanceLine: {
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   availability: {
-    marginTop: space.xxs,
+    marginTop: space.xs,
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontWeight: fontWeight.medium,
     color: color.success,
   },
   noneFree: {
-    marginTop: space.xxs,
+    marginTop: space.xs,
     fontSize: fontSize.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
-  chevron: { fontSize: fontSize.xl, color: color.textSecondary },
+  chevron: { fontSize: fontSize.xl, color: color.mutedForeground },
   centered: { alignItems: 'center', paddingTop: space.xxl, gap: space.sm },
   emptyTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
-  emptyBody: { fontSize: fontSize.sm, color: color.textSecondary, textAlign: 'center' },
+  emptyBody: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
 });

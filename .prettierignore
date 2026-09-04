@@ -4,3 +4,6 @@ build
 .expo
 pnpm-lock.yaml
 packages/api/src/generated
+
+# Written by packages/tokens/scripts/generate-css.mjs; formatting it by hand would only make the next run rewrite it.
+apps/web/src/tokens.generated.css

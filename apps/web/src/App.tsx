@@ -15,6 +15,7 @@ import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
 import { VenuePlaceholder } from './console/venue/VenuePlaceholder';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
+import { DevTokensRoute } from './routes/DevTokensRoute';
 import { FloorRoute } from './staff/FloorRoute';
 
 /**
@@ -133,7 +134,10 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
             It stays because the floor plan editor and venue onboarding both
             need a way to look at a room in isolation. */}
         {import.meta.env.DEV ? (
-          <Route path="/dev/floorplan" element={<DevFloorPlanRoute />} />
+          <>
+            <Route path="/dev/floorplan" element={<DevFloorPlanRoute />} />
+            <Route path="/dev/tokens" element={<DevTokensRoute />} />
+          </>
         ) : null}
       </Route>
 

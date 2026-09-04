@@ -2,7 +2,8 @@ import type { TabParticipant, TableTab } from '@yalla/api';
 import { formatNameList, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 
 /** Only these two are on the tab in any meaningful sense. */
 export function onTab(participants: readonly TabParticipant[]): readonly TabParticipant[] {
@@ -129,9 +130,8 @@ const styles = StyleSheet.create({
   sectionLabel: {
     marginTop: space.sm,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
-    color: color.textSecondary,
-    textTransform: 'uppercase',
+    fontWeight: fontWeight.medium,
+    color: color.mutedForeground,
   },
   row: {
     flexDirection: 'row',
@@ -142,27 +142,27 @@ const styles = StyleSheet.create({
   avatar: {
     width: 36,
     height: 36,
-    borderRadius: radius.pill,
+    borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: color.surfaceMuted,
+    backgroundColor: color.greenTint,
   },
-  avatarText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  who: { flex: 1, gap: space.xxs },
+  avatarText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
+  who: { flex: 1, gap: space.xs },
   name: {
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
     fontWeight: fontWeight.medium,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  badge: { paddingHorizontal: space.sm, paddingVertical: space.xxs, borderRadius: radius.pill },
+  badge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.control },
   badgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.medium },
-  youBadge: { backgroundColor: color.accentMuted },
-  youBadgeText: { color: color.accentStrong },
-  hostBadge: { backgroundColor: color.surfaceMuted },
-  hostBadgeText: { color: color.textPrimary },
-  waitingBadge: { backgroundColor: color.surfaceMuted },
+  youBadge: { backgroundColor: color.greenTint },
+  youBadgeText: { color: color.primaryPressed },
+  hostBadge: { backgroundColor: color.greenTint },
+  hostBadgeText: { color: color.foreground },
+  waitingBadge: { backgroundColor: color.greenTint },
   waitingBadgeText: { color: color.warning },
   actions: { flexDirection: 'row', gap: space.sm },
 });

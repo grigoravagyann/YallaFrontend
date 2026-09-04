@@ -1,4 +1,12 @@
-import { color, fontFamily, space, tableStatusStyle, type TableStatus } from '@yalla/tokens';
+import {
+  color,
+  fontFamily,
+  fontWeight,
+  radius,
+  space,
+  tableStatusStyle,
+  type TableStatus,
+} from '@yalla/tokens';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import Svg, {
@@ -109,9 +117,9 @@ export function FloorPlan({
           width={layout.renderedWidth}
           height={layout.renderedHeight}
           fill={color.surface}
-          stroke={color.border}
+          stroke={color.borderStrong}
           strokeWidth={1}
-          rx={4}
+          rx={radius.table}
         />
 
         {/* Fixed features first, so tables sit on top of the bar counter. */}
@@ -133,11 +141,11 @@ export function FloorPlan({
             y={area.y}
             fontSize={11}
             fontFamily={fontFamily.web}
-            fill={color.textSecondary}
+            fill={color.mutedForeground}
             opacity={0.75}
             textAnchor="middle"
           >
-            {area.name.toUpperCase()}
+            {area.name}
           </SvgText>
         ))}
 
@@ -175,10 +183,41 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
 
   const press = laid.selectable && onTap ? () => onTap(table.id) : undefined;
 
+  // The ring sits *outside* the shape in the canvas colour: the selected table
+  // reads as lifted off the plan without a shadow, which this system does not
+  // have. Drawn as a wider stroke underneath the shape so it needs no geometry.
+  const ring = style.ring;
+  const ringStrokeWidth = ring ? style.strokeWidth + ring.width * 2 : 0;
+
   return (
     <G>
       {/* Shape and pattern rotate with the table. */}
       <G transform={transform} opacity={opacity}>
+        {ring ? (
+          table.shape === 'round' ? (
+            <Ellipse
+              cx={center.x}
+              cy={center.y}
+              rx={rect.width / 2}
+              ry={rect.height / 2}
+              fill="none"
+              stroke={ring.color}
+              strokeWidth={ringStrokeWidth}
+            />
+          ) : (
+            <Rect
+              x={rect.x}
+              y={rect.y}
+              width={rect.width}
+              height={rect.height}
+              rx={radius.table}
+              fill="none"
+              stroke={ring.color}
+              strokeWidth={ringStrokeWidth}
+            />
+          )
+        ) : null}
+
         {table.shape === 'round' ? (
           <Ellipse
             cx={center.x}
@@ -186,8 +225,9 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
             rx={rect.width / 2}
             ry={rect.height / 2}
             fill={style.fill}
+            fillOpacity={style.fillOpacity}
             stroke={style.stroke}
-            strokeWidth={selected ? style.strokeWidth + 1 : style.strokeWidth}
+            strokeWidth={style.strokeWidth}
             {...dashProps(style.strokeDash)}
           />
         ) : (
@@ -196,10 +236,11 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
             y={rect.y}
             width={rect.width}
             height={rect.height}
-            rx={4}
+            rx={radius.table}
             fill={style.fill}
+            fillOpacity={style.fillOpacity}
             stroke={style.stroke}
-            strokeWidth={selected ? style.strokeWidth + 1 : style.strokeWidth}
+            strokeWidth={style.strokeWidth}
             {...dashProps(style.strokeDash)}
           />
         )}
@@ -219,7 +260,7 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
             y={rect.y}
             width={rect.width}
             height={rect.height}
-            rx={4}
+            rx={radius.table}
             fill={`url(#fp-${style.pattern})`}
             pointerEvents="none"
           />
@@ -233,7 +274,7 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
           x={center.x}
           y={center.y + (laid.seatsVisible ? -1 : laid.labelFontSize / 3)}
           fontSize={laid.labelFontSize}
-          fontWeight="600"
+          fontWeight={fontWeight.bold}
           fontFamily={fontFamily.web}
           fill={style.label}
           opacity={opacity}
@@ -250,7 +291,7 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
           y={center.y + laid.labelFontSize + 1}
           fontSize={laid.labelFontSize - 1}
           fontFamily={fontFamily.web}
-          fill={color.textSecondary}
+          fill={color.mutedForeground}
           opacity={opacity}
           textAnchor="middle"
           pointerEvents="none"
@@ -312,9 +353,9 @@ function FeatureShape({
         y={y}
         width={width}
         height={height}
-        rx={2}
-        fill={isEntrance ? 'transparent' : color.surfaceMuted}
-        stroke={color.border}
+        rx={radius.table}
+        fill={isEntrance ? 'transparent' : color.paper}
+        stroke={color.borderStrong}
         strokeWidth={isEntrance ? 2 : 1}
         {...(isEntrance ? { strokeDasharray: '5,4' } : {})}
       />
@@ -322,32 +363,56 @@ function FeatureShape({
   );
 }
 
-/** One `<Pattern>` per distinct pattern kind, shared by every table using it. */
+/**
+ * One `<Pattern>` per distinct pattern kind, shared by every table using it.
+ *
+ * Patterns are ink at low opacity rather than a colour of their own, so the
+ * same stripe reads on an amber fill and on a grey one. The pattern is the
+ * redundant channel; it must not introduce a new hue to interpret.
+ */
 function uniquePatterns() {
-  const kinds = new Set(Object.values(tableStatusStyle).map((s) => s.pattern));
+  const styles = Object.values(tableStatusStyle);
+  const kinds = new Set(styles.map((s) => s.pattern));
   kinds.delete('none');
 
   return [...kinds].map((kind) => {
     const id = `fp-${kind}`;
-    const stroke = color.textSecondary;
+    const stroke = color.foreground;
+    const angle = styles.find((s) => s.pattern === kind)?.patternAngleDegrees ?? 45;
+
     if (kind === 'dots') {
       return (
         <Pattern key={id} id={id} patternUnits="userSpaceOnUse" width={6} height={6}>
-          <Circle cx={2} cy={2} r={1} fill={stroke} opacity={0.45} />
+          <Circle cx={2} cy={2} r={1} fill={stroke} opacity={0.35} />
         </Pattern>
       );
     }
     if (kind === 'crosshatch') {
       return (
-        <Pattern key={id} id={id} patternUnits="userSpaceOnUse" width={7} height={7}>
-          <Line x1={0} y1={0} x2={7} y2={7} stroke={stroke} strokeWidth={1} opacity={0.4} />
-          <Line x1={7} y1={0} x2={0} y2={7} stroke={stroke} strokeWidth={1} opacity={0.4} />
+        <Pattern
+          key={id}
+          id={id}
+          patternUnits="userSpaceOnUse"
+          width={7}
+          height={7}
+          patternTransform={`rotate(${angle})`}
+        >
+          <Line x1={0} y1={3.5} x2={7} y2={3.5} stroke={stroke} strokeWidth={1} opacity={0.3} />
+          <Line x1={3.5} y1={0} x2={3.5} y2={7} stroke={stroke} strokeWidth={1} opacity={0.3} />
         </Pattern>
       );
     }
+    // Diagonal stripes: a horizontal rule rotated to the token's angle.
     return (
-      <Pattern key={id} id={id} patternUnits="userSpaceOnUse" width={7} height={7}>
-        <Line x1={0} y1={7} x2={7} y2={0} stroke={stroke} strokeWidth={1.5} opacity={0.4} />
+      <Pattern
+        key={id}
+        id={id}
+        patternUnits="userSpaceOnUse"
+        width={7}
+        height={7}
+        patternTransform={`rotate(${angle})`}
+      >
+        <Line x1={0} y1={3.5} x2={7} y2={3.5} stroke={stroke} strokeWidth={1.5} opacity={0.3} />
       </Pattern>
     );
   });

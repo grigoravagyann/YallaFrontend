@@ -9,10 +9,13 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "css": "node --import ./scripts/register-ts.mjs scripts/generate-css.mjs",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@yalla/tsconfig": "workspace:*",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.0"
   }
 }

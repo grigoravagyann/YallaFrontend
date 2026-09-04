@@ -1,8 +1,18 @@
 import type { TableAvailability } from '@yalla/api';
 import { formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  color,
+  elevation,
+  fontSize,
+  fontWeight,
+  lineHeight,
+  radius,
+  space,
+  touchTarget,
+} from '@yalla/tokens';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 
 export interface TableSheetProps {
   readonly availability: TableAvailability | null;
@@ -156,15 +166,17 @@ const styles = StyleSheet.create({
   sheet: {
     maxHeight: '62%',
     backgroundColor: color.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    // The one elevation in the product: this genuinely floats over the room.
+    ...elevation.sheet.native,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     paddingBottom: space.xl,
   },
   grabber: {
     alignSelf: 'center',
     width: 40,
     height: 4,
-    borderRadius: radius.pill,
+    borderRadius: radius.control,
     backgroundColor: color.border,
     marginVertical: space.sm,
   },
@@ -173,23 +185,23 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xl,
     lineHeight: lineHeight.xl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  seats: { fontSize: fontSize.sm, color: color.textSecondary },
+  seats: { fontSize: fontSize.sm, color: color.mutedForeground },
   windowBlock: {
     marginTop: space.lg,
     padding: space.md,
-    borderRadius: radius.md,
-    backgroundColor: color.background,
-    gap: space.xxs,
+    borderRadius: radius.card,
+    backgroundColor: color.paper,
+    gap: space.xs,
   },
   windowPrimary: {
     fontSize: fontSize.lg,
     lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
-  windowSecondary: { fontSize: fontSize.sm, color: color.textSecondary },
+  windowSecondary: { fontSize: fontSize.sm, color: color.mutedForeground },
   shortWindow: {
     marginTop: space.xs,
     fontSize: fontSize.sm,
@@ -199,13 +211,13 @@ const styles = StyleSheet.create({
   noLimit: {
     fontSize: fontSize.lg,
     lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.semibold,
+    fontWeight: fontWeight.bold,
     color: color.success,
   },
   cancellation: {
     marginTop: space.md,
     fontSize: fontSize.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   approval: {
     marginTop: space.sm,
@@ -217,20 +229,23 @@ const styles = StyleSheet.create({
     marginTop: space.lg,
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   primary: {
     marginTop: space.xl,
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    // Ink, not brand green: this sheet sits over the floor plan, and a green
+    // "Reserve" beside green free tables would teach the eye that green means
+    // nothing in particular. See `color.primaryOnFloorPlan`.
+    backgroundColor: color.primaryOnFloorPlan,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
+  primaryPressed: { backgroundColor: color.primaryOnFloorPlanPressed },
   primaryText: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    color: color.textInverse,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
   },
 });

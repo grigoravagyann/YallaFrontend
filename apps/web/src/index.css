@@ -1,58 +1,15 @@
 /*
  * Plain CSS, no framework and no CSS-in-JS runtime, per the stack decision.
  *
- * TOKEN MIRROR — keep in step with @yalla/tokens until a generator replaces
- * this. Nothing below invents a colour, a spacing step or a type size.
+ * Every value comes from `tokens.generated.css`, which is written from
+ * `@yalla/tokens` before `dev` and `build`. Nothing in this file names a hex
+ * colour, a pixel radius or a font size directly.
+ *
+ * The style is solid white and green: structure from 1px hairlines, hierarchy
+ * from weight and space, colour as solid fill. One elevation exists and it is
+ * not used on this surface — nothing here casts a shadow.
  */
-:root {
-  --color-background: #f5f2ee;
-  --color-surface: #ffffff;
-  --color-surface-muted: #e4dfd8;
-  --color-border: #a8a199;
-  --color-text-primary: #12100e;
-  --color-text-secondary: #6b655d;
-  --color-text-inverse: #ffffff;
-  --color-accent: #ea580c;
-  --color-accent-strong: #c2410c;
-  --color-accent-muted: #ffedd5;
-  --color-danger: #dc2626;
-  --color-danger-strong: #b91c1c;
-  --color-danger-muted: #fee2e2;
-  --color-success: #16a34a;
-  --color-success-muted: #dcfce7;
-  --color-warning: #d97706;
-  --color-warning-muted: #fef3c7;
-  --color-info: #0284c7;
-  --color-info-muted: #e0f2fe;
-
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
-  --space-xxl: 32px;
-
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 16px;
-  --radius-pill: 999px;
-
-  --font-size-xs: 12px;
-  --font-size-sm: 14px;
-  --font-size-md: 16px;
-  --font-size-lg: 20px;
-  --font-size-xl: 24px;
-  --font-size-xxl: 32px;
-
-  /* tokens/space.ts: 44 is the platform minimum, 64 is the staff tablet, which
-     is used standing up, at arm's length, often one-handed. */
-  --touch: 44px;
-  --touch-staff: 64px;
-
-  /* Must cover Armenian, Cyrillic and Latin — see tokens/typography.ts. */
-  --font-family:
-    system-ui, -apple-system, 'Segoe UI', 'Noto Sans Armenian', 'Noto Sans', Arial, sans-serif;
-}
+@import './tokens.generated.css';
 
 * {
   box-sizing: border-box;
@@ -66,10 +23,38 @@ body,
 }
 
 body {
-  background: var(--color-background);
-  color: var(--color-text-primary);
+  background: var(--color-paper);
+  color: var(--color-foreground);
   font-family: var(--font-family);
   font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Two of three surfaces are touch devices: hover is an enhancement, never the
+   only affordance, and every transition is colour-only and quick. */
+button,
+a,
+select,
+input {
+  transition:
+    background-color var(--duration-control) var(--easing-standard),
+    border-color var(--duration-control) var(--easing-standard),
+    color var(--duration-control) var(--easing-standard);
+}
+
+/* Visible keyboard focus on everything: a crisp outline, never a glow. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* Numbers align. Prices, counts and times all sit in columns somewhere. */
+.num,
+.table td,
+.status-chip {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: var(--font-feature-tabular);
 }
 
 /* --------------------------------------------------------------------------
@@ -93,8 +78,9 @@ body {
 
 .brand {
   font-size: var(--font-size-xl);
-  font-weight: 700;
-  color: var(--color-accent);
+  line-height: var(--line-height-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary);
 }
 
 .whoami {
@@ -102,14 +88,15 @@ body {
   flex-direction: column;
   gap: var(--space-xs);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
 .whoami-name {
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
 }
 
 .whoami-role {
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
 }
 
 .nav {
@@ -118,59 +105,60 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   flex: 1;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  min-height: var(--touch);
+  min-height: var(--touch-minimum);
   padding: 0 var(--space-md);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
+  border-radius: var(--radius-control);
+  color: var(--color-foreground);
   text-decoration: none;
 }
 
 .nav-link:hover {
-  background: var(--color-surface-muted);
+  background: var(--color-paper);
 }
 
 .nav-link.active {
-  background: var(--color-accent-muted);
-  color: var(--color-accent-strong);
-  font-weight: 600;
+  background: var(--color-green-tint);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 .language,
 .dev-role {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  line-height: var(--line-height-sm);
+  color: var(--color-muted-foreground);
 }
 
 .dev-role {
   padding: var(--space-sm);
   border: 1px dashed var(--color-warning);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
 }
 
 .dev-role-label {
   color: var(--color-warning);
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
   font-size: var(--font-size-xs);
 }
 
 .language select,
 .dev-role select {
-  min-height: var(--touch);
-  padding: var(--space-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--color-border-interactive);
+  border-radius: var(--radius-control);
   background: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
   font-family: inherit;
   font-size: var(--font-size-md);
 }
@@ -190,6 +178,7 @@ body {
   max-width: 1100px;
 }
 
+/* Body text under 80 characters a line: forms are narrower than the page. */
 .page-narrow {
   max-width: 640px;
 }
@@ -197,11 +186,15 @@ body {
 .page h1 {
   margin: 0;
   font-size: var(--font-size-xxl);
+  line-height: var(--line-height-xxl);
+  font-weight: var(--font-weight-bold);
 }
 
 .page h2 {
   margin: 0;
   font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-bold);
 }
 
 .page-head {
@@ -215,24 +208,28 @@ body {
 .crumbs {
   margin: 0;
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
-.crumbs a {
-  color: var(--color-accent-strong);
+.crumbs a,
+.table a {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 .muted {
   margin: 0;
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
 }
 
 .small {
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
 .error {
   margin: 0;
-  color: var(--color-danger-strong);
+  color: var(--color-danger);
 }
 
 .warn {
@@ -240,16 +237,21 @@ body {
   color: var(--color-warning);
 }
 
+/* Inputs: hairline in the interactive weight, crisp focus outline, no glow. */
 .field {
-  min-height: var(--touch);
+  min-height: var(--touch-minimum);
   width: 100%;
   padding: 0 var(--space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-interactive);
+  border-radius: var(--radius-control);
   background: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
   font-family: inherit;
   font-size: var(--font-size-md);
+}
+
+.field::placeholder {
+  color: var(--color-subtle-foreground);
 }
 
 .labelled {
@@ -257,7 +259,8 @@ body {
   flex-direction: column;
   gap: var(--space-xs);
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  line-height: var(--line-height-sm);
+  color: var(--color-muted-foreground);
 }
 
 .labelled.inline {
@@ -266,51 +269,71 @@ body {
   gap: var(--space-sm);
 }
 
+/* Buttons: solid fill, weight 500, and a pressed state that is a fill change
+   rather than a movement. */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--touch);
+  min-height: var(--touch-minimum);
   padding: 0 var(--space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-interactive);
+  border-radius: var(--radius-control);
   background: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
   font-family: inherit;
   font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   text-decoration: none;
   cursor: pointer;
 }
 
 .button:hover:not(:disabled) {
-  background: var(--color-surface-muted);
+  background: var(--color-paper);
+}
+
+.button:active:not(:disabled) {
+  background: var(--color-border);
 }
 
 .button:disabled {
-  opacity: 0.5;
+  color: var(--color-subtle-foreground);
   cursor: not-allowed;
 }
 
 .button-primary {
-  border-color: var(--color-accent-strong);
-  background: var(--color-accent);
-  color: var(--color-text-inverse);
-  font-weight: 600;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
 }
 
-.button-primary:hover:not(:disabled) {
-  background: var(--color-accent-strong);
+.button-primary:hover:not(:disabled),
+.button-primary:active:not(:disabled) {
+  border-color: var(--color-primary-pressed);
+  background: var(--color-primary-pressed);
+}
+
+.button-primary:disabled {
+  border-color: var(--color-border);
+  background: var(--color-border);
+  color: var(--color-surface);
 }
 
 .button-danger {
-  border-color: var(--color-danger-strong);
+  border-color: var(--color-danger);
   background: var(--color-danger);
-  color: var(--color-text-inverse);
-  font-weight: 600;
+  color: var(--color-danger-foreground);
 }
 
-.button-danger:hover:not(:disabled) {
-  background: var(--color-danger-strong);
+.button-danger:hover:not(:disabled),
+.button-danger:active:not(:disabled) {
+  filter: brightness(0.88);
+}
+
+.button-danger:disabled {
+  border-color: var(--color-border);
+  background: var(--color-border);
+  color: var(--color-surface);
 }
 
 .actions {
@@ -319,19 +342,20 @@ body {
   gap: var(--space-sm);
 }
 
+/* Cards: surface on paper, one hairline, no shadow. */
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg);
-  border: 1px solid var(--color-surface-muted);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
 }
 
 .card legend {
   padding: 0 var(--space-sm);
-  font-weight: 600;
+  font-weight: var(--font-weight-medium);
 }
 
 .rows {
@@ -348,7 +372,7 @@ body {
   justify-content: space-between;
   gap: var(--space-lg);
   padding: var(--space-md) 0;
-  border-bottom: 1px solid var(--color-surface-muted);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .row:last-child {
@@ -356,43 +380,45 @@ body {
 }
 
 .row-title {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
+/* Tables: a strong hairline under the header, light ones between rows, the
+   selected row in green tint, no zebra striping. Dense by design. */
 .table {
   width: 100%;
   border-collapse: collapse;
   background: var(--color-surface);
-  border: 1px solid var(--color-surface-muted);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
   overflow: hidden;
 }
 
 .table th,
 .table td {
-  padding: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
   text-align: left;
-  border-bottom: 1px solid var(--color-surface-muted);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .table th {
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  font-weight: 600;
+  line-height: var(--line-height-sm);
+  color: var(--color-muted-foreground);
+  font-weight: var(--font-weight-medium);
+  border-bottom-color: var(--color-border-strong);
 }
 
 .table tr:last-child td {
   border-bottom: none;
 }
 
-.table .num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.table tr[aria-selected='true'] td {
+  background: var(--color-green-tint);
 }
 
-.table a {
-  color: var(--color-accent-strong);
-  font-weight: 500;
+.table .num {
+  text-align: right;
 }
 
 .pager {
@@ -405,8 +431,8 @@ body {
 
 .empty {
   padding: var(--space-xxl);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-card);
   text-align: center;
 }
 
@@ -415,49 +441,42 @@ body {
 }
 
 /*
- * Status and tier pills.
+ * Status and tier chips. 6px radius, never a pill.
  *
- * Colour is never the only signal: each pill also carries its own translated
- * word, so the table reads correctly in greyscale and to anyone with a red or
- * green deficiency.
+ * Colour is never the only signal: each chip also carries its own translated
+ * word, so the table reads correctly in greyscale. Status chips borrow the
+ * state hues as a hairline; tier chips are neutral, because a tier is not a
+ * state and does not get a colour of its own.
  */
 .pill {
   display: inline-block;
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-pill);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
   font-size: var(--font-size-sm);
-  font-weight: 500;
-  background: var(--color-surface-muted);
-  color: var(--color-text-primary);
+  line-height: var(--line-height-sm);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-surface);
+  color: var(--color-foreground);
 }
 
 .pill-active {
-  background: var(--color-success-muted);
-  color: #15803d;
+  border-color: var(--color-success);
+  background: var(--color-green-tint);
+  color: var(--color-primary);
 }
 
 .pill-suspended {
-  background: var(--color-warning-muted);
-  color: var(--color-warning);
+  border-color: var(--color-warning);
 }
 
 .pill-deleted {
-  background: var(--color-danger-muted);
-  color: var(--color-danger-strong);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 .pill-pro {
-  background: var(--color-info-muted);
-  color: #0369a1;
-}
-
-.pill-basic {
-  background: var(--color-surface-muted);
-}
-
-.pill-trial {
-  background: var(--color-accent-muted);
-  color: var(--color-accent-strong);
+  font-weight: var(--font-weight-bold);
 }
 
 .confirm {
@@ -465,25 +484,26 @@ body {
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-background);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
 }
 
 .confirm h3 {
   margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
 }
 
 .confirm-danger {
   border-color: var(--color-danger);
-  background: var(--color-danger-muted);
 }
 
 .blocked {
   padding: var(--space-lg);
   border: 1px solid var(--color-warning);
-  border-radius: var(--radius-md);
-  background: var(--color-warning-muted);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
 }
 
 .blocked h3 {
@@ -497,20 +517,22 @@ body {
 
 .todo {
   padding: var(--space-lg);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
 }
 
+/* Sentence case. No all-caps labels anywhere in the product. */
 .todo-label {
   display: inline-block;
   margin-bottom: var(--space-sm);
-  padding: var(--space-xs) var(--space-md);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-muted);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-control);
+  background: var(--color-green-tint);
+  color: var(--color-primary);
   font-size: var(--font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
+  line-height: var(--line-height-xs);
+  font-weight: var(--font-weight-medium);
 }
 
 /* --------------------------------------------------------------------------
@@ -529,35 +551,40 @@ body {
   gap: var(--space-lg);
   flex-wrap: wrap;
   padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--color-surface-muted);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .venue-name {
   margin: 0;
   font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+  font-weight: var(--font-weight-bold);
 }
 
 .branch-fixed {
   margin: 0;
   padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
-  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  font-weight: var(--font-weight-medium);
 }
 
 /* --------------------------------------------------------------------------
  * Staff floor screen
  *
- * Used standing up, on a tablet on a counter, by someone with ten minutes of
- * training. Everything here is bigger and higher-contrast than the console:
- * targets are --touch-staff, type starts at --font-size-lg, and there are no
- * nested menus anywhere — every action is one tap from the floor.
+ * `data-surface="staff"` on the root switches every --font-size-* and
+ * --line-height-* to the staff scale (base 18). Used standing up, on a tablet
+ * on a counter, from two metres: targets are --touch-staff, and there are no
+ * nested menus — every action is one tap from the floor.
+ *
+ * This screen shows a floor plan, so its primary control is ink, not green.
  * -------------------------------------------------------------------------- */
 .floor {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--color-background);
+  background: var(--color-paper);
 }
 
 .floor-head {
@@ -566,76 +593,84 @@ body {
   justify-content: space-between;
   gap: var(--space-lg);
   flex-wrap: wrap;
-  padding: var(--space-lg) var(--space-xl);
-  background: var(--color-text-primary);
-  color: var(--color-text-inverse);
+  padding: var(--space-md) var(--space-xl);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .floor-where h1 {
   margin: 0;
-  font-size: var(--font-size-xxl);
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+  font-weight: var(--font-weight-bold);
 }
 
 .floor-where p {
   margin: 0;
-  font-size: var(--font-size-lg);
-  color: var(--color-surface-muted);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  color: var(--color-muted-foreground);
 }
 
 .floor-status {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
 
+/* Each state differs in wording as well as colour — from two metres in a
+   bright room the hue may not resolve at all, so the border carries it too. */
 .status-chip {
   display: inline-flex;
   align-items: center;
-  min-height: var(--touch);
-  padding: 0 var(--space-lg);
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-md);
-  font-weight: 600;
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  font-weight: var(--font-weight-medium);
 }
 
-/* Each state differs in wording as well as colour — a waiter glancing at this
-   from two metres away in a bright room may not resolve the hue at all. */
 .status-live {
-  background: var(--color-success-muted);
-  color: #15803d;
+  border-color: var(--color-success);
 }
 
 .status-stale {
-  background: var(--color-danger-muted);
-  color: var(--color-danger-strong);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 .status-pending {
-  background: var(--color-warning-muted);
-  color: var(--color-warning);
+  border-color: var(--color-warning);
 }
 
 .status-unknown {
-  background: var(--color-surface-muted);
-  color: var(--color-text-primary);
+  border-style: dashed;
+  color: var(--color-muted-foreground);
 }
 
+/* Ink, because a floor plan is on screen. */
 .floor-button {
   min-height: var(--touch-staff);
   padding: 0 var(--space-xl);
-  border: 2px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  background: var(--color-accent);
-  color: var(--color-text-inverse);
+  border: 1px solid var(--color-primary-on-floor-plan);
+  border-radius: var(--radius-control);
+  background: var(--color-primary-on-floor-plan);
+  color: var(--color-primary-foreground);
   font-family: inherit;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
 
-.floor-button:hover {
-  background: var(--color-accent-strong);
+.floor-button:hover,
+.floor-button:active {
+  border-color: var(--color-primary-on-floor-plan-pressed);
+  background: var(--color-primary-on-floor-plan-pressed);
 }
 
 /* Landscape-first, but a plain wrapping flex row: in portrait the panel stacks
@@ -661,8 +696,8 @@ body {
 .floor-plan-frame {
   flex: 1;
   min-height: 320px;
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
   overflow: hidden;
 }
@@ -675,7 +710,8 @@ body {
   gap: var(--space-lg);
   height: 100%;
   font-size: var(--font-size-lg);
-  color: var(--color-text-secondary);
+  line-height: var(--line-height-lg);
+  color: var(--color-muted-foreground);
 }
 
 .floor-panel {
@@ -689,24 +725,25 @@ body {
 .floor-panel-block {
   flex: 1;
   padding: var(--space-lg);
-  border: 2px dashed var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
 }
 
 .floor-panel-block h2 {
   margin: 0 0 var(--space-sm);
   font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-bold);
 }
 
 .floor-todo {
   margin: 0;
   font-size: var(--font-size-md);
-  color: var(--color-text-secondary);
+  line-height: var(--line-height-md);
+  color: var(--color-muted-foreground);
 }
 
-/* The dev role switcher on the floor header: dark bar, so it needs its own
-   colours. Dropped from production bundles entirely along with the component. */
 .dev-role-bar {
   flex-direction: row;
   align-items: center;
@@ -715,12 +752,8 @@ body {
   background: var(--color-surface);
 }
 
-.dev-role-bar select {
-  min-height: var(--touch);
-}
-
 /* --------------------------------------------------------------------------
- * Floor plan dev harness (not a product screen)
+ * Developer pages (/dev/*). Not product screens.
  * -------------------------------------------------------------------------- */
 .dev-controls {
   display: flex;
@@ -729,7 +762,7 @@ body {
   margin: var(--space-lg) 0;
   padding: var(--space-md);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
 }
 
@@ -738,31 +771,192 @@ body {
   flex-direction: column;
   gap: var(--space-xs);
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
 }
 
 .dev-controls select {
   padding: var(--space-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-interactive);
+  border-radius: var(--radius-control);
   background: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
   font: inherit;
 }
 
 .dev-status {
   margin: var(--space-sm) 0 var(--space-lg);
   font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
   min-height: 1.4em;
 }
 
-/* Exactly the target device size — what you see is what a phone sees. */
 .dev-viewport {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
   overflow: hidden;
   resize: both;
   max-width: 100%;
+}
+
+/* /dev/tokens */
+.tokens-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxl);
+  max-width: 1100px;
+}
+
+.tokens-page h2 {
+  margin: 0 0 var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.tokens-page h3 {
+  margin: var(--space-lg) 0 var(--space-sm);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-muted-foreground);
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.swatch-fill {
+  height: 56px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.swatch-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
+.swatch-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.swatch-hex {
+  color: var(--color-muted-foreground);
+}
+
+.contrast-table td.fail {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.states {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-md);
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.state-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-table);
+  background: var(--color-surface);
+}
+
+.type-sample {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--space-md);
+  align-items: baseline;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.type-sample-meta {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
+  color: var(--color-muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.type-sample-text {
+  margin: 0;
+}
+
+.type-sample-text span {
+  display: block;
+}
+
+.spacing-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xs) 0;
+  font-size: var(--font-size-sm);
+}
+
+.spacing-bar {
+  height: 16px;
+  background: var(--color-primary);
+}
+
+.radii {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+}
+
+.radius-sample {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.radius-box {
+  width: 80px;
+  height: 56px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-green-tint);
+}
+
+.signature {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+.signature-number {
+  font-size: var(--font-size-xxl);
+  line-height: var(--line-height-xxl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }

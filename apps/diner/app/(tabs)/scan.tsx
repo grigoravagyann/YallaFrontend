@@ -12,10 +12,9 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Text, TextInput } from '../../src/components/Text';
 import { usingMockData } from '../../src/data/gateway';
 import { useJoinByCode } from '../../src/hooks/useJoinByCode';
 
@@ -159,7 +158,7 @@ export default function ScanScreen() {
                 clearFailure();
               }}
               placeholder={t('scan.manualPlaceholder')}
-              placeholderTextColor={color.textSecondary}
+              placeholderTextColor={color.mutedForeground}
               autoCapitalize="characters"
               autoCorrect={false}
               maxLength={16}
@@ -193,7 +192,7 @@ export default function ScanScreen() {
 
         {isWorking ? (
           <View style={styles.working}>
-            <ActivityIndicator color={color.accent} />
+            <ActivityIndicator color={color.primary} />
             <Text style={styles.workingText}>{t('scan.working')}</Text>
           </View>
         ) : null}
@@ -237,15 +236,15 @@ function DemoCodes({ onPick }: { onPick: (code: string) => void }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { padding: space.lg, paddingBottom: space.xxxl, gap: space.sm },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.textSecondary },
+  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
   noAccount: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
@@ -255,9 +254,9 @@ const styles = StyleSheet.create({
   },
   viewfinder: {
     height: 320,
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     overflow: 'hidden',
-    backgroundColor: color.textPrimary,
+    backgroundColor: color.foreground,
   },
   reticle: {
     position: 'absolute',
@@ -266,27 +265,27 @@ const styles = StyleSheet.create({
     right: '14%',
     bottom: '18%',
     borderWidth: 3,
-    borderColor: color.textInverse,
-    borderRadius: radius.md,
+    borderColor: color.primaryForeground,
+    borderRadius: radius.card,
   },
-  aiming: { fontSize: fontSize.sm, color: color.textSecondary, textAlign: 'center' },
+  aiming: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
   card: {
     marginTop: space.sm,
     padding: space.lg,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     gap: space.sm,
   },
-  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  cardBody: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
+  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  cardBody: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   input: {
     minHeight: touchTarget.minimum,
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
-    backgroundColor: color.background,
-    color: color.textPrimary,
+    backgroundColor: color.paper,
+    color: color.foreground,
     fontSize: fontSize.lg,
     letterSpacing: 2,
   },
@@ -294,21 +293,25 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
-  primaryText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.textInverse },
+  primaryPressed: { backgroundColor: color.primaryPressed },
+  primaryText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
+  },
   secondary: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
   },
-  secondaryPressed: { backgroundColor: color.surfaceMuted },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  secondaryPressed: { backgroundColor: color.greenTint },
+  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   disabled: { opacity: 0.6 },
   linkRow: {
     minHeight: touchTarget.minimum,
@@ -317,13 +320,13 @@ const styles = StyleSheet.create({
     marginTop: space.sm,
   },
   linkRowPressed: { opacity: 0.6 },
-  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.accentStrong },
+  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
   working: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm },
-  workingText: { fontSize: fontSize.sm, color: color.textSecondary },
+  workingText: { fontSize: fontSize.sm, color: color.mutedForeground },
   error: {
     marginTop: space.sm,
     padding: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
@@ -332,7 +335,7 @@ const styles = StyleSheet.create({
   dev: {
     marginTop: space.xl,
     padding: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: color.warning,
@@ -349,8 +352,8 @@ const styles = StyleSheet.create({
   devCode: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
     letterSpacing: 1,
   },
-  devWhat: { fontSize: fontSize.xs, color: color.textSecondary },
+  devWhat: { fontSize: fontSize.xs, color: color.mutedForeground },
 });

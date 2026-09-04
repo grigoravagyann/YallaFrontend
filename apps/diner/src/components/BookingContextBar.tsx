@@ -1,8 +1,9 @@
 import { formatDate, formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, radius, space, touchTarget } from '@yalla/tokens';
+import { color, elevation, fontSize, fontWeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 
 /** The three values the floor plan filters and annotates on. */
 export interface BookingContext {
@@ -190,37 +191,38 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     backgroundColor: color.surface,
     borderBottomWidth: 1,
-    borderBottomColor: color.surfaceMuted,
+    borderBottomColor: color.border,
   },
   field: {
     flex: 1,
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
-    backgroundColor: color.background,
+    backgroundColor: color.paper,
   },
-  fieldPressed: { backgroundColor: color.surfaceMuted },
-  fieldLabel: { fontSize: fontSize.xs, color: color.textSecondary },
+  fieldPressed: { backgroundColor: color.border },
+  fieldLabel: { fontSize: fontSize.xs, color: color.mutedForeground },
   fieldValue: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.medium,
+    color: color.foreground,
   },
   backdrop: { flex: 1, backgroundColor: '#00000055' },
   sheet: {
     maxHeight: '60%',
     backgroundColor: color.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    ...elevation.sheet.native,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     padding: space.lg,
   },
   sheetTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
     marginBottom: space.md,
   },
   sheetScroll: { flexGrow: 0 },
@@ -228,21 +230,21 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
   },
-  optionPressed: { backgroundColor: color.surfaceMuted },
-  optionText: { fontSize: fontSize.md, color: color.textPrimary },
+  optionPressed: { backgroundColor: color.paper },
+  optionText: { fontSize: fontSize.md, color: color.foreground },
   close: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: space.md,
-    borderRadius: radius.md,
-    backgroundColor: color.accentMuted,
+    borderRadius: radius.control,
+    backgroundColor: color.primaryOnFloorPlan,
   },
   closeText: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    color: color.accentStrong,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
   },
 });

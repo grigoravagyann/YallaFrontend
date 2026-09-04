@@ -1,7 +1,8 @@
 import { venueFreeTables, type VenueSummary } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 
 export interface VenueCardProps {
   readonly venue: VenueSummary;
@@ -72,19 +73,19 @@ const styles = StyleSheet.create({
     padding: space.md,
     marginBottom: space.md,
     backgroundColor: color.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: color.surfaceMuted,
+    borderColor: color.border,
     minHeight: touchTarget.minimum + space.xl,
   },
   cardPressed: {
-    backgroundColor: color.surfaceMuted,
+    backgroundColor: color.greenTint,
   },
   thumb: {
     width: 72,
     height: 72,
-    borderRadius: radius.md,
-    backgroundColor: color.surfaceMuted,
+    borderRadius: radius.control,
+    backgroundColor: color.greenTint,
   },
   body: {
     flex: 1,
@@ -94,18 +95,18 @@ const styles = StyleSheet.create({
   name: {
     fontSize: fontSize.lg,
     lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
   meta: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   branches: {
     fontSize: fontSize.xs,
     lineHeight: lineHeight.xs,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   freeNow: {
     marginTop: space.xs,
@@ -119,6 +120,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
     fontWeight: fontWeight.medium,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
 });

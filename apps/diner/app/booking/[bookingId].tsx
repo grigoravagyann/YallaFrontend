@@ -11,9 +11,9 @@ import {
   ScrollView,
   Share,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../src/components/Text';
 import { BookingStatusPill } from '../../src/components/BookingStatusPill';
 import { useBooking, useCancelBooking } from '../../src/data/queries';
 import { useNow } from '../../src/hooks/useNow';
@@ -33,7 +33,7 @@ export default function BookingDetailScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
         </View>
       </SafeAreaView>
     );
@@ -195,37 +195,37 @@ export default function BookingDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { padding: space.xl, gap: space.sm },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   codeCard: {
     marginTop: space.md,
     padding: space.lg,
     alignItems: 'center',
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     borderWidth: 2,
     borderColor: color.success,
   },
   codeCardPending: { borderColor: color.info, borderStyle: 'dashed' },
-  codeLabel: { fontSize: fontSize.sm, color: color.textSecondary },
+  codeLabel: { fontSize: fontSize.sm, color: color.mutedForeground },
   code: {
     fontSize: 40,
     lineHeight: 48,
     fontWeight: fontWeight.bold,
     letterSpacing: 5,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   details: { marginTop: space.lg, gap: 2 },
-  venue: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  detail: { fontSize: fontSize.md, color: color.textSecondary },
-  window: { marginTop: space.md, fontSize: fontSize.md, color: color.textPrimary },
+  venue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  detail: { fontSize: fontSize.md, color: color.mutedForeground },
+  window: { marginTop: space.md, fontSize: fontSize.md, color: color.foreground },
   noLimit: { marginTop: space.md, fontSize: fontSize.md, color: color.success },
   secondary: {
     minHeight: touchTarget.minimum,
@@ -233,35 +233,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: space.md,
   },
-  secondaryText: { fontSize: fontSize.md, color: color.accentStrong },
+  secondaryText: { fontSize: fontSize.md, color: color.primaryPressed },
   danger: {
     marginTop: space.md,
     minHeight: touchTarget.minimum + 4,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.danger,
   },
-  dangerText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.danger },
+  dangerText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.danger },
   disabled: { opacity: 0.6 },
   backdrop: { flex: 1, backgroundColor: '#00000055' },
   sheet: {
     backgroundColor: color.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     padding: space.xl,
   },
   sheetTitle: {
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: color.textPrimary,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
   },
   sheetBody: {
     marginTop: space.sm,
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
-    color: color.textSecondary,
+    color: color.mutedForeground,
   },
   error: { marginTop: space.sm, fontSize: fontSize.sm, color: color.danger },
 });

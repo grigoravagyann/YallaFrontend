@@ -11,15 +11,8 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../../src/components/Text';
 import { useRequestPhoneCode, useVerifyPhoneCode } from '../../src/data/queries';
 import { useSession } from '../../src/stores/session';
 
@@ -167,7 +160,7 @@ export default function VerifyScreen() {
               value={localNumber}
               onChangeText={setLocalNumber}
               placeholder={t('verify.phonePlaceholder')}
-              placeholderTextColor={color.textSecondary}
+              placeholderTextColor={color.mutedForeground}
               keyboardType="phone-pad"
               autoFocus
               accessibilityLabel={t('verify.phoneLabel')}
@@ -187,7 +180,7 @@ export default function VerifyScreen() {
             ]}
           >
             {busy ? (
-              <ActivityIndicator color={color.textInverse} />
+              <ActivityIndicator color={color.primaryForeground} />
             ) : (
               <Text style={styles.primaryText}>{t('verify.sendCode')}</Text>
             )}
@@ -233,7 +226,7 @@ export default function VerifyScreen() {
             accessibilityLabel={t('verify.codeTitle')}
           />
 
-          {verifyCode.isPending ? <ActivityIndicator color={color.accent} /> : null}
+          {verifyCode.isPending ? <ActivityIndicator color={color.primary} /> : null}
           {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
 
           <Pressable
@@ -267,42 +260,42 @@ export default function VerifyScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   body: { flex: 1, padding: space.xl, gap: space.sm },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   blurb: {
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
-    color: color.textSecondary,
+    color: color.mutedForeground,
     marginBottom: space.md,
   },
-  label: { fontSize: fontSize.sm, color: color.textSecondary },
+  label: { fontSize: fontSize.sm, color: color.mutedForeground },
   phoneRow: { flexDirection: 'row', gap: space.sm },
   prefix: {
     width: 84,
     minHeight: touchTarget.minimum,
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
-    color: color.textPrimary,
+    color: color.foreground,
     fontSize: fontSize.md,
   },
   number: {
     flex: 1,
     minHeight: touchTarget.minimum,
     paddingHorizontal: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
-    color: color.textPrimary,
+    color: color.foreground,
     fontSize: fontSize.md,
   },
   codeRow: { flexDirection: 'row', gap: space.sm, marginVertical: space.lg },
@@ -311,27 +304,27 @@ const styles = StyleSheet.create({
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
     borderWidth: 2,
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  codeCellActive: { borderColor: color.accent },
+  codeCellActive: { borderColor: color.primary },
   codeDigit: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   hiddenInput: { position: 'absolute', opacity: 0, height: 1, width: 1 },
   devBanner: {
     padding: space.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.card,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: color.warning,
     backgroundColor: color.surface,
   },
-  devBannerText: { fontSize: fontSize.sm, color: color.warning, fontWeight: fontWeight.semibold },
+  devBannerText: { fontSize: fontSize.sm, color: color.warning, fontWeight: fontWeight.medium },
   error: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
@@ -343,21 +336,21 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
+  primaryPressed: { backgroundColor: color.primaryPressed },
   primaryDisabled: { opacity: 0.45 },
   primaryText: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    color: color.textInverse,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
   },
   secondary: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryText: { fontSize: fontSize.md, color: color.accentStrong },
-  secondaryTextMuted: { color: color.textSecondary },
+  secondaryText: { fontSize: fontSize.md, color: color.primaryPressed },
+  secondaryTextMuted: { color: color.mutedForeground },
 });

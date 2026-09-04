@@ -10,9 +10,9 @@ import {
   Pressable,
   SafeAreaView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { Text } from '../../src/components/Text';
 import { BookingStatusPill } from '../../src/components/BookingStatusPill';
 import { useNow } from '../../src/hooks/useNow';
 import { useBookings } from '../../src/data/queries';
@@ -51,7 +51,7 @@ export default function BookingsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
           <Text style={styles.muted}>{t('bookings.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -167,28 +167,28 @@ function BookingRow({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   title: {
     paddingHorizontal: space.lg,
     paddingTop: space.lg,
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   tabs: { flexDirection: 'row', gap: space.sm, padding: space.lg },
   tab: {
     minHeight: touchTarget.minimum - 8,
     justifyContent: 'center',
     paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
+    borderRadius: radius.control,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  tabActive: { borderColor: color.accentStrong, backgroundColor: color.accentMuted },
-  tabText: { fontSize: fontSize.sm, color: color.textPrimary },
-  tabTextActive: { color: color.accentStrong, fontWeight: fontWeight.semibold },
+  tabActive: { borderColor: color.primaryPressed, backgroundColor: color.greenTint },
+  tabText: { fontSize: fontSize.sm, color: color.foreground },
+  tabTextActive: { color: color.primaryPressed, fontWeight: fontWeight.medium },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   row: {
     flexDirection: 'row',
@@ -196,12 +196,12 @@ const styles = StyleSheet.create({
     gap: space.md,
     padding: space.md,
     marginBottom: space.sm,
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: color.surfaceMuted,
+    borderColor: color.border,
     backgroundColor: color.surface,
   },
-  rowPressed: { backgroundColor: color.surfaceMuted },
+  rowPressed: { backgroundColor: color.greenTint },
   rowBody: { flex: 1, gap: 2 },
   rowFooter: {
     flexDirection: 'row',
@@ -209,25 +209,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: space.xs,
   },
-  venue: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  detail: { fontSize: fontSize.sm, color: color.textSecondary },
+  venue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  detail: { fontSize: fontSize.sm, color: color.mutedForeground },
   code: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
     letterSpacing: 1,
   },
-  chevron: { fontSize: fontSize.xl, color: color.textSecondary },
+  chevron: { fontSize: fontSize.xl, color: color.mutedForeground },
   centered: { alignItems: 'center', paddingTop: space.xxl, gap: space.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  muted: { fontSize: fontSize.sm, color: color.textSecondary, textAlign: 'center' },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  muted: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
   retry: {
     marginTop: space.md,
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.xl,
-    borderRadius: radius.md,
-    backgroundColor: color.accentMuted,
+    borderRadius: radius.control,
+    backgroundColor: color.greenTint,
   },
-  retryText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.accentStrong },
+  retryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
 });

@@ -1,5 +1,15 @@
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  color,
+  elevation,
+  fontSize,
+  fontWeight,
+  lineHeight,
+  radius,
+  space,
+  touchTarget,
+} from '@yalla/tokens';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 
 export interface ConfirmSheetProps {
   readonly visible: boolean;
@@ -73,7 +83,7 @@ export function ConfirmSheet({
         >
           {busy ? (
             <View style={styles.busyRow}>
-              <ActivityIndicator color={color.textInverse} />
+              <ActivityIndicator color={color.primaryForeground} />
               <Text style={styles.confirmText}>{busyLabel ?? confirmLabel}</Text>
             </View>
           ) : (
@@ -95,7 +105,7 @@ export function ConfirmSheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(18, 16, 14, 0.45)' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(18, 33, 26, 0.45)' },
   sheet: {
     position: 'absolute',
     left: 0,
@@ -103,31 +113,36 @@ const styles = StyleSheet.create({
     bottom: 0,
     padding: space.xl,
     paddingBottom: space.xxl,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     backgroundColor: color.surface,
+    ...elevation.sheet.native,
     gap: space.sm,
   },
-  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.textPrimary },
-  body: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.textSecondary },
+  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  body: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   error: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.danger },
   confirm: {
     marginTop: space.sm,
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
   confirmDestructive: { backgroundColor: color.danger },
-  confirmText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: color.textInverse },
+  confirmText: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
+  },
   cancel: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
+    borderRadius: radius.control,
   },
-  cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.textPrimary },
+  cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   pressed: { opacity: 0.75 },
   disabled: { opacity: 0.6 },
   busyRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

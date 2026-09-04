@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node --import ../../packages/tokens/scripts/register-ts.mjs ../../packages/tokens/scripts/generate-css.mjs",
     "dev": "vite",
+    "prebuild": "node --import ../../packages/tokens/scripts/register-ts.mjs ../../packages/tokens/scripts/generate-css.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",

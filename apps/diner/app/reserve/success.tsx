@@ -2,15 +2,8 @@ import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, SafeAreaView, Share, StyleSheet, View } from 'react-native';
+import { Text } from '../../src/components/Text';
 import { useBooking } from '../../src/data/queries';
 
 export default function SuccessScreen() {
@@ -25,7 +18,7 @@ export default function SuccessScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
         </View>
       </SafeAreaView>
     );
@@ -101,57 +94,57 @@ export default function SuccessScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, padding: space.xl, gap: space.md },
   title: {
     fontSize: fontSize.xxl,
     lineHeight: lineHeight.xxl,
     fontWeight: fontWeight.bold,
-    color: color.textPrimary,
+    color: color.foreground,
   },
   pendingBody: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.info },
   codeCard: {
     marginTop: space.lg,
     padding: space.xl,
     alignItems: 'center',
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     backgroundColor: color.surface,
     borderWidth: 2,
     borderColor: color.success,
   },
   // Pending must never look confirmed — different border, different accent.
   codeCardPending: { borderColor: color.info, borderStyle: 'dashed' },
-  codeLabel: { fontSize: fontSize.sm, color: color.textSecondary },
+  codeLabel: { fontSize: fontSize.sm, color: color.mutedForeground },
   code: {
     fontSize: 48,
     lineHeight: 56,
     fontWeight: fontWeight.bold,
     letterSpacing: 6,
-    color: color.textPrimary,
+    color: color.foreground,
   },
-  codeHint: { fontSize: fontSize.sm, color: color.textSecondary },
+  codeHint: { fontSize: fontSize.sm, color: color.mutedForeground },
   details: { marginTop: space.lg, gap: 2 },
-  venue: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
-  detail: { fontSize: fontSize.md, color: color.textSecondary },
+  venue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  detail: { fontSize: fontSize.md, color: color.mutedForeground },
   secondary: {
     marginTop: 'auto',
     minHeight: touchTarget.minimum,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryText: { fontSize: fontSize.md, color: color.accentStrong },
+  secondaryText: { fontSize: fontSize.md, color: color.primaryPressed },
   primary: {
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.md,
-    backgroundColor: color.accent,
+    borderRadius: radius.control,
+    backgroundColor: color.primary,
   },
-  primaryPressed: { backgroundColor: color.accentStrong },
+  primaryPressed: { backgroundColor: color.primaryPressed },
   primaryText: {
     fontSize: fontSize.md,
-    fontWeight: fontWeight.semibold,
-    color: color.textInverse,
+    fontWeight: fontWeight.medium,
+    color: color.primaryForeground,
   },
 });

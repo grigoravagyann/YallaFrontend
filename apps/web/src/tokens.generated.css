@@ -1,0 +1,181 @@
+/*
+ * GENERATED FILE — do not edit.
+ *
+ * Written by `packages/tokens/scripts/generate-css.mjs` from the same
+ * TypeScript objects the diner app imports. Regenerate with:
+ *
+ *     pnpm tokens:css
+ *
+ * `apps/web` runs this automatically before `dev` and `build`, so an edit
+ * to a token cannot reach one surface and miss the other.
+ */
+
+@font-face {
+  font-family: 'Yalla Sans';
+  src: url('/fonts/YallaSans-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Yalla Sans';
+  src: url('/fonts/YallaSans-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Yalla Sans';
+  src: url('/fonts/YallaSans-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --color-surface: #FFFFFF;
+  --color-paper: #F5F7F6;
+  --color-foreground: #12211A;
+  --color-muted-foreground: #57685F;
+  --color-subtle-foreground: #616E65;
+  --color-border: #D5E0DA;
+  --color-border-strong: #B3C4BB;
+  --color-border-interactive: #7E8D84;
+  --color-green-tint: #E6F1EB;
+  --color-primary: #1B5638;
+  --color-primary-pressed: #144229;
+  --color-primary-foreground: #FFFFFF;
+  --color-primary-on-floor-plan: #12211A;
+  --color-primary-on-floor-plan-pressed: #2B3D33;
+  --color-danger: #B93B3B;
+  --color-warning: #C98A0E;
+  --color-success: #35B37E;
+  --color-info: #3B6FD4;
+  --color-danger-foreground: #FFFFFF;
+  
+  --table-free-fill: #35B37E;
+  --table-free-fill-opacity: 1;
+  --table-free-stroke: #D5E0DA;
+  --table-free-label: #12211A;
+  --table-reserved-soon-fill: #C98A0E;
+  --table-reserved-soon-fill-opacity: 1;
+  --table-reserved-soon-stroke: #D5E0DA;
+  --table-reserved-soon-label: #12211A;
+  --table-held-fill: #3B6FD4;
+  --table-held-fill-opacity: 1;
+  --table-held-stroke: #3B6FD4;
+  --table-held-label: #FFFFFF;
+  --table-occupied-fill: #B93B3B;
+  --table-occupied-fill-opacity: 1;
+  --table-occupied-stroke: #D5E0DA;
+  --table-occupied-label: #FFFFFF;
+  --table-out-of-service-fill: #8B95A1;
+  --table-out-of-service-fill-opacity: 0.7;
+  --table-out-of-service-stroke: #B3C4BB;
+  --table-out-of-service-label: #12211A;
+  --table-your-pick-fill: #12211A;
+  --table-your-pick-fill-opacity: 1;
+  --table-your-pick-stroke: #12211A;
+  --table-your-pick-label: #FFFFFF;
+  
+  --space-none: 0px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-xxxl: 48px;
+  --space-huge: 64px;
+  --radius-none: 0px;
+  --radius-table: 2px;
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-sheet: 14px;
+  --radius-full: 999px;
+  --touch-minimum: 44px;
+  --touch-small: 36px;
+  --touch-large: 52px;
+  --touch-staff: 56px;
+  
+  --font-family: 'Yalla Sans', 'Noto Sans Armenian', 'Noto Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+  --font-feature-tabular: 'tnum' 1;
+  
+  --duration-control: 140ms;
+  --duration-state-change: 200ms;
+  --duration-floor-plan-draw: 350ms;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  
+  --shadow-sheet: 0 -2px 16px rgba(18, 33, 26, 0.10);
+  
+  /* Console scale by default; the floor screen opts into the staff scale. */
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 22px;
+  --font-size-xxl: 28px;
+  --line-height-xs: 16px;
+  --line-height-sm: 19px;
+  --line-height-md: 22px;
+  --line-height-lg: 26px;
+  --line-height-xl: 28px;
+  --line-height-xxl: 35px;
+}
+
+[data-surface='staff'] {
+  --font-size-xs: 14px;
+  --font-size-sm: 16px;
+  --font-size-md: 18px;
+  --font-size-lg: 22px;
+  --font-size-xl: 30px;
+  --font-size-xxl: 40px;
+  --line-height-xs: 20px;
+  --line-height-sm: 22px;
+  --line-height-md: 25px;
+  --line-height-lg: 31px;
+  --line-height-xl: 35px;
+  --line-height-xxl: 46px;
+}
+
+[data-surface='diner'] {
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 26px;
+  --font-size-xxl: 34px;
+  --line-height-xs: 18px;
+  --line-height-sm: 21px;
+  --line-height-md: 24px;
+  --line-height-lg: 30px;
+  --line-height-xl: 31px;
+  --line-height-xxl: 41px;
+}
+
+/*
+ * Reduced motion resolves every duration to zero rather than shortening it.
+ * The only motion in this product is the floor plan drawing in and a table
+ * changing colour, and neither is the only way to learn what it conveys.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-control: 0ms;
+    --duration-state-change: 0ms;
+    --duration-floor-plan-draw: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

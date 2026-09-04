@@ -8,10 +8,10 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StyleSheet,
-  Text,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
+import { Text } from '../../src/components/Text';
 import {
   BookingContextBar,
   nextHalfHour,
@@ -117,7 +117,7 @@ export default function BranchFloorPlanScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.accent} />
+          <ActivityIndicator color={color.primary} />
           <Text style={styles.muted}>{t('net.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -193,30 +193,34 @@ export default function BranchFloorPlanScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.background },
+  safeArea: { flex: 1, backgroundColor: color.paper },
   header: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm },
-  venue: { fontSize: fontSize.sm, color: color.textSecondary },
-  branch: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: color.textPrimary },
+  venue: { fontSize: fontSize.sm, color: color.mutedForeground },
+  branch: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: color.foreground },
   legendWrap: { paddingHorizontal: space.lg },
   status: {
     paddingHorizontal: space.lg,
     paddingBottom: space.sm,
     fontSize: fontSize.sm,
-    color: color.textSecondary,
+    color: color.mutedForeground,
     minHeight: 20,
   },
+  // A lost table is information with the next action attached, not an error
+  // and not a coloured banner beside the plan. Ink on paper, one hairline.
   conflict: {
     marginHorizontal: space.lg,
     marginBottom: space.sm,
     padding: space.sm,
-    borderRadius: radius.md,
-    backgroundColor: color.accentMuted,
-    color: color.accentStrong,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    borderColor: color.borderStrong,
+    backgroundColor: color.paper,
+    color: color.foreground,
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
   },
   planWrap: { flex: 1, marginHorizontal: space.lg, marginBottom: space.lg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.sm },
-  muted: { fontSize: fontSize.sm, color: color.textSecondary },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, color: color.textPrimary },
+  muted: { fontSize: fontSize.sm, color: color.mutedForeground },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
 });
