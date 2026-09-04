@@ -1,0 +1,7 @@
+{
+  "extends": "@yalla/tsconfig/library.json",
+  "compilerOptions": {
+    "types": ["vitest/globals"]
+  },
+  "include": ["src", "vitest.config.ts"]
+}

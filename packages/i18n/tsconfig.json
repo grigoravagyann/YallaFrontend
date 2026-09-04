@@ -1,0 +1,4 @@
+{
+  "extends": "@yalla/tsconfig/react-library.json",
+  "include": ["src"]
+}

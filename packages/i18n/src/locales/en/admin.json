@@ -1,0 +1,12 @@
+{
+  "nav": {
+    "floorplan": "Floor plan",
+    "menu": "Menu",
+    "hours": "Hours",
+    "staff": "Staff",
+    "reports": "Reports"
+  },
+  "shell": {
+    "title": "Yalla admin"
+  }
+}

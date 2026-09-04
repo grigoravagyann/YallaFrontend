@@ -1,0 +1,109 @@
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+node_modules/
+.pnpm-store/
+.yarn/
+jspm_packages/
+
+# NOTE: pnpm-lock.yaml is deliberately NOT ignored. The lockfile pins the exact
+# dependency versions the workspace was built and tested against, so it must be
+# committed — without it, two machines can resolve different versions.
+
+# ---------------------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------------------
+dist/
+dist-ssr/
+build/
+out/
+web-build/
+.vite/
+*.tsbuildinfo
+
+# ---------------------------------------------------------------------------
+# Expo / React Native
+# ---------------------------------------------------------------------------
+.expo/
+.expo-shared/
+expo-env.d.ts
+# Generated native projects (this is a managed workflow; `expo prebuild` output
+# is regenerated, not hand-edited).
+/apps/*/ios/
+/apps/*/android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+.metro-health-check*
+
+# ---------------------------------------------------------------------------
+# Environment files — never commit real secrets or machine-specific URLs.
+# The .env.example templates ARE committed, so they are re-included below.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# ---------------------------------------------------------------------------
+# Test / coverage output
+# ---------------------------------------------------------------------------
+coverage/
+*.lcov
+.nyc_output/
+.vitest-cache/
+
+# ---------------------------------------------------------------------------
+# Caches
+# ---------------------------------------------------------------------------
+.cache/
+.temp/
+.tmp/
+.eslintcache
+.stylelintcache
+.parcel-cache/
+
+# ---------------------------------------------------------------------------
+# Editors
+# ---------------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+
+# ---------------------------------------------------------------------------
+# OS junk
+# ---------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk

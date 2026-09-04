@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Yalla",
+    "slug": "yalla-diner",
+    "version": "0.0.0",
+    "scheme": "yalla",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "am.yalla.diner"
+    },
+    "android": {
+      "package": "am.yalla.diner",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router", "expo-localization"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

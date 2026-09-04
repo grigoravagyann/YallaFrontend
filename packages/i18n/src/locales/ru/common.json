@@ -1,0 +1,30 @@
+{
+  "appName": "Yalla",
+  "language": {
+    "label": "Язык",
+    "hy": "Հայերեն",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "tableStatus": {
+    "free": "Свободен",
+    "reserved": "Забронирован",
+    "occupied": "Занят",
+    "yourPick": "Ваш выбор",
+    "held": "Удерживается",
+    "outOfService": "Не обслуживается"
+  },
+  "connection": {
+    "connected": "На связи",
+    "connecting": "Подключение…",
+    "reconnecting": "Переподключение…",
+    "disconnected": "Нет связи",
+    "offlineHint": "Показано последнее известное состояние."
+  },
+  "action": {
+    "retry": "Повторить"
+  },
+  "placeholder": {
+    "comingSoon": "Этот экран скоро появится."
+  }
+}

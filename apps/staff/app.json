@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Yalla Staff",
+    "slug": "yalla-staff",
+    "version": "0.0.0",
+    "scheme": "yalla-staff",
+    "orientation": "landscape",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "bundleIdentifier": "am.yalla.staff"
+    },
+    "android": {
+      "package": "am.yalla.staff",
+      "screenOrientation": "landscape",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router", "expo-localization", "expo-sqlite"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

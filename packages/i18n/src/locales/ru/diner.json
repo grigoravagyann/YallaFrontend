@@ -1,0 +1,16 @@
+{
+  "tabs": {
+    "explore": "Обзор",
+    "bookings": "Брони",
+    "profile": "Профиль"
+  },
+  "explore": {
+    "title": "Обзор"
+  },
+  "bookings": {
+    "title": "Брони"
+  },
+  "profile": {
+    "title": "Профиль"
+  }
+}

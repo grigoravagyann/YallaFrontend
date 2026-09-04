@@ -1,0 +1,30 @@
+{
+  "appName": "Yalla",
+  "language": {
+    "label": "Language",
+    "hy": "Հայերեն",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "tableStatus": {
+    "free": "Free",
+    "reserved": "Reserved",
+    "occupied": "Occupied",
+    "yourPick": "Your pick",
+    "held": "Held",
+    "outOfService": "Out of service"
+  },
+  "connection": {
+    "connected": "Live",
+    "connecting": "Connecting…",
+    "reconnecting": "Reconnecting…",
+    "disconnected": "Offline",
+    "offlineHint": "Showing the last known state."
+  },
+  "action": {
+    "retry": "Try again"
+  },
+  "placeholder": {
+    "comingSoon": "This screen is coming soon."
+  }
+}

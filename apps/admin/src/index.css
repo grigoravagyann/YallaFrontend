@@ -1,0 +1,142 @@
+/*
+ * Plain CSS, no framework and no CSS-in-JS runtime, per the stack decision.
+ * Every value here is a design token from @yalla/tokens, mirrored into custom
+ * properties by `tokens.css.ts` at build time is overkill for a shell, so the
+ * handful used below are duplicated deliberately and marked.
+ *
+ * TOKEN MIRROR — keep in step with @yalla/tokens until a generator replaces this.
+ */
+:root {
+  --color-background: #f5f2ee;
+  --color-surface: #ffffff;
+  --color-surface-muted: #e4dfd8;
+  --color-border: #a8a199;
+  --color-text-primary: #12100e;
+  --color-text-secondary: #6b655d;
+  --color-accent: #ea580c;
+  --color-accent-muted: #ffedd5;
+
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  --radius-md: 8px;
+
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-xl: 24px;
+
+  /* Must cover Armenian, Cyrillic and Latin — see tokens/typography.ts. */
+  --font-family:
+    system-ui, -apple-system, 'Segoe UI', 'Noto Sans Armenian', 'Noto Sans', Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.brand {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  flex: 1;
+}
+
+.nav-link {
+  display: block;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  background: var(--color-surface-muted);
+}
+
+.nav-link.active {
+  background: var(--color-accent-muted);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.language {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.language select {
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+}
+
+.content {
+  padding: var(--space-xl);
+  overflow: auto;
+}
+
+.placeholder h1 {
+  margin: 0 0 var(--space-md);
+}
+
+.placeholder p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.floorplan-frame {
+  margin-top: var(--space-lg);
+  height: 60vh;
+  min-height: 320px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}

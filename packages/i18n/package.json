@@ -1,0 +1,28 @@
+{
+  "name": "@yalla/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./resources": "./src/resources.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "i18n:check": "node scripts/check-parity.mjs"
+  },
+  "dependencies": {
+    "i18next": "^26.4.2",
+    "react-i18next": "^17.0.13"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "@yalla/tsconfig": "workspace:*",
+    "@types/react": "^19.2.18",
+    "typescript": "~6.0.3"
+  }
+}

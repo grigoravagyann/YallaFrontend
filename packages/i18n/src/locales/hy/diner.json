@@ -1,0 +1,16 @@
+{
+  "tabs": {
+    "explore": "Բացահայտել",
+    "bookings": "Ամրագրումներ",
+    "profile": "Պրոֆիլ"
+  },
+  "explore": {
+    "title": "Բացահայտել"
+  },
+  "bookings": {
+    "title": "Ամրագրումներ"
+  },
+  "profile": {
+    "title": "Պրոֆիլ"
+  }
+}

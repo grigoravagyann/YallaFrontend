@@ -1,0 +1,33 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Metro (Expo's bundler) resolves native modules by walking node_modules upward and
+# does not understand pnpm's symlinked store. Hoisting is the supported layout for
+# Expo inside a pnpm workspace.
+nodeLinker: hoisted
+
+# Expo/React Native packages declare loose peer ranges across an SDK; failing the
+# install on those is noise, not signal.
+strictPeerDependencies: false
+
+onlyBuiltDependencies:
+  - esbuild
+
+minimumReleaseAgeExclude:
+  - '@eslint/plugin-kit@0.7.3'
+  - eslint@10.10.0
+  - i18next@26.4.2
+  - '@expo/cli@57.0.22'
+  - '@expo/ui@57.0.16'
+  - expo-modules-core@57.0.16
+  - expo-modules-jsi@57.0.8
+  - expo-router@57.0.19
+  - expo@57.0.20
+
+# One React across the hoisted store: two copies would give React Native the
+# classic "Invalid hook call" at runtime.
+overrides:
+  react: 19.2.3
+  react-dom: 19.2.3
+  react-native: 0.86.3

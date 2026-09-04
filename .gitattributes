@@ -1,0 +1,37 @@
+# Normalise line endings.
+#
+# Prettier is configured with `endOfLine: "lf"` (.prettierrc.json). Git on
+# Windows defaults to core.autocrlf=true, which would check these files out with
+# CRLF and make `pnpm format:check` fail for every Windows contributor. Forcing
+# eol=lf in the working tree overrides that per-machine setting, so the repo
+# behaves identically on Windows, macOS and Linux.
+* text=auto eol=lf
+
+# Shell scripts must stay LF even on Windows or they will not execute.
+*.sh text eol=lf
+*.mjs text eol=lf
+
+# Binary files: never touch, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.jks binary
+*.keystore binary
+
+# SVG is text, but treat it as a whole-file diff — it is generated output more
+# often than it is hand-edited.
+*.svg text eol=lf
+
+# Lockfile: text, but collapse it in diffs and mark it generated so it does not
+# dominate a pull request's review surface.
+pnpm-lock.yaml text eol=lf linguist-generated=true -diff
+
+# Generated API types are committed but not hand-edited.
+packages/api/src/generated/** linguist-generated=true

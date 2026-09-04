@@ -1,0 +1,16 @@
+{
+  "tabs": {
+    "explore": "Explore",
+    "bookings": "Bookings",
+    "profile": "Profile"
+  },
+  "explore": {
+    "title": "Explore"
+  },
+  "bookings": {
+    "title": "Bookings"
+  },
+  "profile": {
+    "title": "Profile"
+  }
+}

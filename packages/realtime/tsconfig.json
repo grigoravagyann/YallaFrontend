@@ -1,0 +1,8 @@
+{
+  "extends": "@yalla/tsconfig/library.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["vitest/globals"]
+  },
+  "include": ["src", "vitest.config.ts"]
+}

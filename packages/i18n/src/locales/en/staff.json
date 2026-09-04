@@ -1,0 +1,10 @@
+{
+  "shell": {
+    "title": "Floor",
+    "subtitle": "Counter view"
+  },
+  "queue": {
+    "pending": "Waiting to sync",
+    "synced": "All changes saved"
+  }
+}

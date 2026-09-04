@@ -1,0 +1,35 @@
+{
+  "name": "yalla-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev:diner": "pnpm --filter @yalla/diner start",
+    "dev:staff": "pnpm --filter @yalla/staff start",
+    "dev:admin": "pnpm --filter @yalla/admin dev",
+    "build": "pnpm --filter @yalla/admin build",
+    "typecheck": "pnpm -r --no-bail typecheck",
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "i18n:check": "pnpm --filter @yalla/i18n run i18n:check",
+    "api:generate": "pnpm --filter @yalla/api run api:generate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^5.0.0"
+  }
+}

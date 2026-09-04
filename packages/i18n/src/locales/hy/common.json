@@ -1,0 +1,30 @@
+{
+  "appName": "Yalla",
+  "language": {
+    "label": "Լեզու",
+    "hy": "Հայերեն",
+    "ru": "Русский",
+    "en": "English"
+  },
+  "tableStatus": {
+    "free": "Ազատ",
+    "reserved": "Ամրագրված",
+    "occupied": "Զբաղված",
+    "yourPick": "Ձեր ընտրությունը",
+    "held": "Պահված",
+    "outOfService": "Չի սպասարկվում"
+  },
+  "connection": {
+    "connected": "Կապի մեջ",
+    "connecting": "Միանում է…",
+    "reconnecting": "Վերամիանում է…",
+    "disconnected": "Կապ չկա",
+    "offlineHint": "Ցուցադրվում է վերջին հայտնի վիճակը։"
+  },
+  "action": {
+    "retry": "Կրկնել"
+  },
+  "placeholder": {
+    "comingSoon": "Այս էջը շուտով պատրաստ կլինի։"
+  }
+}
