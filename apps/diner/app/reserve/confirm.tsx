@@ -15,13 +15,9 @@ import {
   View,
 } from 'react-native';
 import { keys, useCreateBooking, useTableAvailability, useVenue } from '../../src/data/queries';
+import { newCommandId } from '../../src/lib/commandId';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
-
-/** Stable enough for an idempotency key without pulling in a uuid dependency. */
-function newCommandId(): string {
-  return `cmd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
 
 /**
  * A short review, not a form. Nothing here is editable — changing the party or

@@ -10,17 +10,47 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "am.yalla.diner"
+      "bundleIdentifier": "am.yalla.diner",
+      "associatedDomains": ["applinks:yalla.am"]
     },
     "android": {
       "package": "am.yalla.diner",
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "yalla.am",
+              "pathPrefix": "/join"
+            },
+            {
+              "scheme": "https",
+              "host": "yalla.am",
+              "pathPrefix": "/t"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": ["expo-router", "expo-localization"],
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Yalla uses the camera to read the code on your table.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

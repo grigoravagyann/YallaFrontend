@@ -20,6 +20,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
 - `diner` — the whole browse flow: Explore header and filters, venue cards,
   branch rows, the booking bar and the floor plan screen. Added with the browse
   flow and **not** reviewed.
+- `diner` — the reservation flow: the table sheet, phone verification, the
+  confirmation screen and the bookings tab. **Not** reviewed.
+- `diner` — scanning in and the shared tab: the scan screen, pending approval,
+  the tab, invites, host controls, the menu and the call-waiter presets. **Not**
+  reviewed, and this set needs it most: the host-controls copy explains a
+  permission rule, and a translation that blurs "the table total" into "your
+  total" would tell a guest the opposite of what the feature does.
 - `staff`, `admin` — placeholder shells only.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)

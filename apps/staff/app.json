@@ -22,11 +22,7 @@
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": [
-      "expo-router",
-      "expo-localization",
-      "expo-sqlite"
-    ],
+    "plugins": ["expo-router", "expo-localization", "expo-sqlite"],
     "experiments": {
       "typedRoutes": true
     }

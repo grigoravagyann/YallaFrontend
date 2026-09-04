@@ -16,5 +16,7 @@ export type { Instant } from './datetime';
 
 export { formatRelativeMinutes, formatDuration, minutesBetween } from './duration';
 
+export { formatNameList } from './names';
+
 export { formatTableLabel, formatSeatCount } from './table';
 export type { TableLabelInput } from './table';

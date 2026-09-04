@@ -155,6 +155,88 @@ a broken screen rather than a missing translation.
 > covers only the placeholder shells and has not been written or reviewed by a
 > native speaker. See `packages/i18n/TRANSLATIONS.md`.
 
+## Scanning in and the shared tab
+
+Someone walks in off the street, sits down, scans the code on the table, and is
+in. **No account, no phone number, no password.** Nothing in that flow asks who
+they are, and nothing should be added that does.
+
+Reserving is the separate journey that needs a verified phone. The two are kept
+apart deliberately: `scanTableCode` does not touch `verificationToken`, and the
+tab contracts carry no user identity at all — a participant is a seat at a table
+for as long as the tab is open.
+
+### Walking the flow without a printer
+
+The mock derives a six-character code for every table from its id, and the scan
+screen shows the interesting ones in a dev-only panel:
+
+| Code lands on          | What happens                                         |
+| ---------------------- | ---------------------------------------------------- |
+| a free table           | a tab opens and you host it                          |
+| `b-lumen-north-t9`     | Aram is already hosting; you become a pending joiner |
+| `b-lumen-north-t14`    | the table is out of service                          |
+| `b-greenbean-main-t16` | that tab was closed and paid                         |
+| anything unmatched     | not a table                                          |
+
+The panel is gated on `__DEV__` **and** on running against mock data, exactly
+like the SMS code banner. `__DEV__` is replaced with `false` by the production
+bundler, so the subtree is dead code the minifier removes — it is not in a
+release bundle, not merely hidden in one.
+
+Six seconds after you open a tab, the mock lets a guest ask to join, so approve,
+reject and the permission toggles can be exercised from a single device. Pass
+`simulateJoiners: false` to `createMockGateway` to turn that off. It is the only
+invented activity in the mock.
+
+### The two permission rules
+
+They live in `packages/api/src/contracts/permissions.ts` rather than in a
+screen, because the server enforces them and both the UI and the mock have to
+agree:
+
+- **`canPay` implies `canSeeTableTotal`.** `setTabPermission` drags the other
+  switch whichever one you touch, and `togglePullsAlong` tells the screen when
+  to explain itself — so the line only appears when something actually moved.
+- **Everyone always sees menu prices and their own items.** Not a flag, because
+  it is never off. Hiding the total hides the _table_ total and _other people's_
+  items. The host-controls screen says this in words; a guest who thinks they
+  are being hidden from their own bill just asks a waiter, and the feature has
+  cost the venue time rather than saved it.
+
+Hiding the total exists for the host who is treating everyone. That is why
+`canPay` is off by default and `canSeeTableTotal` is on.
+
+### Links into the app
+
+One token sits behind both the QR and the share sheet, so a friend across the
+table and a friend on WhatsApp land in the same place.
+
+| URL                             | Route                  | Carries                     |
+| ------------------------------- | ---------------------- | --------------------------- |
+| `https://yalla.am/t/<code>`     | `app/t/[code].tsx`     | the code printed on a table |
+| `https://yalla.am/join/<token>` | `app/join/[token].tsx` | an invite token             |
+
+Both render `JoinByLink`, which hands whatever it has to the same
+`scanTableCode` call the camera uses — so a link and a scan cannot drift apart
+in what they do or in what they say when they fail. `yalla://` works for both
+too, but the shared link is always `https`: a phone without the app then opens a
+web page instead of doing nothing at all. (That page is out of scope; the scheme
+is chosen so it can exist.) Android verifies the domain via
+`android.intentFilters` in `app.json`, iOS via `associatedDomains`.
+
+### Calling a waiter is not wired yet
+
+Presets only — napkins, water, the bill, other. One tap, no typing, no reply
+expected. Deliberately not a chat: a chat promises an answer, and during the
+Friday rush nobody answers, which leaves the diner more annoyed than if they had
+raised a hand.
+
+The backend endpoint does not exist yet. Rather than fake a confirmation,
+`createHttpGateway` throws `EndpointNotWiredError` and the sheet says plainly
+that the feature is not live. Grep for that class to find everything still
+unwired.
+
 ## Why the staff app is native rather than a web page
 
 The staff app is the one surface where a web page would be actively worse, for
@@ -189,7 +271,7 @@ plan component through `react-native-web`.
 
 ```
 apps/
-  diner/      Expo Router, tabs: Explore / Bookings / Profile, portrait only
+  diner/      Expo Router, tabs: Explore / Scan / Bookings / Profile, portrait only
   staff/      Expo Router, single-level navigation, landscape only, offline queue
   admin/      Vite + React Router, sidebar layout
 packages/

@@ -55,6 +55,17 @@ export default function RootLayout() {
           <Stack.Screen name="reserve/confirm" />
           <Stack.Screen name="reserve/success" />
           <Stack.Screen name="booking/[bookingId]" />
+          {/* Scanning in and the shared tab. */}
+          <Stack.Screen name="tab/[tabId]/index" />
+          <Stack.Screen name="tab/[tabId]/pending" />
+          <Stack.Screen name="tab/[tabId]/invite" />
+          <Stack.Screen name="tab/[tabId]/people" />
+          <Stack.Screen name="tab/[tabId]/menu" />
+          {/* Deep links. Expo Router derives the linking config from these
+              paths, so `https://yalla.am/join/<token>` and the `yalla://`
+              scheme both resolve without a hand-written linking map. */}
+          <Stack.Screen name="join/[token]" />
+          <Stack.Screen name="t/[code]" />
         </Stack>
       </QueryClientProvider>
     </I18nextProvider>

@@ -49,14 +49,60 @@ export type {
 } from './contracts/booking';
 
 export {
+  EndpointNotWiredError,
   ExpiredCodeError,
   LeadTimeExceededError,
+  NotTabHostError,
   RateLimitedError,
+  TabClosedError,
+  TableOutOfServiceError,
   TableTakenError,
   TooManyAttemptsError,
+  UnknownTableCodeError,
   WrongCodeError,
+  isEndpointNotWired,
   isTableTaken,
 } from './contracts/errors';
+
+// --- Scanning in and the shared tab -----------------------------------------
+export type {
+  ScanResult,
+  ScanTableCommand,
+  TabInvite,
+  TabParticipant,
+  TabParticipantRole,
+  TabParticipantStatus,
+  TabPermissions,
+  TabStatus,
+  TableTab,
+  WaiterCall,
+  WaiterCallReason,
+} from './contracts/tab';
+export { WAITER_CALL_REASONS } from './contracts/tab';
+
+export {
+  DEFAULT_TAB_PERMISSIONS,
+  HOST_TAB_PERMISSIONS,
+  isValidTabPermissions,
+  normalizeTabPermissions,
+  setTabPermission,
+  togglePullsAlong,
+} from './contracts/permissions';
+export type { TabPermissionKey } from './contracts/permissions';
+
+export { extractScannedCode } from './contracts/scanCode';
+
+export type { Menu, MenuItem, MenuSection } from './contracts/menu';
+
+/**
+ * Development affordance only.
+ *
+ * The printed code for a mock table, so the manual-entry fallback can be walked
+ * without a printer. Callers must gate on `__DEV__`; see the scan screen.
+ */
+export { formatTableCode, mockTableCode, normalizeTableCode } from './mocks/tableCodes';
+export { MOCK_DEMO_TABLES } from './mocks/demoTables';
+export type { MockDemoTable } from './mocks/demoTables';
 
 export {
   venueFreeTables,

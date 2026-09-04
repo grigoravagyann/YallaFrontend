@@ -9,13 +9,26 @@ import type {
   VerifiedPhone,
 } from '../contracts/booking';
 import {
+  EndpointNotWiredError,
   ExpiredCodeError,
   LeadTimeExceededError,
+  NotTabHostError,
   RateLimitedError,
+  TabClosedError,
+  TableOutOfServiceError,
   TableTakenError,
   TooManyAttemptsError,
+  UnknownTableCodeError,
   WrongCodeError,
 } from '../contracts/errors';
+import type { Menu } from '../contracts/menu';
+import type {
+  ScanResult,
+  ScanTableCommand,
+  TabInvite,
+  TableTab,
+  WaiterCall,
+} from '../contracts/tab';
 import { ApiError } from '../errors';
 import type { YallaGateway } from '../gateway';
 
@@ -96,6 +109,60 @@ export function createHttpGateway(client: ApiClient): YallaGateway {
     }
   }
 
+  /**
+   * Scan failures are all "expected outcome" shaped: the diner did nothing
+   * wrong and each one has a different next step, so each gets its own type
+   * rather than a status code the screen has to re-interpret.
+   */
+  function translateScan(error: unknown): never {
+    if (!(error instanceof ApiError)) throw error;
+    const body = error.body as { code?: string; tableLabel?: string; tabId?: string } | undefined;
+
+    switch (body?.code) {
+      case 'tableOutOfService':
+        throw new TableOutOfServiceError({
+          url: error.url,
+          tableLabel: body.tableLabel ?? '',
+        });
+      case 'tabClosed':
+        throw new TabClosedError({ url: error.url, tabId: body.tabId ?? '' });
+      case 'unknownTableCode':
+        throw new UnknownTableCodeError({ url: error.url });
+      default:
+        // A 404 on this endpoint means the code, not the endpoint.
+        if (error.status === 404) throw new UnknownTableCodeError({ url: error.url });
+        throw error;
+    }
+  }
+
+  /** Host-only actions share one failure worth naming. */
+  function translateHostAction(error: unknown): never {
+    if (error instanceof ApiError && error.status === 403) {
+      throw new NotTabHostError({ url: error.url });
+    }
+    throw error;
+  }
+
+  /** Every host action posts, carries its command id, and returns the whole tab. */
+  async function hostAction(
+    path: string,
+    commandId: string,
+    body?: Record<string, unknown>,
+  ): Promise<TableTab> {
+    try {
+      const { data } = await client.post<TableTab>(
+        path,
+        { commandId, ...body },
+        {
+          headers: { 'idempotency-key': commandId },
+        },
+      );
+      return data;
+    } catch (error) {
+      return translateHostAction(error);
+    }
+  }
+
   return {
     async listVenues() {
       const { data } = await client.get<readonly VenueSummary[]>('/venues');
@@ -167,6 +234,84 @@ export function createHttpGateway(client: ApiClient): YallaGateway {
     async cancelBooking(bookingId) {
       const { data } = await client.post<Booking>(`/bookings/${bookingId}/cancel`);
       return data;
+    },
+
+    // --- Scanning in and the shared tab -----------------------------------
+
+    async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
+      try {
+        const { data } = await client.post<ScanResult>('/tabs/scan', command, {
+          // The same key on every retry is what stops a double scan from
+          // opening two tabs; the body carries the id too.
+          headers: { 'idempotency-key': command.commandId },
+        });
+        return data;
+      } catch (error) {
+        return translateScan(error);
+      }
+    },
+
+    async getTab(tabId) {
+      const { data } = await client.get<TableTab>(`/tabs/${tabId}`);
+      return data;
+    },
+
+    async leaveTab({ tabId, commandId }) {
+      await client.post(
+        `/tabs/${tabId}/leave`,
+        { commandId },
+        {
+          headers: { 'idempotency-key': commandId },
+        },
+      );
+    },
+
+    async getBranchMenu(branchId): Promise<Menu | null> {
+      const { data } = await client.get<Menu>(`/branches/${branchId}/menu`);
+      return data;
+    },
+
+    async createTabInvite({ tabId, commandId }): Promise<TabInvite> {
+      const { data } = await client.post<TabInvite>(
+        `/tabs/${tabId}/invites`,
+        { commandId },
+        {
+          headers: { 'idempotency-key': commandId },
+        },
+      );
+      return data;
+    },
+
+    approveJoin({ tabId, participantId, commandId }) {
+      return hostAction(`/tabs/${tabId}/participants/${participantId}/approve`, commandId);
+    },
+
+    rejectJoin({ tabId, participantId, commandId }) {
+      return hostAction(`/tabs/${tabId}/participants/${participantId}/reject`, commandId);
+    },
+
+    removeParticipant({ tabId, participantId, commandId }) {
+      return hostAction(`/tabs/${tabId}/participants/${participantId}/remove`, commandId);
+    },
+
+    setParticipantPermissions({ tabId, participantId, permissions, commandId }) {
+      return hostAction(`/tabs/${tabId}/participants/${participantId}/permissions`, commandId, {
+        permissions,
+      });
+    },
+
+    setTabDefaultPermissions({ tabId, permissions, commandId }) {
+      return hostAction(`/tabs/${tabId}/default-permissions`, commandId, { permissions });
+    },
+
+    // TODO(prompt-7): wire to POST /tabs/{tabId}/waiter-calls once the backend
+    // ships it. Throwing a typed error is deliberate — a silent no-op here
+    // would let the UI show a diner that a waiter is coming when nobody was
+    // ever told, which is strictly worse than telling them to raise a hand.
+    callWaiter(): Promise<WaiterCall> {
+      return Promise.reject(
+        new EndpointNotWiredError({ url: '/tabs/{tabId}/waiter-calls', endpoint: 'callWaiter' }),
+      );
     },
   };
 }

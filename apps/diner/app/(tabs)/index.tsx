@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { VenueCard } from '../../src/components/VenueCard';
 import { useVenues } from '../../src/data/queries';
+import { useActiveTab } from '../../src/stores/tab';
 
 type Filter = 'all' | 'cafes' | 'restaurants';
 
@@ -37,6 +38,7 @@ export default function ExploreScreen() {
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const activeTabId = useActiveTab((s) => s.activeTabId);
 
   const { data, isLoading, isError, refetch } = useVenues();
   // Stable identity, so the filter memo below is not defeated by `?? []`
@@ -73,6 +75,19 @@ export default function ExploreScreen() {
         <Text style={styles.city}>{t('explore.city')}</Text>
         <Text style={styles.count}>{t('explore.placesNearby', { count: venues.length })}</Text>
       </View>
+
+      {/* A way back to a tab you wandered off. Not a persistent bar: it only
+          exists while there is somewhere to go back to. */}
+      {activeTabId ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/tab/[tabId]', params: { tabId: activeTabId } })}
+          style={({ pressed }) => [styles.resume, pressed && styles.resumePressed]}
+        >
+          <Text style={styles.resumeTitle}>{t('tab.resumeTitle')}</Text>
+          <Text style={styles.resumeAction}>{t('tab.resumeAction')}</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.searchWrap}>
         <TextInput
@@ -156,6 +171,24 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
     color: color.textSecondary,
+  },
+  resume: {
+    marginHorizontal: space.lg,
+    marginBottom: space.sm,
+    minHeight: touchTarget.minimum,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: space.lg,
+    borderRadius: radius.md,
+    backgroundColor: color.accentMuted,
+  },
+  resumePressed: { opacity: 0.8 },
+  resumeTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: color.accentStrong },
+  resumeAction: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    color: color.accentStrong,
   },
   searchWrap: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   search: {

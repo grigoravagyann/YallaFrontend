@@ -19,7 +19,19 @@ import {
   TooManyAttemptsError,
   WrongCodeError,
 } from '../contracts/errors';
+import type { Menu } from '../contracts/menu';
+import type {
+  ScanResult,
+  ScanTableCommand,
+  TabInvite,
+  TabPermissions,
+  TableTab,
+  WaiterCall,
+  WaiterCallReason,
+} from '../contracts/tab';
 import type { YallaGateway } from '../gateway';
+import { mockMenuFor } from './menu';
+import { createTabWorld, type TableLocation } from './tabs';
 import { mockVenues, type Branch as MockBranch } from './venues';
 
 const URL_TAG = 'mock://yalla';
@@ -59,6 +71,11 @@ export interface MockGatewayOptions {
    * path without needing a second device.
    */
   readonly simulateTableTaken?: boolean;
+  /**
+   * Let a guest turn up on a tab you host a few seconds after you open it, so
+   * the host controls have something to approve on a single device.
+   */
+  readonly simulateJoiners?: boolean;
 }
 
 function minutesBetween(a: Date, b: Date): number {
@@ -91,6 +108,33 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   }
 
   const wait = () => (latency > 0 ? new Promise((r) => setTimeout(r, latency)) : Promise.resolve());
+
+  /**
+   * The tab side of the mock backend, sharing this instance's floors so a table
+   * taken out of service is out of service for scanning too.
+   */
+  const world = createTabWorld({
+    now,
+    simulateJoiners: options.simulateJoiners ?? true,
+    allTableIds: () => [...floors.values()].flatMap((floor) => floor.tables.map((t) => t.id)),
+    locate: (tableId): TableLocation | null => {
+      for (const venue of mockVenues) {
+        for (const branch of venue.branches) {
+          const table = floors.get(branch.id)?.tables.find((t) => t.id === tableId);
+          if (!table) continue;
+          return {
+            venueId: venue.id,
+            venueName: venue.name,
+            branchId: branch.id,
+            branchName: branch.name,
+            timeZoneId: branch.timeZoneId,
+            table,
+          };
+        }
+      }
+      return null;
+    },
+  });
 
   function findBranch(branchId: string): { venue: VenueSummary; branch: MockBranch } | null {
     for (const venue of mockVenues) {
@@ -404,6 +448,77 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       }
 
       return cancelled;
+    },
+
+    // --- Scanning in and the shared tab -----------------------------------
+
+    async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
+      await wait();
+      return world.scan(command);
+    },
+
+    async getTab(tabId): Promise<TableTab | null> {
+      await wait();
+      return world.get(tabId);
+    },
+
+    async leaveTab({ tabId }) {
+      await wait();
+      world.leave(tabId);
+    },
+
+    async getBranchMenu(branchId): Promise<Menu | null> {
+      await wait();
+      const venue = mockVenues.find((v) => v.branches.some((b) => b.id === branchId));
+      return venue ? mockMenuFor(branchId, venue.type) : null;
+    },
+
+    async createTabInvite(input): Promise<TabInvite> {
+      await wait();
+      return world.invite(input);
+    },
+
+    async approveJoin(input): Promise<TableTab> {
+      await wait();
+      return world.approve(input);
+    },
+
+    async rejectJoin(input): Promise<TableTab> {
+      await wait();
+      return world.reject(input);
+    },
+
+    async removeParticipant(input): Promise<TableTab> {
+      await wait();
+      return world.remove(input);
+    },
+
+    async setParticipantPermissions(input: {
+      tabId: string;
+      participantId: string;
+      permissions: TabPermissions;
+      commandId: string;
+    }): Promise<TableTab> {
+      await wait();
+      return world.setPermissions(input);
+    },
+
+    async setTabDefaultPermissions(input: {
+      tabId: string;
+      permissions: TabPermissions;
+      commandId: string;
+    }): Promise<TableTab> {
+      await wait();
+      return world.setDefaults(input);
+    },
+
+    async callWaiter(input: {
+      tabId: string;
+      reason: WaiterCallReason;
+      commandId: string;
+    }): Promise<WaiterCall> {
+      await wait();
+      return world.call(input);
     },
   };
 }
