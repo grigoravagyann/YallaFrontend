@@ -47,6 +47,10 @@ export default function RootLayout() {
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
+          {/* Pushed screens set their own header, which also gives Android
+              hardware-back and the iOS swipe-back gesture. */}
+          <Stack.Screen name="venue/[venueId]" />
+          <Stack.Screen name="branch/[branchId]" />
         </Stack>
       </QueryClientProvider>
     </I18nextProvider>

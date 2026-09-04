@@ -1,11 +1,73 @@
 {
+  "explore": {
+    "title": "Explore",
+    "city": "Yerevan",
+    "placesNearby_one": "{{count}} place nearby",
+    "placesNearby_other": "{{count}} places nearby",
+    "searchPlaceholder": "Search cafes and restaurants",
+    "searchClear": "Clear search",
+    "filter": {
+      "all": "All",
+      "cafes": "Cafes",
+      "restaurants": "Restaurants"
+    },
+    "empty": {
+      "title": "Nothing matches that",
+      "body": "Try a different name, or clear the filters."
+    },
+    "loading": "Finding places nearby…"
+  },
+  "venue": {
+    "type": {
+      "cafe": "Cafe",
+      "restaurant": "Restaurant"
+    },
+    "branchCount_one": "{{count}} branch",
+    "branchCount_other": "{{count}} branches",
+    "typeAndBranches": "{{type}} · {{branches}}",
+    "freeNow_one": "{{count}} table free now",
+    "freeNow_other": "{{count}} tables free now",
+    "fullyBooked": "Fully booked tonight",
+    "openNow": "Open now",
+    "closedNow": "Closed"
+  },
+  "branches": {
+    "title": "Choose a branch",
+    "distanceKm": "{{km}} km",
+    "openUntil": "open until {{time}}",
+    "closed": "closed",
+    "distanceAndHours": "{{distance}} · {{hours}}",
+    "availability": "{{free}} of {{total}} tables free",
+    "noneFree": "No tables free",
+    "empty": {
+      "title": "No branches",
+      "body": "This venue has no locations listed yet."
+    },
+    "loading": "Loading branches…"
+  },
+  "booking": {
+    "date": "Date",
+    "time": "Time",
+    "partySize": "Guests",
+    "today": "Today",
+    "guests_one": "{{count}} guest",
+    "guests_other": "{{count}} guests",
+    "done": "Done",
+    "cancel": "Cancel",
+    "pickDate": "Pick a date",
+    "pickTime": "Pick a time",
+    "pickPartySize": "How many guests?"
+  },
+  "floorPlan": {
+    "title": "Pick a table",
+    "comingSoon": "The floor plan for this branch appears here.",
+    "back": "Back",
+    "notFound": "That branch could not be found."
+  },
   "tabs": {
     "explore": "Explore",
     "bookings": "Bookings",
     "profile": "Profile"
-  },
-  "explore": {
-    "title": "Explore"
   },
   "bookings": {
     "title": "Bookings"

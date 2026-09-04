@@ -8,7 +8,7 @@
   },
   "tableStatus": {
     "free": "Свободен",
-    "reserved": "Забронирован",
+    "reservedSoon": "Забронирован",
     "occupied": "Занят",
     "yourPick": "Ваш выбор",
     "held": "Удерживается",

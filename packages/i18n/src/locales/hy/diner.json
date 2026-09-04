@@ -1,11 +1,73 @@
 {
+  "explore": {
+    "title": "Բացահայտել",
+    "city": "Երևան",
+    "placesNearby_one": "{{count}} վայր մոտակայքում",
+    "placesNearby_other": "{{count}} վայր մոտակայքում",
+    "searchPlaceholder": "Փնտրել սրճարաններ և ռեստորաններ",
+    "searchClear": "Մաքրել որոնումը",
+    "filter": {
+      "all": "Բոլորը",
+      "cafes": "Սրճարաններ",
+      "restaurants": "Ռեստորաններ"
+    },
+    "empty": {
+      "title": "Համընկնումներ չկան",
+      "body": "Փորձեք այլ անուն կամ մաքրեք զտիչները։"
+    },
+    "loading": "Որոնվում են մոտակա վայրերը…"
+  },
+  "venue": {
+    "type": {
+      "cafe": "Սրճարան",
+      "restaurant": "Ռեստորան"
+    },
+    "branchCount_one": "{{count}} մասնաճյուղ",
+    "branchCount_other": "{{count}} մասնաճյուղ",
+    "typeAndBranches": "{{type}} · {{branches}}",
+    "freeNow_one": "{{count}} ազատ սեղան հիմա",
+    "freeNow_other": "{{count}} ազատ սեղան հիմա",
+    "fullyBooked": "Այս երեկո ամբողջությամբ զբաղված է",
+    "openNow": "Բաց է",
+    "closedNow": "Փակ է"
+  },
+  "branches": {
+    "title": "Ընտրեք մասնաճյուղ",
+    "distanceKm": "{{km}} կմ",
+    "openUntil": "բաց է մինչև {{time}}",
+    "closed": "փակ է",
+    "distanceAndHours": "{{distance}} · {{hours}}",
+    "availability": "{{total}}-ից {{free}} սեղան ազատ է",
+    "noneFree": "Ազատ սեղաններ չկան",
+    "empty": {
+      "title": "Մասնաճյուղեր չկան",
+      "body": "Այս վայրը դեռ գրանցված հասցեներ չունի։"
+    },
+    "loading": "Բեռնվում են մասնաճյուղերը…"
+  },
+  "booking": {
+    "date": "Ամսաթիվ",
+    "time": "Ժամ",
+    "partySize": "Հյուրեր",
+    "today": "Այսօր",
+    "guests_one": "{{count}} հյուր",
+    "guests_other": "{{count}} հյուր",
+    "done": "Պատրաստ է",
+    "cancel": "Չեղարկել",
+    "pickDate": "Ընտրեք ամսաթիվը",
+    "pickTime": "Ընտրեք ժամը",
+    "pickPartySize": "Քանի՞ հյուր"
+  },
+  "floorPlan": {
+    "title": "Ընտրեք սեղան",
+    "comingSoon": "Այս մասնաճյուղի հատակագիծը կհայտնվի այստեղ։",
+    "back": "Հետ",
+    "notFound": "Այդ մասնաճյուղը չգտնվեց։"
+  },
   "tabs": {
     "explore": "Բացահայտել",
     "bookings": "Ամրագրումներ",
     "profile": "Պրոֆիլ"
-  },
-  "explore": {
-    "title": "Բացահայտել"
   },
   "bookings": {
     "title": "Ամրագրումներ"

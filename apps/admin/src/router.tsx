@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
+import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
 import { FloorPlanRoute } from './routes/FloorPlanRoute';
 import { PlaceholderScreen } from './routes/PlaceholderScreen';
 
@@ -19,6 +20,8 @@ export const router = createBrowserRouter([
       { path: 'hours', element: <PlaceholderScreen titleKey="nav.hours" /> },
       { path: 'staff', element: <PlaceholderScreen titleKey="nav.staff" /> },
       { path: 'reports', element: <PlaceholderScreen titleKey="nav.reports" /> },
+      // Development harness, not a product screen. Not in the sidebar.
+      { path: 'dev/floorplan', element: <DevFloorPlanRoute /> },
     ],
   },
 ]);

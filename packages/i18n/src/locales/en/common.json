@@ -8,7 +8,7 @@
   },
   "tableStatus": {
     "free": "Free",
-    "reserved": "Reserved",
+    "reservedSoon": "Reserved",
     "occupied": "Occupied",
     "yourPick": "Your pick",
     "held": "Held",

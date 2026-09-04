@@ -140,3 +140,49 @@ body {
   background: var(--color-surface-muted);
   overflow: hidden;
 }
+
+/* ---- Floor plan dev harness (not a product screen) ---- */
+.dev-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin: var(--space-lg) 0;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.dev-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs, 4px);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.dev-controls select {
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.dev-status {
+  margin: var(--space-sm) 0 var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  min-height: 1.4em;
+}
+
+/* Exactly the target device size — what you see is what a phone sees. */
+.dev-viewport {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+  resize: both;
+  max-width: 100%;
+}

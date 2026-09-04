@@ -14,6 +14,19 @@ could be.
 **Before launch, a native Armenian speaker and a native Russian speaker must
 review every string in `src/locales/hy` and `src/locales/ru`.**
 
+### What is currently provisional
+
+- `common` — the app shell, table-state legend and connection states.
+- `diner` — the whole browse flow: Explore header and filters, venue cards,
+  branch rows, the booking bar and the floor plan screen. Added with the browse
+  flow and **not** reviewed.
+- `staff`, `admin` — placeholder shells only.
+
+The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
+where Armenian and English carry two. That is correct CLDR, not duplication, and
+`pnpm i18n:check` verifies each language has exactly the categories
+`Intl.PluralRules` says it needs — no more, no fewer.
+
 No string beyond the shell set has been machine-translated, and none should be.
 An empty file is a visible gap; a plausible-looking wrong translation is an
 invisible one that never gets revisited.

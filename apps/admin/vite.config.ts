@@ -45,9 +45,9 @@ export default defineConfig(({ mode }) => ({
     global: 'globalThis',
   },
   optimizeDeps: {
-    // The workspace packages ship raw TypeScript; Vite must not pre-bundle them
-    // or it loses HMR on edits to shared code.
     exclude: [
+      // The workspace packages ship raw TypeScript; Vite must not pre-bundle
+      // them or it loses HMR on edits to shared code.
       '@yalla/api',
       '@yalla/floorplan',
       '@yalla/format',
@@ -55,6 +55,32 @@ export default defineConfig(({ mode }) => ({
       '@yalla/realtime',
       '@yalla/tokens',
     ],
+    // react-native-svg and react-native-web MUST stay pre-bundled. They mix
+    // CommonJS files into their ESM output (`lib/extract/transform.js` is a
+    // generated PEG parser using `module.exports`), and pre-bundling is what
+    // gives those files named-export interop. Excluding them produces
+    // "does not provide an export named 'parse'" at runtime — a blank page.
+    //
+    // But the pre-bundler does not inherit `resolve.extensions` from above, so
+    // by default it resolves react-native-svg's `./elements` to the native
+    // `elements.js` rather than the `elements.web.js` beside it, drags in the
+    // Fabric components, and dies on their Flow-typed react-native imports.
+    // Giving the optimizer the same extension order fixes that at the source.
+    rolldownOptions: {
+      resolve: {
+        extensions: [
+          '.web.tsx',
+          '.web.ts',
+          '.web.jsx',
+          '.web.js',
+          '.tsx',
+          '.ts',
+          '.jsx',
+          '.js',
+          '.json',
+        ],
+      },
+    },
   },
   server: {
     port: 5173,

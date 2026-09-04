@@ -302,6 +302,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.102.8
         version: 5.102.8(react@19.2.3)
+      '@yalla/floorplan':
+        specifier: workspace:*
+        version: link:../floorplan
       '@yalla/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
@@ -317,6 +320,9 @@ importers:
 
   packages/floorplan:
     dependencies:
+      '@yalla/format':
+        specifier: workspace:*
+        version: link:../format
       '@yalla/tokens':
         specifier: workspace:*
         version: link:../tokens

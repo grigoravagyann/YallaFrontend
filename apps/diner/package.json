@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.11",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.102.8",
     "@yalla/api": "workspace:*",
     "@yalla/floorplan": "workspace:*",
@@ -18,7 +19,6 @@
     "@yalla/i18n": "workspace:*",
     "@yalla/realtime": "workspace:*",
     "@yalla/tokens": "workspace:*",
-    "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~57.0.20",
     "expo-constants": "~57.0.17",
     "expo-linking": "~57.0.9",

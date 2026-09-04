@@ -8,7 +8,7 @@
   },
   "tableStatus": {
     "free": "Ազատ",
-    "reserved": "Ամրագրված",
+    "reservedSoon": "Ամրագրված",
     "occupied": "Զբաղված",
     "yourPick": "Ձեր ընտրությունը",
     "held": "Պահված",

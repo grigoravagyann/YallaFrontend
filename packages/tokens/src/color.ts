@@ -62,7 +62,8 @@ export type ColorToken = keyof typeof color;
  * `yourPick` is the diner-side-only state for the table the diner is currently
  * selecting; staff never see it.
  */
-export type TableStatus = 'free' | 'reserved' | 'occupied' | 'yourPick' | 'held' | 'outOfService';
+export type TableStatus =
+  'free' | 'reservedSoon' | 'occupied' | 'yourPick' | 'held' | 'outOfService';
 
 /**
  * How a table state is drawn.
@@ -106,14 +107,14 @@ export const tableStatusStyle: Readonly<Record<TableStatus, TableStatusStyle>> =
     label: palette.ink900,
     legendKey: 'tableStatus.free',
   },
-  reserved: {
+  reservedSoon: {
     fill: palette.amber100,
     stroke: palette.amber600,
     strokeWidth: 2,
     strokeDash: [6, 4],
     pattern: 'diagonalStripes',
     label: palette.ink900,
-    legendKey: 'tableStatus.reserved',
+    legendKey: 'tableStatus.reservedSoon',
   },
   occupied: {
     fill: palette.pomegranate100,
@@ -156,7 +157,7 @@ export const tableStatusStyle: Readonly<Record<TableStatus, TableStatusStyle>> =
 /** Order the legend is rendered in, shared by the diner and staff apps. */
 export const tableStatusLegendOrder: readonly TableStatus[] = [
   'free',
-  'reserved',
+  'reservedSoon',
   'occupied',
   'held',
   'outOfService',

@@ -1,11 +1,81 @@
 {
+  "explore": {
+    "title": "Обзор",
+    "city": "Ереван",
+    "placesNearby_one": "{{count}} место рядом",
+    "placesNearby_few": "{{count}} места рядом",
+    "placesNearby_many": "{{count}} мест рядом",
+    "placesNearby_other": "{{count}} мест рядом",
+    "searchPlaceholder": "Поиск кафе и ресторанов",
+    "searchClear": "Очистить поиск",
+    "filter": {
+      "all": "Все",
+      "cafes": "Кафе",
+      "restaurants": "Рестораны"
+    },
+    "empty": {
+      "title": "Ничего не найдено",
+      "body": "Попробуйте другое название или сбросьте фильтры."
+    },
+    "loading": "Ищем места рядом…"
+  },
+  "venue": {
+    "type": {
+      "cafe": "Кафе",
+      "restaurant": "Ресторан"
+    },
+    "branchCount_one": "{{count}} филиал",
+    "branchCount_few": "{{count}} филиала",
+    "branchCount_many": "{{count}} филиалов",
+    "branchCount_other": "{{count}} филиалов",
+    "typeAndBranches": "{{type}} · {{branches}}",
+    "freeNow_one": "{{count}} стол свободен сейчас",
+    "freeNow_few": "{{count}} стола свободны сейчас",
+    "freeNow_many": "{{count}} столов свободны сейчас",
+    "freeNow_other": "{{count}} столов свободны сейчас",
+    "fullyBooked": "Всё занято на сегодня",
+    "openNow": "Открыто",
+    "closedNow": "Закрыто"
+  },
+  "branches": {
+    "title": "Выберите филиал",
+    "distanceKm": "{{km}} км",
+    "openUntil": "открыто до {{time}}",
+    "closed": "закрыто",
+    "distanceAndHours": "{{distance}} · {{hours}}",
+    "availability": "{{free}} из {{total}} столов свободно",
+    "noneFree": "Свободных столов нет",
+    "empty": {
+      "title": "Нет филиалов",
+      "body": "У этого заведения пока нет адресов."
+    },
+    "loading": "Загружаем филиалы…"
+  },
+  "booking": {
+    "date": "Дата",
+    "time": "Время",
+    "partySize": "Гости",
+    "today": "Сегодня",
+    "guests_one": "{{count}} гость",
+    "guests_few": "{{count}} гостя",
+    "guests_many": "{{count}} гостей",
+    "guests_other": "{{count}} гостей",
+    "done": "Готово",
+    "cancel": "Отмена",
+    "pickDate": "Выберите дату",
+    "pickTime": "Выберите время",
+    "pickPartySize": "Сколько гостей?"
+  },
+  "floorPlan": {
+    "title": "Выберите стол",
+    "comingSoon": "Здесь появится план зала этого филиала.",
+    "back": "Назад",
+    "notFound": "Филиал не найден."
+  },
   "tabs": {
     "explore": "Обзор",
     "bookings": "Брони",
     "profile": "Профиль"
-  },
-  "explore": {
-    "title": "Обзор"
   },
   "bookings": {
     "title": "Брони"
