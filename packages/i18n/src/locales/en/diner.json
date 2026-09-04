@@ -70,9 +70,119 @@
     "profile": "Profile"
   },
   "bookings": {
-    "title": "Bookings"
+    "title": "Bookings",
+    "upcoming": "Upcoming",
+    "past": "Past",
+    "status": {
+      "confirmed": "Confirmed",
+      "pendingApproval": "Awaiting venue",
+      "cancelled": "Cancelled",
+      "completed": "Completed",
+      "noShow": "Missed"
+    },
+    "tableAt": "Table {{table}} · {{branch}}",
+    "empty": {
+      "title": "No bookings yet",
+      "body": "Find a table and it will show up here.",
+      "action": "Explore places"
+    },
+    "emptyPast": {
+      "title": "Nothing here yet",
+      "body": "Past bookings will appear here."
+    },
+    "loading": "Loading your bookings…",
+    "detail": {
+      "title": "Your booking",
+      "cancel": "Cancel booking",
+      "cancelTitle": "Cancel this booking?",
+      "cancelFree": "It is free to cancel now, and the table goes back to others.",
+      "cancelLate": "This is past the free-cancellation time, but cancelling still helps far more than not turning up.",
+      "cancelConfirm": "Yes, cancel",
+      "cancelKeep": "Keep it",
+      "cancelling": "Cancelling…",
+      "cancelFailed": "We could not cancel that. Try again.",
+      "cancelledOn": "Cancelled {{date}}"
+    }
   },
   "profile": {
     "title": "Profile"
+  },
+  "table": {
+    "titleWithArea": "Table {{label}} · {{area}}",
+    "title": "Table {{label}}",
+    "seats_one": "{{count}} seat",
+    "seats_other": "{{count}} seats",
+    "heldForYou": "Held for you {{range}}",
+    "nextBooking": "Next booking {{time}}",
+    "noBookingAfter": "No booking after yours",
+    "shortWindow": "That is shorter than a usual sitting here. Other tables may have no limit.",
+    "freeCancellation": "Free cancellation until {{time}}",
+    "needsApproval": "A party this size needs the venue to confirm. You will hear back shortly.",
+    "reserve": "Reserve table {{label}}",
+    "unavailable": {
+      "occupied": "Someone is sitting here right now.",
+      "held": "Someone else is booking this table.",
+      "outOfService": "This table is out of service.",
+      "tooSmall": "Too small for {{count}} guests.",
+      "notBookable": "This table is not bookable.",
+      "pastLeadTime": "Too soon to book this table."
+    },
+    "close": "Close"
+  },
+  "verify": {
+    "phoneTitle": "Your phone number",
+    "phoneBody": "We ask for this only to hold the table, so the venue can reach you if something changes.",
+    "phoneLabel": "Phone number",
+    "phonePlaceholder": "77 123456",
+    "sendCode": "Send code",
+    "codeTitle": "Enter the code",
+    "codeBody": "We sent a 6-digit code to {{phone}}.",
+    "resendIn": "Resend in {{seconds}}s",
+    "resend": "Send a new code",
+    "devBanner": "Dev only — code is {{code}}",
+    "error": {
+      "wrongCode_one": "That code is not right. {{count}} attempt left.",
+      "wrongCode_other": "That code is not right. {{count}} attempts left.",
+      "expired": "That code has expired. Ask for a new one.",
+      "tooManyAttempts": "Too many tries. Ask for a new code.",
+      "rateLimited": "Too many codes requested. Try again after {{time}}.",
+      "network": "No connection. Check your signal and try again.",
+      "generic": "Something went wrong. Try again."
+    },
+    "changeNumber": "Use a different number"
+  },
+  "confirm": {
+    "title": "Confirm your table",
+    "venue": "Where",
+    "when": "When",
+    "party": "Guests",
+    "tableRow": "Table",
+    "window": "Your table",
+    "cancellation": "Cancellation",
+    "submit": "Confirm booking",
+    "submitting": "Confirming…",
+    "requiresApproval": "Request table",
+    "error": {
+      "tableTaken": "Table {{label}} was just taken. Here is what is free now.",
+      "leadTime": "That time is too soon now. The earliest we can book is {{time}}.",
+      "network": "No connection. Your booking was not made — nothing was held.",
+      "generic": "We could not complete that. Nothing was booked."
+    }
+  },
+  "success": {
+    "confirmedTitle": "Table booked",
+    "pendingTitle": "Request sent",
+    "pendingBody": "The venue will confirm shortly. We will let you know.",
+    "codeLabel": "Your code",
+    "codeHint": "Show this at the door.",
+    "share": "Share",
+    "shareMessage": "I booked table {{table}} at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
+    "viewBookings": "See my bookings",
+    "done": "Done"
+  },
+  "net": {
+    "offline": "You are offline.",
+    "retry": "Try again",
+    "loading": "Loading…"
   }
 }

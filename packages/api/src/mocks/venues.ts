@@ -72,7 +72,9 @@ function buildFloor(
       ? 'free'
       : (busyStates[(i - freeCount) % busyStates.length] ?? 'occupied');
 
-    const seats = i % 5 === 0 ? 4 : i % 7 === 0 ? 6 : 2;
+    // A large table must exist or the pending-approval path (party above the
+    // branch's instant-confirmation limit) is unreachable in the mock.
+    const seats = i % 7 === 0 && i > 0 ? 8 : i % 5 === 0 ? 4 : i % 11 === 0 ? 6 : 2;
     const round = i % 3 === 0;
 
     return {

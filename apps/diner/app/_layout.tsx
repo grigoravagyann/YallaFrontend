@@ -51,6 +51,10 @@ export default function RootLayout() {
               hardware-back and the iOS swipe-back gesture. */}
           <Stack.Screen name="venue/[venueId]" />
           <Stack.Screen name="branch/[branchId]" />
+          <Stack.Screen name="verify/index" />
+          <Stack.Screen name="reserve/confirm" />
+          <Stack.Screen name="reserve/success" />
+          <Stack.Screen name="booking/[bookingId]" />
         </Stack>
       </QueryClientProvider>
     </I18nextProvider>

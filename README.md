@@ -72,6 +72,43 @@ listens on that interface. The .NET dev certificate is self-signed, so a device
 will reject it until you trust it or run the backend over plain HTTP for local
 testing.
 
+### Mock data versus a real backend
+
+The diner app runs on **mock data by default**. There is one switch:
+
+| `EXPO_PUBLIC_API_BASE_URL` | Data source            |
+| -------------------------- | ---------------------- |
+| unset or blank             | in-memory mock gateway |
+| set to a backend origin    | real HTTP gateway      |
+
+That decision lives entirely in `resolveGateway` (`packages/api/src/resolveGateway.ts`),
+which returns a `YallaGateway`. **Every screen is typed against that interface
+and none against a mock shape**, so pointing the app at a live backend is a
+change to one module — not to a single component.
+
+```bash
+# mock data (default): just start it
+pnpm dev:diner
+
+# real backend
+echo 'EXPO_PUBLIC_API_BASE_URL=https://192.168.0.30:7188' > apps/diner/.env
+pnpm dev:diner
+```
+
+The mock gateway is a real implementation, not a stub: it holds bookings in
+memory, enforces idempotency on `commandId`, expires and burns verification
+codes, rate-limits per phone number, and frees the table again on cancel.
+
+Two development-only switches:
+
+- `EXPO_PUBLIC_SIMULATE_TABLE_TAKEN=1` makes the next booking attempt lose the
+  race, so the 409 "someone just took that table" path can be walked without a
+  second device.
+- The mock returns the SMS code in the response (`devCode`), and the code screen
+  shows it in a dashed banner. That banner is additionally gated on `__DEV__`,
+  so a production bundle cannot render it even if a misconfigured server sends
+  one. The mock always accepts `123456`.
+
 ### Regenerating API types
 
 Types come from the backend's OpenAPI document rather than being hand-written,

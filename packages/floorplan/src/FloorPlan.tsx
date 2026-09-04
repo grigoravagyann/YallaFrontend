@@ -173,8 +173,7 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
   const rotation = table.rotationDegrees;
   const transform = rotation === 0 ? undefined : `rotate(${rotation} ${center.x} ${center.y})`;
 
-  const tappable = laid.selectable && onTap !== undefined;
-  const press = tappable ? () => onTap(table.id) : undefined;
+  const press = laid.selectable && onTap ? () => onTap(table.id) : undefined;
 
   return (
     <G>
@@ -261,21 +260,27 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
       ) : null}
 
       {/*
-        Invisible hit region, painted last so it sits above the shape. It is at
-        least 44pt (64pt for staff) even when the table draws far smaller — a
-        two-top in a big room can shrink below a fingertip, and shrinking the
-        target with it would make the plan untappable on a phone.
+        Invisible hit region, painted last so it sits above the shape. At least
+        44pt (64pt for staff) even when the table draws far smaller — a two-top
+        in a big room can shrink below a fingertip, and shrinking the target
+        with it would make the plan untappable on a phone.
+
+        Rendered only when the table is actually tappable. An inert rect here
+        would be dead weight, and relying on `pointerEvents="none"` to disable
+        it does not survive react-native-svg's web build, which does not map
+        that prop onto the DOM node.
       */}
-      <Rect
-        x={hitRect.x}
-        y={hitRect.y}
-        width={hitRect.width}
-        height={hitRect.height}
-        fill="transparent"
-        accessibilityLabel={table.label}
-        pointerEvents={tappable ? 'auto' : 'none'}
-        {...(press ? { onPress: press, accessibilityRole: 'button' as const } : {})}
-      />
+      {press ? (
+        <Rect
+          x={hitRect.x}
+          y={hitRect.y}
+          width={hitRect.width}
+          height={hitRect.height}
+          fill="transparent"
+          onPress={press}
+          accessibilityLabel={table.label}
+        />
+      ) : null}
     </G>
   );
 }

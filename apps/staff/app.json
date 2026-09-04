@@ -2,6 +2,7 @@
   "expo": {
     "name": "Yalla Staff",
     "slug": "yalla-staff",
+    "owner": "grigoravagyan",
     "version": "0.0.0",
     "scheme": "yalla-staff",
     "orientation": "landscape",
@@ -21,7 +22,11 @@
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": ["expo-router", "expo-localization", "expo-sqlite"],
+    "plugins": [
+      "expo-router",
+      "expo-localization",
+      "expo-sqlite"
+    ],
     "experiments": {
       "typedRoutes": true
     }

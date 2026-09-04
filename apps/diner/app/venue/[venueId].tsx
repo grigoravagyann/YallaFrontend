@@ -1,10 +1,19 @@
-import { MOCK_NOW, findVenue, isOpenNow, isVenueOpenNow, type Branch } from '@yalla/api/mocks';
+import { isBranchOpenNow, isVenueOpenNow, type BranchSummary } from '@yalla/api';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
-import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useCallback } from 'react';
+import { useVenue } from '../../src/data/queries';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 /**
  * Branches for one venue.
@@ -19,14 +28,26 @@ export default function BranchesScreen() {
   const router = useRouter();
   const { venueId } = useLocalSearchParams<{ venueId: string }>();
 
-  const venue = useMemo(() => (venueId ? findVenue(venueId) : null), [venueId]);
+  const { data: venue, isLoading } = useVenue(venueId);
 
   const openBranch = useCallback(
     (branchId: string) => {
-      router.push({ pathname: '/branch/[branchId]', params: { branchId } });
+      router.push({ pathname: '/branch/[branchId]', params: { branchId, venueId: venueId ?? '' } });
     },
-    [router],
+    [router, venueId],
   );
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Stack.Screen options={{ headerShown: true, title: '' }} />
+        <View style={styles.centered}>
+          <ActivityIndicator color={color.accent} />
+          <Text style={styles.emptyBody}>{t('branches.loading')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!venue) {
     return (
@@ -40,7 +61,7 @@ export default function BranchesScreen() {
     );
   }
 
-  const open = isVenueOpenNow(venue, MOCK_NOW);
+  const open = isVenueOpenNow(venue, new Date());
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -85,12 +106,12 @@ function BranchRow({
   locale,
   onPress,
 }: {
-  branch: Branch;
+  branch: BranchSummary;
   locale: Parameters<typeof formatTime>[2];
   onPress: (branchId: string) => void;
 }) {
   const { t } = useTranslation('diner');
-  const open = isOpenNow(branch, MOCK_NOW);
+  const open = isBranchOpenNow(branch, new Date());
 
   // Closing time in the BRANCH's timezone, never the device's. A tourist's
   // phone is on Moscow time and this cafe is not.

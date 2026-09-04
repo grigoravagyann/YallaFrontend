@@ -1,10 +1,10 @@
-import { venueFreeTables, type Venue } from '@yalla/api/mocks';
+import { venueFreeTables, type VenueSummary } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export interface VenueCardProps {
-  readonly venue: Venue;
+  readonly venue: VenueSummary;
   readonly onPress: (venueId: string) => void;
 }
 

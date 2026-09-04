@@ -1,4 +1,4 @@
-import { mockVenues, type Venue, type VenueType } from '@yalla/api/mocks';
+import type { VenueSummary, VenueType } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { VenueCard } from '../../src/components/VenueCard';
+import { useVenues } from '../../src/data/queries';
 
 type Filter = 'all' | 'cafes' | 'restaurants';
 
@@ -37,10 +38,10 @@ export default function ExploreScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
 
-  // Mock data is instant, but the loading branch exists now so the screen does
-  // not need restructuring the moment a real fetch replaces it.
-  const [isLoading] = useState(false);
-  const venues: readonly Venue[] = mockVenues;
+  const { data, isLoading, isError, refetch } = useVenues();
+  // Stable identity, so the filter memo below is not defeated by `?? []`
+  // producing a fresh array on every render.
+  const venues: readonly VenueSummary[] = useMemo(() => data ?? [], [data]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -110,6 +111,13 @@ export default function ExploreScreen() {
         <View style={styles.centered}>
           <ActivityIndicator color={color.accent} />
           <Text style={styles.emptyBody}>{t('explore.loading')}</Text>
+        </View>
+      ) : isError ? (
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>{t('net.offline')}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void refetch()} style={styles.chip}>
+            <Text style={styles.chipText}>{t('net.retry')}</Text>
+          </Pressable>
         </View>
       ) : (
         <FlatList

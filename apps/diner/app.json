@@ -2,6 +2,7 @@
   "expo": {
     "name": "Yalla",
     "slug": "yalla-diner",
+    "owner": "grigoravagyan",
     "version": "0.0.0",
     "scheme": "yalla",
     "orientation": "portrait",
