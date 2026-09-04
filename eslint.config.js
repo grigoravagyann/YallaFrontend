@@ -67,6 +67,17 @@ export default tseslint.config(
     },
   },
 
+  // The service worker runs in its own global scope: no `window`, no `document`,
+  // and a `self` that is a ServiceWorkerGlobalScope. It is plain JS served
+  // as-is from `public/`, so it is linted rather than compiled.
+  {
+    files: ['**/public/sw.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: { ...globals.serviceworker },
+    },
+  },
+
   // Metro reads its config with `require`, so these files are CommonJS whether
   // or not the rest of the workspace is ESM.
   {

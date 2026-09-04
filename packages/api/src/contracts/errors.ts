@@ -193,3 +193,58 @@ export class EndpointNotWiredError extends ApiError {
 export function isEndpointNotWired(error: unknown): error is EndpointNotWiredError {
   return error instanceof EndpointNotWiredError;
 }
+
+// ---------------------------------------------------------------------------
+// The web console
+// ---------------------------------------------------------------------------
+
+/**
+ * A venue cannot be deleted while a table is still mid-service.
+ *
+ * The point of the type is the payload. "Cannot delete" is useless to whoever
+ * pressed the button; "table 7 at Northern Avenue still has an open tab" is
+ * something they can act on in the next thirty seconds, so the blocking tabs
+ * travel with the error rather than being fetched afterwards.
+ */
+export interface BlockingTab {
+  readonly tabId: string;
+  readonly branchId: string;
+  readonly branchName: string;
+  readonly tableLabel: string;
+}
+
+export class VenueHasOpenTabsError extends ApiError {
+  readonly venueId: string;
+  readonly openTabs: readonly BlockingTab[];
+
+  constructor(options: { url: string; venueId: string; openTabs: readonly BlockingTab[] }) {
+    super('That venue still has open tabs.', { status: 409, url: options.url });
+    this.name = 'VenueHasOpenTabsError';
+    this.venueId = options.venueId;
+    this.openTabs = options.openTabs;
+  }
+}
+
+/** The slug is already taken. Its own type because the fix is a specific field. */
+export class SlugTakenError extends ApiError {
+  readonly slug: string;
+
+  constructor(options: { url: string; slug: string }) {
+    super('That web address is already in use.', { status: 409, url: options.url });
+    this.name = 'SlugTakenError';
+    this.slug = options.slug;
+  }
+}
+
+/**
+ * The signed-in person's scope does not cover what they asked for.
+ *
+ * The server is the authority here and always will be. The client's role-built
+ * navigation exists so this is never reached by accident — not as the check.
+ */
+export class OutOfScopeError extends ApiError {
+  constructor(options: { url: string }) {
+    super('You do not have access to that.', { status: 403, url: options.url });
+    this.name = 'OutOfScopeError';
+  }
+}

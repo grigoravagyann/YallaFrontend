@@ -1,0 +1,29 @@
+{
+  "name": "Yalla Floor",
+  "short_name": "Yalla",
+  "description": "The floor screen for Yalla venue staff.",
+  "id": "/staff",
+  "start_url": "/staff",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#f5f2ee",
+  "theme_color": "#ea580c",
+  "lang": "hy",
+  "dir": "ltr",
+  "categories": ["business", "food"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -4,7 +4,36 @@
     "subtitle": "Counter view"
   },
   "queue": {
-    "pending": "Waiting to sync",
-    "synced": "All changes saved"
+    "pending_one": "{{count}} action waiting to sync",
+    "pending_other": "{{count}} actions waiting to sync",
+    "synced": "Nothing waiting to sync",
+    "syncing": "Syncing…",
+    "offline": "Offline — actions are saved on this tablet"
+  },
+  "floor": {
+    "title": "Floor",
+    "branch": "{{venue}} · {{branch}}",
+    "loading": "Loading the floor…",
+    "error": "We could not load the floor. Try again.",
+    "retry": "Try again"
+  },
+  "panel": {
+    "orders": {
+      "title": "Incoming orders",
+      "todo": "The order queue arrives with ordering."
+    },
+    "seating": {
+      "title": "Waiting to be seated",
+      "todo": "Pending seat requests arrive with the seating flow."
+    }
+  },
+  "connection": {
+    "notWired": "Live updates not connected yet",
+    "notWiredHint": "The floor is loaded once and does not update on its own. Refresh to be sure.",
+    "refresh": "Refresh the floor"
+  },
+  "install": {
+    "title": "Install this on the tablet",
+    "body": "Open the browser menu and choose Install. It then opens straight to the floor, and starts without a network."
   }
 }

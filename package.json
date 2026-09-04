@@ -9,9 +9,8 @@
   },
   "scripts": {
     "dev:diner": "pnpm --filter @yalla/diner start",
-    "dev:staff": "pnpm --filter @yalla/staff start",
-    "dev:admin": "pnpm --filter @yalla/admin dev",
-    "build": "pnpm --filter @yalla/admin build",
+    "dev:web": "pnpm --filter @yalla/web dev",
+    "build:web": "pnpm --filter @yalla/web build",
     "typecheck": "pnpm -r --no-bail typecheck",
     "test": "pnpm -r test",
     "lint": "eslint .",

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Yalla">
+  <rect width="512" height="512" rx="96" fill="#EA580C"/>
+  <circle cx="256" cy="212" r="96" fill="none" stroke="#FFFFFF" stroke-width="28"/>
+  <rect x="140" y="332" width="232" height="28" rx="14" fill="#FFFFFF"/>
+  <rect x="180" y="384" width="152" height="28" rx="14" fill="#FFEDD5"/>
+</svg>

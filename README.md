@@ -1,16 +1,20 @@
 # Yalla — frontend monorepo
 
 Table reservation and in-app ordering for restaurants and cafes, launching in
-Yerevan. Three surfaces share one set of packages:
+Yerevan. **Two apps** share one set of packages:
 
-| App     | Target                   | Stack                          |
-| ------- | ------------------------ | ------------------------------ |
-| `diner` | Phone (iOS, Android)     | Expo + React Native, portrait  |
-| `staff` | Tablet on the counter    | Expo + React Native, landscape |
-| `admin` | Web, for the venue owner | Vite + React + React Router    |
+| App     | Audience                                      | Stack                         |
+| ------- | --------------------------------------------- | ----------------------------- |
+| `diner` | Anyone with a phone                           | Expo + React Native, portrait |
+| `web`   | The Yalla team, owners, managers, floor staff | Vite + React + React Router   |
 
-This repository currently contains the **structure, the shared packages, and an
-app shell per surface**. There are no real screens and no API calls yet.
+`apps/web` serves four audiences from one codebase, scoped by role — see
+[The two-app layout](#the-two-app-layout-and-the-four-tiers). It is a plain web
+app for the console and an **installed PWA on Android tablets** for the floor
+screen.
+
+Everything runs on mock data behind a swappable gateway; no backend is required
+to work on any of it.
 
 ## Requirements
 
@@ -29,12 +33,18 @@ Then run whichever surface you're working on:
 
 ```bash
 pnpm dev:diner    # Expo dev server, then scan the QR with Expo Go
-pnpm dev:staff    # Expo dev server, tablet/landscape
-pnpm dev:admin    # http://localhost:5173
+pnpm dev:web      # http://localhost:5173
 ```
 
-Each app boots to a placeholder screen with a language switcher, so you can
-confirm the three-language setup works before any real screens exist.
+In development the console shows a **dev-only role switcher** in the sidebar (and
+in the floor screen's header, which has no sidebar). It changes which role the
+_mock_ reports as signed in, so all four tiers can be walked without four
+accounts. It is dropped from production bundles entirely, and against a real
+backend the role comes from the token — `resolveConsoleGateway` ignores it.
+
+The switcher is deliberately not persisted: a remembered role would be a
+client-side claim outliving the session that granted it. A hard reload therefore
+puts you back on platform admin.
 
 ### Workspace scripts
 
@@ -44,7 +54,7 @@ confirm the three-language setup works before any real screens exist.
 | `pnpm test`         | Vitest across the shared packages                         |
 | `pnpm lint`         | ESLint across the workspace                               |
 | `pnpm format`       | Prettier, write mode (`format:check` to verify only)      |
-| `pnpm build`        | Production build of the admin panel                       |
+| `pnpm build:web`    | Production build of the web app                           |
 | `pnpm i18n:check`   | Fails if translation keys drift between languages         |
 | `pnpm api:generate` | Regenerates API types from the backend's OpenAPI document |
 
@@ -56,9 +66,8 @@ The backend is a separate ASP.NET Core project. Its dev URL is normally
 To override it, copy the example env file in the app you're running:
 
 ```bash
-cp apps/admin/.env.example apps/admin/.env     # VITE_API_BASE_URL=...
-cp apps/diner/.env.example apps/diner/.env     # EXPO_PUBLIC_API_BASE_URL=...
-cp apps/staff/.env.example apps/staff/.env     # EXPO_PUBLIC_API_BASE_URL=...
+cp apps/web/.env.example apps/web/.env       # VITE_API_BASE_URL=...
+cp apps/diner/.env.example apps/diner/.env   # EXPO_PUBLIC_API_BASE_URL=...
 ```
 
 The prefixes are not interchangeable: Vite only exposes `VITE_`-prefixed
@@ -237,43 +246,120 @@ The backend endpoint does not exist yet. Rather than fake a confirmation,
 that the feature is not live. Grep for that class to find everything still
 unwired.
 
-## Why the staff app is native rather than a web page
+## The two-app layout, and the four tiers
 
-The staff app is the one surface where a web page would be actively worse, for
-four reasons that all show up on a normal Friday night:
+`apps/web` is one React codebase serving four audiences. Scope always comes from
+the token, never from a URL the user could edit.
 
-1. **The wifi drops.** A cafe basement in Yerevan loses signal regularly, and a
-   waiter still has to seat people, take orders and close bills while it's down.
-   That needs a durable local queue that survives an app kill and a device
-   reboot, and replays in order when the connection returns
-   (`apps/staff/src/offlineQueue.ts`). A browser tab gives you fragile storage,
-   eviction under memory pressure, and no reliable background sync.
+| Tier                 | Sees                                                                            | Routes registered                                                       |
+| -------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Platform admin**   | Every venue. Create, suspend, soft-delete, set a branch's tier, onboard a venue | `/platform/venues`, `/platform/venues/new`, `/platform/venues/:venueId` |
+| **Owner**            | Their venue only: all its branches, floor plans, menus, staff, reports          | `/venue/floorplan`, `/menu`, `/hours`, `/policy`, `/staff`, `/reports`  |
+| **Manager**          | One branch. No pricing tier, no manager accounts                                | the same `/venue/*` set, plus `/staff`                                  |
+| **Waiter / kitchen** | The floor screen for their branch, and nothing else                             | `/staff`                                                                |
 
-2. **It has to survive being backgrounded and killed.** The tablet lives on the
-   counter for a twelve-hour shift, gets locked, backgrounded and reopened
-   constantly. A native app resumes with its queue intact; a browser tab gets
-   discarded and comes back with whatever survived.
+Three rules hold this together:
 
-3. **Spoken orders need real microphone access.** Taking an order by voice with
-   the reliability a rush demands is a native capability, not a
-   `getUserMedia` permission prompt that a locked tablet will re-ask for.
+1. **Navigation is built from the role, not filtered by CSS.** `AppRoutes` only
+   registers the routes a role can use. A waiter's route tree contains no
+   `/platform/venues` element to hide, so there is nothing to reveal by editing
+   styles, replaying a bundle, or guessing a URL.
+2. **Scope is never a route parameter the user supplies.** `/venue/*` and
+   `/staff` read their venue and branch from the token; the branch switcher
+   keeps its selection in React state rather than the address bar. Only the
+   platform section takes a `:venueId`, and only because a platform admin's
+   scope genuinely _is_ every venue. The server checks regardless.
+3. **Unauthorised access renders a plain refusal, never a redirect.** Bouncing
+   someone "somewhere they can go" is how you build a loop. The same page also
+   renders for an unknown URL: distinguishing "does not exist" from "exists but
+   is not yours" would tell someone which venue ids are real.
 
-4. **It shares the floor plan with the diner app.** Both render the same
-   `@yalla/floorplan` component from the same data. Building the staff side for
-   the web would mean a second renderer, and a diner tapping a table that the
-   staff tablet draws somewhere else is a booking dispute, not a rendering bug.
+One hook and one guard: `useCurrentUser()` is the only place any component asks
+about role or scope, and `<RequireRole>` is the only conditional. There are no
+inline `user.role === '...'` checks in screens.
 
-The admin panel has none of these constraints — it's used sitting down, on a
-laptop, with working wifi — so it stays a plain web app, and reuses the floor
-plan component through `react-native-web`.
+The manager gets the floor screen as well as the venue console, which the tier
+table does not strictly grant. A branch manager is the person most likely to be
+standing at the counter during a rush, and a manager who cannot open the floor
+would have to borrow a waiter's tablet. Worth confirming with the pilot venues.
+
+## Why the staff floor screen is a PWA on Android, not a native app
+
+An earlier plan had staff as a second Expo app. It became a web screen inside
+`apps/web` for three reasons:
+
+1. **One React web codebase plus one mobile app is what a small team can
+   maintain.** Two native apps and a web panel is three release processes.
+2. **Fixes ship instantly.** When a waiter reports a problem at 20:00 on a
+   Friday during a pilot, an app-store review is not an acceptable path to the
+   fix.
+3. **The floor plan no longer needs a bridge to work in three places.** It is a
+   React Native component rendered through `react-native-web` on the console and
+   the floor screen, and natively in the diner app — one renderer, one geometry,
+   so a diner and a waiter cannot disagree about where table 7 is.
+
+**The condition attached is Android only.** The floor screen is specified as an
+installed PWA on Android tablets during venue onboarding, and deliberately not
+on iOS: Safari can evict a PWA's storage under memory pressure and its
+background sync is unreliable, which would undermine the offline queue that is
+the whole reason for building this carefully.
+
+### What "installed" actually means here
+
+- `public/manifest.webmanifest` — `start_url: /staff`, `display: standalone`,
+  `orientation: landscape`, with an `any` and a `maskable` icon so Android's
+  adaptive mask cannot crop the mark.
+- `public/sw.js` — a hand-written service worker, not a generated one, because
+  the rule that matters is a negative one and has to be auditable in ten
+  seconds: **shell assets are cached, API responses never are.** Navigations are
+  network-first falling back to the cached shell; hashed build assets are
+  cache-first (a changed file is a different URL, so a stale one is impossible);
+  everything else goes straight to the network untouched. A cached floor plan is
+  a floor plan that lies, and a waiter trusting one walks a party into somebody's
+  dinner.
+- Registration is production-only. To exercise it:
+
+  ```bash
+  pnpm build:web && pnpm --filter @yalla/web preview
+  ```
+
+### The offline queue
+
+`apps/web/src/offline/queue.ts`, backed by IndexedDB. The wifi in a Yerevan cafe
+basement drops, and a waiter still seats people, still takes orders and still
+closes bills while it is down. Three properties, all unit-tested against a real
+IndexedDB:
+
+1. **Durable.** Survives a tab close, a reload and a tablet reboot. A queue that
+   dies with the process is not a queue. (`localStorage` is not used anywhere in
+   this repo; IndexedDB via this module is the one persistence mechanism.)
+2. **Idempotent.** Every entry carries a client-generated id, sent as the
+   backend's idempotency key, so replaying an entry whose response was lost
+   cannot double-add a round of drinks.
+3. **Ordered per scope.** Actions on one table replay in the order they were
+   taken, and a table stops at its first failure — a "free table" landing before
+   the "seat walk-in" it followed would leave the floor wrong. Different tables
+   are independent, so one stuck action does not freeze the whole floor.
+
+**Nothing enqueues an action yet.** The types are declared and the queue works;
+the tasks that add table-state changes and orders wire them to it. The header
+badge reads its count back out of IndexedDB rather than tracking it in memory,
+so "nothing waiting" means the store is genuinely empty — the one thing this
+screen must never do is show a synced state that is not real.
+
+The connection indicator obeys the same rule. There is no socket yet, so
+`useConnectionState` returns `idle` and the header says _"live updates not
+connected yet"_ rather than showing a green light. When the wifi is genuinely
+gone it says so instead. Wiring the real connection is a change to that one hook
+— `StaffHeader` already renders all five states.
 
 ## Repository layout
 
 ```
 apps/
   diner/      Expo Router, tabs: Explore / Scan / Bookings / Profile, portrait only
-  staff/      Expo Router, single-level navigation, landscape only, offline queue
-  admin/      Vite + React Router, sidebar layout
+  web/        Vite + React Router. Console (platform / owner / manager) and the
+              staff floor screen, which installs as a PWA on Android tablets
 packages/
   api/        Typed fetch client, typed errors, TanStack Query client factory
   realtime/   SignalR connection, backoff, connection state

@@ -1,0 +1,41 @@
+{
+  "name": "@yalla/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@microsoft/signalr": "^10.0.11",
+    "@tanstack/react-query": "^5.102.8",
+    "@yalla/api": "workspace:*",
+    "@yalla/floorplan": "workspace:*",
+    "@yalla/format": "workspace:*",
+    "@yalla/i18n": "workspace:*",
+    "@yalla/realtime": "workspace:*",
+    "@yalla/tokens": "workspace:*",
+    "i18next": "^26.4.2",
+    "idb-keyval": "^6.2.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-i18next": "^17.0.13",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "~0.21.0",
+    "react-router-dom": "^7.18.3",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "@yalla/tsconfig": "workspace:*",
+    "fake-indexeddb": "^6.2.5",
+    "typescript": "~6.0.3",
+    "vite": "^8.2.2"
+  }
+}

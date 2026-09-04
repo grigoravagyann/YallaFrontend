@@ -27,7 +27,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   reviewed, and this set needs it most: the host-controls copy explains a
   permission rule, and a translation that blurs "the table total" into "your
   total" would tell a guest the opposite of what the feature does.
-- `staff`, `admin` — placeholder shells only.
+- `admin` — the whole web console: the platform venues list and venue detail,
+  the create-venue flow, the four role names, the branch switcher and the
+  refusal page. **Not** reviewed.
+- `staff` — the floor screen: connection and sync states, the order and seating
+  panel frames, and the install prompt. **Not** reviewed, and this set matters
+  most of all: it is read by a waiter at arm's length during a rush, in Armenian
+  far more often than in anything else.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

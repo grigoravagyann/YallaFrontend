@@ -2,11 +2,133 @@
   "nav": {
     "floorplan": "Floor plan",
     "menu": "Menu",
-    "hours": "Hours",
+    "hours": "Opening hours",
+    "policy": "Reservation policy",
     "staff": "Staff",
-    "reports": "Reports"
+    "reports": "Reports",
+    "venues": "Venues",
+    "floor": "Floor"
   },
   "shell": {
-    "title": "Yalla admin"
+    "title": "Yalla console",
+    "signedInAs": "Signed in as {{name}}",
+    "devRole": "Dev only — view as",
+    "openMenu": "Menu"
+  },
+  "role": {
+    "platformAdmin": "Platform admin",
+    "owner": "Owner",
+    "manager": "Branch manager",
+    "waiter": "Waiter",
+    "kitchen": "Kitchen"
+  },
+  "forbidden": {
+    "title": "You don't have access to this",
+    "body": "This page either does not exist or is not part of what your account covers. Nothing was changed.",
+    "back": "Back to where you can go"
+  },
+  "loading": "Loading…",
+  "venues": {
+    "title": "Venues",
+    "search": "Search venues",
+    "new": "Add a venue",
+    "count_one": "{{count}} venue",
+    "count_other": "{{count}} venues",
+    "showing": "{{from}}–{{to}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next",
+    "column": {
+      "name": "Venue",
+      "branches": "Branches",
+      "tables": "Tables",
+      "tier": "Tier",
+      "status": "Status"
+    },
+    "empty": {
+      "title": "No venues match that",
+      "body": "Try a different name, or clear the search.",
+      "first": "No venues yet. Add the first one."
+    },
+    "error": "We could not load the venues. Try again."
+  },
+  "status": {
+    "active": "Active",
+    "suspended": "Suspended",
+    "deleted": "Deleted"
+  },
+  "tier": {
+    "trial": "Trial",
+    "basic": "Basic",
+    "pro": "Pro",
+    "label": "Subscription tier"
+  },
+  "venue": {
+    "notFound": "That venue could not be found.",
+    "branches": "Branches",
+    "branchTables_one": "{{count}} table",
+    "branchTables_other": "{{count}} tables",
+    "openTabs_one": "{{count}} tab open now",
+    "openTabs_other": "{{count}} tabs open now",
+    "noBranches": "No branches yet.",
+    "staff": "Staff",
+    "noStaff": "Nobody has been added yet.",
+    "slug": "Web address",
+    "created": "Created {{date}}",
+    "suspendedOn": "Suspended {{date}}",
+    "suspend": "Suspend",
+    "resume": "Resume",
+    "delete": "Delete venue",
+    "openConsole": "Open the venue console",
+    "suspendTitle": "Suspend {{name}}?",
+    "suspendBody": "Diners stop seeing it and staff cannot open new tabs. Nothing is lost, and you can undo this at any time.",
+    "suspendConfirm": "Suspend it",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteBody": "This hides the venue everywhere. Its history is kept, but nobody can reach it. Type the venue name to confirm.",
+    "deleteTypeName": "Type {{name}} to confirm",
+    "deleteConfirm": "Delete it",
+    "cancel": "Cancel",
+    "blocked": {
+      "title": "Still in service",
+      "body": "This venue cannot be deleted while a table is mid-service. Close these tabs first:",
+      "tab": "{{branch}} · table {{table}}",
+      "unknown": "A table is still mid-service. The server did not say which."
+    },
+    "failed": "That did not go through. Nothing changed — try again.",
+    "working": "Working…"
+  },
+  "create": {
+    "title": "Add a venue",
+    "lead": "A venue and its first branch are created together. A venue with no branch has no floor, no menu and no tables, so it cannot be onboarded.",
+    "venueSection": "The venue",
+    "branchSection": "Its first branch",
+    "name": "Venue name",
+    "namePlaceholder": "Lumen Coffee",
+    "slug": "Web address",
+    "slugHint": "yalla.am/{{slug}}",
+    "slugPlaceholder": "lumen-coffee",
+    "type": "Type",
+    "typeCafe": "Cafe",
+    "typeRestaurant": "Restaurant",
+    "branchName": "Branch name",
+    "branchNamePlaceholder": "Northern Avenue",
+    "timeZone": "Time zone",
+    "submit": "Create the venue",
+    "submitting": "Creating…",
+    "cancel": "Cancel",
+    "error": {
+      "nameRequired": "Give the venue a name.",
+      "slugRequired": "Give it a web address.",
+      "slugTaken": "\"{{slug}}\" is already in use. Pick another.",
+      "branchRequired": "Name the first branch.",
+      "generic": "We could not create that. Nothing was saved."
+    }
+  },
+  "branchSwitcher": {
+    "label": "Branch",
+    "onlyOne": "{{name}}"
+  },
+  "todo": {
+    "label": "Not built yet",
+    "body": "This screen arrives in {{prompt}}."
   }
 }

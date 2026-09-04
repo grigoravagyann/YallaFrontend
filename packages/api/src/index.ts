@@ -113,3 +113,31 @@ export {
   isVenueOpenNow,
   findBranchIn,
 } from './contracts/helpers';
+
+// --- The web console --------------------------------------------------------
+export type { ConsoleGateway } from './consoleGateway';
+export { resolveConsoleGateway } from './resolveConsoleGateway';
+export type { ResolveConsoleGatewayOptions } from './resolveConsoleGateway';
+export { createConsoleMockGateway } from './mocks/consoleMock';
+export type { ConsoleMockOptions } from './mocks/consoleMock';
+export { createConsoleHttpGateway } from './http/consoleHttpGateway';
+
+export type {
+  ConsoleBranch,
+  ConsoleStaffMember,
+  ConsoleUser,
+  ConsoleVenue,
+  ConsoleVenueDetail,
+  CreateVenueCommand,
+  ListVenuesQuery,
+  Page,
+  StaffRole,
+  SubscriptionTier,
+  UserRole,
+  UserScope,
+  VenueStatus,
+} from './contracts/console';
+export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+
+export { OutOfScopeError, SlugTakenError, VenueHasOpenTabsError } from './contracts/errors';
+export type { BlockingTab } from './contracts/errors';
