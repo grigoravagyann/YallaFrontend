@@ -9,6 +9,15 @@ import type {
 } from './contracts/booking';
 import type { Menu } from './contracts/menu';
 import type {
+  BranchMenu,
+  DinerTabView,
+  PlaceOrderCommand,
+  PlaceOrderResult,
+  SetSettlementModeCommand,
+  TabEventPage,
+  TabShares,
+} from './contracts/unshipped';
+import type {
   ScanResult,
   ScanTableCommand,
   TabInvite,
@@ -194,4 +203,67 @@ export interface YallaGateway {
     reason: WaiterCallReason;
     commandId: string;
   }): Promise<WaiterCall>;
+
+  // --- Ordering and the bill ----------------------------------------------
+
+  /**
+   * The menu with everything a diner needs before ordering.
+   *
+   * Separate from {@link getBranchMenu}, which is the price-only shape the
+   * pending-approval screen has used since scanning shipped. This one carries
+   * the ingredients, allergens, portion size, spice level and prep time that the
+   * backend made required fields precisely so nobody has to ask a waiter.
+   *
+   * @throws {EndpointNotWiredError} until the backend ships it.
+   */
+  getBranchMenuDetail(branchId: string): Promise<BranchMenu | null>;
+
+  /**
+   * The tab as this participant is allowed to see it.
+   *
+   * The permission rule lives on the server and arrives applied: a participant
+   * whose host has hidden the total gets their own lines and no aggregate at
+   * all, which {@link TabMoney} makes unrepresentable as a zero.
+   *
+   * @throws {EndpointNotWiredError} until the backend ships it.
+   */
+  getDinerTab(tabId: string): Promise<DinerTabView | null>;
+
+  /**
+   * Everything that happened on the tab after `afterSequence`.
+   *
+   * Drives the live bill through `@yalla/realtime`'s sequence stream. An event
+   * says *that* something changed; the money is refetched, never reconstructed
+   * from payloads, because the arithmetic on the server is the one that is right.
+   *
+   * @throws {EndpointNotWiredError} until the backend ships it.
+   */
+  getTabEvents(input: { tabId: string; afterSequence: number }): Promise<TabEventPage>;
+
+  /**
+   * Place one order for everything in the tray.
+   *
+   * One call, not one per item: five items arriving as five tickets is a mess in
+   * the kitchen and unreadable on the counter panel. Idempotent on
+   * `clientCommandId`, so a retry after a lost response cannot double the round.
+   *
+   * @throws {EndpointNotWiredError} until the backend ships it.
+   */
+  placeOrder(command: PlaceOrderCommand): Promise<PlaceOrderResult>;
+
+  /**
+   * Who owes what, with shared items and the service charge apportioned.
+   *
+   * @throws {EndpointNotWiredError} until the backend ships it.
+   */
+  getTabShares(tabId: string): Promise<TabShares | null>;
+
+  /**
+   * The host picks how the bill will be split. Changeable until the first
+   * payment lands, which the server enforces.
+   *
+   * @throws {NotTabHostError} the caller is not the host.
+   * @throws {EndpointNotWiredError} until the backend ships it.
+   */
+  setSettlementMode(command: SetSettlementModeCommand): Promise<DinerTabView>;
 }

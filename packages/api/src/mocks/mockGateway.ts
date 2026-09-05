@@ -29,9 +29,20 @@ import type {
   WaiterCall,
   WaiterCallReason,
 } from '../contracts/tab';
+import type {
+  BranchMenu,
+  DinerTabView,
+  PlaceOrderResult,
+  TabEventPage,
+  TabShares,
+} from '../contracts/unshipped';
+import { NotTabHostError } from '../contracts/errors';
+import { NotFoundError } from '../errors';
 import type { YallaGateway } from '../gateway';
 import { mockMenuFor } from './menu';
 import { createTabWorld, type TableLocation } from './tabs';
+import { createTabOrders } from './tabOrders';
+import { mockBranchMenu, mockMenuItem } from './menuDetail';
 import { mockVenues, type Branch as MockBranch } from './venues';
 
 const URL_TAG = 'mock://yalla';
@@ -113,6 +124,28 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
    * The tab side of the mock backend, sharing this instance's floors so a table
    * taken out of service is out of service for scanning too.
    */
+  /** Which kind of place a branch is, for picking its menu. */
+  const venueTypeFor = (branchId: string): 'cafe' | 'restaurant' | undefined =>
+    mockVenues.find((venue) => venue.branches.some((branch) => branch.id === branchId))?.type;
+
+  /**
+   * Ordering and the bill, beside the tab world rather than inside it.
+   *
+   * One instance, shared by every screen this gateway serves, so a diner and a
+   * waiter reading the same tab read the same lines and the same total.
+   */
+  const orders = createTabOrders({
+    now: () => new Date(),
+    menuItem: (branchId, itemId) => {
+      const type = venueTypeFor(branchId);
+      return type ? mockMenuItem(branchId, type, itemId) : undefined;
+    },
+    branchMenu: (branchId) => {
+      const type = venueTypeFor(branchId);
+      return type ? mockBranchMenu(branchId, type) : null;
+    },
+  });
+
   const world = createTabWorld({
     now,
     simulateJoiners: options.simulateJoiners ?? true,
@@ -519,6 +552,52 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     }): Promise<WaiterCall> {
       await wait();
       return world.call(input);
+    },
+
+    // --- Ordering and the bill ---------------------------------------------
+
+    async getBranchMenuDetail(branchId): Promise<BranchMenu | null> {
+      await wait();
+      return venueTypeFor(branchId) ? mockBranchMenu(branchId, venueTypeFor(branchId)!) : null;
+    },
+
+    async getDinerTab(tabId): Promise<DinerTabView | null> {
+      await wait();
+      const tab = world.get(tabId);
+      if (!tab) return null;
+      orders.ensure(tab.id, tab.branchId);
+      return orders.dinerView(tab, tab.yourParticipantId);
+    },
+
+    async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
+      await wait();
+      const tab = world.get(tabId);
+      if (tab) orders.ensure(tab.id, tab.branchId);
+      return orders.events(tabId, afterSequence);
+    },
+
+    async placeOrder(command): Promise<PlaceOrderResult> {
+      await wait();
+      const tab = world.get(command.tabId);
+      if (!tab) throw new NotFoundError({ url: `/api/tabs/${command.tabId}/orders` });
+      return orders.place(tab, command);
+    },
+
+    async getTabShares(tabId): Promise<TabShares | null> {
+      await wait();
+      const tab = world.get(tabId);
+      return tab ? orders.shares(tab) : null;
+    },
+
+    async setSettlementMode(command): Promise<DinerTabView> {
+      await wait();
+      const tab = world.get(command.tabId);
+      if (!tab) throw new NotFoundError({ url: `/api/tabs/${command.tabId}/settlement-mode` });
+      if (tab.yourRole !== 'host') {
+        throw new NotTabHostError({ url: `/api/tabs/${command.tabId}/settlement-mode` });
+      }
+      orders.setSettlementMode(tab, command.mode);
+      return orders.dinerView(tab, tab.yourParticipantId);
     },
   };
 }

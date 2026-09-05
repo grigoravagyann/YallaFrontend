@@ -1,141 +1,361 @@
-import { formatDram, formatTime } from '@yalla/format';
+import type { MenuItemDetail } from '@yalla/api';
+import { isEndpointNotWired, isOffline } from '@yalla/api';
+import { formatDram } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { Text } from '../../../src/components/Text';
-import { useBranchMenu, useTab } from '../../../src/data/queries';
+import { useMenuDetail } from '../../../src/data/orderQueries';
+import { useTab } from '../../../src/data/queries';
+import { useTray } from '../../../src/order/TrayProvider';
+import { trayItemCount, traySubtotalDram } from '../../../src/order/tray';
 
 /**
- * The menu, with prices, readable by anyone at the table.
+ * The menu, and the way an order is built.
  *
- * Reachable from the tab and from the pending screen, unchanged in both. A
- * pending joiner reading prices is the point: they can work out what their own
- * order would cost while the host finds their phone. Nothing here depends on
- * being approved, and nothing here shows anyone else's items.
+ * Readable by anyone at the table, including a pending joiner and a guest whose
+ * host has hidden the total. **Prices are always visible to everyone.** That
+ * distinction is the feature: what a host can hide is the table's total and
+ * other people's items, never what your own coffee costs.
  *
- * Ordering arrives next; these rows are not tappable yet, and say so once
- * rather than looking broken four times.
+ * Tapping an item adds it to a tray. It does not send anything — see
+ * `src/order/tray.ts` for why one order beats five tickets.
  */
 export default function MenuScreen() {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
+  const router = useRouter();
   const { tabId } = useLocalSearchParams<{ tabId: string }>();
 
   const { data: tab } = useTab(tabId);
-  const { data: menu, isLoading, isError } = useBranchMenu(tab?.branchId);
+  const { data: menu, isLoading, isError, error, refetch, isPaused } = useMenuDetail(tab?.branchId);
+  const { state: tray, dispatch } = useTray();
+
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
+
+  // Memoised so the filtered list below is not rebuilt on every keystroke
+  // just because `?? []` produced a new array.
+  const categories = useMemo(() => menu?.categories ?? [], [menu]);
+  const activeCategory = categoryId ?? categories[0]?.id ?? null;
+
+  const items = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase(locale);
+    if (needle.length > 0) {
+      // Across names *and* ingredients. A tourist searching "chicken" or
+      // "dairy" is the case this exists for, and neither is reliably in a dish
+      // name in Yerevan.
+      return categories
+        .flatMap((category) => category.items)
+        .filter(
+          (item) =>
+            item.name.toLocaleLowerCase(locale).includes(needle) ||
+            item.ingredients.toLocaleLowerCase(locale).includes(needle) ||
+            item.allergens.toLocaleLowerCase(locale).includes(needle),
+        );
+    }
+    return categories.find((category) => category.id === activeCategory)?.items ?? [];
+  }, [categories, activeCategory, search, locale]);
+
+  const count = trayItemCount(tray);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: true, title: '' }} />
 
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>{t('menu.title')}</Text>
-        {tab ? (
-          <Text style={styles.where}>
-            {t('tab.where', { venue: tab.venueName, branch: tab.branchName })}
+      {/* A query the phone cannot send is *paused*, not failed, so without this
+          a cold offline open would spin for ever. With a cached menu there is
+          data to render and none of this fires — which is the whole point of
+          caching the menu hard: it is the thing somebody stares at while the
+          signal is gone. */}
+      {isPaused && !menu ? (
+        <View style={styles.centered}>
+          <Text style={styles.muted}>{t('menu.offlineNoCache')}</Text>
+        </View>
+      ) : isLoading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color={color.primary} />
+          <Text style={styles.muted}>{t('menu.loading')}</Text>
+        </View>
+      ) : isError ? (
+        <View style={styles.centered}>
+          <Text style={styles.muted}>
+            {isEndpointNotWired(error)
+              ? t('menu.notWired')
+              : isOffline(error)
+                ? t('menu.offlineNoCache')
+                : t('menu.error')}
           </Text>
-        ) : null}
-        <Text style={styles.note}>{t('menu.pricesOnly')}</Text>
-
-        {isLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={color.primary} />
-            <Text style={styles.muted}>{t('menu.loading')}</Text>
-          </View>
-        ) : isError || !menu ? (
-          <View style={styles.centered}>
-            <Text style={styles.emptyTitle}>{t('menu.emptyTitle')}</Text>
-            <Text style={styles.muted}>{t('menu.emptyBody')}</Text>
-          </View>
-        ) : (
-          <>
-            {menu.sections.map((section) => (
-              <View key={section.id} style={styles.section}>
-                <Text style={styles.sectionName}>{section.name}</Text>
-                {section.items.map((item) => (
-                  <View key={item.id} style={styles.item}>
-                    <View style={styles.itemText}>
-                      <Text style={[styles.itemName, !item.isAvailable && styles.itemGone]}>
-                        {item.name}
-                      </Text>
-                      {item.description ? (
-                        <Text style={styles.itemDescription}>{item.description}</Text>
-                      ) : null}
-                      {!item.isAvailable ? (
-                        <Text style={styles.unavailable}>{t('menu.unavailable')}</Text>
-                      ) : null}
-                    </View>
-                    {/* Straight from the server, never summed here. The client
-                        displays money and does not do arithmetic on it. */}
-                    <Text style={[styles.price, !item.isAvailable && styles.itemGone]}>
-                      {formatDram(item.priceDram, locale)}
+          <Pressable accessibilityRole="button" onPress={() => void refetch()} style={styles.retry}>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          {/* Sticky category strip. Search is below it and half the width: a
+              diner who has to type has been failed by the categories. */}
+          <View style={styles.strip}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {categories.map((category) => {
+                const active = category.id === activeCategory && search === '';
+                return (
+                  <Pressable
+                    key={category.id}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => {
+                      setSearch('');
+                      setCategoryId(category.id);
+                    }}
+                    style={[styles.chip, active && styles.chipActive]}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {category.name}
                     </Text>
-                  </View>
-                ))}
-              </View>
-            ))}
-
-            {/* The branch's timezone, explicitly — never the device's. Someone
-                looking at this from another country still sees the venue's day. */}
-            <Text style={styles.updated}>
-              {t('menu.updated', {
-                time: formatTime(menu.updatedAtUtc, tab?.timeZoneId ?? 'Asia/Yerevan', locale),
+                  </Pressable>
+                );
               })}
-            </Text>
-          </>
-        )}
-      </ScrollView>
+            </ScrollView>
+          </View>
+
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.search}
+              value={search}
+              onChangeText={setSearch}
+              placeholder={t('menu.search')}
+              placeholderTextColor={color.subtleForeground}
+              accessibilityLabel={t('menu.search')}
+            />
+          </View>
+
+          <ScrollView contentContainerStyle={styles.body}>
+            {items.length === 0 ? (
+              <Text style={styles.muted}>{t('menu.noMatches')}</Text>
+            ) : (
+              items.map((item) => (
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  locale={locale}
+                  expanded={openItemId === item.id}
+                  onToggle={() => setOpenItemId(openItemId === item.id ? null : item.id)}
+                  onAdd={() => dispatch({ type: 'add', item })}
+                />
+              ))
+            )}
+          </ScrollView>
+
+          {/* The tray bar: what is in it and what it comes to, always visible
+              once there is anything, tappable to review before sending. */}
+          {count > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push({ pathname: '/tab/[tabId]/tray', params: { tabId } })}
+              style={styles.trayBar}
+            >
+              <Text style={styles.trayCount}>{t('tray.bar.count', { count })}</Text>
+              <Text style={styles.trayTotal}>{formatDram(traySubtotalDram(tray), locale)}</Text>
+              <Text style={styles.trayGo}>{t('tray.bar.review')}</Text>
+            </Pressable>
+          ) : null}
+        </>
+      )}
     </SafeAreaView>
+  );
+}
+
+interface ItemCardProps {
+  readonly item: MenuItemDetail;
+  readonly locale: Parameters<typeof formatDram>[1];
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+  readonly onAdd: () => void;
+}
+
+/**
+ * One dish.
+ *
+ * The descriptive fields are on the card, not behind a modal: the backend made
+ * ingredients, allergens, portion size and spice level required precisely so a
+ * diner stops needing to ask a waiter, and putting them behind a second tap
+ * wastes that. The card shows a summary line always and the full detail on tap,
+ * which keeps a forty-item menu scannable without hiding anything.
+ */
+function ItemCard({ item, locale, expanded, onToggle, onAdd }: ItemCardProps) {
+  const { t } = useTranslation('diner');
+
+  return (
+    <View style={[styles.card, !item.isAvailable && styles.cardOut]}>
+      <Pressable accessibilityRole="button" onPress={onToggle} style={styles.cardMain}>
+        <View style={styles.cardHead}>
+          <Text style={styles.itemName}>{item.name}</Text>
+          <Text style={styles.itemPrice}>{formatDram(item.priceDram, locale)}</Text>
+        </View>
+
+        {item.description ? <Text style={styles.itemDesc}>{item.description}</Text> : null}
+
+        <Text style={styles.itemMeta}>
+          {[
+            item.portionSize,
+            t('menu.prep', { count: item.prepMinutes }),
+            item.spiceLevel === 'notSpicy' ? null : t(`menu.spice.${item.spiceLevel}`),
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+
+        {expanded ? (
+          <View style={styles.detail}>
+            {item.ingredients ? (
+              <Text style={styles.detailLine}>
+                <Text style={styles.detailLabel}>{t('menu.ingredients')}: </Text>
+                {item.ingredients}
+              </Text>
+            ) : null}
+            {item.allergens ? (
+              <Text style={styles.detailLine}>
+                <Text style={styles.detailLabel}>{t('menu.allergens')}: </Text>
+                {item.allergens}
+              </Text>
+            ) : (
+              <Text style={styles.detailLine}>{t('menu.noAllergens')}</Text>
+            )}
+          </View>
+        ) : null}
+      </Pressable>
+
+      {/* Shown and marked, never hidden. A dish that silently vanishes reads as
+          a broken menu and the diner asks a waiter — the exact question this
+          screen exists to remove. */}
+      {item.isAvailable ? (
+        <Pressable accessibilityRole="button" onPress={onAdd} style={styles.add}>
+          <Text style={styles.addText}>{t('menu.add')}</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.outBadge}>
+          <Text style={styles.outText}>{t('menu.unavailable')}</Text>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: color.paper },
-  body: { padding: space.lg, paddingBottom: space.xxxl, gap: space.xs },
-  title: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
+  body: { padding: space.lg, gap: space.md, paddingBottom: space.xxxl },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.md,
+    padding: space.xl,
   },
-  where: { fontSize: fontSize.sm, color: color.mutedForeground },
-  note: { marginBottom: space.md, fontSize: fontSize.sm, color: color.mutedForeground },
-  section: {
-    marginTop: space.md,
-    padding: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: color.surface,
-    gap: space.sm,
-  },
-  sectionName: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: space.lg,
-    paddingVertical: space.xs,
-  },
-  itemText: { flex: 1, gap: space.xs },
-  itemName: {
+  muted: {
+    color: color.mutedForeground,
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
+    textAlign: 'center',
+  },
+  retry: {
+    minHeight: touchTarget.regular,
+    justifyContent: 'center',
+    paddingHorizontal: space.xl,
+    borderRadius: radius.pill,
+    backgroundColor: color.primary,
+  },
+  retryText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
+
+  strip: {
+    paddingVertical: space.sm,
+    paddingHorizontal: space.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: color.borderSoft,
+    backgroundColor: color.surface,
+  },
+  chip: {
+    minHeight: touchTarget.regular,
+    justifyContent: 'center',
+    paddingHorizontal: space.lg,
+    marginRight: space.sm,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: color.borderStrong,
+  },
+  chipActive: { backgroundColor: color.primary, borderColor: color.primary },
+  chipText: { color: color.foreground, fontWeight: fontWeight.medium },
+  chipTextActive: { color: color.primaryForeground },
+
+  searchRow: { paddingHorizontal: space.lg, paddingTop: space.sm },
+  search: {
+    minHeight: touchTarget.regular,
+    maxWidth: 280,
+    paddingHorizontal: space.md,
+    borderRadius: radius.soft,
+    borderWidth: 1,
+    borderColor: color.border,
+    backgroundColor: color.surface,
     color: color.foreground,
   },
-  itemDescription: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
+
+  card: {
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: color.borderSoft,
+    backgroundColor: color.surface,
+    overflow: 'hidden',
   },
-  itemGone: { color: color.mutedForeground, textDecorationLine: 'line-through' },
-  unavailable: { fontSize: fontSize.xs, color: color.warning },
-  price: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  updated: { marginTop: space.lg, fontSize: fontSize.xs, color: color.mutedForeground },
-  centered: { alignItems: 'center', gap: space.sm, paddingTop: space.xxl },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
-  muted: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
+  cardOut: { opacity: 0.7 },
+  cardMain: { padding: space.lg, gap: space.xs },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  itemName: {
+    flex: 1,
+    fontSize: fontSize.lg,
+    lineHeight: lineHeight.lg,
+    fontWeight: fontWeight.medium,
+  },
+  itemPrice: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
+  itemDesc: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
+  itemMeta: { color: color.subtleForeground, fontSize: fontSize.xs, lineHeight: lineHeight.xs },
+  detail: { gap: space.xs, paddingTop: space.sm },
+  detailLine: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.foreground },
+  detailLabel: { fontWeight: fontWeight.bold },
+
+  add: {
+    minHeight: touchTarget.regular,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.primary,
+  },
+  addText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
+  outBadge: {
+    minHeight: touchTarget.small,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.greenTint,
+  },
+  outText: { color: color.mutedForeground, fontWeight: fontWeight.medium, fontSize: fontSize.sm },
+
+  trayBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: touchTarget.large,
+    paddingHorizontal: space.lg,
+    backgroundColor: color.primary,
+  },
+  trayCount: { color: color.primaryForeground, fontWeight: fontWeight.bold },
+  trayTotal: { flex: 1, color: color.primaryForeground, fontWeight: fontWeight.bold },
+  trayGo: { color: color.primaryForeground, fontWeight: fontWeight.medium },
 });

@@ -18,6 +18,7 @@ import {
   onTab,
   useParticipantSummary,
 } from '../../../src/components/Participants';
+import { LiveBill } from '../../../src/components/LiveBill';
 import { useLeaveTab, useTab } from '../../../src/data/queries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { useActiveTab } from '../../../src/stores/tab';
@@ -188,22 +189,31 @@ export default function TabScreen() {
           ) : null}
         </View>
 
-        {/* TODO: order list and running total.
-            Next task adds the diner's own lines, the table total for whoever is
-            allowed to see it, and the service charge. Nothing is stubbed with a
-            zero here on purpose — a total of ֏0 on a table that has ordered is
-            worse than no total at all. */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t('tab.orders.title')}</Text>
-          <Text style={styles.placeholder}>{t('tab.orders.placeholder')}</Text>
-        </View>
+        {/* The bill as it grows. Live through the tab's event sequence, so a
+            waiter adding a spoken order on the tablet appears here without
+            anybody refreshing anything. */}
+        <LiveBill
+          tabId={tab.id}
+          participantId={tab.yourParticipantId}
+          active={tab.yourStatus === 'active'}
+        />
 
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push({ pathname: '/tab/[tabId]/menu', params: { tabId: tab.id } })}
+          style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+        >
+          <Text style={styles.primaryText}>{t('tab.order')}</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            router.push({ pathname: '/tab/[tabId]/settle', params: { tabId: tab.id } })
+          }
           style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
         >
-          <Text style={styles.secondaryText}>{t('tab.menu')}</Text>
+          <Text style={styles.secondaryText}>{t('tab.settle')}</Text>
         </Pressable>
 
         <Pressable

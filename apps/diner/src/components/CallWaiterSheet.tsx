@@ -20,6 +20,15 @@ export interface CallWaiterSheetProps {
   readonly tabId: string;
   readonly visible: boolean;
   readonly onClose: () => void;
+  /**
+   * Opened for a particular reason — "ask for the bill" from the settle screen.
+   *
+   * Highlighted rather than sent: the tap is still the diner's. A sheet that
+   * fires on open would summon a waiter to a table that was only being read.
+   */
+  readonly initialReason?: WaiterCallReason | undefined;
+  /** The table number, so the confirmation says where the counter was pinged. */
+  readonly tableLabel?: string | undefined;
 }
 
 /**
@@ -34,7 +43,13 @@ export interface CallWaiterSheetProps {
  * says so plainly. Telling someone a waiter is coming when nobody was told is
  * strictly worse than telling them to catch an eye.
  */
-export function CallWaiterSheet({ tabId, visible, onClose }: CallWaiterSheetProps) {
+export function CallWaiterSheet({
+  tabId,
+  visible,
+  onClose,
+  initialReason,
+  tableLabel,
+}: CallWaiterSheetProps) {
   const { t } = useTranslation('diner');
   const call = useCallWaiter();
 
@@ -80,6 +95,7 @@ export function CallWaiterSheet({ tabId, visible, onClose }: CallWaiterSheetProp
                 onPress={() => void raise(reason)}
                 style={({ pressed }) => [
                   styles.preset,
+                  reason === initialReason && styles.presetSuggested,
                   pressed && styles.pressed,
                   call.isPending && styles.disabled,
                 ]}
@@ -89,7 +105,11 @@ export function CallWaiterSheet({ tabId, visible, onClose }: CallWaiterSheetProp
             ))}
           </View>
         ) : (
-          <Text style={styles.sent}>{t('waiter.sent', { what: t(`waiter.${sent}`) })}</Text>
+          <Text style={styles.sent}>
+            {tableLabel
+              ? t('waiter.sentAtTable', { what: t(`waiter.${sent}`), label: tableLabel })
+              : t('waiter.sent', { what: t(`waiter.${sent}`) })}
+          </Text>
         )}
 
         {call.isPending ? (
@@ -114,6 +134,7 @@ export function CallWaiterSheet({ tabId, visible, onClose }: CallWaiterSheetProp
 }
 
 const styles = StyleSheet.create({
+  presetSuggested: { borderColor: color.primary, borderWidth: 2 },
   backdrop: { flex: 1, backgroundColor: 'rgba(18, 33, 26, 0.45)' },
   sheet: {
     position: 'absolute',

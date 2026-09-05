@@ -273,7 +273,9 @@
     "notFoundTitle": "That tab is gone",
     "notFoundBody": "Scan the code on your table to open a new one.",
     "offline": "No connection. This is the last state we saw.",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "order": "Order something",
+    "settle": "Settling up"
   },
   "pending": {
     "title": "Waiting for the host",
@@ -337,7 +339,23 @@
     "loading": "Loading the menu…",
     "emptyTitle": "No menu yet",
     "emptyBody": "This branch has not published a menu.",
-    "updated": "Updated {{time}}"
+    "updated": "Updated {{time}}",
+    "search": "Search dishes or ingredients",
+    "noMatches": "Nothing matches that.",
+    "error": "We could not load the menu.",
+    "notWired": "The menu is not switched on for this place yet.",
+    "offlineNoCache": "The menu has not been loaded on this phone yet, and there is no signal to fetch it.",
+    "add": "Add",
+    "ingredients": "What is in it",
+    "allergens": "Allergens",
+    "noAllergens": "No allergens listed.",
+    "prep_one": "about {{count}} min",
+    "prep_other": "about {{count}} min",
+    "spice": {
+      "mild": "Mildly spicy",
+      "medium": "Spicy",
+      "hot": "Very spicy"
+    }
   },
   "waiter": {
     "call": "Call a waiter",
@@ -351,12 +369,117 @@
     "sent": "Asked for: {{what}}. Someone will come over.",
     "notWired": "Calling a waiter is not switched on here yet. Catch someone's eye for now.",
     "failed": "That did not go through. Try again, or catch someone's eye.",
-    "close": "Close"
+    "close": "Close",
+    "sentAtTable": "We have told the counter — {{what}}, table {{label}}."
   },
   "join": {
     "title": "Joining a tab",
     "working": "Opening the link…",
     "failedTitle": "That link did not work",
     "failedBody": "Ask for a new one, or scan the code on your table."
+  },
+  "common": {
+    "retry": "Try again"
+  },
+  "tray": {
+    "title": "Your order",
+    "empty": "Nothing added yet.",
+    "subtotal": "Items so far",
+    "shared": "Share it",
+    "sharedExplained": "Shared items are split evenly between everyone at the table right now. Whoever joins later will not be on this one.",
+    "note": "Note",
+    "notePlaceholder": "No sugar, extra hot…",
+    "fewer": "One fewer",
+    "more": "One more",
+    "send_one": "Send {{count}} item to the kitchen",
+    "send_other": "Send {{count}} items to the kitchen",
+    "sending": "Sending…",
+    "bar": {
+      "count_one": "{{count}} item",
+      "count_other": "{{count}} items",
+      "review": "Review"
+    },
+    "sent": {
+      "title": "Sent to the kitchen",
+      "ready": "Ready around {{time}}.",
+      "noEstimate": "The kitchen has it.",
+      "toTab": "Back to the bill"
+    },
+    "failed": {
+      "offline": "No signal, so this order has not been placed.",
+      "notWired": "Ordering is not switched on for this place yet, so nothing was sent.",
+      "error": "This order has not been placed.",
+      "askWaiter": "Nothing was sent to the kitchen. Try again in a moment, or ask a waiter and they will take it."
+    }
+  },
+  "bill": {
+    "title": "The bill so far",
+    "loading": "Loading the bill…",
+    "empty": "Nothing ordered yet.",
+    "error": "We could not load the bill.",
+    "notWired": "The bill is not switched on for this place yet.",
+    "live": "Up to date",
+    "connecting": "Catching up…",
+    "notLive": "Refreshed when you open this",
+    "stale": "Last updated {{ago}}",
+    "staff": "the waiter",
+    "yours": "Yours",
+    "orderedBy": "{{name}}",
+    "forTheTable": "For the table",
+    "sharedWays_one": "shared {{count}} way",
+    "sharedWays_other": "shared {{count}} ways",
+    "removed": "Removed by the staff · {{reason}}",
+    "removedBy": "Removed by {{name}} · {{reason}}",
+    "adjustment": {
+      "discount": "Discount",
+      "comp": "On the house"
+    },
+    "adjustedBy": "{{reason}} · {{name}}",
+    "marker": {
+      "added": "Just added by {{name}}",
+      "removed": "Just removed by {{name}}"
+    },
+    "subtotal": "Items",
+    "serviceCharge": "Service charge ({{percent}}%)",
+    "total": "Total",
+    "yourShare": "Your share",
+    "yourItems": "Your items",
+    "hiddenTotal": "The table total is kept to whoever opened the tab. A {{percent}}% service charge applies to it."
+  },
+  "settle": {
+    "title": "Settling up",
+    "unnamed": "Someone at the table",
+    "host": "opened the tab",
+    "error": "We could not work out the shares.",
+    "notWired": "Shares are not switched on for this place yet.",
+    "people": "Manage who is on the tab",
+    "mode": {
+      "title": "How you are splitting it",
+      "locked": "Someone has already paid, so this stays as it is.",
+      "hostPaysEverything": {
+        "title": "One person pays",
+        "body": "Whoever opened the tab settles the whole bill."
+      },
+      "everyonePaysOwnItems": {
+        "title": "Everyone pays for their own",
+        "body": "Shared items and the service charge are split between you."
+      },
+      "anyonePaysAnyAmount": {
+        "title": "Sort it out between you",
+        "body": "Anyone can hand over any amount until the bill is covered."
+      }
+    },
+    "shares": {
+      "title": "Who owes what",
+      "body": "Shared items and the service charge are already included in each amount.",
+      "breakdown": "Own {{own}} · shared {{shared}} · service {{service}}",
+      "absorbed": "Includes {{amount}} for someone who left the tab.",
+      "total": "Table total"
+    },
+    "pay": {
+      "title": "Paying",
+      "body": "Payment is taken at the table in cash. Ask for the bill and a waiter will come over with it.",
+      "askForBill": "Ask for the bill"
+    }
   }
 }

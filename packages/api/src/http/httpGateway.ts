@@ -12,6 +12,13 @@ import {
 } from '../contracts/errors';
 import { ApiError, NotFoundError, TooManyRequestsError, UnauthorizedError } from '../errors';
 import type { YallaGateway } from '../gateway';
+import type {
+  BranchMenu,
+  DinerTabView,
+  PlaceOrderResult,
+  TabEventPage,
+  TabShares,
+} from '../contracts/unshipped';
 import type { components } from '../generated/schema';
 import {
   availabilityFromResponse,
@@ -215,6 +222,37 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     setParticipantPermissions: (input) => fallback.setParticipantPermissions(input),
     setTabDefaultPermissions: (input) => fallback.setTabDefaultPermissions(input),
     callWaiter: (input) => fallback.callWaiter(input),
+
+    // --- Ordering and the bill ---------------------------------------------
+    //
+    // None of this exists on the server. The domain entities do — `MenuItem`
+    // carries the descriptive fields, `TabOrderLine` the snapshots, `TabEvent`
+    // its sequence — but no endpoint exposes any of them, so every one of these
+    // says so by name rather than falling back to the mock. A diner shown an
+    // invented bill is the worst failure this app has.
+    async getBranchMenuDetail(): Promise<BranchMenu | null> {
+      throw new EndpointNotWiredError({ url: '', endpoint: 'getBranchMenuDetail' });
+    },
+
+    async getDinerTab(): Promise<DinerTabView | null> {
+      throw new EndpointNotWiredError({ url: '', endpoint: 'getDinerTab' });
+    },
+
+    async getTabEvents(): Promise<TabEventPage> {
+      throw new EndpointNotWiredError({ url: '', endpoint: 'getTabEvents' });
+    },
+
+    async placeOrder(): Promise<PlaceOrderResult> {
+      throw new EndpointNotWiredError({ url: '', endpoint: 'placeOrder' });
+    },
+
+    async getTabShares(): Promise<TabShares | null> {
+      throw new EndpointNotWiredError({ url: '', endpoint: 'getTabShares' });
+    },
+
+    async setSettlementMode(): Promise<DinerTabView> {
+      throw new EndpointNotWiredError({ url: '', endpoint: 'setSettlementMode' });
+    },
   };
 }
 

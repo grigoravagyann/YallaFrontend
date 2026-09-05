@@ -425,10 +425,19 @@ makes it one.
 
 ### Live updates
 
-`apps/web/src/staff/live/` — a `LiveStream` interface with a polling
-implementation. SignalR is a later task; the backend's sequence columns exist so
-this can be written once and have its transport swapped without any screen
-changing. **No polling logic lives outside that folder.**
+`packages/realtime/src/sequenceStream.ts` — a `LiveStream` interface with a
+polling implementation, shared by both apps. SignalR is a later task; the
+backend's sequence columns exist so this can be written once and have its
+transport swapped without any screen changing. **No polling logic lives outside
+that file.**
+
+It moved out of `apps/web` when the diner's bill needed the same thing. Two
+implementations of a sequence stream is how a waiter's tablet and a diner's
+phone end up disagreeing about a bill, with nobody able to say which is right.
+It is generic over the page type and takes a fetch callback, so the package
+needs no dependency on the API client and the same function serves a branch's
+floor changes and a tab's events. Each app keeps one thin binding that says
+which endpoint a page comes from and which error means "not shipped yet".
 
 The floor polls `GET /api/branches/{id}/changes?afterSequence=` and folds pages
 in incrementally, short interval while the screen is foreground and long while
@@ -610,14 +619,42 @@ Two gaps worth knowing about.
 **The venue catalogue.** The backend's only venue listing is the platform-admin
 one, so a diner has nothing to browse.
 
-**Everything the counter screen needs beyond table state.** The table
-transitions are fully wired — all eight, with the 409 and 422 payloads the
-two-conflict model branches on — and so are a tab's totals and participants. The
-rest of Backend Prompt 8 has not shipped: there are no order, payment,
-adjustment or service-request endpoints, no staff-readable menu, and neither
-`TableStateChange` nor a `TabEvent` carries a sequence column, so neither stream
-exists. `createStaffHttpGateway` raises `EndpointNotWiredError` for each of them
-by name.
+**Everything the counter screen and the diner's bill need beyond table state.**
+The table transitions are fully wired — all eight, with the 409 and 422 payloads
+the two-conflict model branches on — and so are a tab's totals and participants.
+The rest of Backend Prompt 8 has not shipped: there are no ordering, payment,
+adjustment or service-request endpoints, no diner-readable menu with the
+descriptive fields, no shares endpoint, and neither sequence stream is exposed.
+Both HTTP gateways raise `EndpointNotWiredError` for each of them by name.
+
+### Where the guessed shapes live
+
+`packages/api/src/contracts/unshipped.ts`, alone. Every shape written against an
+endpoint the backend has not published is in that one module, so swapping in
+`pnpm api:generate` output later is one import path changing and the compiler
+then lists every mismatch. `contracts/service.ts` keeps only what the OpenAPI
+document already describes, and the dependency runs guesses to knowns and never
+the other way round.
+
+The guesses are written from the domain entities rather than invented: the
+backend has `MenuItem` with its required ingredients and allergens,
+`TabOrderLine` with the price and share snapshots, `TabEvent` with a sequence
+column and twenty pinned types, and the whole of `TabBilling`. What is missing
+is the endpoints, not the model.
+
+`packages/api/src/mocks/billing.ts` is a faithful port of
+`TabBilling.Compute` — line adjustments, then tab adjustments, then a service
+charge on what is left, rounded once, remainders to the host by largest
+remainder. Every mock computes money through it. A mock that summed line totals
+and called it a bill would let every screen be built against arithmetic the
+server does not do, and the disagreement would surface at a table. A property
+test over two thousand random tabs asserts the shares sum to the total to the
+dram.
+
+**No component is typed against a mock.** Screens depend on the contracts; the
+mocks implement them. A screen typed against what a mock happens to return stops
+compiling on the day the backend ships, which is the moment it is least
+affordable.
 
 In both cases every screen renders that as "not available yet" rather than as an
 error, and **never falls back to the mock**. A tablet that quietly starts
@@ -653,3 +690,23 @@ Offline is a state, not an error. With the laptop's wifi off the diner app
 shows "You are offline" with a retry button, the console shows a dashed
 notice, and the staff floor keeps the last room it loaded with the header
 saying it is reconnecting.
+
+### The two offline rules, and why they are opposites
+
+The staff tablet **queues** what a waiter does and replays it on reconnect. The
+diner's phone **refuses** to place an order it cannot send, and says so
+immediately.
+
+That is deliberate, not an inconsistency. The waiter is standing in the room: a
+seat command that lands two minutes late is something they can see and reconcile,
+and losing it would make the tablet worse than the notepad it replaced. The diner
+cannot reconcile anything — a phone that swallows an order and reports success
+produces somebody waiting twenty minutes for food nobody is cooking, which is a
+worse outcome than being told at the moment they tapped.
+
+So on the phone: the **menu is cached hard** and readable with no signal, because
+it changes rarely and it is what somebody stares at while the signal is gone; the
+**bill is never cached as live data** and shows its last known state marked stale
+with the time it was read; and **placing an order is attempted even when the
+device says it is offline**, so it fails honestly rather than being paused by the
+query client and leaving a button spinning for ever.
