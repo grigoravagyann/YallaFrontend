@@ -169,9 +169,8 @@ export function TabPanel(props: TabPanelProps) {
                     {line.status !== 'active' ? (
                       <p className="tab-adjustment">
                         {t(`tab.lineStatus.${line.status}`)}
-                        {line.adjustmentReason
-                          ? ` · ${readableReason(line.adjustmentReason, t)}`
-                          : ''}
+                        {line.voidReason ? ` · ${readableReason(line.voidReason, t)}` : ''}
+                        {line.voidedByName ? ` · ${line.voidedByName}` : ''}
                       </p>
                     ) : (
                       <div className="tab-line-actions">
@@ -204,6 +203,26 @@ export function TabPanel(props: TabPanelProps) {
                 ))}
               </ul>
             )}
+
+            {/* Adjustments are their own rows with the manager's reason on
+                them. Folded into a total, a bill quietly shrinks and nobody
+                can say why. */}
+            {tab.adjustments.length > 0 ? (
+              <ul className="tab-lines">
+                {tab.adjustments.map((adjustment) => (
+                  <li key={adjustment.id} className="tab-line status-adjustment">
+                    <div className="tab-line-main">
+                      <span>{t(`tab.adjustmentKind.${adjustment.kind}`)}</span>
+                      <span>−{format.dram(adjustment.reductionDram)}</span>
+                    </div>
+                    <p className="tab-adjustment">
+                      {adjustment.reason}
+                      {adjustment.byName ? ` · ${adjustment.byName}` : ''}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </section>
 
           <section className="tab-shares-block">
@@ -215,7 +234,7 @@ export function TabPanel(props: TabPanelProps) {
                 {tab.shares.map((share) => (
                   <li key={share.participantId}>
                     <span>{share.displayName ?? t('order.whoUnnamed')}</span>
-                    <strong>{format.dram(share.remainingDram)}</strong>
+                    <strong>{format.dram(share.shareDram)}</strong>
                   </li>
                 ))}
               </ul>

@@ -1,5 +1,6 @@
 import type { FloorChange, StaffFloor, StaffTableDetail } from '@yalla/api';
 import type { DerivedTableState } from '@yalla/floorplan';
+import { findSequenceGap } from '@yalla/realtime';
 
 /**
  * Applying the branch's change stream to the floor already on screen.
@@ -37,15 +38,14 @@ export function applyFloorChanges(
 
   const ordered = [...changes].sort((a, b) => a.sequence - b.sequence);
 
-  // Contiguity, checked before anything is applied. A partially applied page
-  // would be worse than an unapplied one: the screen would look updated.
-  let expected = floor.lastSequence + 1;
-  for (const change of ordered) {
-    if (change.sequence !== expected) {
-      return { kind: 'gap', expected, received: change.sequence };
-    }
-    expected += 1;
-  }
+  // Contiguity, checked before anything is applied, by the same rule the tab
+  // stream uses. A partially applied page is worse than an unapplied one: the
+  // screen would look updated.
+  const gap = findSequenceGap(
+    floor.lastSequence,
+    ordered.map((change) => change.sequence),
+  );
+  if (gap) return { kind: 'gap', ...gap };
 
   const details = new Map(floor.details.map((detail) => [detail.tableId, detail]));
   const states = new Map<string, DerivedTableState>();

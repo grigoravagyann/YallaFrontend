@@ -3,6 +3,16 @@ import { cafeFloorPlan } from '@yalla/floorplan/mocks';
 import type { Menu } from '../contracts/menu';
 import { ConcurrencyConflictError, InvalidTransitionError, NotFoundError } from '../errors';
 import type {
+  StaffFloor,
+  StaffTableDetail,
+  TableActionCommand,
+  TableActionKind,
+  TableActionResult,
+  TableStatus,
+  TableWarning,
+  TabTotals,
+} from '../contracts/service';
+import type {
   AbandonTabCommand,
   AbandonTabResult,
   AcknowledgeServiceRequestCommand,
@@ -16,20 +26,15 @@ import type {
   RecordCashPaymentCommand,
   ServiceRequest,
   SetOrderStatusCommand,
-  StaffFloor,
   StaffTab,
-  StaffTableDetail,
+  TabAdjustment,
   TabEvent,
   TabEventPage,
   TabLine,
-  TableActionCommand,
-  TableActionKind,
-  TableActionResult,
-  TableStatus,
-  TableWarning,
-} from '../contracts/service';
+} from '../contracts/unshipped';
 import type { StaffGateway } from '../staffGateway';
 import { mockMenuFor } from './menu';
+import { computeBill, type BillingLine } from './billing';
 
 /**
  * A whole service, in memory.
@@ -107,12 +112,20 @@ interface MockTab {
   paidDram: number;
   tipDram: number;
   readonly lines: TabLine[];
+  readonly adjustments: TabAdjustment[];
   readonly participants: { id: string; displayName: string | null; isHost: boolean }[];
   sequence: number;
   readonly events: TabEvent[];
 }
 
-const SERVICE_CHARGE_RATE = 0;
+/**
+ * The branch percentage, snapshotted when a tab opens.
+ *
+ * Non-zero on purpose: a service charge of zero would let every screen be built
+ * without ever rendering the line that has to be present from the first item,
+ * and the first venue with a 10% charge would find out.
+ */
+const SERVICE_CHARGE_PERCENT = 10;
 
 /** Which physical status each action is legal from, and what it produces. */
 const TRANSITIONS: Readonly<
@@ -232,6 +245,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       paidDram: 0,
       tipDram: 0,
       lines: [],
+      adjustments: [],
       participants: [
         { id: id('p'), displayName: 'Table', isHost: true },
         { id: id('p'), displayName: 'Anahit', isHost: false },
@@ -282,10 +296,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         lineTotalDram: item.priceDram * quantity,
         note: null,
         isShared: false,
+        isTableAttributed: true,
         participantId: null,
+        orderedByName: 'Aram',
+        sharedWithCount: seededTab.participants.length,
         status: 'active',
-        adjustmentReason: null,
+        voidReason: null,
+        voidedByName: null,
+        voidedAtUtc: null,
         placedAtUtc: seedOrder.placedAtUtc,
+        orderStatus: seedOrder.status,
       });
       seedOrder.lineIds.push(lineId);
     }
@@ -331,38 +351,50 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       : 'free';
   }
 
-  function totalsFor(tab: MockTab) {
-    const subtotal = tab.lines
-      .filter((line) => line.status === 'active')
-      .reduce((sum, line) => sum + line.lineTotalDram, 0);
-    const serviceCharge = Math.round(subtotal * SERVICE_CHARGE_RATE);
-    const total = subtotal + serviceCharge;
-    return {
-      subtotalDram: subtotal,
-      serviceChargeDram: serviceCharge,
-      totalDram: total,
+  /**
+   * The bill, through the shared port of the server's own arithmetic.
+   *
+   * Not summed here. A mock that adds up line totals and calls it a bill would
+   * let every screen be demonstrated against arithmetic the server does not do,
+   * and the disagreement would surface at a table.
+   */
+  function billFor(tab: MockTab) {
+    return computeBill({
+      lines: tab.lines.map((line): BillingLine => ({
+        lineId: line.id,
+        ownerParticipantId: line.participantId,
+        unitPriceDram: line.unitPriceDram,
+        quantity: line.quantity,
+        isVoided: line.status === 'voided',
+        isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
+        shareParticipantIds:
+          line.isShared || line.isTableAttributed
+            ? tab.participants.slice(0, Math.max(1, line.sharedWithCount)).map((p) => p.id)
+            : [],
+      })),
+      adjustments: tab.adjustments.map((adjustment) => ({
+        lineId: adjustment.lineId,
+        percent: adjustment.percent,
+        amountDram: adjustment.amountDram,
+      })),
+      participants: tab.participants.map((person) => ({
+        participantId: person.id,
+        displayName: person.displayName,
+        isHost: person.isHost,
+        status: 'approved' as const,
+        paidDram: 0,
+      })),
+      serviceChargePercent: SERVICE_CHARGE_PERCENT,
       paidDram: tab.paidDram,
-      remainingDram: Math.max(0, total - tab.paidDram),
-    };
+    });
+  }
+
+  function totalsFor(tab: MockTab): TabTotals {
+    return billFor(tab).bill;
   }
 
   function viewTab(tab: MockTab): StaffTab {
-    const totals = totalsFor(tab);
-    const active = tab.lines.filter((line) => line.status === 'active');
-
-    // Per-person shares, computed the way the server will: a shared line is
-    // split across everyone, a personal line lands on its owner, and a line
-    // charged to the table is shared by definition.
-    const people = tab.participants;
-    const owed = new Map(people.map((person) => [person.id, 0]));
-    for (const line of active) {
-      if (line.participantId && !line.isShared) {
-        owed.set(line.participantId, (owed.get(line.participantId) ?? 0) + line.lineTotalDram);
-        continue;
-      }
-      const each = people.length === 0 ? 0 : Math.round(line.lineTotalDram / people.length);
-      for (const person of people) owed.set(person.id, (owed.get(person.id) ?? 0) + each);
-    }
+    const { bill, shares } = billFor(tab);
 
     return {
       id: tab.id,
@@ -380,15 +412,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         status: 'approved' as const,
         canOrder: true,
       })),
-      totals,
+      totals: bill,
+      serviceChargePercent: SERVICE_CHARGE_PERCENT,
       lines: tab.lines,
-      shares: people.map((person) => ({
-        participantId: person.id,
-        displayName: person.displayName,
-        shareDram: owed.get(person.id) ?? 0,
-        paidDram: 0,
-        remainingDram: owed.get(person.id) ?? 0,
-      })),
+      adjustments: tab.adjustments,
+      shares,
     };
   }
 
@@ -437,9 +465,23 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     return tab;
   }
 
-  function pushEvent(tab: MockTab, kind: TabEvent['kind'], at: Date): void {
+  function pushEvent(
+    tab: MockTab,
+    type: TabEvent['type'],
+    at: Date,
+    actor: TabEvent['actor'] = 'staff',
+    actorName: string | null = 'Aram',
+  ): void {
     tab.sequence += 1;
-    tab.events.push({ sequence: tab.sequence, tabId: tab.id, kind, atUtc: iso(at), data: null });
+    tab.events.push({
+      sequence: tab.sequence,
+      tabId: tab.id,
+      type,
+      actor,
+      actorName,
+      atUtc: iso(at),
+      data: null,
+    });
   }
 
   // --- The gateway ----------------------------------------------------------
@@ -602,7 +644,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         } else if (tab) {
           tab.status = 'closed';
           tab.closedAtUtc = iso(at);
-          pushEvent(tab, 'closed', at);
+          pushEvent(tab, 'tabClosed', at);
         }
       }
 
@@ -733,10 +775,19 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           lineTotalDram: item.priceDram * line.quantity,
           note: line.note ?? null,
           isShared: line.isShared,
+          isTableAttributed: line.participantId === null,
           participantId: line.participantId,
+          orderedByName:
+            tab.participants.find((person) => person.id === line.participantId)?.displayName ??
+            null,
+          // Snapshotted now. A friend who arrives later is not on this line.
+          sharedWithCount: tab.participants.length,
           status: 'active',
-          adjustmentReason: null,
+          voidReason: null,
+          voidedByName: null,
+          voidedAtUtc: null,
           placedAtUtc: iso(at),
+          orderStatus: 'new',
         });
         order.lineIds.push(lineId);
       }
@@ -792,7 +843,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tab.lines[index] = {
         ...line,
         status: 'voided',
-        adjustmentReason: command.detail ?? command.reason,
+        voidReason: command.detail ?? command.reason,
+        voidedByName: 'Aram',
+        voidedAtUtc: iso(now()),
       };
       pushEvent(tab, 'lineVoided', now());
       return settle(viewTab(tab));
@@ -800,14 +853,22 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
 
     async compLine(command: CompCommand): Promise<StaffTab> {
       const tab = requireTab(command.tabId);
-      for (let index = 0; index < tab.lines.length; index += 1) {
-        const line = tab.lines[index];
-        if (!line) continue;
-        if (command.lineId !== null && line.id !== command.lineId) continue;
-        if (line.status !== 'active') continue;
-        tab.lines[index] = { ...line, status: 'comped', adjustmentReason: command.reason };
-      }
-      pushEvent(tab, 'lineComped', now());
+      const at = now();
+      // A comp is an adjustment, not a line status. The line stays exactly as
+      // it was ordered and the reduction is its own row with a reason on it —
+      // a bill that quietly shrinks is a bill nobody trusts.
+      tab.adjustments.push({
+        id: id('adj'),
+        kind: 'comp',
+        lineId: command.lineId,
+        percent: 100,
+        amountDram: null,
+        reductionDram: 0,
+        reason: command.reason,
+        byName: 'Aram',
+        atUtc: iso(at),
+      });
+      pushEvent(tab, 'adjustmentAdded', at);
       return settle(viewTab(tab));
     },
 
@@ -818,8 +879,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       // The tip is added to what the venue holds, never to what the tab owes.
       tab.paidDram += command.amountDram;
       tab.tipDram += command.tipDram;
-      const totals = totalsFor(tab);
-      const closed = totals.remainingDram === 0;
+      const bill = billFor(tab).bill;
+      const closed = bill.remainingDram === 0;
       if (closed && tab.status !== 'closed') {
         tab.status = 'closed';
         tab.closedAtUtc = iso(at);
@@ -831,7 +892,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         tabId: tab.id,
         amountDram: command.amountDram,
         tipDram: command.tipDram,
-        totals,
+        bill,
         tabClosed: closed,
         wasReplay: false,
       });
@@ -844,7 +905,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tab.status = 'abandoned';
       tab.closedAtUtc = iso(at);
       tab.paidDram = totalsFor(tab).totalDram;
-      pushEvent(tab, 'closed', at);
+      pushEvent(tab, 'tabClosed', at);
       return settle({
         tabId: tab.id,
         writtenOffDram: written,

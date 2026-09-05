@@ -16,3 +16,17 @@ export type {
   TabTotalsPayload,
   TabClosedPayload,
 } from './hubs';
+
+export {
+  createSequenceStream,
+  findSequenceGap,
+  BACKGROUND_POLL_MS,
+  FOREGROUND_POLL_MS,
+} from './sequenceStream';
+export type {
+  LiveStream,
+  ResyncReason,
+  SequencePage,
+  SequenceStreamHandlers,
+  SequenceStreamOptions,
+} from './sequenceStream';

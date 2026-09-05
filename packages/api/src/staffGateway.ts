@@ -1,4 +1,5 @@
 import type { Menu } from './contracts/menu';
+import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
 import type {
   AbandonTabCommand,
   AbandonTabResult,
@@ -11,13 +12,10 @@ import type {
   RecordCashPaymentCommand,
   ServiceRequest,
   SetOrderStatusCommand,
-  StaffFloor,
   StaffTab,
   TabEventPage,
-  TableActionCommand,
-  TableActionResult,
   VoidLineCommand,
-} from './contracts/service';
+} from './contracts/unshipped';
 
 /**
  * Everything the counter screen needs from a data source.

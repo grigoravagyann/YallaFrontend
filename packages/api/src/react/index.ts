@@ -8,7 +8,7 @@ import type {
   CompCommand,
   RecordCashPaymentCommand,
   VoidLineCommand,
-} from '../contracts/service';
+} from '../contracts/unshipped';
 import type { YallaGateway } from '../gateway';
 import type { StaffGateway } from '../staffGateway';
 import { staleTime } from '../queryClient';

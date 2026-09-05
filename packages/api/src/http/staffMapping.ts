@@ -1,15 +1,15 @@
 import type { components } from '../generated/schema';
 import type {
-  StaffTab,
   StaffTableDetail,
   StaffTabStatus,
   TabParticipantStaffStatus,
-  TabSettlementMode,
+  SettlementMode,
   TableActionResult,
   TableConflictState,
   TableStatus,
   TableWarning,
 } from '../contracts/service';
+import type { StaffTab } from '../contracts/unshipped';
 import { derivedTableState } from './mapping';
 
 type Schemas = components['schemas'];
@@ -56,7 +56,7 @@ const TAB_STATUS: Readonly<Record<number, StaffTabStatus>> = {
 };
 
 /** Values: 1 HostPaysEverything, 2 EveryonePaysOwnItems, 3 AnyonePaysAnyAmount. */
-const SETTLEMENT_MODE: Readonly<Record<number, TabSettlementMode>> = {
+const SETTLEMENT_MODE: Readonly<Record<number, SettlementMode>> = {
   1: 'hostPaysEverything',
   2: 'everyonePaysOwnItems',
   3: 'anyonePaysAnyAmount',
@@ -209,7 +209,14 @@ export function staffTabFromView(view: StaffView): StaffTab {
       paidDram: view.totals.paidAmd,
       remainingDram: view.totals.remainingAmd,
     },
+    // The shipped staff view carries participants and totals and nothing else.
+    // Empty is the truth: the panel says "no items yet" rather than drawing a
+    // bill that is missing rows, and the percentage is unknown rather than
+    // guessed at zero, which would render a service-charge line saying nothing
+    // is charged.
+    serviceChargePercent: 0,
     lines: [],
+    adjustments: [],
     shares: [],
   };
 }

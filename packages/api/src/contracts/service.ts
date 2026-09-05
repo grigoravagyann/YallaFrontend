@@ -1,19 +1,21 @@
 /**
- * The counter screen's contracts: table actions, the live sequence streams,
- * orders, service requests and money.
+ * The counter screen's contracts, for the endpoints the backend has shipped.
  *
- * These are the shapes the staff tablet needs to run a service. Three of the
- * groups below are wired to endpoints that exist today; the rest are declared
- * against the backend's own models and raise `EndpointNotWiredError` from the
- * HTTP gateway until the server ships them. That split is deliberate and is
- * recorded on each group, because the one thing this screen must never do is
- * present an invented number as a real one.
+ * Everything here is a rename of something the generated OpenAPI document
+ * already describes — the eight table transitions, the derived floor, a tab's
+ * totals and participants — so these shapes are checked against
+ * `generated/schema.ts` by `http/staffMapping.ts` and cannot drift silently.
+ *
+ * Everything **guessed** against an endpoint that does not exist yet lives in
+ * `contracts/unshipped.ts`, alone, so that swapping in generated types later is
+ * one module changing. That file imports from this one and never the reverse:
+ * guesses may depend on knowns, not the other way round.
  */
 
 import type { DerivedTableState, FloorPlanData } from '@yalla/floorplan/types';
 
 // ---------------------------------------------------------------------------
-// Table actions — wired
+// Table actions
 // ---------------------------------------------------------------------------
 
 /**
@@ -124,23 +126,10 @@ export interface TableConflictState {
 }
 
 // ---------------------------------------------------------------------------
-// The tab, for staff — partly wired
+// The tab, as the shipped staff view describes it
 // ---------------------------------------------------------------------------
 
-/**
- * The server's three settlement modes, named as the server names them.
- *
- * Renaming these to something shorter on the client is how a screen ends up
- * saying "even split" for a mode that means "anyone pays any amount".
- */
-export type TabSettlementMode =
-  'hostPaysEverything' | 'everyonePaysOwnItems' | 'anyonePaysAnyAmount';
-
-/** `closing` means the bill has been asked for. It is not `closed`. */
-export type StaffTabStatus = 'open' | 'closing' | 'closed' | 'abandoned';
-
-export type TabParticipantStaffStatus = 'pendingApproval' | 'approved' | 'removed';
-
+/** `Yalla.Application.Tabs.TabTotalsView`. */
 export interface TabTotals {
   readonly subtotalDram: number;
   readonly serviceChargeDram: number;
@@ -150,6 +139,27 @@ export interface TabTotals {
   readonly remainingDram: number;
 }
 
+/** `closing` means the bill has been asked for. It is not `closed`. */
+export type StaffTabStatus = 'open' | 'closing' | 'closed' | 'abandoned';
+
+export type TabParticipantStaffStatus = 'pendingApproval' | 'approved' | 'removed';
+
+/**
+ * `Yalla.Domain.Enums.SettlementMode`: 1 HostPaysEverything,
+ * 2 EveryonePaysOwnItems, 3 AnyonePaysAnyAmount.
+ *
+ * Named as the server names them. Shortening these on the client is how a
+ * screen ends up saying "even split" for a mode that means "anyone pays any
+ * amount" — the copy does the translating, not the type.
+ */
+export type SettlementMode = 'hostPaysEverything' | 'everyonePaysOwnItems' | 'anyonePaysAnyAmount';
+
+export const SETTLEMENT_MODES: readonly SettlementMode[] = [
+  'hostPaysEverything',
+  'everyonePaysOwnItems',
+  'anyonePaysAnyAmount',
+];
+
 export interface TabStaffParticipant {
   readonly id: string;
   readonly displayName: string | null;
@@ -157,276 +167,6 @@ export interface TabStaffParticipant {
   readonly status: TabParticipantStaffStatus;
   /** The host's flag: whether they may add items. Drives the order picker. */
   readonly canOrder: boolean;
-}
-
-/** What one person owes, from the server. The client never divides anything. */
-export interface ParticipantShare {
-  readonly participantId: string;
-  readonly displayName: string | null;
-  readonly shareDram: number;
-  readonly paidDram: number;
-  readonly remainingDram: number;
-}
-
-export type OrderLineStatus = 'active' | 'voided' | 'comped';
-
-export interface TabLine {
-  readonly id: string;
-  readonly orderId: string;
-  readonly menuItemId: string;
-  readonly name: string;
-  readonly quantity: number;
-  readonly unitPriceDram: number;
-  readonly lineTotalDram: number;
-  readonly note: string | null;
-  /** Split across the whole table rather than charged to one person. */
-  readonly isShared: boolean;
-  /** `null` means the table, which is the ordering default. */
-  readonly participantId: string | null;
-  readonly status: OrderLineStatus;
-  /** Present on a voided or comped line. Never blank — the server requires it. */
-  readonly adjustmentReason: string | null;
-  readonly placedAtUtc: string;
-}
-
-export interface StaffTab {
-  readonly id: string;
-  readonly branchId: string;
-  readonly tableId: string;
-  readonly tableLabel: string;
-  readonly status: StaffTabStatus;
-  readonly settlementMode: TabSettlementMode;
-  readonly openedAtUtc: string;
-  readonly closedAtUtc: string | null;
-  readonly participants: readonly TabStaffParticipant[];
-  readonly totals: TabTotals;
-  /** Empty until the ordering endpoints ship; never faked to look populated. */
-  readonly lines: readonly TabLine[];
-  readonly shares: readonly ParticipantShare[];
-}
-
-// ---------------------------------------------------------------------------
-// Orders — not wired
-// ---------------------------------------------------------------------------
-
-/**
- * The kitchen's four states, in the order they happen.
- *
- * A kitchen-role session sees exactly one transition of these, which is why
- * the order matters enough to export.
- */
-export type OrderStatus = 'new' | 'inKitchen' | 'ready' | 'served';
-
-export const ORDER_STATUS_FLOW: readonly OrderStatus[] = ['new', 'inKitchen', 'ready', 'served'];
-
-/** The next status, or `null` at the end of the flow. */
-export function nextOrderStatus(status: OrderStatus): OrderStatus | null {
-  const index = ORDER_STATUS_FLOW.indexOf(status);
-  return index < 0 || index === ORDER_STATUS_FLOW.length - 1
-    ? null
-    : (ORDER_STATUS_FLOW[index + 1] ?? null);
-}
-
-export interface PlaceOrderLine {
-  readonly menuItemId: string;
-  readonly quantity: number;
-  /** A short free-text modifier. Not a modifier system; see the README. */
-  readonly note?: string | undefined;
-  readonly isShared: boolean;
-  /** `null` charges the table, which is the default and has a cost — see the UI. */
-  readonly participantId: string | null;
-}
-
-export interface PlaceOrderCommand {
-  readonly tabId: string;
-  readonly clientCommandId: string;
-  readonly lines: readonly PlaceOrderLine[];
-  /** Who took the order. The server stamps it from the token; this is a hint. */
-  readonly placedByStaffId?: string | undefined;
-}
-
-export interface OrderQueueLine {
-  readonly name: string;
-  readonly quantity: number;
-  readonly note: string | null;
-}
-
-export interface OrderQueueEntry {
-  readonly orderId: string;
-  readonly tabId: string;
-  readonly tableId: string;
-  readonly tableLabel: string;
-  readonly status: OrderStatus;
-  readonly placedAtUtc: string;
-  readonly placedByName: string | null;
-  /** Where the order came from. A diner-placed order reads differently. */
-  readonly source: 'staff' | 'diner';
-  readonly estimatedReadyAtUtc: string | null;
-  readonly lines: readonly OrderQueueLine[];
-}
-
-export interface SetOrderStatusCommand {
-  readonly orderId: string;
-  readonly status: OrderStatus;
-  readonly clientCommandId: string;
-}
-
-// ---------------------------------------------------------------------------
-// Service requests — not wired
-// ---------------------------------------------------------------------------
-
-export type ServiceRequestReason = 'napkins' | 'water' | 'bill' | 'other';
-
-export interface ServiceRequest {
-  readonly id: string;
-  readonly tabId: string;
-  readonly tableId: string;
-  readonly tableLabel: string;
-  readonly reason: ServiceRequestReason;
-  readonly requestedAtUtc: string;
-  readonly acknowledgedAtUtc: string | null;
-}
-
-export interface AcknowledgeServiceRequestCommand {
-  readonly requestId: string;
-  readonly clientCommandId: string;
-}
-
-// ---------------------------------------------------------------------------
-// Money — not wired
-// ---------------------------------------------------------------------------
-
-/**
- * Void presets, plus `other` which requires typing.
- *
- * Presets rather than free text because a void reason typed at speed during a
- * rush is "asdf", and a reason nobody can read is a reason nobody recorded.
- */
-export type VoidReason = 'wrongItem' | 'guestChangedMind' | 'kitchenError' | 'spilled' | 'other';
-
-export const VOID_REASONS: readonly VoidReason[] = [
-  'wrongItem',
-  'guestChangedMind',
-  'kitchenError',
-  'spilled',
-  'other',
-];
-
-export interface VoidLineCommand {
-  readonly tabId: string;
-  readonly lineId: string;
-  readonly reason: VoidReason;
-  /** Required when `reason` is `other`; ignored otherwise. */
-  readonly detail?: string | undefined;
-  readonly clientCommandId: string;
-}
-
-export interface CompCommand {
-  readonly tabId: string;
-  /** `null` comps the whole tab. Manager only, either way. */
-  readonly lineId: string | null;
-  readonly reason: string;
-  readonly clientCommandId: string;
-}
-
-/**
- * A cash payment.
- *
- * `tipDram` is deliberately a separate field and never folded into `amountDram`
- * anywhere in this client: a tip added to the balance is how a tab looks
- * settled while money is still owed.
- */
-export interface RecordCashPaymentCommand {
-  readonly tabId: string;
-  readonly amountDram: number;
-  readonly tipDram: number;
-  readonly clientCommandId: string;
-  /** Set to settle one person's share rather than the table's balance. */
-  readonly participantId?: string | undefined;
-}
-
-export interface PaymentResult {
-  readonly paymentId: string;
-  readonly tabId: string;
-  readonly amountDram: number;
-  readonly tipDram: number;
-  readonly totals: TabTotals;
-  /** True when this payment took the balance to zero and closed the tab. */
-  readonly tabClosed: boolean;
-  readonly wasReplay: boolean;
-}
-
-export interface AbandonTabCommand {
-  readonly tabId: string;
-  readonly reason: string;
-  readonly clientCommandId: string;
-}
-
-export interface AbandonTabResult {
-  readonly tabId: string;
-  readonly writtenOffDram: number;
-  readonly atUtc: string;
-  readonly wasReplay: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// The sequence streams — not wired
-// ---------------------------------------------------------------------------
-
-/**
- * One incremental change to the floor.
- *
- * `sequence` is a per-branch monotonic counter. A client that has seen
- * sequence 40 and receives 42 knows it missed 41 and must refetch, which is the
- * only way to be sure the floor on the counter is not quietly wrong.
- */
-export interface FloorChange {
-  readonly sequence: number;
-  readonly branchId: string;
-  readonly tableId: string;
-  readonly fromStatus: TableStatus;
-  readonly toStatus: TableStatus;
-  readonly state: DerivedTableState;
-  readonly atUtc: string;
-  readonly tabId: string | null;
-  readonly tableSessionId: string | null;
-  readonly partySize: number | null;
-  readonly nextReservationStartUtc: string | null;
-  /** For the "seated by Aram just now" message. Absent degrades to "someone". */
-  readonly actorName?: string | undefined;
-}
-
-export interface FloorChangePage {
-  readonly branchId: string;
-  /** Highest sequence in this page, or the caller's own when empty. */
-  readonly lastSequence: number;
-  readonly changes: readonly FloorChange[];
-}
-
-export type TabEventKind =
-  | 'opened'
-  | 'participantJoined'
-  | 'participantLeft'
-  | 'orderPlaced'
-  | 'orderStatusChanged'
-  | 'lineVoided'
-  | 'lineComped'
-  | 'paymentRecorded'
-  | 'closed';
-
-export interface TabEvent {
-  readonly sequence: number;
-  readonly tabId: string;
-  readonly kind: TabEventKind;
-  readonly atUtc: string;
-  /** Shape depends on `kind`. The panel refetches rather than reconstructing. */
-  readonly data: Readonly<Record<string, unknown>> | null;
-}
-
-export interface TabEventPage {
-  readonly tabId: string;
-  readonly lastSequence: number;
-  readonly events: readonly TabEvent[];
 }
 
 // ---------------------------------------------------------------------------

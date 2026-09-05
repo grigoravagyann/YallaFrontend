@@ -2,18 +2,20 @@ import type { ApiClient } from '../client';
 import { EndpointNotWiredError } from '../contracts/errors';
 import type { Menu } from '../contracts/menu';
 import type {
+  StaffFloor,
+  TableActionCommand,
+  TableActionKind,
+  TableActionResult,
+} from '../contracts/service';
+import type {
   AbandonTabResult,
   FloorChangePage,
   OrderQueueEntry,
   PaymentResult,
   ServiceRequest,
-  StaffFloor,
   StaffTab,
   TabEventPage,
-  TableActionCommand,
-  TableActionKind,
-  TableActionResult,
-} from '../contracts/service';
+} from '../contracts/unshipped';
 import { NotFoundError } from '../errors';
 import type { components } from '../generated/schema';
 import type { StaffGateway } from '../staffGateway';

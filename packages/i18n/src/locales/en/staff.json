@@ -224,7 +224,11 @@
     "abandonWord": "WRITE OFF",
     "abandonConfirm": "Write it off",
     "abandonReason": "Written off from the floor screen",
-    "offlineUnknown": "This table has a tab, but its bill cannot be read without a connection. Do not open a second one."
+    "offlineUnknown": "This table has a tab, but its bill cannot be read without a connection. Do not open a second one.",
+    "adjustmentKind": {
+      "discount": "Discount",
+      "comp": "On the house"
+    }
   },
   "cash": {
     "title": "Take cash",
