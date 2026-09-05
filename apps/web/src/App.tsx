@@ -5,13 +5,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { onSignedOut } from './auth/authSession';
 import { Forbidden, LoadingScreen, RequireRole } from './auth/RequireRole';
 import { SignInRoute } from './auth/SignInRoute';
-import {
-  FLOOR_ROLES,
-  PLATFORM_ROLES,
-  VENUE_ROLES,
-  landingPathFor,
-  useCurrentUser,
-} from './auth/useCurrentUser';
+import { PLATFORM_ROLES, VENUE_ROLES, landingPathFor, useCurrentUser } from './auth/useCurrentUser';
 import { QueryFailureNotice } from './components/QueryFailureNotice';
 import { ConsoleLayout } from './console/ConsoleLayout';
 import { CreateVenueRoute } from './console/platform/CreateVenueRoute';
@@ -23,7 +17,7 @@ import { VenuePlaceholder } from './console/venue/VenuePlaceholder';
 import { usingMockData } from './data/gateway';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
 import { DevTokensRoute } from './routes/DevTokensRoute';
-import { FloorRoute } from './staff/FloorRoute';
+import { StaffRoute } from './staff/StaffRoute';
 
 /**
  * The router, built from the role.
@@ -44,7 +38,27 @@ import { FloorRoute } from './staff/FloorRoute';
  *   "somewhere you can go" is how you build a loop, and telling someone whether
  *   a path exists tells them which venue ids are real.
  */
+/**
+ * Two apps behind one origin.
+ *
+ * `/staff` is matched first and never reaches the console's session at all.
+ * That is a routing decision with a product reason behind it: the counter
+ * screen has its own credential — a device token and a PIN — and a waiter must
+ * never be shown an email field. Leaving `/staff` inside the console's router
+ * meant a tablet with no venue-user session was redirected to a password form,
+ * which is both useless to a waiter and the shortest path to a shared owner
+ * account living on a counter.
+ */
 export function App() {
+  return (
+    <Routes>
+      <Route path="/staff/*" element={<StaffRoute />} />
+      <Route path="*" element={<ConsoleApp />} />
+    </Routes>
+  );
+}
+
+function ConsoleApp() {
   const { user, isLoading, failure, isError } = useCurrentUser();
   const location = useLocation();
   useSignedOutRedirect();
@@ -125,20 +139,6 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
       <Route path="/" element={<Navigate to={home} replace />} />
       {/* Already signed in: the form has nothing to do. */}
       <Route path="/sign-in" element={<Navigate to={home} replace />} />
-
-      {/* The staff floor screen is outside the console shell on purpose: a
-          sidebar is wasted width on a tablet, and a waiter needs no navigation
-          at all — the floor is the whole app. */}
-      {FLOOR_ROLES.includes(role) ? (
-        <Route
-          path="/staff"
-          element={
-            <RequireRole allow={FLOOR_ROLES}>
-              <FloorRoute user={user} />
-            </RequireRole>
-          }
-        />
-      ) : null}
 
       <Route element={<ConsoleLayout user={user} />}>
         {PLATFORM_ROLES.includes(role) ? (

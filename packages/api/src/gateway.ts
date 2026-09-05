@@ -16,7 +16,7 @@ import type {
   SetSettlementModeCommand,
   TabEventPage,
   TabShares,
-} from './contracts/unshipped';
+} from './contracts/ordering';
 import type {
   ScanResult,
   ScanTableCommand,

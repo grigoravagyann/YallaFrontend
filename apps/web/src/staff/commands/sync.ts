@@ -7,6 +7,7 @@ import {
   type ConcurrencyConflictError,
   type StaffFloor,
   type StaffGateway,
+  type TableActionCommand,
   type TableActionResult,
 } from '@yalla/api';
 import { localConflict, preconditionHolds } from './reducer';
@@ -54,6 +55,10 @@ export async function sendCommand(
   // else seated it, sending would apply a decision made about a world that no
   // longer exists. The server would mostly refuse anyway — but not always, and
   // "mostly" is not a property to build a floor plan on.
+  //
+  // Only the status is checked here. The row version is deliberately not: it is
+  // an opaque token, and a client that compared two of them and decided a
+  // command was stale would be inventing a refusal the server never made.
   if (!preconditionHolds(command, floor)) {
     return {
       type: 'conflicted',
@@ -82,7 +87,7 @@ export async function sendCommand(
         throw new Error('A payment must never be replayed from the queue.');
       default: {
         if (!isTableAction(command.body.kind)) throw new Error('Unknown command kind.');
-        const result = await gateway.applyTableAction(command.body.command);
+        const result = await gateway.applyTableAction(withPrecondition(command));
         context.onResult?.(result);
         // `wasReplay` is the server saying it had this command already. Same
         // handling as a fresh success, and the reducer says why.
@@ -104,7 +109,12 @@ export async function sendCommand(
         type: 'conflicted',
         id: command.id,
         observed: tableConflictFrom(conflict.currentState),
-        reason: 'conflict',
+        // Two different 409s wearing the same status code. `precondition-failed`
+        // is the server refusing a command that *waited* — it only checks a
+        // precondition because the client said the command was queued — so it
+        // can never be the gesture a waiter is still standing in front of, and
+        // must not be swallowed as a live race. `table-state-conflict` can be.
+        reason: conflict.code === 'precondition-failed' ? 'precondition' : 'conflict',
         atMs: nowMs(),
       };
     }
@@ -132,6 +142,26 @@ export async function sendCommand(
       atMs: nowMs(),
     };
   }
+}
+
+/**
+ * The command as the wire wants it: both halves of the precondition, and
+ * whether it waited.
+ *
+ * `queued` is what makes the server insist on a precondition, so getting it
+ * wrong in the permissive direction is what lets a stale command land. A
+ * command taken with the wifi off has never been *attempted*, so the attempt
+ * count alone would report it as a live tap on reconnect — which is exactly the
+ * case the flag exists for.
+ */
+function withPrecondition(command: QueuedCommand): TableActionCommand {
+  const body = command.body;
+  if (!isTableAction(body.kind)) throw new Error('Not a table action.');
+  return {
+    ...(body.command as TableActionCommand),
+    precondition: command.precondition,
+    queued: command.attempts > 0 || command.takenOffline,
+  };
 }
 
 function isServerFault(error: unknown): boolean {

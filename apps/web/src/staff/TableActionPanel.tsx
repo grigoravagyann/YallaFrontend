@@ -1,4 +1,11 @@
-import type { StaffTab, StaffTableDetail, TableActionKind, TableStatus } from '@yalla/api';
+import type {
+  AffectedReservation,
+  ReleaseOutcome,
+  StaffTab,
+  StaffTableDetail,
+  TableActionKind,
+  TableStatus,
+} from '@yalla/api';
 import type { DerivedTableState, FloorTable, Rect } from '@yalla/floorplan';
 import { useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
@@ -41,7 +48,19 @@ export interface TableActionPanelProps {
   /** True while a command for this table is still queued. */
   readonly pending: boolean;
   readonly online: boolean;
+  /**
+   * Bookings this table still has tonight, reported by the server when it was
+   * marked out of service.
+   *
+   * Surfaced, never cancelled automatically. A broken table is the venue's
+   * doing; somebody has to phone these people, and the phone number is the
+   * whole reason the list exists.
+   */
+  readonly affectedReservations: readonly AffectedReservation[];
   readonly onAct: (kind: TableActionKind, input?: { partySize?: number }) => void;
+  /** Let a booking go, with the outcome the waiter chose. Never a default. */
+  readonly onRelease: (reservationId: string, outcome: ReleaseOutcome) => void;
+  readonly releasing: boolean;
   readonly onOpenTab: () => void;
   readonly onOrder: () => void;
   readonly onClose: () => void;
@@ -75,7 +94,7 @@ function anchorStyle(anchor: Rect, frame: TableActionPanelProps['frame']) {
 }
 
 export function TableActionPanel(props: TableActionPanelProps) {
-  const { table, detail, tab, timeZoneId, pending, online, onAct, onClose } = props;
+  const { table, detail, tab, timeZoneId, pending, online, onAct, onRelease, onClose } = props;
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
 
@@ -83,10 +102,9 @@ export function TableActionPanel(props: TableActionPanelProps) {
   const [partySize, setPartySize] = useState(2);
   const [confirmFree, setConfirmFree] = useState(false);
   /**
-   * The waiter has decided not to keep the late booking. Local to this panel:
-   * there is no endpoint that releases a confirmed booking from the floor, so
-   * the honest effect is that this device stops offering to hold it and the
-   * table's ordinary actions come back. Nothing auto-releases either way.
+   * The booking has been released, so this device stops offering to hold it and
+   * the table's ordinary actions come back. Optimistic only: the floor refetch
+   * behind it is what makes it true.
    */
   const [bookingLetGo, setBookingLetGo] = useState(false);
 
@@ -159,8 +177,8 @@ export function TableActionPanel(props: TableActionPanelProps) {
 
       {pending ? <p className="table-pending">{t('table.pendingHere')}</p> : null}
 
-      {/* A booking whose party has not turned up. Two large buttons, and a
-          waiter decides — nothing here expires on its own. */}
+      {/* A booking whose party has not turned up. Nothing here expires on its
+          own, and nothing here is a default. */}
       {bookingLate && !bookingLetGo ? (
         <section className="table-late" aria-label={t('table.late.title')}>
           <p className="table-late-line">
@@ -173,11 +191,86 @@ export function TableActionPanel(props: TableActionPanelProps) {
             <button type="button" className="floor-button big" onClick={() => onAct('hold')}>
               {t('table.action.hold')}
             </button>
-            <button type="button" className="button big" onClick={() => setBookingLetGo(true)}>
-              {t('table.action.letGo')}
-            </button>
           </div>
-          <p className="table-note">{t('table.late.releaseNote')}</p>
+
+          {/*
+            Two release buttons, deliberately identical in weight.
+
+            One of them puts a no-show on somebody's record and the other does
+            not, and that is the entire difference between them. Make either one
+            the obvious default — bigger, primary-coloured, first under the thumb
+            — and it gets tapped for both cases within a week, at which point the
+            no-show threshold starts punishing the people who phoned to cancel.
+            So: same class, same size, side by side, and one line underneath
+            saying what separates them.
+          */}
+          {detail?.nextReservationId ? (
+            <>
+              <div className="table-release-pair">
+                <button
+                  type="button"
+                  className="button big"
+                  disabled={!online || props.releasing}
+                  onClick={() => {
+                    onRelease(detail.nextReservationId!, 'noShow');
+                    setBookingLetGo(true);
+                  }}
+                >
+                  {t('table.release.noShow')}
+                </button>
+                <button
+                  type="button"
+                  className="button big"
+                  disabled={!online || props.releasing}
+                  onClick={() => {
+                    onRelease(detail.nextReservationId!, 'guestCancelled');
+                    setBookingLetGo(true);
+                  }}
+                >
+                  {t('table.release.cancelled')}
+                </button>
+              </div>
+              <p className="table-note">{t('table.release.difference')}</p>
+              {!online ? <p className="table-note">{t('table.release.needsOnline')}</p> : null}
+            </>
+          ) : (
+            <p className="table-note">{t('table.late.noBookingId')}</p>
+          )}
+        </section>
+      ) : null}
+
+      {/* Bookings stranded by this table going out of service. Time, party
+          size, name, code and a number to call — everything needed to make the
+          call, because nobody is going to look them up on another screen. */}
+      {props.affectedReservations.length > 0 ? (
+        <section className="table-affected" aria-label={t('table.affected.title')}>
+          <h3>{t('table.affected.title')}</h3>
+          <p className="table-warn">{t('table.affected.body')}</p>
+          <ul className="affected-list">
+            {props.affectedReservations.map((booking) => (
+              <li key={booking.reservationId} className="affected-row">
+                <p className="affected-who">
+                  <strong>{format.time(booking.startUtc)}</strong> ·{' '}
+                  {t('table.guests', { count: booking.partySize })} · {booking.guestName}
+                </p>
+                <p className="affected-contact">
+                  <a href={`tel:${booking.guestPhone}`}>{booking.guestPhone}</a> ·{' '}
+                  {t('table.affected.code', { code: booking.code })}
+                </p>
+                {/* The venue broke the table, so releasing one of these is
+                    never a no-show. There is one button here and it is the
+                    forgiving outcome. */}
+                <button
+                  type="button"
+                  className="button"
+                  disabled={!online || props.releasing}
+                  onClick={() => onRelease(booking.reservationId, 'guestCancelled')}
+                >
+                  {t('table.affected.release')}
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

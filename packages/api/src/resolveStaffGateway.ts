@@ -14,6 +14,14 @@ export interface ResolveStaffGatewayOptions {
   readonly mockLatencyMs?: number | undefined;
   /** Mock only: tables whose next transition loses a race. See the mock. */
   readonly mockRaceOnTables?: readonly string[] | undefined;
+  /**
+   * Mock only: tables whose row version churns before the next transition.
+   *
+   * The other half of the conflict story. A race is a status that changed; this
+   * is a status that did not, on a table that has been through a whole other
+   * party — the case only the version can catch.
+   */
+  readonly mockChurnOnTables?: readonly string[] | undefined;
 }
 
 /**
@@ -33,6 +41,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
     return createStaffMockGateway({
       latencyMs: options.mockLatencyMs ?? 200,
       ...(options.mockRaceOnTables ? { raceOnTables: options.mockRaceOnTables } : {}),
+      ...(options.mockChurnOnTables ? { churnOnTables: options.mockChurnOnTables } : {}),
     });
   }
 

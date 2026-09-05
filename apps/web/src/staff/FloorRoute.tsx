@@ -1,13 +1,17 @@
 import {
-  isEndpointNotWired,
+  isPaymentExceedsRemaining,
   newCommandId,
   tableDetail,
-  type ConsoleUser,
+  type AdjustmentKind,
+  type AffectedReservation,
   type OrderQueueEntry,
   type OrderStatus,
   type PlaceOrderLine,
+  type ReleaseOutcome,
   type ServiceRequest,
   type StaffFloor,
+  type StaffSessionIdentity,
+  type TabAdjustment,
   type TabLine,
   type TableActionKind,
   type TableActionResult,
@@ -17,15 +21,16 @@ import {
   isOfflinePaused,
   queryKeys,
   useAbandonTab,
+  useBeginClosing,
   useCompLine,
-  useOpenTabForTable,
   useOrderQueue,
   useRecordCashPayment,
+  useReleaseReservation,
   useServiceRequests,
   useStaffFloor,
   useStaffGateway,
-  useStaffMenu,
   useStaffTab,
+  useTabLines,
   useVoidLine,
 } from '@yalla/api/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -45,6 +50,7 @@ import { StaffHeader } from './StaffHeader';
 import { TableActionPanel } from './TableActionPanel';
 import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
+import { useCachedMenu } from './useCachedMenu';
 import { useConnectionState } from './useConnectionState';
 
 /**
@@ -63,11 +69,20 @@ import { useConnectionState } from './useConnectionState';
  * - **Offline is a state the header shows, never an error the floor shows.** The
  *   last floor loaded stays on screen with pending work marked on it.
  *
- * The branch comes from the token's scope, never from a route parameter. A
+ * The branch comes from the staff session, never from a route parameter. A
  * waiter has exactly one branch and no way to name another.
  */
 export interface FloorRouteProps {
-  readonly user: ConsoleUser;
+  readonly identity: StaffSessionIdentity;
+  /**
+   * The tablet is locked and the PIN screen is over this one.
+   *
+   * The tree stays mounted — a half-entered order is React state in here, and
+   * losing it every time somebody put the tablet down is how locking gets
+   * turned off — but it stops talking: no queries, no live stream, no replay,
+   * because there is no session token behind any of them.
+   */
+  readonly paused: boolean;
 }
 
 /** The table key an unresolved tab is filed under. Never a real table id. */
@@ -90,14 +105,15 @@ interface UnresolvedTab {
   readonly amountDram: number;
 }
 
-export function FloorRoute({ user }: FloorRouteProps) {
+export function FloorRoute({ identity, paused }: FloorRouteProps) {
   const { t } = useTranslation(['staff', 'admin', 'common']);
   const queryClient = useQueryClient();
   const gateway = useStaffGateway();
   const [planRef, size] = useElementSize<HTMLDivElement>();
 
-  const branchId = user.scope.branchIds[0];
-  const floorQuery = useStaffFloor(branchId);
+  const branchId = identity.branchId;
+  const active = !paused;
+  const floorQuery = useStaffFloor(active ? branchId : undefined);
   const floor = floorQuery.data ?? null;
   const timeZoneId = floor?.plan.timeZoneId ?? 'Asia/Yerevan';
   const format = useBranchFormat(timeZoneId);
@@ -108,23 +124,32 @@ export function FloorRoute({ user }: FloorRouteProps) {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [unresolved, setUnresolved] = useState<readonly UnresolvedTab[]>([]);
   /**
-   * Tab ids learned from transition results.
+   * The tab on a table that has since been freed.
    *
-   * The floor payload carries a session id and no tab id, and there is no
-   * lookup by table, so within a session this is the only way the tab panel can
-   * find the tab on a table it did not itself seat. Empty is handled: the panel
-   * says there is no tab rather than showing somebody else's.
+   * The floor's own `openTabId` is the source for everything else — it arrives
+   * on a cold read now — but a freed table has no tab id and the money is still
+   * owed, so the "needs resolving" list keeps its own.
    */
-  const [tabIds, setTabIds] = useState<ReadonlyMap<string, string>>(new Map());
+  const [unresolvedTabId, setUnresolvedTabId] = useState<string | null>(null);
+  /** Bookings stranded by a table going out of service, per table. */
+  const [affected, setAffected] = useState<ReadonlyMap<string, readonly AffectedReservation[]>>(
+    new Map(),
+  );
+  /** The last cash refusal, with the balance the server reported. */
+  const [cashRefusal, setCashRefusal] = useState<{
+    tabId: string;
+    remainingDram: number;
+    requestedDram: number;
+  } | null>(null);
+  /** Adjustments this device has applied this session; nothing lists them back. */
+  const [sessionAdjustments, setSessionAdjustments] = useState<
+    ReadonlyMap<string, readonly TabAdjustment[]>
+  >(new Map());
 
   // --- Commands -------------------------------------------------------------
 
   const onApplied = useCallback(
     (result: TableActionResult) => {
-      if (result.tabId) {
-        setTabIds((current) => new Map(current).set(result.tableId, result.tabId!));
-      }
-
       // A freed table with money owed. The table is freed anyway — the diners
       // have left — and the tab surfaces here so it is not simply lost.
       if (result.outstandingDram !== null && result.outstandingDram > 0 && result.tabId) {
@@ -134,13 +159,15 @@ export function FloorRoute({ user }: FloorRouteProps) {
             ? current
             : [
                 ...current,
-                {
-                  tabId,
-                  tableLabel: result.tableLabel,
-                  amountDram: result.outstandingDram!,
-                },
+                { tabId, tableLabel: result.tableLabel, amountDram: result.outstandingDram! },
               ],
         );
+      }
+
+      // Bookings this table still had. Kept against the table so the panel can
+      // show them the next time it is opened, and never cancelled here.
+      if (result.affectedReservations.length > 0) {
+        setAffected((current) => new Map(current).set(result.tableId, result.affectedReservations));
       }
 
       // Warnings accompany a success and never block it. Surfaced after the
@@ -161,7 +188,7 @@ export function FloorRoute({ user }: FloorRouteProps) {
         });
       }
 
-      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
     },
     [branchId, format, queryClient, t],
   );
@@ -178,7 +205,7 @@ export function FloorRoute({ user }: FloorRouteProps) {
           : t('notice.race', { label }),
       });
       setSelection(null);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
     },
     [branchId, queryClient, t],
   );
@@ -193,36 +220,45 @@ export function FloorRoute({ user }: FloorRouteProps) {
   const onSettled = useCallback(
     (command: QueuedCommand) => {
       if (command.kind === 'placeOrder' || command.kind === 'setOrderStatus') {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId ?? '') });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
         if (command.subject.tabId) {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.staffTab(command.subject.tabId),
           });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.tabLines(command.subject.tabId),
+          });
         }
       }
       if (command.kind === 'acknowledgeServiceRequest') {
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.serviceRequests(branchId ?? ''),
-        });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
       }
     },
     [branchId, queryClient],
   );
 
-  const queue = useCommandQueue({ gateway, floor, onApplied, onLiveRace, onSettled });
+  const queue = useCommandQueue({
+    gateway,
+    floor,
+    onApplied,
+    onLiveRace,
+    onSettled,
+    enabled: active,
+  });
 
   // --- Live updates ---------------------------------------------------------
 
   useEffect(() => {
-    if (!branchId) return;
+    if (!branchId || !active) return;
 
     const stream = createPollingLiveStream({
       gateway,
       branchId,
       handlers: {
         onChanges: (changes) => {
-          // Fold in incrementally; a gap or an unknown table falls through to a
-          // full refetch rather than being patched around.
+          // Fold in incrementally; a gap, an unknown table, or a change whose
+          // drawn state cannot be derived falls through to a full refetch
+          // rather than being patched around.
           const current = queryClient.getQueryData<StaffFloor | null>(
             queryKeys.staffFloor(branchId),
           );
@@ -260,7 +296,7 @@ export function FloorRoute({ user }: FloorRouteProps) {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('online', onOnline);
     };
-  }, [branchId, gateway, queryClient]);
+  }, [active, branchId, gateway, queryClient]);
 
   // A notice is transient. It stays long enough to read at arm's length and
   // then goes, because nothing on this screen should need dismissing.
@@ -285,34 +321,48 @@ export function FloorRoute({ user }: FloorRouteProps) {
   );
   const selectedDetail = tableDetail(floor, selection?.tableId);
 
-  const activeTabId = activeTableId
-    ? (tabIds.get(activeTableId) ?? tableDetail(floor, activeTableId)?.openTabId ?? null)
-    : null;
-  const tabQuery = useStaffTab(activeTabId);
   /**
-   * The menu is fetched when the floor loads, not when order entry opens.
+   * The tab the overlays are looking at.
    *
-   * Fetching it on demand looks tidier and fails at the worst possible moment:
-   * a query the browser cannot send is *paused*, not failed, so a waiter who
-   * opens order entry after the wifi drops gets an empty grid that never
-   * resolves. Loading it up front means the one thing that has to survive going
-   * offline mid-service is already in the cache when it does.
+   * Straight off the floor read since Backend 8b. The previous version learned
+   * tab ids only from transition results, so a tab this device had not itself
+   * opened was invisible until somebody seated the table again; that workaround
+   * is gone.
    */
-  const menuQuery = useStaffMenu(branchId);
-  const openTab = useOpenTabForTable();
+  const activeTabId =
+    activeTableId === UNRESOLVED_KEY
+      ? unresolvedTabId
+      : (tableDetail(floor, activeTableId)?.openTabId ?? null);
 
-  const ordersQuery = useOrderQueue(branchId);
-  const requestsQuery = useServiceRequests(branchId);
+  const tabQuery = useStaffTab(active ? activeTabId : null);
+  const linesQuery = useTabLines({
+    branchId,
+    tabId: activeTabId,
+    enabled: active && overlay === 'tab',
+  });
+
+  /**
+   * The menu, from disk first and the network second.
+   *
+   * Not fetched when order entry opens. A query the browser cannot send is
+   * *paused*, not failed, so a waiter who opens order entry after the wifi
+   * drops would get a grid that never resolves — and on a tablet that was
+   * rebooted offline there would be nothing in memory to fall back to either.
+   */
+  const menu = useCachedMenu(branchId, active);
+
+  const ordersQuery = useOrderQueue(active ? branchId : undefined);
+  const requestsQuery = useServiceRequests(active ? branchId : undefined);
 
   const voidLine = useVoidLine();
   const compLine = useCompLine();
   const abandonTab = useAbandonTab();
   const recordCash = useRecordCashPayment();
+  const beginClosing = useBeginClosing();
+  const releaseReservation = useReleaseReservation(branchId);
 
-  const selectedTabId = selection?.tableId
-    ? (tabIds.get(selection.tableId) ?? selectedDetail?.openTabId ?? null)
-    : null;
-  const selectedTabQuery = useStaffTab(selectedTabId);
+  const selectedTabId = selectedDetail?.openTabId ?? null;
+  const selectedTabQuery = useStaffTab(active ? selectedTabId : null);
 
   // --- Acting ---------------------------------------------------------------
 
@@ -322,7 +372,7 @@ export function FloorRoute({ user }: FloorRouteProps) {
    * under a key that cannot collide with a real table id.
    */
   const settleUnresolved = useCallback((tabId: string) => {
-    setTabIds((current) => new Map(current).set(UNRESOLVED_KEY, tabId));
+    setUnresolvedTabId(tabId);
     setActiveTableId(UNRESOLVED_KEY);
     setOverlay('tab');
   }, []);
@@ -341,10 +391,24 @@ export function FloorRoute({ user }: FloorRouteProps) {
       // reported, which a queued seat may already have superseded.
       const expected = queue.projected(selection.tableId) ?? detail?.physicalStatus ?? 'free';
 
+      /**
+       * The version is only sent when the queue has nothing else pending for
+       * this table.
+       *
+       * A version captured from the floor describes the table *before* the
+       * commands ahead of this one land, and each of those changes it. Sending
+       * it would refuse a chain the waiter deliberately built — seat, then free
+       * — as though the table had been used by somebody else. The status
+       * projection above handles the chain; the version guards the case it
+       * cannot, which is the single unqueued tap.
+       */
+      const chained = queue.projected(selection.tableId) !== (detail?.physicalStatus ?? null);
+      const rowVersion = chained ? null : (detail?.rowVersion ?? null);
+
       const command: NewCommand = {
         id: clientCommandId,
         scope: selection.tableId,
-        precondition: { expectedFromStatus: expected, rowVersion: detail?.rowVersion ?? null },
+        precondition: { expectedFromStatus: expected, rowVersion },
         subject: {
           tableId: selection.tableId,
           tableLabel: table?.label ?? null,
@@ -361,6 +425,9 @@ export function FloorRoute({ user }: FloorRouteProps) {
             ...(kind === 'seatHeldParty' && detail?.nextReservationId
               ? { reservationId: detail.nextReservationId }
               : {}),
+            ...(kind === 'seatReservation' && detail?.nextReservationId
+              ? { reservationId: detail.nextReservationId }
+              : {}),
           },
         },
       };
@@ -372,6 +439,38 @@ export function FloorRoute({ user }: FloorRouteProps) {
     [branchId, floor, plan, queue, selection, selectedTabId],
   );
 
+  const release = useCallback(
+    (reservationId: string, outcome: ReleaseOutcome) => {
+      releaseReservation.mutate(
+        { reservationId, outcome, clientCommandId: newCommandId() },
+        {
+          onSuccess: (result) => {
+            setNotice({
+              kind: 'info',
+              // The server says whether it counted, rather than the button
+              // being trusted to remember which one it was.
+              text: result.countsTowardNoShowThreshold
+                ? t('notice.releasedNoShow', { label: result.tableLabel })
+                : t('notice.releasedCancelled', { label: result.tableLabel }),
+            });
+            setAffected((current) => {
+              const next = new Map(current);
+              for (const [tableId, bookings] of current) {
+                next.set(
+                  tableId,
+                  bookings.filter((booking) => booking.reservationId !== reservationId),
+                );
+              }
+              return next;
+            });
+          },
+          onError: () => setNotice({ kind: 'info', text: t('notice.releaseFailed') }),
+        },
+      );
+    },
+    [releaseReservation, t],
+  );
+
   const advanceOrder = useCallback(
     (order: OrderQueueEntry, next: OrderStatus) => {
       const clientCommandId = newCommandId();
@@ -379,14 +478,17 @@ export function FloorRoute({ user }: FloorRouteProps) {
         id: clientCommandId,
         scope: order.tabId,
         precondition: null,
-        subject: { tableId: order.tableId, tableLabel: order.tableLabel, tabId: order.tabId },
+        // `KitchenOrderView` carries no table id. The label is what the rail
+        // shows and what a conflict entry needs; a lookup by label could name
+        // the wrong table, so there is deliberately no id here.
+        subject: { tableId: null, tableLabel: order.tableLabel, tabId: order.tabId },
         body: {
           kind: 'setOrderStatus',
           command: { orderId: order.orderId, status: next, clientCommandId },
         },
       });
       queue.sync();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orderQueue(branchId) });
     },
     [branchId, queryClient, queue],
   );
@@ -398,72 +500,53 @@ export function FloorRoute({ user }: FloorRouteProps) {
         id: clientCommandId,
         scope: request.tabId,
         precondition: null,
-        subject: {
-          tableId: request.tableId,
-          tableLabel: request.tableLabel,
-          tabId: request.tabId,
-        },
+        subject: { tableId: null, tableLabel: request.tableLabel, tabId: request.tabId },
         body: {
           kind: 'acknowledgeServiceRequest',
           command: { requestId: request.id, clientCommandId },
         },
       });
       queue.sync();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
     },
     [branchId, queryClient, queue],
   );
 
   const submitOrder = useCallback(
-    async (lines: readonly PlaceOrderLine[]) => {
-      if (!activeTableId || !branchId) return;
-      let tabId = activeTabId;
-
-      // No tab yet? Open one in the same flow, without asking. A waiter taking
-      // an order has already decided the table is occupied.
-      if (!tabId) {
-        try {
-          const opened = await openTab.mutateAsync({
-            branchId,
-            tableId: activeTableId,
-            clientCommandId: newCommandId(),
-          });
-          tabId = opened.id;
-          setTabIds((current) => new Map(current).set(activeTableId, opened.id));
-        } catch {
-          setNotice({ kind: 'info', text: t('order.couldNotOpenTab') });
-          return;
-        }
+    (lines: readonly PlaceOrderLine[]) => {
+      if (!activeTabId) {
+        // There is no way for a waiter to open a tab: `POST /api/tabs/open`
+        // takes the QR token printed on the table. Said plainly rather than
+        // queueing an order against a tab id that does not exist.
+        setNotice({ kind: 'info', text: t('order.noTab') });
+        return;
       }
 
       const clientCommandId = newCommandId();
+      const count = lines.reduce((sum, line) => sum + line.quantity, 0);
       queue.enqueue({
         id: clientCommandId,
-        scope: tabId,
+        scope: activeTabId,
         precondition: null,
         subject: {
           tableId: activeTableId,
           tableLabel: plan?.tables.find((table) => table.id === activeTableId)?.label ?? null,
-          tabId,
-          itemCount: lines.reduce((sum, line) => sum + line.quantity, 0),
+          tabId: activeTabId,
+          itemCount: count,
         },
-        body: { kind: 'placeOrder', command: { tabId, clientCommandId, lines } },
+        body: { kind: 'placeOrder', command: { tabId: activeTabId, clientCommandId, lines } },
       });
       queue.sync();
       setOverlay('none');
-      setNotice({
-        kind: 'info',
-        text: t('order.sent', { count: lines.reduce((sum, line) => sum + line.quantity, 0) }),
-      });
+      setNotice({ kind: 'info', text: t('order.sent', { count }) });
     },
-    [activeTabId, activeTableId, branchId, openTab, plan, queue, t],
+    [activeTabId, activeTableId, plan, queue, t],
   );
 
   // --- Render ---------------------------------------------------------------
 
   const offline = !queue.online;
   const state = useConnectionState({ lastError: floorQuery.error, offline });
-  const ordersUnavailable = isEndpointNotWired(ordersQuery.error);
   const branchName = floor?.plan.branchName;
 
   const unresolvedList = useMemo(
@@ -471,11 +554,14 @@ export function FloorRoute({ user }: FloorRouteProps) {
     [unresolved],
   );
 
+  const activeTabLabel = plan?.tables.find((table) => table.id === activeTableId)?.label ?? '';
+
   return (
     <div className="floor" data-surface="staff">
       <StaffHeader
         title={t('floor.title')}
         subtitle={branchName ?? (branchId ? t('admin:loading') : t('floor.noBranch'))}
+        who={identity.fullName}
         state={state}
         pending={queue.pending}
         conflicts={queue.conflicts}
@@ -526,7 +612,10 @@ export function FloorRoute({ user }: FloorRouteProps) {
                     tab={selectedTabQuery.data ?? null}
                     pending={pendingTableIds.has(selection.tableId)}
                     online={queue.online}
+                    affectedReservations={affected.get(selection.tableId) ?? []}
+                    releasing={releaseReservation.isPending}
                     onAct={act}
+                    onRelease={release}
                     onOpenTab={() => {
                       setActiveTableId(selection.tableId);
                       setOverlay('tab');
@@ -586,11 +675,11 @@ export function FloorRoute({ user }: FloorRouteProps) {
           orders={ordersQuery.data ?? []}
           requests={requestsQuery.data ?? []}
           timeZoneId={timeZoneId}
-          role={user.role}
+          role={identity.role}
           onAdvance={advanceOrder}
           onAcknowledge={acknowledge}
-          unavailable={ordersUnavailable}
-          loading={ordersQuery.isLoading}
+          loading={ordersQuery.isLoading && !isOfflinePaused(ordersQuery)}
+          failed={ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data)}
         />
       </div>
 
@@ -609,16 +698,16 @@ export function FloorRoute({ user }: FloorRouteProps) {
 
       {overlay === 'order' ? (
         <OrderEntry
-          menu={menuQuery.data ?? null}
+          menu={menu.data}
+          menuFromCache={menu.fromCache}
           tab={tabQuery.data ?? null}
-          tableLabel={plan?.tables.find((table) => table.id === activeTableId)?.label ?? ''}
+          tableLabel={activeTabLabel}
           timeZoneId={timeZoneId}
           online={queue.online}
-          unavailable={isEndpointNotWired(menuQuery.error)}
-          loading={menuQuery.isLoading && !isOfflinePaused(menuQuery)}
-          menuUnavailableOffline={isOfflinePaused(menuQuery) && !menuQuery.data}
-          cannotOpenTab={!queue.online && activeTabId === null}
-          onSubmit={(lines) => void submitOrder(lines)}
+          loading={menu.loading}
+          menuUnavailable={menu.unavailable}
+          noTab={activeTabId === null}
+          onSubmit={submitOrder}
           onClose={() => setOverlay('none')}
         />
       ) : null}
@@ -626,16 +715,27 @@ export function FloorRoute({ user }: FloorRouteProps) {
       {overlay === 'tab' ? (
         <TabPanel
           tab={tabQuery.data ?? null}
-          tableLabel={plan?.tables.find((table) => table.id === activeTableId)?.label ?? ''}
+          lines={linesQuery.data ?? []}
+          linesLoading={linesQuery.isLoading && !isOfflinePaused(linesQuery)}
+          linesKnown={linesQuery.data !== undefined}
+          adjustments={activeTabId ? (sessionAdjustments.get(activeTabId) ?? []) : []}
+          tableLabel={activeTabLabel}
           timeZoneId={timeZoneId}
-          role={user.role}
+          role={identity.role}
           online={queue.online}
-          unavailable={isEndpointNotWired(tabQuery.error)}
           loading={tabQuery.isLoading && !isOfflinePaused(tabQuery)}
           // A paused query is not an empty tab. Saying "no tab is open" for a
           // tab this device simply cannot reach right now would send a waiter
           // off to open a second one.
           offlineUnknown={isOfflinePaused(tabQuery) && !tabQuery.data && activeTabId !== null}
+          cashRefusal={
+            cashRefusal && cashRefusal.tabId === activeTabId
+              ? {
+                  remainingDram: cashRefusal.remainingDram,
+                  requestedDram: cashRefusal.requestedDram,
+                }
+              : null
+          }
           onVoid={(line: TabLine, reason: VoidReason, detail?: string) => {
             if (!activeTabId) return;
             voidLine.mutate({
@@ -646,19 +746,37 @@ export function FloorRoute({ user }: FloorRouteProps) {
               ...(detail ? { detail } : {}),
             });
           }}
-          onComp={(line, reason) => {
+          onAdjust={(input: {
+            lineId: string | null;
+            kind: AdjustmentKind;
+            percent: number | null;
+            amountDram: number | null;
+            reason: string;
+          }) => {
             if (!activeTabId) return;
-            compLine.mutate({
-              tabId: activeTabId,
-              lineId: line?.id ?? null,
-              reason,
-              clientCommandId: newCommandId(),
-            });
+            const tabId = activeTabId;
+            compLine.mutate(
+              { tabId, ...input, clientCommandId: newCommandId() },
+              {
+                // Nothing lists a tab's adjustments back, so the only copy of
+                // this row is the one the response just handed us.
+                onSuccess: (adjustment) =>
+                  setSessionAdjustments((current) =>
+                    new Map(current).set(tabId, [...(current.get(tabId) ?? []), adjustment]),
+                  ),
+              },
+            );
+          }}
+          onAskForBill={() => {
+            if (!activeTabId) return;
+            beginClosing.mutate({ tabId: activeTabId, clientCommandId: newCommandId() });
           }}
           onCash={({ amountDram, tipDram }) => {
             if (!activeTabId) return;
+            const tabId = activeTabId;
+            setCashRefusal(null);
             recordCash.mutate(
-              { tabId: activeTabId, amountDram, tipDram, clientCommandId: newCommandId() },
+              { tabId, amountDram, tipDram, clientCommandId: newCommandId() },
               {
                 onSuccess: (result) => {
                   setNotice({
@@ -668,19 +786,31 @@ export function FloorRoute({ user }: FloorRouteProps) {
                       : t('cash.recorded', { amount: format.dram(amountDram) }),
                   });
                   setUnresolved((current) =>
-                    result.tabClosed
-                      ? current.filter((entry) => entry.tabId !== activeTabId)
-                      : current,
+                    result.tabClosed ? current.filter((entry) => entry.tabId !== tabId) : current,
                   );
                 },
-                onError: () => setNotice({ kind: 'info', text: t('cash.failed') }),
+                onError: (error) => {
+                  // The refusal carries the real balance. Shown against the
+                  // bill, and never retried: the hook has `retry: false` and
+                  // this handler adds nothing that would send it again.
+                  if (isPaymentExceedsRemaining(error)) {
+                    setCashRefusal({
+                      tabId,
+                      remainingDram: error.remainingDram,
+                      requestedDram: error.requestedDram,
+                    });
+                    return;
+                  }
+                  setNotice({ kind: 'info', text: t('cash.failed') });
+                },
               },
             );
           }}
           onAbandon={(reason) => {
             if (!activeTabId) return;
-            abandonTab.mutate({ tabId: activeTabId, reason, clientCommandId: newCommandId() });
-            setUnresolved((current) => current.filter((entry) => entry.tabId !== activeTabId));
+            const tabId = activeTabId;
+            abandonTab.mutate({ tabId, reason, clientCommandId: newCommandId() });
+            setUnresolved((current) => current.filter((entry) => entry.tabId !== tabId));
           }}
           onOrder={() => setOverlay('order')}
           onClose={() => setOverlay('none')}

@@ -11,7 +11,7 @@ import type {
   TabLine,
   TabMoney,
   TabShares,
-} from '../contracts/unshipped';
+} from '../contracts/ordering';
 import type { SettlementMode } from '../contracts/service';
 import type { TabParticipant, TableTab } from '../contracts/tab';
 import { computeBill, type BillingLine } from './billing';
@@ -113,6 +113,7 @@ export function createTabOrders(options: TabOrdersOptions) {
       tabId: record.tabId,
       type,
       actor,
+      actorId: null,
       actorName,
       atUtc: iso(now()),
       data,
@@ -236,7 +237,6 @@ export function createTabOrders(options: TabOrdersOptions) {
           status: 'active',
           voidReason: null,
           voidedByName: null,
-          voidedAtUtc: null,
           placedAtUtc: iso(at),
           orderStatus: 'new',
         });
@@ -264,6 +264,7 @@ export function createTabOrders(options: TabOrdersOptions) {
         placedAtUtc: iso(at),
         estimatedReadyAtUtc,
         wasReplay: false,
+        totals: bill(tab, record).bill,
       };
       placed.set(command.clientCommandId, result);
       return result;
@@ -292,9 +293,9 @@ export function createTabOrders(options: TabOrdersOptions) {
       record.lines[index] = {
         ...line,
         status: 'voided',
+        lineTotalDram: 0,
         voidReason: reason,
         voidedByName: byName,
-        voidedAtUtc: iso(now()),
       };
       push(record, 'lineVoided', 'staff', byName, { lineId });
     },
@@ -318,6 +319,7 @@ export function createTabOrders(options: TabOrdersOptions) {
         lineId: input.lineId,
         percent: input.percent,
         amountDram: input.amountDram,
+        isVoided: false,
         reductionDram: 0,
         reason: input.reason,
         byName: input.byName,
@@ -363,6 +365,7 @@ export function createTabOrders(options: TabOrdersOptions) {
             ? (events[events.length - 1]?.sequence ?? afterSequence)
             : (record?.sequence ?? afterSequence),
         events,
+        hasMore: false,
       };
     },
 
@@ -370,9 +373,11 @@ export function createTabOrders(options: TabOrdersOptions) {
       const record = contentFor(tab.id, tab.branchId);
       const { bill: computed, shares } = bill(tab, record);
       return {
+        kind: 'table',
         tabId: tab.id,
-        serviceChargePercent: MOCK_SERVICE_CHARGE_PERCENT,
-        totalDram: computed.totalDram,
+        totals: computed,
+        absorbedFromRemovedDram: computed.absorbedFromRemovedDram,
+        yourShare: null,
         shares: shares.filter((share) =>
           tab.participants.some(
             (person) => person.id === share.participantId && person.status === 'active',

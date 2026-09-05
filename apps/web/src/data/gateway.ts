@@ -9,6 +9,7 @@ import {
 } from '@yalla/api';
 import { authSession, identityStore } from '../auth/authSession';
 import { readConfig } from '../config';
+import { staffSession } from '../staff/auth/staffSession';
 
 const config = readConfig();
 
@@ -77,9 +78,13 @@ export const staffGateway: YallaGateway = resolveGateway({
 export const staffDataGateway: StaffGateway = resolveStaffGateway({
   dataSource: config.dataSource,
   baseUrl: config.api?.baseUrl,
-  auth: authSession,
+  // The tablet's own session, not the console user's. A waiter has no venue
+  // account, and a counter screen holding an owner's token would be a shared
+  // login with a floor plan attached.
+  auth: staffSession ?? authSession,
   mockLatencyMs: 200,
   mockRaceOnTables: devRaceTables(),
+  mockChurnOnTables: devChurnTables(),
 });
 
 /**
@@ -92,8 +97,24 @@ export const staffDataGateway: StaffGateway = resolveStaffGateway({
  * ignored entirely against a real backend, where the server decides who won.
  */
 function devRaceTables(): readonly string[] | undefined {
+  return devTables('race');
+}
+
+/**
+ * `?churn=t4` in development: the table's row version moves without its status
+ * moving, as though a whole other party had been seated and had left.
+ *
+ * The one conflict a status check cannot catch, and therefore the only way to
+ * walk the second half of the conflict list's copy from one device. Gated
+ * exactly as `?race=` is.
+ */
+function devChurnTables(): readonly string[] | undefined {
+  return devTables('churn');
+}
+
+function devTables(param: 'race' | 'churn'): readonly string[] | undefined {
   if (!import.meta.env.DEV || !usingMockData || typeof window === 'undefined') return undefined;
-  const raw = new URLSearchParams(window.location.search).get('race');
+  const raw = new URLSearchParams(window.location.search).get(param);
   const tables = raw
     ?.split(',')
     .map((value) => value.trim())

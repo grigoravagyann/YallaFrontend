@@ -30,22 +30,19 @@ export interface OrderEntryProps {
   readonly tableLabel: string;
   readonly timeZoneId: string;
   readonly online: boolean;
-  /** True when the backend has no ordering endpoints; the screen says so. */
-  readonly unavailable: boolean;
   readonly loading: boolean;
+  /** Nothing on this device and nothing reachable. Not a spinner. */
+  readonly menuUnavailable: boolean;
+  /** What is on screen came off this tablet's disk rather than the network. */
+  readonly menuFromCache: boolean;
   /**
-   * True when no tab is known for this table and there is no connection to open
-   * one.
+   * There is no tab on this table, and a waiter cannot open one.
    *
-   * Opening a tab is a server round trip — it mints a tab id the server owns —
-   * so it cannot be queued the way an order can: an order queued against an
-   * invented tab id would be rejected on arrival, after the food had been made.
-   * Said before the waiter builds an order rather than after they try to send
-   * it.
+   * `POST /api/tabs/open` takes the QR token printed on the table, which a
+   * staff session does not have — so an order has nowhere to go. Said before
+   * the waiter builds one rather than after they try to send it.
    */
-  readonly cannotOpenTab: boolean;
-  /** The menu was never loaded and cannot be fetched right now. */
-  readonly menuUnavailableOffline: boolean;
+  readonly noTab: boolean;
   readonly onSubmit: (lines: readonly PlaceOrderLine[]) => void;
   readonly onClose: () => void;
 }
@@ -61,17 +58,7 @@ interface DraftLine {
 }
 
 export function OrderEntry(props: OrderEntryProps) {
-  const {
-    menu,
-    tab,
-    tableLabel,
-    timeZoneId,
-    online,
-    unavailable,
-    loading,
-    cannotOpenTab,
-    menuUnavailableOffline,
-  } = props;
+  const { menu, tab, tableLabel, timeZoneId, online, loading, menuUnavailable, noTab } = props;
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
 
@@ -96,9 +83,10 @@ export function OrderEntry(props: OrderEntryProps) {
     return sections.find((section) => section.id === activeSection)?.items ?? [];
   }, [sections, activeSection, search]);
 
-  const participants = (tab?.participants ?? []).filter(
-    (person) => person.status === 'approved' || person.status === 'pendingApproval',
-  );
+  // `canOrderNow` is the flag the ordering endpoints actually enforce, computed
+  // by the same rule. Offering a name the server will then refuse is worse than
+  // not offering it.
+  const participants = (tab?.participants ?? []).filter((person) => person.canOrderNow);
 
   /**
    * Adding is one tap, always.
@@ -158,18 +146,14 @@ export function OrderEntry(props: OrderEntryProps) {
         </button>
       </header>
 
-      {unavailable ? (
+      {noTab ? (
         <div className="staff-overlay-body">
-          <p className="floor-todo">{t('order.notWired')}</p>
+          <p className="table-warn">{t('order.noTab')}</p>
+          <p className="table-note">{t('order.noTabWhy')}</p>
         </div>
-      ) : menuUnavailableOffline ? (
+      ) : menuUnavailable ? (
         <div className="staff-overlay-body">
           <p className="table-warn">{t('order.menuOffline')}</p>
-        </div>
-      ) : cannotOpenTab ? (
-        <div className="staff-overlay-body">
-          <p className="table-warn">{t('order.needsTabOnline')}</p>
-          <p className="table-note">{t('order.needsTabOnlineWhy')}</p>
         </div>
       ) : loading ? (
         <div className="staff-overlay-body">
@@ -179,6 +163,10 @@ export function OrderEntry(props: OrderEntryProps) {
         <div className="order-body">
           {/* Left: category strip and the grid. */}
           <div className="order-menu">
+            {/* Said once, at the top, and never as a blocking state: a cached
+                menu is a working menu, and a price that moved last week is a
+                conversation rather than a reason to stop taking the order. */}
+            {props.menuFromCache ? <p className="table-note">{t('order.menuFromCache')}</p> : null}
             <div className="order-categories" role="tablist" aria-label={t('order.categories')}>
               {sections.map((section) => (
                 <button

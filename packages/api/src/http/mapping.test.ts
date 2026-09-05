@@ -27,7 +27,6 @@ const table = (
   floorAreaDisplayOrder: 1,
   isBookable: true,
   isAvailable: true,
-  limitedByNextBooking: false,
   requiresApproval: false,
   physicalStatus: 1,
   state: 1,
@@ -107,6 +106,7 @@ describe('floor', () => {
       asOfUtc: '2026-09-05T15:00:00Z',
       branchId: 'b1',
       branchName: 'Yerevan Centre',
+      maxSequence: 41,
       floorWidth: 1000,
       floorHeight: 700,
       timeZoneId: 'Asia/Yerevan',
@@ -125,6 +125,7 @@ describe('floor', () => {
           isBookable: true,
           physicalStatus: 4,
           state: 4,
+          rowVersion: 'AAAAAAAAB9E=',
           seatedAtUtc: '2026-09-05T14:10:00Z',
         },
       ],
@@ -140,10 +141,17 @@ describe('availability', () => {
     const [row] = availabilityFromResponse(
       availability([
         table({
-          availableFromUtc: '2026-09-05T15:30:00Z',
-          availableUntilUtc: '2026-09-05T16:30:00Z',
-          availableMinutes: 60,
-          limitedByNextBooking: true,
+          // The window is its own node now, and the server decides whether it
+          // is shorter than the branch's turn time rather than the client.
+          window: {
+            availableFromUtc: '2026-09-05T15:30:00Z',
+            availableFromLocal: '19:30:00',
+            availableUntilUtc: '2026-09-05T16:30:00Z',
+            availableUntilLocal: '20:30:00',
+            windowMinutes: 60,
+            hasNoLaterBooking: false,
+            isShorterThanTurnTime: true,
+          },
           nextReservationStartUtc: '2026-09-05T16:45:00Z',
         }),
       ]),

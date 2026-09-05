@@ -1946,22 +1946,14 @@ kbd {
   background: var(--color-surface);
 }
 
-/* What was attempted, largest: a waiter has to recognise their own action
-   before any of the rest of the card means anything. */
+/* What the waiter did, second. It used to be the headline; the table's state
+   is, because that is the line that decides which button they press. */
 .conflict-what {
   margin: 0;
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
 }
 
-.conflict-now {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  line-height: var(--line-height-lg);
-}
-
-.conflict-who,
 .conflict-why {
   margin: 0;
   color: var(--color-muted-foreground);
@@ -2456,4 +2448,244 @@ kbd {
   .tab-money {
     flex-basis: 100%;
   }
+}
+
+/* --- Signing a tablet in, and a person in on it ----------------------------- */
+
+/* The gate fills the screen and centres one card. It sits above the floor when
+   the tablet locks, which is why it paints its own background: the room behind
+   it stays mounted and must not read through. */
+.staff-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--space-xl);
+  overflow-y: auto;
+  background: var(--color-background);
+}
+
+.staff-gate-card {
+  width: min(30rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.staff-gate-card h1 {
+  margin: 0;
+}
+
+/* The enrolment code is read out across a room and typed once. Big, spaced,
+   and never proportional. */
+.big-field {
+  font-size: var(--font-size-xl);
+  letter-spacing: 0.12em;
+  font-variant-numeric: var(--font-feature-tabular);
+  text-transform: uppercase;
+}
+
+.pin-card {
+  gap: var(--space-md);
+  text-align: center;
+}
+
+/* Where this tablet thinks it is. First on the card, because a tablet bound to
+   the wrong branch is cheap to catch here and expensive to catch in an audit
+   row. */
+.pin-where h1 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+}
+
+.pin-where p {
+  margin: var(--space-xs) 0 0;
+}
+
+.pin-people {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.pin-person {
+  min-height: var(--touch-staff);
+  padding: 0 var(--space-lg);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.pin-person.is-on {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.pin-person-other {
+  border-style: dashed;
+}
+
+.pin-prompt {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+}
+
+/* Dots, never digits. This screen is held at chest height in a room with other
+   people in it. */
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-md);
+  min-height: 1.5rem;
+}
+
+.pin-dot {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border-strong);
+}
+
+.pin-dot.is-filled {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+}
+
+/* Deliberately larger than the cash keypad: this is tapped standing up, with a
+   thumb, by somebody who has not put anything down. */
+.pin-key {
+  min-height: calc(var(--touch-staff) * 1.15);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+  cursor: pointer;
+}
+
+.pin-key:active {
+  transform: scale(var(--scale-press));
+  background: var(--color-green-tint);
+}
+
+.pin-key.is-blank {
+  visibility: hidden;
+}
+
+.pin-key:disabled {
+  border-color: var(--color-border);
+  color: var(--color-subtle-foreground);
+  cursor: not-allowed;
+}
+
+/* The floor while the keypad is over it. `inert` already stops input; this
+   makes it visibly not the thing being interacted with. */
+.staff-shell[inert] {
+  filter: grayscale(0.4);
+}
+
+.status-who {
+  cursor: pointer;
+}
+
+/* --- The two release outcomes ------------------------------------------------ */
+
+/*
+  Equal weight, deliberately.
+
+  One of these puts a no-show on somebody's record and the other does not, and
+  that is the whole difference. Any asymmetry here — size, colour, order under
+  the thumb — becomes the default within a week, and the no-show threshold then
+  punishes the people who phoned to cancel.
+*/
+.table-release-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.table-release-pair > .button {
+  margin: 0;
+  width: 100%;
+}
+
+/* --- Bookings stranded by a table going out of service ------------------------ */
+
+.table-affected {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 2px solid var(--color-border-strong);
+}
+
+.table-affected h3 {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--font-size-md);
+}
+
+.affected-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.affected-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.affected-who {
+  margin: 0;
+}
+
+/* The number is the point of the list. Tappable, because a tablet can dial. */
+.affected-contact {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.affected-contact a {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+/* --- The conflict list, state first ------------------------------------------ */
+
+/*
+  The line that carries the decision, and the one some people will be the only
+  one they read. Largest thing on the card.
+*/
+.conflict-state {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+}
+
+.conflict-by {
+  color: var(--color-muted-foreground);
+  font-weight: var(--font-weight-regular);
 }

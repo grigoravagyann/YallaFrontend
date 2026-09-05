@@ -7,7 +7,7 @@
  * `generated/schema.ts` by `http/staffMapping.ts` and cannot drift silently.
  *
  * Everything **guessed** against an endpoint that does not exist yet lives in
- * `contracts/unshipped.ts`, alone, so that swapping in generated types later is
+ * `contracts/ordering.ts`, alone, so that swapping in generated types later is
  * one module changing. That file imports from this one and never the reverse:
  * guesses may depend on knowns, not the other way round.
  */
@@ -42,22 +42,36 @@ export type TableActionKind =
   | 'returnToService';
 
 /**
- * What the panel captured when it opened.
+ * What the panel captured when it opened. Both halves are real.
  *
- * `expectedFromStatus` is the precondition that actually exists: every
- * transition endpoint refuses a table that has moved on, and the 409 carries
- * both the attempted and the current status.
+ * `expectedFromStatus` is the status the waiter was looking at. `rowVersion` is
+ * the table's version from the same floor read, and **status is not a version**:
+ * a table that went free → occupied → free while a command sat in the queue
+ * passes a status check and lands on a sitting that has already ended. Nothing
+ * on the floor screen shows that; only the version does.
  *
- * `rowVersion` is captured too and is normally `null`, because the backend's
- * floor read model carries no version column. It is here rather than omitted so
- * that the day the server starts sending one, the queue is already storing it
- * and only the sender changes. A precondition the client invents would be
- * stricter than the server's, which this screen is not allowed to be.
+ * Both are sent, and the server's refusal says which one failed — see
+ * {@link PreconditionFailure}. `rowVersion` stays nullable because a command
+ * raised from a floor this device has not read cannot have one, and a
+ * precondition the client invents would be stricter than the server's.
  */
 export interface TablePrecondition {
   readonly expectedFromStatus: TableStatus;
   readonly rowVersion: string | null;
 }
+
+/**
+ * Which half of the precondition failed. `Yalla.Domain.Venues.PreconditionFailure`:
+ * 1 StatusChanged, 2 TableChangedAndChangedBack.
+ *
+ * The two mean different things to a waiter and are worded differently in the
+ * conflict list. A status mismatch is on their screen — somebody seated the
+ * party they were about to hold it for. A version mismatch on a *matching*
+ * status is the one nothing else can show them: the table looks the same and is
+ * not the same, because a whole other party has been seated, served and left
+ * since they tapped.
+ */
+export type PreconditionFailure = 'statusChanged' | 'tableChangedAndChangedBack';
 
 export interface TableActionCommand {
   readonly kind: TableActionKind;
@@ -71,6 +85,23 @@ export interface TableActionCommand {
   readonly reservationId?: string | undefined;
   /** Free text for the audit log. Never required of the waiter. */
   readonly reason?: string | undefined;
+  /**
+   * What the waiter was looking at when they tapped. Both halves are sent.
+   *
+   * `null` only after "apply anyway", which is precisely what that button
+   * means: the waiter has looked at the table as it is now and decided their
+   * action still holds.
+   */
+  readonly precondition?: TablePrecondition | null | undefined;
+  /**
+   * True when this came off the tablet's offline queue rather than from a live
+   * tap.
+   *
+   * The server treats the two differently: a queued command **must** carry a
+   * precondition, because idempotency stops it being applied twice and says
+   * nothing about it being out of date.
+   */
+  readonly queued?: boolean | undefined;
 }
 
 /**
@@ -112,6 +143,33 @@ export interface TableActionResult {
   /** Money still owed, when the change left an unresolved tab behind. */
   readonly outstandingDram: number | null;
   readonly warnings: readonly TableWarning[];
+  /**
+   * Bookings this table still has tonight, when it has just been marked out of
+   * service.
+   *
+   * Surfaced rather than cancelled. A broken table is the venue's doing, so
+   * somebody has to phone these people — and the numbers to phone are the whole
+   * reason the server sends the list.
+   */
+  readonly affectedReservations: readonly AffectedReservation[];
+}
+
+/**
+ * A booking stranded by a table going out of service.
+ * `Yalla.Application.Tables.AffectedReservation`.
+ */
+export interface AffectedReservation {
+  readonly reservationId: string;
+  /** The short code the diner quotes at the door. */
+  readonly code: string;
+  readonly guestName: string;
+  /** What to call them on. This is the point of surfacing the list at all. */
+  readonly guestPhone: string;
+  readonly partySize: number;
+  readonly startUtc: string;
+  /** The booked date and time as the diner sees them, from the server. */
+  readonly localDate: string;
+  readonly localStartTime: string;
 }
 
 /** The 409 payload, reshaped. Everything the two-conflict model branches on. */
@@ -121,6 +179,15 @@ export interface TableConflictState {
   readonly attemptedFromStatus: TableStatus;
   readonly currentStatus: TableStatus;
   readonly currentSessionId: string | null;
+  /**
+   * Which half of the precondition failed, when the server said.
+   *
+   * `null` for a plain `table-state-conflict` — a live race, where there was no
+   * precondition to fail. Set for `precondition-failed`, which is the queued
+   * case, and it is the difference between "the table is occupied now" and "the
+   * table is free again but has been used since you tapped".
+   */
+  readonly failure: PreconditionFailure | null;
   /** Who took it, when the server can say. Absent today; the copy degrades. */
   readonly changedBy?: string | undefined;
 }
@@ -165,8 +232,17 @@ export interface TabStaffParticipant {
   readonly displayName: string | null;
   readonly isHost: boolean;
   readonly status: TabParticipantStaffStatus;
-  /** The host's flag: whether they may add items. Drives the order picker. */
+  /** The host's stored flag: whether they may add items. */
   readonly canOrder: boolean;
+  /**
+   * The flag applied to the moment: approved, allowed to order, and the tab
+   * still open. This is what the ordering endpoints enforce, so it is what the
+   * order picker offers — a name a waiter can pick and the server then refuses
+   * is worse than a name that is not there.
+   */
+  readonly canOrderNow: boolean;
+  /** Whether they may see the table aggregate and other people's items. */
+  readonly canSeeTableTotal: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -199,16 +275,22 @@ export interface StaffTableDetail {
   /** Next booking's start less the branch turnaround. Null when nothing is booked. */
   readonly freeUntilUtc: string | null;
   /**
-   * The open tab, when one is known.
+   * The open tab on this table, when the party sitting here has one.
    *
-   * Null from a cold floor read against the real backend: the floor payload
-   * carries a session id but no tab id, and there is no lookup by table. The
-   * value is filled in from a transition result within a session, and the panel
-   * simply omits the balance rather than inventing one when it is null.
+   * Real on a cold floor read since Backend 8b. Null means there genuinely is
+   * no open tab, not that this device has not learned it yet — so the tab panel
+   * opens straight from the floor instead of waiting for a transition result to
+   * teach it a tab id.
    */
   readonly openTabId: string | null;
-  /** Present when the server versions rows. It does not today. */
-  readonly rowVersion: string | null;
+  /**
+   * The table's row version as it stood when this floor was read, base64.
+   *
+   * Sent back untouched as a command's precondition. Never parsed, never
+   * compared client-side: it is the server's token and the server is the only
+   * thing that knows what it means.
+   */
+  readonly rowVersion: string;
 }
 
 /**
@@ -221,8 +303,8 @@ export interface StaffFloor {
   readonly plan: FloorPlanData;
   readonly details: readonly StaffTableDetail[];
   /**
-   * The branch's sequence high-water mark at the moment this was read, so an
-   * incremental poll can continue from it. Zero until the stream ships.
+   * The branch's highest change-log sequence at the moment this was read, so an
+   * incremental poll can continue from it. Zero when nothing has happened yet.
    */
   readonly lastSequence: number;
   /** The instant the derived states were computed for, per the server. */

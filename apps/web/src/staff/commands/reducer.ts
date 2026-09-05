@@ -48,7 +48,13 @@ export type CommandAction =
       readonly queue: readonly QueuedCommand[];
       readonly conflicts: readonly ConflictEntry[];
     }
-  | { readonly type: 'enqueued'; readonly command: NewCommand; readonly atMs: number }
+  | {
+      readonly type: 'enqueued';
+      readonly command: NewCommand;
+      readonly atMs: number;
+      /** The browser said there was no connection when the waiter tapped. */
+      readonly takenOffline: boolean;
+    }
   | { readonly type: 'syncStarted' }
   | { readonly type: 'syncFinished' }
   /** The server applied it. */
@@ -106,6 +112,7 @@ export function commandReducer(state: CommandState, action: CommandAction): Comm
         seq: state.nextSeq,
         takenAtMs: action.atMs,
         attempts: 0,
+        takenOffline: action.takenOffline,
         precondition: action.command.precondition,
         subject: action.command.subject,
         body: action.command.body,
@@ -354,6 +361,10 @@ export function localConflict(
     attemptedFromStatus: command.precondition.expectedFromStatus,
     currentStatus: detail.physicalStatus,
     currentSessionId: detail.currentSessionId,
+    // The local check only compares statuses. The version is the server's to
+    // judge — a client that decided a table "changed and changed back" from a
+    // version it cannot interpret would be inventing a refusal.
+    failure: 'statusChanged',
   };
 }
 
@@ -391,9 +402,12 @@ export const LIVE_RACE_WINDOW_MS = 10_000;
  */
 export function isLiveRace(entry: ConflictEntry): boolean {
   return (
-    // Only a 409. A 422 is the server saying the move is not legal from where
-    // the table actually is, which no amount of redrawing the floor makes true,
-    // so it belongs in the list where a person reads it and decides.
+    // Only a `table-state-conflict`. A 422 is the server saying the move is not
+    // legal from where the table actually is, which no amount of redrawing the
+    // floor makes true. A `precondition-failed` is by definition a command that
+    // waited — the server only checks a precondition the client sent because it
+    // had been queued — so it can never be the gesture somebody is still
+    // standing in front of. Both belong in the list where a person decides.
     entry.reason === 'conflict' &&
     entry.command.attempts === 0 &&
     entry.detectedAtMs - entry.command.takenAtMs <= LIVE_RACE_WINDOW_MS

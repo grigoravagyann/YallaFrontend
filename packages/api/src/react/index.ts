@@ -6,9 +6,12 @@ import type { ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type {
   AbandonTabCommand,
   CompCommand,
+  ReassignHostCommand,
   RecordCashPaymentCommand,
   VoidLineCommand,
-} from '../contracts/unshipped';
+} from '../contracts/ordering';
+import type { Menu } from '../contracts/menu';
+import type { ReleaseReservationCommand } from '../staffGateway';
 import type { YallaGateway } from '../gateway';
 import type { StaffGateway } from '../staffGateway';
 import { staleTime } from '../queryClient';
@@ -120,6 +123,7 @@ export const queryKeys = {
   orderQueue: (branchId: string) => ['staff', 'orders', branchId] as const,
   serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
   staffMenu: (branchId: string) => ['staff', 'menu', branchId] as const,
+  tabLines: (tabId: string) => ['staff', 'tabLines', tabId] as const,
 };
 
 // --- Diner: browse ------------------------------------------------------------
@@ -335,7 +339,36 @@ export function useStaffTab(tabId: string | null | undefined) {
   });
 }
 
-/** The incoming orders. Ageing is the panel's whole job, so never stale. */
+/**
+ * One tab's lines.
+ *
+ * Its own query rather than part of the tab, because it costs three branch-wide
+ * reads and the tab itself is read whenever a panel is open. Enabled only while
+ * something is actually showing the bill.
+ */
+export function useTabLines(input: {
+  readonly branchId: string | undefined;
+  readonly tabId: string | null | undefined;
+  readonly enabled?: boolean | undefined;
+}) {
+  const gateway = useStaffGateway();
+  const { branchId, tabId } = input;
+  return useQuery({
+    queryKey: queryKeys.tabLines(tabId ?? ''),
+    queryFn: () => gateway.getTabLines({ branchId: branchId!, tabId: tabId! }),
+    enabled: Boolean(branchId) && Boolean(tabId) && (input.enabled ?? true),
+    staleTime: staleTime.live,
+  });
+}
+
+/**
+ * The incoming orders.
+ *
+ * Ageing is the panel's whole job, and `waitingMinutes` is computed by the
+ * server at read time — so a queue that is never refetched shows a five-minute
+ * wait for the rest of the shift. Foreground only: a tablet face-down on the
+ * counter has nobody reading it.
+ */
 export function useOrderQueue(branchId: string | undefined, enabled = true) {
   const gateway = useStaffGateway();
   return useQuery({
@@ -343,6 +376,8 @@ export function useOrderQueue(branchId: string | undefined, enabled = true) {
     queryFn: () => gateway.listOrderQueue(branchId!),
     enabled: Boolean(branchId) && enabled,
     staleTime: staleTime.live,
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -353,7 +388,24 @@ export function useServiceRequests(branchId: string | undefined, enabled = true)
     queryFn: () => gateway.listServiceRequests(branchId!),
     enabled: Boolean(branchId) && enabled,
     staleTime: staleTime.live,
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
   });
+}
+
+export interface UseStaffMenuOptions {
+  /**
+   * A menu this device already has, from durable storage.
+   *
+   * The reason order entry works with the wifi off. TanStack Query does not
+   * *fail* a query it cannot send — it pauses it — so a cold offline launch
+   * with no seed shows a grid that never resolves. Seeding from disk means the
+   * grid is there before the first request is attempted, and the refetch that
+   * follows is an improvement rather than a prerequisite.
+   */
+  readonly initialData?: Menu | null | undefined;
+  /** When the seed was stored, so a fresh copy is still fetched in the background. */
+  readonly initialDataUpdatedAt?: number | undefined;
 }
 
 /**
@@ -363,13 +415,22 @@ export function useServiceRequests(branchId: string | undefined, enabled = true)
  * is a grid that moves under their finger, which on this screen means the wrong
  * item added to a real bill.
  */
-export function useStaffMenu(branchId: string | undefined) {
+export function useStaffMenu(branchId: string | undefined, options: UseStaffMenuOptions = {}) {
   const gateway = useStaffGateway();
+  const seed = options.initialData ?? undefined;
   return useQuery({
     queryKey: queryKeys.staffMenu(branchId ?? ''),
     queryFn: () => gateway.getMenu(branchId!),
     enabled: Boolean(branchId),
     staleTime: staleTime.reference,
+    ...(seed
+      ? {
+          initialData: seed,
+          ...(options.initialDataUpdatedAt !== undefined
+            ? { initialDataUpdatedAt: options.initialDataUpdatedAt }
+            : {}),
+        }
+      : {}),
   });
 }
 
@@ -389,6 +450,11 @@ export function useRecordCashPayment() {
     onSuccess: (_result, command) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
     },
+    // A refusal carries the real balance, so the panel has to be looking at the
+    // real tab by the time it renders the message.
+    onError: (_error, command) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
+    },
   });
 }
 
@@ -398,8 +464,10 @@ export function useVoidLine() {
   return useMutation({
     mutationFn: (command: VoidLineCommand) => gateway.voidLine(command),
     retry: false,
-    onSuccess: (tab) => {
-      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+    onSuccess: (_lines, command) => {
+      // Both: the lines changed and so did the totals, and they are two queries.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tabLines(command.tabId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
     },
   });
 }
@@ -410,8 +478,9 @@ export function useCompLine() {
   return useMutation({
     mutationFn: (command: CompCommand) => gateway.compLine(command),
     retry: false,
-    onSuccess: (tab) => {
-      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+    onSuccess: (_adjustment, command) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tabLines(command.tabId) });
     },
   });
 }
@@ -428,16 +497,46 @@ export function useAbandonTab() {
   });
 }
 
-/** Opening a tab, so order entry never has to ask whether there is one. */
-export function useOpenTabForTable() {
+/** Asking for the bill. Stops the tab taking new items. */
+export function useBeginClosing() {
   const gateway = useStaffGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { branchId: string; tableId: string; clientCommandId: string }) =>
-      gateway.openTabForTable(input),
+    mutationFn: (input: { tabId: string; clientCommandId: string }) => gateway.beginClosing(input),
     retry: false,
     onSuccess: (tab) => {
       queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+    },
+  });
+}
+
+export function useReassignHost() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: ReassignHostCommand) => gateway.reassignHost(command),
+    retry: false,
+    onSuccess: (tab) => {
+      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+    },
+  });
+}
+
+/**
+ * Letting a booking go, with the outcome the waiter chose.
+ *
+ * Never retried. The server is idempotent on `clientCommandId`, but an
+ * automatic retry is the wrong default for a call whose whole subject is
+ * whether something goes on a person's record.
+ */
+export function useReleaseReservation(branchId: string | undefined) {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: ReleaseReservationCommand) => gateway.releaseReservation(command),
+    retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
     },
   });
 }

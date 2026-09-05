@@ -174,18 +174,21 @@ export function availabilityFromResponse(response: Availability): readonly Table
     const reason = unavailableReason(table.unavailableReason ?? branchReason, state);
     const available = table.isAvailable && branchReason === null;
 
-    const window: AvailabilityWindowDto | null = available
-      ? {
-          fromUtc: table.availableFromUtc ?? response.requestedStartUtc,
-          untilUtc: table.availableUntilUtc ?? null,
-          nextBookingStartUtc: table.nextReservationStartUtc ?? null,
-          minutes: table.availableMinutes ?? null,
-          isShorterThanTurnTime:
-            table.availableMinutes !== null &&
-            table.availableMinutes !== undefined &&
-            table.availableMinutes < response.turnTimeMinutes,
-        }
-      : null;
+    // The window moved into its own node on the wire, and `isShorterThanTurnTime`
+    // moved with it: the server compares against the branch's own turn time,
+    // which is the comparison the client used to make with a number it happened
+    // to have. Reading the server's answer means the two cannot disagree.
+    const source = table.window ?? null;
+    const window: AvailabilityWindowDto | null =
+      available && source
+        ? {
+            fromUtc: source.availableFromUtc,
+            untilUtc: source.availableUntilUtc ?? null,
+            nextBookingStartUtc: table.nextReservationStartUtc ?? null,
+            minutes: source.windowMinutes ?? null,
+            isShorterThanTurnTime: source.isShorterThanTurnTime,
+          }
+        : null;
 
     return {
       tableId: table.tableId,

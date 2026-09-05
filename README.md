@@ -603,44 +603,86 @@ from `mocks/`; the switch is `resolveGateway` and `resolveConsoleGateway` in
 
 ### What is real, and what is still on the mock
 
-| Screen                                                                             | Source | Endpoint                                          |
-| ---------------------------------------------------------------------------------- | ------ | ------------------------------------------------- |
-| Console venue list                                                                 | real   | `GET /api/platform/venues` (platform admin)       |
-| Diner floor plan                                                                   | real   | `GET /api/branches/{id}/availability`             |
-| Staff floor plan                                                                   | real   | `GET /api/branches/{id}/tables/floor`             |
-| Staff table actions                                                                | real   | the eight `POST /api/branches/{id}/tables/{id}/…` |
-| Tab totals and participants                                                        | real   | `GET /api/tabs/{id}/participants`                 |
-| Diner venue and branch lists                                                       | —      | **no backend endpoint exists**                    |
-| Orders, payments, adjustments, service requests, staff menu, both sequence streams | —      | **no backend endpoint exists**                    |
-| Bookings, diner tabs, menus                                                        | mock   | contracts not yet reconciled                      |
+| Screen                                 | Source | Endpoint                                                                                            |
+| -------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| Console venue list                     | real   | `GET /api/platform/venues` (platform admin)                                                         |
+| Diner floor plan                       | real   | `GET /api/branches/{id}/availability`                                                               |
+| Staff device enrolment and PIN sign-in | real   | `POST /api/auth/staff/{enrol,pin,renew,sign-out}`                                                   |
+| Staff floor plan                       | real   | `GET /api/branches/{id}/tables/floor`                                                               |
+| Staff table actions                    | real   | the eight `POST /api/branches/{id}/tables/{id}/…`                                                   |
+| Floor change stream                    | real   | `GET /api/branches/{id}/tables/changes`                                                             |
+| Order entry and the kitchen rail       | real   | `POST /api/tabs/{id}/staff-orders`, `GET /api/branches/{id}/orders`, `POST /api/orders/{id}/status` |
+| Service requests                       | real   | `GET /api/branches/{id}/service-requests`, `POST /api/service-requests/{id}/acknowledge`            |
+| Tab totals and participants            | real   | `GET /api/tabs/{id}/participants`                                                                   |
+| Voids, comps and discounts             | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                            |
+| Cash, closing, abandon, reassign host  | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                 |
+| Releasing a late booking               | real   | `POST /api/reservations/{id}/release`                                                               |
+| Diner venue and branch lists           | —      | **no backend endpoint exists**                                                                      |
+| Bookings, diner tabs, menus            | mock   | contracts not yet reconciled                                                                        |
 
-Two gaps worth knowing about.
+Nothing on the counter screen says "not available yet" any more.
+`EndpointNotWiredError` survives for the diner's venue catalogue and nothing
+else; the staff gateway raises it nowhere.
 
-**The venue catalogue.** The backend's only venue listing is the platform-admin
-one, so a diner has nothing to browse.
+### Four things a staff token cannot do, and how the screens handle it
 
-**Everything the counter screen and the diner's bill need beyond table state.**
-The table transitions are fully wired — all eight, with the 409 and 422 payloads
-the two-conflict model branches on — and so are a tab's totals and participants.
-The rest of Backend Prompt 8 has not shipped: there are no ordering, payment,
-adjustment or service-request endpoints, no diner-readable menu with the
-descriptive fields, no shares endpoint, and neither sequence stream is exposed.
-Both HTTP gateways raise `EndpointNotWiredError` for each of them by name.
+These are the server's shape rather than missing client work, and each one
+changes what a screen can honestly say. All four are worth a backend
+conversation.
 
-### Where the guessed shapes live
+**A staff session cannot read a tab.** `GET /api/tabs/{id}`, `/shares` and
+`/events` all carry the `TabParticipant` policy, and `TabParticipantHandler`
+fails any principal that is not a tab participant — which a waiter never is.
+The only staff-side tab read is `GET /api/tabs/{id}/participants`, and it
+carries participants and totals and nothing else. So the tab panel assembles its
+**lines from the branch's own order queue**, filtered to the tab: three reads,
+because `GET /api/branches/{id}/orders` returns only outstanding orders unless
+asked for a status, and a bill missing everything already served is not a bill.
+`StaffTab.linesKnown` says whether that assembly ran, so an empty list is never
+drawn as "nothing was ordered" when it means "not read".
 
-`packages/api/src/contracts/unshipped.ts`, alone. Every shape written against an
-endpoint the backend has not published is in that one module, so swapping in
-`pnpm api:generate` output later is one import path changing and the compiler
-then lists every mismatch. `contracts/service.ts` keeps only what the OpenAPI
-document already describes, and the dependency runs guesses to knowns and never
-the other way round.
+**Nothing projects a void reason.** `TabOrderLine.VoidReason` is stored and
+required by the domain, and appears in no read model; `TabProjection` filters
+voided lines out of the diner's view entirely. A voided line is therefore
+_inferred_ — the server zeroes `lineTotalAmd` while `unitPriceAmd` and
+`quantity` keep their order-time snapshots, and nothing else produces that
+combination — and it renders as "removed by staff" with no reason and no name.
+The endpoint's own documentation says the line "stays visible to the diner,
+labelled as removed by staff, with the reason", which is not true of any GET
+today.
 
-The guesses are written from the domain entities rather than invented: the
-backend has `MenuItem` with its required ingredients and allergens,
-`TabOrderLine` with the price and share snapshots, `TabEvent` with a sequence
-column and twenty pinned types, and the whole of `TabBilling`. What is missing
-is the endpoints, not the model.
+**Nothing lists a tab's adjustments back.** `POST /api/tabs/{id}/adjustments`
+answers with the adjustment it just made, and there is no read. The panel shows
+what this device has done in this session and says plainly that it cannot show
+the rest, because an empty list captioned "no discounts" would be a claim.
+
+**A waiter cannot open a tab.** `POST /api/tabs/open` takes the QR token printed
+on the table, which a staff session does not have. `StaffGateway` therefore has
+no `openTabForTable` at all — a method that could only ever fail is worse than
+its absence, which the screens can see at compile time — and order entry says
+so before the waiter builds an order rather than after they try to send it.
+
+There is a fifth, smaller one. **The PIN screen cannot list a branch's staff.**
+`POST /api/auth/staff/pin` takes a `staffMemberId`, and the only staff listing
+is `GET /api/venues/{id}/staff`, which is `ManagerOrAbove` and venue-scoped. So
+the tablet remembers everybody who has signed in on it and shows them as tiles,
+and somebody it has never seen types their id once. A device-token-readable
+roster — ids and names only — would remove the one genuinely bad moment in the
+flow.
+
+### Where the wire shapes live
+
+`packages/api/src/contracts/ordering.ts`, which used to be `unshipped.ts` and is
+not a set of guesses any more: every shape in it is built from
+`generated/schema.ts` by `http/staffMapping.ts`, so a renamed field on the
+server is a compile error rather than an `undefined` on a counter screen. What
+the client still translates is vocabulary — the server's `Amd` becomes
+`Dram`-suffixed integers, integer enums become string unions — and that happens
+in `http/` and nowhere else.
+
+Three fields are `null` there rather than invented, each with the reason at the
+declaration: a voided line's reason, an actor's name (no view turns a staff id
+into one), and a tab's adjustments as a read.
 
 `packages/api/src/mocks/billing.ts` is a faithful port of
 `TabBilling.Compute` — line adjustments, then tab adjustments, then a service
@@ -656,13 +698,87 @@ mocks implement them. A screen typed against what a mock happens to return stops
 compiling on the day the backend ships, which is the moment it is least
 affordable.
 
-In both cases every screen renders that as "not available yet" rather than as an
-error, and **never falls back to the mock**. A tablet that quietly starts
-inventing orders and balances when an endpoint is missing looks exactly like one
-that is working, on the screen where that costs the most. Run with
-`VITE_DATA_SOURCE=mock` to exercise the whole service against the in-memory one,
-which simulates transitions, warnings, an idempotency log and a sequence
-counter.
+The counter screen **never falls back to the mock**. A tablet that quietly
+started inventing orders and balances when an endpoint was unreachable would
+look exactly like one that is working, on the screen where that costs the most.
+Run with `VITE_DATA_SOURCE=mock` to exercise the whole service against the
+in-memory one, which simulates transitions, warnings, an idempotency log, a
+sequence counter and — since Prompt 8b — **row versions**, so both halves of a
+precondition failure can be walked without a backend.
+
+### Signing a tablet in
+
+Two credentials with two lifetimes, and keeping them apart is the design.
+
+The **device token** is minted once, during onboarding, from a code a manager
+generates in the console and reads out. It lives in IndexedDB — not
+`localStorage`: it has to survive a tablet reboot, and the way back from losing
+it is a manager generating another code, which on a Friday means the counter
+screen is gone for the evening. It can do exactly one thing: offer a PIN.
+
+The **session token** is minted every shift from four digits, carries the person
+and their branch, and dies after thirty minutes of inactivity. The tablet locks
+itself at twenty-five, on its own clock, because locking early produces a keypad
+and letting the server get there first produces a failed request that has to be
+explained.
+
+**Locking never unmounts the floor.** The PIN screen renders over it, `inert`,
+with the floor's queries and live stream paused. A half-entered order is React
+state inside the order-entry overlay, and a gate that swapped the tree would
+throw it away every time somebody put the tablet down — after which nobody lets
+the screen lock, and the tablet on the counter stays signed in to whoever went
+home at six.
+
+`/staff` is matched **before** anything reads the console session, so a waiter
+is never redirected to an email form. Against `VITE_DATA_SOURCE=mock` there is
+no tablet credential to hold and the gate is skipped entirely: signing in is the
+one thing a mock cannot honestly simulate, because the credential it would hand
+out means nothing.
+
+### Two dev affordances, and the test that keeps them out of production
+
+`?race=t4` refuses the next transition on those tables as though another waiter
+got there first. `?churn=t4` moves a table's row version without moving its
+status, which is the conflict a status check cannot catch and the only way to
+walk the second half of the conflict list's copy from one device. Both are gated
+on a development build **and** on mock data.
+
+`src/productionBundle.test.ts` builds the app if `dist/` is missing and greps
+the output. It asserts that neither flag is read anywhere, that the dev role
+switcher is gone, and that `VITE_DATA_SOURCE` survives only as a literal Vite
+inlined — so choosing the mock is a rebuild, not a query string.
+
+What it deliberately does not claim: `createStaffMockGateway` is still _in_ the
+bundle. `resolveStaffGateway` imports both implementations statically and picks
+with a runtime `if`, so the bundler cannot drop the branch it can prove is never
+taken. That is roughly 30 kB of dead weight rather than a reachable affordance.
+Removing it needs the resolver to take the mock as an injected dependency behind
+a dynamic import, which is a change to all three resolvers and to `bootstrap`.
+
+An earlier version of that test asserted the mock's absence by grepping for a
+doc comment — which minification had already stripped. It passed, and it was
+checking nothing. That is the same category of mistake as the four defects the
+regression suite was written for, which is why the replacement asserts something
+minification preserves.
+
+### What the service worker serves
+
+`src/offline/serviceWorkerCache.test.ts` evaluates the real `public/sw.js` in a
+stub of the worker global and dispatches the requests a running tablet makes, so
+this table is an assertion rather than a reading of the file:
+
+| Request                                       | Worker                        |
+| --------------------------------------------- | ----------------------------- |
+| `/api/**`, same-origin or not                 | passthrough                   |
+| any `POST`/`PUT`/`PATCH`/`DELETE`             | passthrough                   |
+| navigations (`/staff`, `/`)                   | network first, shell fallback |
+| `/assets/**`, `.js`, `.css`, `.woff2`, `.svg` | cache first                   |
+| `/manifest.webmanifest`                       | passthrough                   |
+| anything unrecognised                         | passthrough                   |
+
+The manifest is cached at install and passed through afterwards, which is a
+small inconsistency and a safe one: the browser reads it at install time and
+nothing on the floor needs it.
 
 ### When the phone cannot reach the backend
 

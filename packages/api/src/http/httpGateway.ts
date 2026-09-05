@@ -18,7 +18,7 @@ import type {
   PlaceOrderResult,
   TabEventPage,
   TabShares,
-} from '../contracts/unshipped';
+} from '../contracts/ordering';
 import type { components } from '../generated/schema';
 import {
   availabilityFromResponse,

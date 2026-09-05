@@ -196,7 +196,12 @@ export type {
 } from './contracts/floorPlan';
 
 // --- The counter screen ------------------------------------------------------
-export type { StaffGateway } from './staffGateway';
+export type {
+  ReleaseOutcome,
+  ReleaseReservationCommand,
+  ReservationReleaseResult,
+  StaffGateway,
+} from './staffGateway';
 export { resolveStaffGateway } from './resolveStaffGateway';
 export type { ResolveStaffGatewayOptions } from './resolveStaffGateway';
 export { createStaffMockGateway } from './mocks/staffMock';
@@ -204,9 +209,46 @@ export type { StaffMockOptions } from './mocks/staffMock';
 export { createStaffHttpGateway } from './http/staffHttpGateway';
 export { tableConflictFrom } from './http/staffMapping';
 
+// --- Signing a tablet in, and a person in on it ------------------------------
+export { createStaffAuth } from './auth/staffEndpoints';
+export type { StaffAuth } from './auth/staffEndpoints';
+export { createStaffSession } from './auth/staffSession';
+export type {
+  StaffSession,
+  StaffSessionConfig,
+  StaffSessionSnapshot,
+  StaffSessionState,
+} from './auth/staffSession';
+export type {
+  DeviceEnrolment,
+  EnrolDeviceCommand,
+  EnrolledDevice,
+  PinSignInCommand,
+  StaffCredentialStorage,
+  StaffSessionIdentity,
+  StaffSessionTokens,
+  StaffSignInResult,
+  StaffSignOutReason,
+} from './contracts/staffAuth';
+export {
+  DeviceRevokedError,
+  EnrolmentCodeSpentError,
+  LineAlreadyPaidError,
+  MenuItemUnavailableError,
+  PaymentExceedsRemainingError,
+  PinLockedError,
+  PinRejectedError,
+  TabNotAcceptingOrdersError,
+  isDeviceRevoked,
+  isPaymentExceedsRemaining,
+  isPinLocked,
+} from './contracts/errors';
+
 // Shapes the shipped OpenAPI document describes.
 export { SETTLEMENT_MODES, tableDetail } from './contracts/service';
 export type {
+  AffectedReservation,
+  PreconditionFailure,
   SettlementMode,
   StaffFloor,
   StaffTabStatus,
@@ -224,15 +266,15 @@ export type {
   TableWarningCode,
 } from './contracts/service';
 
-// Shapes guessed against endpoints the backend has not shipped. One module, so
-// swapping in generated types is one import path changing.
+// Ordering, the bill and the two streams. No longer guesses: every shape is
+// built from the generated schema by `http/staffMapping.ts`.
 export {
   ORDER_STATUS_FLOW,
   SERVICE_REQUEST_REASONS,
   SPICE_LEVELS,
   VOID_REASONS,
   nextOrderStatus,
-} from './contracts/unshipped';
+} from './contracts/ordering';
 export type {
   AbandonTabCommand,
   AbandonTabResult,
@@ -253,6 +295,8 @@ export type {
   ParticipantShare,
   PaymentResult,
   PlaceOrderCommand,
+  ReassignHostCommand,
+  TabParticipantStatusCode,
   PlaceOrderLine,
   PlaceOrderResult,
   RecordCashPaymentCommand,
@@ -273,4 +317,4 @@ export type {
   TabShares,
   VoidLineCommand,
   VoidReason,
-} from './contracts/unshipped';
+} from './contracts/ordering';

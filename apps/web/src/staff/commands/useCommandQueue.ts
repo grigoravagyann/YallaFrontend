@@ -20,6 +20,7 @@ import {
 import { sendCommand } from './sync';
 import {
   isQueueable,
+  takenOfflineNow,
   type CommandState,
   type ConflictEntry,
   type NewCommand,
@@ -85,11 +86,20 @@ export interface UseCommandQueueOptions {
    */
   readonly onLiveRace?: ((entry: ConflictEntry) => void) | undefined;
   readonly store?: CommandStore;
+  /**
+   * False while the tablet is locked.
+   *
+   * The queue keeps everything it holds — locking is not signing out — but it
+   * stops sending, because there is no session token and a screen quietly
+   * firing 401s at a backend is not a paused screen.
+   */
+  readonly enabled?: boolean | undefined;
 }
 
 export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
   const { gateway, floor } = options;
   const store = options.store ?? commandStore;
+  const enabled = options.enabled ?? true;
 
   const [state, dispatch] = useReducer(commandReducer, initialCommandState);
   const [ready, setReady] = useState(false);
@@ -110,6 +120,7 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
   const onAppliedRef = useRef(options.onApplied);
   const onLiveRaceRef = useRef(options.onLiveRace);
   const onSettledRef = useRef(options.onSettled);
+  const enabledRef = useRef(enabled);
   const running = useRef(false);
 
   useEffect(() => {
@@ -118,6 +129,7 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
     onAppliedRef.current = options.onApplied;
     onLiveRaceRef.current = options.onLiveRace;
     onSettledRef.current = options.onSettled;
+    enabledRef.current = enabled;
   });
 
   // --- Hydrate --------------------------------------------------------------
@@ -168,6 +180,7 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
 
   const sync = useCallback(() => {
     if (running.current) return;
+    if (!enabledRef.current) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     if (stateRef.current.queue.length === 0) return;
 
@@ -226,16 +239,24 @@ export function useCommandQueue(options: UseCommandQueueOptions): CommandQueue {
   // trigger — "there is something to send and a way to send it" — so they are
   // one effect rather than two that can disagree.
   useEffect(() => {
-    if (!ready || !online) return;
+    if (!ready || !online || !enabled) return;
     if (state.queue.length === 0) return;
     sync();
-  }, [ready, online, state.queue, sync]);
+  }, [ready, online, enabled, state.queue, sync]);
 
   // --- API ------------------------------------------------------------------
 
   const enqueue = useCallback((command: NewCommand): boolean => {
     if (!isQueueable(command.body.kind)) return false;
-    dispatch({ type: 'enqueued', command, atMs: Date.now() });
+    // Whether the browser had a connection at the moment of the tap, captured
+    // here and stored with the command: on reconnect it is the only thing that
+    // distinguishes a command that waited from one sent as it was made.
+    dispatch({
+      type: 'enqueued',
+      command,
+      atMs: Date.now(),
+      takenOffline: takenOfflineNow(),
+    });
     return true;
   }, []);
 

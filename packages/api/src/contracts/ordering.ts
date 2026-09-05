@@ -1,28 +1,29 @@
 /**
- * Every shape guessed against an endpoint the backend has not published yet.
+ * Ordering, the bill, service requests and the two sequence streams.
  *
- * **One file, deliberately.** The backend's OpenAPI document does not describe
- * ordering, billing, service requests or either sequence stream, so these are
- * hand-written from the domain entities — `MenuItem`, `TabOrderLine`,
- * `TabBilling`, `TabEvent` — rather than generated. Keeping every guess in one
- * module means swapping in `pnpm api:generate` output later is one import path
- * changing, and the compiler then lists every mismatch instead of leaving them
- * to be found on a phone in a cafe.
+ * **These were guesses until Backend 8/8b shipped.** They are not any more: every
+ * shape below is a rename of something `generated/schema.ts` describes, and
+ * `http/staffMapping.ts` builds each one from its generated counterpart, so a
+ * renamed field on the server is a compile error here rather than an `undefined`
+ * on a counter screen. Where the client's vocabulary differs from the wire it
+ * differs deliberately and in one direction: amounts are `Dram`-suffixed
+ * integers rather than the server's `Amd`, and enums are string unions rather
+ * than the server's integers. That translation happens in `http/` and nowhere
+ * else.
  *
- * Two rules that make that swap survivable, and that nothing in `apps/` may
- * break:
+ * Three places where the wire genuinely does not carry what the screens want.
+ * Each is `null` here rather than invented, and each says why:
  *
- * 1. **No component is typed against a mock.** Screens depend on these
- *    contracts; the mock gateway implements them. A screen typed against what
- *    the mock happens to return stops compiling the day the backend ships,
- *    which is the moment it is least affordable.
- * 2. **These are the client's vocabulary, not the wire format.** Amounts are
- *    `Dram`-suffixed integers, enums are string unions, and the mapping from the
- *    server's `Amd` fields and integer enums happens in `http/`. When the real
- *    schema lands, only that mapping moves.
+ * 1. **A voided line's reason.** `TabOrderLine.VoidReason` is stored and is not
+ *    projected into any read model. `OrderLineView` reports a voided line only
+ *    as `lineTotalAmd: 0`.
+ * 2. **A tab's adjustments as a read.** `POST /api/tabs/{tabId}/adjustments`
+ *    answers with the adjustment it just made; nothing lists them back.
+ * 3. **Who did it.** No view carries an actor's name, so "voided by Aram" is
+ *    `null` and the copy degrades to "removed by staff".
  *
- * Where a field is a genuine guess rather than a rename of something visible in
- * the domain, it says so.
+ * The rule that has not changed: **no component is typed against a mock.**
+ * Screens depend on these contracts; both gateways implement them.
  */
 
 import type {
@@ -58,6 +59,7 @@ export interface MenuItemDetail {
   readonly description: string;
   /** Integer dram. The client displays this and never sums prices. */
   readonly priceDram: number;
+  /** Required on the wire; empty string when the venue has not set one. */
   readonly photoUrl: string | null;
   /**
    * Free text as the venue wrote it, comma-separated in practice.
@@ -85,8 +87,14 @@ export interface MenuCategoryView {
 
 export interface BranchMenu {
   readonly branchId: string;
-  /** ISO-8601 UTC. Shown so a cached menu can say how old it is. */
-  readonly updatedAtUtc: string;
+  /**
+   * When this copy was read, from the client's own clock.
+   *
+   * `BranchMenuView` carries no timestamp, so this is not the server's opinion
+   * of when the menu last changed — it is when this device fetched it, which is
+   * the only honest thing a cached-menu banner can say.
+   */
+  readonly fetchedAtUtc: string;
   readonly categories: readonly MenuCategoryView[];
 }
 
@@ -123,6 +131,12 @@ export interface PlaceOrderLine {
   /**
    * Who it is for. `null` attributes the line to the table, which is what a
    * waiter keying in a spoken order usually has to do.
+   *
+   * On the wire this is **not** per line: `PlaceOrderRequest` carries one
+   * `onBehalfOfParticipantId` for the whole order. The gateway groups a draft
+   * by this field and sends one request per distinct value, so the screen can
+   * keep offering it per line — which is what a waiter taking a round for a
+   * table of four actually needs.
    */
   readonly participantId: string | null;
 }
@@ -139,16 +153,12 @@ export interface PlaceOrderResult {
   readonly tabId: string;
   readonly status: OrderStatus;
   readonly placedAtUtc: string;
-  /**
-   * When the kitchen expects it. A guess on the wire — the backend stores
-   * `PrepMinutes` per item but no endpoint returns a computed estimate.
-   *
-   * Stated at order time rather than shown as a progress bar afterwards: "about
-   * twenty minutes" said once is worth more than a bar that creeps.
-   */
+  /** When the kitchen expects it: the longest prep time on the order, from the server. */
   readonly estimatedReadyAtUtc: string | null;
   /** The server had this command already. A success, not a duplicate. */
   readonly wasReplay: boolean;
+  /** The tab's totals as they stand after this order. */
+  readonly totals: TabTotals;
 }
 
 export interface SetOrderStatusCommand {
@@ -158,22 +168,30 @@ export interface SetOrderStatusCommand {
 }
 
 export interface OrderQueueLine {
+  readonly lineId: string;
   readonly name: string;
   readonly quantity: number;
   readonly note: string | null;
 }
 
-/** One order as the counter panel lists it. */
+/** One order as the counter panel lists it. `Yalla.Application.Ordering.KitchenOrderView`. */
 export interface OrderQueueEntry {
   readonly orderId: string;
   readonly tabId: string;
-  readonly tableId: string;
+  /**
+   * Which table, by label only.
+   *
+   * `KitchenOrderView` carries no table id. The panel walks to a label, not to
+   * a GUID, so this is enough for the rail — and a command raised from it
+   * carries `tableId: null` rather than a lookup that could name the wrong
+   * table when two branches share a label.
+   */
   readonly tableLabel: string;
   readonly status: OrderStatus;
   readonly placedAtUtc: string;
-  readonly placedByName: string | null;
-  readonly source: 'staff' | 'diner';
   readonly estimatedReadyAtUtc: string | null;
+  /** How long it has been waiting, computed by the server at read time. */
+  readonly waitingMinutes: number;
   readonly lines: readonly OrderQueueLine[];
 }
 
@@ -186,10 +204,9 @@ export type OrderLineStatus = 'active' | 'voided';
 /**
  * One line on a tab, as anyone allowed to see it reads it.
  *
- * Mirrors `TabOrderLine` plus the two snapshots the arithmetic depends on:
- * `unitPriceDram` is the price when it was ordered, and `sharedWithCount` is how
- * many people were at the table then. Both matter because a bill is settled
- * later than it is built.
+ * Mirrors `Yalla.Application.Ordering.OrderLineView` plus the two things the
+ * screen needs and the view does not name: which order it came from, and
+ * whether it is still on the bill.
  */
 export interface TabLine {
   readonly id: string;
@@ -205,23 +222,45 @@ export interface TabLine {
   readonly isShared: boolean;
   /** True when a waiter keyed it in and could not say who asked for it. */
   readonly isTableAttributed: boolean;
-  /** `null` for a table-attributed line. */
+  /**
+   * Who ordered it. `null` for a line attributed to the table.
+   *
+   * From `TabLineView.placedByParticipantId` on the diner's own tab read. **Null
+   * on the staff path**, whatever the truth: `OrderLineView` — the only line
+   * shape a staff token can reach — carries neither the participant nor a name,
+   * so the counter screen shows the line and not who asked for it.
+   */
   readonly participantId: string | null;
-  /** Short name or initials, so nobody has to ask whose it is. */
+  /** Short name or initials. Null on the staff path, for the same reason. */
   readonly orderedByName: string | null;
   /**
    * How many ways a shared line splits, snapshotted when it was ordered.
    *
-   * Not the current participant count. A badge computed from "who is on the tab
-   * now" would relabel every past line the moment somebody joins, and the
-   * amount beside it would stop matching.
+   * From `sharedWithParticipantIds`, which is that snapshot. Not the current
+   * participant count: a badge computed from "who is on the tab now" would
+   * relabel every past line the moment somebody joins.
    */
   readonly sharedWithCount: number;
+  /**
+   * Whether the line still counts.
+   *
+   * **Inferred, not reported.** No read model carries a void flag; the only
+   * signal on the wire is that the server zeroes `lineTotalAmd` for a voided
+   * line while `unitPriceAmd` and `quantity` keep their snapshots. A line whose
+   * gross is positive and whose total is zero has been voided, and there is no
+   * other way to produce that combination.
+   */
   readonly status: OrderLineStatus;
-  /** Set on a voided line. The server requires one. */
+  /**
+   * Why it was voided. **Always `null` today.**
+   *
+   * `TabOrderLine.VoidReason` is stored, required by the domain, and projected
+   * into nothing. Rendering a reason the server never sent would be worse than
+   * rendering none, so the panel says "removed by staff" and stops there.
+   */
   readonly voidReason: string | null;
+  /** Who voided it. Always `null`: no view carries an actor's name. */
   readonly voidedByName: string | null;
-  readonly voidedAtUtc: string | null;
   readonly placedAtUtc: string;
   readonly orderStatus: OrderStatus;
 }
@@ -233,28 +272,40 @@ export type AdjustmentKind = 'discount' | 'comp';
  * A discount or a comp, shown as its own line rather than folded into a total.
  *
  * A bill that quietly shrinks is a bill nobody trusts, and the manager's reason
- * is the part that makes it make sense.
+ * is the part that makes it make sense. Mirrors
+ * `Yalla.Application.Ordering.AdjustmentView`.
  */
 export interface TabAdjustment {
   readonly id: string;
   readonly kind: AdjustmentKind;
   /** `null` when it applies to the whole tab. */
   readonly lineId: string | null;
-  /** Exactly one of these is set, matching `BillingAdjustment`. */
+  /** Exactly one of these is set, matching `AddAdjustmentRequest`. */
   readonly percent: number | null;
   readonly amountDram: number | null;
   /** What it actually took off, computed by the server. */
   readonly reductionDram: number;
   readonly reason: string;
+  /** True once reversed. It stays on the record either way. */
+  readonly isVoided: boolean;
+  /** Who applied it. Always `null`: `AdjustmentView` carries no actor. */
   readonly byName: string | null;
   readonly atUtc: string;
 }
 
-/** What one person owes. Mirrors `Yalla.Domain.Billing.ParticipantShare`. */
+/** What one person owes. Mirrors `Yalla.Application.Ordering.ParticipantShareView`. */
 export interface ParticipantShare {
   readonly participantId: string;
-  readonly displayName: string | null;
+  readonly displayName: string;
+  /**
+   * Whether this is the host.
+   *
+   * Not on `ParticipantShareView`. The mapper takes it from the tab's
+   * `hostParticipantId` when it has one and reports `false` otherwise, rather
+   * than inventing a crown.
+   */
   readonly isHost: boolean;
+  readonly status: TabParticipantStatusCode;
   /** Their own unshared lines, after any adjustment on those lines. */
   readonly ownItemsDram: number;
   /** Their slice of shared and table-attributed lines. */
@@ -272,7 +323,10 @@ export interface ParticipantShare {
   readonly paidDram: number;
 }
 
-/** The bill. Mirrors `Yalla.Domain.Billing.TabBill`. */
+/** `Yalla.Domain.Enums.ParticipantStatus`: 1 PendingApproval, 2 Approved, 3 Removed. */
+export type TabParticipantStatusCode = 'pendingApproval' | 'approved' | 'removed';
+
+/** The bill. */
 export interface TabBill {
   readonly subtotalDram: number;
   readonly serviceChargeDram: number;
@@ -286,10 +340,11 @@ export interface TabBill {
  * The money on a tab, or the deliberate absence of it.
  *
  * A union rather than nullable fields, and that is the point. When the host has
- * hidden the total, the backend returns no aggregate at all, and a `totalDram`
- * that could be `0` or `null` is one careless render away from a bill that says
- * a table owes nothing. Here the aggregate is not reachable without narrowing,
- * so the screen cannot draw a zero by accident — it has to handle the case.
+ * hidden the total, the backend returns no aggregate at all — `tableTotalVisible`
+ * false with `totals` and `shares` **absent from the body**, not zeroed — and a
+ * `totalDram` that could be `0` or `null` is one careless render away from a
+ * bill that says a table owes nothing. Here the aggregate is not reachable
+ * without narrowing, so a screen cannot draw a zero by accident.
  *
  * What is hidden is the **table** total and **other people's** items. Never
  * prices, and never your own lines: a guest always knows what their own coffee
@@ -355,13 +410,28 @@ export interface SetSettlementModeCommand {
   readonly clientCommandId: string;
 }
 
-/** Every approved participant and what they owe. */
-export interface TabShares {
-  readonly tabId: string;
-  readonly serviceChargePercent: number;
-  readonly totalDram: number;
-  readonly shares: readonly ParticipantShare[];
-}
+/**
+ * Who owes what, projected through the caller's own visibility.
+ *
+ * `shares` and `total` are together or absent together, exactly as the server
+ * sends them: `TabSharesView.tableTotalVisible` false means the members are not
+ * in the body at all. `yourShare` is the one thing always present.
+ */
+export type TabShares =
+  | {
+      readonly kind: 'table';
+      readonly tabId: string;
+      readonly totals: TabTotals;
+      readonly absorbedFromRemovedDram: number;
+      readonly shares: readonly ParticipantShare[];
+      readonly yourShare: ParticipantShare | null;
+    }
+  | {
+      readonly kind: 'yourShareOnly';
+      readonly tabId: string;
+      readonly absorbedFromRemovedDram: number;
+      readonly yourShare: ParticipantShare | null;
+    };
 
 // ---------------------------------------------------------------------------
 // Asking for things
@@ -377,13 +447,17 @@ export const SERVICE_REQUEST_REASONS: readonly ServiceRequestReason[] = [
   'other',
 ];
 
+/** `Yalla.Application.Ordering.ServiceRequestView`. */
 export interface ServiceRequest {
   readonly id: string;
   readonly tabId: string;
-  readonly tableId: string;
+  /** Label only: the view carries no table id, the same as the order queue. */
   readonly tableLabel: string;
   readonly reason: ServiceRequestReason;
+  /** The one optional line the diner may add. */
+  readonly note: string | null;
   readonly requestedAtUtc: string;
+  readonly waitingMinutes: number;
   readonly acknowledgedAtUtc: string | null;
 }
 
@@ -421,10 +495,19 @@ export interface VoidLineCommand {
   readonly clientCommandId: string;
 }
 
+/**
+ * A discount or a comp. Manager only, enforced server-side.
+ *
+ * Exactly one of `percent` and `amountDram`, matching `AddAdjustmentRequest`.
+ * Comping a whole line is a 100% comp on that line rather than a separate verb.
+ */
 export interface CompCommand {
   readonly tabId: string;
-  /** `null` comps the whole tab. Manager only, either way. */
+  /** `null` applies it to the whole tab. */
   readonly lineId: string | null;
+  readonly kind: AdjustmentKind;
+  readonly percent: number | null;
+  readonly amountDram: number | null;
   readonly reason: string;
   readonly clientCommandId: string;
 }
@@ -441,7 +524,7 @@ export interface RecordCashPaymentCommand {
   readonly amountDram: number;
   readonly tipDram: number;
   readonly clientCommandId: string;
-  /** Set to settle one person's share rather than the table's balance. */
+  /** Who handed it over, when the waiter knows. Never a way to settle one share. */
   readonly participantId?: string | undefined;
 }
 
@@ -450,9 +533,14 @@ export interface PaymentResult {
   readonly tabId: string;
   readonly amountDram: number;
   readonly tipDram: number;
-  readonly bill: TabBill;
+  readonly totals: TabTotals;
   /** True when this payment took the balance to zero and closed the tab. */
   readonly tabClosed: boolean;
+  /**
+   * True when closing the tab also closed the sitting. The **table is not
+   * freed** by this — that stays an explicit waiter action.
+   */
+  readonly tableSessionClosed: boolean;
   readonly wasReplay: boolean;
 }
 
@@ -462,11 +550,23 @@ export interface AbandonTabCommand {
   readonly clientCommandId: string;
 }
 
+/**
+ * What abandoning left behind.
+ *
+ * The endpoint answers with the tab's totals, so `writtenOffDram` is that
+ * snapshot's `remainingAmd` — the money the venue has just accepted it will not
+ * see. There is no `wasReplay` on this response.
+ */
 export interface AbandonTabResult {
   readonly tabId: string;
   readonly writtenOffDram: number;
-  readonly atUtc: string;
-  readonly wasReplay: boolean;
+  readonly totals: TabTotals;
+}
+
+export interface ReassignHostCommand {
+  readonly tabId: string;
+  readonly newHostParticipantId: string;
+  readonly clientCommandId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -515,7 +615,16 @@ export interface TabEvent {
   readonly tabId: string;
   readonly type: TabEventType;
   readonly actor: TabEventActor;
-  /** Short name of whoever did it, when the server can say. */
+  /** Who did it, when the server can say. */
+  readonly actorId: string | null;
+  /**
+   * Their name, for "removed by Aram".
+   *
+   * **Null from the wire.** `TabEventView` carries `actorId` and no name, and
+   * there is no endpoint that turns a staff id into one. The copy degrades to
+   * "staff", which is what the diner sees today; this field exists so that the
+   * day a name is projected, it is one mapper line and no screen changes.
+   */
   readonly actorName: string | null;
   readonly atUtc: string;
   /**
@@ -531,31 +640,41 @@ export interface TabEvent {
 
 export interface TabEventPage {
   readonly tabId: string;
-  /** Highest sequence in this page, or the caller's own when empty. */
+  /** Highest sequence on the tab, whether or not it is in this page. */
   readonly lastSequence: number;
   readonly events: readonly TabEvent[];
+  readonly hasMore: boolean;
 }
 
+/**
+ * One entry on the branch's change stream.
+ * `Yalla.Application.Floor.BranchChange`.
+ *
+ * Note what is **not** here, because it is not on the wire: the derived state,
+ * the party size, the next booking, and the tab id. A change says what happened
+ * to a table's *physical* status and nothing about the reservation overlay, so
+ * `live/sequence.ts` folds one in only where that is unambiguous.
+ */
 export interface FloorChange {
   readonly sequence: number;
-  readonly branchId: string;
   readonly tableId: string;
+  readonly tableLabel: string;
   readonly fromStatus: TableStatus;
   readonly toStatus: TableStatus;
-  readonly state: 'free' | 'reservedSoon' | 'held' | 'occupied' | 'outOfService';
   readonly atUtc: string;
-  readonly tabId: string | null;
   readonly tableSessionId: string | null;
-  readonly partySize: number | null;
-  readonly nextReservationStartUtc: string | null;
-  /** For "seated by Aram just now". Absent degrades to "someone". */
-  readonly actorName?: string | undefined;
+  readonly reservationId: string | null;
+  readonly actor: TabEventActor;
+  /** Who acted, as an id. Null for a system change. No name is projected. */
+  readonly actorId: string | null;
+  readonly reason: string;
 }
 
 export interface FloorChangePage {
   readonly branchId: string;
   readonly lastSequence: number;
   readonly changes: readonly FloorChange[];
+  readonly hasMore: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -565,10 +684,12 @@ export interface FloorChangePage {
 /**
  * A tab as staff see it.
  *
- * Here rather than beside the other staff shapes because two of its fields are
- * guesses: the shipped `TabStaffView` carries participants and totals and
- * nothing else, so `lines` and `shares` describe endpoints that do not exist.
- * A type that is part guess is a guess.
+ * `Yalla.Application.Tabs.TabStaffView` carries participants and totals. The
+ * lines are assembled from the branch's order queue filtered to this tab —
+ * there is no staff-readable endpoint that returns a tab's lines, and
+ * `GET /api/tabs/{tabId}` is `TabParticipant`-scoped, which a staff token is
+ * not. `linesKnown` says whether that assembly ran, so an empty list is never
+ * drawn as "nothing was ordered" when it means "not fetched".
  */
 export interface StaffTab {
   readonly id: string;
@@ -577,14 +698,30 @@ export interface StaffTab {
   readonly tableLabel: string;
   readonly status: StaffTabStatus;
   readonly settlementMode: SettlementMode;
+  readonly settlementModeLocked: boolean;
   readonly openedAtUtc: string;
   readonly closedAtUtc: string | null;
+  readonly hostParticipantId: string | null;
   readonly participants: readonly TabStaffParticipant[];
   readonly totals: TabTotals;
-  /** The branch percentage, snapshotted when the tab opened. */
-  readonly serviceChargePercent: number;
-  /** Empty until the ordering endpoints ship; never faked to look populated. */
+  /**
+   * The branch percentage, snapshotted when the tab opened.
+   *
+   * Not on the wire. Derived from the totals when there is a subtotal to derive
+   * it from, and `null` otherwise — a zero here would render a service-charge
+   * line claiming nothing is charged.
+   */
+  readonly serviceChargePercent: number | null;
   readonly lines: readonly TabLine[];
+  /** False when the lines were not fetched. Empty and unknown are not the same. */
+  readonly linesKnown: boolean;
+  /**
+   * Adjustments applied in this session only.
+   *
+   * Nothing lists a tab's adjustments back, so this holds the ones this device
+   * has just made and is empty on a cold load. `adjustmentsKnown` is false
+   * always, and the panel says so rather than implying there are none.
+   */
   readonly adjustments: readonly TabAdjustment[];
-  readonly shares: readonly ParticipantShare[];
+  readonly adjustmentsKnown: boolean;
 }

@@ -139,9 +139,13 @@ describe('a diner ordering from their own phone', () => {
     });
 
     const shares = await gateway.getTabShares(scan.tab.id);
-    expect(shares).not.toBeNull();
-    const summed = (shares?.shares ?? []).reduce((sum, share) => sum + share.shareDram, 0);
-    expect(summed).toBe(shares?.totalDram);
+    expect(shares?.kind).toBe('table');
+    // Narrowed, not optional-chained: the aggregate is absent from the payload
+    // when it is hidden, and a test that reached for it through `?.` would pass
+    // against a body that has no total in it at all.
+    if (shares?.kind !== 'table') throw new Error('expected the table aggregate');
+    const summed = shares.shares.reduce((sum, share) => sum + share.shareDram, 0);
+    expect(summed).toBe(shares.totals.totalDram);
   });
 
   it('lets the host pick how the bill splits', async () => {

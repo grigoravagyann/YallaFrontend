@@ -35,7 +35,7 @@ import type {
   PlaceOrderResult,
   TabEventPage,
   TabShares,
-} from '../contracts/unshipped';
+} from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
 import { NotFoundError } from '../errors';
 import type { YallaGateway } from '../gateway';

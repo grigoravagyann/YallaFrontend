@@ -2,7 +2,9 @@ import type { DerivedTableState, FloorPlanData } from '@yalla/floorplan/types';
 import { cafeFloorPlan } from '@yalla/floorplan/mocks';
 import type { Menu } from '../contracts/menu';
 import { ConcurrencyConflictError, InvalidTransitionError, NotFoundError } from '../errors';
+import { PaymentExceedsRemainingError } from '../contracts/errors';
 import type {
+  AffectedReservation,
   StaffFloor,
   StaffTableDetail,
   TableActionCommand,
@@ -23,16 +25,22 @@ import type {
   OrderStatus,
   PaymentResult,
   PlaceOrderCommand,
+  PlaceOrderResult,
+  ReassignHostCommand,
   RecordCashPaymentCommand,
   ServiceRequest,
   SetOrderStatusCommand,
   StaffTab,
   TabAdjustment,
   TabEvent,
-  TabEventPage,
   TabLine,
-} from '../contracts/unshipped';
-import type { StaffGateway } from '../staffGateway';
+  VoidLineCommand,
+} from '../contracts/ordering';
+import type {
+  ReleaseReservationCommand,
+  ReservationReleaseResult,
+  StaffGateway,
+} from '../staffGateway';
 import { mockMenuFor } from './menu';
 import { computeBill, type BillingLine } from './billing';
 
@@ -43,9 +51,15 @@ import { computeBill, type BillingLine } from './billing';
  * properties the counter screen is built against and would otherwise have no
  * way to exercise: transitions that genuinely refuse an illegal move, an
  * idempotency log that replays a repeated `clientCommandId` rather than
- * applying it twice, warnings that fire on the cases a waiter actually hits,
- * and a per-branch sequence counter so the polling stream has real gaps to
- * find.
+ * applying it twice, **row versions that change on every transition**, warnings
+ * that fire on the cases a waiter actually hits, and a per-branch sequence
+ * counter so the polling stream has real gaps to find.
+ *
+ * The row versions are what make the two precondition failures reachable
+ * without a backend. A table that goes free → occupied → free has the same
+ * status and a different version, and that is the case a waiter cannot see and
+ * the conflict list has to word differently — so the mock has to be able to
+ * produce it.
  *
  * Everything here is behind the same `StaffGateway` interface as the HTTP
  * implementation, and no component ever sees these types. A screen typed
@@ -74,6 +88,15 @@ export interface StaffMockOptions {
    * mock's `simulateTableTaken`, and it fires once per table.
    */
   readonly raceOnTables?: readonly string[];
+  /**
+   * Tables whose row version is bumped behind the caller's back before the next
+   * transition, without the status changing.
+   *
+   * The one conflict a status check cannot catch: the table went out and came
+   * back while a command sat in the queue. There is no way to stage it from one
+   * device otherwise, and it is the whole reason the version is sent.
+   */
+  readonly churnOnTables?: readonly string[];
 }
 
 interface MockTableState {
@@ -88,18 +111,26 @@ interface MockTableState {
   nextReservationStartUtc: string | null;
   nextReservationPartySize: number | null;
   freeUntilUtc: string | null;
+  /** Bumped on every change, including a churn nobody asked for. */
+  version: number;
 }
 
 interface MockOrder {
   readonly id: string;
   readonly tabId: string;
-  readonly tableId: string;
   readonly tableLabel: string;
   status: OrderStatus;
   readonly placedAtUtc: string;
-  readonly placedByName: string | null;
-  readonly source: 'staff' | 'diner';
   readonly lineIds: string[];
+}
+
+/** A line, plus the owner the wire only carries as a share snapshot. */
+type MockLine = TabLine & { readonly ownerParticipantId: string | null };
+
+interface MockParticipant {
+  readonly id: string;
+  readonly displayName: string | null;
+  readonly isHost: boolean;
 }
 
 interface MockTab {
@@ -111,11 +142,24 @@ interface MockTab {
   closedAtUtc: string | null;
   paidDram: number;
   tipDram: number;
-  readonly lines: TabLine[];
+  readonly lines: MockLine[];
   readonly adjustments: TabAdjustment[];
-  readonly participants: { id: string; displayName: string | null; isHost: boolean }[];
+  participants: MockParticipant[];
+  hostParticipantId: string | null;
+  settlementModeLocked: boolean;
   sequence: number;
   readonly events: TabEvent[];
+}
+
+interface MockReservation {
+  readonly id: string;
+  readonly tableId: string;
+  readonly code: string;
+  readonly guestName: string;
+  readonly guestPhone: string;
+  readonly partySize: number;
+  readonly startUtc: string;
+  released: boolean;
 }
 
 /**
@@ -152,11 +196,17 @@ function minutesFrom(now: Date, minutes: number): string {
   return iso(new Date(now.getTime() + minutes * 60_000));
 }
 
+/** The wire sends base64. Shape matters more than content: it is opaque either way. */
+function versionToken(tableId: string, version: number): string {
+  return btoa(`${tableId}:${version}`);
+}
+
 export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGateway {
   const latency = options.latencyMs ?? 0;
   const now = options.now ?? (() => new Date());
   let failSends = options.failSends ?? 0;
   const racing = new Set(options.raceOnTables ?? []);
+  const churning = new Set(options.churnOnTables ?? []);
 
   /**
    * The room this mock serves, adopted from the first branch that asks for it.
@@ -180,8 +230,10 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   const tabs = new Map<string, MockTab>();
   const orders = new Map<string, MockOrder>();
   const serviceRequests = new Map<string, ServiceRequest>();
+  const reservations = new Map<string, MockReservation>();
   /** clientCommandId -> the original response. The idempotency log. */
   const applied = new Map<string, TableActionResult>();
+  const releasedCommands = new Map<string, ReservationReleaseResult>();
   let counter = 0;
 
   const id = (prefix: string) => `${prefix}-${(counter += 1)}`;
@@ -213,11 +265,28 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       seatedAtUtc: physical === 'occupied' ? minutesFrom(start, -(12 + index * 9)) : null,
       partySize: physical === 'occupied' ? Math.min(table.seats, 2) : null,
       tabId: null,
-      nextReservationId: table.state === 'reservedSoon' ? id('res') : null,
+      nextReservationId: null,
       nextReservationStartUtc: table.nextReservationStartUtc ?? null,
       nextReservationPartySize: table.state === 'reservedSoon' ? 4 : null,
       freeUntilUtc: table.nextReservationStartUtc ?? null,
+      version: 1,
     });
+
+    if (table.state === 'reservedSoon') {
+      const reservation: MockReservation = {
+        id: id('res'),
+        tableId: table.id,
+        code: `Y${1000 + index}`,
+        guestName: ['Անի Գրիգորյան', 'Davit Sargsyan', 'Мария Петрова'][index % 3] ?? 'Guest',
+        guestPhone: `+3749${(1000000 + index * 13579).toString().slice(0, 7)}`,
+        partySize: 4,
+        startUtc: table.nextReservationStartUtc ?? minutesFrom(start, 45),
+        released: false,
+      };
+      reservations.set(reservation.id, reservation);
+      const state = tables.get(table.id);
+      if (state) state.nextReservationId = reservation.id;
+    }
   }
 
   /**
@@ -225,16 +294,37 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
    *
    * Table 6 is `reservedSoon` in the fixture; here its booking is twenty
    * minutes into the past, which is the case the floor screen has to surface as
-   * *"nobody has arrived"* with Hold and Release. Without it that branch of the
-   * UI is unreachable and therefore untested.
+   * *"nobody has arrived"* with Hold and the two release outcomes. Without it
+   * that branch of the UI is unreachable and therefore untested.
    */
   const lateTable = tables.get('t6');
   if (lateTable) {
     lateTable.nextReservationStartUtc = minutesFrom(start, -20);
     lateTable.freeUntilUtc = minutesFrom(start, -5);
+    if (!lateTable.nextReservationId) {
+      const reservation: MockReservation = {
+        id: id('res'),
+        tableId: 't6',
+        code: 'Y2040',
+        guestName: 'Նարեկ Հակոբյան',
+        guestPhone: '+37491234567',
+        partySize: 3,
+        startUtc: lateTable.nextReservationStartUtc,
+        released: false,
+      };
+      reservations.set(reservation.id, reservation);
+      lateTable.nextReservationId = reservation.id;
+    } else {
+      const existing = reservations.get(lateTable.nextReservationId);
+      if (existing) {
+        reservations.set(existing.id, { ...existing, startUtc: lateTable.nextReservationStartUtc });
+      }
+    }
   }
 
   function openTab(tableId: string, tableLabel: string, at: Date): MockTab {
+    const host: MockParticipant = { id: id('p'), displayName: 'Anahit', isHost: true };
+    const other: MockParticipant = { id: id('p'), displayName: 'Karen', isHost: false };
     const tab: MockTab = {
       id: id('tab'),
       tableId,
@@ -246,10 +336,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tipDram: 0,
       lines: [],
       adjustments: [],
-      participants: [
-        { id: id('p'), displayName: 'Table', isHost: true },
-        { id: id('p'), displayName: 'Anahit', isHost: false },
-      ],
+      participants: [host, other],
+      hostParticipantId: host.id,
+      settlementModeLocked: false,
       sequence: 1,
       events: [],
     };
@@ -271,12 +360,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     const seedOrder: MockOrder = {
       id: id('order'),
       tabId: seededTab.id,
-      tableId: seededTab.tableId,
       tableLabel: seededTab.tableLabel,
       status: 'inKitchen',
       placedAtUtc: minutesFrom(start, -12),
-      placedByName: 'Aram',
-      source: 'staff',
       lineIds: [],
     };
     for (const [itemId, quantity] of [
@@ -297,13 +383,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         note: null,
         isShared: false,
         isTableAttributed: true,
+        ownerParticipantId: null,
         participantId: null,
-        orderedByName: 'Aram',
+        orderedByName: null,
         sharedWithCount: seededTab.participants.length,
         status: 'active',
         voidReason: null,
         voidedByName: null,
-        voidedAtUtc: null,
         placedAtUtc: seedOrder.placedAtUtc,
         orderStatus: seedOrder.status,
       });
@@ -316,10 +402,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     serviceRequests.set(requestId, {
       id: requestId,
       tabId: seededTab.id,
-      tableId: seededTab.tableId,
       tableLabel: seededTab.tableLabel,
       reason: 'water',
+      note: null,
       requestedAtUtc: minutesFrom(start, -3),
+      waitingMinutes: 3,
       acknowledgedAtUtc: null,
     });
   }
@@ -362,7 +449,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     return computeBill({
       lines: tab.lines.map((line): BillingLine => ({
         lineId: line.id,
-        ownerParticipantId: line.participantId,
+        ownerParticipantId: line.ownerParticipantId,
         unitPriceDram: line.unitPriceDram,
         quantity: line.quantity,
         isVoided: line.status === 'voided',
@@ -393,8 +480,17 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     return billFor(tab).bill;
   }
 
+  /**
+   * The tab as the staff endpoint answers it.
+   *
+   * `linesKnown` is false here for the same reason it is false against the real
+   * backend: `GET /api/tabs/{id}/participants` carries participants and totals,
+   * and the lines come from the order queue through `getTabLines`. A mock that
+   * returned them anyway would let the panel be built against data the server
+   * does not send.
+   */
   function viewTab(tab: MockTab): StaffTab {
-    const { bill, shares } = billFor(tab);
+    const { bill } = billFor(tab);
 
     return {
       id: tab.id,
@@ -403,38 +499,55 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tableLabel: tab.tableLabel,
       status: tab.status,
       settlementMode: 'everyonePaysOwnItems',
+      settlementModeLocked: tab.settlementModeLocked,
       openedAtUtc: tab.openedAtUtc,
       closedAtUtc: tab.closedAtUtc,
+      hostParticipantId: tab.hostParticipantId,
       participants: tab.participants.map((person) => ({
         id: person.id,
         displayName: person.displayName,
-        isHost: person.isHost,
+        isHost: person.id === tab.hostParticipantId,
         status: 'approved' as const,
         canOrder: true,
+        canOrderNow: tab.status === 'open',
+        canSeeTableTotal: true,
       })),
       totals: bill,
       serviceChargePercent: SERVICE_CHARGE_PERCENT,
-      lines: tab.lines,
-      adjustments: tab.adjustments,
-      shares,
+      lines: [],
+      linesKnown: false,
+      adjustments: [],
+      adjustmentsKnown: false,
     };
   }
 
-  function record(state: MockTableState, from: TableStatus, at: Date, actorName: string): void {
+  /** The lines as `getTabLines` assembles them: void reasons are not on the wire. */
+  function wireLines(tab: MockTab): readonly TabLine[] {
+    return tab.lines.map((line) => ({
+      ...line,
+      lineTotalDram: line.status === 'voided' ? 0 : line.unitPriceDram * line.quantity,
+      // Stored on the server and projected into nothing. The mock is the same
+      // shape on purpose: a panel built against a reason the real API never
+      // sends is a panel that goes blank on the tablet.
+      voidReason: null,
+      voidedByName: null,
+    }));
+  }
+
+  function record(state: MockTableState, from: TableStatus, at: Date): void {
     sequence += 1;
     changes.push({
       sequence,
-      branchId,
       tableId: state.tableId,
+      tableLabel: label(state.tableId),
       fromStatus: from,
       toStatus: state.physicalStatus,
-      state: state.derived,
       atUtc: iso(at),
-      tabId: state.tabId,
       tableSessionId: state.sessionId,
-      partySize: state.partySize,
-      nextReservationStartUtc: state.nextReservationStartUtc,
-      actorName,
+      reservationId: state.nextReservationId,
+      actor: 'staff',
+      actorId: null,
+      reason: '',
     });
   }
 
@@ -444,14 +557,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     return {
       orderId: order.id,
       tabId: order.tabId,
-      tableId: order.tableId,
       tableLabel: order.tableLabel,
       status: order.status,
       placedAtUtc: order.placedAtUtc,
-      placedByName: order.placedByName,
-      source: order.source,
       estimatedReadyAtUtc: null,
+      waitingMinutes: Math.max(
+        0,
+        Math.floor((now().getTime() - new Date(order.placedAtUtc).getTime()) / 60_000),
+      ),
       lines: lines.map((line) => ({
+        lineId: line.id,
         name: line.name,
         quantity: line.quantity,
         note: line.note,
@@ -470,7 +585,6 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     type: TabEvent['type'],
     at: Date,
     actor: TabEvent['actor'] = 'staff',
-    actorName: string | null = 'Aram',
   ): void {
     tab.sequence += 1;
     tab.events.push({
@@ -478,9 +592,44 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tabId: tab.id,
       type,
       actor,
-      actorName,
+      actorId: null,
+      actorName: null,
       atUtc: iso(at),
       data: null,
+    });
+  }
+
+  /** A 409 shaped exactly like the server's, for whichever half failed. */
+  function preconditionFailed(
+    state: MockTableState,
+    command: TableActionCommand,
+    failure: 1 | 2,
+  ): ConcurrencyConflictError {
+    const tableLabel = label(command.tableId);
+    return new ConcurrencyConflictError({
+      url: `/api/branches/${branchId}/tables/${command.tableId}`,
+      problem: {
+        code: 'precondition-failed',
+        status: 409,
+        title: 'The world moved on',
+        detail:
+          failure === 1
+            ? `This change was queued while table ${tableLabel} was ${command.precondition?.expectedFromStatus}; it is ${state.physicalStatus} now.`
+            : `Table ${tableLabel} is ${state.physicalStatus} again, but it has been used since this change was queued.`,
+        type: '',
+        traceId: '',
+        instance: null,
+        errors: null,
+        context: {
+          tableId: command.tableId,
+          tableLabel,
+          expectedFromStatus: command.precondition?.expectedFromStatus,
+          currentStatus: state.physicalStatus,
+          currentSessionId: state.sessionId,
+          failure,
+          clientCommandId: command.clientCommandId,
+        },
+      },
     });
   }
 
@@ -510,7 +659,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           nextReservationPartySize: state.nextReservationPartySize,
           freeUntilUtc: state.freeUntilUtc,
           openTabId: state.tabId,
-          rowVersion: null,
+          rowVersion: versionToken(table.id, state.version),
         });
         return {
           ...table,
@@ -543,6 +692,14 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         });
       }
 
+      // The table went out and came back while this sat in the queue. Staged
+      // before the precondition check, because that is where it happens: the
+      // status is unchanged and only the version says so.
+      if (churning.has(command.tableId)) {
+        churning.delete(command.tableId);
+        state.version += 1;
+      }
+
       const transition = TRANSITIONS[command.kind];
       const from = state.physicalStatus;
 
@@ -572,6 +729,21 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             },
           },
         });
+      }
+
+      // Both halves, checked separately and reported separately. The server
+      // does exactly this, and the difference is the only thing that can tell a
+      // waiter their command landed on a sitting that has already ended.
+      if (command.precondition) {
+        if (command.precondition.expectedFromStatus !== from) {
+          throw preconditionFailed(state, command, 1);
+        }
+        if (
+          command.precondition.rowVersion !== null &&
+          command.precondition.rowVersion !== versionToken(command.tableId, state.version)
+        ) {
+          throw preconditionFailed(state, command, 2);
+        }
       }
 
       if (!transition.from.includes(from)) {
@@ -620,6 +792,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       }
 
       const warnings: TableWarning[] = [];
+      const affected: AffectedReservation[] = [];
       let outstanding: number | null = null;
 
       if (transition.to === 'occupied' && state.nextReservationStartUtc) {
@@ -628,6 +801,25 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           warnings.push({
             code: 'upcoming-reservation',
             message: `Table ${label(command.tableId)} is booked at ${state.nextReservationStartUtc}`,
+          });
+        }
+      }
+
+      // A broken table strands whoever booked it. The list is what the panel
+      // shows so somebody can phone them; nothing is cancelled automatically.
+      if (command.kind === 'outOfService') {
+        for (const reservation of reservations.values()) {
+          if (reservation.tableId !== command.tableId || reservation.released) continue;
+          const local = new Date(reservation.startUtc);
+          affected.push({
+            reservationId: reservation.id,
+            code: reservation.code,
+            guestName: reservation.guestName,
+            guestPhone: reservation.guestPhone,
+            partySize: reservation.partySize,
+            startUtc: reservation.startUtc,
+            localDate: local.toISOString().slice(0, 10),
+            localStartTime: local.toISOString().slice(11, 19),
           });
         }
       }
@@ -649,6 +841,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       }
 
       state.physicalStatus = transition.to;
+      state.version += 1;
 
       if (transition.to === 'occupied') {
         state.sessionId = id('session');
@@ -658,6 +851,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           state.nextReservationId = null;
           state.nextReservationStartUtc = null;
         }
+        // A party the waiter sat down has no tab until somebody scans, which is
+        // the real backend's behaviour too — a waiter cannot open one.
       } else if (command.kind === 'freeTable') {
         state.sessionId = null;
         state.seatedAtUtc = null;
@@ -668,7 +863,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       }
 
       state.derived = derive(state, at);
-      record(state, from, at, 'you');
+      record(state, from, at);
 
       const result: TableActionResult = {
         branchId,
@@ -687,6 +882,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         wasReplay: false,
         outstandingDram: outstanding,
         warnings,
+        affectedReservations: affected,
       };
 
       applied.set(command.clientCommandId, result);
@@ -697,10 +893,54 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const page = changes.filter((change) => change.sequence > afterSequence);
       return settle({
         branchId,
-        lastSequence:
-          page.length > 0 ? (page[page.length - 1]?.sequence ?? sequence) : afterSequence,
+        lastSequence: sequence,
+        hasMore: false,
         changes: page,
       });
+    },
+
+    async releaseReservation(
+      command: ReleaseReservationCommand,
+    ): Promise<ReservationReleaseResult> {
+      const replay = releasedCommands.get(command.clientCommandId);
+      if (replay) return settle({ ...replay, wasReplay: true });
+
+      const reservation = reservations.get(command.reservationId);
+      if (!reservation) {
+        throw new NotFoundError({ url: `/api/reservations/${command.reservationId}` });
+      }
+
+      reservations.set(reservation.id, { ...reservation, released: true });
+
+      const state = tables.get(reservation.tableId);
+      let freed = false;
+      if (state && state.physicalStatus === 'held') {
+        const from = state.physicalStatus;
+        state.physicalStatus = 'free';
+        state.version += 1;
+        state.derived = derive(state, now());
+        record(state, from, now());
+        freed = true;
+      }
+      if (state && state.nextReservationId === reservation.id) {
+        state.nextReservationId = null;
+        state.nextReservationStartUtc = null;
+        state.version += 1;
+      }
+
+      const result: ReservationReleaseResult = {
+        reservationId: reservation.id,
+        outcome: command.outcome,
+        // Stated by the server rather than inferred from the button, so the
+        // confirmation can say which one actually happened.
+        countsTowardNoShowThreshold: command.outcome === 'noShow',
+        tableId: reservation.tableId,
+        tableLabel: label(reservation.tableId),
+        tableFreed: freed,
+        wasReplay: false,
+      };
+      releasedCommands.set(command.clientCommandId, result);
+      return settle(result);
     },
 
     async getStaffTab(tabId): Promise<StaffTab | null> {
@@ -708,30 +948,29 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       return settle(tab ? viewTab(tab) : null);
     },
 
-    async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
-      const tab = requireTab(tabId);
-      const page = tab.events.filter((event) => event.sequence > afterSequence);
-      return settle({
-        tabId,
-        lastSequence:
-          page.length > 0 ? (page[page.length - 1]?.sequence ?? tab.sequence) : afterSequence,
-        events: page,
-      });
+    async getTabLines({ tabId }): Promise<readonly TabLine[]> {
+      const tab = tabs.get(tabId);
+      return settle(tab ? wireLines(tab) : []);
     },
 
     async beginClosing({ tabId }): Promise<StaffTab> {
       const tab = requireTab(tabId);
       if (tab.status === 'open') tab.status = 'closing';
+      pushEvent(tab, 'tabClosing', now());
       return settle(viewTab(tab));
     },
 
-    async openTabForTable({ tableId }): Promise<StaffTab> {
-      const state = tables.get(tableId);
-      if (!state) throw new NotFoundError({ url: `/api/tables/${tableId}` });
-      const existing = state.tabId ? tabs.get(state.tabId) : undefined;
-      if (existing && existing.status !== 'closed') return settle(viewTab(existing));
-      const tab = openTab(tableId, label(tableId), now());
-      state.tabId = tab.id;
+    async reassignHost(command: ReassignHostCommand): Promise<StaffTab> {
+      const tab = requireTab(command.tabId);
+      if (!tab.participants.some((person) => person.id === command.newHostParticipantId)) {
+        throw new NotFoundError({ url: `/api/tabs/${command.tabId}/reassign-host` });
+      }
+      tab.hostParticipantId = command.newHostParticipantId;
+      tab.participants = tab.participants.map((person) => ({
+        ...person,
+        isHost: person.id === command.newHostParticipantId,
+      }));
+      pushEvent(tab, 'hostReassigned', now());
       return settle(viewTab(tab));
     },
 
@@ -739,12 +978,22 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       return settle(menu);
     },
 
-    async placeOrder(command: PlaceOrderCommand): Promise<{ orderId: string; wasReplay: boolean }> {
+    async placeOrder(command: PlaceOrderCommand): Promise<PlaceOrderResult> {
       const tab = requireTab(command.tabId);
       const at = now();
 
-      const duplicate = [...orders.values()].find((order) => order.id === command.clientCommandId);
-      if (duplicate) return settle({ orderId: duplicate.id, wasReplay: true });
+      const duplicate = orders.get(command.clientCommandId);
+      if (duplicate) {
+        return settle({
+          orderId: duplicate.id,
+          tabId: tab.id,
+          status: duplicate.status,
+          placedAtUtc: duplicate.placedAtUtc,
+          estimatedReadyAtUtc: null,
+          wasReplay: true,
+          totals: totalsFor(tab),
+        });
+      }
 
       const order: MockOrder = {
         // The command id *is* the order id here, which is how the replay above
@@ -752,12 +1001,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         // the same way.
         id: command.clientCommandId,
         tabId: tab.id,
-        tableId: tab.tableId,
         tableLabel: tab.tableLabel,
         status: 'new',
         placedAtUtc: iso(at),
-        placedByName: 'you',
-        source: 'staff',
         lineIds: [],
       };
 
@@ -776,16 +1022,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           note: line.note ?? null,
           isShared: line.isShared,
           isTableAttributed: line.participantId === null,
-          participantId: line.participantId,
-          orderedByName:
-            tab.participants.find((person) => person.id === line.participantId)?.displayName ??
-            null,
+          ownerParticipantId: line.participantId,
+          // Null even here, because `OrderLineView` carries neither and the
+          // panel must not be built against something the wire never sends.
+          participantId: null,
+          orderedByName: null,
           // Snapshotted now. A friend who arrives later is not on this line.
           sharedWithCount: tab.participants.length,
           status: 'active',
           voidReason: null,
           voidedByName: null,
-          voidedAtUtc: null,
           placedAtUtc: iso(at),
           orderStatus: 'new',
         });
@@ -794,13 +1040,31 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
 
       orders.set(order.id, order);
       pushEvent(tab, 'orderPlaced', at);
-      return settle({ orderId: order.id, wasReplay: false });
+
+      return settle({
+        orderId: order.id,
+        tabId: tab.id,
+        status: 'new',
+        placedAtUtc: order.placedAtUtc,
+        estimatedReadyAtUtc: minutesFrom(at, 15),
+        wasReplay: false,
+        totals: totalsFor(tab),
+      });
     },
 
     async listOrderQueue(): Promise<readonly OrderQueueEntry[]> {
       return settle(
         [...orders.values()]
-          .filter((order) => order.status !== 'served')
+          .filter((order) => order.status !== 'served' && order.status !== 'voided')
+          .sort((a, b) => b.placedAtUtc.localeCompare(a.placedAtUtc))
+          .map(orderEntry),
+      );
+    },
+
+    async listOrdersByStatus({ status }): Promise<readonly OrderQueueEntry[]> {
+      return settle(
+        [...orders.values()]
+          .filter((order) => order.status === status)
           .sort((a, b) => b.placedAtUtc.localeCompare(a.placedAtUtc))
           .map(orderEntry),
       );
@@ -816,10 +1080,18 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     },
 
     async listServiceRequests(): Promise<readonly ServiceRequest[]> {
+      const at = now();
       return settle(
         [...serviceRequests.values()]
           .filter((request) => request.acknowledgedAtUtc === null)
-          .sort((a, b) => a.requestedAtUtc.localeCompare(b.requestedAtUtc)),
+          .sort((a, b) => a.requestedAtUtc.localeCompare(b.requestedAtUtc))
+          .map((request) => ({
+            ...request,
+            waitingMinutes: Math.max(
+              0,
+              Math.floor((at.getTime() - new Date(request.requestedAtUtc).getTime()) / 60_000),
+            ),
+          })),
       );
     },
 
@@ -835,52 +1107,89 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       return settle(acknowledged);
     },
 
-    async voidLine(command): Promise<StaffTab> {
+    async voidLine(command: VoidLineCommand): Promise<readonly TabLine[]> {
       const tab = requireTab(command.tabId);
       const index = tab.lines.findIndex((line) => line.id === command.lineId);
       const line = tab.lines[index];
       if (!line) throw new NotFoundError({ url: `/api/tabs/${command.tabId}` });
-      tab.lines[index] = {
-        ...line,
-        status: 'voided',
-        voidReason: command.detail ?? command.reason,
-        voidedByName: 'Aram',
-        voidedAtUtc: iso(now()),
-      };
+      tab.lines[index] = { ...line, status: 'voided', lineTotalDram: 0 };
       pushEvent(tab, 'lineVoided', now());
-      return settle(viewTab(tab));
+      // The endpoint answers with the whole order's lines, not the tab's.
+      const orderId = line.orderId;
+      return settle(wireLines(tab).filter((candidate) => candidate.orderId === orderId));
     },
 
-    async compLine(command: CompCommand): Promise<StaffTab> {
+    async compLine(command: CompCommand): Promise<TabAdjustment> {
       const tab = requireTab(command.tabId);
       const at = now();
       // A comp is an adjustment, not a line status. The line stays exactly as
       // it was ordered and the reduction is its own row with a reason on it —
       // a bill that quietly shrinks is a bill nobody trusts.
-      tab.adjustments.push({
+      const record: TabAdjustment = {
         id: id('adj'),
-        kind: 'comp',
+        kind: command.kind,
         lineId: command.lineId,
-        percent: 100,
-        amountDram: null,
+        percent: command.percent,
+        amountDram: command.amountDram,
         reductionDram: 0,
         reason: command.reason,
-        byName: 'Aram',
+        isVoided: false,
+        byName: null,
         atUtc: iso(at),
-      });
+      };
+      tab.adjustments.push(record);
+      // Recomputed after the adjustment lands, so the reduction is the server's
+      // arithmetic rather than the client's guess at it.
+      const before = tab.adjustments.slice(0, -1);
+      const reduction =
+        computeBill({
+          lines: tab.lines.map((line) => ({
+            lineId: line.id,
+            ownerParticipantId: line.ownerParticipantId,
+            unitPriceDram: line.unitPriceDram,
+            quantity: line.quantity,
+            isVoided: line.status === 'voided',
+            isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
+            shareParticipantIds: [],
+          })),
+          adjustments: before.map((a) => ({
+            lineId: a.lineId,
+            percent: a.percent,
+            amountDram: a.amountDram,
+          })),
+          participants: [],
+          serviceChargePercent: SERVICE_CHARGE_PERCENT,
+          paidDram: tab.paidDram,
+        }).bill.subtotalDram - totalsFor(tab).subtotalDram;
+
+      const applied: TabAdjustment = { ...record, reductionDram: Math.max(0, reduction) };
+      tab.adjustments[tab.adjustments.length - 1] = applied;
       pushEvent(tab, 'adjustmentAdded', at);
-      return settle(viewTab(tab));
+      return settle(applied);
     },
 
     async recordCashPayment(command: RecordCashPaymentCommand): Promise<PaymentResult> {
       const tab = requireTab(command.tabId);
       const at = now();
+      const before = totalsFor(tab);
+
+      // Refused, with the real balance on the refusal. The waiter is standing at
+      // the table holding notes and that number is the whole point.
+      if (command.amountDram > before.remainingDram) {
+        throw new PaymentExceedsRemainingError({
+          url: `/api/tabs/${tab.id}/payments/cash`,
+          tabId: tab.id,
+          remainingDram: before.remainingDram,
+          requestedDram: command.amountDram,
+        });
+      }
 
       // The tip is added to what the venue holds, never to what the tab owes.
       tab.paidDram += command.amountDram;
       tab.tipDram += command.tipDram;
-      const bill = billFor(tab).bill;
-      const closed = bill.remainingDram === 0;
+      tab.settlementModeLocked = true;
+      const after = totalsFor(tab);
+      const closed = after.remainingDram === 0;
       if (closed && tab.status !== 'closed') {
         tab.status = 'closed';
         tab.closedAtUtc = iso(at);
@@ -892,8 +1201,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         tabId: tab.id,
         amountDram: command.amountDram,
         tipDram: command.tipDram,
-        bill,
+        totals: after,
         tabClosed: closed,
+        // Closing the tab closes the sitting; freeing the table stays a waiter's
+        // explicit action, because physical and financial state are independent.
+        tableSessionClosed: closed,
         wasReplay: false,
       });
     },
@@ -905,13 +1217,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       tab.status = 'abandoned';
       tab.closedAtUtc = iso(at);
       tab.paidDram = totalsFor(tab).totalDram;
-      pushEvent(tab, 'tabClosed', at);
-      return settle({
-        tabId: tab.id,
-        writtenOffDram: written,
-        atUtc: iso(at),
-        wasReplay: false,
-      });
+      pushEvent(tab, 'tabAbandoned', at);
+      return settle({ tabId: tab.id, writtenOffDram: written, totals: totalsFor(tab) });
     },
   };
 }

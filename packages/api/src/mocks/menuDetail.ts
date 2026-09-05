@@ -4,7 +4,7 @@ import type {
   MenuCategoryView,
   MenuItemDetail,
   SpiceLevel,
-} from '../contracts/unshipped';
+} from '../contracts/ordering';
 import { mockMenuFor } from './menu';
 
 /**
@@ -210,7 +210,7 @@ export function mockBranchMenu(branchId: string, venueType: 'cafe' | 'restaurant
     items: section.items.map((item, index) => detailed(item, section.id, index)),
   }));
 
-  return { branchId, updatedAtUtc: menu.updatedAtUtc, categories };
+  return { branchId, fetchedAtUtc: menu.updatedAtUtc, categories };
 }
 
 /** One item, for snapshotting a name and price onto an order line. */

@@ -1,4 +1,4 @@
-import type { ParticipantShare, TabBill } from '../contracts/unshipped';
+import type { ParticipantShare, TabBill } from '../contracts/ordering';
 
 /**
  * The bill, computed the way the server computes it.
@@ -287,8 +287,12 @@ export function computeBill(input: {
     const serviceChargeDram = service.get(p.participantId) ?? 0;
     return {
       participantId: p.participantId,
-      displayName: p.displayName,
+      // The wire's `ParticipantShareView.displayName` is non-nullable, so an
+      // unnamed guest is an empty string there and here. The screens fall back
+      // to "Guest"; the contract does not pretend the server sends null.
+      displayName: p.displayName ?? '',
       isHost: p.isHost,
+      status: p.status,
       ownItemsDram: own.get(p.participantId) ?? 0,
       sharedItemsDram: shared.get(p.participantId) ?? 0,
       absorbedFromRemovedDram: absorbed.get(p.participantId) ?? 0,

@@ -21,6 +21,7 @@ function command(id: string): QueuedCommand {
     seq: 1,
     takenAtMs: 1_000,
     attempts: 0,
+    takenOffline: false,
     precondition: { expectedFromStatus: 'occupied', rowVersion: null },
     subject: { tableId: 't7', tableLabel: '7', tabId: null },
     body: {

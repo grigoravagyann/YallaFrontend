@@ -30,9 +30,9 @@ export interface OrderQueuePanelProps {
   readonly role: UserRole;
   readonly onAdvance: (order: OrderQueueEntry, next: OrderStatus) => void;
   readonly onAcknowledge: (request: ServiceRequest) => void;
-  /** Set when the backend has not shipped ordering; the panel says so. */
-  readonly unavailable: boolean;
   readonly loading: boolean;
+  /** The queue could not be read at all — offline, or the branch is unreachable. */
+  readonly failed: boolean;
 }
 
 /** Minutes at which an order stops being fresh, and then stops being acceptable. */
@@ -65,7 +65,7 @@ function advanceableBy(role: UserRole, status: OrderStatus): boolean {
 }
 
 export function OrderQueuePanel(props: OrderQueuePanelProps) {
-  const { orders, requests, timeZoneId, role, unavailable, loading } = props;
+  const { orders, requests, timeZoneId, role, loading, failed } = props;
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
 
@@ -76,11 +76,11 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
       <section className="queue-block">
         <h2>{t('panel.orders.title')}</h2>
 
-        {unavailable ? (
-          // Not an error and not a spinner. The endpoint does not exist yet, and
-          // a waiter needs to know the panel is empty because nothing can arrive
-          // rather than because nothing has.
-          <p className="floor-todo">{t('panel.orders.notWired')}</p>
+        {failed ? (
+          // Not an empty list. "No orders" and "we could not ask" look the same
+          // and mean opposite things to somebody deciding whether to walk to
+          // the kitchen.
+          <p className="table-warn">{t('panel.orders.unreachable')}</p>
         ) : loading ? (
           <p className="floor-todo">{t('floor.loading')}</p>
         ) : visible.length === 0 ? (
@@ -88,7 +88,10 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
         ) : (
           <ul className="queue-list">
             {visible.map((order) => {
-              const minutes = Math.max(0, format.minutesSince(order.placedAtUtc));
+              // The server's own count, computed at read time. Not the
+              // device's clock: a tablet whose time is twenty minutes out would
+              // otherwise paint every order late, or none of them.
+              const minutes = order.waitingMinutes;
               const band = ageBand(minutes);
               const next = nextOrderStatus(order.status);
 
@@ -106,18 +109,22 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
                   </div>
 
                   <ul className="queue-items">
-                    {order.lines.map((line, index) => (
-                      <li key={`${order.orderId}-${index}`}>
+                    {order.lines.map((line) => (
+                      <li key={line.lineId}>
                         <span className="queue-qty">{line.quantity}×</span> {line.name}
                         {line.note ? <em className="queue-note"> · {line.note}</em> : null}
                       </li>
                     ))}
                   </ul>
 
+                  {/* Who placed it is not on `KitchenOrderView`, so the card
+                      says the status and the promise and nothing it cannot
+                      know. */}
                   <p className="queue-meta">
                     {t(`panel.orders.status.${order.status}`)}
-                    {order.placedByName ? ` · ${order.placedByName}` : ''}
-                    {order.source === 'diner' ? ` · ${t('panel.orders.fromDiner')}` : ''}
+                    {order.estimatedReadyAtUtc
+                      ? ` · ${t('panel.orders.dueBy', { time: format.time(order.estimatedReadyAtUtc) })}`
+                      : ''}
                   </p>
 
                   {next && advanceableBy(role, order.status) ? (
@@ -144,14 +151,14 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
       <section className="queue-block">
         <h2>{t('panel.calls.title')}</h2>
 
-        {unavailable ? (
-          <p className="floor-todo">{t('panel.calls.notWired')}</p>
+        {failed ? (
+          <p className="table-warn">{t('panel.calls.unreachable')}</p>
         ) : requests.length === 0 ? (
           <p className="floor-todo">{t('panel.calls.empty')}</p>
         ) : (
           <ul className="queue-list">
             {requests.map((request) => {
-              const minutes = Math.max(0, format.minutesSince(request.requestedAtUtc));
+              const minutes = request.waitingMinutes;
               return (
                 <li key={request.id} className={`call-card age-${ageBand(minutes)}`}>
                   <p className="call-line">
@@ -161,6 +168,7 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
                       count: minutes,
                     })}
                   </p>
+                  {request.note ? <p className="order-line-note">{request.note}</p> : null}
                   <button
                     type="button"
                     className="floor-button big full"

@@ -474,7 +474,8 @@
       "body": "Shared items and the service charge are already included in each amount.",
       "breakdown": "Own {{own}} · shared {{shared}} · service {{service}}",
       "absorbed": "Includes {{amount}} for someone who left the tab.",
-      "total": "Table total"
+      "total": "Table total",
+      "hidden": "The table total is hidden, so the split is not shown. Your own items are above."
     },
     "pay": {
       "title": "Paying",

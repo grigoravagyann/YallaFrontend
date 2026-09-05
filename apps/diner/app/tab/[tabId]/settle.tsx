@@ -100,6 +100,12 @@ export default function SettleScreen() {
             <Text style={styles.muted}>
               {isEndpointNotWired(error) ? t('settle.notWired') : t('settle.error')}
             </Text>
+          ) : shares.kind !== 'table' ? (
+            // The host has hidden the table total, so the server sent no
+            // aggregate at all — the members are absent from the body, not
+            // zeroed. Narrowing is the only way to reach them, which is what
+            // stops a hidden total being drawn as a settled bill.
+            <Text style={styles.muted}>{t('settle.shares.hidden')}</Text>
           ) : (
             <View style={styles.shares}>
               {shares.shares.map((share) => (
@@ -132,7 +138,9 @@ export default function SettleScreen() {
               ))}
               <View style={styles.shareTotal}>
                 <Text style={styles.shareTotalLabel}>{t('settle.shares.total')}</Text>
-                <Text style={styles.shareTotalValue}>{formatDram(shares.totalDram, locale)}</Text>
+                <Text style={styles.shareTotalValue}>
+                  {formatDram(shares.totals.totalDram, locale)}
+                </Text>
               </View>
             </View>
           )}

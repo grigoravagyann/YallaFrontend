@@ -25,7 +25,6 @@
       "seatConfirm_other": "Seat {{count}} guests",
       "holdLate": "Hold for a late party",
       "hold": "Hold it",
-      "letGo": "Let it go",
       "seatHeld": "Seat the held party",
       "releaseHold": "Release the hold",
       "takeOrder": "Take an order",
@@ -45,7 +44,19 @@
     "late": {
       "title": "Nobody has arrived",
       "body": "Reserved {{time}} · nobody has arrived · held until {{until}}",
-      "releaseNote": "Letting it go frees the table for a walk-in. The booking itself is not cancelled."
+      "noBookingId": "This tablet does not know which booking that is. Refresh the floor."
+    },
+    "release": {
+      "noShow": "Release — marked no-show",
+      "cancelled": "Release — they let us know",
+      "difference": "“No-show” goes on the diner's record. “They let us know” does not.",
+      "needsOnline": "Releasing a booking needs a connection."
+    },
+    "affected": {
+      "title": "Bookings on this table",
+      "body": "The table is out of service. These people need a phone call — nothing is cancelled automatically.",
+      "code": "code {{code}}",
+      "release": "Release — our doing"
     }
   },
   "queue": {
@@ -70,7 +81,10 @@
     "race": "Table {{label}} was taken by someone else just now.",
     "raceNamed": "Table {{label}} was seated by {{name}} just now.",
     "freedWithBalance": "Table {{label}} freed. {{amount}} is still owed — it is in \"needs resolving\".",
-    "seatedOverBooking": "Seated. Table {{label}} still has a booking coming."
+    "seatedOverBooking": "Seated. Table {{label}} still has a booking coming.",
+    "releasedNoShow": "Table {{label}}'s booking was released as a no-show.",
+    "releasedCancelled": "Table {{label}}'s booking was released. It does not count against them.",
+    "releaseFailed": "Could not release that booking."
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -81,10 +95,8 @@
     "orders": {
       "title": "Incoming orders",
       "empty": "No orders waiting.",
-      "notWired": "Ordering is not switched on for this venue yet.",
       "age_one": "{{count}} min",
       "age_other": "{{count}} min",
-      "fromDiner": "ordered from a phone",
       "status": {
         "new": "New",
         "inKitchen": "In the kitchen",
@@ -95,12 +107,13 @@
         "inKitchen": "Send to the kitchen",
         "ready": "Mark ready",
         "served": "Mark served"
-      }
+      },
+      "unreachable": "The order queue could not be read. That is not the same as no orders waiting.",
+      "dueBy": "due {{time}}"
     },
     "calls": {
       "title": "Waiting for a waiter",
       "empty": "Nobody is waiting.",
-      "notWired": "Service requests are not switched on for this venue yet.",
       "line": "Table {{label}} · {{reason}} · {{count}} min",
       "acknowledge": "On my way",
       "reason": {
@@ -108,7 +121,8 @@
         "water": "asked for water",
         "bill": "asked for the bill",
         "other": "called the waiter"
-      }
+      },
+      "unreachable": "The calls could not be read."
     },
     "seating": {
       "title": "Waiting to be seated",
@@ -119,15 +133,23 @@
     "title": "Needs a decision",
     "subtitle": "These could not be applied. Nothing here resolves on its own.",
     "empty": "Nothing is waiting on you.",
-    "now": "Table {{label}} is now {{state}}.",
-    "nowUnknown": "We could not read what the table looks like now.",
-    "changedBy": "Changed by {{name}}.",
-    "discard": "Discard",
-    "applyAnyway": "Apply anyway",
-    "applyAnywayNote": "Applying anyway sends it again without checking the table's state first.",
+    "discard": "Discard this action",
+    "applyAnyway": {
+      "seatWalkIn": "Seat them anyway",
+      "seatReservation": "Seat them anyway",
+      "seatHeldParty": "Seat them anyway",
+      "hold": "Hold it anyway",
+      "releaseHold": "Release it anyway",
+      "freeTable": "Free it anyway",
+      "outOfService": "Mark it out of service anyway",
+      "returnToService": "Return it anyway",
+      "placeOrder_one": "Send the order anyway",
+      "placeOrder_other": "Send the order anyway",
+      "setOrderStatus": "Move it along anyway",
+      "acknowledgeServiceRequest": "Pick it up anyway"
+    },
+    "applyAnywayNote": "“Send it anyway” resends without checking the table's state.",
     "reason": {
-      "precondition": "The table changed while this was waiting to send.",
-      "conflict": "Somebody else changed the table first.",
       "refused": "The server would not accept it from the table's current state."
     },
     "status": {
@@ -136,28 +158,34 @@
       "occupied": "occupied and has an open tab",
       "outOfService": "out of service"
     },
-    "attempted": {
-      "seatWalkIn": "You seated a walk-in at table {{label}} at {{time}}.",
-      "seatReservation": "You seated a booking at table {{label}} at {{time}}.",
-      "seatHeldParty": "You seated the held party at table {{label}} at {{time}}.",
-      "hold": "You held table {{label}} at {{time}}.",
-      "releaseHold": "You released the hold on table {{label}} at {{time}}.",
-      "freeTable": "You freed table {{label}} at {{time}}.",
-      "outOfService": "You marked table {{label}} out of service at {{time}}.",
-      "returnToService": "You returned table {{label}} to service at {{time}}.",
-      "placeOrder_one": "You ordered {{count}} item for table {{label}} at {{time}}.",
-      "placeOrder_other": "You ordered {{count}} items for table {{label}} at {{time}}.",
-      "setOrderStatus": "You moved an order on at {{time}}.",
-      "acknowledgeServiceRequest": "You acknowledged a call from table {{label}} at {{time}}.",
-      "recordCashPayment": "You recorded a cash payment at {{time}}."
-    }
+    "head": {
+      "state": "Table {{label}} is {{state}}",
+      "changedBack": "Table {{label}} is {{state}} again, but it has been used since",
+      "unknown": "Table {{label}}'s state could not be read"
+    },
+    "by": " — {{name}}",
+    "notApplied": "Your “{{action}}” from {{time}} was not applied.",
+    "action": {
+      "seatWalkIn": "seat a walk-in",
+      "seatReservation": "seat the booking",
+      "seatHeldParty": "seat the held party",
+      "hold": "hold the table",
+      "releaseHold": "release the hold",
+      "freeTable": "free the table",
+      "outOfService": "mark out of service",
+      "returnToService": "return to service",
+      "placeOrder_one": "order {{count}} item",
+      "placeOrder_other": "order {{count}} items",
+      "setOrderStatus": "move the order along",
+      "acknowledgeServiceRequest": "pick up the call",
+      "recordCashPayment": "record a cash payment"
+    },
+    "applyAnywayGeneric": "Send it anyway"
   },
   "order": {
     "title": "Order for table {{label}}",
     "tabOpen": "Tab opened {{time}}",
     "tabWillOpen": "A tab will be opened for this table.",
-    "notWired": "Ordering is not switched on for this venue yet.",
-    "couldNotOpenTab": "We could not open a tab for this table.",
     "categories": "Categories",
     "search": "Search the menu",
     "unavailable": "Off the menu",
@@ -178,14 +206,14 @@
     "sent_one": "{{count}} item sent.",
     "sent_other": "{{count}} items sent.",
     "offlineNote": "Offline. This order is saved on the tablet and sent when the connection returns.",
-    "needsTabOnline": "Take this order once the tablet is back online.",
-    "needsTabOnlineWhy": "Opening a tab needs the server, so it cannot be saved on the tablet the way an order can. The seat you just made is already queued.",
-    "menuOffline": "The menu has not been loaded on this tablet yet, and it cannot be fetched without a connection."
+    "menuOffline": "The menu has not been loaded on this tablet yet, and it cannot be fetched without a connection.",
+    "noTab": "There is no open tab on this table.",
+    "noTabWhy": "A tab opens when a guest scans the code on the table. A waiter's session cannot open one.",
+    "menuFromCache": "Menu from this tablet's own copy. It refreshes when the connection is back."
   },
   "tab": {
     "title": "Tab · table {{label}}",
     "openedAt": "Opened {{time}}",
-    "notWired": "Tabs are not switched on for this venue yet.",
     "none": "No tab is open on this table.",
     "remaining": "Still owed",
     "total": "Total",
@@ -196,11 +224,8 @@
     "addItems": "Add items",
     "items": "Items",
     "noItems": "Nothing has been ordered yet.",
-    "shares": "Who owes what",
-    "noShares": "Nobody has joined this tab yet.",
     "lineStatus": {
-      "voided": "Voided",
-      "comped": "Comped"
+      "voided": "Voided"
     },
     "void": "Void",
     "voidTitle": "Void {{name}}",
@@ -228,7 +253,29 @@
     "adjustmentKind": {
       "discount": "Discount",
       "comp": "On the house"
-    }
+    },
+    "serviceCharge": "Service {{percent}}%",
+    "closingNote": "The bill has been asked for. No new items go on.",
+    "askForBill": "Ask for the bill",
+    "linesLoading": "Loading the items…",
+    "linesUnknown": "The items on this tab could not be read. That is not the same as nothing being ordered.",
+    "adjustments": "Discounts and comps",
+    "adjustmentsUnknown": "Only what was done from this tablet shows here. The server does not list a tab's discounts back.",
+    "sharedWith_one": "Split {{count}} way",
+    "sharedWith_other": "Split {{count}} ways",
+    "tableAttributed": "On the table",
+    "people": "Who is at the table",
+    "noPeople": "Nobody has joined this tab yet.",
+    "host": "host",
+    "participant": {
+      "pendingApproval": "waiting to be approved",
+      "approved": "approved",
+      "removed": "removed"
+    },
+    "sharesStaffBlind": "Who owes what is visible on the diners' phones only. A staff session cannot read that split.",
+    "percentOff": "How many percent",
+    "compReasonSeen": "The diner sees this reason on their phone.",
+    "voidReasonSeen": "The diner sees this reason on their phone."
   },
   "cash": {
     "title": "Take cash",
@@ -244,7 +291,8 @@
     "record": "Record it",
     "recorded": "{{amount}} recorded.",
     "closed": "Paid in full. The tab is closed; the table stays occupied until someone frees it.",
-    "failed": "We could not record that payment. Nothing was taken."
+    "failed": "We could not record that payment. Nothing was taken.",
+    "exceeds": "{{requested}} is more than this tab owes. {{remaining}} is left on it. Nothing was recorded."
   },
   "connection": {
     "notWired": "Live updates not connected yet",
@@ -258,5 +306,46 @@
   "install": {
     "title": "Install this on the tablet",
     "body": "Open the browser menu and choose Install. It then opens straight to the floor, and starts without a network."
+  },
+  "enrol": {
+    "title": "Set this tablet up",
+    "body": "A manager generates a one-time code in the console. Type it here, once. After that the tablet remembers its branch and never shows this screen again.",
+    "revoked": "This tablet is no longer enrolled. A manager can revoke one from the console — if a device was lost, for instance. Ask for a new code.",
+    "code": "One-time code",
+    "deviceName": "What to call this device",
+    "deviceNameWhy": "This is the name a manager picks it out by in the device list.",
+    "submit": "Set up",
+    "working": "Setting up…",
+    "codeSpent": "That code has already been used. Ask for a new one — a code works exactly once.",
+    "codeWrong": "That code was not recognised. Check it and type it again.",
+    "offline": "No connection. Setting up needs the server.",
+    "failed": "Could not set this device up."
+  },
+  "pin": {
+    "branchUnknown": "Branch unknown",
+    "deviceUnknown": "Device unknown — no connection",
+    "lockedByIdle": "The tablet locked itself after a quiet spell. Your work is still here.",
+    "sessionEnded": "Your shift session ended. Tap your PIN again.",
+    "whoTitle": "Who is signing in",
+    "someoneElse": "Someone else",
+    "staffId": "Staff member id",
+    "staffIdWhy": "A manager can find it in the console. After your first sign-in your name appears here.",
+    "prompt": "Tap your PIN",
+    "promptNamed": "{{name}}, tap your PIN",
+    "entered_one": "{{count}} digit entered",
+    "entered_other": "{{count}} digits entered",
+    "wrong": "That PIN was not recognised.",
+    "locked": "Too many wrong PINs. This PIN is locked.",
+    "askManager": "A manager can clear it from the console.",
+    "attemptsLeft_one": "{{count}} attempt left.",
+    "attemptsLeft_other": "{{count}} attempts left.",
+    "offline": "No connection. Signing in needs the server.",
+    "failed": "Could not sign in.",
+    "working": "Signing in…",
+    "submit": "Sign in"
+  },
+  "session": {
+    "signedInAs": "{{name}}",
+    "handOverHint": "Tap to sign out and hand the tablet over."
   }
 }

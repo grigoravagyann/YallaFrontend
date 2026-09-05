@@ -116,12 +116,21 @@ export interface QueuedCommand {
   readonly takenAtMs: number;
   readonly attempts: number;
   /**
-   * The state the table was in when the panel opened.
+   * The state and the version the table had when the panel opened.
    *
    * Null for a command with no table precondition, and null after "apply
    * anyway" — which is exactly what that button means.
    */
   readonly precondition: TablePrecondition | null;
+  /**
+   * The tablet had no connection when the waiter tapped.
+   *
+   * Sent to the server as `queued`, which is how it decides to insist on a
+   * precondition. Attempt count alone is not enough: a command taken with the
+   * wifi off is never *attempted*, so it would reach the server on reconnect
+   * looking exactly like a live tap — which is the one thing it is not.
+   */
+  readonly takenOffline: boolean;
   readonly subject: CommandSubject;
   readonly body: StaffCommandBody;
 }
@@ -141,10 +150,13 @@ export interface ConflictEntry {
   /**
    * Why it could not be applied. Three cases, and they are not interchangeable:
    *
-   * - `precondition` — the local check caught it before sending, because the
-   *   table had moved on while the command sat in the queue. Never sent.
-   * - `conflict` — the server answered 409: somebody else changed the table
-   *   first. This is the only one that can be a live race.
+   * - `precondition` — the command's precondition no longer held. Either the
+   *   local check caught it before sending, or the server answered
+   *   `precondition-failed`. Never a live race by construction: a precondition
+   *   only fails for a command that waited. `observed.failure` says which half
+   *   went, and the two are worded differently.
+   * - `conflict` — the server answered `table-state-conflict`: somebody else
+   *   changed the table first. This is the only one that can be a live race.
    * - `refused` — the server answered 422, or refused on the command's own
    *   merits. Not a race, and re-sending it unchanged would fail identically,
    *   so it is never resolved automatically in either direction.
@@ -173,4 +185,9 @@ export interface NewCommand {
   readonly precondition: TablePrecondition | null;
   readonly subject: CommandSubject;
   readonly body: StaffCommandBody;
+}
+
+/** True when the browser says there is no connection. Safe where there is no navigator. */
+export function takenOfflineNow(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
 }

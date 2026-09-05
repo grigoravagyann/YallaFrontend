@@ -26,7 +26,7 @@ function detail(tableId: string, physicalStatus: TableStatus): StaffTableDetail 
     nextReservationPartySize: null,
     freeUntilUtc: null,
     openTabId: null,
-    rowVersion: null,
+    rowVersion: `v-${tableId}`,
   };
 }
 
@@ -39,20 +39,26 @@ const floor: StaffFloor = {
   asOfUtc: '2026-09-04T14:30:00Z',
 };
 
+/**
+ * One entry as `BranchChange` actually arrives.
+ *
+ * Note what is absent: no derived state, no party size, no tab id. The change
+ * stream is an audit row, and the folding rules exist because of what it does
+ * not say.
+ */
 function change(sequence: number, tableId: string, to: TableStatus): FloorChange {
   return {
     sequence,
-    branchId: cafeFloorPlan.branchId,
     tableId,
+    tableLabel: tableId.replace('t', ''),
     fromStatus: 'free',
     toStatus: to,
-    state: to === 'occupied' ? 'occupied' : to === 'held' ? 'held' : 'free',
     atUtc: '2026-09-04T14:31:00Z',
-    tabId: to === 'occupied' ? 'tab-9' : null,
     tableSessionId: to === 'occupied' ? 'session-9' : null,
-    partySize: to === 'occupied' ? 4 : null,
-    nextReservationStartUtc: null,
-    actorName: 'Aram',
+    reservationId: null,
+    actor: 'staff',
+    actorId: 'staff-1',
+    reason: '',
   };
 }
 
@@ -71,8 +77,13 @@ describe('an incremental change', () => {
 
     const updatedDetail = result.floor.details.find((row) => row.tableId === 't2');
     expect(updatedDetail?.physicalStatus).toBe('occupied');
-    expect(updatedDetail?.openTabId).toBe('tab-9');
-    expect(updatedDetail?.partySize).toBe(4);
+    expect(updatedDetail?.currentSessionId).toBe('session-9');
+    expect(updatedDetail?.seatedAtUtc).toBe('2026-09-04T14:31:00Z');
+    // Neither the tab nor the party size is on a `BranchChange`, so folding one
+    // in cannot invent them. The detail keeps what it had — here, nothing —
+    // and the next full floor read fills them in.
+    expect(updatedDetail?.openTabId).toBeNull();
+    expect(updatedDetail?.partySize).toBeNull();
 
     // Every other table is exactly as it was. A change stream that quietly
     // rewrites the room is worse than one that does nothing.
@@ -143,6 +154,6 @@ describe('the most recent change to a table', () => {
       't2',
     );
     expect(latest?.sequence).toBe(42);
-    expect(latest?.actorName).toBe('Aram');
+    expect(latest?.actorId).toBe('staff-1');
   });
 });

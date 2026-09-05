@@ -16,6 +16,7 @@ function event(sequence: number, overrides: Partial<TabEvent> = {}): TabEvent {
     tabId: 'tab-1',
     type: 'orderPlaced',
     actor: 'staff',
+    actorId: 'staff-1',
     actorName: 'Aram',
     atUtc: '2026-09-06T10:00:00Z',
     data: null,

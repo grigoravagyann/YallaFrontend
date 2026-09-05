@@ -71,5 +71,7 @@ export async function bootstrap(container: HTMLElement): Promise<void> {
     </StrictMode>,
   );
 
+  // After the render, and after the two awaits above — which is exactly why it
+  // cannot wait for `load`. See `registerServiceWorker`.
   registerServiceWorker();
 }

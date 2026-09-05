@@ -1,10 +1,13 @@
 import { connectionStateKey, isStale, type ConnectionState } from '@yalla/realtime';
 import { useTranslation } from '@yalla/i18n';
 import { DevRoleSwitcher } from '../auth/DevRoleSwitcher';
+import { staffSession } from './auth/staffSession';
 
 export interface StaffHeaderProps {
   readonly title: string;
   readonly subtitle: string;
+  /** Whose session is open. Empty on the mock, which has no sign-in. */
+  readonly who: string;
   readonly state: ConnectionState;
   /** Derived from the queue by the floor screen. Never counted here. */
   readonly pending: number;
@@ -36,6 +39,7 @@ export interface StaffHeaderProps {
 export function StaffHeader({
   title,
   subtitle,
+  who,
   state,
   pending,
   conflicts,
@@ -97,6 +101,20 @@ export function StaffHeader({
         <button type="button" className="floor-button" onClick={onRefresh}>
           {t('connection.refresh')}
         </button>
+
+        {/* Whose session is open, and the way to hand the tablet over. One
+            control, because "sign out" on this screen means exactly that: the
+            device stays enrolled and the next person taps four digits. */}
+        {who ? (
+          <button
+            type="button"
+            className="status-chip status-who"
+            onClick={() => void staffSession?.signOut()}
+            title={t('session.handOverHint')}
+          >
+            {t('session.signedInAs', { name: who })}
+          </button>
+        ) : null}
 
         <DevRoleSwitcher variant="bar" />
       </div>

@@ -48,7 +48,7 @@ function detail(tableId: string, physicalStatus: TableStatus): StaffTableDetail 
     nextReservationPartySize: null,
     freeUntilUtc: null,
     openTabId: null,
-    rowVersion: null,
+    rowVersion: `v-${tableId}`,
   };
 }
 
@@ -107,8 +107,13 @@ function cashPayment(id: string, tabId: string): NewCommand {
   };
 }
 
-function enqueue(state: CommandState, command: NewCommand, atMs = 1_000): CommandState {
-  return commandReducer(state, { type: 'enqueued', command, atMs });
+function enqueue(
+  state: CommandState,
+  command: NewCommand,
+  atMs = 1_000,
+  takenOffline = false,
+): CommandState {
+  return commandReducer(state, { type: 'enqueued', command, atMs, takenOffline });
 }
 
 function actionResult(overrides: Partial<TableActionResult> = {}): TableActionResult {
@@ -128,6 +133,7 @@ function actionResult(overrides: Partial<TableActionResult> = {}): TableActionRe
     clientCommandId: 'cmd-1',
     wasReplay: false,
     outstandingDram: null,
+    affectedReservations: [],
     warnings: [],
     ...overrides,
   };
