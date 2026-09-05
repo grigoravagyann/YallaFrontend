@@ -3,7 +3,14 @@ import { createContext, createElement, useContext, type ReactNode } from 'react'
 import type { ConsoleGateway } from '../consoleGateway';
 import type { ConsoleVenueDetail, CreateVenueCommand, ListVenuesQuery } from '../contracts/console';
 import type { ReplaceFloorPlanCommand } from '../contracts/floorPlan';
+import type {
+  AbandonTabCommand,
+  CompCommand,
+  RecordCashPaymentCommand,
+  VoidLineCommand,
+} from '../contracts/service';
 import type { YallaGateway } from '../gateway';
+import type { StaffGateway } from '../staffGateway';
 import { staleTime } from '../queryClient';
 
 /**
@@ -40,20 +47,37 @@ export function isOfflinePaused(query: { readonly fetchStatus: string }): boolea
 interface Gateways {
   readonly gateway: YallaGateway | null;
   readonly consoleGateway: ConsoleGateway | null;
+  readonly staffGateway: StaffGateway | null;
 }
 
-const GatewayContext = createContext<Gateways>({ gateway: null, consoleGateway: null });
+const GatewayContext = createContext<Gateways>({
+  gateway: null,
+  consoleGateway: null,
+  staffGateway: null,
+});
 
 export interface GatewayProviderProps {
   readonly gateway?: YallaGateway | undefined;
   readonly consoleGateway?: ConsoleGateway | undefined;
+  readonly staffGateway?: StaffGateway | undefined;
   readonly children: ReactNode;
 }
 
-export function GatewayProvider({ gateway, consoleGateway, children }: GatewayProviderProps) {
+export function GatewayProvider({
+  gateway,
+  consoleGateway,
+  staffGateway,
+  children,
+}: GatewayProviderProps) {
   return createElement(
     GatewayContext.Provider,
-    { value: { gateway: gateway ?? null, consoleGateway: consoleGateway ?? null } },
+    {
+      value: {
+        gateway: gateway ?? null,
+        consoleGateway: consoleGateway ?? null,
+        staffGateway: staffGateway ?? null,
+      },
+    },
     children,
   );
 }
@@ -72,6 +96,14 @@ export function useConsoleGateway(): ConsoleGateway {
   return consoleGateway;
 }
 
+export function useStaffGateway(): StaffGateway {
+  const { staffGateway } = useContext(GatewayContext);
+  if (!staffGateway) {
+    throw new Error('useStaffGateway: wrap the tree in <GatewayProvider staffGateway={…}>.');
+  }
+  return staffGateway;
+}
+
 // --- Keys -------------------------------------------------------------------
 
 export const queryKeys = {
@@ -83,6 +115,11 @@ export const queryKeys = {
   consoleVenues: (query: ListVenuesQuery) => ['console', 'venues', query] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
   editorFloorPlan: (branchId: string) => ['console', 'floorPlan', branchId] as const,
+  staffFloor: (branchId: string) => ['staff', 'floor', branchId] as const,
+  staffTab: (tabId: string) => ['staff', 'tab', tabId] as const,
+  orderQueue: (branchId: string) => ['staff', 'orders', branchId] as const,
+  serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
+  staffMenu: (branchId: string) => ['staff', 'menu', branchId] as const,
 };
 
 // --- Diner: browse ------------------------------------------------------------
@@ -265,5 +302,142 @@ export function useRegenerateTableQr() {
   const gateway = useConsoleGateway();
   return useMutation({
     mutationFn: (input: { tableId: string }) => gateway.regenerateTableQr(input),
+  });
+}
+
+// --- The counter screen ------------------------------------------------------
+
+/**
+ * The room, as staff see it.
+ *
+ * No `refetchInterval` here: polling belongs to the `LiveStream`, which knows
+ * about sequences, visibility and gaps. Two independent pollers would fight
+ * over the same cache entry, and neither would be the one the screen is
+ * reasoning about.
+ */
+export function useStaffFloor(branchId: string | undefined) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.staffFloor(branchId ?? ''),
+    queryFn: () => gateway.getFloor(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.live,
+  });
+}
+
+export function useStaffTab(tabId: string | null | undefined) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.staffTab(tabId ?? ''),
+    queryFn: () => gateway.getStaffTab(tabId!),
+    enabled: Boolean(tabId),
+    staleTime: staleTime.live,
+  });
+}
+
+/** The incoming orders. Ageing is the panel's whole job, so never stale. */
+export function useOrderQueue(branchId: string | undefined, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.orderQueue(branchId ?? ''),
+    queryFn: () => gateway.listOrderQueue(branchId!),
+    enabled: Boolean(branchId) && enabled,
+    staleTime: staleTime.live,
+  });
+}
+
+export function useServiceRequests(branchId: string | undefined, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.serviceRequests(branchId ?? ''),
+    queryFn: () => gateway.listServiceRequests(branchId!),
+    enabled: Boolean(branchId) && enabled,
+    staleTime: staleTime.live,
+  });
+}
+
+/**
+ * The menu a waiter orders from.
+ *
+ * Cached hard. A menu that refetches while a waiter is three taps into an order
+ * is a grid that moves under their finger, which on this screen means the wrong
+ * item added to a real bill.
+ */
+export function useStaffMenu(branchId: string | undefined) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.staffMenu(branchId ?? ''),
+    queryFn: () => gateway.getMenu(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+  });
+}
+
+/**
+ * Recording cash.
+ *
+ * A mutation rather than a queued command, and never retried. Both follow from
+ * one fact: this device cannot verify the balance it is settling, so a silent
+ * second attempt is a second payment.
+ */
+export function useRecordCashPayment() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: RecordCashPaymentCommand) => gateway.recordCashPayment(command),
+    retry: false,
+    onSuccess: (_result, command) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
+    },
+  });
+}
+
+export function useVoidLine() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: VoidLineCommand) => gateway.voidLine(command),
+    retry: false,
+    onSuccess: (tab) => {
+      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+    },
+  });
+}
+
+export function useCompLine() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: CompCommand) => gateway.compLine(command),
+    retry: false,
+    onSuccess: (tab) => {
+      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+    },
+  });
+}
+
+export function useAbandonTab() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: AbandonTabCommand) => gateway.abandonTab(command),
+    retry: false,
+    onSuccess: (_result, command) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
+    },
+  });
+}
+
+/** Opening a tab, so order entry never has to ask whether there is one. */
+export function useOpenTabForTable() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { branchId: string; tableId: string; clientCommandId: string }) =>
+      gateway.openTabForTable(input),
+    retry: false,
+    onSuccess: (tab) => {
+      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+    },
   });
 }

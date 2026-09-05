@@ -325,33 +325,162 @@ the whole reason for building this carefully.
 
 ### The offline queue
 
-`apps/web/src/offline/queue.ts`, backed by IndexedDB. The wifi in a Yerevan cafe
-basement drops, and a waiter still seats people, still takes orders and still
-closes bills while it is down. Three properties, all unit-tested against a real
-IndexedDB:
+`apps/web/src/staff/commands/`, durable in IndexedDB via
+`apps/web/src/offline/commandStore.ts`. The wifi in a Yerevan cafe basement
+drops, and a waiter still seats people, still takes orders and still closes bills
+while it is down. The moment the tablet becomes worse than a notepad is the
+moment the venue is lost, so this is the part of the screen written most
+carefully.
 
-1. **Durable.** Survives a tab close, a reload and a tablet reboot. A queue that
-   dies with the process is not a queue. (`localStorage` is not used anywhere in
-   this repo; IndexedDB via this module is the one persistence mechanism.)
-2. **Idempotent.** Every entry carries a client-generated id, sent as the
-   backend's idempotency key, so replaying an entry whose response was lost
-   cannot double-add a round of drinks.
-3. **Ordered per scope.** Actions on one table replay in the order they were
-   taken, and a table stops at its first failure — a "free table" landing before
-   the "seat walk-in" it followed would leave the floor wrong. Different tables
-   are independent, so one stuck action does not freeze the whole floor.
+Everything that decides whether a tap is lost, applied twice, or turned into the
+wrong thing is a **pure reducer** (`commands/reducer.ts`) with no IndexedDB, no
+`fetch` and no React. That is not tidiness. The failure modes are a dropped seat
+on a Friday and a double round of drinks, and neither reproduces on demand in a
+browser.
 
-**Nothing enqueues an action yet.** The types are declared and the queue works;
-the tasks that add table-state changes and orders wire them to it. The header
-badge reads its count back out of IndexedDB rather than tracking it in memory,
-so "nothing waiting" means the store is genuinely empty — the one thing this
-screen must never do is show a synced state that is not real.
+**What queues:** table state changes, order placement, order status transitions,
+service-request acknowledgements.
 
-The connection indicator obeys the same rule. There is no socket yet, so
-`useConnectionState` returns `idle` and the header says _"live updates not
-connected yet"_ rather than showing a green light. When the wifi is genuinely
-gone it says so instead. Wiring the real connection is a change to that one hook
-— `StaffHeader` already renders all five states.
+**What does not queue: payments.** A cash payment recorded against a balance the
+device cannot verify is how a table pays twice — this tablet has no way to know
+the other one took 8,000 dram two minutes ago, and "the balance was zero when I
+tapped" is not a fact anybody can check afterwards. Offline, the cash button is
+disabled with a plain explanation and the waiter takes the money and records it
+when the connection returns, which is exactly what they would do with a paper
+bill. Voids, comps and write-offs are excluded for the mirror reason: they change
+what is owed, and a queued adjustment replayed against a bill that has moved on
+is an argument at the counter.
+
+Each entry captures, at the moment of the tap: the command, its
+`clientCommandId`, the `expectedFromStatus`, and the row version. The command id
+is the backend's idempotency key, so a retry after a lost response cannot add a
+second round. The row version is captured and is currently always `null` — the
+backend's floor read model has no version column — so the precondition that
+actually does the work is the status. It is stored anyway so that the day the
+server sends one, only the sender changes.
+
+Preconditions are captured against the **projected** status, not the server's:
+seat a table offline and then free it, and the free's precondition is `occupied`,
+because that is what the queue in front of it will have produced. Capturing the
+server's stale `free` would send the free straight to the conflict list for no
+reason.
+
+**Local state is optimistic and visibly pending.** A table seated offline draws
+as occupied _and_ carries a "not sent" mark, and its action panel offers the
+occupied actions rather than the free ones. Both halves matter: a waiter who
+seats a party and watches the table stay white seats it again, and a tablet that
+draws a synced state that is not real is worse than one that admits it is behind.
+The pending count and the conflict count are computed from the queue, never
+tracked beside it — two sources drift, and the one that drifts is always the one
+on screen.
+
+**On reconnect** the queue replays in enqueue order, per scope, with a failed
+scope skipped for the rest of the pass so one stuck table cannot freeze the
+floor. Four outcomes per command, and they must stay four:
+
+| Outcome                         | What happens                                                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Applied                         | Cleared.                                                                                                                              |
+| Already processed (`wasReplay`) | Cleared **silently**. The server recognised the command id; this is a success, and it is what a flaky connection produces constantly. |
+| Precondition failed, or refused | Moves to the conflict list. Never applied, never discarded.                                                                           |
+| Could not send                  | Stays queued, attempt counted. Nothing has been decided.                                                                              |
+
+An error that is not an answer from the server — a bare `TypeError: Failed to
+fetch`, an aborted request — counts as "could not send", not as a refusal. Asking
+a waiter to adjudicate a wifi drop is not a thing this screen does.
+
+### What the conflict list is for
+
+`apps/web/src/staff/ConflictList.tsx`, reachable from a header badge that shows
+until the count is zero.
+
+Two 409s reach this screen and they are **not** the same thing, so the client
+draws the line the server cannot:
+
+- **A live race.** Somebody took the table in the seconds the panel was open.
+  The command was sent on its first attempt, moments after the tap, and the
+  waiter is still standing in front of the panel. The floor redraws, the panel
+  closes, and one sentence appears: _"Table 7 was seated by Aram just now."_ Not
+  a crash screen, not a retry, and nothing lands in the list. This is a normal
+  Friday.
+- **A stale command.** One that sat in the queue while the wifi was out and
+  arrived after the table had moved on. Nobody is watching the panel and the
+  decision was made about a world that no longer exists, so only a person can say
+  whether it still holds.
+
+The second kind goes to the conflict list, which is **a real screen, not a
+toast**. Each entry answers three questions in the order a waiter asks them:
+
+> You freed table 7 at 20:05.
+> Table 7 is now occupied and has an open tab.
+> Changed by Aram.
+
+and offers exactly two actions: **discard**, or **apply anyway** — which re-sends
+without the precondition, because that is the only honest reading of the button.
+Nothing resolves automatically in either direction and nothing expires. The list
+is persisted alongside the queue, so a tablet reboot mid-service does not quietly
+forget three decisions it was waiting on. A 422 lands here too: the server
+refusing a move as illegal is not a race, and no amount of redrawing the floor
+makes it one.
+
+### Live updates
+
+`apps/web/src/staff/live/` — a `LiveStream` interface with a polling
+implementation. SignalR is a later task; the backend's sequence columns exist so
+this can be written once and have its transport swapped without any screen
+changing. **No polling logic lives outside that folder.**
+
+The floor polls `GET /api/branches/{id}/changes?afterSequence=` and folds pages
+in incrementally, short interval while the screen is foreground and long while
+the tab is hidden, resuming immediately on `visibilitychange` and on reconnect. A
+page whose sequence numbers are not contiguous with what is on screen is a
+**gap**: nothing is applied and the floor is refetched whole, because a partly
+applied page looks updated while one table is drawn from a state that has been
+superseded. The endpoint does not exist yet, so today the stream reports itself
+unwired and falls back to full refetches — correct, more expensive, and it says
+so.
+
+## Running the staff screen on a tablet
+
+Landscape, installed, on the counter. Development builds do not register the
+service worker, so the offline behaviour only exists in a production build:
+
+```bash
+pnpm build:web
+pnpm --filter @yalla/web preview --host    # serves the built app on the LAN
+```
+
+On the Android tablet, open `http://<laptop-ip>:4173/staff` in Chrome, then
+**menu → Install app** (or _Add to home screen_). It then opens straight to the
+floor in landscape, with no browser chrome, and starts without a network.
+
+`VITE_API_URL` must be the laptop's LAN address rather than `localhost` — see
+[Finding the laptop's LAN address](#finding-the-laptops-lan-address). It is read
+when the build runs, not when the page loads, so rebuild after changing it.
+
+What to check once it is installed, in this order:
+
+1. Run a full tab: seat a walk-in, take an order, void a line, take cash, watch
+   the tab close, free the table.
+2. **Turn the wifi off mid-order.** Place two more orders and free a table. The
+   header must show the connection state and the pending count together, and
+   every affected table must be marked as not sent. Turn the wifi back on and
+   confirm everything syncs.
+3. While offline, tap **Take cash**. It must be disabled with an explanation
+   rather than failing.
+4. Kill the app and reopen it offline. The shell must load and the queue must
+   still be there.
+5. Hold the tablet at arm's length in a bright room and read the remaining
+   balance on a tab.
+
+Two development affordances, both gated on a development build _and_ mock data,
+so neither can exist in anything a venue installs:
+
+- The role switcher in the header. A waiter, a manager and the kitchen see three
+  different screens, and this is how you walk all three without three accounts.
+- `?race=t4` — the next transition on table 4 is refused as though another
+  waiter got there first. One device cannot race itself, so this is the only way
+  to walk the live-race message and the conflict list in a browser.
 
 ## Repository layout
 
@@ -465,20 +594,38 @@ from `mocks/`; the switch is `resolveGateway` and `resolveConsoleGateway` in
 
 ### What is real, and what is still on the mock
 
-| Screen                       | Source | Endpoint                                    |
-| ---------------------------- | ------ | ------------------------------------------- |
-| Console venue list           | real   | `GET /api/platform/venues` (platform admin) |
-| Diner floor plan             | real   | `GET /api/branches/{id}/availability`       |
-| Staff floor plan             | real   | `GET /api/branches/{id}/tables/floor`       |
-| Diner venue and branch lists | —      | **no backend endpoint exists**              |
-| Bookings, tabs, menus        | mock   | contracts not yet reconciled                |
+| Screen                                                                             | Source | Endpoint                                          |
+| ---------------------------------------------------------------------------------- | ------ | ------------------------------------------------- |
+| Console venue list                                                                 | real   | `GET /api/platform/venues` (platform admin)       |
+| Diner floor plan                                                                   | real   | `GET /api/branches/{id}/availability`             |
+| Staff floor plan                                                                   | real   | `GET /api/branches/{id}/tables/floor`             |
+| Staff table actions                                                                | real   | the eight `POST /api/branches/{id}/tables/{id}/…` |
+| Tab totals and participants                                                        | real   | `GET /api/tabs/{id}/participants`                 |
+| Diner venue and branch lists                                                       | —      | **no backend endpoint exists**                    |
+| Orders, payments, adjustments, service requests, staff menu, both sequence streams | —      | **no backend endpoint exists**                    |
+| Bookings, diner tabs, menus                                                        | mock   | contracts not yet reconciled                      |
 
-The venue catalogue is the gap worth knowing about: the backend's only venue
-listing is the platform-admin one, so a diner has nothing to browse. The real
-gateway raises `EndpointNotWiredError` for it and every screen renders that as
-"not available yet" rather than as an error — nobody should debug the app for
-a missing endpoint. The methods still answered by the mock are listed at the
-bottom of `packages/api/src/http/httpGateway.ts`.
+Two gaps worth knowing about.
+
+**The venue catalogue.** The backend's only venue listing is the platform-admin
+one, so a diner has nothing to browse.
+
+**Everything the counter screen needs beyond table state.** The table
+transitions are fully wired — all eight, with the 409 and 422 payloads the
+two-conflict model branches on — and so are a tab's totals and participants. The
+rest of Backend Prompt 8 has not shipped: there are no order, payment,
+adjustment or service-request endpoints, no staff-readable menu, and neither
+`TableStateChange` nor a `TabEvent` carries a sequence column, so neither stream
+exists. `createStaffHttpGateway` raises `EndpointNotWiredError` for each of them
+by name.
+
+In both cases every screen renders that as "not available yet" rather than as an
+error, and **never falls back to the mock**. A tablet that quietly starts
+inventing orders and balances when an endpoint is missing looks exactly like one
+that is working, on the screen where that costs the most. Run with
+`VITE_DATA_SOURCE=mock` to exercise the whole service against the in-memory one,
+which simulates transitions, warnings, an idempotency log and a sequence
+counter.
 
 ### When the phone cannot reach the backend
 

@@ -194,3 +194,56 @@ export type {
   ReplaceFloorTableInput,
   TableDeletionResult,
 } from './contracts/floorPlan';
+
+// --- The counter screen ------------------------------------------------------
+export type { StaffGateway } from './staffGateway';
+export { resolveStaffGateway } from './resolveStaffGateway';
+export type { ResolveStaffGatewayOptions } from './resolveStaffGateway';
+export { createStaffMockGateway } from './mocks/staffMock';
+export type { StaffMockOptions } from './mocks/staffMock';
+export { createStaffHttpGateway } from './http/staffHttpGateway';
+export { tableConflictFrom } from './http/staffMapping';
+
+export { ORDER_STATUS_FLOW, VOID_REASONS, nextOrderStatus, tableDetail } from './contracts/service';
+export type {
+  AbandonTabCommand,
+  AbandonTabResult,
+  AcknowledgeServiceRequestCommand,
+  CompCommand,
+  FloorChange,
+  FloorChangePage,
+  OrderLineStatus,
+  OrderQueueEntry,
+  OrderQueueLine,
+  OrderStatus,
+  ParticipantShare,
+  PaymentResult,
+  PlaceOrderCommand,
+  PlaceOrderLine,
+  RecordCashPaymentCommand,
+  ServiceRequest,
+  ServiceRequestReason,
+  SetOrderStatusCommand,
+  StaffFloor,
+  StaffTab,
+  StaffTabStatus,
+  StaffTableDetail,
+  TabEvent,
+  TabEventKind,
+  TabEventPage,
+  TabLine,
+  TabParticipantStaffStatus,
+  TabSettlementMode,
+  TabStaffParticipant,
+  TabTotals,
+  TableActionCommand,
+  TableActionKind,
+  TableActionResult,
+  TableConflictState,
+  TablePrecondition,
+  TableStatus,
+  TableWarning,
+  TableWarningCode,
+  VoidLineCommand,
+  VoidReason,
+} from './contracts/service';

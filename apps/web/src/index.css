@@ -1407,3 +1407,1053 @@ kbd {
   font-size: var(--font-size-xs);
   color: var(--color-muted-foreground);
 }
+
+/* --------------------------------------------------------------------------
+ * The counter screen
+ *
+ * Used standing up, during a Friday rush, on a tablet on a counter, sometimes
+ * in daylight. Three rules run through everything below and none of them is
+ * taste:
+ *
+ * 1. Touch targets are --touch-staff (56) or larger, including the destructive
+ *    ones, and a destructive control is never adjacent to a frequent one.
+ * 2. Colour is never the only signal. Every state that has a hue also has
+ *    words, and usually a border weight too, because at two metres in a bright
+ *    room the hue is the first thing to go.
+ * 3. Nothing needs typing except a void reason's "other" and the cash keypad.
+ * -------------------------------------------------------------------------- */
+
+/* A conflict is a button, so it needs to look like one without becoming the
+   loudest thing in the header. */
+.status-conflict {
+  border-color: var(--color-danger);
+  border-width: 2px;
+  color: var(--color-danger);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+/* Transient, readable at arm's length, and never something to dismiss. */
+.floor-notice {
+  margin: 0;
+  padding: var(--space-md) var(--space-xl);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-medium);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.notice-race {
+  border-left: 6px solid var(--color-info);
+}
+
+.notice-warning {
+  border-left: 6px solid var(--color-warning);
+}
+
+.notice-info {
+  border-left: 6px solid var(--color-success);
+}
+
+/* The plan frame is the positioning context for the action panel. */
+.floor-plan-frame {
+  position: relative;
+}
+
+/* --- Buttons, sized for a counter ---------------------------------------- */
+
+.button.big,
+.floor-button.big {
+  min-height: var(--touch-staff);
+  padding: 0 var(--space-xl);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.full {
+  width: 100%;
+}
+
+/* Destructive actions get a gap above them rather than a place in the row.
+   A waiter's thumb travelling to "take an order" must not be able to overshoot
+   into "free the table". */
+.danger-spaced {
+  margin-top: var(--space-lg);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.icon-button {
+  min-width: var(--touch-staff);
+  min-height: var(--touch-staff);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+}
+
+.chip {
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-lg);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.chip.big {
+  min-height: var(--touch-staff);
+  font-size: var(--font-size-md);
+}
+
+/* On is a fill *and* a heavier border: the chip has to read as pressed from
+   across the counter, and hue alone does not carry that far. */
+.chip.is-on {
+  border-color: var(--color-primary-on-floor-plan);
+  background: var(--color-primary-on-floor-plan);
+  color: var(--color-primary-foreground);
+  font-weight: var(--font-weight-bold);
+}
+
+/* --- The party-size stepper ---------------------------------------------- */
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.stepper-button {
+  width: var(--touch-staff);
+  height: var(--touch-staff);
+  border: 2px solid var(--color-primary-on-floor-plan);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-primary-on-floor-plan);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.stepper-button:active {
+  transform: scale(var(--scale-press));
+}
+
+.stepper-value {
+  min-width: 3ch;
+  text-align: center;
+  font-size: var(--font-size-xxl);
+  line-height: var(--line-height-xxl);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+/* --- The table action panel ---------------------------------------------- */
+
+.table-panel {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+}
+
+.table-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.table-panel-head h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+}
+
+.table-panel-state {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+.table-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-xl);
+  margin: 0;
+}
+
+.table-facts div {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-facts dt {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.table-facts dd {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.table-balance {
+  font-weight: var(--font-weight-bold);
+}
+
+.table-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.table-actions .button,
+.table-actions .floor-button {
+  width: 100%;
+}
+
+.table-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* A warning is shown and never blocks. It is loud — border, fill, weight — and
+   it sits above a button that is entirely willing to proceed. */
+.table-warn {
+  margin: 0;
+  padding: var(--space-md);
+  border: 2px solid var(--color-warning);
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+  color: var(--color-foreground);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.table-note {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
+.table-pending {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 4px solid var(--color-warning);
+  background: var(--color-green-tint);
+  font-size: var(--font-size-sm);
+}
+
+.table-late {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 2px solid var(--color-info);
+  border-radius: var(--radius-soft);
+}
+
+.table-late-line {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Two large buttons, side by side, both equally reachable: a waiter decides,
+   and neither answer is the one the screen is nudging them toward. */
+.table-late-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.table-late-actions > * {
+  flex: 1;
+}
+
+/* --- The order and calls panel -------------------------------------------- */
+
+.queue-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.queue-block h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.queue-card,
+.call-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-left-width: 8px;
+  border-radius: var(--radius-soft);
+  background: var(--color-paper);
+}
+
+/* Ageing. Three bands, and each differs in border weight and left rule as well
+   as hue — the whole job of this panel is being readable at a glance from
+   across the counter, where hue is the first thing that stops working. */
+.age-fresh {
+  border-left-color: var(--color-success);
+}
+
+.age-waiting {
+  border-left-color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.age-late {
+  border-left-color: var(--color-danger);
+  border-color: var(--color-danger);
+  border-width: 2px;
+  border-left-width: 10px;
+}
+
+.queue-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.queue-table {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+/* The age is a number in words, sized so it is the second thing read. */
+.queue-age {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.queue-age.age-waiting {
+  color: var(--color-warning);
+}
+
+.queue-age.age-late {
+  color: var(--color-danger);
+}
+
+.queue-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+}
+
+.queue-qty {
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.queue-note {
+  color: var(--color-muted-foreground);
+}
+
+.queue-meta {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+.call-line {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-medium);
+}
+
+/* --- Needs resolving ------------------------------------------------------ */
+
+.unresolved {
+  padding: var(--space-md) var(--space-lg);
+  border: 2px solid var(--color-warning);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.unresolved h2 {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.unresolved ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.unresolved li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+/* --- Overlays ------------------------------------------------------------- */
+
+/* Over the floor, never a route. A waiter closes this and is back where they
+   were, with no history to get lost in. */
+.staff-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-paper);
+}
+
+.staff-overlay-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+.staff-overlay-head h1 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+}
+
+.staff-overlay-head p {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-md);
+}
+
+.staff-overlay-body {
+  flex: 1;
+  padding: var(--space-xl);
+  overflow-y: auto;
+}
+
+.staff-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: var(--color-scrim);
+}
+
+.staff-dialog .card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  width: min(560px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: var(--space-xl);
+  border-radius: var(--radius-sheet);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sheet);
+}
+
+.staff-dialog .card h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+}
+
+.staff-dialog .actions {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.staff-dialog .actions > * {
+  flex: 1;
+}
+
+/* --- The conflict list ---------------------------------------------------- */
+
+.conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conflict-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+/* What was attempted, largest: a waiter has to recognise their own action
+   before any of the rest of the card means anything. */
+.conflict-what {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.conflict-now {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+}
+
+.conflict-who,
+.conflict-why {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+.conflict-actions {
+  display: flex;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.conflict-actions > * {
+  flex: 1;
+}
+
+/* Apply anyway sits in the row but carries the danger treatment: it is the
+   answer that overwrites somebody else's decision. */
+.conflict-actions .danger-spaced {
+  margin-top: 0;
+}
+
+/* --- Order entry ----------------------------------------------------------- */
+
+.order-body {
+  flex: 1;
+  display: flex;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  min-height: 0;
+  flex-wrap: wrap;
+}
+
+.order-menu {
+  flex: 3 1 460px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+  min-height: 0;
+}
+
+.order-categories {
+  display: flex;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+
+.order-category {
+  flex: 0 0 auto;
+  min-height: var(--touch-staff);
+  padding: 0 var(--space-xl);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.order-category.is-active {
+  border-color: var(--color-primary-on-floor-plan);
+  background: var(--color-primary-on-floor-plan);
+  color: var(--color-primary-foreground);
+}
+
+/* Deliberately not the first thing a thumb lands on: a waiter who has to type
+   has already lost to paper. */
+.order-search {
+  max-width: 320px;
+}
+
+.order-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-md);
+  overflow-y: auto;
+  align-content: start;
+}
+
+/* One tap adds. Big enough to hit while holding a tray. */
+.order-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-height: 92px;
+  padding: var(--space-md);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-item:active:not(:disabled) {
+  transform: scale(var(--scale-press));
+  border-color: var(--color-primary-on-floor-plan);
+}
+
+.order-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.order-item-name {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.order-item-price {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.order-item-out {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
+/* Always on screen, never a second page. */
+.order-draft {
+  flex: 2 1 340px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 300px;
+  min-height: 0;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.order-draft h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.order-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.order-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-soft);
+}
+
+.order-line-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.order-line-name {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.order-line-total {
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.order-line-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.order-line-note {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+.order-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-strong);
+  font-size: var(--font-size-lg);
+}
+
+.order-total strong {
+  font-size: var(--font-size-xl);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.labelled.small {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+/* --- The tab panel --------------------------------------------------------- */
+
+.tab-body {
+  flex: 1;
+  display: flex;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  min-height: 0;
+  flex-wrap: wrap;
+  overflow-y: auto;
+}
+
+.tab-money {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  align-self: flex-start;
+}
+
+.tab-remaining-label {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-md);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* The one number a waiter reads at a glance, from arm's length, in daylight. */
+.tab-remaining {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: calc(var(--font-size-xxl) * 1.6);
+  line-height: 1.1;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.tab-totals {
+  display: flex;
+  gap: var(--space-xl);
+  margin: 0;
+}
+
+.tab-totals div {
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-totals dt {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
+.tab-totals dd {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.tab-closed {
+  margin: 0;
+  padding: var(--space-md);
+  border-left: 4px solid var(--color-success);
+  background: var(--color-green-tint);
+  font-size: var(--font-size-md);
+}
+
+.tab-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.tab-lines-block,
+.tab-shares-block {
+  flex: 2 1 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  align-self: flex-start;
+}
+
+.tab-lines-block h2,
+.tab-shares-block h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.tab-lines,
+.tab-shares {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tab-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab-line-main {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: var(--font-size-md);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+/* Struck through and labelled, never removed: the diner's phone still shows
+   this line, and two screens that disagree is an argument at the table. */
+.struck {
+  text-decoration: line-through;
+  color: var(--color-muted-foreground);
+}
+
+.tab-adjustment {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.tab-line-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.tab-shares li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: var(--font-size-lg);
+}
+
+.tab-shares strong {
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.tab-manager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.void-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* --- The cash keypad -------------------------------------------------------- */
+
+.cash-card {
+  width: min(460px, 100%);
+}
+
+.cash-remaining {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+}
+
+.cash-fields {
+  display: flex;
+  gap: var(--space-md);
+}
+
+/* Amount and tip are two boxes, never one field with a modifier. A tip folded
+   into the amount makes a tab look settled while money is still owed. */
+.cash-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-height: var(--touch-staff);
+  padding: var(--space-md);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cash-field span {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+}
+
+.cash-field strong {
+  font-size: var(--font-size-xl);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.cash-field.is-active {
+  border-color: var(--color-primary-on-floor-plan);
+  border-width: 3px;
+}
+
+.cash-tip {
+  border-style: dashed;
+}
+
+.cash-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+}
+
+.cash-key {
+  min-height: var(--touch-staff);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+  cursor: pointer;
+}
+
+.cash-key:active {
+  transform: scale(var(--scale-press));
+  background: var(--color-green-tint);
+}
+
+.cash-confirm-line {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-medium);
+}
+
+.cash-disclaimer {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
+/* Portrait: everything above is a wrapping flex row, so this only has to keep
+   the floor from being squeezed into an unusable strip. */
+@media (orientation: portrait) {
+  .floor-plan-pane {
+    flex-basis: 100%;
+  }
+
+  .order-draft,
+  .tab-money {
+    flex-basis: 100%;
+  }
+}

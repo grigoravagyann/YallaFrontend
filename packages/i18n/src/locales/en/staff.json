@@ -1,14 +1,61 @@
 {
-  "shell": {
-    "title": "Floor",
-    "subtitle": "Counter view"
+  "table": {
+    "title": "Table {{label}}",
+    "panelLabel": "Actions for table {{label}}",
+    "seats_one": "{{count}} seat",
+    "seats_other": "{{count}} seats",
+    "seatsHint_one": "This table seats {{count}}.",
+    "seatsHint_other": "This table seats {{count}}.",
+    "seatedFor": "Seated",
+    "minutes_one": "{{count}} min",
+    "minutes_other": "{{count}} min",
+    "party": "Party",
+    "guests_one": "{{count}} guest",
+    "guests_other": "{{count}} guests",
+    "nextBooking": "Next booking",
+    "balance": "Still owed",
+    "partySize": "How many people",
+    "fewer": "One fewer",
+    "more": "One more",
+    "pendingHere": "Waiting to sync. The kitchen cannot see this yet.",
+    "offlineNote": "Offline. This is saved on the tablet and sent when the connection returns.",
+    "action": {
+      "seatWalkIn": "Seat a walk-in",
+      "seatConfirm_one": "Seat {{count}} guest",
+      "seatConfirm_other": "Seat {{count}} guests",
+      "holdLate": "Hold for a late party",
+      "hold": "Hold it",
+      "letGo": "Let it go",
+      "seatHeld": "Seat the held party",
+      "releaseHold": "Release the hold",
+      "takeOrder": "Take an order",
+      "openTab": "Open the tab",
+      "free": "Free the table",
+      "freeConfirm": "Free it",
+      "outOfService": "Out of service",
+      "returnToService": "Return to service"
+    },
+    "warn": {
+      "upcoming": "This table is booked at {{time}}. You can seat it anyway.",
+      "balance": "{{amount}} is still owed on this table."
+    },
+    "free": {
+      "note": "The tab stays open and moves to \"needs resolving\" if anything is owed."
+    },
+    "late": {
+      "title": "Nobody has arrived",
+      "body": "Reserved {{time}} · nobody has arrived · held until {{until}}",
+      "releaseNote": "Letting it go frees the table for a walk-in. The booking itself is not cancelled."
+    }
   },
   "queue": {
     "pending_one": "{{count}} action waiting to sync",
     "pending_other": "{{count}} actions waiting to sync",
     "synced": "Nothing waiting to sync",
     "syncing": "Syncing…",
-    "offline": "Offline — actions are saved on this tablet"
+    "offline": "Offline — actions are saved on this tablet",
+    "conflicts_one": "{{count}} needs a decision",
+    "conflicts_other": "{{count}} need a decision"
   },
   "floor": {
     "title": "Floor",
@@ -16,22 +63,193 @@
     "loading": "Loading the floor…",
     "error": "We could not load the floor. Try again.",
     "retry": "Try again",
-    "noBranch": "Your account has no branch assigned, so there is no floor to show."
+    "noBranch": "Your account has no branch assigned, so there is no floor to show.",
+    "pendingMark": "not sent"
+  },
+  "notice": {
+    "race": "Table {{label}} was taken by someone else just now.",
+    "raceNamed": "Table {{label}} was seated by {{name}} just now.",
+    "freedWithBalance": "Table {{label}} freed. {{amount}} is still owed — it is in \"needs resolving\".",
+    "seatedOverBooking": "Seated. Table {{label}} still has a booking coming."
+  },
+  "unresolved": {
+    "title": "Needs resolving",
+    "body": "These tables were freed with money still owed.",
+    "settle": "Settle"
   },
   "panel": {
     "orders": {
       "title": "Incoming orders",
-      "todo": "The order queue arrives with ordering."
+      "empty": "No orders waiting.",
+      "notWired": "Ordering is not switched on for this venue yet.",
+      "age_one": "{{count}} min",
+      "age_other": "{{count}} min",
+      "fromDiner": "ordered from a phone",
+      "status": {
+        "new": "New",
+        "inKitchen": "In the kitchen",
+        "ready": "Ready",
+        "served": "Served"
+      },
+      "advance": {
+        "inKitchen": "Send to the kitchen",
+        "ready": "Mark ready",
+        "served": "Mark served"
+      }
+    },
+    "calls": {
+      "title": "Waiting for a waiter",
+      "empty": "Nobody is waiting.",
+      "notWired": "Service requests are not switched on for this venue yet.",
+      "line": "Table {{label}} · {{reason}} · {{count}} min",
+      "acknowledge": "On my way",
+      "reason": {
+        "napkins": "asked for napkins",
+        "water": "asked for water",
+        "bill": "asked for the bill",
+        "other": "called the waiter"
+      }
     },
     "seating": {
       "title": "Waiting to be seated",
       "todo": "Pending seat requests arrive with the seating flow."
     }
   },
+  "conflicts": {
+    "title": "Needs a decision",
+    "subtitle": "These could not be applied. Nothing here resolves on its own.",
+    "empty": "Nothing is waiting on you.",
+    "now": "Table {{label}} is now {{state}}.",
+    "nowUnknown": "We could not read what the table looks like now.",
+    "changedBy": "Changed by {{name}}.",
+    "discard": "Discard",
+    "applyAnyway": "Apply anyway",
+    "applyAnywayNote": "Applying anyway sends it again without checking the table's state first.",
+    "reason": {
+      "precondition": "The table changed while this was waiting to send.",
+      "conflict": "Somebody else changed the table first.",
+      "refused": "The server would not accept it from the table's current state."
+    },
+    "status": {
+      "free": "free",
+      "held": "held",
+      "occupied": "occupied and has an open tab",
+      "outOfService": "out of service"
+    },
+    "attempted": {
+      "seatWalkIn": "You seated a walk-in at table {{label}} at {{time}}.",
+      "seatReservation": "You seated a booking at table {{label}} at {{time}}.",
+      "seatHeldParty": "You seated the held party at table {{label}} at {{time}}.",
+      "hold": "You held table {{label}} at {{time}}.",
+      "releaseHold": "You released the hold on table {{label}} at {{time}}.",
+      "freeTable": "You freed table {{label}} at {{time}}.",
+      "outOfService": "You marked table {{label}} out of service at {{time}}.",
+      "returnToService": "You returned table {{label}} to service at {{time}}.",
+      "placeOrder_one": "You ordered {{count}} item for table {{label}} at {{time}}.",
+      "placeOrder_other": "You ordered {{count}} items for table {{label}} at {{time}}.",
+      "setOrderStatus": "You moved an order on at {{time}}.",
+      "acknowledgeServiceRequest": "You acknowledged a call from table {{label}} at {{time}}.",
+      "recordCashPayment": "You recorded a cash payment at {{time}}."
+    }
+  },
+  "order": {
+    "title": "Order for table {{label}}",
+    "tabOpen": "Tab opened {{time}}",
+    "tabWillOpen": "A tab will be opened for this table.",
+    "notWired": "Ordering is not switched on for this venue yet.",
+    "couldNotOpenTab": "We could not open a tab for this table.",
+    "categories": "Categories",
+    "search": "Search the menu",
+    "unavailable": "Off the menu",
+    "draft": "This order",
+    "empty": "Tap items to add them.",
+    "quantity": "How many",
+    "shared": "Shared",
+    "sharedExplained": "Shared items are split across everyone at the table.",
+    "note": "Note",
+    "notePlaceholder": "No sugar, extra hot…",
+    "who": "Who ordered it",
+    "whoTable": "The table",
+    "whoUnnamed": "Unnamed guest",
+    "tableDefaultCost": "Items charged to the table are split across everyone. Pick a person to charge them individually.",
+    "total": "Total",
+    "send_one": "Send {{count}} item",
+    "send_other": "Send {{count}} items",
+    "sent_one": "{{count}} item sent.",
+    "sent_other": "{{count}} items sent.",
+    "offlineNote": "Offline. This order is saved on the tablet and sent when the connection returns.",
+    "needsTabOnline": "Take this order once the tablet is back online.",
+    "needsTabOnlineWhy": "Opening a tab needs the server, so it cannot be saved on the tablet the way an order can. The seat you just made is already queued.",
+    "menuOffline": "The menu has not been loaded on this tablet yet, and it cannot be fetched without a connection."
+  },
+  "tab": {
+    "title": "Tab · table {{label}}",
+    "openedAt": "Opened {{time}}",
+    "notWired": "Tabs are not switched on for this venue yet.",
+    "none": "No tab is open on this table.",
+    "remaining": "Still owed",
+    "total": "Total",
+    "paid": "Paid",
+    "closedNote": "This tab is closed. The table stays occupied until someone frees it.",
+    "takeCash": "Take cash",
+    "cashOffline": "Cash cannot be recorded offline. Take the money and record it when the connection returns.",
+    "addItems": "Add items",
+    "items": "Items",
+    "noItems": "Nothing has been ordered yet.",
+    "shares": "Who owes what",
+    "noShares": "Nobody has joined this tab yet.",
+    "lineStatus": {
+      "voided": "Voided",
+      "comped": "Comped"
+    },
+    "void": "Void",
+    "voidTitle": "Void {{name}}",
+    "voidConfirm": "Void it",
+    "voidDetail": "Say what happened",
+    "voidReason": {
+      "wrongItem": "Wrong item",
+      "guestChangedMind": "Guest changed their mind",
+      "kitchenError": "Kitchen error",
+      "spilled": "Spilled",
+      "other": "Other"
+    },
+    "comp": "Comp",
+    "compTitle": "Comp {{name}}",
+    "compWhole": "Comp the whole tab",
+    "compReason": "Why",
+    "compConfirm": "Comp it",
+    "abandon": "Write this tab off",
+    "abandonWarn": "{{amount}} will be written off and nobody will be asked to pay it.",
+    "abandonType": "Type {{word}} to confirm",
+    "abandonWord": "WRITE OFF",
+    "abandonConfirm": "Write it off",
+    "abandonReason": "Written off from the floor screen",
+    "offlineUnknown": "This table has a tab, but its bill cannot be read without a connection. Do not open a second one."
+  },
+  "cash": {
+    "title": "Take cash",
+    "remaining": "Still owed: {{amount}}",
+    "amount": "Amount",
+    "tip": "Tip",
+    "tipNote": "The tip is on top of the balance, not part of it.",
+    "delete": "Delete",
+    "confirmLine": "Recording {{amount}} against this tab, plus {{tip}} as a tip.",
+    "overpaying": "That is more than is owed.",
+    "partial": "{{amount}} will still be owed after this.",
+    "notAReceipt": "This records the payment in Yalla. The venue's own cash register still issues the receipt.",
+    "record": "Record it",
+    "recorded": "{{amount}} recorded.",
+    "closed": "Paid in full. The tab is closed; the table stays occupied until someone frees it.",
+    "failed": "We could not record that payment. Nothing was taken."
+  },
   "connection": {
     "notWired": "Live updates not connected yet",
-    "notWiredHint": "The floor is loaded once and does not update on its own. Refresh to be sure.",
+    "notWiredHint": "The floor is refreshed by polling. Refresh to be sure.",
     "refresh": "Refresh the floor"
+  },
+  "shell": {
+    "title": "Floor",
+    "subtitle": "Counter view"
   },
   "install": {
     "title": "Install this on the tablet",

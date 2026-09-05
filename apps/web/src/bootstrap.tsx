@@ -8,7 +8,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
 import { authSession } from './auth/authSession';
 import { useDevRole } from './auth/session';
-import { consoleGatewayFor, staffGateway } from './data/gateway';
+import { consoleGatewayFor, staffDataGateway, staffGateway } from './data/gateway';
 import { registerServiceWorker } from './offline/registerServiceWorker';
 
 const queryClient = createQueryClient();
@@ -18,15 +18,21 @@ const queryClient = createQueryClient();
  *
  * The console gateway is re-resolved when the dev role changes so the mock
  * can report a differently-scoped user; against a real backend the role
- * argument is ignored and this is a constant. The staff floor gateway is the
- * same `YallaGateway` the phone uses, in its staff audience.
+ * argument is ignored and this is a constant. The floor plan comes from the
+ * same `YallaGateway` the phone uses, in its staff audience, so a diner and a
+ * waiter cannot disagree about where table 7 is; everything a waiter *does* to
+ * a table goes through the separate staff gateway.
  */
 function Providers({ children }: { readonly children: ReactNode }) {
   const role = useDevRole((state) => state.role);
   const consoleGateway = useMemo(() => consoleGatewayFor(role), [role]);
 
   return (
-    <GatewayProvider gateway={staffGateway} consoleGateway={consoleGateway}>
+    <GatewayProvider
+      gateway={staffGateway}
+      consoleGateway={consoleGateway}
+      staffGateway={staffDataGateway}
+    >
       {children}
     </GatewayProvider>
   );

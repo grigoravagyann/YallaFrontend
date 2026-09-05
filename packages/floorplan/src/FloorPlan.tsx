@@ -23,7 +23,7 @@ import { AreaSwitcher, OVERVIEW, type AreaSelection } from './AreaSwitcher';
 import { floorAreas, hasUsableAreas } from './areas';
 import { FITTED, useFloorGestures, type FloorViewport } from './gestures';
 import { AREA_MODE_MAX_WIDTH_PX, computeFloorLayout, type LaidOutTable } from './layout';
-import type { FloorFeature, FloorPlanData, FloorPlanMode } from './types';
+import type { FloorFeature, FloorPlanData, FloorPlanMode, Rect as FloorRect } from './types';
 
 /** Opacity applied to a table a diner cannot pick. */
 const DIMMED_OPACITY = 0.35;
@@ -46,7 +46,16 @@ export interface FloorPlanProps {
   /** Diner mode: tables seating fewer than this are dimmed. Ignored for staff. */
   readonly partySize?: number;
   readonly selectedTableId?: string | null;
-  readonly onTableTap?: (tableId: string) => void;
+  /**
+   * A table was tapped.
+   *
+   * The second argument is where that table was drawn, in this component's own
+   * pixel space with the area switcher's height already added. Staff surfaces
+   * anchor an action panel beside the table, and computing the rectangle again
+   * outside the component would mean re-deriving area mode, zoom and pan — three
+   * things only the component knows. A caller that does not need it ignores it.
+   */
+  readonly onTableTap?: (tableId: string, anchor: FloorRect) => void;
   /** Pixel box to draw into. Apps pass this from an onLayout / ResizeObserver measurement. */
   readonly viewport: { readonly width: number; readonly height: number };
   /**
@@ -310,6 +319,7 @@ export function FloorPlan({
               selected={laid.id === selectedTableId}
               annotation={tableAnnotation?.(laid) ?? null}
               onTap={handleTap}
+              anchorOffsetY={areaModeAvailable ? switcherHeight : 0}
               faded={overviewMode}
             />
           ))}
@@ -354,11 +364,13 @@ interface TableShapeProps {
   readonly laid: LaidOutTable;
   readonly selected: boolean;
   readonly annotation: string | null;
-  readonly onTap: ((tableId: string) => void) | undefined;
+  readonly onTap: ((tableId: string, anchor: FloorRect) => void) | undefined;
+  /** Added to the anchor's `y`; the area switcher sits above the plan. */
+  readonly anchorOffsetY: number;
   readonly faded: boolean;
 }
 
-function TableShape({ laid, selected, annotation, onTap, faded }: TableShapeProps) {
+function TableShape({ laid, selected, annotation, onTap, faded, anchorOffsetY }: TableShapeProps) {
   const { table, rect, center, hitRect } = laid;
 
   // Selection is its own visual treatment, distinct from all five states, so a
@@ -369,7 +381,10 @@ function TableShape({ laid, selected, annotation, onTap, faded }: TableShapeProp
   const rotation = table.rotationDegrees;
   const transform = rotation === 0 ? undefined : `rotate(${rotation} ${center.x} ${center.y})`;
 
-  const press = laid.selectable && onTap ? () => onTap(table.id) : undefined;
+  const press =
+    laid.selectable && onTap
+      ? () => onTap(table.id, { ...laid.hitRect, y: laid.hitRect.y + anchorOffsetY })
+      : undefined;
 
   // The ring sits *outside* the shape in the canvas colour: the selected table
   // reads as lifted off the plan without a shadow, which this system does not

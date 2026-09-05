@@ -15,9 +15,19 @@ export function registerServiceWorker(): void {
   if (!import.meta.env.PROD) return;
   if (!('serviceWorker' in navigator)) return;
 
-  window.addEventListener('load', () => {
+  const register = () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error: unknown) => {
       console.warn('[pwa] service worker registration failed', error);
     });
-  });
+  };
+
+  // `load` has usually already fired by the time this runs: `bootstrap` awaits
+  // i18n and the stored session first, and both resolve after the document is
+  // complete. Waiting for an event that has been and gone registered nothing at
+  // all — the app worked perfectly online and simply never installed a worker,
+  // so the one thing the worker exists for, opening the floor in a basement,
+  // silently did not happen. Register now if the document is ready, and only
+  // subscribe if it genuinely is not.
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register, { once: true });
 }
