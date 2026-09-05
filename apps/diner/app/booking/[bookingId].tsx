@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum + 4,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.control,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: color.danger,
   },

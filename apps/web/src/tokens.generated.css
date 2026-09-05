@@ -34,50 +34,72 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Yalla Serif';
+  src: url('/fonts/YallaSerif-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Yalla Serif';
+  src: url('/fonts/YallaSerif-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --color-surface: #FFFFFF;
-  --color-paper: #F5F7F6;
-  --color-foreground: #12211A;
-  --color-muted-foreground: #57685F;
-  --color-subtle-foreground: #616E65;
-  --color-border: #D5E0DA;
-  --color-border-strong: #B3C4BB;
+  --color-paper: #F6F9F7;
+  --color-foreground: #17281F;
+  --color-muted-foreground: #5D7066;
+  --color-subtle-foreground: #647569;
+  --color-border: #DCE6E0;
+  --color-border-soft: #E9F0EC;
+  --color-border-strong: #B8C9BF;
   --color-border-interactive: #7E8D84;
-  --color-green-tint: #E6F1EB;
-  --color-primary: #1B5638;
-  --color-primary-pressed: #144229;
+  --color-green-tint: #E8F2EC;
+  --color-primary: #1E5B3C;
+  --color-primary-pressed: #17462E;
   --color-primary-foreground: #FFFFFF;
-  --color-primary-on-floor-plan: #12211A;
+  --color-primary-on-floor-plan: #17281F;
   --color-primary-on-floor-plan-pressed: #2B3D33;
   --color-danger: #B93B3B;
   --color-warning: #C98A0E;
   --color-success: #35B37E;
   --color-info: #3B6FD4;
+  --color-out-of-service: #8B95A1;
   --color-danger-foreground: #FFFFFF;
+  --color-danger-pressed: #9E3232;
+  --color-scrim: rgba(23, 40, 31, 0.45);
+  --color-focus-ring: rgba(30, 91, 60, 0.30);
+  --color-surface-glass: rgba(255, 255, 255, 0.70);
   
   --table-free-fill: #35B37E;
   --table-free-fill-opacity: 1;
-  --table-free-stroke: #D5E0DA;
-  --table-free-label: #12211A;
+  --table-free-stroke: #DCE6E0;
+  --table-free-label: #17281F;
   --table-reserved-soon-fill: #C98A0E;
   --table-reserved-soon-fill-opacity: 1;
-  --table-reserved-soon-stroke: #D5E0DA;
-  --table-reserved-soon-label: #12211A;
+  --table-reserved-soon-stroke: #DCE6E0;
+  --table-reserved-soon-label: #17281F;
   --table-held-fill: #3B6FD4;
   --table-held-fill-opacity: 1;
   --table-held-stroke: #3B6FD4;
   --table-held-label: #FFFFFF;
   --table-occupied-fill: #B93B3B;
   --table-occupied-fill-opacity: 1;
-  --table-occupied-stroke: #D5E0DA;
+  --table-occupied-stroke: #DCE6E0;
   --table-occupied-label: #FFFFFF;
   --table-out-of-service-fill: #8B95A1;
   --table-out-of-service-fill-opacity: 0.7;
-  --table-out-of-service-stroke: #B3C4BB;
-  --table-out-of-service-label: #12211A;
-  --table-your-pick-fill: #12211A;
+  --table-out-of-service-stroke: #B8C9BF;
+  --table-out-of-service-label: #17281F;
+  --table-your-pick-fill: #17281F;
   --table-your-pick-fill-opacity: 1;
-  --table-your-pick-stroke: #12211A;
+  --table-your-pick-stroke: #17281F;
   --table-your-pick-label: #FFFFFF;
   
   --space-none: 0px;
@@ -91,27 +113,51 @@
   --space-huge: 64px;
   --radius-none: 0px;
   --radius-table: 2px;
-  --radius-control: 6px;
-  --radius-card: 10px;
-  --radius-sheet: 14px;
-  --radius-full: 999px;
+  --radius-soft: 12px;
+  --radius-card: 24px;
+  --radius-card-accent: 48px;
+  --radius-sheet: 28px;
+  --radius-pill: 999px;
   --touch-minimum: 44px;
-  --touch-small: 36px;
-  --touch-large: 52px;
+  --touch-small: 40px;
+  --touch-regular: 48px;
+  --touch-large: 56px;
   --touch-staff: 56px;
+  --icon-size: 24px;
+  --icon-stroke-width: 2px;
+  --icon-container: 56px;
   
   --font-family: 'Yalla Sans', 'Noto Sans Armenian', 'Noto Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-display: 'Yalla Serif', 'Noto Serif Armenian', 'Noto Serif', Georgia, 'Times New Roman', serif;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-bold: 700;
+  --font-weight-semibold: 600;
   --font-feature-tabular: 'tnum' 1;
   
-  --duration-control: 140ms;
+  --duration-control: 220ms;
   --duration-state-change: 200ms;
-  --duration-floor-plan-draw: 350ms;
+  --duration-floor-plan-draw: 400ms;
+  --scale-press: 0.97;
+  --scale-hover: 1.03;
   --easing-standard: cubic-bezier(0.2, 0, 0, 1);
   
-  --shadow-sheet: 0 -2px 16px rgba(18, 33, 26, 0.10);
+  --shadow-soft: 0 4px 20px -2px rgba(30, 91, 60, 0.14);
+  --shadow-float: 0 10px 40px -10px rgba(30, 91, 60, 0.2);
+  --shadow-lift: 0 20px 40px -10px rgba(30, 91, 60, 0.16);
+  --shadow-sheet: 0 -10px 40px -10px rgba(30, 91, 60, 0.2);
+  
+  --texture-paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23g)'/%3E%3C/svg%3E");
+  --texture-paper-grain-opacity: 0.025;
+  --texture-paper-grain-tile: 180px;
+  --texture-paper-grain-blend: multiply;
+  
+  --blob-radius-1: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  --blob-radius-2: 40% 60% 70% 30% / 40% 50% 60% 50%;
+  --blob-radius-3: 55% 45% 35% 65% / 50% 60% 40% 50%;
+  --blob-blur: 64px;
+  --blob-opacity: 0.55;
+  --blob-fill: #E8F2EC;
   
   /* Console scale by default; the floor screen opts into the staff scale. */
   --font-size-xs: 11px;
@@ -160,8 +206,9 @@
 
 /*
  * Reduced motion resolves every duration to zero rather than shortening it.
- * The only motion in this product is the floor plan drawing in and a table
- * changing colour, and neither is the only way to learn what it conveys.
+ * The only motion in this product that carries information is the floor plan
+ * drawing in and a table changing colour, and neither is the only way to
+ * learn what it conveys.
  */
 @media (prefers-reduced-motion: reduce) {
   :root {

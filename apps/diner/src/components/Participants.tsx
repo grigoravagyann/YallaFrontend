@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 36,
     height: 36,
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: color.greenTint,
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     color: color.foreground,
   },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  badge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.control },
+  badge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.pill },
   badgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.medium },
   youBadge: { backgroundColor: color.greenTint },
   youBadgeText: { color: color.primaryPressed },

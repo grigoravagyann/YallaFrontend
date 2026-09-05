@@ -1,10 +1,10 @@
 /**
  * 4px base scale. Every gap, pad and inset in both apps comes from here.
  *
- * Spacing in this product is measured, not generous. It is a working tool: a
- * venue list or a reservations table wants information density, not
- * marketing-page air. The larger steps are for section boundaries, not for
- * padding a card.
+ * Whitespace is generous on the diner and marketing surfaces and dense on
+ * purpose in the console: a venue list or a reservations table wants
+ * information, not marketing-page air. Staff screens step up one level for
+ * anything tappable.
  */
 export const space = {
   none: 0,
@@ -38,43 +38,61 @@ export function stepUp(token: SpaceToken): number {
 /**
  * Radius is hierarchy, not one value applied everywhere.
  *
- * A single shared radius across buttons, cards and sheets is the surest sign of
- * a component kit rather than a design — the eye reads "these are all the same
- * kind of thing" when they are not.
- *
- * No pills. Nothing asymmetric.
+ * Soft and generous on anything a person holds or presses; rectilinear on the
+ * one thing that is a map. A single shared radius across buttons, cards and
+ * sheets is the surest sign of a component kit rather than a design.
  */
 export const radius = {
   none: 0,
   /**
    * Tables in the floor plan. Nearly square on purpose: the plan is a map of
    * real furniture at real positions, and a waiter needs to recognise the shape
-   * of table 7, not a rounded abstraction of it.
+   * of table 7, not a rounded abstraction of it. Organic radii here would turn
+   * a functional plan into a decorative illustration.
    */
   table: 2,
-  /** Buttons, inputs, chips, badges, icon backgrounds. */
-  control: 6,
-  /** Cards and panels. */
-  card: 10,
+  /** Small containers that are not controls: icon tiles, code cells, banners. */
+  soft: 12,
+  /** Cards. */
+  card: 24,
+  /** The one corner of an asymmetric card that swells — the other three stay `card`. */
+  cardAccent: 48,
   /** Bottom sheets — top corners only. */
-  sheet: 14,
-  /** Avatars, and nothing else. */
-  full: 999,
+  sheet: 28,
+  /** Buttons, inputs, chips, avatars: fully round. */
+  pill: 999,
 } as const;
 
 export type RadiusToken = keyof typeof radius;
 
 /**
- * Minimum interactive sizes.
+ * Interactive sizes. Buttons take their height from here.
  *
  * `staff` is larger than the platform minimum because the staff tablet is used
- * standing up, at arm's length, often one-handed while carrying something.
+ * standing up, in a hurry, often one-handed while carrying something.
  */
 export const touchTarget = {
   /** Diner app floor, and the platform guideline. */
   minimum: 44,
-  small: 36,
-  large: 52,
-  /** Staff screens. Every control steps up. */
+  /** Small button. */
+  small: 40,
+  /** Default button and input height. */
+  regular: 48,
+  /** Large button. */
+  large: 56,
+  /** Staff screens. Every control steps up to this. */
   staff: 56,
+} as const;
+
+export type TouchTargetToken = keyof typeof touchTarget;
+
+/**
+ * Lucide icons, 2px stroke, `primary` by default. Feature icons sit in a
+ * `container` filled `greenTint`, which fills to solid `primary` with a white
+ * icon on press.
+ */
+export const icon = {
+  size: 24,
+  strokeWidth: 2,
+  container: 56,
 } as const;

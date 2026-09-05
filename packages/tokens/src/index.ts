@@ -1,35 +1,44 @@
-export { color, textBackgrounds } from './color';
+export { color, subtleTextBackgrounds, textBackgrounds } from './color';
 export type { ColorToken } from './color';
 
 export { compositedFill, tableStatusStyle, tableStatusLegendOrder } from './tableState';
 export type { FillPattern, TableStatus, TableStatusStyle } from './tableState';
 
-export { space, stepUp, radius, touchTarget } from './space';
-export type { SpaceToken, RadiusToken } from './space';
+export { icon, space, stepUp, radius, touchTarget } from './space';
+export type { SpaceToken, RadiusToken, TouchTargetToken } from './space';
 
 export {
+  displaySteps,
+  displayWeight,
   fontFamily,
   fontFeature,
   fontSize,
   fontWeight,
+  isDisplayStep,
   lineHeight,
+  nativeDisplayFont,
+  nativeDisplayFontFace,
   nativeFont,
   nativeFontFace,
   typeScale,
 } from './typography';
 export type {
+  DisplayWeightValue,
   FontSizeToken,
   FontWeightToken,
   FontWeightValue,
   SurfaceName,
   TypeScale,
+  TypeStep,
 } from './typography';
 
 export { elevation } from './elevation';
-export type { ElevationToken } from './elevation';
+export type { Elevation, ElevationToken } from './elevation';
 
-export { duration, durations, easing, reducedDuration } from './motion';
+export { duration, durations, easing, reducedDuration, scale } from './motion';
 export type { DurationToken } from './motion';
+
+export { blob, paperGrain } from './ambient';
 
 export {
   AA_BODY,

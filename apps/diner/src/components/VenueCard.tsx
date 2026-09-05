@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   thumb: {
     width: 72,
     height: 72,
-    borderRadius: radius.control,
+    borderRadius: radius.soft,
     backgroundColor: color.greenTint,
   },
   body: {

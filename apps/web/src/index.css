@@ -5,9 +5,10 @@
  * `@yalla/tokens` before `dev` and `build`. Nothing in this file names a hex
  * colour, a pixel radius or a font size directly.
  *
- * The style is solid white and green: structure from 1px hairlines, hierarchy
- * from weight and space, colour as solid fill. One elevation exists and it is
- * not used on this surface — nothing here casts a shadow.
+ * The style is organic white and green: pill controls, generous card radii,
+ * soft green-tinted shadows, a serif for display and a faint paper grain on
+ * the page. Two places opt out of the softness on purpose — the floor plan
+ * canvas and every staff screen — because there legibility is the whole job.
  */
 @import './tokens.generated.css';
 
@@ -23,6 +24,7 @@ body,
 }
 
 body {
+  position: relative;
   background: var(--color-paper);
   color: var(--color-foreground);
   font-family: var(--font-family);
@@ -31,22 +33,48 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Paper grain: 2–3% fractal noise multiplied into the paper. It sits *behind*
+ * the content, so anything that paints its own background — a card, a table,
+ * the floor plan canvas — covers it, which is how the canvas stays clean
+ * without a rule of its own. The staff screen is excluded explicitly as well:
+ * a tablet read at two metres in the sun gets every point of contrast.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--texture-paper-grain);
+  background-size: var(--texture-paper-grain-tile);
+  opacity: var(--texture-paper-grain-opacity);
+  mix-blend-mode: var(--texture-paper-grain-blend);
+}
+
+body:has([data-surface='staff'])::before {
+  display: none;
+}
+
 /* Two of three surfaces are touch devices: hover is an enhancement, never the
-   only affordance, and every transition is colour-only and quick. */
+   only affordance. Every transition is eased and 200–300ms; nothing snaps. */
 button,
 a,
 select,
-input {
+input,
+.card {
   transition:
     background-color var(--duration-control) var(--easing-standard),
     border-color var(--duration-control) var(--easing-standard),
-    color var(--duration-control) var(--easing-standard);
+    color var(--duration-control) var(--easing-standard),
+    box-shadow var(--duration-control) var(--easing-standard),
+    transform var(--duration-control) var(--easing-standard);
 }
 
-/* Visible keyboard focus on everything: a crisp outline, never a glow. */
+/* Visible keyboard focus on everything: a soft glow, never removed. */
 :focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 1px;
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 /* Numbers align. Prices, counts and times all sit in columns somewhere. */
@@ -55,6 +83,18 @@ input {
 .status-chip {
   font-variant-numeric: tabular-nums;
   font-feature-settings: var(--font-feature-tabular);
+}
+
+/* The display face carries the two largest steps. Sentence case throughout. */
+.display,
+.brand,
+.page h1,
+.venue-name,
+.floor-where h1,
+.tokens-page h1 {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
 }
 
 /* --------------------------------------------------------------------------
@@ -66,20 +106,22 @@ input {
   height: 100%;
 }
 
+/* Frosted: surface at 70% over a backdrop blur, so the paper shows through. */
 .sidebar {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
   padding: var(--space-xl) var(--space-lg);
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-right: 1px solid var(--color-border-soft);
   overflow: auto;
 }
 
 .brand {
   font-size: var(--font-size-xl);
   line-height: var(--line-height-xl);
-  font-weight: var(--font-weight-bold);
   color: var(--color-primary);
 }
 
@@ -112,21 +154,17 @@ input {
 .nav-link {
   display: flex;
   align-items: center;
-  min-height: var(--touch-minimum);
-  padding: 0 var(--space-md);
-  border-radius: var(--radius-control);
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-pill);
   color: var(--color-foreground);
   text-decoration: none;
-}
-
-.nav-link:hover {
-  background: var(--color-paper);
 }
 
 .nav-link.active {
   background: var(--color-green-tint);
   color: var(--color-primary);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-bold);
 }
 
 .language,
@@ -142,7 +180,7 @@ input {
 .dev-role {
   padding: var(--space-sm);
   border: 1px dashed var(--color-warning);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-soft);
 }
 
 .dev-role-label {
@@ -151,16 +189,14 @@ input {
   font-size: var(--font-size-xs);
 }
 
-.language select,
-.dev-role select {
-  min-height: var(--touch-minimum);
-  padding: 0 var(--space-sm);
-  border: 1px solid var(--color-border-interactive);
-  border-radius: var(--radius-control);
+select {
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-foreground);
-  font-family: inherit;
-  font-size: var(--font-size-md);
+  font: inherit;
 }
 
 .content {
@@ -169,7 +205,7 @@ input {
 }
 
 /* --------------------------------------------------------------------------
- * Console pages
+ * Console pages — dense on purpose. A venue list wants information, not air.
  * -------------------------------------------------------------------------- */
 .page {
   display: flex;
@@ -187,7 +223,6 @@ input {
   margin: 0;
   font-size: var(--font-size-xxl);
   line-height: var(--line-height-xxl);
-  font-weight: var(--font-weight-bold);
 }
 
 .page h2 {
@@ -237,17 +272,22 @@ input {
   color: var(--color-warning);
 }
 
-/* Inputs: hairline in the interactive weight, crisp focus outline, no glow. */
+/* Inputs: pill, hairline, and a soft focus glow with a 2px offset. */
 .field {
-  min-height: var(--touch-minimum);
+  min-height: var(--touch-regular);
   width: 100%;
-  padding: 0 var(--space-md);
-  border: 1px solid var(--color-border-interactive);
-  border-radius: var(--radius-control);
+  padding: 0 var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-foreground);
-  font-family: inherit;
-  font-size: var(--font-size-md);
+  font: inherit;
+}
+
+.field:focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-color: var(--color-primary);
 }
 
 .field::placeholder {
@@ -269,42 +309,55 @@ input {
   gap: var(--space-sm);
 }
 
-/* Buttons: solid fill, weight 500, and a pressed state that is a fill change
-   rather than a movement. */
+/*
+ * Buttons: pills, every variant, bold. The plain `.button` is the outline
+ * variant. Pressed is scale 0.97 with a deeper shadow — tactile on a tablet;
+ * hover is the same lift the other way, and only where a pointer exists.
+ */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--touch-minimum);
-  padding: 0 var(--space-lg);
-  border: 1px solid var(--color-border-interactive);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
+  gap: var(--space-sm);
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-xl);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: var(--font-weight-bold);
   text-decoration: none;
   cursor: pointer;
 }
 
-.button:hover:not(:disabled) {
-  background: var(--color-paper);
+.button:active:not(:disabled) {
+  transform: scale(var(--scale-press));
+  box-shadow: var(--shadow-lift);
 }
 
-.button:active:not(:disabled) {
-  background: var(--color-border);
+@media (hover: hover) {
+  .button:hover:not(:disabled) {
+    transform: scale(var(--scale-hover));
+    box-shadow: var(--shadow-lift);
+  }
+
+  .nav-link:hover {
+    background: var(--color-green-tint);
+  }
 }
 
 .button:disabled {
+  border-color: var(--color-border);
   color: var(--color-subtle-foreground);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .button-primary {
-  border-color: var(--color-primary);
   background: var(--color-primary);
   color: var(--color-primary-foreground);
+  box-shadow: var(--shadow-soft);
 }
 
 .button-primary:hover:not(:disabled),
@@ -319,15 +372,27 @@ input {
   color: var(--color-surface);
 }
 
+.button-ghost {
+  border-color: transparent;
+}
+
+.button-ghost:hover:not(:disabled),
+.button-ghost:active:not(:disabled) {
+  background: var(--color-green-tint);
+  box-shadow: none;
+}
+
 .button-danger {
   border-color: var(--color-danger);
   background: var(--color-danger);
   color: var(--color-danger-foreground);
+  box-shadow: var(--shadow-soft);
 }
 
 .button-danger:hover:not(:disabled),
 .button-danger:active:not(:disabled) {
-  filter: brightness(0.88);
+  border-color: var(--color-danger-pressed);
+  background: var(--color-danger-pressed);
 }
 
 .button-danger:disabled {
@@ -336,21 +401,44 @@ input {
   color: var(--color-surface);
 }
 
+.button-small {
+  min-height: var(--touch-small);
+  padding: 0 var(--space-lg);
+}
+
+.button-large {
+  min-height: var(--touch-large);
+  padding: 0 var(--space-xxl);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);
 }
 
-/* Cards: surface on paper, one hairline, no shadow. */
+/* Cards: surface on paper, the soft half-strength edge, 24px, one soft shadow.
+   `.card-accent` swells one corner; `.card-interactive` lifts on hover. */
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding: var(--space-lg);
-  border: 1px solid var(--color-border);
+  padding: var(--space-xl);
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-card);
   background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.card-accent {
+  border-top-right-radius: var(--radius-card-accent);
+}
+
+@media (hover: hover) {
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lift);
+  }
 }
 
 .card legend {
@@ -383,14 +471,14 @@ input {
   font-weight: var(--font-weight-medium);
 }
 
-/* Tables: a strong hairline under the header, light ones between rows, the
-   selected row in green tint, no zebra striping. Dense by design. */
+/* Tables: a data table is not a card. Small radius, hairlines, the selected
+   row in green tint, no zebra striping. Dense by design. */
 .table {
   width: 100%;
   border-collapse: collapse;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-soft);
   overflow: hidden;
 }
 
@@ -429,10 +517,12 @@ input {
   flex-wrap: wrap;
 }
 
+/* Empty states are invitations, so they look like a card, not a warning. */
 .empty {
   padding: var(--space-xxl);
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-card);
+  background: var(--color-surface);
   text-align: center;
 }
 
@@ -441,18 +531,18 @@ input {
 }
 
 /*
- * Status and tier chips. 6px radius, never a pill.
+ * Status and tier chips: fully round.
  *
  * Colour is never the only signal: each chip also carries its own translated
  * word, so the table reads correctly in greyscale. Status chips borrow the
- * state hues as a hairline; tier chips are neutral, because a tier is not a
+ * state hues as an outline; tier chips are neutral, because a tier is not a
  * state and does not get a colour of its own.
  */
 .pill {
   display: inline-block;
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-sm);
   font-weight: var(--font-weight-medium);
@@ -483,7 +573,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding: var(--space-lg);
+  padding: var(--space-xl);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-card);
   background: var(--color-paper);
@@ -526,8 +616,8 @@ input {
 .todo-label {
   display: inline-block;
   margin-bottom: var(--space-sm);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-control);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-pill);
   background: var(--color-green-tint);
   color: var(--color-primary);
   font-size: var(--font-size-xs);
@@ -558,14 +648,13 @@ input {
   margin: 0;
   font-size: var(--font-size-xl);
   line-height: var(--line-height-xl);
-  font-weight: var(--font-weight-bold);
 }
 
 .branch-fixed {
   margin: 0;
   padding: var(--space-sm) var(--space-lg);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   font-weight: var(--font-weight-medium);
 }
@@ -574,12 +663,17 @@ input {
  * Staff floor screen
  *
  * `data-surface="staff"` on the root switches every --font-size-* and
- * --line-height-* to the staff scale (base 18). Used standing up, on a tablet
- * on a counter, from two metres: targets are --touch-staff, and there are no
- * nested menus — every action is one tap from the floor.
+ * --line-height-* to the staff scale (base 18), steps every control up to
+ * --touch-staff, and switches the paper grain off. Used standing up, on a
+ * tablet on a counter, from two metres.
  *
- * This screen shows a floor plan, so its primary control is ink, not green.
+ * This screen shows a floor plan, so its primary control is ink, not green,
+ * and nothing here is a blob or a texture.
  * -------------------------------------------------------------------------- */
+[data-surface='staff'] :is(.button, .field, select, .status-chip, .nav-link) {
+  min-height: var(--touch-staff);
+}
+
 .floor {
   display: flex;
   flex-direction: column;
@@ -602,7 +696,6 @@ input {
   margin: 0;
   font-size: var(--font-size-xl);
   line-height: var(--line-height-xl);
-  font-weight: var(--font-weight-bold);
 }
 
 .floor-where p {
@@ -625,9 +718,9 @@ input {
   display: inline-flex;
   align-items: center;
   min-height: var(--touch-minimum);
-  padding: 0 var(--space-md);
+  padding: 0 var(--space-lg);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-foreground);
   font-size: var(--font-size-sm);
@@ -653,24 +746,31 @@ input {
   color: var(--color-muted-foreground);
 }
 
-/* Ink, because a floor plan is on screen. */
+/* Ink, because a floor plan is on screen. A pressed state, no hover scale:
+   this is a touch device. Also used by /dev/tokens to show the variant. */
 .floor-button {
   min-height: var(--touch-staff);
   padding: 0 var(--space-xl);
-  border: 1px solid var(--color-primary-on-floor-plan);
-  border-radius: var(--radius-control);
+  border: 2px solid var(--color-primary-on-floor-plan);
+  border-radius: var(--radius-pill);
   background: var(--color-primary-on-floor-plan);
   color: var(--color-primary-foreground);
-  font-family: inherit;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-medium);
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+  box-shadow: var(--shadow-soft);
   cursor: pointer;
 }
 
-.floor-button:hover,
-.floor-button:active {
+.floor-button:hover:not(:disabled),
+.floor-button:active:not(:disabled) {
   border-color: var(--color-primary-on-floor-plan-pressed);
   background: var(--color-primary-on-floor-plan-pressed);
+  transform: none;
+}
+
+.floor-button:active:not(:disabled) {
+  transform: scale(var(--scale-press));
+  box-shadow: var(--shadow-lift);
 }
 
 /* Landscape-first, but a plain wrapping flex row: in portrait the panel stacks
@@ -693,11 +793,13 @@ input {
   min-height: 320px;
 }
 
+/* The canvas: its own solid surface, so no grain reaches it; a small radius,
+   because the room inside is rectilinear. */
 .floor-plan-frame {
   flex: 1;
   min-height: 320px;
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-soft);
   background: var(--color-surface);
   overflow: hidden;
 }
@@ -724,7 +826,7 @@ input {
 
 .floor-panel-block {
   flex: 1;
-  padding: var(--space-lg);
+  padding: var(--space-xl);
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-card);
   background: var(--color-surface);
@@ -762,7 +864,7 @@ input {
   margin: var(--space-lg) 0;
   padding: var(--space-md);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-soft);
   background: var(--color-surface);
 }
 
@@ -774,15 +876,6 @@ input {
   color: var(--color-muted-foreground);
 }
 
-.dev-controls select {
-  padding: var(--space-sm);
-  border: 1px solid var(--color-border-interactive);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  font: inherit;
-}
-
 .dev-status {
   margin: var(--space-sm) 0 var(--space-lg);
   font-size: var(--font-size-sm);
@@ -792,7 +885,7 @@ input {
 
 .dev-viewport {
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-soft);
   background: var(--color-paper);
   overflow: hidden;
   resize: both;
@@ -805,6 +898,12 @@ input {
   flex-direction: column;
   gap: var(--space-xxl);
   max-width: 1100px;
+}
+
+.tokens-page h1 {
+  margin: 0;
+  font-size: var(--font-size-xxl);
+  line-height: var(--line-height-xxl);
 }
 
 .tokens-page h2 {
@@ -829,8 +928,8 @@ input {
 .swatch {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-soft);
   background: var(--color-surface);
   overflow: hidden;
 }
@@ -862,6 +961,10 @@ input {
   font-weight: var(--font-weight-medium);
 }
 
+.contrast-table td.excluded {
+  color: var(--color-muted-foreground);
+}
+
 .states {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -873,8 +976,8 @@ input {
   flex-direction: column;
   gap: var(--space-sm);
   padding: var(--space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-soft);
   background: var(--color-surface);
 }
 
@@ -890,7 +993,7 @@ input {
 
 .type-sample {
   display: grid;
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 96px 1fr;
   gap: var(--space-md);
   align-items: baseline;
   padding: var(--space-sm) 0;
@@ -922,13 +1025,15 @@ input {
 
 .spacing-bar {
   height: 16px;
+  border-radius: var(--radius-pill);
   background: var(--color-primary);
 }
 
 .radii {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-lg);
+  gap: var(--space-xl);
+  align-items: flex-end;
 }
 
 .radius-sample {
@@ -941,10 +1046,139 @@ input {
 }
 
 .radius-box {
-  width: 80px;
-  height: 56px;
   border: 1px solid var(--color-border-strong);
   background: var(--color-green-tint);
+}
+
+.shadow-samples {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-xl);
+  padding: var(--space-lg) 0;
+}
+
+.shadow-sample {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-xl);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.motion-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.grain-demo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-lg);
+}
+
+.grain-swatch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 140px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  overflow: hidden;
+}
+
+.grain-swatch.grained::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--texture-paper-grain);
+  background-size: var(--texture-paper-grain-tile);
+  opacity: var(--texture-paper-grain-opacity);
+  mix-blend-mode: var(--texture-paper-grain-blend);
+}
+
+.blob-demo {
+  position: relative;
+  height: 240px;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  overflow: hidden;
+}
+
+.blob {
+  position: absolute;
+  width: 280px;
+  height: 240px;
+  background: var(--blob-fill);
+  filter: blur(var(--blob-blur));
+  opacity: var(--blob-opacity);
+}
+
+.blob-1 {
+  border-radius: var(--blob-radius-1);
+  left: -60px;
+  top: -80px;
+}
+
+.blob-2 {
+  border-radius: var(--blob-radius-2);
+  right: 8%;
+  top: 30px;
+}
+
+.blob-3 {
+  border-radius: var(--blob-radius-3);
+  left: 40%;
+  bottom: -120px;
+}
+
+.blob-demo-content {
+  position: relative;
+  padding: var(--space-xl);
+  max-width: 480px;
+}
+
+.icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-container);
+  height: var(--icon-container);
+  border: none;
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.icon-tile:active {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  transform: scale(var(--scale-press));
+}
+
+.target-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.target-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
 }
 
 .signature {
@@ -954,6 +1188,7 @@ input {
 }
 
 .signature-number {
+  font-family: var(--font-family-display);
   font-size: var(--font-size-xxl);
   line-height: var(--line-height-xxl);
   font-weight: var(--font-weight-bold);

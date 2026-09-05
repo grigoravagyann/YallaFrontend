@@ -140,7 +140,7 @@ export function FloorPlan({
             x={area.x}
             y={area.y}
             fontSize={11}
-            fontFamily={fontFamily.web}
+            fontFamily={fontFamily.body.web}
             fill={color.mutedForeground}
             opacity={0.75}
             textAnchor="middle"
@@ -275,7 +275,7 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
           y={center.y + (laid.seatsVisible ? -1 : laid.labelFontSize / 3)}
           fontSize={laid.labelFontSize}
           fontWeight={fontWeight.bold}
-          fontFamily={fontFamily.web}
+          fontFamily={fontFamily.body.web}
           fill={style.label}
           opacity={opacity}
           textAnchor="middle"
@@ -290,7 +290,7 @@ function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
           x={center.x}
           y={center.y + laid.labelFontSize + 1}
           fontSize={laid.labelFontSize - 1}
-          fontFamily={fontFamily.web}
+          fontFamily={fontFamily.body.web}
           fill={color.mutedForeground}
           opacity={opacity}
           textAnchor="middle"

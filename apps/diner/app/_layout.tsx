@@ -1,6 +1,6 @@
 import { createQueryClient } from '@yalla/api';
 import { I18nextProvider, i18next } from '@yalla/i18n';
-import { color, nativeFontFace } from '@yalla/tokens';
+import { color, nativeDisplayFontFace, nativeFontFace } from '@yalla/tokens';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -12,10 +12,11 @@ import { bootstrapI18n } from '../src/i18n';
 const queryClient = createQueryClient();
 
 /**
- * One family for Armenian, Cyrillic and Latin, registered under the exact face
- * names `@yalla/tokens` hands to `Text`. Loaded before the first frame: a
- * screen that paints in the system font and then reflows into Yalla Sans
- * half a second later looks broken, not fast.
+ * Two families for Armenian, Cyrillic and Latin — Yalla Sans for body, Yalla
+ * Serif for display — registered under the exact face names `@yalla/tokens`
+ * hands to `Text`. Loaded before the first frame: a screen that paints in the
+ * system font and then reflows into Yalla Sans half a second later looks
+ * broken, not fast.
  */
 // Metro resolves assets by statically analysing a literal `require()`; an
 // `import` would need a module declaration per extension and gains nothing.
@@ -24,6 +25,8 @@ const FONTS = {
   [nativeFontFace['400']]: require('../assets/fonts/YallaSans-400.ttf'),
   [nativeFontFace['500']]: require('../assets/fonts/YallaSans-500.ttf'),
   [nativeFontFace['700']]: require('../assets/fonts/YallaSans-700.ttf'),
+  [nativeDisplayFontFace['600']]: require('../assets/fonts/YallaSerif-600.ttf'),
+  [nativeDisplayFontFace['700']]: require('../assets/fonts/YallaSerif-700.ttf'),
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -46,7 +49,7 @@ export default function RootLayout() {
 
   // A font that fails to load is logged and the app proceeds in the system
   // face: an unreadable label is worse than an off-brand one.
-  if (fontError) console.warn('[fonts] Yalla Sans failed to load', fontError);
+  if (fontError) console.warn('[fonts] Yalla fonts failed to load', fontError);
 
   if (!ready || (!fontsLoaded && !fontError)) {
     return (

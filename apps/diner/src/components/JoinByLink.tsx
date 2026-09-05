@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.xl,
-    borderRadius: radius.control,
+    borderRadius: radius.pill,
     backgroundColor: color.primary,
   },
   primaryPressed: { backgroundColor: color.primaryPressed },

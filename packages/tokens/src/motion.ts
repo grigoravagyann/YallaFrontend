@@ -1,27 +1,26 @@
 /**
- * Motion, in milliseconds.
+ * Motion, in milliseconds. Gentle, eased, and always an answer to a person's
+ * action. Nothing snaps.
  *
- * Transitions animate **colour only**. Nothing scales, lifts, tilts or slides
- * on press: a flat, precise system responds by changing colour, and slow easing
- * on flat surfaces reads as sluggish rather than smooth.
+ * Two of the three surfaces are touch devices with no hover at all, so every
+ * interactive element has a **pressed** state and hover is a web-only
+ * enhancement layered on top. Both are a small scale change plus a shadow
+ * change: tactile and immediate on a tablet, a lift on a desktop.
  *
- * Two exceptions, both because the motion carries information rather than
- * decoration:
- *
- * - `floorPlanDraw` — tables appear by floor area in sequence, once per branch.
- *   It reads as a plan being drawn, and it reveals that the room *has* areas,
- *   which a static render does not.
- * - `stateChange` — a table changing state animates its fill, so a change is
- *   noticeable on a counter tablet nobody is staring at, without a
- *   notification.
+ * Exactly one orchestrated moment exists: the floor plan drawing in. Tables
+ * appear by floor area in sequence — windows, then bar, then terrace — once
+ * per branch. Everything else answers a tap.
  */
 export const duration = {
-  /** Press and hover feedback. Snappy: 120–180ms on colour. */
-  control: 140,
-  /** A table changing state on a live floor. */
+  /** Press and hover feedback, and any colour or shadow change on a control. */
+  control: 220,
+  /**
+   * A table changing state on a live floor. Long enough to be noticed on a
+   * counter tablet nobody is staring at, short enough not to lag the room.
+   */
   stateChange: 200,
-  /** The floor plan drawing itself in, area by area. */
-  floorPlanDraw: 350,
+  /** The whole plan drawing itself in, area by area. */
+  floorPlanDraw: 400,
 } as const;
 
 export type DurationToken = keyof typeof duration;
@@ -30,9 +29,9 @@ export type DurationToken = keyof typeof duration;
  * Every duration resolved to zero.
  *
  * `prefers-reduced-motion` is not a request for *less* motion here, it is a
- * request for none: the two exceptions above are the only motion in the
- * product, and both are conveniences rather than the only way to learn the
- * information they carry.
+ * request for none. The plan drawing in and a table changing colour are the
+ * only motion that carries information, and neither is the only way to learn
+ * what it conveys.
  */
 export const reducedDuration: Readonly<Record<DurationToken, 0>> = {
   control: 0,
@@ -46,8 +45,22 @@ export function durations(prefersReducedMotion: boolean): Readonly<Record<Durati
 }
 
 /**
- * A single easing curve. Standard material-style ease-out: quick to start,
- * settling rather than bouncing. Nothing in this system overshoots.
+ * The two transforms an interactive element is allowed.
+ *
+ * No rotation on any functional element: a tilting card is charm on a
+ * marketing page and noise on a screen someone is working. Cards may lift on
+ * hover on the web; nothing tilts.
+ */
+export const scale = {
+  /** Under a finger or a mouse button. Paired with `elevation.lift`. */
+  press: 0.97,
+  /** Web only, behind `@media (hover: hover)`. Paired with `elevation.lift`. */
+  hover: 1.03,
+} as const;
+
+/**
+ * One easing curve: quick to start, settling rather than bouncing. Nothing in
+ * this system overshoots.
  */
 export const easing = {
   standard: 'cubic-bezier(0.2, 0, 0, 1)',

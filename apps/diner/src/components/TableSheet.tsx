@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 40,
     height: 4,
-    borderRadius: radius.control,
+    borderRadius: radius.pill,
     backgroundColor: color.border,
     marginVertical: space.sm,
   },
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.control,
+    borderRadius: radius.pill,
     // Ink, not brand green: this sheet sits over the floor plan, and a green
     // "Reserve" beside green free tables would teach the eye that green means
     // nothing in particular. See `color.primaryOnFloorPlan`.

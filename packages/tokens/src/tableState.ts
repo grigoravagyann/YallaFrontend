@@ -115,7 +115,7 @@ export const tableStatusStyle: Readonly<Record<TableStatus, TableStatusStyle>> =
     legendKey: 'tableStatus.occupied',
   },
   outOfService: {
-    fill: '#8B95A1',
+    fill: color.outOfService,
     // Knocked back so a dead table recedes. The label colour below is checked
     // against the *composited* result, not the raw fill.
     fillOpacity: 0.7,

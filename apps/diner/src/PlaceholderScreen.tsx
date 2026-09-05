@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.lg,
-    borderRadius: radius.control,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: color.border,
     backgroundColor: color.surface,

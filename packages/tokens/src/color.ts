@@ -1,45 +1,62 @@
 /**
  * Raw palette. Nothing outside this file should reference a hex literal.
  *
- * Solid fills only. There is no colour in this system expressed as another
- * colour at reduced opacity: a translucent tint composites differently over
- * white, over `paper` and over a state fill, so its contrast cannot be checked
- * once and trusted. `greenTint` is a real pale green, not `primary` at 12%.
+ * White grounds, green identity, and a strictly separated set of state colours.
+ * Every fill that text sits on is a solid: a translucent tint composites
+ * differently over white, over `paper` and over a state fill, so its contrast
+ * cannot be checked once and trusted. The three translucent values at the
+ * bottom of `color` are things text never sits on — a scrim, a focus glow and
+ * a frosted nav — and each says why it is allowed.
  */
 const palette = {
   white: '#FFFFFF',
-  paper: '#F5F7F6',
+  /** Unbleached paper with the faintest green cast. */
+  paper: '#F6F9F7',
 
-  /** Deep green-black. The product's text colour, not pure black. */
-  ink: '#12211A',
-  inkMuted: '#57685F',
+  /** Deep green-black. The product's text colour, not grey and not black. */
+  ink: '#17281F',
   /**
-   * Darkened from the brief's `#8A9990`, which scored 2.58–2.98:1 and failed AA
-   * on every background it is used over. Section 9 of the brief calls this pair
-   * out in advance and says to fix it by darkening rather than by lowering the
-   * standard — this is that fix. See `contrast.test.ts`.
+   * Two units darker than the brief's `#5F7268`, which lands at 4.48:1 on
+   * `greenTint` — a hair under AA for a label on a selected row or in an icon
+   * container. Section 9 of the brief asks for the fix to be darkening rather
+   * than lowering the standard; this is that fix. See `contrast.test.ts`.
    */
-  inkSubtle: '#616E65',
-
-  /** Decorative hairlines: dividers, card edges, table rules. */
-  line: '#D5E0DA',
-  lineStrong: '#B3C4BB',
+  inkMuted: '#5D7066',
   /**
-   * Control boundaries — input and button outlines.
+   * The brief's `#93A39A` scores 2.3–2.6:1 everywhere it would be used. This
+   * ships at ≥4.5:1 on `surface` and `paper`, the two grounds tertiary text is
+   * set on — placeholders, disabled labels, captions. It is *not* legible on
+   * `greenTint` (4.28:1), so tertiary text never sits on a tinted fill; the
+   * test suite holds that rule.
+   */
+  inkSubtle: '#647569',
+
+  /** Hairlines: dividers, input edges, table rules. */
+  line: '#DCE6E0',
+  /**
+   * The brief's "`border` at 50%" for card edges, composited over `paper` and
+   * frozen as a solid so it renders identically over white and over paper.
+   */
+  lineSoft: '#E9F0EC',
+  /** A firmer hairline for the outer edge of nested structure. */
+  lineStrong: '#B8C9BF',
+  /**
+   * Control boundaries — outlined buttons that are not brand-coloured.
    *
-   * Not the same value as `line`, and deliberately so. A 1px `#D5E0DA` edge is
-   * 1.35:1 against white: fine as a divider, which WCAG treats as decoration,
-   * but an input outline is a control boundary and owes 3:1. Anyone who has
-   * hunted for a form field on a bright screen knows why.
+   * The brief's `border` is 1.28:1 against white: fine as a divider, which
+   * WCAG treats as decoration, but a control boundary owes 3:1.
    */
   lineInteractive: '#7E8D84',
 
-  greenTint: '#E6F1EB',
-  green: '#1B5638',
-  greenPressed: '#144229',
+  /** Icon containers, soft section fills, the pressed state of a ghost button. */
+  greenTint: '#E8F2EC',
+  /** Brand green. Deep and desaturated — lightness ~33. */
+  green: '#1E5B3C',
+  greenPressed: '#17462E',
 
   // --- The protected six ---------------------------------------------------
   // The only colours in the product that carry meaning. See `tableState.ts`.
+  /** Free-table green. Bright and saturated — lightness ~58. */
   stateFree: '#35B37E',
   stateReservedSoon: '#C98A0E',
   stateHeld: '#3B6FD4',
@@ -48,12 +65,14 @@ const palette = {
 
   /** Ink lifted, for the pressed state of an ink button beside a floor plan. */
   inkPressed: '#2B3D33',
+  /** Occupied red, darkened, for a destructive button under a finger. */
+  stateOccupiedPressed: '#9E3232',
 } as const;
 
 export const color = {
-  /** Cards, panels, the floor plan canvas. */
+  /** Cards, sheets, the floor plan canvas. */
   surface: palette.white,
-  /** Page background. */
+  /** Page background. Carries the paper grain on diner and console surfaces. */
   paper: palette.paper,
 
   foreground: palette.ink,
@@ -61,13 +80,14 @@ export const color = {
   subtleForeground: palette.inkSubtle,
 
   border: palette.line,
+  borderSoft: palette.lineSoft,
   borderStrong: palette.lineStrong,
   borderInteractive: palette.lineInteractive,
 
-  /** Selected rows, icon backgrounds, soft fills. A solid pale green. */
   greenTint: palette.greenTint,
 
   primary: palette.green,
+  /** Hover on the web, pressed everywhere. One value: two surfaces have no hover. */
   primaryPressed: palette.greenPressed,
   primaryForeground: palette.white,
 
@@ -96,12 +116,38 @@ export const color = {
   warning: palette.stateReservedSoon,
   success: palette.stateFree,
   info: palette.stateHeld,
+  /** The out-of-service grey. Only the floor plan draws with it. */
+  outOfService: palette.stateOutOfService,
 
   /** Text on a `danger` fill. White clears AA there; on `success` it does not. */
   dangerForeground: palette.white,
+  /** Pressed is a fill change and a scale, for destructive buttons too. */
+  dangerPressed: palette.stateOccupiedPressed,
+
+  // --- Translucent, by exception ------------------------------------------
+  // None of these is a fill text sits on.
+
+  /**
+   * The veil behind a bottom sheet. Ink at 45% keeps the floor plan visibly
+   * underneath, which is the point of a sheet rather than a pushed screen.
+   */
+  scrim: 'rgba(23, 40, 31, 0.45)',
+  /**
+   * The keyboard focus ring: `primary` at 30%, drawn 2px wide with a 2px
+   * offset — a soft glow, not a hard outline. Never removed.
+   */
+  focusRing: 'rgba(30, 91, 60, 0.30)',
+  /**
+   * The floating web nav: `surface` at 70% over a backdrop blur. Web only; the
+   * diner app uses a standard tab bar and never fakes this on a phone.
+   */
+  surfaceGlass: 'rgba(255, 255, 255, 0.70)',
 } as const;
 
 export type ColorToken = keyof typeof color;
 
-/** Every background that body text is set on, for the contrast tests. */
+/** Every ground body and secondary text is set on, for the contrast tests. */
 export const textBackgrounds = [color.surface, color.paper, color.greenTint] as const;
+
+/** The grounds tertiary text is allowed on. Never a tinted fill — see `inkSubtle`. */
+export const subtleTextBackgrounds = [color.surface, color.paper] as const;

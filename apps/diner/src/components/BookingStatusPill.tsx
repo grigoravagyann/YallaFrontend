@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: space.sm,
     paddingVertical: 2,
-    borderRadius: radius.control,
+    borderRadius: radius.pill,
     borderWidth: 1,
   },
   text: { fontSize: fontSize.xs, fontWeight: fontWeight.medium },
