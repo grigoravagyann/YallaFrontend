@@ -1,6 +1,6 @@
 import type { ConsoleUser } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useOutletContext } from 'react-router-dom';
 import { useConsoleVenue } from '../../data/queries';
 import { useBranchScope } from './useBranchScope';
 
@@ -52,7 +52,26 @@ export function VenueLayout({ user }: VenueLayoutProps) {
         ) : null}
       </header>
 
-      <Outlet />
+      {/* The branch travels through the outlet, not the URL: a branch id in
+          the address bar is a scope claim the user could edit. */}
+      <Outlet
+        context={
+          {
+            branchId,
+            timeZoneId: current?.timeZoneId ?? 'Asia/Yerevan',
+          } satisfies VenueOutletContext
+        }
+      />
     </div>
   );
+}
+
+/** What every screen under `/venue` is given: the branch it may act on. */
+export interface VenueOutletContext {
+  readonly branchId: string | null;
+  readonly timeZoneId: string;
+}
+
+export function useVenueOutlet(): VenueOutletContext {
+  return useOutletContext<VenueOutletContext>();
 }

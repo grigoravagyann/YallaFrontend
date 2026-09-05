@@ -7,8 +7,8 @@ import {
   tableStatusStyle,
   type TableStatus,
 } from '@yalla/tokens';
-import { useMemo } from 'react';
-import { View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -19,11 +19,17 @@ import Svg, {
   Rect,
   Text as SvgText,
 } from 'react-native-svg';
-import { computeFloorLayout, type LaidOutTable } from './layout';
+import { AreaSwitcher, OVERVIEW, type AreaSelection } from './AreaSwitcher';
+import { floorAreas, hasUsableAreas } from './areas';
+import { FITTED, useFloorGestures, type FloorViewport } from './gestures';
+import { AREA_MODE_MAX_WIDTH_PX, computeFloorLayout, type LaidOutTable } from './layout';
 import type { FloorFeature, FloorPlanData, FloorPlanMode } from './types';
 
 /** Opacity applied to a table a diner cannot pick. */
 const DIMMED_OPACITY = 0.35;
+
+/** Overview is a map, not a control surface: its tables are drawn back. */
+const OVERVIEW_TABLE_OPACITY = 0.75;
 
 /**
  * `exactOptionalPropertyTypes` forbids passing an explicit `undefined` for an
@@ -50,6 +56,25 @@ export interface FloorPlanProps {
   readonly tableAnnotation?: (table: LaidOutTable) => string | null;
   /** Accessible name for the whole plan, already translated. */
   readonly accessibilityLabel?: string;
+  /**
+   * Resolves the handful of strings area mode needs. Required only when area
+   * mode can actually engage; without it the plan renders whole.
+   */
+  readonly translate?: ((key: string, params?: Record<string, unknown>) => string) | undefined;
+  /**
+   * `auto` (the default) falls back to one area at a time when the room does
+   * not survive the viewport. `off` always draws the whole room — the editor
+   * and its preview need the room entire.
+   */
+  readonly areaMode?: 'auto' | 'off';
+  readonly areaModeMaxWidthPx?: number;
+  /** Pinch, pan and double-tap. Off for a decorative or embedded plan. */
+  readonly enableZoom?: boolean;
+  /**
+   * Drive zoom and pan from outside instead — the dev harness and the editor
+   * preview do, so the values can be shown and reproduced.
+   */
+  readonly transform?: FloorViewport | undefined;
   readonly testID?: string;
 }
 
@@ -62,8 +87,19 @@ export interface FloorPlanProps {
  * booking dispute rather than a rendering bug.
  *
  * All geometry comes from {@link computeFloorLayout}; this component only
- * paints. That split is what keeps the scaling rules testable without a
- * renderer.
+ * paints and decides *what* to lay out. That split is what keeps the scaling
+ * rules testable without a renderer, and it is why the editor can share the
+ * same function — see the package README.
+ *
+ * ## Why this component sometimes shows one area at a time
+ *
+ * Thirty tables each owed a 44pt tap target do not fit in a 380pt-wide phone.
+ * The targets overlap three deep, taps resolve to the nearest centre, and a
+ * diner selects table 11 while pointing at table 12 — on the screen the whole
+ * product hangs on. So when the fitted layout reports overlapping hit regions
+ * and the room has areas to divide it by, this renders one area at a time,
+ * fitted to that area's own bounds. Eight tables then get the space thirty were
+ * fighting over. A small or undivided room never sees any of it.
  */
 export function FloorPlan({
   plan,
@@ -74,13 +110,22 @@ export function FloorPlan({
   viewport,
   tableAnnotation,
   accessibilityLabel,
+  translate,
+  areaMode = 'auto',
+  areaModeMaxWidthPx = AREA_MODE_MAX_WIDTH_PX,
+  enableZoom = true,
+  transform,
   testID,
 }: FloorPlanProps) {
-  // Memoised on the inputs that actually change the geometry. This component
-  // will later re-render on live SignalR pushes — several per second in a busy
-  // venue — and none of those should trigger a full relayout unless the plan
-  // itself or the viewport changed.
-  const layout = useMemo(
+  const areas = useMemo(() => floorAreas(plan), [plan]);
+  const [switcherHeight, setSwitcherHeight] = useState(0);
+
+  /*
+   * Does the whole room survive this viewport? Answered by laying it out at the
+   * fit and asking whether any two tappable hit regions collide. A count of
+   * tables would be a guess; this is the actual condition that breaks tapping.
+   */
+  const overlapProbe = useMemo(
     () =>
       computeFloorLayout({
         canvasWidth: plan.canvasWidth,
@@ -89,16 +134,199 @@ export function FloorPlan({
         viewport,
         mode,
         partySize,
-      }),
+      }).hasOverlappingHitRects,
     [plan.canvasWidth, plan.canvasHeight, plan.tables, viewport, mode, partySize],
   );
 
-  const areaLabels = useMemo(() => areaCentroids(layout.tables), [layout.tables]);
+  const areaModeAvailable =
+    areaMode === 'auto' &&
+    Boolean(translate) &&
+    viewport.width > 0 &&
+    viewport.width < areaModeMaxWidthPx &&
+    hasUsableAreas(plan) &&
+    overlapProbe;
 
-  // Before the first layout pass the viewport is 0x0. Drawing nothing is
-  // correct; an unguarded divide would put NaN into every coordinate.
-  if (layout.scale === 0) {
-    return <View testID={testID} style={{ width: viewport.width, height: viewport.height }} />;
+  // Opens on the first area rather than the overview: a diner arriving wants
+  // tables they can tap, and orientation is one tap away.
+  const [chosen, setSelection] = useState<AreaSelection>(() => areas[0]?.name ?? OVERVIEW);
+
+  /*
+   * A selection is only meaningful for the plan it was made in. Switching
+   * branch — or fixture, in the dev harness — can leave it naming an area this
+   * room does not have, which would render an empty plan under a highlighted
+   * tab. Deriving it rather than repairing it in an effect avoids a frame of
+   * exactly that.
+   */
+  const selection: AreaSelection =
+    chosen === OVERVIEW || areas.some((area) => area.name === chosen)
+      ? chosen
+      : (areas[0]?.name ?? OVERVIEW);
+  const isOverview = selection === OVERVIEW;
+
+  const gestures = useFloorGestures({ enabled: enableZoom && transform === undefined });
+  const active: FloorViewport = transform ?? (enableZoom ? gestures.viewport : FITTED);
+
+  // The switcher takes real height off the top; laying the plan out against the
+  // whole box would push the room under it.
+  const planViewport = useMemo(
+    () => ({ width: viewport.width, height: Math.max(0, viewport.height - switcherHeight) }),
+    [viewport.width, viewport.height, switcherHeight],
+  );
+
+  const layout = useMemo(
+    () =>
+      computeFloorLayout({
+        canvasWidth: plan.canvasWidth,
+        canvasHeight: plan.canvasHeight,
+        tables: plan.tables,
+        viewport: planViewport,
+        mode,
+        partySize,
+        // Overview is the whole room; an area selection is that area alone.
+        areaFilter: areaModeAvailable && !isOverview ? selection : null,
+        zoom: active.zoom,
+        panX: active.panX,
+        panY: active.panY,
+      }),
+    [
+      plan.canvasWidth,
+      plan.canvasHeight,
+      plan.tables,
+      planViewport,
+      mode,
+      partySize,
+      areaModeAvailable,
+      isOverview,
+      selection,
+      active.zoom,
+      active.panX,
+      active.panY,
+    ],
+  );
+
+  const areaLabels = useMemo(
+    () => areaCentroids(layout.tables, layout.areaFilter !== null),
+    [layout.tables, layout.areaFilter],
+  );
+
+  // In Overview the tables are a map. Tapping one would select a table the
+  // diner cannot see the state of properly; tapping its *area* is the action.
+  const overviewMode = areaModeAvailable && isOverview;
+  const overviewAreas = useMemo(
+    () => (overviewMode ? areaOutlines(layout.tables) : []),
+    [overviewMode, layout.tables],
+  );
+
+  const handleTap = gestures.isGesturing || overviewMode ? undefined : onTableTap;
+
+  const body =
+    layout.scale === 0 ? (
+      // Before the first layout pass the viewport is 0x0. Drawing nothing is
+      // correct; an unguarded divide would put NaN into every coordinate.
+      <View style={{ width: planViewport.width, height: planViewport.height }} />
+    ) : (
+      <View
+        style={{ width: planViewport.width, height: planViewport.height }}
+        {...(enableZoom && transform === undefined ? gestures.panHandlers : {})}
+      >
+        <Svg width={planViewport.width} height={planViewport.height}>
+          <Defs>{uniquePatterns()}</Defs>
+
+          {/* Room floor */}
+          <Rect
+            x={layout.offsetX}
+            y={layout.offsetY}
+            width={layout.renderedWidth}
+            height={layout.renderedHeight}
+            fill={color.surface}
+            stroke={color.borderStrong}
+            strokeWidth={1}
+            rx={radius.table}
+          />
+
+          {/* Fixed features first, so tables sit on top of the bar counter.
+              Only in the whole-room view: an area's own bounds rarely contain
+              them, and half a bar counter is worse than none. */}
+          {layout.areaFilter === null
+            ? (plan.features ?? []).map((feature) => (
+                <FeatureShape
+                  key={feature.id}
+                  feature={feature}
+                  scale={layout.scale}
+                  offsetX={layout.offsetX}
+                  offsetY={layout.offsetY}
+                />
+              ))
+            : null}
+
+          {/* Overview: the areas themselves are the targets. */}
+          {overviewAreas.map((outline) => (
+            <G key={String(outline.name)}>
+              <Rect
+                x={outline.bounds.x}
+                y={outline.bounds.y}
+                width={outline.bounds.width}
+                height={outline.bounds.height}
+                rx={radius.soft}
+                fill="none"
+                stroke={outline.name === selection ? color.foreground : color.borderStrong}
+                strokeWidth={outline.name === selection ? 2 : 1}
+                strokeDasharray="4,4"
+              />
+              <Rect
+                x={outline.bounds.x}
+                y={outline.bounds.y}
+                width={outline.bounds.width}
+                height={outline.bounds.height}
+                fill="transparent"
+                onPress={() => setSelection(outline.name)}
+                {...(outline.name ? { accessibilityLabel: outline.name } : {})}
+              />
+            </G>
+          ))}
+
+          {/* Area captions are context, not the primary read — no boxes, low
+              contrast. Suppressed inside a single area, where the tab above
+              already says which one you are in. */}
+          {areaLabels.map((area) => (
+            <SvgText
+              key={area.name}
+              x={area.x}
+              y={area.y}
+              fontSize={11}
+              fontFamily={fontFamily.body.web}
+              fill={color.mutedForeground}
+              opacity={0.75}
+              textAnchor="middle"
+            >
+              {area.name}
+            </SvgText>
+          ))}
+
+          {layout.tables.map((laid) => (
+            <TableShape
+              key={laid.id}
+              laid={laid}
+              selected={laid.id === selectedTableId}
+              annotation={tableAnnotation?.(laid) ?? null}
+              onTap={handleTap}
+              faded={overviewMode}
+            />
+          ))}
+        </Svg>
+      </View>
+    );
+
+  if (!areaModeAvailable) {
+    return (
+      <View
+        testID={testID}
+        accessibilityLabel={accessibilityLabel}
+        style={{ width: viewport.width, height: viewport.height }}
+      >
+        {body}
+      </View>
+    );
   }
 
   return (
@@ -107,58 +335,17 @@ export function FloorPlan({
       accessibilityLabel={accessibilityLabel}
       style={{ width: viewport.width, height: viewport.height }}
     >
-      <Svg width={viewport.width} height={viewport.height}>
-        <Defs>{uniquePatterns()}</Defs>
-
-        {/* Room floor */}
-        <Rect
-          x={layout.offsetX}
-          y={layout.offsetY}
-          width={layout.renderedWidth}
-          height={layout.renderedHeight}
-          fill={color.surface}
-          stroke={color.borderStrong}
-          strokeWidth={1}
-          rx={radius.table}
+      <View
+        onLayout={(event: LayoutChangeEvent) => setSwitcherHeight(event.nativeEvent.layout.height)}
+      >
+        <AreaSwitcher
+          areas={areas}
+          selected={selection}
+          onSelect={setSelection}
+          translate={translate!}
         />
-
-        {/* Fixed features first, so tables sit on top of the bar counter. */}
-        {(plan.features ?? []).map((feature) => (
-          <FeatureShape
-            key={feature.id}
-            feature={feature}
-            scale={layout.scale}
-            offsetX={layout.offsetX}
-            offsetY={layout.offsetY}
-          />
-        ))}
-
-        {/* Area labels are context, not the primary read — no boxes, low contrast. */}
-        {areaLabels.map((area) => (
-          <SvgText
-            key={area.name}
-            x={area.x}
-            y={area.y}
-            fontSize={11}
-            fontFamily={fontFamily.body.web}
-            fill={color.mutedForeground}
-            opacity={0.75}
-            textAnchor="middle"
-          >
-            {area.name}
-          </SvgText>
-        ))}
-
-        {layout.tables.map((laid) => (
-          <TableShape
-            key={laid.id}
-            laid={laid}
-            selected={laid.id === selectedTableId}
-            annotation={tableAnnotation?.(laid) ?? null}
-            onTap={onTableTap}
-          />
-        ))}
-      </Svg>
+      </View>
+      {body}
     </View>
   );
 }
@@ -168,16 +355,17 @@ interface TableShapeProps {
   readonly selected: boolean;
   readonly annotation: string | null;
   readonly onTap: ((tableId: string) => void) | undefined;
+  readonly faded: boolean;
 }
 
-function TableShape({ laid, selected, annotation, onTap }: TableShapeProps) {
+function TableShape({ laid, selected, annotation, onTap, faded }: TableShapeProps) {
   const { table, rect, center, hitRect } = laid;
 
   // Selection is its own visual treatment, distinct from all five states, so a
   // selected free table and a selected reservedSoon table read the same as
   // "your pick" rather than as two different things.
   const style = tableStatusStyle[selected ? 'yourPick' : (table.state as TableStatus)];
-  const opacity = laid.dimmed ? DIMMED_OPACITY : 1;
+  const opacity = laid.dimmed ? DIMMED_OPACITY : faded ? OVERVIEW_TABLE_OPACITY : 1;
   const rotation = table.rotationDegrees;
   const transform = rotation === 0 ? undefined : `rotate(${rotation} ${center.x} ${center.y})`;
 
@@ -421,7 +609,10 @@ function uniquePatterns() {
 /** Centroid of each floor area, for the subtle area caption. */
 function areaCentroids(
   tables: readonly LaidOutTable[],
+  suppress: boolean,
 ): readonly { name: string; x: number; y: number }[] {
+  if (suppress) return [];
+
   const groups = new Map<string, { sumX: number; minY: number; count: number }>();
 
   for (const laid of tables) {
@@ -442,5 +633,51 @@ function areaCentroids(
     x: g.sumX / g.count,
     // Sit the caption just above the topmost table in the area.
     y: Math.max(g.minY - space.sm, 12),
+  }));
+}
+
+/**
+ * A dashed box round each area's tables, in pixels, for the Overview map.
+ *
+ * Derived from where the tables actually are rather than from any stored
+ * rectangle. Areas are a property of a table, not a container that owns one —
+ * so a venue can move a table between areas without anyone maintaining
+ * geometry, and two areas may legitimately interleave in space.
+ */
+function areaOutlines(tables: readonly LaidOutTable[]): readonly {
+  name: string | null;
+  bounds: { x: number; y: number; width: number; height: number };
+}[] {
+  const groups = new Map<
+    string | null,
+    { minX: number; minY: number; maxX: number; maxY: number }
+  >();
+
+  for (const laid of tables) {
+    const name = laid.table.floorAreaName;
+    const existing = groups.get(name) ?? {
+      minX: Number.POSITIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    };
+    for (const corner of laid.corners) {
+      existing.minX = Math.min(existing.minX, corner.x);
+      existing.minY = Math.min(existing.minY, corner.y);
+      existing.maxX = Math.max(existing.maxX, corner.x);
+      existing.maxY = Math.max(existing.maxY, corner.y);
+    }
+    groups.set(name, existing);
+  }
+
+  const pad = space.sm;
+  return [...groups.entries()].map(([name, b]) => ({
+    name,
+    bounds: {
+      x: b.minX - pad,
+      y: b.minY - pad,
+      width: b.maxX - b.minX + pad * 2,
+      height: b.maxY - b.minY + pad * 2,
+    },
   }));
 }

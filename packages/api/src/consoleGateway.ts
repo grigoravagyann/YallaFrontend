@@ -1,4 +1,11 @@
 import type {
+  EditorFloorArea,
+  EditorFloorPlan,
+  FloorPlanSaveResult,
+  ReplaceFloorPlanCommand,
+  TableDeletionResult,
+} from './contracts/floorPlan';
+import type {
   ConsoleUser,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -59,4 +66,48 @@ export interface ConsoleGateway {
     tier: SubscriptionTier;
     commandId: string;
   }): Promise<ConsoleVenueDetail>;
+
+  // --- The floor plan editor ------------------------------------------------
+
+  /** Canvas, areas and every table with its geometry and QR token. */
+  getFloorPlan(branchId: string): Promise<EditorFloorPlan>;
+
+  /**
+   * Replace the whole plan in one call.
+   *
+   * @throws {FloorPlanInvalidError} a table outside the canvas or a repeated
+   * label; the error names them so the editor can highlight both.
+   */
+  replaceFloorPlan(input: {
+    branchId: string;
+    command: ReplaceFloorPlanCommand;
+  }): Promise<FloorPlanSaveResult>;
+
+  createFloorArea(input: {
+    branchId: string;
+    name: string;
+    displayOrder: number;
+  }): Promise<EditorFloorArea>;
+
+  updateFloorArea(input: {
+    branchId: string;
+    areaId: string;
+    name: string;
+    displayOrder: number;
+  }): Promise<EditorFloorArea>;
+
+  /** The area goes; its tables stay, with no area. */
+  deleteFloorArea(input: { branchId: string; areaId: string }): Promise<void>;
+
+  /**
+   * Delete a table that has never been used, or deactivate one that has.
+   * The result says which happened, and the editor shows it either way.
+   */
+  deleteTable(input: { branchId: string; tableId: string }): Promise<TableDeletionResult>;
+
+  /**
+   * Replace a compromised QR code. The one thing that changes a `qrToken`, and
+   * the printed sticker on that table stops working the moment it lands.
+   */
+  regenerateTableQr(input: { tableId: string }): Promise<{ qrToken: string }>;
 }

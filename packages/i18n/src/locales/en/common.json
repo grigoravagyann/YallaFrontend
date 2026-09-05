@@ -22,9 +22,19 @@
     "offlineHint": "Showing the last known state."
   },
   "action": {
-    "retry": "Try again"
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "placeholder": {
     "comingSoon": "This screen is coming soon."
+  },
+  "floorPlan": {
+    "overview": "Overview",
+    "otherTables": "Other tables",
+    "freeCount_one": "{{count}} free",
+    "freeCount_other": "{{count}} free",
+    "areaFree_one": "{{area}}, {{count}} table free",
+    "areaFree_other": "{{area}}, {{count}} tables free"
   }
 }

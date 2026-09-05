@@ -225,6 +225,50 @@ export class VenueHasOpenTabsError extends ApiError {
   }
 }
 
+/**
+ * The floor plan the editor sent cannot be stored, and the server named the
+ * offenders.
+ *
+ * The payload is the point. "Invalid plan" is useless to somebody standing in
+ * a cafe with the owner watching; "tables 7 and 12 are outside the canvas" is
+ * something they fix in ten seconds, and the editor can highlight both and
+ * scroll to the first.
+ *
+ * Note what is *not* here: overlapping tables. The server treats those as a
+ * warning and saves anyway, because real rooms have stools tucked under bars.
+ * The client must not be stricter than the server about it.
+ */
+export class FloorPlanInvalidError extends ApiError {
+  /** Whole-plan complaints, already phrased for a person. */
+  readonly errors: readonly string[];
+  /** Labels of tables that do not fit inside the canvas. */
+  readonly tablesOutsideCanvas: readonly string[];
+  /** Labels used more than once in the branch. */
+  readonly duplicateLabels: readonly string[];
+
+  constructor(options: {
+    url: string;
+    errors: readonly string[];
+    tablesOutsideCanvas: readonly string[];
+    duplicateLabels: readonly string[];
+    requestId?: string | undefined;
+  }) {
+    super(options.errors[0] ?? 'That floor plan cannot be saved.', {
+      status: 422,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'FloorPlanInvalidError';
+    this.errors = options.errors;
+    this.tablesOutsideCanvas = options.tablesOutsideCanvas;
+    this.duplicateLabels = options.duplicateLabels;
+  }
+}
+
+export function isFloorPlanInvalid(error: unknown): error is FloorPlanInvalidError {
+  return error instanceof FloorPlanInvalidError;
+}
+
 /** The slug is already taken. Its own type because the fix is a specific field. */
 export class SlugTakenError extends ApiError {
   readonly slug: string;

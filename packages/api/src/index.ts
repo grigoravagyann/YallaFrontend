@@ -175,5 +175,22 @@ export type {
 } from './contracts/console';
 export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
 
-export { OutOfScopeError, SlugTakenError, VenueHasOpenTabsError } from './contracts/errors';
+export {
+  FloorPlanInvalidError,
+  OutOfScopeError,
+  SlugTakenError,
+  VenueHasOpenTabsError,
+  isFloorPlanInvalid,
+} from './contracts/errors';
 export type { BlockingTab } from './contracts/errors';
+
+export type {
+  EditorFloorArea,
+  EditorFloorPlan,
+  EditorFloorTable,
+  FloorPlanSaveResult,
+  ReplaceFloorAreaInput,
+  ReplaceFloorPlanCommand,
+  ReplaceFloorTableInput,
+  TableDeletionResult,
+} from './contracts/floorPlan';

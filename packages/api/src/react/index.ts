@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, createElement, useContext, type ReactNode } from 'react';
 import type { ConsoleGateway } from '../consoleGateway';
 import type { ConsoleVenueDetail, CreateVenueCommand, ListVenuesQuery } from '../contracts/console';
+import type { ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { YallaGateway } from '../gateway';
 import { staleTime } from '../queryClient';
 
@@ -81,6 +82,7 @@ export const queryKeys = {
     ['availability', branchId, slotUtc, partySize] as const,
   consoleVenues: (query: ListVenuesQuery) => ['console', 'venues', query] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
+  editorFloorPlan: (branchId: string) => ['console', 'floorPlan', branchId] as const,
 };
 
 // --- Diner: browse ------------------------------------------------------------
@@ -214,4 +216,54 @@ export function useDeleteVenue() {
 export function useCreateVenue() {
   const gateway = useConsoleGateway();
   return useVenueCommand((command: CreateVenueCommand) => gateway.createVenue(command));
+}
+
+// --- The floor plan editor -----------------------------------------------------
+
+/**
+ * The stored plan the editor works on.
+ *
+ * Reference data, not live state: this is furniture, and it changes when
+ * somebody edits it. Refetching on window focus would silently replace a
+ * half-drawn room with the server's copy, so it does not.
+ */
+export function useEditorFloorPlan(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.editorFloorPlan(branchId ?? ''),
+    queryFn: () => gateway.getFloorPlan(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Replace the whole plan atomically.
+ *
+ * Retry is off, as for every mutation here. This one is not idempotent in any
+ * useful sense — a retry after a timeout would replace the room with whatever
+ * the editor held at the moment of the first attempt, which may no longer be
+ * what is on screen.
+ */
+export function useSaveFloorPlan() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { branchId: string; command: ReplaceFloorPlanCommand }) =>
+      gateway.replaceFloorPlan(input),
+    onSuccess: (result, input) => {
+      queryClient.setQueryData(queryKeys.editorFloorPlan(input.branchId), result.plan);
+      // The room the diner and the staff screens draw has just changed shape.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.floor(input.branchId) });
+      void queryClient.invalidateQueries({ queryKey: ['availability', input.branchId] });
+    },
+  });
+}
+
+export function useRegenerateTableQr() {
+  const gateway = useConsoleGateway();
+  return useMutation({
+    mutationFn: (input: { tableId: string }) => gateway.regenerateTableQr(input),
+  });
 }

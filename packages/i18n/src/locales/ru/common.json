@@ -22,9 +22,23 @@
     "offlineHint": "Показано последнее известное состояние."
   },
   "action": {
-    "retry": "Повторить"
+    "retry": "Повторить",
+    "cancel": "Отмена",
+    "close": "Закрыть"
   },
   "placeholder": {
     "comingSoon": "Этот экран скоро появится."
+  },
+  "floorPlan": {
+    "overview": "Весь зал",
+    "otherTables": "Другие столы",
+    "freeCount_one": "{{count}} свободен",
+    "freeCount_few": "{{count}} свободно",
+    "freeCount_many": "{{count}} свободно",
+    "freeCount_other": "{{count}} свободно",
+    "areaFree_one": "{{area}}, свободен {{count}} стол",
+    "areaFree_few": "{{area}}, свободно {{count}} стола",
+    "areaFree_many": "{{area}}, свободно {{count}} столов",
+    "areaFree_other": "{{area}}, свободно {{count}} стола"
   }
 }

@@ -1,6 +1,7 @@
 import {
   FloorPlan,
   Legend,
+  floorAreas,
   MOCK_NOW,
   availabilityWindow,
   mockFloorPlans,
@@ -30,6 +31,8 @@ const FIXTURES: Readonly<Record<MockFloorPlanKey, string>> = {
   cafe: 'Cafe — 11 tables, 2 areas',
   terrace: 'Terrace strip — extreme aspect ratio',
   dense: 'Dense cluster — overlapping hit targets',
+  restaurant: 'Restaurant — 30 tables, 3 areas (breaks at phone width)',
+  twoFloor: 'Two floors — areas far apart in space',
 };
 
 /**
@@ -48,6 +51,8 @@ export function DevFloorPlanRoute() {
   const [mode, setMode] = useState<FloorPlanMode>('diner');
   const [viewportKey, setViewportKey] = useState<ViewportKey>('phone');
   const [partySize, setPartySize] = useState(2);
+  const [zoom, setZoom] = useState(1);
+  const [areaMode, setAreaMode] = useState<'auto' | 'off'>('auto');
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [lastTap, setLastTap] = useState<string | null>(null);
 
@@ -144,6 +149,26 @@ export function DevFloorPlanRoute() {
         </label>
 
         <label>
+          <span>Zoom {zoom.toFixed(2)}×</span>
+          <input
+            type="range"
+            min={1}
+            max={4}
+            step={0.25}
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+          />
+        </label>
+
+        <label>
+          <span>Area mode</span>
+          <select value={areaMode} onChange={(e) => setAreaMode(e.target.value as 'auto' | 'off')}>
+            <option value="auto">auto (falls back when hit rects collide)</option>
+            <option value="off">off (always the whole room)</option>
+          </select>
+        </label>
+
+        <label>
           <span>Party size</span>
           <select
             value={partySize}
@@ -161,6 +186,15 @@ export function DevFloorPlanRoute() {
 
       <Legend mode={mode} translate={(key) => t(`common:${key}`)} />
 
+      {/* The two facts this harness exists to make visible without a device:
+          whether the room's own areas can divide it, and how many free tables
+          each holds. */}
+      <p className="dev-status">
+        {floorAreas(plan)
+          .map((area) => `${area.name ?? 'no area'}: ${area.freeCount}/${area.tableCount} free`)
+          .join('  ·  ')}
+      </p>
+
       <p className="dev-status">{lastTap ?? 'Tap a table.'}</p>
 
       {/* The frame is exactly the target device size, so what you see is what a
@@ -175,6 +209,9 @@ export function DevFloorPlanRoute() {
           viewport={viewportSize}
           tableAnnotation={annotate}
           accessibilityLabel={t('nav.floorplan')}
+          translate={(key, params) => t(`common:${key}`, params ?? {})}
+          areaMode={areaMode}
+          transform={{ zoom, panX: 0, panY: 0 }}
         />
       </div>
     </section>

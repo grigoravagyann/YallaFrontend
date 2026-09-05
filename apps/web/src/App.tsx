@@ -18,6 +18,7 @@ import { CreateVenueRoute } from './console/platform/CreateVenueRoute';
 import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
+import { FloorPlanEditorScreen } from './console/venue/floorplan/FloorPlanEditorScreen';
 import { VenuePlaceholder } from './console/venue/VenuePlaceholder';
 import { usingMockData } from './data/gateway';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
@@ -174,10 +175,7 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
         {VENUE_ROLES.includes(role) ? (
           <Route path="/venue" element={<VenueLayout user={user} />}>
             <Route index element={<Navigate to="/venue/floorplan" replace />} />
-            <Route
-              path="floorplan"
-              element={<VenuePlaceholder titleKey="nav.floorplan" prompt="Prompt 7" />}
-            />
+            <Route path="floorplan" element={<FloorPlanEditorScreen />} />
             <Route
               path="menu"
               element={<VenuePlaceholder titleKey="nav.menu" prompt="Prompt 8" />}

@@ -22,9 +22,19 @@
     "offlineHint": "Ցուցադրվում է վերջին հայտնի վիճակը։"
   },
   "action": {
-    "retry": "Կրկնել"
+    "retry": "Կրկնել",
+    "cancel": "Չեղարկել",
+    "close": "Փակել"
   },
   "placeholder": {
     "comingSoon": "Այս էջը շուտով պատրաստ կլինի։"
+  },
+  "floorPlan": {
+    "overview": "Ընդհանուր",
+    "otherTables": "Այլ սեղաններ",
+    "freeCount_one": "{{count}} ազատ",
+    "freeCount_other": "{{count}} ազատ",
+    "areaFree_one": "{{area}}՝ {{count}} ազատ սեղան",
+    "areaFree_other": "{{area}}՝ {{count}} ազատ սեղան"
   }
 }

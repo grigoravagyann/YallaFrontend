@@ -12,7 +12,13 @@ import type {
   Page,
   SubscriptionTier,
 } from '../contracts/console';
-import { SlugTakenError } from '../contracts/errors';
+import type {
+  EditorFloorArea,
+  EditorFloorPlan,
+  FloorPlanSaveResult,
+  TableDeletionResult,
+} from '../contracts/floorPlan';
+import { FloorPlanInvalidError, SlugTakenError } from '../contracts/errors';
 import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
 import type { components } from '../generated/schema';
 import { venueDetailFromWire, venuePageFromWire } from './consoleMapping';
@@ -60,6 +66,20 @@ const CLAIM = {
 } as const;
 
 const PLATFORM = '/api/platform';
+const BRANCHES = '/api/branches';
+
+/** `Yalla.Domain.Enums.TableShape`: 1 Rectangle, 2 Round. */
+function shapeFromWire(value: number): 'rectangle' | 'round' {
+  return value === 2 ? 'round' : 'rectangle';
+}
+
+function shapeToWire(shape: 'rectangle' | 'round'): number {
+  return shape === 'round' ? 2 : 1;
+}
+
+function stringList(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
 
 /** `Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid. */
 const TIER_TO_WIRE: Readonly<Record<SubscriptionTier, number>> = { free: 1, paid: 2 };
@@ -187,6 +207,95 @@ export function createConsoleHttpGateway(
 
     deleteVenue: ({ venueId }) => venueCommand('delete', `${PLATFORM}/venues/${venueId}`),
 
+    // --- The floor plan editor ----------------------------------------------
+
+    async getFloorPlan(branchId: string): Promise<EditorFloorPlan> {
+      const { data } = await client.get<WireFloorPlan>(`${BRANCHES}/${branchId}/floor-plan`);
+      return floorPlanFromWire(data);
+    },
+
+    async replaceFloorPlan({ branchId, command }): Promise<FloorPlanSaveResult> {
+      try {
+        const { data } = await client.put<WireSaveResult>(`${BRANCHES}/${branchId}/floor-plan`, {
+          floorWidth: command.floorWidth,
+          floorHeight: command.floorHeight,
+          areas: command.areas.map((area) => ({
+            id: area.id ?? null,
+            name: area.name,
+            displayOrder: area.displayOrder,
+          })),
+          tables: command.tables.map((table) => ({
+            id: table.id ?? null,
+            label: table.label,
+            seats: table.seats,
+            x: Math.round(table.x),
+            y: Math.round(table.y),
+            width: Math.round(table.width),
+            height: Math.round(table.height),
+            rotationDegrees: table.rotationDegrees,
+            shape: shapeToWire(table.shape),
+            floorAreaName: table.floorAreaName ?? null,
+            isBookable: table.isBookable,
+            // `qrToken` is deliberately absent. The sticker on the table has to
+            // keep working, and the only way it changes is the explicit
+            // regenerate action.
+          })),
+        });
+        return {
+          plan: floorPlanFromWire(data.plan),
+          warnings: data.warnings ?? [],
+          deactivatedTables: data.deactivatedTables ?? [],
+          removedTables: data.removedTables ?? [],
+        };
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 422) {
+          const context = error.problem?.context ?? {};
+          throw new FloorPlanInvalidError({
+            url: error.url,
+            errors: stringList(context['errors']).length
+              ? stringList(context['errors'])
+              : [error.message],
+            tablesOutsideCanvas: stringList(context['tablesOutsideCanvas']),
+            duplicateLabels: stringList(context['duplicateLabels']),
+            requestId: error.requestId,
+          });
+        }
+        throw error;
+      }
+    },
+
+    async createFloorArea({ branchId, name, displayOrder }): Promise<EditorFloorArea> {
+      const { data } = await client.post<WireArea>(`${BRANCHES}/${branchId}/floor-areas`, {
+        name,
+        displayOrder,
+      });
+      return data;
+    },
+
+    async updateFloorArea({ branchId, areaId, name, displayOrder }): Promise<EditorFloorArea> {
+      const { data } = await client.patch<WireArea>(
+        `${BRANCHES}/${branchId}/floor-areas/${areaId}`,
+        { name, displayOrder },
+      );
+      return data;
+    },
+
+    async deleteFloorArea({ branchId, areaId }): Promise<void> {
+      await client.delete(`${BRANCHES}/${branchId}/floor-areas/${areaId}`);
+    },
+
+    async deleteTable({ branchId, tableId }): Promise<TableDeletionResult> {
+      const { data } = await client.delete<TableDeletionResult>(
+        `${BRANCHES}/${branchId}/tables/${tableId}`,
+      );
+      return data;
+    },
+
+    async regenerateTableQr({ tableId }): Promise<{ qrToken: string }> {
+      const { data } = await client.post<WireTable>(`/api/tables/${tableId}/regenerate-qr`);
+      return { qrToken: data.qrToken };
+    },
+
     /**
      * The tier lives on a branch, and the backend changes it through the
      * general branch patch rather than a tier-specific route.
@@ -200,6 +309,63 @@ export function createConsoleHttpGateway(
       // Re-read the venue so the screen replaces rather than patches.
       return venueDetail(`${PLATFORM}/venues/${data.venueId}`);
     },
+  };
+}
+
+type WireArea = EditorFloorArea;
+
+interface WireTable {
+  id: string;
+  label: string;
+  seats: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotationDegrees: number;
+  shape: number;
+  floorAreaId?: string | null;
+  isBookable: boolean;
+  isActive: boolean;
+  qrToken: string;
+}
+
+interface WireFloorPlan {
+  branchId: string;
+  floorWidth: number;
+  floorHeight: number;
+  areas?: WireArea[];
+  tables?: WireTable[];
+}
+
+interface WireSaveResult {
+  plan: WireFloorPlan;
+  warnings?: string[];
+  deactivatedTables?: string[];
+  removedTables?: string[];
+}
+
+function floorPlanFromWire(plan: WireFloorPlan): EditorFloorPlan {
+  return {
+    branchId: plan.branchId,
+    floorWidth: plan.floorWidth,
+    floorHeight: plan.floorHeight,
+    areas: [...(plan.areas ?? [])].sort((a, b) => a.displayOrder - b.displayOrder),
+    tables: (plan.tables ?? []).map((table) => ({
+      id: table.id,
+      label: table.label,
+      seats: table.seats,
+      x: table.x,
+      y: table.y,
+      width: table.width,
+      height: table.height,
+      rotationDegrees: table.rotationDegrees,
+      shape: shapeFromWire(table.shape),
+      floorAreaId: table.floorAreaId ?? null,
+      isBookable: table.isBookable,
+      isActive: table.isActive,
+      qrToken: table.qrToken,
+    })),
   };
 }
 

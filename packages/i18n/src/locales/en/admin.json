@@ -147,5 +147,118 @@
     "submit": "Sign in",
     "failed": "That email and password do not match an account.",
     "expired": "Your session ended. Sign in again to continue where you were."
+  },
+  "floorPlan": {
+    "noBranch": "This account has no branch to draw a plan for.",
+    "summary": "{{tables}} tables across {{areas}} areas",
+    "unsaved": "Unsaved changes",
+    "save": "Save the plan",
+    "saving": "Saving…",
+    "saved": "Plan saved.",
+    "undo": "Undo",
+    "redo": "Redo",
+    "addTable": "Add a table",
+    "duplicate": "Duplicate",
+    "duplicateShortcut": "Ctrl+D",
+    "delete": "Delete",
+    "grid": "Snap to grid",
+    "zoom": "Zoom",
+    "canvasWidth": "Room width",
+    "canvasHeight": "Room depth",
+    "align": {
+      "label": "Align",
+      "left": "Left edges",
+      "right": "Right edges",
+      "top": "Top edges",
+      "bottom": "Bottom edges",
+      "horizontalCentre": "Centre across",
+      "verticalCentre": "Centre down"
+    },
+    "shape": {
+      "rectangle": "Rectangle",
+      "round": "Round"
+    },
+    "field": {
+      "label": "Label",
+      "seats": "Seats",
+      "shape": "Shape",
+      "width": "Width",
+      "height": "Depth",
+      "rotation": "Rotation",
+      "area": "Floor area",
+      "noArea": "No area",
+      "bookable": "Can be booked",
+      "mixed": "Mixed"
+    },
+    "properties": {
+      "title": "Properties",
+      "none": "Select a table to edit it.",
+      "one": "Table {{label}}",
+      "many": "{{count}} tables selected"
+    },
+    "areas": {
+      "title": "Floor areas",
+      "none": "No areas yet. Tables can sit in none.",
+      "add": "Add",
+      "newPlaceholder": "New area name",
+      "rename": "Rename area",
+      "remove": "Delete",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "assign": "Assign {{count}}",
+      "tableCount_one": "{{count}} table",
+      "tableCount_other": "{{count}} tables",
+      "unassigned_one": "{{count}} table is in no area.",
+      "unassigned_other": "{{count}} tables are in no area."
+    },
+    "row": {
+      "open": "Add a row",
+      "title": "Add a row of tables",
+      "body": "Twelve identical two-tops along a wall, in one go.",
+      "count": "How many",
+      "spacing": "Gap between tables",
+      "orientation": "Direction",
+      "horizontal": "Left to right",
+      "vertical": "Top to bottom",
+      "startX": "Start across",
+      "startY": "Start down",
+      "add_one": "Add {{count}} table",
+      "add_other": "Add {{count}} tables",
+      "overruns": "That run does not fit inside the room. Shorten it, or make the room bigger first."
+    },
+    "qr": {
+      "title": "QR code",
+      "copy": "Copy the code",
+      "copied": "Copied",
+      "print": "Print",
+      "pending": "This table gets its code when the plan is saved.",
+      "regenerate": "Regenerate the QR",
+      "regenerateWarning": "The code printed and stuck to table {{label}} stops working the moment this lands. Somebody has to go and replace it.",
+      "typeLabel": "Type {{label}} to confirm",
+      "regenerateConfirm": "Regenerate it"
+    },
+    "deactivated": {
+      "body": "Table {{label}} has bookings against it, so it was kept and deactivated rather than deleted.",
+      "reactivate": "Put it back in service"
+    },
+    "error": {
+      "outsideCanvas": "This table sits outside the room.",
+      "duplicateLabel": "Another table already uses this label.",
+      "willBeRejected": "These tables sit outside the room and the save will be refused: {{labels}}.",
+      "namedOutside": "Outside the room: {{labels}}.",
+      "duplicates": "These labels are used more than once: {{labels}}.",
+      "showFirst": "Show the first"
+    },
+    "result": {
+      "deactivated": "Kept and deactivated because they have bookings: {{labels}}.",
+      "removed": "Removed: {{labels}}."
+    },
+    "preview": {
+      "toggle": "Preview as a diner",
+      "title": "What a diner sees",
+      "body": "The real viewer at phone width. Check the labels survive, and whether the room is dense enough to split into areas.",
+      "partySize": "Party size",
+      "busy": "Show a busy floor"
+    }
   }
 }
