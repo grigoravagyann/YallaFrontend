@@ -1,23 +1,19 @@
-import type { TableAvailability } from '@yalla/api';
+import { describeFailure, type TableAvailability } from '@yalla/api';
+import { isOfflinePaused } from '@yalla/api/react';
 import { FloorPlan, Legend } from '@yalla/floorplan';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, radius, space } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  SafeAreaView,
-  StyleSheet,
-  View,
-  type LayoutChangeEvent,
-} from 'react-native';
-import { Text } from '../../src/components/Text';
+import { SafeAreaView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import {
   BookingContextBar,
   nextHalfHour,
   type BookingContext,
 } from '../../src/components/BookingContextBar';
+import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { TableSheet } from '../../src/components/TableSheet';
+import { Text } from '../../src/components/Text';
 import { useFloorPlan, useTableAvailability, useVenue } from '../../src/data/queries';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
@@ -55,15 +51,20 @@ export default function BranchFloorPlanScreen() {
   const slotIso = useMemo(() => booking.slotUtc.toISOString(), [booking.slotUtc]);
 
   const floorQuery = useFloorPlan(branchId);
-  const availabilityQuery = useTableAvailability({
-    branchId,
-    slotUtc: slotIso,
-    partySize: booking.partySize,
-  });
   const venueQuery = useVenue(venueId);
 
   const branchSummary = venueQuery.data?.branches.find((b) => b.id === branchId);
   const timeZoneId = floorQuery.data?.timeZoneId ?? branchSummary?.timeZoneId ?? 'Asia/Yerevan';
+
+  // The backend asks in the branch's wall-clock terms, so the zone travels with
+  // the slot. The floor answers first and carries the zone; until then the
+  // branch summary's zone, and failing both, Yerevan.
+  const availabilityQuery = useTableAvailability({
+    branchId,
+    slotUtc: slotIso,
+    partySize: booking.partySize,
+    timeZoneId,
+  });
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -112,28 +113,32 @@ export default function BranchFloorPlanScreen() {
     [router, branchId, venueId, slotIso, booking.partySize],
   );
 
-  if (floorQuery.isLoading) {
+  if (floorQuery.isLoading || floorQuery.isError || !floorQuery.data) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
-        <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
-          <Text style={styles.muted}>{t('net.loading')}</Text>
-        </View>
+        {isOfflinePaused(floorQuery) ? (
+          <QueryFailure offline onRetry={() => void floorQuery.refetch()} />
+        ) : floorQuery.isLoading ? (
+          <QueryLoading label={t('net.loading')} />
+        ) : floorQuery.isError ? (
+          <QueryFailure error={floorQuery.error} onRetry={() => void floorQuery.refetch()} />
+        ) : (
+          <View style={styles.centered}>
+            <Text style={styles.emptyTitle}>{t('floorPlan.notFound')}</Text>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
 
-  if (!floorQuery.data) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <Stack.Screen options={{ headerShown: true, title: '' }} />
-        <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>{t('floorPlan.notFound')}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // The floor is on screen; a failed availability answer is a line above it,
+  // not a screen of its own — the diner can still see the room.
+  const availabilityFailure = isOfflinePaused(availabilityQuery)
+    ? 'offline'
+    : availabilityQuery.isError
+      ? describeFailure(availabilityQuery.error)
+      : null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -143,7 +148,9 @@ export default function BranchFloorPlanScreen() {
 
       <View style={styles.header}>
         <Text style={styles.venue}>{venueQuery.data?.name ?? ''}</Text>
-        <Text style={styles.branch}>{branchSummary?.name ?? ''}</Text>
+        <Text display style={styles.branch}>
+          {branchSummary?.name ?? ''}
+        </Text>
       </View>
 
       <BookingContextBar
@@ -163,6 +170,10 @@ export default function BranchFloorPlanScreen() {
       {conflictLabel ? (
         <Text style={styles.conflict}>
           {t('confirm.error.tableTaken', { label: conflictLabel })}
+        </Text>
+      ) : availabilityFailure ? (
+        <Text style={styles.conflict}>
+          {availabilityFailure === 'offline' ? t('net.offline') : t('net.serverError')}
         </Text>
       ) : (
         <Text style={styles.status}>{t('floorPlan.title')}</Text>
@@ -221,6 +232,5 @@ const styles = StyleSheet.create({
   },
   planWrap: { flex: 1, marginHorizontal: space.lg, marginBottom: space.lg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.sm },
-  muted: { fontSize: fontSize.sm, color: color.mutedForeground },
   emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
 });

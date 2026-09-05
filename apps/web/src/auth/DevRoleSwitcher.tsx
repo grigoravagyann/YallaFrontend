@@ -1,6 +1,7 @@
 import { USER_ROLES, type UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useNavigate } from 'react-router-dom';
+import { usingMockData } from '../data/gateway';
 import { useDevRole } from './session';
 import { landingPathFor } from './useCurrentUser';
 
@@ -18,6 +19,11 @@ export interface DevRoleSwitcherProps {
  * role comes from the token and `resolveConsoleGateway` ignores it outright, so
  * it could not become a privilege-escalation path even if it did ship.
  *
+ * It is also hidden whenever the app is talking to a real backend. There it
+ * changes nothing but still navigates, so picking "Waiter" while holding a
+ * platform admin's token lands on a refusal page — a control that appears to
+ * do something and then blames you for using it.
+ *
  * It navigates to the new role's landing page on change, because the route you
  * are standing on usually does not exist in the role you just switched to —
  * leaving you on the refusal page, which is correct but useless.
@@ -32,7 +38,7 @@ export function DevRoleSwitcher({ variant = 'sidebar' }: DevRoleSwitcherProps) {
   const role = useDevRole((state) => state.role);
   const setRole = useDevRole((state) => state.setRole);
 
-  if (!import.meta.env.DEV) return null;
+  if (!import.meta.env.DEV || !usingMockData) return null;
 
   return (
     <label className={variant === 'bar' ? 'dev-role dev-role-bar' : 'dev-role'}>

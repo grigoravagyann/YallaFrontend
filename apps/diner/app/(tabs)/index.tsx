@@ -1,16 +1,11 @@
 import type { VenueSummary, VenueType } from '@yalla/api';
+import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
+import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { Text, TextInput } from '../../src/components/Text';
 import { VenueCard } from '../../src/components/VenueCard';
 import { useVenues } from '../../src/data/queries';
@@ -30,6 +25,9 @@ const FILTERS: readonly { key: Filter; type: VenueType | null }[] = [
  * It has to look worth browsing rather than like a utility, so the venue cards
  * lead with the one number only this app can show: how many tables are free
  * right now.
+ *
+ * Four states, explicitly: loading, empty, error and offline. The last two are
+ * told apart by the client, not guessed here.
  */
 export default function ExploreScreen() {
   const { t } = useTranslation('diner');
@@ -39,7 +37,10 @@ export default function ExploreScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const activeTabId = useActiveTab((s) => s.activeTabId);
 
-  const { data, isLoading, isError, refetch } = useVenues();
+  const venuesQuery = useVenues();
+  const { data, isLoading, isError, error, isFetching, refetch } = venuesQuery;
+  // An offline query is paused, never failed: without this the screen spins.
+  const offline = isOfflinePaused(venuesQuery);
   // Stable identity, so the filter memo below is not defeated by `?? []`
   // producing a fresh array on every render.
   const venues: readonly VenueSummary[] = useMemo(() => data ?? [], [data]);
@@ -71,7 +72,9 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.city}>{t('explore.city')}</Text>
+        <Text display style={styles.city}>
+          {t('explore.city')}
+        </Text>
         <Text style={styles.count}>{t('explore.placesNearby', { count: venues.length })}</Text>
       </View>
 
@@ -121,18 +124,12 @@ export default function ExploreScreen() {
         })}
       </View>
 
-      {isLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
-          <Text style={styles.emptyBody}>{t('explore.loading')}</Text>
-        </View>
+      {offline && !data ? (
+        <QueryFailure offline onRetry={() => void refetch()} />
+      ) : isLoading ? (
+        <QueryLoading label={t('explore.loading')} />
       ) : isError ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>{t('net.offline')}</Text>
-          <Pressable accessibilityRole="button" onPress={() => void refetch()} style={styles.chip}>
-            <Text style={styles.chipText}>{t('net.retry')}</Text>
-          </Pressable>
-        </View>
+        <QueryFailure error={error} onRetry={() => void refetch()} />
       ) : (
         <FlatList
           data={visible}
@@ -140,6 +137,10 @@ export default function ExploreScreen() {
           renderItem={({ item }) => <VenueCard venue={item} onPress={openVenue} />}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
+          // Pull to refresh: the free-table counts move, and a diner who has
+          // been staring at the list for a minute wants the current ones.
+          refreshing={isFetching && !isLoading}
+          onRefresh={() => void refetch()}
           // An empty search result needs a real message, not a blank screen.
           ListEmptyComponent={
             <View style={styles.centered}>
@@ -195,8 +196,8 @@ const styles = StyleSheet.create({
   },
   searchWrap: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   search: {
-    minHeight: touchTarget.minimum,
-    paddingHorizontal: space.md,
+    minHeight: touchTarget.regular,
+    paddingHorizontal: space.lg,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: color.border,
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     paddingBottom: space.md,
   },
   chip: {
-    minHeight: touchTarget.minimum - 8,
+    minHeight: touchTarget.small,
     justifyContent: 'center',
     paddingHorizontal: space.lg,
     borderRadius: radius.pill,

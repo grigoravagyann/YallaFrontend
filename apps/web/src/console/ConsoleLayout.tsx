@@ -1,8 +1,10 @@
 import type { ConsoleUser, UserRole } from '@yalla/api';
 import { LOCALES, useLocale, useTranslation, type Locale } from '@yalla/i18n';
 import { NavLink, Outlet } from 'react-router-dom';
+import { signOut } from '../auth/authSession';
 import { DevRoleSwitcher } from '../auth/DevRoleSwitcher';
 import { FLOOR_ROLES, PLATFORM_ROLES, VENUE_ROLES } from '../auth/useCurrentUser';
+import { usingMockData } from '../data/gateway';
 
 export interface NavItem {
   readonly to: string;
@@ -59,8 +61,23 @@ export function ConsoleLayout({ user }: ConsoleLayoutProps) {
         <div className="brand">{t('common:appName')}</div>
 
         <div className="whoami">
-          <span className="whoami-name">{t('shell.signedInAs', { name: user.displayName })}</span>
-          <span className="whoami-role">{t(`role.${user.role}`)}</span>
+          <span className="whoami-name">
+            {user.displayName
+              ? t('shell.signedInAs', { name: user.displayName })
+              : t(`role.${user.role}`)}
+          </span>
+          {user.displayName ? <span className="whoami-role">{t(`role.${user.role}`)}</span> : null}
+          {/* Only against a real backend: the mock has no session to end, and a
+              sign-out that does nothing is worse than none. */}
+          {usingMockData ? null : (
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              onClick={() => void signOut()}
+            >
+              {t('shell.signOut')}
+            </button>
+          )}
         </div>
 
         <ul className="nav">

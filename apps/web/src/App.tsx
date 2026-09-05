@@ -1,6 +1,10 @@
 import type { ConsoleUser } from '@yalla/api';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { onSignedOut } from './auth/authSession';
 import { Forbidden, LoadingScreen, RequireRole } from './auth/RequireRole';
+import { SignInRoute } from './auth/SignInRoute';
 import {
   FLOOR_ROLES,
   PLATFORM_ROLES,
@@ -8,12 +12,14 @@ import {
   landingPathFor,
   useCurrentUser,
 } from './auth/useCurrentUser';
+import { QueryFailureNotice } from './components/QueryFailureNotice';
 import { ConsoleLayout } from './console/ConsoleLayout';
 import { CreateVenueRoute } from './console/platform/CreateVenueRoute';
 import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
 import { VenuePlaceholder } from './console/venue/VenuePlaceholder';
+import { usingMockData } from './data/gateway';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
 import { DevTokensRoute } from './routes/DevTokensRoute';
 import { FloorRoute } from './staff/FloorRoute';
@@ -38,12 +44,75 @@ import { FloorRoute } from './staff/FloorRoute';
  *   a path exists tells them which venue ids are real.
  */
 export function App() {
-  const { user, isLoading, isError } = useCurrentUser();
+  const { user, isLoading, failure, isError } = useCurrentUser();
+  const location = useLocation();
+  useSignedOutRedirect();
+
+  // No session against a real backend: the whole app is the sign-in form,
+  // with where the person was carried along so they land back on it.
+  if (!usingMockData && failure === 'unauthorized') {
+    return (
+      <Routes>
+        <Route path="/sign-in" element={<SignInRoute />} />
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to="/sign-in"
+              replace
+              state={{ returnTo: `${location.pathname}${location.search}` }}
+            />
+          }
+        />
+      </Routes>
+    );
+  }
 
   if (isLoading) return <LoadingScreen />;
-  if (isError || !user) return <Forbidden />;
+  if (isError && !user) return <StartupFailure />;
+  if (!user) return <Forbidden />;
 
   return <AppRoutes user={user} />;
+}
+
+/** The identity could not be read at all — offline, or the server is down. */
+function StartupFailure() {
+  const queryClient = useQueryClient();
+  const { failure } = useCurrentUser();
+  return (
+    <section className="page page-narrow">
+      <QueryFailureNotice
+        error={{ kind: failure }}
+        onRetry={() => void queryClient.resetQueries({ queryKey: ['currentUser'] })}
+      />
+    </section>
+  );
+}
+
+/**
+ * A rejected refresh, or an explicit sign-out, sends the person to sign-in
+ * with where they were preserved. The session broadcasts; the router listens.
+ */
+function useSignedOutRedirect() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+
+  useEffect(
+    () =>
+      onSignedOut((reason) => {
+        queryClient.removeQueries({ queryKey: ['currentUser'] });
+        navigate('/sign-in', {
+          replace: true,
+          state: {
+            returnTo:
+              location.pathname === '/sign-in' ? '/' : `${location.pathname}${location.search}`,
+            reason,
+          },
+        });
+      }),
+    [navigate, location.pathname, location.search, queryClient],
+  );
 }
 
 function AppRoutes({ user }: { user: ConsoleUser }) {
@@ -53,6 +122,8 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
   return (
     <Routes>
       <Route path="/" element={<Navigate to={home} replace />} />
+      {/* Already signed in: the form has nothing to do. */}
+      <Route path="/sign-in" element={<Navigate to={home} replace />} />
 
       {/* The staff floor screen is outside the console shell on purpose: a
           sidebar is wasted width on a tablet, and a waiter needs no navigation

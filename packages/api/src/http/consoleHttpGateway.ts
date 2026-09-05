@@ -1,3 +1,6 @@
+import { staffRoleToUserRole, type VenueUserIdentity } from '../auth/endpoints';
+import { claimString, decodeJwtPayload } from '../auth/jwt';
+import type { AuthSession } from '../auth/session';
 import type { ApiClient } from '../client';
 import type { ConsoleGateway } from '../consoleGateway';
 import type {
@@ -7,77 +10,145 @@ import type {
   CreateVenueCommand,
   ListVenuesQuery,
   Page,
+  SubscriptionTier,
 } from '../contracts/console';
-import {
-  OutOfScopeError,
-  SlugTakenError,
-  VenueHasOpenTabsError,
-  type BlockingTab,
-} from '../contracts/errors';
-import { ApiError } from '../errors';
+import { SlugTakenError } from '../contracts/errors';
+import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
+import type { components } from '../generated/schema';
+import { venueDetailFromWire, venuePageFromWire } from './consoleMapping';
+
+type Schemas = components['schemas'];
+type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
+type WirePage =
+  Schemas['Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'];
+
+/**
+ * The name the sign-in response gave us, kept for the session.
+ *
+ * The backend has no `/me` endpoint, so after a reload the console rebuilds the
+ * signed-in user from the access token's claims. Those carry the ids and the
+ * role but not the display name, which is why the sign-in result is kept here
+ * and read back when the token is refreshed rather than re-issued.
+ */
+export interface ConsoleIdentityStore {
+  get(): VenueUserIdentity | null;
+  set(identity: VenueUserIdentity | null): void;
+}
+
+export function createMemoryIdentityStore(): ConsoleIdentityStore {
+  let value: VenueUserIdentity | null = null;
+  return {
+    get: () => value,
+    set: (identity) => {
+      value = identity;
+    },
+  };
+}
+
+export interface ConsoleHttpGatewayOptions {
+  readonly auth: AuthSession;
+  readonly identity: ConsoleIdentityStore;
+}
+
+/** Claim names from the backend's `YallaClaims`. */
+const CLAIM = {
+  staffMemberId: 'staffMemberId',
+  venueId: 'venueId',
+  branchId: 'branchId',
+  role: 'role',
+  subject: 'sub',
+} as const;
+
+const PLATFORM = '/api/platform';
+
+/** `Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid. */
+const TIER_TO_WIRE: Readonly<Record<SubscriptionTier, number>> = { free: 1, paid: 2 };
 
 /**
  * The console over HTTP.
  *
- * The scope rule made concrete: no method takes a venue or branch id the client
- * invented. Every id here came from `getCurrentUser` or from a list the server
- * already filtered, and the server checks again regardless — a 403 comes back
- * as {@link OutOfScopeError} and the UI shows a plain refusal rather than
- * bouncing the user around a redirect loop.
+ * Venue management is the platform tier: `/api/platform/venues`, guarded by
+ * `PlatformAdminOnly` server-side. Nothing here sends a role or a scope — the
+ * token carries both, and a venue user calling these gets a 403 that surfaces
+ * as a plain refusal rather than a retry loop.
+ *
+ * Every method maps a real endpoint. Nothing is faked: a fabricated
+ * "suspended" would be worse than any error.
  */
-export function createConsoleHttpGateway(client: ApiClient): ConsoleGateway {
-  function translate(error: unknown, context: { venueId?: string; slug?: string }): never {
-    if (!(error instanceof ApiError)) throw error;
+export function createConsoleHttpGateway(
+  client: ApiClient,
+  options: ConsoleHttpGatewayOptions,
+): ConsoleGateway {
+  const { auth, identity } = options;
 
-    if (error.status === 403) throw new OutOfScopeError({ url: error.url });
-
-    const body = error.body as
-      { code?: string; openTabs?: readonly BlockingTab[]; slug?: string } | undefined;
-
-    if (error.status === 409 && body?.code === 'venueHasOpenTabs') {
-      throw new VenueHasOpenTabsError({
-        url: error.url,
-        venueId: context.venueId ?? '',
-        // An empty list here is a backend bug, and the screen says "still in
-        // service" without naming a table rather than claiming none are open.
-        openTabs: body.openTabs ?? [],
-      });
+  /**
+   * A 409 on create means the slug is taken — the one conflict this surface
+   * raises, and the fix is a specific field.
+   */
+  function translate(error: unknown, context: { slug?: string }): never {
+    if (error instanceof ApiError && error.status === 409) {
+      throw new SlugTakenError({ url: error.url, slug: context.slug ?? '' });
     }
-
-    if (error.status === 409 && body?.code === 'slugTaken') {
-      throw new SlugTakenError({ url: error.url, slug: body.slug ?? context.slug ?? '' });
-    }
-
     throw error;
   }
 
-  /** Every console command posts, carries its id, and returns the whole venue. */
-  async function command(
-    path: string,
-    commandId: string,
-    context: { venueId?: string },
-    payload?: Record<string, unknown>,
-  ): Promise<ConsoleVenueDetail> {
+  async function venueDetail(path: string, context: { slug?: string } = {}) {
     try {
-      const { data } = await client.post<ConsoleVenueDetail>(
-        path,
-        { commandId, ...payload },
-        { headers: { 'idempotency-key': commandId } },
-      );
-      return data;
+      const { data } = await client.get<WireDetail>(path);
+      return venueDetailFromWire(data);
     } catch (error) {
       return translate(error, context);
     }
   }
 
+  async function venueCommand(
+    method: 'post' | 'delete',
+    path: string,
+  ): Promise<ConsoleVenueDetail> {
+    const { data } =
+      method === 'post'
+        ? await client.post<WireDetail>(path)
+        : await client.delete<WireDetail>(path);
+    return venueDetailFromWire(data);
+  }
+
   return {
     async getCurrentUser(): Promise<ConsoleUser> {
-      const { data } = await client.get<ConsoleUser>('/console/me');
-      return data;
+      // Refreshes first if the held token is stale, so the claims read below
+      // are from a token the server would accept right now.
+      const token = await auth.getAccessToken();
+      if (!token) {
+        throw new UnauthorizedError({ url: '/api/auth/venue/refresh' });
+      }
+
+      const claims = decodeJwtPayload(token);
+      const staffMemberId =
+        claimString(claims, CLAIM.staffMemberId) ?? claimString(claims, CLAIM.subject);
+      const role = claimString(claims, CLAIM.role);
+      if (!staffMemberId || !role) {
+        // A token without the staff claims is not a console session — a diner
+        // token pasted into the wrong app, or a backend change.
+        throw new UnauthorizedError({ url: '/api/auth/venue/refresh' });
+      }
+
+      const known = identity.get();
+      // A platform admin belongs to no venue and no branch, and carries
+      // neither claim. That is the correct empty scope, not a broken token.
+      const venueId = claimString(claims, CLAIM.venueId);
+      const branchId = claimString(claims, CLAIM.branchId);
+
+      return {
+        id: staffMemberId,
+        // The display name is not in the token; after a reload we show none
+        // until the next sign-in rather than inventing one.
+        displayName: known?.staffMemberId === staffMemberId ? known.fullName : '',
+        role: staffRoleToUserRole(role),
+        scope: { venueId, branchIds: branchId ? [branchId] : [] },
+      };
     },
 
     async listVenues(query: ListVenuesQuery): Promise<Page<ConsoleVenue>> {
-      const { data } = await client.get<Page<ConsoleVenue>>('/console/venues', {
+      const { data } = await client.get<WirePage>(`${PLATFORM}/venues`, {
         query: {
           ...(query.search ? { search: query.search } : {}),
           ...(query.page ? { page: query.page } : {}),
@@ -85,39 +156,52 @@ export function createConsoleHttpGateway(client: ApiClient): ConsoleGateway {
           ...(query.includeDeleted ? { includeDeleted: true } : {}),
         },
       });
-      return data;
+      return venuePageFromWire(data);
     },
 
-    async getVenue(venueId) {
-      const { data } = await client.get<ConsoleVenueDetail>(`/console/venues/${venueId}`);
-      return data;
-    },
+    getVenue: (venueId) => venueDetail(`${PLATFORM}/venues/${venueId}`),
 
-    async createVenue(cmd: CreateVenueCommand) {
+    async createVenue(command: CreateVenueCommand) {
       try {
-        const { data } = await client.post<ConsoleVenueDetail>('/console/venues', cmd, {
-          headers: { 'idempotency-key': cmd.commandId },
+        // The backend takes no `commandId` on this route and derives the
+        // branch slug from its name; the fields it does take are sent, and
+        // nothing is invented for the ones it does not.
+        const { data } = await client.post<WireDetail>(`${PLATFORM}/venues`, {
+          name: command.name,
+          slug: command.slug,
+          type: command.type === 'restaurant' ? 2 : 1,
+          firstBranch: {
+            name: command.firstBranch.name,
+            timeZoneId: command.firstBranch.timeZoneId,
+          },
         });
-        return data;
+        return venueDetailFromWire(data);
       } catch (error) {
-        return translate(error, { slug: cmd.slug });
+        return translate(error, { slug: command.slug });
       }
     },
 
-    suspendVenue({ venueId, commandId }) {
-      return command(`/console/venues/${venueId}/suspend`, commandId, { venueId });
-    },
+    suspendVenue: ({ venueId }) => venueCommand('post', `${PLATFORM}/venues/${venueId}/suspend`),
 
-    resumeVenue({ venueId, commandId }) {
-      return command(`/console/venues/${venueId}/resume`, commandId, { venueId });
-    },
+    resumeVenue: ({ venueId }) => venueCommand('post', `${PLATFORM}/venues/${venueId}/reactivate`),
 
-    deleteVenue({ venueId, commandId }) {
-      return command(`/console/venues/${venueId}/delete`, commandId, { venueId });
-    },
+    deleteVenue: ({ venueId }) => venueCommand('delete', `${PLATFORM}/venues/${venueId}`),
 
-    setBranchTier({ branchId, tier, commandId }) {
-      return command(`/console/branches/${branchId}/tier`, commandId, {}, { tier });
+    /**
+     * The tier lives on a branch, and the backend changes it through the
+     * general branch patch rather than a tier-specific route.
+     */
+    async setBranchTier({ branchId, tier }) {
+      const { data } = await client.patch<Schemas['Yalla.Application.Platform.BranchSummary']>(
+        `${PLATFORM}/branches/${branchId}`,
+        { subscriptionTier: TIER_TO_WIRE[tier] },
+      );
+      // The patch answers with the branch, not the venue the console caches.
+      // Re-read the venue so the screen replaces rather than patches.
+      return venueDetail(`${PLATFORM}/venues/${data.venueId}`);
     },
   };
 }
+
+/** Re-exported so a screen inspecting the refusal needs one import. */
+export { ForbiddenError };

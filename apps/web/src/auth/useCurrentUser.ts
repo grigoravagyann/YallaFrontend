@@ -1,13 +1,15 @@
-import type { ConsoleUser, UserRole } from '@yalla/api';
+import { describeFailure, type ConsoleUser, type FailureKind, type UserRole } from '@yalla/api';
+import { useConsoleGateway } from '@yalla/api/react';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { consoleGatewayFor } from '../data/gateway';
 import { useDevRole } from './session';
 
 export interface CurrentUserResult {
   readonly user: ConsoleUser | undefined;
   readonly isLoading: boolean;
   readonly isError: boolean;
+  /** Why there is no user, when there is none. `unauthorized` means "show sign-in". */
+  readonly failure: FailureKind | null;
 }
 
 /**
@@ -19,20 +21,28 @@ export interface CurrentUserResult {
  * genuinely conditional it goes through `<RequireRole>`.
  *
  * Note what is *not* here: no setter, and no way for a component to widen its
- * own scope. Scope arrives from the server and travels one way.
+ * own scope. Scope arrives from the server and travels one way. Against the
+ * real backend it is read from the access token's claims; against the mock
+ * from the dev role switcher.
  */
 export function useCurrentUser(): CurrentUserResult {
+  const gateway = useConsoleGateway();
   const role = useDevRole((state) => state.role);
 
   const query = useQuery({
     queryKey: ['currentUser', role],
-    queryFn: () => consoleGatewayFor(role).getCurrentUser(),
+    queryFn: () => gateway.getCurrentUser(),
     // The signed-in identity does not change under you mid-session; refetching
     // it on every window focus would restart the whole role-built router.
     staleTime: Infinity,
   });
 
-  return { user: query.data, isLoading: query.isLoading, isError: query.isError };
+  return {
+    user: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    failure: query.error ? describeFailure(query.error) : null,
+  };
 }
 
 /**

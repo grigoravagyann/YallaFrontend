@@ -389,3 +389,120 @@ never on each other except `api → format` and `floorplan → tokens`.
   to be handled by refetching and telling the user, never by a generic error.
 - **Connection state is rendered, not hidden.** A floor plan that looks live but
   is forty seconds stale is worse than one that says it's reconnecting.
+
+## Running against the real backend
+
+Both apps default to the real backend and both need to be told where it is.
+They need **different answers**, and this is the thing that wastes an afternoon
+if it is not handled deliberately:
+
+| App     | Variable                         | Value                                                                     |
+| ------- | -------------------------------- | ------------------------------------------------------------------------- |
+| `web`   | `VITE_API_URL`                   | `http://localhost:5086` — the browser is on the same machine              |
+| `diner` | `EXPO_PUBLIC_API_URL` (optional) | `http://<laptop LAN address>:5086` — on a phone, `localhost` is the phone |
+
+Use the backend's **plain-http port (5086)**, not the https one: the https dev
+certificate is self-signed and a phone will refuse it. Copy each app's
+`.env.example` to `.env`; the dev servers read env vars when they start, so
+restart after editing. A missing or malformed URL fails at startup with a
+message naming the variable — in the browser as a boxed message on the page, in
+Expo as a red screen. That is deliberate: a silent `undefined` becomes requests
+to `/api/...` on the wrong origin that fail in confusing ways.
+
+### Finding the laptop's LAN address
+
+The diner app usually needs no editing at all. When `EXPO_PUBLIC_API_URL` is
+unset it takes the host the phone already loaded the bundle from (the Expo dev
+server, e.g. `192.168.1.42:8081`) and swaps the port for `5086`. Set the
+variable only when the backend runs on another machine or port. This matters
+more than it looks: a laptop's address changes with the network, and a
+hard-coded one is stale the next time you open the app somewhere else.
+
+The backend prints its own LAN address on startup, which is the value to use:
+
+```
+Swagger UI:        http://192.168.1.42:5086/swagger
+pnpm api:generate: http://192.168.1.42:5086/swagger/v1/swagger.json
+```
+
+By hand: `ipconfig` on Windows (the IPv4 address of the wifi adapter),
+`ipconfig getifaddr en0` on macOS, `hostname -I` on Linux.
+
+### Starting the backend
+
+From the backend repo, with no arguments:
+
+```bash
+dotnet run --project src/Yalla.Api
+```
+
+In Development it binds `0.0.0.0` on 5086 (http) and 7289 (https) itself, skips
+https redirection, and admits loopback and private-network browser origins
+through CORS — so a phone on the same wifi and the Vite dev server both reach
+it with no extra configuration. **Only Development does this.** Two things it
+needs that are not in the repo:
+
+- `PlatformAdmin:Email` and `PlatformAdmin:Password` in user secrets. The app
+  refuses to start without them rather than leave a fresh database with no way
+  in. They are also the console's sign-in.
+- `DevActor:Enabled` set to `false` if you are testing real sign-in. The dev
+  actor stub answers every request as the seeded waiter regardless of the
+  bearer token, so the console signs in as a platform admin and is then
+  refused for being a waiter — a confusing 403 that is nothing to do with the
+  frontend.
+
+### Switching between mock and real
+
+`VITE_DATA_SOURCE` and `EXPO_PUBLIC_DATA_SOURCE` take `mock` or `real` and
+default to `real`. On `mock` the base URL is ignored and the app runs entirely
+on the in-memory mock; the console's dev role switcher comes back, and is
+hidden against a real backend because there it changes nothing but still
+navigates. Two reasons the mock stays: a second developer can build screens
+with no backend running, and when a screen misbehaves, flipping to mock says
+instantly whether the bug is in the UI or in the API. Components never import
+from `mocks/`; the switch is `resolveGateway` and `resolveConsoleGateway` in
+`packages/api`, and nowhere else.
+
+### What is real, and what is still on the mock
+
+| Screen                       | Source | Endpoint                                    |
+| ---------------------------- | ------ | ------------------------------------------- |
+| Console venue list           | real   | `GET /api/platform/venues` (platform admin) |
+| Diner floor plan             | real   | `GET /api/branches/{id}/availability`       |
+| Staff floor plan             | real   | `GET /api/branches/{id}/tables/floor`       |
+| Diner venue and branch lists | —      | **no backend endpoint exists**              |
+| Bookings, tabs, menus        | mock   | contracts not yet reconciled                |
+
+The venue catalogue is the gap worth knowing about: the backend's only venue
+listing is the platform-admin one, so a diner has nothing to browse. The real
+gateway raises `EndpointNotWiredError` for it and every screen renders that as
+"not available yet" rather than as an error — nobody should debug the app for
+a missing endpoint. The methods still answered by the mock are listed at the
+bottom of `packages/api/src/http/httpGateway.ts`.
+
+### When the phone cannot reach the backend
+
+Work down this list; each step rules out one layer.
+
+1. **Same network?** The phone and the laptop must be on the same wifi, and it
+   must not be a guest network that isolates clients. A phone on mobile data
+   cannot see a laptop.
+2. **Can the phone open the backend in a browser?** Visit
+   `http://<laptop address>:5086/swagger` on the phone. If that fails, nothing
+   in the app will work and the problem is not in the app.
+3. **Is the firewall letting port 5086 in?** On Windows, the first run prompts
+   to allow `dotnet` on private networks; if it was declined, add an inbound
+   rule for TCP 5086. On macOS, allow incoming connections for `dotnet` in the
+   firewall pane.
+4. **Is the address current?** DHCP hands out a new address on a new network.
+   The derived default follows the dev server automatically; a hard-coded
+   `EXPO_PUBLIC_API_URL` does not, so unset it or update it.
+5. **Did the app pick up the change?** Expo inlines env vars at start. Restart
+   `pnpm dev:diner` and reload the app after editing `.env`.
+6. **Is the backend in Development?** Any other environment binds loopback
+   only and redirects to https, which a phone cannot follow.
+
+Offline is a state, not an error. With the laptop's wifi off the diner app
+shows "You are offline" with a retry button, the console shows a dashed
+notice, and the staff floor keeps the last room it loaded with the header
+saying it is reconnecting.

@@ -1,19 +1,14 @@
 import { isBranchOpenNow, isVenueOpenNow, type BranchSummary } from '@yalla/api';
+import { isOfflinePaused } from '@yalla/api/react';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback } from 'react';
-import { useVenue } from '../../src/data/queries';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
+import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { Text } from '../../src/components/Text';
+import { useVenue } from '../../src/data/queries';
 
 /**
  * Branches for one venue.
@@ -28,7 +23,9 @@ export default function BranchesScreen() {
   const router = useRouter();
   const { venueId } = useLocalSearchParams<{ venueId: string }>();
 
-  const { data: venue, isLoading } = useVenue(venueId);
+  const venueQuery = useVenue(venueId);
+  const { data: venue, isLoading, isError, error, refetch } = venueQuery;
+  const offline = isOfflinePaused(venueQuery);
 
   const openBranch = useCallback(
     (branchId: string) => {
@@ -37,26 +34,22 @@ export default function BranchesScreen() {
     [router, venueId],
   );
 
-  if (isLoading) {
+  if (isLoading || isError || !venue) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
-        <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
-          <Text style={styles.emptyBody}>{t('branches.loading')}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!venue) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <Stack.Screen options={{ headerShown: true, title: '' }} />
-        <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>{t('branches.empty.title')}</Text>
-          <Text style={styles.emptyBody}>{t('branches.empty.body')}</Text>
-        </View>
+        {offline ? (
+          <QueryFailure offline onRetry={() => void refetch()} />
+        ) : isLoading ? (
+          <QueryLoading label={t('branches.loading')} />
+        ) : isError ? (
+          <QueryFailure error={error} onRetry={() => void refetch()} />
+        ) : (
+          <View style={styles.centered}>
+            <Text style={styles.emptyTitle}>{t('branches.empty.title')}</Text>
+            <Text style={styles.emptyBody}>{t('branches.empty.body')}</Text>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -71,7 +64,9 @@ export default function BranchesScreen() {
       <Stack.Screen options={{ headerShown: true, title: '' }} />
 
       <View style={styles.header}>
-        <Text style={styles.venueName}>{venue.name}</Text>
+        <Text display style={styles.venueName}>
+          {venue.name}
+        </Text>
         <Text style={styles.venueMeta}>
           {t('venue.typeAndBranches', {
             type: t(`venue.type.${venue.type}`),
@@ -184,14 +179,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
     minHeight: touchTarget.minimum + space.lg,
-    padding: space.md,
+    padding: space.lg,
     marginBottom: space.sm,
     backgroundColor: color.surface,
     borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: color.border,
+    borderColor: color.borderSoft,
   },
-  rowPressed: { backgroundColor: color.greenTint },
+  rowPressed: { backgroundColor: color.greenTint, transform: [{ scale: 0.97 }] },
   rowBody: { flex: 1, gap: 2 },
   branchName: {
     fontSize: fontSize.lg,

@@ -1,15 +1,18 @@
-import { createApiClient, type TokenGetter } from './client';
-import { resolveApiConfig } from './config';
+import type { AuthSession } from './auth/session';
+import { createApiClient } from './client';
+import type { DataSource } from './config';
 import type { YallaGateway } from './gateway';
-import { createHttpGateway } from './http/httpGateway';
+import { createHttpGateway, type GatewayAudience } from './http/httpGateway';
 import { createMockGateway } from './mocks/mockGateway';
 
 export interface ResolveGatewayOptions {
-  /** Backend origin. When absent or blank, the mock gateway is used. */
+  /** `real` (the default) or `mock`. Read from the app's data-source flag. */
+  readonly dataSource: DataSource;
+  /** Backend origin. Required for `real`; ignored for `mock`. */
   readonly baseUrl?: string | undefined;
-  /** Force the mock even if a base url is configured, e.g. for a demo build. */
-  readonly forceMock?: boolean | undefined;
-  readonly getToken?: TokenGetter | undefined;
+  /** The diner session. Required for `real`. */
+  readonly auth?: AuthSession | undefined;
+  readonly audience?: GatewayAudience | undefined;
   /** Simulated latency for the mock, so loading states are visible. */
   readonly mockLatencyMs?: number | undefined;
   /**
@@ -25,24 +28,28 @@ export interface ResolveGatewayOptions {
  * This is the only module that knows which one is in play. Every screen depends
  * on {@link YallaGateway}, so pointing the app at a live backend is a change
  * here and nowhere else.
+ *
+ * Both implementations stay, selected by a flag that defaults to real. A
+ * second developer can build screens with no backend running, and when a
+ * screen misbehaves, flipping to mock says instantly whether the bug is in the
+ * UI or the API.
  */
-export function resolveGateway(options: ResolveGatewayOptions = {}): YallaGateway {
-  const configured = options.baseUrl?.trim();
+export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
+  const mock = createMockGateway({
+    latencyMs: options.mockLatencyMs ?? 250,
+    simulateTableTaken: options.simulateTableTaken ?? false,
+  });
 
-  if (options.forceMock || !configured) {
-    return createMockGateway({
-      latencyMs: options.mockLatencyMs ?? 250,
-      simulateTableTaken: options.simulateTableTaken ?? false,
-    });
+  if (options.dataSource === 'mock') return mock;
+
+  if (!options.baseUrl) {
+    throw new Error('resolveGateway: a baseUrl is required for the real data source.');
   }
 
-  const config = resolveApiConfig(configured);
-  return createHttpGateway(
-    createApiClient({ baseUrl: config.baseUrl, getToken: options.getToken }),
-  );
-}
-
-/** True when {@link resolveGateway} would hand back the mock. */
-export function isUsingMockData(options: ResolveGatewayOptions = {}): boolean {
-  return Boolean(options.forceMock) || !options.baseUrl?.trim();
+  return createHttpGateway(createApiClient({ baseUrl: options.baseUrl, auth: options.auth }), {
+    audience: options.audience ?? 'diner',
+    auth: options.auth,
+    // The methods not yet wired to the backend are answered by the mock.
+    fallback: mock,
+  });
 }

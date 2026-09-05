@@ -1,4 +1,5 @@
-import { clear, createStore, del, get, keys, set, type UseStore } from 'idb-keyval';
+import { clear, del, get, keys, set, type UseStore } from 'idb-keyval';
+import { openStore } from './idb';
 
 /**
  * The staff floor screen's durable action queue.
@@ -93,9 +94,7 @@ const SEQ_KEY = '__seq__';
  * project that touches it writes the same promise wrapper. It is not a
  * framework — one object store, one file of ours.
  */
-export function createIndexedDbQueue(
-  store: UseStore = createStore('yalla-staff', 'action-queue'),
-): OfflineQueue {
+export function createIndexedDbQueue(store: UseStore = openStore('action-queue')): OfflineQueue {
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((listener) => listener());
 

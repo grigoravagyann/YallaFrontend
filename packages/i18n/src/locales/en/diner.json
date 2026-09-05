@@ -125,7 +125,11 @@
       "outOfService": "This table is out of service.",
       "tooSmall": "Too small for {{count}} guests.",
       "notBookable": "This table is not bookable.",
-      "pastLeadTime": "Too soon to book this table."
+      "pastLeadTime": "Too soon to book this table.",
+      "tooLarge": "Kept for larger parties. Pick a smaller table.",
+      "tooFarAhead": "Too far ahead to book yet.",
+      "closed": "Closed at that time.",
+      "invalidTime": "That time does not exist on this date — the clocks change."
     },
     "close": "Close"
   },
@@ -183,7 +187,12 @@
   "net": {
     "offline": "You are offline.",
     "retry": "Try again",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "offlineBody": "Check your connection and try again.",
+    "serverError": "Something went wrong on our side. Try again.",
+    "notAvailable": "This is not available yet.",
+    "notAvailableBody": "The backend does not offer this yet. Nothing is wrong with your phone.",
+    "signedOut": "Your session ended. Verify your number again when you reserve."
   },
   "scan": {
     "tabTitle": "Scan",

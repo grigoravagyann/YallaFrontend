@@ -1,24 +1,33 @@
+import type { AuthSession } from './auth/session';
 import {
   ApiError,
-  AuthError,
   ConcurrencyConflictError,
+  ForbiddenError,
+  InvalidTransitionError,
   NetworkError,
   NotFoundError,
   ServerError,
   TimeoutError,
+  TooManyRequestsError,
+  UnauthorizedError,
   ValidationError,
 } from './errors';
+import { parseProblem } from './problem';
 
 /** Returns the current bearer token, or null when signed out. May be async. */
 export type TokenGetter = () => string | null | Promise<string | null>;
 
 export interface ApiClientConfig {
-  /** Backend origin, e.g. `https://api.yalla.am` or `http://localhost:5188`. */
+  /** Backend origin, e.g. `https://api.yalla.am` or `http://192.168.1.42:5086`. */
   readonly baseUrl: string;
   /**
-   * Injected rather than imported so this package never depends on an auth
-   * store, and so tests can supply a fixed token.
+   * The session that supplies bearer tokens and refreshes them. When set, a
+   * 401 triggers one single-flight refresh and one retry; when the refresh
+   * fails the session signs out and the error reaches the caller as
+   * {@link UnauthorizedError}.
    */
+  readonly auth?: AuthSession | undefined;
+  /** A plain token supplier, for tests and for callers with no refresh flow. */
   readonly getToken?: TokenGetter | undefined;
   readonly defaultTimeoutMs?: number | undefined;
   /** Swappable for tests. Defaults to the platform `fetch`. */
@@ -41,6 +50,11 @@ export interface RequestOptions {
    * about, rather than a silent overwrite of someone else's change.
    */
   readonly ifMatch?: string | undefined;
+  /**
+   * Send no bearer token and never refresh on 401. For the auth endpoints
+   * themselves: a refresh call that refreshed on its own 401 would loop.
+   */
+  readonly skipAuth?: boolean | undefined;
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -74,13 +88,6 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
-function problemErrors(body: unknown): Record<string, readonly string[]> | undefined {
-  if (typeof body !== 'object' || body === null) return undefined;
-  const errors = (body as { errors?: unknown }).errors;
-  if (typeof errors !== 'object' || errors === null) return undefined;
-  return errors as Record<string, readonly string[]>;
-}
-
 function stringField(body: unknown, field: string): string | undefined {
   if (typeof body !== 'object' || body === null) return undefined;
   const value = (body as Record<string, unknown>)[field];
@@ -88,47 +95,43 @@ function stringField(body: unknown, field: string): string | undefined {
 }
 
 /**
- * Turn a non-2xx response into the right typed error.
+ * Turn a non-2xx response into the right typed error — once, here, for every
+ * screen.
  *
- * The 409 branch is the reason this lives in one function: it must be impossible
- * for a call site to surface a concurrency conflict as a generic failure.
+ * The 409 branch is the reason this lives in one function: it must be
+ * impossible for a call site to surface a conflict as a generic failure. The
+ * problem document's `context` travels with it as the server's current state.
  */
 function toError(response: Response, url: string, body: unknown): ApiError {
   const requestId = response.headers.get('x-request-id') ?? undefined;
+  const problem = parseProblem(body);
+  const base = { url, requestId, body, problem };
 
   switch (response.status) {
     case 401:
+      return new UnauthorizedError(base);
     case 403:
-      return new AuthError({ status: response.status, url, requestId, body });
+      return new ForbiddenError(base);
     case 404:
-      return new NotFoundError({ url, requestId, body });
+      return new NotFoundError(base);
     case 409:
       return new ConcurrencyConflictError({
-        url,
-        requestId,
-        body,
+        ...base,
         expectedVersion: stringField(body, 'expectedVersion'),
         actualVersion:
           stringField(body, 'actualVersion') ?? response.headers.get('etag') ?? undefined,
       });
-    case 400:
     case 422:
-      return new ValidationError({
-        url,
-        status: response.status,
-        requestId,
-        body,
-        errors: problemErrors(body),
-      });
+      return new InvalidTransitionError(base);
+    case 400:
+      return new ValidationError({ ...base, status: 400 });
+    case 429:
+      return new TooManyRequestsError(base);
     default:
-      if (response.status >= 500) {
-        return new ServerError({ status: response.status, url, requestId, body });
-      }
+      if (response.status >= 500) return new ServerError({ ...base, status: response.status });
       return new ApiError(`Request failed with status ${response.status}.`, {
+        ...base,
         status: response.status,
-        url,
-        requestId,
-        body,
       });
   }
 }
@@ -152,6 +155,16 @@ export class ApiClient {
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
+    return this.#send<T>(path, options, false);
+  }
+
+  async #token(options: RequestOptions): Promise<string | null> {
+    if (options.skipAuth) return null;
+    if (this.#config.auth) return this.#config.auth.getAccessToken();
+    return (await this.#config.getToken?.()) ?? null;
+  }
+
+  async #send<T>(path: string, options: RequestOptions, isRetry: boolean): Promise<ApiResponse<T>> {
     const {
       method = 'GET',
       query,
@@ -173,7 +186,7 @@ export class ApiClient {
       headers.set(key, value);
     }
 
-    const token = await this.#config.getToken?.();
+    const token = await this.#token(options);
     if (token) headers.set('authorization', `Bearer ${token}`);
     if (ifMatch) headers.set('if-match', ifMatch);
     if (body !== undefined) headers.set('content-type', 'application/json');
@@ -195,6 +208,15 @@ export class ApiClient {
       // A caller-initiated abort is not a failure; let it propagate untouched.
       if (signal?.aborted) throw cause;
       throw new NetworkError({ url, cause });
+    }
+
+    // One refresh, one retry. Several requests failing at once all await the
+    // same refresh inside the session, so the rotating token is spent exactly
+    // once — spending it twice is what gets a user signed out.
+    if (response.status === 401 && this.#config.auth && !options.skipAuth && !isRetry) {
+      const current = this.#config.auth.peekAccessToken();
+      const fresh = current && current !== token ? current : await this.#config.auth.refresh();
+      if (fresh) return this.#send<T>(path, options, true);
     }
 
     const payload = await readBody(response);

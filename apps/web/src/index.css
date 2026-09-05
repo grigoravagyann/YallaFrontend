@@ -565,7 +565,8 @@ select {
   color: var(--color-danger);
 }
 
-.pill-pro {
+/* A paid branch is the one worth spotting in a column of free ones. */
+.pill-paid {
   font-weight: var(--font-weight-bold);
 }
 
@@ -1194,4 +1195,56 @@ select {
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+ * Sign-in, and the notices every screen renders for its non-happy states
+ * -------------------------------------------------------------------------- */
+.sign-in {
+  max-width: 420px;
+  margin: 12vh auto 0;
+}
+
+.sign-in form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+}
+
+.notice p {
+  margin: 0;
+  flex: 1 1 240px;
+}
+
+/* Offline is a state, not a fault: no red anywhere near it. */
+.notice-offline {
+  border-style: dashed;
+}
+
+.notice-error p,
+.notice-forbidden p {
+  color: var(--color-danger);
+}
+
+/* A misconfigured base URL. Plain DOM written before React mounts. */
+.config-error {
+  margin: var(--space-xxl);
+  padding: var(--space-xl);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  white-space: pre-wrap;
 }

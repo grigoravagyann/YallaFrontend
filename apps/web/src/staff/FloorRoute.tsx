@@ -1,7 +1,9 @@
 import type { ConsoleUser } from '@yalla/api';
+import { isOfflinePaused } from '@yalla/api/react';
 import { FloorPlan, Legend } from '@yalla/floorplan';
 import { useTranslation } from '@yalla/i18n';
-import { useConsoleVenue, useFloorPlan } from '../data/queries';
+import { QueryFailureNotice } from '../components/QueryFailureNotice';
+import { useFloorPlan } from '../data/queries';
 import { useElementSize } from '../useElementSize';
 import { StaffHeader } from './StaffHeader';
 import { useConnectionState } from './useConnectionState';
@@ -21,8 +23,9 @@ export interface FloorRouteProps {
  *   stacks the panel under the floor instead of breaking.
  * - Every action is one tap from the floor. There are no nested menus, and
  *   there will not be: a waiter carrying two plates cannot open a submenu.
- * - Touch targets are `--touch-staff` (64px), well past the web default.
- * - High contrast, large type, readable at arm's length on a counter.
+ * - Touch targets are `--touch-staff`, well past the web default.
+ * - Offline is a state the header shows, never an error the floor shows. The
+ *   last floor loaded stays on screen; the indicator says it may be stale.
  *
  * The branch comes from the token's scope, never from a route parameter. A
  * waiter has exactly one branch and no way to name another.
@@ -32,11 +35,15 @@ export function FloorRoute({ user }: FloorRouteProps) {
   const [planRef, size] = useElementSize<HTMLDivElement>();
 
   const branchId = user.scope.branchIds[0];
-  const { data: venue } = useConsoleVenue(user.scope.venueId ?? undefined);
   const floor = useFloorPlan(branchId);
+  const offline = isOfflinePaused(floor);
+  const state = useConnectionState({ lastError: floor.error, offline });
 
-  const branch = venue?.branches.find((candidate) => candidate.id === branchId);
-  const state = useConnectionState();
+  // The floor answers with its own branch name. A waiter's token cannot read
+  // the venue catalogue — that is the platform tier — so asking for the venue
+  // here would 403 and leave the header blank on the one screen that has to
+  // say where it is.
+  const branchName = floor.data?.branchName;
 
   return (
     // `data-surface` switches every font-size and line-height variable to the
@@ -44,11 +51,7 @@ export function FloorRoute({ user }: FloorRouteProps) {
     <div className="floor" data-surface="staff">
       <StaffHeader
         title={t('floor.title')}
-        subtitle={
-          venue && branch
-            ? t('floor.branch', { venue: venue.name, branch: branch.name })
-            : t('admin:loading')
-        }
+        subtitle={branchName ?? (branchId ? t('admin:loading') : t('floor.noBranch'))}
         state={state}
         onRefresh={() => void floor.refetch()}
       />
@@ -58,16 +61,9 @@ export function FloorRoute({ user }: FloorRouteProps) {
           <Legend mode="staff" translate={(key) => t(`common:${key}`)} />
 
           <div ref={planRef} className="floor-plan-frame">
-            {floor.isLoading ? (
-              <p className="floor-note">{t('floor.loading')}</p>
-            ) : floor.isError || !floor.data ? (
-              <div className="floor-note">
-                <p>{t('floor.error')}</p>
-                <button type="button" className="floor-button" onClick={() => void floor.refetch()}>
-                  {t('floor.retry')}
-                </button>
-              </div>
-            ) : (
+            {!branchId ? (
+              <p className="floor-note">{t('floor.noBranch')}</p>
+            ) : floor.data ? (
               /* Staff mode: every table is tappable and nothing is dimmed. A
                  waiter acts on occupied and out-of-service tables constantly —
                  those are the ones that need attention. */
@@ -77,6 +73,19 @@ export function FloorRoute({ user }: FloorRouteProps) {
                 viewport={size}
                 accessibilityLabel={t('floor.title')}
               />
+            ) : offline ? (
+              /* Nothing cached and no network: say so. A spinner here would
+                 never resolve, which is the one thing a counter screen must
+                 not do. */
+              <div className="floor-note">
+                <QueryFailureNotice offline onRetry={() => void floor.refetch()} />
+              </div>
+            ) : floor.isLoading ? (
+              <p className="floor-note">{t('floor.loading')}</p>
+            ) : (
+              <div className="floor-note">
+                <QueryFailureNotice error={floor.error} onRetry={() => void floor.refetch()} />
+              </div>
             )}
           </div>
         </section>

@@ -72,9 +72,32 @@ export interface AvailabilityWindowDto {
   readonly isShorterThanTurnTime: boolean;
 }
 
-/** Why a table cannot be reserved. `null` means it can. */
+/**
+ * Why a table cannot be reserved. `null` means it can.
+ *
+ * One member per distinct thing the backend refuses for
+ * (`Yalla.Domain.Occupancy.ReservationRejectionReason`), because each has a
+ * different next step. Collapsing them is how a diner gets told a ten-seater
+ * is "too small for 2", or that a closed venue is "too soon to book" — and
+ * then tries again in five minutes.
+ */
 export type TableUnavailableReason =
-  'occupied' | 'held' | 'outOfService' | 'tooSmall' | 'notBookable' | 'pastLeadTime';
+  | 'occupied'
+  | 'held'
+  | 'outOfService'
+  /** The party is bigger than the table. */
+  | 'tooSmall'
+  /** The party is far smaller than the table: the venue will not seat 2 at a 10-top. */
+  | 'tooLarge'
+  | 'notBookable'
+  /** The slot is sooner than the branch's lead time. */
+  | 'pastLeadTime'
+  /** Further ahead than the branch takes bookings. */
+  | 'tooFarAhead'
+  /** The branch is shut at that time. */
+  | 'closed'
+  /** That wall-clock time does not exist on that date — the clocks change. */
+  | 'invalidTime';
 
 export interface TableAvailability {
   readonly tableId: string;

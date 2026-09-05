@@ -30,6 +30,11 @@ import type {
  */
 export interface YallaGateway {
   // --- Browse -------------------------------------------------------------
+  /**
+   * @throws {EndpointNotWiredError} from the HTTP gateway while the backend has
+   * no venue catalogue endpoint. The screen shows "not available yet", not a
+   * generic error, because the fix is on a different team.
+   */
   listVenues(): Promise<readonly VenueSummary[]>;
   getVenue(venueId: string): Promise<VenueSummary | null>;
 
@@ -42,11 +47,15 @@ export interface YallaGateway {
    * Separate from `getFloorPlan` because availability depends on *when* and
    * *how many*, while the floor itself does not. The backend derives both the
    * window and the "too small / occupied" reasons — the client must not.
+   *
+   * `timeZoneId` is the branch's zone. The backend asks in wall-clock terms,
+   * so the UTC slot is converted in that zone and never in the device's.
    */
   getTableAvailability(input: {
     branchId: string;
     slotUtc: string;
     partySize: number;
+    timeZoneId?: string | undefined;
   }): Promise<readonly TableAvailability[]>;
 
   // --- Phone verification -------------------------------------------------
@@ -58,7 +67,8 @@ export interface YallaGateway {
   requestPhoneCode(phoneE164: string): Promise<PhoneChallenge>;
 
   /**
-   * Exchange a code for a verification token.
+   * Exchange a code for a verification token. Against the real backend this
+   * is the diner sign-in: it also starts the token session.
    *
    * @throws {WrongCodeError} wrong digits; carries attempts remaining.
    * @throws {ExpiredCodeError} the challenge aged out.

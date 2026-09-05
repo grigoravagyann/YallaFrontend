@@ -15,7 +15,8 @@
     "branch": "{{venue}} · {{branch}}",
     "loading": "Loading the floor…",
     "error": "We could not load the floor. Try again.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "noBranch": "Your account has no branch assigned, so there is no floor to show."
   },
   "panel": {
     "orders": {

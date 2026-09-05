@@ -1,22 +1,26 @@
-import { isUsingMockData, resolveGateway, type YallaGateway } from '@yalla/api';
+import { resolveGateway, type YallaGateway } from '@yalla/api';
+import { authSession } from '../auth/session';
+import { apiConfig, dataSource } from '../config';
 
 /**
  * The app's single data source.
  *
- * Set `EXPO_PUBLIC_API_BASE_URL` to point at a real backend; leave it unset and
- * the app runs entirely on mock data. Nothing else in the app knows which is in
- * play — every screen is typed against `YallaGateway`.
+ * `EXPO_PUBLIC_DATA_SOURCE=mock` runs the whole app on the in-memory mock;
+ * anything else talks to the backend at `EXPO_PUBLIC_API_URL`. Nothing else in
+ * the app knows which is in play — every screen is typed against
+ * `YallaGateway` and reaches it through `GatewayProvider`.
  */
-const baseUrl = process.env['EXPO_PUBLIC_API_BASE_URL'];
-
 export const gateway: YallaGateway = resolveGateway({
-  baseUrl,
+  dataSource,
+  baseUrl: apiConfig?.baseUrl,
+  auth: authSession,
+  audience: 'diner',
   // Enough delay that loading states are actually visible while developing.
   mockLatencyMs: 250,
   // Set EXPO_PUBLIC_SIMULATE_TABLE_TAKEN=1 to make the next booking lose the
-  // race, so the 409 path can be walked without a second device.
+  // race, so the 409 path can be walked without a second device. Mock only.
   simulateTableTaken: process.env['EXPO_PUBLIC_SIMULATE_TABLE_TAKEN'] === '1',
 });
 
 /** True when the app is running on mock data. Drives the dev-only banner. */
-export const usingMockData = isUsingMockData({ baseUrl });
+export const usingMockData = dataSource === 'mock';

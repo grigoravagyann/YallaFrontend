@@ -5,30 +5,56 @@ import {
   type UserRole,
   type YallaGateway,
 } from '@yalla/api';
+import { authSession, identityStore } from '../auth/authSession';
+import { readConfig } from '../config';
 
-/** Vite exposes only `VITE_`-prefixed variables to the client bundle. */
-const baseUrl = import.meta.env['VITE_API_BASE_URL'] as string | undefined;
+const config = readConfig();
+
+export const usingMockData = config.dataSource === 'mock';
+
+const realConsole: ConsoleGateway | null = config.api
+  ? resolveConsoleGateway({
+      dataSource: 'real',
+      baseUrl: config.api.baseUrl,
+      auth: authSession,
+      identity: identityStore,
+    })
+  : null;
+
+/** One mock per role, so a suspension made as an owner is still there after a re-render. */
+const mockConsoles = new Map<UserRole, ConsoleGateway>();
 
 /**
  * The console's data source.
  *
  * A function rather than a constant because the dev role switcher has to be
  * able to ask for a differently-scoped mock. Against a real backend the role
- * argument is ignored entirely — `resolveConsoleGateway` drops it — so this
+ * argument is ignored entirely — the role comes out of the token — so this
  * cannot become a way for the client to claim a role it was not granted.
  */
 export function consoleGatewayFor(role: UserRole): ConsoleGateway {
-  return resolveConsoleGateway({
-    baseUrl,
-    mockLatencyMs: 200,
-    mockRole: role,
-  });
+  if (realConsole) return realConsole;
+
+  let mock = mockConsoles.get(role);
+  if (!mock) {
+    mock = resolveConsoleGateway({ dataSource: 'mock', mockLatencyMs: 200, mockRole: role });
+    mockConsoles.set(role, mock);
+  }
+  return mock;
 }
 
 /**
- * The diner-side gateway, used by the staff floor screen for the floor plan
- * itself. Same interface the phone uses, same data, one renderer.
+ * The floor, for the staff screen.
+ *
+ * The same `YallaGateway` the phone uses — same read model, same renderer, so a
+ * diner and a waiter cannot disagree about where table 7 is — in its staff
+ * audience, which reads the richer staff-only floor endpoint with the venue
+ * user's token.
  */
-export const dinerGateway: YallaGateway = resolveGateway({ baseUrl, mockLatencyMs: 200 });
-
-export const usingMockData = !baseUrl?.trim();
+export const staffGateway: YallaGateway = resolveGateway({
+  dataSource: config.dataSource,
+  baseUrl: config.api?.baseUrl,
+  auth: authSession,
+  audience: 'staff',
+  mockLatencyMs: 200,
+});

@@ -7,16 +7,20 @@ import {
   type TableTab,
   type WaiterCallReason,
 } from '@yalla/api';
+import { queryKeys, useGateway } from '@yalla/api/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { gateway } from './gateway';
+
+/**
+ * The browse and floor hooks live in `@yalla/api/react`, shared with the web
+ * console so the two apps cannot cache the same floor under different keys.
+ * Everything below is diner-only and follows on to the shared hooks once the
+ * booking and tab endpoints are wired.
+ */
+export { useFloorPlan, useTableAvailability, useVenue, useVenues } from '@yalla/api/react';
 
 /** Query keys in one place, so an invalidation cannot miss a cache entry. */
 export const keys = {
-  venues: ['venues'] as const,
-  venue: (venueId: string) => ['venue', venueId] as const,
-  floor: (branchId: string) => ['floor', branchId] as const,
-  availability: (branchId: string, slotUtc: string, partySize: number) =>
-    ['availability', branchId, slotUtc, partySize] as const,
+  ...queryKeys,
   bookings: ['bookings'] as const,
   booking: (bookingId: string) => ['booking', bookingId] as const,
   tab: (tabId: string) => ['tab', tabId] as const,
@@ -29,48 +33,8 @@ export const keys = {
   invite: (tabId: string, nonce: number) => ['tabInvite', tabId, nonce] as const,
 };
 
-export function useVenues() {
-  return useQuery({
-    queryKey: keys.venues,
-    queryFn: () => gateway.listVenues(),
-    staleTime: staleTime.frequent,
-  });
-}
-
-export function useVenue(venueId: string | undefined) {
-  return useQuery({
-    queryKey: keys.venue(venueId ?? ''),
-    queryFn: () => gateway.getVenue(venueId!),
-    enabled: Boolean(venueId),
-    staleTime: staleTime.frequent,
-  });
-}
-
-export function useFloorPlan(branchId: string | undefined) {
-  return useQuery({
-    queryKey: keys.floor(branchId ?? ''),
-    queryFn: () => gateway.getFloorPlan(branchId!),
-    enabled: Boolean(branchId),
-    // Live table state: treat as stale almost immediately.
-    staleTime: staleTime.live,
-  });
-}
-
-export function useTableAvailability(input: {
-  branchId: string | undefined;
-  slotUtc: string;
-  partySize: number;
-}) {
-  const { branchId, slotUtc, partySize } = input;
-  return useQuery({
-    queryKey: keys.availability(branchId ?? '', slotUtc, partySize),
-    queryFn: () => gateway.getTableAvailability({ branchId: branchId!, slotUtc, partySize }),
-    enabled: Boolean(branchId),
-    staleTime: staleTime.live,
-  });
-}
-
 export function useBookings() {
+  const gateway = useGateway();
   return useQuery({
     queryKey: keys.bookings,
     queryFn: () => gateway.listBookings(),
@@ -79,6 +43,7 @@ export function useBookings() {
 }
 
 export function useBooking(bookingId: string | undefined) {
+  const gateway = useGateway();
   return useQuery({
     queryKey: keys.booking(bookingId ?? ''),
     queryFn: () => gateway.getBooking(bookingId!),
@@ -97,6 +62,7 @@ export function useBooking(bookingId: string | undefined) {
  * because the UI must show what happened between attempts.
  */
 export function useCreateBooking() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -105,11 +71,13 @@ export function useCreateBooking() {
       queryClient.setQueryData(keys.booking(booking.id), booking);
       void queryClient.invalidateQueries({ queryKey: keys.bookings });
       void queryClient.invalidateQueries({ queryKey: keys.floor(booking.branchId) });
+      void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
     },
   });
 }
 
 export function useCancelBooking() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -118,17 +86,20 @@ export function useCancelBooking() {
       queryClient.setQueryData(keys.booking(booking.id), booking);
       void queryClient.invalidateQueries({ queryKey: keys.bookings });
       void queryClient.invalidateQueries({ queryKey: keys.floor(booking.branchId) });
+      void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
     },
   });
 }
 
 export function useRequestPhoneCode() {
+  const gateway = useGateway();
   return useMutation({
     mutationFn: (phoneE164: string) => gateway.requestPhoneCode(phoneE164),
   });
 }
 
 export function useVerifyPhoneCode() {
+  const gateway = useGateway();
   return useMutation({
     mutationFn: (input: { challengeId: string; code: string }) => gateway.verifyPhoneCode(input),
   });
@@ -148,6 +119,7 @@ export function useVerifyPhoneCode() {
  * replace it by deleting one argument.
  */
 export function useTab(tabId: string | undefined, options: { pollMs?: number } = {}) {
+  const gateway = useGateway();
   return useQuery({
     queryKey: keys.tab(tabId ?? ''),
     queryFn: () => gateway.getTab(tabId!),
@@ -158,11 +130,12 @@ export function useTab(tabId: string | undefined, options: { pollMs?: number } =
 }
 
 export function useBranchMenu(branchId: string | undefined) {
+  const gateway = useGateway();
   return useQuery({
     queryKey: keys.menu(branchId ?? ''),
     queryFn: () => gateway.getBranchMenu(branchId!),
     enabled: Boolean(branchId),
-    staleTime: staleTime.frequent,
+    staleTime: staleTime.reference,
   });
 }
 
@@ -174,6 +147,7 @@ export function useBranchMenu(branchId: string | undefined) {
  * expressed without reaching for imperative state.
  */
 export function useTabInvite(tabId: string | undefined, nonce: number) {
+  const gateway = useGateway();
   return useQuery({
     queryKey: keys.invite(tabId ?? '', nonce),
     queryFn: () => gateway.createTabInvite({ tabId: tabId!, commandId: `inv_${tabId}_${nonce}` }),
@@ -184,12 +158,14 @@ export function useTabInvite(tabId: string | undefined, nonce: number) {
 }
 
 export function useScanTableCode() {
+  const gateway = useGateway();
   return useMutation({
     mutationFn: (command: ScanTableCommand) => gateway.scanTableCode(command),
   });
 }
 
 export function useLeaveTab() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { tabId: string; commandId: string }) => gateway.leaveTab(input),
@@ -211,6 +187,7 @@ function cacheTab(queryClient: ReturnType<typeof useQueryClient>) {
 }
 
 export function useApproveJoin() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { tabId: string; participantId: string; commandId: string }) =>
@@ -220,6 +197,7 @@ export function useApproveJoin() {
 }
 
 export function useRejectJoin() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { tabId: string; participantId: string; commandId: string }) =>
@@ -229,6 +207,7 @@ export function useRejectJoin() {
 }
 
 export function useRemoveParticipant() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { tabId: string; participantId: string; commandId: string }) =>
@@ -238,6 +217,7 @@ export function useRemoveParticipant() {
 }
 
 export function useSetParticipantPermissions() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: {
@@ -251,6 +231,7 @@ export function useSetParticipantPermissions() {
 }
 
 export function useSetTabDefaultPermissions() {
+  const gateway = useGateway();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { tabId: string; permissions: TabPermissions; commandId: string }) =>
@@ -260,6 +241,7 @@ export function useSetTabDefaultPermissions() {
 }
 
 export function useCallWaiter() {
+  const gateway = useGateway();
   return useMutation({
     mutationFn: (input: { tabId: string; reason: WaiterCallReason; commandId: string }) =>
       gateway.callWaiter(input),

@@ -2,6 +2,8 @@ import type { ConsoleVenue } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { isOfflinePaused } from '@yalla/api/react';
+import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { useConsoleVenues } from '../../data/queries';
 
 const PAGE_SIZE = 10;
@@ -12,6 +14,10 @@ const PAGE_SIZE = 10;
  * Suspended venues are listed rather than hidden. The team's most common
  * question about a suspended venue is "why is it suspended", and a list that
  * silently drops it turns that into "where did it go".
+ *
+ * Four states, explicitly: loading, empty, error and offline — plus "not
+ * available yet", because the backend has no venue catalogue endpoint and a
+ * screen that called that a bug would send someone to fix the wrong thing.
  */
 export function VenuesRoute() {
   const { t } = useTranslation(['admin', 'common']);
@@ -20,6 +26,8 @@ export function VenuesRoute() {
 
   const query = useConsoleVenues({ search, page, pageSize: PAGE_SIZE });
   const result = query.data;
+  // Offline queries are paused, not failed, so this never surfaces as an error.
+  const offline = isOfflinePaused(query);
 
   const total = result?.total ?? 0;
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -51,10 +59,12 @@ export function VenuesRoute() {
         aria-label={t('venues.search')}
       />
 
-      {query.isLoading ? (
+      {offline ? (
+        <QueryFailureNotice offline onRetry={() => void query.refetch()} />
+      ) : query.isLoading ? (
         <p className="muted">{t('loading')}</p>
       ) : query.isError ? (
-        <p className="error">{t('venues.error')}</p>
+        <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
       ) : total === 0 ? (
         <div className="empty">
           <h2>{search ? t('venues.empty.title') : t('venues.empty.first')}</h2>

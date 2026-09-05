@@ -81,10 +81,14 @@ export function VenueDetailRoute() {
         <div>
           <h1>{venue.name}</h1>
           <p className="muted">
-            {t('venue.slug')}: {venue.slug} ·{' '}
-            {t('venue.created', {
-              date: formatDate(venue.createdAtUtc, CONSOLE_TIME_ZONE, locale),
-            })}
+            {t('venue.slug')}: {venue.slug}
+            {/* The platform view carries no creation date; omit the clause
+                rather than render "Created Invalid Date". */}
+            {venue.createdAtUtc
+              ? ` · ${t('venue.created', {
+                  date: formatDate(venue.createdAtUtc, CONSOLE_TIME_ZONE, locale),
+                })}`
+              : ''}
           </p>
           {venue.suspendedAtUtc ? (
             <p className="warn">
@@ -109,7 +113,9 @@ export function VenueDetailRoute() {
                   <div className="row-title">{branch.name}</div>
                   <div className="muted small">
                     {t('venue.branchTables', { count: branch.tableCount })}
-                    {branch.openTabCount > 0
+                    {/* `null` means nobody asked; only a real count is shown,
+                        because "no open tabs" is a claim about the floor. */}
+                    {branch.openTabCount !== null && branch.openTabCount > 0
                       ? ` · ${t('venue.openTabs', { count: branch.openTabCount })}`
                       : ''}
                   </div>
@@ -125,7 +131,12 @@ export function VenueDetailRoute() {
 
       <div className="card">
         <h2>{t('venue.staff')}</h2>
-        {venue.staff.length === 0 ? (
+        {/* `null` is "not loaded", which must not render as "nobody has been
+            added yet" — the backend serves staff from a venue-scoped endpoint
+            this screen does not call. */}
+        {venue.staff === null ? (
+          <p className="muted">{t('state.notAvailable')}</p>
+        ) : venue.staff.length === 0 ? (
           <p className="muted">{t('venue.noStaff')}</p>
         ) : (
           <ul className="rows">

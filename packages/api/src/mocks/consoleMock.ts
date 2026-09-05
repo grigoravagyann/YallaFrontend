@@ -49,9 +49,9 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/gu, '');
 }
 
-/** Tiers spread across the fixture so the list column is not one repeated value. */
+/** Both tiers across the fixture so the list column is not one repeated value. */
 function tierFor(index: number): SubscriptionTier {
-  return (['pro', 'basic', 'trial'] as const)[index % 3] ?? 'basic';
+  return index % 2 === 0 ? 'paid' : 'free';
 }
 
 /**
@@ -110,13 +110,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   /** The tier the list column shows: the best one any branch is on. */
   function headlineTier(record: VenueRecord): SubscriptionTier {
-    const order: readonly SubscriptionTier[] = ['trial', 'basic', 'pro'];
+    const order: readonly SubscriptionTier[] = ['free', 'paid'];
     return record.branches.reduce<SubscriptionTier>(
       (best, branch) =>
         order.indexOf(branch.subscriptionTier) > order.indexOf(best)
           ? branch.subscriptionTier
           : best,
-      'trial',
+      'free',
     );
   }
 
@@ -246,7 +246,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             // A new venue has no floor plan yet — the team draws it during
             // onboarding, which is exactly the next task.
             tableCount: 0,
-            subscriptionTier: 'trial',
+            subscriptionTier: 'free',
             openTabCount: 0,
           },
         ],
@@ -279,13 +279,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
       // The whole reason this returns a typed error rather than a boolean: the
       // screen has to be able to say *which* table is still sitting.
-      const blocking = record.branches.filter((branch) => branch.openTabCount > 0);
+      // The mock always knows its own tab counts, so a null here would be a
+      // bug in the fixture rather than a source that did not report them.
+      const blocking = record.branches.filter((branch) => (branch.openTabCount ?? 0) > 0);
       if (blocking.length > 0) {
         throw new VenueHasOpenTabsError({
           url: URL_TAG,
           venueId,
           openTabs: blocking.flatMap((branch) =>
-            Array.from({ length: branch.openTabCount }, (_, i) => ({
+            Array.from({ length: branch.openTabCount ?? 0 }, (_, i) => ({
               tabId: `${branch.id}-tab-${i + 1}`,
               branchId: branch.id,
               branchName: branch.name,

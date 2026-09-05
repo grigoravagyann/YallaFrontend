@@ -68,6 +68,16 @@ export interface FloorFeature {
 
 export interface FloorPlanData {
   readonly branchId: string;
+  /**
+   * The branch's own name, when the source carries it.
+   *
+   * The staff floor endpoint returns it with the room, which is the only way a
+   * waiter's screen can title itself: a waiter's token cannot read the venue
+   * catalogue, and a second request that 403s is a worse answer than the name
+   * already in hand. Optional so a plan built from availability, or from a
+   * fixture, simply has none.
+   */
+  readonly branchName?: string;
   readonly canvasWidth: number;
   readonly canvasHeight: number;
   /** IANA zone, e.g. "Asia/Yerevan". Every time shown must be rendered in this. */

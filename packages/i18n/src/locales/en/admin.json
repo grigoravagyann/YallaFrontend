@@ -13,7 +13,8 @@
     "title": "Yalla console",
     "signedInAs": "Signed in as {{name}}",
     "devRole": "Dev only — view as",
-    "openMenu": "Menu"
+    "openMenu": "Menu",
+    "signOut": "Sign out"
   },
   "role": {
     "platformAdmin": "Platform admin",
@@ -57,9 +58,8 @@
     "deleted": "Deleted"
   },
   "tier": {
-    "trial": "Trial",
-    "basic": "Basic",
-    "pro": "Pro",
+    "free": "Free",
+    "paid": "Paid",
     "label": "Subscription tier"
   },
   "venue": {
@@ -130,5 +130,22 @@
   "todo": {
     "label": "Not built yet",
     "body": "This screen arrives in {{prompt}}."
+  },
+  "state": {
+    "offline": "You are offline. Check the connection and try again.",
+    "notAvailable": "This is not available from the backend yet.",
+    "forbidden": "Your account cannot see this.",
+    "signedOut": "Your session ended. Sign in again.",
+    "error": "Something went wrong. Try again.",
+    "retry": "Try again"
+  },
+  "signIn": {
+    "title": "Sign in",
+    "body": "Use the email and password for your venue account.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "failed": "That email and password do not match an account.",
+    "expired": "Your session ended. Sign in again to continue where you were."
   }
 }

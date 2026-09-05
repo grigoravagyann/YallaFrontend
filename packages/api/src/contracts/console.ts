@@ -13,10 +13,16 @@ export type VenueType = 'cafe' | 'restaurant';
 /**
  * What a branch is paying for. Set per *branch*, not per venue: a chain
  * commonly pilots Yalla in one location before rolling it out.
+ *
+ * Two values, because that is what the backend has
+ * (`Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid). The console
+ * originally invented `trial | basic | pro` before the backend existed; the
+ * server is the authority on what a venue is billed, so the vocabulary
+ * follows it rather than the other way round.
  */
-export type SubscriptionTier = 'trial' | 'basic' | 'pro';
+export type SubscriptionTier = 'free' | 'paid';
 
-export const SUBSCRIPTION_TIERS: readonly SubscriptionTier[] = ['trial', 'basic', 'pro'];
+export const SUBSCRIPTION_TIERS: readonly SubscriptionTier[] = ['free', 'paid'];
 
 /**
  * `suspended` is reversible and mostly about billing; `deleted` is a soft
@@ -89,7 +95,11 @@ export interface ConsoleVenue {
   readonly tableCount: number;
   /** The highest tier across the venue's branches, for the list column. */
   readonly subscriptionTier: SubscriptionTier;
-  readonly createdAtUtc: string;
+  /**
+   * `null` when the source does not report it. The platform list endpoint does
+   * not, so the screen omits the line rather than inventing a date.
+   */
+  readonly createdAtUtc: string | null;
   readonly suspendedAtUtc: string | null;
 }
 
@@ -100,8 +110,13 @@ export interface ConsoleBranch {
   readonly timeZoneId: string;
   readonly tableCount: number;
   readonly subscriptionTier: SubscriptionTier;
-  /** Tabs open right now. Blocks deleting the venue — see `VenueHasOpenTabsError`. */
-  readonly openTabCount: number;
+  /**
+   * Tabs open right now. Blocks deleting the venue — see
+   * `VenueHasOpenTabsError`. `null` when the source does not report it: "we did
+   * not ask" and "none are open" are different answers, and a screen that
+   * conflates them tells a manager the floor is clear when nobody looked.
+   */
+  readonly openTabCount: number | null;
 }
 
 export type StaffRole = Extract<UserRole, 'owner' | 'manager' | 'waiter' | 'kitchen'>;
@@ -116,7 +131,12 @@ export interface ConsoleStaffMember {
 
 export interface ConsoleVenueDetail extends ConsoleVenue {
   readonly branches: readonly ConsoleBranch[];
-  readonly staff: readonly ConsoleStaffMember[];
+  /**
+   * `null` when the staff list was not loaded. The backend serves staff from a
+   * separate venue-scoped endpoint, so the platform venue view does not carry
+   * them — and "not loaded" must not render as "nobody has been added".
+   */
+  readonly staff: readonly ConsoleStaffMember[] | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,104 @@
+import type {
+  ConsoleBranch,
+  ConsoleVenue,
+  ConsoleVenueDetail,
+  Page,
+  SubscriptionTier,
+  VenueStatus,
+  VenueType,
+} from '../contracts/console';
+import type { components } from '../generated/schema';
+
+type Schemas = components['schemas'];
+type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
+type WireBranch = Schemas['Yalla.Application.Platform.BranchSummary'];
+type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
+
+/**
+ * OpenAPI names a closed generic after its CLR type, so the paged wrapper is
+ * spelled `PagedResult\`1[[Yalla.Application.Platform.VenueSummary, …]]`.
+ * Naming it once here keeps that mouthful out of the gateway.
+ */
+type WirePage =
+  Schemas['Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'];
+
+/**
+ * The platform wire shapes to the console's contract types.
+ *
+ * The backend answers with integer enums, `venueId`/`branchId` keys and three
+ * separate booleans where the console reads one status. Every conversion is
+ * here so a screen never sees a wire shape, and so a renamed field is one edit.
+ */
+
+/** `Yalla.Domain.Enums.VenueType`: 1 Cafe, 2 Restaurant. */
+export function venueType(value: number): VenueType {
+  return value === 2 ? 'restaurant' : 'cafe';
+}
+
+/** `Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid. */
+export function subscriptionTier(value: number): SubscriptionTier {
+  return value === 2 ? 'paid' : 'free';
+}
+
+/**
+ * Three booleans to one status, deleted first.
+ *
+ * A deleted venue is also inactive and may also be suspended; the console shows
+ * one badge, and the most consequential state has to win or a soft-deleted
+ * venue reads as merely suspended.
+ */
+export function venueStatus(venue: { isDeleted: boolean; isSuspended: boolean }): VenueStatus {
+  if (venue.isDeleted) return 'deleted';
+  if (venue.isSuspended) return 'suspended';
+  return 'active';
+}
+
+export function venueFromWire(venue: WireVenue): ConsoleVenue {
+  return {
+    id: venue.venueId,
+    name: venue.name,
+    slug: venue.slug,
+    type: venueType(venue.type),
+    status: venueStatus(venue),
+    branchCount: venue.branchCount,
+    tableCount: venue.tableCount,
+    subscriptionTier: subscriptionTier(venue.subscriptionTier),
+    // The platform view does not carry a creation timestamp; the screen omits
+    // the line rather than inventing one.
+    createdAtUtc: null,
+    suspendedAtUtc: venue.suspendedAtUtc ?? null,
+  };
+}
+
+export function branchFromWire(branch: WireBranch): ConsoleBranch {
+  return {
+    id: branch.branchId,
+    venueId: branch.venueId,
+    name: branch.name,
+    timeZoneId: branch.timeZoneId,
+    tableCount: branch.tableCount,
+    subscriptionTier: subscriptionTier(branch.subscriptionTier),
+    // Open tabs are not part of this view. `null` says "not asked", which is
+    // not the same answer as zero.
+    openTabCount: null,
+  };
+}
+
+export function venueDetailFromWire(detail: WireDetail): ConsoleVenueDetail {
+  return {
+    ...venueFromWire(detail.venue),
+    branches: detail.branches.map(branchFromWire),
+    // Staff come from a separate venue-scoped endpoint. `null` is "not loaded";
+    // an empty array here would render as "nobody has been added yet".
+    staff: null,
+  };
+}
+
+export function venuePageFromWire(page: WirePage): Page<ConsoleVenue> {
+  return {
+    items: (page.items ?? []).map(venueFromWire),
+    total: page.totalCount,
+    page: page.page,
+    pageSize: page.pageSize,
+  };
+}
