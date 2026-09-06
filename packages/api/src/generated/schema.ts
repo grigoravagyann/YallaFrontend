@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5086/swagger/v1/swagger.json
+ * Source: https://localhost:7289/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -464,7 +464,9 @@ export interface paths {
          *
          *     **Sold-out items are returned with `isAvailable: false`, not hidden.** A dish that silently vanishes looks like a broken menu and sends the diner to ask a waiter - the exact question this feature exists to remove. Grey it out and keep the price.
          *
-         *     Every descriptive field is always present: ingredients, allergens, portion size, spice level and prep minutes are required on the item precisely so the app can answer what a guest would otherwise ask.
+         *     **Unfinished items are excluded entirely, which is the opposite rule for the opposite reason.** Since the photo requirement moved from create-time to go-live-time an item can exist without a photo, a description, ingredients, allergens, a portion size or a prep time - that is how a menu gets typed in before it gets photographed - and none of those may reach a diner. Somebody reading an empty allergen list reasonably concludes there are none.
+         *
+         *     So every descriptive field on this read is always present and `isComplete` is always true. The console's `GET /api/branches/{branchId}/menu/manage` is where the unfinished ones are visible.
          */
         get: operations["getBranchMenu"];
         put?: never;
@@ -523,8 +525,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add an item
-         * @description Ingredients, allergens, portion size, prep minutes and a photo URL are **required**. They are what a diner would otherwise ask a waiter; optional fields stay blank and the feature is worthless. Photo upload is out of scope - a URL is accepted for now.
+         * Add an item; only a name and a price are required
+         * @description **A photo and the descriptive fields are optional here and required to go live.** Ingredients, allergens, portion size, prep minutes and a photo are what a diner would otherwise ask a waiter, so an item without them is not fit to show one - but requiring them at this point meant an eighty-dish menu could not be entered without eighty photo uploads first, in order, before a single name or price could be typed. That is not the order the work happens in.
+         *
+         *     So the rule moved rather than went away. An item saved without them comes back with `isComplete: false`; `GET /api/branches/{branchId}/readiness` counts it; the branch cannot be switched to `Paid` while any remain; and the diner-facing menu does not return it at all.
          */
         post: operations["createMenuItem"];
         delete?: never;
@@ -551,8 +555,12 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Edit an item, including its price
+         * Edit an item, including its price and its category
          * @description A price change never affects existing order lines, which snapshotted the price they were placed at.
+         *
+         *     `categoryId` **moves the item to another category of the same branch**, where it lands last in the display order - reorder afterwards if that is not where it belongs. Existing order lines are unaffected: they never reference a category. A category belonging to another branch is refused with `context.field` of `categoryId`.
+         *
+         *     A field left out is left alone, including one that was never filled in, so a half-entered item can be saved again without the edit insisting on the half that is missing.
          */
         patch: operations["updateMenuItem"];
         trace?: never;
@@ -585,8 +593,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The full menu, including unavailable items
-         * @description The same body as the public `GET /api/branches/{branchId}/menu`, without its open-for-business gate, so a suspended venue's manager can still edit.
+         * The full menu, including unavailable and unfinished items
+         * @description The same shape as the public `GET /api/branches/{branchId}/menu`, without its open-for-business gate, so a suspended venue's manager can still edit.
+         *
+         *     **This read includes items with `isComplete: false`; the diner-facing one does not.** A manager has to be able to see the eleven dishes that still need a photo - that is the entire point of being allowed to save them half-entered - and a diner must never be shown a dish with no allergen list.
          */
         get: operations["getMenuForAdmin"];
         put?: never;
@@ -609,6 +619,8 @@ export interface paths {
         /**
          * Replace the whole week atomically
          * @description Send every block for every day. `closesNextDay` is derived - a closing time at or before the opening time means after midnight - and is not accepted from the client. Blocks on one day may touch but not overlap.
+         *
+         *     The body is an array, so a refusal names the offending block by index: `context.field` reads `[2].closesAt`. Every bad block is reported, not just the first.
          */
         put: operations["putOpeningHours"];
         post?: never;
@@ -658,6 +670,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What this branch still needs before it can take diners
+         * @description The onboarding checklist, answered by the server: floor plan drawn, tables labelled, at least one menu category, how many menu items are still incomplete, hours set, reservation policy reviewed, staff enrolled, at least one tablet.
+         *
+         *     The console used to render this from a client-side guess, which meant the console and the server had two different ideas of ready - and only the server's decides whether the branch may be switched to `Paid`. `incompleteMenuItemCount` is the line that gate enforces, and `incompleteMenuItemIds` says which items to finish.
+         */
+        get: operations["getBranchReadiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/reservation-policy": {
         parameters: {
             query?: never;
@@ -669,9 +703,13 @@ export interface paths {
         get: operations["getReservationPolicy"];
         /**
          * Replace the reservation policy
-         * @description Every field, as one form. Out-of-range values are **refused, never clamped** - a turn time of 5 minutes or 12 hours gets a 400 that says so.
+         * @description Every field, as one form. Out-of-range values are **refused, never clamped** - a turn time of 5 minutes or 12 hours gets a 422 that says so.
+         *
+         *     **Every refusal names its field.** `context.field` is the first offending property and `context.fields` is all of them, each with the `bound` it broke, the `min` and `max` allowed and the `value` sent - in the same casing this schema uses, so a form can put each message against its own input without mapping English prose back to a field. A request that breaks six bounds reports six.
          *
          *     **Existing bookings are never touched.** If the new window or turn time would not have allowed some of them, `affectedExistingReservations` says how many and `affectedReservationIds` which; they stay exactly as booked. The new rules apply to future bookings only.
+         *
+         *     Saving this form is what marks the policy as reviewed on the branch readiness checklist.
          */
         put: operations["putReservationPolicy"];
         post?: never;
@@ -1002,7 +1040,9 @@ export interface paths {
         head?: never;
         /**
          * Name, address, coordinates, timezone, canvas size, active flag, tier
-         * @description `subscriptionTier` is set here, per branch. Moving a branch to Free switches off tabs and ordering there; the tab endpoints answer `feature-not-enabled`.
+         * @description `subscriptionTier` is set here, per branch. Moving a branch to Free switches off tabs and ordering there; the tab endpoints answer `feature-not-enabled`. It is refused while the branch has open tabs, because hiding a live bill from the people who owe it strands real money on a real table.
+         *
+         *     **Moving a branch to Paid is refused while its menu has unfinished items.** This is where the rule that a dish needs a photo, ingredients, allergens, a portion size and a prep time is actually enforced - at the moment the branch starts taking diners, rather than at the moment somebody types a name and a price. The refusal is `branch-not-ready` and carries `incompleteMenuItemCount`; `GET /api/branches/{branchId}/readiness` lists which items are left.
          */
         patch: operations["updateBranch"];
         trace?: never;
@@ -2418,6 +2458,66 @@ export interface components {
             /** @description Why. Shown to the diner. */
             reason: string;
         };
+        /** @description The branch's menu is not finished, so it cannot start taking diners. */
+        "Yalla.Api.Errors.BranchNotReadyContext": {
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /**
+             * Format: int32
+             * @description How many items are missing a photo, a description, ingredients, allergens, a portion size or a
+             *     prep time. The number the refusal exists to carry - the readiness endpoint lists which ones.
+             */
+            incompleteMenuItemCount: number;
+        };
+        /** @description `branch-not-ready`, 409. Finish the menu, then switch the tier. */
+        "Yalla.Api.Errors.BranchNotReadyProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description The branch's menu is not finished, so it cannot start taking diners. */
+            context: components["schemas"]["Yalla.Api.Errors.BranchNotReadyContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
+        /** @description One field of the request that was refused. */
+        "Yalla.Api.Errors.FieldViolationShape": {
+            /** @description Which rule broke: `min`, `max`, `range`, `required` or `conflict`. */
+            bound?: string | null;
+            /**
+             * @description The property, in the casing the OpenAPI schema uses - `turnTimeMinutes`, or
+             *     `[2].closesAt` where the payload is an array. <b>This is what a form keys on.</b> It
+             *     deliberately is not an English label: the console used to map server prose back to inputs
+             *     through a lookup table, which stopped working the moment either side was translated.
+             */
+            field: string;
+            /** @description The highest accepted value, where the bound has one. */
+            max?: unknown;
+            /** @description What is wrong with it, in a sentence. */
+            message: string;
+            /** @description The lowest accepted value, where the bound has one. */
+            min?: unknown;
+            /** @description What was supplied, so the message can quote it back. */
+            value?: unknown;
+        };
         /** @description Removing this line would reverse money already taken. */
         "Yalla.Api.Errors.LineAlreadyPaidContext": {
             /**
@@ -2704,6 +2804,45 @@ export interface components {
              */
             type: string;
         };
+        /** @description Every field the request got wrong. */
+        "Yalla.Api.Errors.ValidationFailedContext": {
+            /** @description The first offending field, for a form that can only highlight one input at a time. */
+            field: string;
+            /**
+             * @description All of them. A single request can break six bounds, and returning one at a time makes an owner
+             *     submit six times to discover that.
+             */
+            fields: components["schemas"]["Yalla.Api.Errors.FieldViolationShape"][];
+        };
+        /**
+         * @description `validation-failed`, 422. The reservation policy and opening-hours refusals, and every
+         *                 other field-level refusal that used to carry prose and nothing else.
+         */
+        "Yalla.Api.Errors.ValidationFailedProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description Every field the request got wrong. */
+            context: components["schemas"]["Yalla.Api.Errors.ValidationFailedContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
         /** @description A one-time code a manager reads out to a tablet being enrolled. */
         "Yalla.Application.Auth.DeviceEnrolmentCodeResult": {
             /**
@@ -2931,6 +3070,87 @@ export interface components {
              * @description How many wrong guesses the code tolerates before it dies.
              */
             maxAttempts: number;
+        };
+        /** @description What a branch still needs before it can take diners. */
+        "Yalla.Application.BranchSettings.BranchReadinessView": {
+            /**
+             * @description One sentence per unsatisfied line, in checklist order. The console renders its own labels; this
+             *     is for the places that need to say what is wrong without reimplementing the list - a log line,
+             *     a support answer, an email to the venue.
+             */
+            blockers: string[];
+            /**
+             * Format: uuid
+             * @description The branch this is about.
+             */
+            branchId: string;
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            deviceCount: number;
+            /** @description At least one tablet is enrolled and not revoked. */
+            deviceEnrolled: boolean;
+            /** @description At least one active table exists on the branch's canvas. */
+            floorPlanDrawn: boolean;
+            /**
+             * Format: int32
+             * @description How many items are missing a photo, a description, ingredients, allergens, a portion size or a
+             *     prep time. <b>The number that blocks going live</b>, and the number the refusal quotes.
+             */
+            incompleteMenuItemCount: number;
+            /** @description Which ones, so the console can link straight to them. */
+            incompleteMenuItemIds: string[];
+            /**
+             * @description Every line below satisfied. This is exactly what going Paid requires on the menu side, plus the
+             *     rest of the checklist - the tier switch itself only enforces the menu, because a venue may want
+             *     its tabs enabled before it has finished enrolling tablets.
+             */
+            isReadyForDiners: boolean;
+            /** @description The branch has at least one menu category. */
+            menuCategoriesPresent: boolean;
+            /**
+             * Format: int32
+             * @description How many categories there are.
+             */
+            menuCategoryCount: number;
+            /** @description No categories missing, and no incomplete items. */
+            menuComplete: boolean;
+            /**
+             * Format: int32
+             * @description How many items there are, complete or not.
+             */
+            menuItemCount: number;
+            /**
+             * Format: int32
+             * @description How many days of the week have any opening block.
+             */
+            openingHoursDayCount: number;
+            /** @description At least one opening block exists for the week. */
+            openingHoursSet: boolean;
+            /**
+             * @description Somebody has saved the reservation policy at least once. A branch ships with defaults, so
+             *     "has a policy" is always true and answers nothing; this asks whether a human has looked.
+             */
+            reservationPolicyReviewed: boolean;
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            staffCount: number;
+            /** @description At least one active staff member works at this branch. */
+            staffEnrolled: boolean;
+            /**
+             * Format: int32
+             * @description How many active tables there are.
+             */
+            tableCount: number;
+            /**
+             * @description Every active table carries a label. Labels are required by the entity and unique per branch, so
+             *     this is satisfied whenever there are tables at all - it is reported because the checklist has a
+             *     line for it and a silently-absent line reads as a failure.
+             */
+            tablesLabelled: boolean;
         };
         "Yalla.Application.BranchSettings.FloorAreaCommand": {
             /** Format: int32 */
@@ -3370,22 +3590,19 @@ export interface components {
             displayOrder: number;
             name: string;
         };
-        /**
-         * @description A new item. Ingredients, allergens, portion size, prep minutes and a photo are <b>required</b>:
-         *     they are what a diner would otherwise ask a waiter, and optional fields stay blank.
-         */
+        /** @description A new item. Only a name and a price are required. */
         "Yalla.Application.Menus.CreateMenuItemCommand": {
-            allergens: string;
-            description: string;
+            allergens?: string | null;
+            description?: string | null;
             /** Format: int32 */
             displayOrder: number;
-            ingredients: string;
+            ingredients?: string | null;
             name: string;
             /** Format: uuid */
-            photoId: string;
-            portionSize: string;
+            photoId?: string | null;
+            portionSize?: string | null;
             /** Format: int32 */
-            prepMinutes: number;
+            prepMinutes?: number | null;
             /** Format: int64 */
             priceAmd: number;
             /** @description How hot a dish is, so the diner does not have to ask. */
@@ -3407,23 +3624,25 @@ export interface components {
             itemId: string;
             message: string;
         };
+        /** @description One menu item as a client reads it. */
         "Yalla.Application.Menus.MenuItemView": {
-            allergens: string;
+            allergens?: string | null;
             /** Format: uuid */
             categoryId: string;
-            description: string;
+            description?: string | null;
             /** Format: int32 */
             displayOrder: number;
             /** Format: uuid */
             id: string;
-            ingredients: string;
+            ingredients?: string | null;
             isAvailable: boolean;
+            isComplete: boolean;
             name: string;
             /** @description One photo as a client consumes it: three URLs and the id behind them. */
-            photo: components["schemas"]["Yalla.Application.Media.PhotoView"];
-            portionSize: string;
+            photo?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
+            portionSize?: string | null;
             /** Format: int32 */
-            prepMinutes: number;
+            prepMinutes?: number | null;
             /** Format: int64 */
             priceAmd: number;
             /** @description How hot a dish is, so the diner does not have to ask. */
@@ -3434,9 +3653,11 @@ export interface components {
             displayOrder?: number | null;
             name?: string | null;
         };
-        /** @description Patch an item. Only supplied fields change; a supplied field must still be non-blank. */
+        /** @description Patch an item. Only supplied fields change; null means "not supplied", never "clear this". */
         "Yalla.Application.Menus.UpdateMenuItemCommand": {
             allergens?: string | null;
+            /** Format: uuid */
+            categoryId?: string | null;
             description?: string | null;
             /** Format: int32 */
             displayOrder?: number | null;
@@ -6829,7 +7050,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Menus.MenuItemView"];
                 };
             };
-            /** @description A required field is missing or blank. */
+            /** @description The name is blank, or the price is negative. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7012,6 +7233,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `categoryId` names a category that is not on this branch. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -7264,7 +7494,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.BranchSettings.OpeningHoursView"][];
                 };
             };
-            /** @description Two blocks on one day overlap. */
+            /** @description The request violated a domain rule or arrived malformed. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7289,6 +7519,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Blocks overlap, or one opens and closes at the same minute; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -7469,6 +7708,82 @@ export interface operations {
             };
         };
     };
+    getBranchReadiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.BranchSettings.BranchReadinessView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getReservationPolicy: {
         parameters: {
             query?: never;
@@ -7569,7 +7884,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.BranchSettings.ReservationPolicyChangeResult"];
                 };
             };
-            /** @description A field is outside its bounds; the message names it. */
+            /** @description The request violated a domain rule or arrived malformed. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -7594,6 +7909,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description One or more fields are outside their bounds; `context.fields` names every one. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -9066,6 +9390,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Going Paid with an unfinished menu, or going Free with open tabs. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.BranchNotReadyProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

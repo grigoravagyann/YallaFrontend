@@ -4,6 +4,13 @@
  * The three apps have three different storage APIs (AsyncStorage, expo-sqlite,
  * localStorage) and two of them are async, so i18n takes an injectable adapter
  * rather than importing any of them. The app supplies the adapter at startup.
+ *
+ * The `localStorage` adapter lives in `webStorage.ts` rather than here, and the
+ * split is load-bearing: the public branch page is required to touch no browser
+ * storage at all, and it imports `createMemoryLocaleStorage` from this module.
+ * With both in one file a bundler cannot drop one and keep the other, so the
+ * page's bundle would carry a `localStorage` call it never makes — and the
+ * guarantee would stop being checkable. `productionBundle.test.ts` checks it.
  */
 export interface LocaleStorage {
   read(): Promise<string | null>;
@@ -19,28 +26,6 @@ export function createMemoryLocaleStorage(): LocaleStorage {
     read: () => Promise.resolve(value),
     write: (locale) => {
       value = locale;
-      return Promise.resolve();
-    },
-  };
-}
-
-/** Web adapter for the admin panel. Falls back to memory if storage is blocked. */
-export function createWebLocaleStorage(): LocaleStorage {
-  return {
-    read: () => {
-      try {
-        return Promise.resolve(globalThis.localStorage?.getItem(LOCALE_STORAGE_KEY) ?? null);
-      } catch {
-        // Private mode / blocked storage. A missing override is not an error.
-        return Promise.resolve(null);
-      }
-    },
-    write: (locale) => {
-      try {
-        globalThis.localStorage?.setItem(LOCALE_STORAGE_KEY, locale);
-      } catch {
-        // Preference simply will not survive a reload.
-      }
       return Promise.resolve();
     },
   };

@@ -1,0 +1,770 @@
+/*
+ * The public branch page.
+ *
+ * Designed at 380pt and let out from there, which is the reverse of everything
+ * else in this app. The overwhelming majority of visits are a phone, opened
+ * from a link in a chat, quite possibly on mobile data standing outside the
+ * venue. Desktop is the adaptation: one `min-width` block at the bottom widens
+ * the column and puts the room and the menu side by side, and that is the whole
+ * of it.
+ *
+ * Every value comes from `tokens.generated.css` via `base.css`. Nothing here
+ * names a colour, a radius or a size directly.
+ */
+@import '../base.css';
+
+.pub {
+  min-height: 100%;
+  /* One column, thumb-width, centred. A public page has no navigation rail. */
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 0 var(--space-lg) var(--space-xxl);
+}
+
+/* --------------------------------------------------------------------------
+ * The language bar
+ * -------------------------------------------------------------------------- */
+
+/*
+ * Top of the page, in the flow, never a footer and never behind a globe.
+ * A visitor who cannot read the page cannot be expected to scroll to the
+ * bottom of it looking for the control that fixes that.
+ */
+.pub-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+}
+
+.pub-wordmark {
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+.lang {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* Each language in its own name — never a flag, which is a country, and never
+   a two-letter code, which means nothing to the person who needs it most. */
+.lang-option {
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-muted-foreground);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.lang-option[aria-current='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+/* --------------------------------------------------------------------------
+ * Head: cover, name, open state, the count
+ * -------------------------------------------------------------------------- */
+
+.pub-cover {
+  margin: 0 calc(-1 * var(--space-lg)) var(--space-lg);
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+}
+
+.pub-cover img {
+  display: block;
+  width: 100%;
+  /* The ratio is fixed here and the intrinsic size is on the element, so the
+     space is reserved before a byte of the photo arrives. */
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.pub-head h1 {
+  margin: 0;
+  font-size: var(--font-size-xxl);
+  line-height: var(--line-height-xxl);
+}
+
+.pub-branch-name {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-lg);
+  color: var(--color-foreground);
+}
+
+.pub-muted {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
+.pub-open {
+  margin: var(--space-md) 0 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+}
+
+.pub-open-yes {
+  color: var(--color-success);
+}
+
+.pub-open-no {
+  color: var(--color-muted-foreground);
+}
+
+/*
+ * The free-table count.
+ *
+ * `min-height` on the container, not on the number, and set to the height the
+ * number will occupy. This is the largest element on the page and it arrives
+ * last; without the reserved box everything below it — the room, the menu, the
+ * address — jumps down when it lands, on exactly the slow connection where the
+ * jump lasts longest and is most disorienting.
+ */
+.pub-count {
+  min-height: 4.5rem;
+  margin: var(--space-sm) 0 var(--space-lg);
+}
+
+.pub-count-value {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xxl);
+  line-height: 1.15;
+  color: var(--color-primary);
+  letter-spacing: -0.02em;
+}
+
+.pub-count-none {
+  color: var(--color-muted-foreground);
+}
+
+.pub-count-age {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+}
+
+/* --------------------------------------------------------------------------
+ * Sections
+ * -------------------------------------------------------------------------- */
+
+.pub-section {
+  margin-top: var(--space-xxl);
+}
+
+.pub-section > h2 {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pub-notice {
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
+.pub-notice-alert {
+  border-color: var(--color-warning);
+}
+
+.pub-error {
+  margin: var(--space-md) 0 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+}
+
+.pub-warn {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+}
+
+/* --------------------------------------------------------------------------
+ * Controls
+ * -------------------------------------------------------------------------- */
+
+.pub-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--touch-minimum) + 6px);
+  padding: 0 var(--space-lg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-foreground);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pub-button-primary {
+  width: 100%;
+  margin-top: var(--space-md);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.pub-button-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.pub-button-quiet {
+  background: transparent;
+  border-color: var(--color-border);
+  color: var(--color-primary-pressed);
+}
+
+.pub-button-danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-primary-foreground);
+}
+
+.pub-button-small {
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-md);
+  font-size: var(--font-size-sm);
+}
+
+.pub-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* Date, time and party size. Three across at 380pt, which is exactly what a
+   thumb can reach without the row wrapping into two lines of controls. */
+.pub-slot {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.pub-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+}
+
+.pub-field input,
+.pub-field select {
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-md);
+}
+
+.pub-input {
+  min-height: calc(var(--touch-minimum) + 4px);
+  width: 100%;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  /* 16px minimum, or iOS Safari zooms the whole page on focus and the visitor
+     is left panned halfway off a form they were halfway through. */
+  font-size: max(16px, var(--font-size-md));
+}
+
+.pub-phone-row {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.pub-input-prefix {
+  flex: 0 0 5.5rem;
+}
+
+.pub-input-code {
+  letter-spacing: 0.4em;
+  text-align: center;
+  font-size: var(--font-size-xl);
+}
+
+.pub-dev-code {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm);
+  border: 1px dashed var(--color-warning);
+  border-radius: var(--radius-soft);
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+}
+
+/* --------------------------------------------------------------------------
+ * The room
+ * -------------------------------------------------------------------------- */
+
+.pub-legend {
+  margin-bottom: var(--space-sm);
+}
+
+.pub-room-hint {
+  margin-bottom: var(--space-sm);
+}
+
+/*
+ * The plan's box, and the same box before the plan arrives.
+ *
+ * A fixed height on both, so the lazily loaded renderer drops into a space that
+ * was already there. `62vh` is roughly what is left on a phone once the count
+ * and the controls are above it; the floor is the smallest a real room stays
+ * legible at, the ceiling stops it eating a desktop window.
+ */
+.pub-plan {
+  height: clamp(20rem, 62vh, 30rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  /* The canvas opts out of the paper grain: on the floor plan, legibility is
+     the whole job. Same rule the staff screen follows. */
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.pub-plan.is-placeholder {
+  background: var(--color-paper);
+}
+
+/* --------------------------------------------------------------------------
+ * The booking panel
+ * -------------------------------------------------------------------------- */
+
+/*
+ * Sticky to the bottom of the viewport rather than a modal over the room.
+ *
+ * The visitor is choosing *between* tables and needs to keep seeing the room
+ * while they read the window — covering the plan turns a comparison into a
+ * memory test. Same reasoning as the phone app's bottom sheet, different
+ * mechanics.
+ */
+.pub-sheet {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: var(--space-md) calc(-1 * var(--space-lg)) 0;
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  border-top: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sheet);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.pub-sheet.is-loading {
+  min-height: 8rem;
+}
+
+.pub-sheet:focus-visible {
+  outline-offset: -3px;
+}
+
+.pub-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.pub-sheet-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pub-window {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+}
+
+.pub-window-main {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Not a null state — an advantage, and a reason to pick this table. */
+.pub-window-main.is-open-ended {
+  color: var(--color-success);
+}
+
+.pub-form h3 {
+  margin: var(--space-md) 0 0;
+  font-size: var(--font-size-lg);
+}
+
+/* --------------------------------------------------------------------------
+ * The confirmation
+ * -------------------------------------------------------------------------- */
+
+.pub-done h3 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+/* Read aloud at a door and over the phone: the one thing here that has to
+   survive a noisy room. */
+.pub-code {
+  margin: var(--space-lg) 0;
+  padding: var(--space-lg);
+  text-align: center;
+  border: 2px solid var(--color-success);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+/* Pending must never look confirmed. */
+.pub-code.is-pending {
+  border-style: dashed;
+  border-color: var(--color-info);
+}
+
+.pub-code-label,
+.pub-code-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.pub-code-value {
+  margin: var(--space-xs) 0;
+  font-size: 2.75rem;
+  line-height: 1.1;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.15em;
+}
+
+.pub-summary {
+  margin: var(--space-lg) 0 0;
+}
+
+.pub-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pub-summary dt {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+.pub-summary dd {
+  margin: 0;
+  text-align: right;
+  font-weight: var(--font-weight-medium);
+}
+
+.pub-offer {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.pub-offer h4 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pub-offer-quiet {
+  opacity: 0.9;
+}
+
+/* Shown in full and selectable: somebody will copy it by hand onto paper. */
+.pub-manage-link {
+  display: block;
+  margin-top: var(--space-sm);
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-pressed);
+}
+
+.pub-confirm p {
+  margin: 0 0 var(--space-sm);
+}
+
+/* --------------------------------------------------------------------------
+ * The menu
+ * -------------------------------------------------------------------------- */
+
+.pub-menu-note {
+  margin-bottom: var(--space-md);
+}
+
+.pub-menu-group h3 {
+  margin: var(--space-lg) 0 var(--space-sm);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-muted-foreground);
+  text-transform: none;
+}
+
+.pub-menu-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-menu-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pub-menu-item.is-sold-out {
+  opacity: 0.55;
+}
+
+/* Fixed size, so the row keeps its shape whether the photo has loaded, has
+   failed, or was never there. */
+.pub-menu-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-soft);
+  object-fit: cover;
+  background: var(--color-paper);
+}
+
+.pub-menu-photo.is-missing {
+  display: block;
+}
+
+.pub-menu-name {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.pub-menu-desc {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.pub-menu-soldout {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
+}
+
+.pub-menu-price {
+  margin: 0;
+  white-space: nowrap;
+  font-weight: var(--font-weight-medium);
+}
+
+/* --------------------------------------------------------------------------
+ * Address and hours
+ * -------------------------------------------------------------------------- */
+
+.pub-address {
+  margin: 0;
+  font-style: normal;
+  line-height: var(--line-height-md);
+}
+
+.pub-hours summary {
+  min-height: var(--touch-minimum);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--color-primary-pressed);
+  font-size: var(--font-size-sm);
+}
+
+.pub-hours-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.pub-hours-table th {
+  text-align: start;
+  font-weight: var(--font-weight-regular);
+  color: var(--color-muted-foreground);
+  padding: var(--space-xs) 0;
+}
+
+.pub-hours-table td {
+  text-align: end;
+  padding: var(--space-xs) 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pub-hours-table tr[aria-current='date'] th,
+.pub-hours-table tr[aria-current='date'] td {
+  color: var(--color-foreground);
+  font-weight: var(--font-weight-medium);
+}
+
+/* --------------------------------------------------------------------------
+ * The branch chooser
+ * -------------------------------------------------------------------------- */
+
+.pub-branch-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-md);
+}
+
+.pub-branch-card {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.pub-branch-card.is-unavailable {
+  background: var(--color-paper);
+}
+
+.pub-branch-card-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-lg);
+}
+
+.pub-branch-card-free {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+}
+
+/* --------------------------------------------------------------------------
+ * Whole-page states
+ * -------------------------------------------------------------------------- */
+
+.pub-state {
+  padding: var(--space-xxl) 0;
+}
+
+.pub-state h1 {
+  margin: 0 0 var(--space-md);
+  font-size: var(--font-size-xl);
+}
+
+.pub-state-venue {
+  margin: 0;
+  color: var(--color-muted-foreground);
+}
+
+/*
+ * The skeleton is shaped like the page it becomes — cover, name, and a box the
+ * exact height of the free-table count — so the first paint and the loaded page
+ * have the same geometry and nothing moves between them.
+ */
+.skeleton {
+  border-radius: var(--radius-card);
+  background: var(--color-border);
+  opacity: 0.4;
+}
+
+.skeleton-cover {
+  aspect-ratio: 16 / 9;
+  margin-bottom: var(--space-lg);
+}
+
+.skeleton-title {
+  height: 2rem;
+  width: 70%;
+  margin-bottom: var(--space-md);
+}
+
+.skeleton-count {
+  height: 4.5rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+ * Desktop, as the adaptation
+ * -------------------------------------------------------------------------- */
+
+@media (min-width: 60rem) {
+  .pub {
+    max-width: 64rem;
+  }
+
+  /* Two columns, and the room gets the taller one. Above this width the plan
+     stops folding into area mode of its own accord, so it wants the space. */
+  .pub-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'head head'
+      'room menu'
+      'find hours';
+    column-gap: var(--space-xxl);
+    align-items: start;
+  }
+
+  .pub-cover,
+  .pub-head {
+    grid-area: head;
+  }
+
+  .pub-sheet {
+    grid-column: 1 / -1;
+  }
+
+  .pub-plan {
+    height: clamp(24rem, 60vh, 34rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

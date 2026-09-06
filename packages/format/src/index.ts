@@ -10,11 +10,15 @@ export {
   formatTimeRange,
   formatDate,
   branchDayKey,
+  instantFromZonedClock,
   InvalidInstantError,
 } from './datetime';
-export type { Instant } from './datetime';
+export type { Instant, ZonedClock } from './datetime';
 
 export { formatRelativeMinutes, formatDuration, minutesBetween } from './duration';
+
+export { icsEvent, icsFileName, zoneOffsetAt, zonedParts } from './calendar';
+export type { IcsEventInput } from './calendar';
 
 export { formatNameList } from './names';
 

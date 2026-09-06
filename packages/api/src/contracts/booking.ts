@@ -149,6 +149,23 @@ export interface Booking {
 
   readonly createdAtUtc: string;
   readonly cancelledAtUtc: string | null;
+
+  /**
+   * An opaque token granting sight of, and the power to cancel, **this booking
+   * alone** — with no account and no session.
+   *
+   * Issued for a booking made from the public web page, which has no push
+   * channel: the reminder, the "still coming?" nudge and one-tap cancel all
+   * reach the app and none of them reach a stranger who booked from a link.
+   * Without this the only way out of such a booking is not turning up, which
+   * makes the page a no-show generator for the venue that printed it on a card.
+   *
+   * `null` for a booking made in the app, which has an account and needs no
+   * bearer link — and null against a backend that does not issue them yet, in
+   * which case the confirmation offers the venue's phone number instead rather
+   * than a link that goes nowhere.
+   */
+  readonly manageToken: string | null;
 }
 
 export interface CreateBookingCommand {

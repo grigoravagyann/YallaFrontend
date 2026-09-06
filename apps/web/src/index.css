@@ -1,101 +1,12 @@
 /*
- * Plain CSS, no framework and no CSS-in-JS runtime, per the stack decision.
+ * The venue console and the counter screen.
  *
- * Every value comes from `tokens.generated.css`, which is written from
- * `@yalla/tokens` before `dev` and `build`. Nothing in this file names a hex
- * colour, a pixel radius or a font size directly.
- *
- * The style is organic white and green: pill controls, generous card radii,
- * soft green-tinted shadows, a serif for display and a faint paper grain on
- * the page. Two places opt out of the softness on purpose — the floor plan
- * canvas and every staff screen — because there legibility is the whole job.
+ * The shared ground — reset, paper, type, focus — is in `base.css`, which this
+ * imports. Nothing in here reaches the public branch page: that route group is
+ * a separate entry with its own stylesheet, and keeping the two apart is why
+ * the split exists at all.
  */
-@import './tokens.generated.css';
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
-
-body {
-  position: relative;
-  background: var(--color-paper);
-  color: var(--color-foreground);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  line-height: var(--line-height-md);
-  -webkit-font-smoothing: antialiased;
-}
-
-/*
- * Paper grain: 2–3% fractal noise multiplied into the paper. It sits *behind*
- * the content, so anything that paints its own background — a card, a table,
- * the floor plan canvas — covers it, which is how the canvas stays clean
- * without a rule of its own. The staff screen is excluded explicitly as well:
- * a tablet read at two metres in the sun gets every point of contrast.
- */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: var(--texture-paper-grain);
-  background-size: var(--texture-paper-grain-tile);
-  opacity: var(--texture-paper-grain-opacity);
-  mix-blend-mode: var(--texture-paper-grain-blend);
-}
-
-body:has([data-surface='staff'])::before {
-  display: none;
-}
-
-/* Two of three surfaces are touch devices: hover is an enhancement, never the
-   only affordance. Every transition is eased and 200–300ms; nothing snaps. */
-button,
-a,
-select,
-input,
-.card {
-  transition:
-    background-color var(--duration-control) var(--easing-standard),
-    border-color var(--duration-control) var(--easing-standard),
-    color var(--duration-control) var(--easing-standard),
-    box-shadow var(--duration-control) var(--easing-standard),
-    transform var(--duration-control) var(--easing-standard);
-}
-
-/* Visible keyboard focus on everything: a soft glow, never removed. */
-:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-/* Numbers align. Prices, counts and times all sit in columns somewhere. */
-.num,
-.table td,
-.status-chip {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: var(--font-feature-tabular);
-}
-
-/* The display face carries the two largest steps. Sentence case throughout. */
-.display,
-.brand,
-.page h1,
-.venue-name,
-.floor-where h1,
-.tokens-page h1 {
-  font-family: var(--font-family-display);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: -0.01em;
-}
+@import './base.css';
 
 /* --------------------------------------------------------------------------
  * Console shell
@@ -1238,16 +1149,6 @@ select {
 }
 
 /* A misconfigured base URL. Plain DOM written before React mounts. */
-.config-error {
-  margin: var(--space-xxl);
-  padding: var(--space-xl);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  font: inherit;
-  white-space: pre-wrap;
-}
 
 /* --------------------------------------------------------------------------
  * The floor plan editor

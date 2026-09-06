@@ -98,3 +98,54 @@ export function branchDayKey(value: Instant, timeZone: TimeZone): string {
 
   return `${lookup('year')}-${lookup('month')}-${lookup('day')}`;
 }
+
+/** A wall-clock reading, with no zone attached until one is supplied. */
+export interface ZonedClock {
+  readonly year: number;
+  /** 1-12, as a person writes it — not `Date`'s 0-11. */
+  readonly month: number;
+  readonly day: number;
+  readonly hour: number;
+  readonly minute: number;
+}
+
+const utcOffsetCache = new Map<string, Intl.DateTimeFormat>();
+
+/** Minutes east of UTC for `timeZone` at `instant`. */
+function offsetMinutesAt(instant: Date, timeZone: TimeZone): number {
+  let formatter = utcOffsetCache.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-GB', { timeZone, timeZoneName: 'longOffset' });
+    utcOffsetCache.set(timeZone, formatter);
+  }
+  const name =
+    formatter.formatToParts(instant).find((part) => part.type === 'timeZoneName')?.value ?? 'GMT';
+  const match = /GMT([+-])(\d{2}):(\d{2})/u.exec(name);
+  if (!match) return 0;
+  const sign = match[1] === '-' ? -1 : 1;
+  return sign * (Number(match[2]) * 60 + Number(match[3]));
+}
+
+/**
+ * The instant at which a branch's clock reads a given wall-clock time.
+ *
+ * The inverse of every other function here, and the one the opening-hours
+ * arithmetic needs: "this branch shuts at 23:00 local" has to become an instant
+ * before it can be compared with now or handed to `formatTime`.
+ *
+ * Two passes, not one. The offset depends on the instant, and the instant is
+ * what is being solved for — so the first pass guesses with the offset at the
+ * naive UTC reading and the second corrects it with the offset that actually
+ * applies there. That converges for every real zone, including the hour after a
+ * clock change, where the naive guess can land on the wrong side of it.
+ *
+ * A wall-clock time that does not exist (the skipped hour in spring) resolves
+ * to the instant the clock jumps to, and one that happens twice (the repeated
+ * hour in autumn) resolves to the first. Both are the conventional readings and
+ * both are what a venue means when it writes an opening time down.
+ */
+export function instantFromZonedClock(clock: ZonedClock, timeZone: TimeZone): Date {
+  const naive = Date.UTC(clock.year, clock.month - 1, clock.day, clock.hour, clock.minute, 0, 0);
+  const firstGuess = new Date(naive - offsetMinutesAt(new Date(naive), timeZone) * 60_000);
+  return new Date(naive - offsetMinutesAt(firstGuess, timeZone) * 60_000);
+}

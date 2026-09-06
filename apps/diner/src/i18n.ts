@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LOCALE_STORAGE_KEY, initI18n, type LocaleStorage } from '@yalla/i18n';
+import { resources } from '@yalla/i18n/resources';
 import { getLocales } from 'expo-localization';
 
 /** AsyncStorage adapter for the manual language override. */
@@ -21,6 +22,10 @@ function deviceLocales(): string[] {
 
 export function bootstrapI18n() {
   return initI18n({
+    // The whole map: Metro has no tree-shaking worth relying on, and the phone
+    // app ships as one binary anyway. The narrow entry point exists for the web
+    // page, where the download is a stranger's mobile data.
+    resources,
     deviceLocales: deviceLocales(),
     storage,
     namespaces: ['common', 'diner'],

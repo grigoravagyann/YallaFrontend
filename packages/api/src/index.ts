@@ -98,6 +98,44 @@ export {
   isTableTaken,
 } from './contracts/errors';
 
+// --- Rules the phone app and the public web page both run --------------------
+export {
+  approvalCopy,
+  availabilityWindowCopy,
+  bookingFailure,
+  freeCancellationCopy,
+  nextHalfHour,
+  tableCopy,
+  unavailableCopy,
+  verificationFailureCopy,
+} from './contracts/reservation';
+export type {
+  AvailabilityWindowCopy,
+  BookingFailure,
+  CopyLine,
+  TableCopy,
+} from './contracts/reservation';
+
+// --- The public branch page ---------------------------------------------------
+export type { PublicGateway } from './publicGateway';
+export { resolvePublicGateway } from './resolvePublicGateway';
+export type { ResolvePublicGatewayOptions } from './resolvePublicGateway';
+export { createPublicMockGateway, manageTokenFor } from './mocks/publicMock';
+export type { PublicMockOptions } from './mocks/publicMock';
+export { createPublicHttpGateway } from './http/publicHttpGateway';
+export { openStateFrom } from './mocks/openState';
+export type {
+  ManagedBooking,
+  OpenState,
+  PublicBranch,
+  PublicBranchCard,
+  PublicBranchStatus,
+  PublicPageMeta,
+  PublicPhoto,
+  PublicVenue,
+  PublicVenueHeader,
+} from './contracts/publicBranch';
+
 // --- Scanning in and the shared tab -----------------------------------------
 export type {
   ScanResult,

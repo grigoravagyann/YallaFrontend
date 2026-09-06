@@ -33,12 +33,16 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
     "@yalla/tsconfig": "workspace:*",
     "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.0.1",
     "typescript": "~6.0.3",
     "vite": "^8.2.2"
   }

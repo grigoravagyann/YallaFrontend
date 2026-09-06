@@ -20,7 +20,7 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 import { AreaSwitcher, OVERVIEW, type AreaSelection } from './AreaSwitcher';
-import { floorAreas, hasUsableAreas } from './areas';
+import { floorAreas, shouldUseAreaMode } from './areas';
 import { FITTED, useFloorGestures, type FloorViewport } from './gestures';
 import { AREA_MODE_MAX_WIDTH_PX, computeFloorLayout, type LaidOutTable } from './layout';
 import type { FloorFeature, FloorPlanData, FloorPlanMode, Rect as FloorRect } from './types';
@@ -130,30 +130,25 @@ export function FloorPlan({
   const [switcherHeight, setSwitcherHeight] = useState(0);
 
   /*
-   * Does the whole room survive this viewport? Answered by laying it out at the
-   * fit and asking whether any two tappable hit regions collide. A count of
-   * tables would be a guess; this is the actual condition that breaks tapping.
+   * Does the whole room survive this viewport? The rule — divided room, narrow
+   * viewport, copy in hand, and tap targets that actually collide at the fit —
+   * lives in `shouldUseAreaMode` rather than here, because a caller budgeting
+   * space for the switcher has to be able to ask the same question and get the
+   * same answer. See that function for why overlap is the deciding term.
    */
-  const overlapProbe = useMemo(
+  const areaModeAvailable = useMemo(
     () =>
-      computeFloorLayout({
-        canvasWidth: plan.canvasWidth,
-        canvasHeight: plan.canvasHeight,
-        tables: plan.tables,
+      shouldUseAreaMode({
+        plan,
         viewport,
         mode,
         partySize,
-      }).hasOverlappingHitRects,
-    [plan.canvasWidth, plan.canvasHeight, plan.tables, viewport, mode, partySize],
+        areaMode,
+        areaModeMaxWidthPx,
+        canTranslate: Boolean(translate),
+      }),
+    [plan, viewport, mode, partySize, areaMode, areaModeMaxWidthPx, translate],
   );
-
-  const areaModeAvailable =
-    areaMode === 'auto' &&
-    Boolean(translate) &&
-    viewport.width > 0 &&
-    viewport.width < areaModeMaxWidthPx &&
-    hasUsableAreas(plan) &&
-    overlapProbe;
 
   // Opens on the first area rather than the overview: a diner arriving wants
   // tables they can tap, and orientation is one tap away.

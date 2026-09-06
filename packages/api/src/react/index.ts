@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, createElement, useContext, type ReactNode } from 'react';
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { ConsoleGateway } from '../consoleGateway';
 import type { ConsoleVenueDetail, CreateVenueCommand, ListVenuesQuery } from '../contracts/console';
 import type { ReplaceFloorPlanCommand } from '../contracts/floorPlan';
@@ -13,6 +20,8 @@ import type {
 import type { Menu } from '../contracts/menu';
 import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
+import type { ManagedBooking } from '../contracts/publicBranch';
+import type { PublicGateway } from '../publicGateway';
 import type { ReleaseReservationCommand } from '../staffGateway';
 import type { YallaGateway } from '../gateway';
 import type { StaffGateway } from '../staffGateway';
@@ -34,6 +43,36 @@ export { describeFailure } from '../errors';
 export type { FailureKind } from '../errors';
 
 /**
+ * The current time, as React state rather than a `Date.now()` call in render.
+ *
+ * Reading the clock during render is impure — two renders of the same props can
+ * disagree — so the clock is treated as what it is: an external system a
+ * component subscribes to.
+ *
+ * It lives here, in the data layer's React module, because on both surfaces the
+ * question it answers is a question about data: how old is this answer. The
+ * phone's bookings list uses it to move a booking from "upcoming" to "past"
+ * when its slot passes, and the public branch page uses it to decide whether
+ * the free-table count on screen is stale enough to need a timestamp under it.
+ * Neither works if the only thing that re-reads the clock is an unrelated
+ * re-render.
+ *
+ * @param intervalMs How often to re-read. Default 30s — fine for slot
+ * boundaries and for a one-minute staleness threshold, and cheap enough to
+ * leave running.
+ */
+export function useNow(intervalMs = 30_000): Date {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+
+  return now;
+}
+
+/**
  * True when a query is not running because the browser is offline.
  *
  * TanStack Query does not *fail* a query it cannot send: it **pauses** it. So
@@ -53,18 +92,21 @@ interface Gateways {
   readonly gateway: YallaGateway | null;
   readonly consoleGateway: ConsoleGateway | null;
   readonly staffGateway: StaffGateway | null;
+  readonly publicGateway: PublicGateway | null;
 }
 
 const GatewayContext = createContext<Gateways>({
   gateway: null,
   consoleGateway: null,
   staffGateway: null,
+  publicGateway: null,
 });
 
 export interface GatewayProviderProps {
   readonly gateway?: YallaGateway | undefined;
   readonly consoleGateway?: ConsoleGateway | undefined;
   readonly staffGateway?: StaffGateway | undefined;
+  readonly publicGateway?: PublicGateway | undefined;
   readonly children: ReactNode;
 }
 
@@ -72,6 +114,7 @@ export function GatewayProvider({
   gateway,
   consoleGateway,
   staffGateway,
+  publicGateway,
   children,
 }: GatewayProviderProps) {
   return createElement(
@@ -81,6 +124,7 @@ export function GatewayProvider({
         gateway: gateway ?? null,
         consoleGateway: consoleGateway ?? null,
         staffGateway: staffGateway ?? null,
+        publicGateway: publicGateway ?? null,
       },
     },
     children,
@@ -99,6 +143,14 @@ export function useConsoleGateway(): ConsoleGateway {
     throw new Error('useConsoleGateway: wrap the tree in <GatewayProvider consoleGateway={…}>.');
   }
   return consoleGateway;
+}
+
+export function usePublicGateway(): PublicGateway {
+  const { publicGateway } = useContext(GatewayContext);
+  if (!publicGateway) {
+    throw new Error('usePublicGateway: wrap the tree in <GatewayProvider publicGateway={…}>.');
+  }
+  return publicGateway;
 }
 
 export function useStaffGateway(): StaffGateway {
@@ -127,6 +179,11 @@ export const queryKeys = {
   staffMenu: (branchId: string) => ['staff', 'menu', branchId] as const,
   tabLines: (tabId: string) => ['staff', 'tabLines', tabId] as const,
   adminMenu: (branchId: string) => ['console', 'menu', branchId] as const,
+  publicVenue: (venueSlug: string) => ['public', 'venue', venueSlug] as const,
+  publicBranch: (venueSlug: string, branchSlug: string) =>
+    ['public', 'branch', venueSlug, branchSlug] as const,
+  publicMenu: (branchId: string) => ['public', 'menu', branchId] as const,
+  managedBooking: (token: string) => ['public', 'booking', token] as const,
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
 };
@@ -155,14 +212,32 @@ export function useVenue(venueId: string | undefined) {
 
 // --- Floor ---------------------------------------------------------------------
 
-/** Live table state: stale almost immediately. */
-export function useFloorPlan(branchId: string | undefined) {
+/**
+ * Live table state: stale almost immediately.
+ *
+ * `pollMs` is opt-in at the call site rather than a default, because the three
+ * surfaces that read this room have three different reasons not to share one
+ * cadence. The counter screen must **not** poll — its `LiveStream` owns
+ * refreshing, and a second poller would fight it over the same cache entry. The
+ * phone app refetches on focus, which is when a diner is looking. The public
+ * branch page is the one that is genuinely left open on a table with nobody
+ * touching it, so it asks for an interval.
+ */
+export function useFloorPlan(branchId: string | undefined, options: { pollMs?: number } = {}) {
   const gateway = useGateway();
   return useQuery({
     queryKey: queryKeys.floor(branchId ?? ''),
     queryFn: () => gateway.getFloorPlan(branchId!),
     enabled: Boolean(branchId),
     staleTime: staleTime.live,
+    ...(options.pollMs
+      ? {
+          refetchInterval: options.pollMs,
+          // A page in a background tab is a page nobody is reading. Polling it
+          // spends a stranger's mobile data on a room they cannot see.
+          refetchIntervalInBackground: false,
+        }
+      : {}),
   });
 }
 
@@ -707,6 +782,112 @@ export function useSaveReservationPolicy(branchId: string | undefined) {
       queryClient.setQueryData(queryKeys.reservationPolicy(branchId ?? ''), result.policy);
       // The floor and availability both read the turn time and the buffer.
       void queryClient.invalidateQueries({ queryKey: ['availability', branchId] });
+    },
+  });
+}
+
+// --- The public branch page ---------------------------------------------------
+
+/**
+ * How often the page re-reads the room while somebody is looking at it.
+ *
+ * Forty-five seconds is a compromise between two real costs. Shorter and a page
+ * left open on a table is a request every few seconds from a phone on mobile
+ * data, for a number that changes when a party sits down — minutes apart, not
+ * seconds. Longer and the count on screen is stale enough to send four people
+ * to a venue with two tables.
+ */
+export const PUBLIC_REFRESH_MS = 45_000;
+
+/**
+ * The venue-level chooser.
+ *
+ * Reference data with a live number attached, so it takes the live cadence: the
+ * per-branch free counts are the only reason this screen beats a phone call.
+ */
+export function usePublicVenue(venueSlug: string | undefined) {
+  const gateway = usePublicGateway();
+  return useQuery({
+    queryKey: queryKeys.publicVenue(venueSlug ?? ''),
+    queryFn: () => gateway.resolveVenue(venueSlug!),
+    enabled: Boolean(venueSlug),
+    staleTime: staleTime.live,
+    refetchInterval: PUBLIC_REFRESH_MS,
+    // A page in a background tab is a page nobody is reading. Refetching it
+    // spends a stranger's mobile data on a number they cannot see.
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * The branch page's own data: the venue header, the counts, the hours.
+ *
+ * `refetchOnWindowFocus` is on (the client default) and load-bearing here
+ * rather than incidental — someone comes back to this tab after ten minutes in
+ * a chat, and the first thing they look at is the number that was true when
+ * they left.
+ */
+export function usePublicBranch(input: {
+  readonly venueSlug: string | undefined;
+  readonly branchSlug: string | undefined;
+}) {
+  const gateway = usePublicGateway();
+  const { venueSlug, branchSlug } = input;
+  return useQuery({
+    queryKey: queryKeys.publicBranch(venueSlug ?? '', branchSlug ?? ''),
+    queryFn: () => gateway.resolveBranch({ venueSlug: venueSlug!, branchSlug: branchSlug! }),
+    enabled: Boolean(venueSlug) && Boolean(branchSlug),
+    staleTime: staleTime.live,
+    refetchInterval: PUBLIC_REFRESH_MS,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * The menu, with photos.
+ *
+ * Cached hard and never refetched on focus: a menu is reference data, the
+ * photos are the heaviest thing on the page, and re-fetching it when somebody
+ * returns to the tab would re-run the image loads for no new information.
+ */
+export function usePublicMenu(branchId: string | undefined) {
+  const gateway = useGateway();
+  return useQuery({
+    queryKey: queryKeys.publicMenu(branchId ?? ''),
+    queryFn: () => gateway.getBranchMenuDetail(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useManagedBooking(token: string | undefined) {
+  const gateway = usePublicGateway();
+  return useQuery({
+    queryKey: queryKeys.managedBooking(token ?? ''),
+    queryFn: () => gateway.getManagedBooking(token!),
+    enabled: Boolean(token),
+    staleTime: staleTime.frequent,
+  });
+}
+
+/**
+ * Cancelling from the signed link.
+ *
+ * Retry is off, as everywhere: the `commandId` is what makes a *deliberate*
+ * retry safe, not a licence for an automatic one. The result replaces the
+ * cached booking rather than invalidating it, so the page shows the cancelled
+ * state without a second round trip on a connection that was already bad enough
+ * to make somebody press the button twice.
+ */
+export function useCancelManagedBooking(token: string | undefined) {
+  const gateway = usePublicGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (commandId: string) => gateway.cancelManagedBooking({ token: token!, commandId }),
+    retry: false,
+    onSuccess: (booking: ManagedBooking) => {
+      queryClient.setQueryData(queryKeys.managedBooking(token ?? ''), booking);
     },
   });
 }

@@ -10,6 +10,7 @@
  * fully erased at build time (`verbatimModuleSyntax`): no runtime dependency,
  * just a guarantee the mock cannot drift from what the renderer accepts.
  */
+import { restaurantFloorPlan } from '@yalla/floorplan/mocks';
 import type { DerivedTableState, FloorPlanData, FloorTable } from '@yalla/floorplan/types';
 
 export type VenueType = 'cafe' | 'restaurant';
@@ -139,6 +140,31 @@ function branch(
   };
 }
 
+/**
+ * A branch whose room is the shared 30-table restaurant fixture.
+ *
+ * Borrowed rather than generated, because that fixture is *tuned*: ten two-tops
+ * at an 88-unit pitch down a wall, eight bar stools, and a rotated back row —
+ * a room that genuinely does not survive a 380pt phone, which is the case the
+ * public page's area-mode fallback exists for. The grid `buildFloor` produces
+ * is too generous to reach that state, so a mock built on it would let the
+ * fallback rot untested until a real venue hit it.
+ *
+ * Table ids are re-prefixed: the mock world indexes every table by id across
+ * every branch, and the fixture's own `rw1` would collide with a second branch
+ * built the same way.
+ */
+function borrowedFloor(branchId: string, source: FloorPlanData): FloorPlanData {
+  return {
+    ...source,
+    branchId,
+    tables: source.tables.map((table) => ({ ...table, id: `${branchId}-${table.id}` })),
+    ...(source.features
+      ? { features: source.features.map((f) => ({ ...f, id: `${branchId}-${f.id}` })) }
+      : {}),
+  };
+}
+
 export const mockVenues: readonly Venue[] = [
   // A chain: three branches with genuinely different availability. This venue is
   // why the branch screen exists at all — "Lumen has 14 free" is useless if they
@@ -180,6 +206,29 @@ export const mockVenues: readonly Venue[] = [
     type: 'restaurant',
     branches: [
       branch('v-tumanyan', 'b-tumanyan-main', 'Tumanyan Street', 0.6, 12, 0, CLOSES_01, ['Hall']),
+    ],
+  },
+
+  // Thirty tables across three areas — the room the phone cannot draw whole.
+  // The floor's own free count is what the public page shows, so it is derived
+  // from the fixture rather than asserted here.
+  {
+    id: 'v-ararat',
+    name: 'Ararat Terrace',
+    type: 'restaurant',
+    branches: [
+      {
+        id: 'b-ararat-opera',
+        venueId: 'v-ararat',
+        name: 'Opera',
+        distanceKm: 1.1,
+        timeZoneId: YEREVAN,
+        opensAtUtc: OPENS,
+        closesAtUtc: CLOSES_01,
+        totalTables: restaurantFloorPlan.tables.length,
+        freeTables: restaurantFloorPlan.tables.filter((t) => t.state === 'free').length,
+        floor: borrowedFloor('b-ararat-opera', restaurantFloorPlan),
+      },
     ],
   },
 

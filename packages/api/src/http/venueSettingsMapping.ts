@@ -73,19 +73,44 @@ export function photo(view: WirePhoto): Photo {
 
 // --- The menu -------------------------------------------------------------------
 
+/**
+ * The stand-in for an item the venue has not finished yet.
+ *
+ * Since the photo requirement moved from create-time to go-live-time, every
+ * descriptive field on the wire is nullable and an item can genuinely arrive
+ * with no photo — that is how an eighty-dish menu gets typed in before it gets
+ * photographed. The console has to *show* those items, so a missing field
+ * becomes the empty value {@link storedItemGaps} already keys on rather than
+ * being dropped or asserted away.
+ *
+ * The diner-facing read is the opposite rule for the opposite reason: see
+ * `branchMenu` in `staffMapping.ts`, which refuses to pass an unfinished item
+ * on at all.
+ */
+const NO_PHOTO: Photo = {
+  photoId: '',
+  thumbnailUrl: '',
+  cardUrl: '',
+  fullUrl: '',
+  width: null,
+  height: null,
+};
+
 export function adminItem(view: WireItem): AdminMenuItem {
   return {
     id: view.id,
     categoryId: view.categoryId,
     name: view.name,
-    description: view.description,
+    description: view.description ?? '',
     priceDram: view.priceAmd,
-    ingredients: view.ingredients,
-    allergens: view.allergens,
-    portionSize: view.portionSize,
+    ingredients: view.ingredients ?? '',
+    allergens: view.allergens ?? '',
+    portionSize: view.portionSize ?? '',
     spiceLevel: spiceLevel(view.spiceLevel),
-    prepMinutes: view.prepMinutes,
-    photo: photo(view.photo),
+    // Zero rather than null: `menuItemGaps` treats a non-positive prep time as
+    // a gap, so the count is right without widening the contract.
+    prepMinutes: view.prepMinutes ?? 0,
+    photo: view.photo ? photo(view.photo) : NO_PHOTO,
     isAvailable: view.isAvailable,
     displayOrder: view.displayOrder,
   };

@@ -14,6 +14,68 @@
     <link rel="apple-touch-icon" href="/icon.svg" />
 
     <title>Yalla</title>
+
+    <!--
+      Link-preview tags, and the honest limit of them.
+
+      This is a single-page app with no server rendering, so every URL is served
+      this same shell. WhatsApp's fetcher, Telegram's, Slack's and Facebook's do
+      not run JavaScript, which means the per-venue tags the branch page sets at
+      runtime (`src/public/meta.ts`) reach none of them. What they get is
+      exactly what is below.
+
+      So these are deliberately venue-agnostic rather than absent. A shared link
+      then unfurls as a Yalla card with a line about seeing free tables, which
+      is tapped; a link with no tags at all unfurls as a bare blue URL, which is
+      scrolled past. Per-venue cards need a server that can render five tags per
+      URL — the backend's meta endpoint behind a prerender, or an edge function
+      — and that is deliberately out of scope here rather than faked.
+
+      There is deliberately no `og:image` either. The only brand asset in
+      `public/` is an SVG, and no major unfurler renders SVG; a relative URL is
+      dropped by several of them on top of that. A tag pointing at an image that
+      does not render produces a card with a broken slot in it, which looks
+      worse than the text-only `summary` card below. A 1200x630 PNG served from
+      an absolute URL is what would upgrade this to `summary_large_image`.
+    -->
+    <meta
+      name="description"
+      content="See which tables are free right now, and book one. No app, no account."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Yalla" />
+    <meta property="og:title" content="Yalla — see free tables, book a table" />
+    <meta
+      property="og:description"
+      content="See which tables are free right now, and book one. No app, no account."
+    />
+    <meta property="og:locale" content="hy_AM" />
+    <meta property="og:locale:alternate" content="ru_AM" />
+    <meta property="og:locale:alternate" content="en_GB" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Yalla — see free tables, book a table" />
+    <meta
+      name="twitter:description"
+      content="See which tables are free right now, and book one. No app, no account."
+    />
+
+    <!--
+      The fonts are deliberately NOT preloaded.
+
+      `Yalla Sans` and `Yalla Serif` are single faces covering Latin, Cyrillic
+      and Armenian plus the dram sign, which is why they are 83 kB and 98 kB —
+      together more than the whole JavaScript bundle this page needs. Preloading
+      them puts 182 kB in front of the code that renders anything, and on a 3G
+      connection that is seconds of blank page bought to avoid a reflow.
+
+      `@font-face` already carries `font-display: swap`, so the page paints
+      immediately in the fallback stack and the real faces swap in when they
+      arrive. Content first; the swap is the price and it is the right one here.
+
+      The proper fix is smaller fonts rather than earlier ones: splitting each
+      face by `unicode-range` would let a Latin-reading visitor download the
+      Latin subset alone. That belongs in `packages/tokens/scripts/build-fonts.py`.
+    -->
   </head>
   <body>
     <div id="root"></div>

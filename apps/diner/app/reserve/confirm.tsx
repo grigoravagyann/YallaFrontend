@@ -1,4 +1,4 @@
-import { LeadTimeExceededError, NetworkError, TableTakenError } from '@yalla/api';
+import { bookingFailure, tableCopy, type CopyLine } from '@yalla/api';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
@@ -84,16 +84,20 @@ export default function ConfirmScreen() {
 
       router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
     } catch (error) {
+      // What kind of failure this was is decided in one shared place, so the
+      // web page classifies the same 409 the same way. See `bookingFailure`.
+      const failure = bookingFailure(error, timeZoneId, locale);
+
       // Losing the race is an expected outcome, not a failure screen. Take the
       // refreshed floor straight from the 409 payload, push it into the cache
       // so the plan repaints without a round trip, and hand the diner back to
       // the room with the sheet closed.
-      if (error instanceof TableTakenError) {
-        queryClient.setQueryData(keys.floor(branchId ?? ''), error.floor);
+      if (failure.kind === 'tableTaken') {
+        queryClient.setQueryData(keys.floor(branchId ?? ''), failure.error.floor);
         void queryClient.invalidateQueries({
           queryKey: keys.availability(branchId ?? '', slotUtc ?? '', size),
         });
-        useConflict.getState().report(error.tableLabel);
+        useConflict.getState().report(failure.error.tableLabel);
         // back(), not replace(): the branch screen underneath is still holding
         // this diner's slot and party size. Navigating to it afresh would push
         // a second room and lose both.
@@ -101,21 +105,7 @@ export default function ConfirmScreen() {
         return;
       }
 
-      if (error instanceof LeadTimeExceededError) {
-        setErrorText(
-          t('confirm.error.leadTime', {
-            time: formatTime(error.earliestSlotUtc, timeZoneId, locale),
-          }),
-        );
-        return;
-      }
-
-      if (error instanceof NetworkError) {
-        setErrorText(t('confirm.error.network'));
-        return;
-      }
-
-      setErrorText(t('confirm.error.generic'));
+      setErrorText(t(failure.line.key, failure.line.params));
     }
   }, [
     createBooking,
@@ -131,7 +121,10 @@ export default function ConfirmScreen() {
     locale,
   ]);
 
-  const window = table?.window;
+  // The same assembled copy the sheet showed, so the promise on the review
+  // screen is word-for-word the promise the diner accepted a screen earlier.
+  const copy = table ? tableCopy(table, { partySize: size, timeZoneId, locale }) : null;
+  const line = (value: CopyLine): string => t(value.key, value.params);
   const pending = createBooking.isPending;
 
   return (
@@ -159,37 +152,23 @@ export default function ConfirmScreen() {
         {/* The window again, so the limit is in front of them at the moment of
             commitment and not only back on the sheet. */}
         <View style={styles.windowBlock}>
-          {window && window.untilUtc ? (
+          {copy?.window ? (
             <>
-              <Text style={styles.windowPrimary}>
-                {t('table.heldForYou', {
-                  range: `${formatTime(window.fromUtc, timeZoneId, locale)} – ${formatTime(
-                    window.untilUtc,
-                    timeZoneId,
-                    locale,
-                  )}`,
-                })}
+              <Text style={copy.window.isBounded ? styles.windowPrimary : styles.noLimit}>
+                {line(copy.window.primary)}
               </Text>
-              {window.isShorterThanTurnTime ? (
-                <Text style={styles.shortWindow}>{t('table.shortWindow')}</Text>
+              {copy.window.shortWindow ? (
+                <Text style={styles.shortWindow}>{line(copy.window.shortWindow)}</Text>
               ) : null}
             </>
-          ) : (
-            <Text style={styles.noLimit}>{t('table.noBookingAfter')}</Text>
-          )}
+          ) : null}
         </View>
 
-        {table ? (
-          <Text style={styles.cancellation}>
-            {t('table.freeCancellation', {
-              time: formatTime(table.freeCancellationUntilUtc, timeZoneId, locale),
-            })}
-          </Text>
+        {copy?.freeCancellation ? (
+          <Text style={styles.cancellation}>{line(copy.freeCancellation)}</Text>
         ) : null}
 
-        {table?.requiresApproval ? (
-          <Text style={styles.approval}>{t('table.needsApproval')}</Text>
-        ) : null}
+        {copy?.approval ? <Text style={styles.approval}>{line(copy.approval)}</Text> : null}
 
         {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
       </ScrollView>
@@ -216,7 +195,7 @@ export default function ConfirmScreen() {
             </View>
           ) : (
             <Text style={styles.primaryText}>
-              {table?.requiresApproval ? t('confirm.requiresApproval') : t('confirm.submit')}
+              {copy?.approval ? t('confirm.requiresApproval') : t('confirm.submit')}
             </Text>
           )}
         </Pressable>

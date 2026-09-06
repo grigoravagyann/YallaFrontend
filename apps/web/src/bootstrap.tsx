@@ -1,10 +1,12 @@
 import { createQueryClient } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, createWebLocaleStorage, i18next, initI18n } from '@yalla/i18n';
+import { resources } from '@yalla/i18n/resources';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode, useMemo, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import './index.css';
 import { App } from './App';
 import { authSession } from './auth/authSession';
 import { useDevRole } from './auth/session';
@@ -53,6 +55,7 @@ export async function bootstrap(container: HTMLElement): Promise<void> {
   // the sign-in form for the half second it takes to read IndexedDB.
   await Promise.all([
     initI18n({
+      resources,
       deviceLocales: navigator.languages,
       storage: createWebLocaleStorage(),
       // `staff` too: this one app serves the console and the floor screen.

@@ -1,0 +1,95 @@
+{
+  "page": {
+    "freeNow_one": "{{count}} table free right now",
+    "freeNow_other": "{{count}} tables free right now",
+    "fullyBooked": "No tables free right now",
+    "openUntil": "Open until {{time}}",
+    "opensAt": "Closed · opens {{time}}",
+    "closedToday": "Closed today",
+    "updated": "Updated {{time}}",
+    "loading": "Loading…",
+    "notAvailable": {
+      "title": "Not available",
+      "body": "This place is not on Yalla at the moment. Its own phone number or door will still work."
+    },
+    "notFound": {
+      "title": "We could not find that place",
+      "body": "Check the link — it may have been mistyped or changed."
+    }
+  },
+  "section": {
+    "room": "The room",
+    "menu": "Menu",
+    "findUs": "Find us",
+    "hours": "Opening hours"
+  },
+  "room": {
+    "loading": "Drawing the room…",
+    "empty": "This place has not mapped its tables yet.",
+    "pick": "Tap a free table to book it",
+    "legendLabel": "What the colours mean"
+  },
+  "menu": {
+    "empty": "No menu published yet.",
+    "ownLanguage": "The menu is written in the venue's own language.",
+    "soldOut": "Sold out",
+    "loading": "Loading the menu…"
+  },
+  "hours": {
+    "show": "See the whole week",
+    "hide": "Hide the week",
+    "closed": "Closed",
+    "today": "Today",
+    "day": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    }
+  },
+  "findUs": {
+    "openMap": "Open in maps",
+    "call": "Call"
+  },
+  "language": {
+    "change": "Language"
+  },
+  "branches": {
+    "title": "Choose a branch",
+    "free": "{{free}} of {{total}} tables free",
+    "notAvailable": "Not available",
+    "empty": "This place has no branches listed yet."
+  },
+  "booking": {
+    "notOffered": "This place does not take bookings through Yalla yet.",
+    "pick": "Book a table",
+    "closedNotice": "Closed right now — you can still book ahead.",
+    "back": "Back to the room"
+  },
+  "done": {
+    "addCalendar": "Add to my calendar",
+    "addCalendarBody": "So your own phone reminds you. Needs nothing else.",
+    "getApp": "Get the app",
+    "getAppBody": "The app adds the two things this page cannot: a reminder before your table, and cancelling in one tap.",
+    "manage": "View or cancel this booking",
+    "manageBody": "Keep this link. It works without an account, on any device.",
+    "copyLink": "Copy link",
+    "copied": "Copied"
+  },
+  "manage": {
+    "title": "Your booking",
+    "cancel": "Cancel this booking",
+    "cancelling": "Cancelling…",
+    "cancelFailed": "We could not cancel that. Try again.",
+    "cancelled": "Cancelled",
+    "cancelledBody": "The table has gone back to the venue. Thank you for telling them.",
+    "gone": {
+      "title": "This link no longer works",
+      "body": "It may have expired, or the booking may already be over."
+    },
+    "seeVenue": "See the venue"
+  }
+}

@@ -1,12 +1,4 @@
-import {
-  ExpiredCodeError,
-  NetworkError,
-  RateLimitedError,
-  TooManyAttemptsError,
-  WrongCodeError,
-  type PhoneChallenge,
-} from '@yalla/api';
-import { formatTime } from '@yalla/format';
+import { verificationFailureCopy, type PhoneChallenge } from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -61,21 +53,16 @@ export default function VerifyScreen() {
     return () => clearTimeout(id);
   }, [secondsLeft]);
 
-  /** Map each failure to its own message — never one generic error. */
+  /**
+   * Map each failure to its own message — never one generic error.
+   *
+   * The mapping itself lives in `@yalla/api` so the public web page, which runs
+   * exactly this verification, refuses a code with exactly this sentence.
+   */
   const describe = useCallback(
     (error: unknown): string => {
-      if (error instanceof WrongCodeError) {
-        return t('verify.error.wrongCode', { count: error.attemptsRemaining });
-      }
-      if (error instanceof ExpiredCodeError) return t('verify.error.expired');
-      if (error instanceof TooManyAttemptsError) return t('verify.error.tooManyAttempts');
-      if (error instanceof RateLimitedError) {
-        return t('verify.error.rateLimited', {
-          time: formatTime(error.retryAtUtc, 'Asia/Yerevan', locale),
-        });
-      }
-      if (error instanceof NetworkError) return t('verify.error.network');
-      return t('verify.error.generic');
+      const line = verificationFailureCopy(error, locale);
+      return t(line.key, line.params);
     },
     [t, locale],
   );

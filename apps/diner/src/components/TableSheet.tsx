@@ -1,5 +1,5 @@
-import type { TableAvailability } from '@yalla/api';
-import { formatTime, type Locale } from '@yalla/format';
+import { tableCopy, type CopyLine, type TableAvailability, type TableCopy } from '@yalla/api';
+import type { Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import {
   color,
@@ -41,6 +41,10 @@ export function TableSheet({
   const { t } = useTranslation('diner');
   const open = availability !== null;
 
+  // Every sentence on this sheet comes from one call, shared with the confirm
+  // screen and with the public web page. See `contracts/reservation.ts`.
+  const copy = availability ? tableCopy(availability, { partySize, timeZoneId, locale }) : null;
+
   return (
     <Modal
       visible={open}
@@ -51,34 +55,20 @@ export function TableSheet({
       {/* Backdrop is only lightly tinted so the floor plan stays readable. */}
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('table.close')} />
 
-      {availability ? (
+      {availability && copy ? (
         <View style={styles.sheet}>
           <View style={styles.grabber} />
           <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.title}>
-              {availability.floorAreaName
-                ? t('table.titleWithArea', {
-                    label: availability.tableLabel,
-                    area: availability.floorAreaName,
-                  })
-                : t('table.title', { label: availability.tableLabel })}
-            </Text>
-            <Text style={styles.seats}>{t('table.seats', { count: availability.seats })}</Text>
+            <Text style={styles.title}>{t(copy.title.key, copy.title.params)}</Text>
+            <Text style={styles.seats}>{t(copy.seats.key, copy.seats.params)}</Text>
 
-            {availability.isBookable ? (
-              <BookableBody
-                availability={availability}
-                timeZoneId={timeZoneId}
-                locale={locale}
-                onReserve={onReserve}
-              />
-            ) : (
+            {copy.unavailable ? (
               // One line, no action. Explaining why beats a dead button.
               <Text style={styles.unavailable}>
-                {t(`table.unavailable.${availability.unavailableReason ?? 'notBookable'}`, {
-                  count: partySize,
-                })}
+                {t(copy.unavailable.key, copy.unavailable.params)}
               </Text>
+            ) : (
+              <BookableBody copy={copy} tableId={availability.tableId} onReserve={onReserve} />
             )}
           </ScrollView>
         </View>
@@ -88,18 +78,16 @@ export function TableSheet({
 }
 
 function BookableBody({
-  availability,
-  timeZoneId,
-  locale,
+  copy,
+  tableId,
   onReserve,
 }: {
-  availability: TableAvailability;
-  timeZoneId: string;
-  locale: Locale;
+  copy: TableCopy;
+  tableId: string;
   onReserve: (tableId: string) => void;
 }) {
   const { t } = useTranslation('diner');
-  const window = availability.window;
+  const line = (value: CopyLine): string => t(value.key, value.params);
 
   return (
     <>
@@ -109,53 +97,34 @@ function BookableBody({
         diner who needs longer can close this and pick a table with no limit.
       */}
       <View style={styles.windowBlock}>
-        {window && window.untilUtc ? (
+        {copy.window ? (
           <>
-            <Text style={styles.windowPrimary}>
-              {t('table.heldForYou', {
-                range: `${formatTime(window.fromUtc, timeZoneId, locale)} – ${formatTime(
-                  window.untilUtc,
-                  timeZoneId,
-                  locale,
-                )}`,
-              })}
+            <Text style={copy.window.isBounded ? styles.windowPrimary : styles.noLimit}>
+              {line(copy.window.primary)}
             </Text>
-            {window.nextBookingStartUtc ? (
-              <Text style={styles.windowSecondary}>
-                {t('table.nextBooking', {
-                  time: formatTime(window.nextBookingStartUtc, timeZoneId, locale),
-                })}
-              </Text>
+            {copy.window.nextBooking ? (
+              <Text style={styles.windowSecondary}>{line(copy.window.nextBooking)}</Text>
             ) : null}
-            {window.isShorterThanTurnTime ? (
+            {copy.window.shortWindow ? (
               // Makes the comparison easy rather than leaving it implied.
-              <Text style={styles.shortWindow}>{t('table.shortWindow')}</Text>
+              <Text style={styles.shortWindow}>{line(copy.window.shortWindow)}</Text>
             ) : null}
           </>
-        ) : (
-          // Not a null state — an advantage, and a reason to pick this table.
-          <Text style={styles.noLimit}>{t('table.noBookingAfter')}</Text>
-        )}
+        ) : null}
       </View>
 
-      <Text style={styles.cancellation}>
-        {t('table.freeCancellation', {
-          time: formatTime(availability.freeCancellationUntilUtc, timeZoneId, locale),
-        })}
-      </Text>
-
-      {availability.requiresApproval ? (
-        <Text style={styles.approval}>{t('table.needsApproval')}</Text>
+      {copy.freeCancellation ? (
+        <Text style={styles.cancellation}>{line(copy.freeCancellation)}</Text>
       ) : null}
+
+      {copy.approval ? <Text style={styles.approval}>{line(copy.approval)}</Text> : null}
 
       <Pressable
         accessibilityRole="button"
-        onPress={() => onReserve(availability.tableId)}
+        onPress={() => onReserve(tableId)}
         style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
       >
-        <Text style={styles.primaryText}>
-          {t('table.reserve', { label: availability.tableLabel })}
-        </Text>
+        <Text style={styles.primaryText}>{line(copy.reserve)}</Text>
       </Pressable>
     </>
   );

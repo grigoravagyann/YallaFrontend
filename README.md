@@ -676,13 +676,227 @@ means `menuItemGaps` would need a per-locale notion of complete. That is a
 product decision about whether Yalla is a one-language-per-venue product, and it
 has not been made. Flagged rather than invented.
 
+## The public branch page
+
+`/{venueSlug}/{branchSlug}` — a page anyone can open, with no account and no
+app, showing the room and which tables are free right now, and letting them
+book one.
+
+It exists because until now a diner had to install an app before they could see
+anything. That means a venue has nothing to put in its Instagram bio, a diner
+has nothing to send to four friends on WhatsApp, and a tourist who will not
+install a Yerevan-only app to check whether a table is free never becomes a
+user. A link fixes all three, and it is the one growth channel that costs
+nothing per venue.
+
+Lives in `apps/web/src/public/`, unauthenticated, and is **a separate bundle
+from the console** — see below.
+
+### One origin, two apps, and where the split is made
+
+`src/main.tsx` reads `location.pathname` once, before importing either app, and
+dynamically imports one of two bootstraps. `src/publicRoutes.ts` holds the
+decision: seven reserved first segments (`assets`, `dev`, `fonts`, `platform`,
+`sign-in`, `staff`, `venue`) belong to the console and the counter screen, `/`
+is the console's landing, and **everything else is a venue slug**.
+
+That is why a venue slug may never be one of those seven words. The backend has
+to enforce it at slug-assignment time; a venue that claimed `staff` would be
+unreachable and nothing on this side could fix it after the fact.
+
+Choosing inside a React router instead would have put both apps in one bundle
+and made the split cosmetic. `src/productionBundle.test.ts` asserts on the built
+chunk graph rather than on source for exactly that reason — "we import it
+lazily" is a claim about source, and only the output can settle it.
+
+### What is on it, in this order
+
+1. The venue — name, cover, type, one line.
+2. **Open or shut right now**, and until when. Tonight, not a weekly table.
+3. **How many tables are free**, the largest thing after the name and the only
+   fact on the page no other website can tell anyone.
+4. The room, read-only, in diner mode.
+5. The menu, with photos.
+6. Where it is, and the week's hours behind a tap.
+
+Nothing else. No reviews, no ratings, no social links, no newsletter, and no app
+banner — a button that opens an app store is not a feature, it is a dead end
+with a logo, and it would sit exactly where the free-table count belongs. The
+one honest mention of the app is on the booking confirmation, and it renders
+only when `VITE_APP_URL` is set.
+
+### What it weighs
+
+Measured off the real build, served by `vite preview` with gzip negotiated:
+
+|                                                      | over the wire | requests |
+| ---------------------------------------------------- | ------------- | -------- |
+| HTML, CSS, and every JS chunk the first render needs | **163 kB**    | 12       |
+| Fonts, after first paint (`font-display: swap`)      | 178 kB        | 2        |
+| Floor plan renderer, when the room scrolls into view | 49 kB         | 2        |
+| Booking panel, when a table is tapped                | 4 kB          | 1        |
+
+Those twelve requests are four serial round trips deep: the HTML, then the entry
+and its stylesheet, then the public chunk graph, then the first data read. On
+Chrome DevTools' **Slow 3G** (400 kbit/s, 2000 ms RTT) that is 3.3 s of transfer
+plus 8 s of latency — about **11 s to usable**, dominated by round trips rather
+than by bytes. On **Fast 3G / Slow 4G** (1.6 Mbit/s, 562 ms RTT) it is **3.1 s**.
+Both are computed from measured transfer sizes and the profiles' published
+figures; there is no headless browser in this repo to measure a real waterfall,
+so read them as arithmetic rather than as a Lighthouse run.
+
+Three things account for that shape:
+
+- **The floor plan is behind `lazy()` _and_ an intersection observer.** Importing
+  `@yalla/floorplan` pulls `react-native-web` and `react-native-svg` behind it —
+  49 kB gzipped — and a visitor who reads the free-table count and closes the
+  tab never fetches it.
+- **The console's translations are not shipped.** `@yalla/i18n` gained a module
+  per namespace and a narrow `@yalla/i18n/public` entry, so the page loads
+  `common`, `diner` and `public` and leaves 138 kB of `admin` and `staff` JSON
+  behind. `initI18n` takes its resources as an argument now; if anything in the
+  init path imports `resources.ts` directly, every surface ships every namespace
+  again and nothing warns you.
+- **The shared packages declare `"sideEffects": false`.** Without it the barrel
+  export in `@yalla/api` dragged `consoleMock`, `staffMock` and both admin HTTP
+  gateways into the public page's static closure — about 90 kB that no amount of
+  lazy importing would have removed, because the problem was tree-shaking rather
+  than chunking.
+
+The fonts are the largest remaining item and are deliberately **not** preloaded:
+each face covers Latin, Cyrillic and Armenian in one file, so preloading puts
+178 kB in front of the code that renders anything. Splitting them by
+`unicode-range` in `packages/tokens/scripts/build-fonts.py` is the real fix.
+
+### Link previews, and what actually reaches WhatsApp
+
+`apps/web` is a single-page app with no server rendering, so a fetch of
+`/lumen-coffee/northern-avenue` returns the same `index.html` every route
+returns. **WhatsApp's fetcher, Telegram's, Slack's and Facebook's do not run
+JavaScript**, so the per-venue tags `src/public/meta.ts` writes at runtime reach
+none of them.
+
+What they get is the static, venue-agnostic block in `index.html`: a Yalla
+`summary` card with a line about seeing free tables. That is a real improvement
+over a bare blue URL, and it is the whole of what is available without a server.
+There is no `og:image` because the only brand asset is an SVG and no major
+unfurler renders SVG; a 1200x630 PNG at an absolute URL is what would upgrade it
+to `summary_large_image`.
+
+Per-venue cards need a server that can render five tags per URL — an edge
+function, or the backend's `getBranchMeta` behind a prerender. `PublicPageMeta`
+and the gateway method for it exist and are wired; the server does not.
+
+### The rules this page shares with the phone app
+
+The window a table is held for, the free-cancellation deadline, why a table
+cannot be picked, every verification failure and every kind of failed confirm
+are decided in `@yalla/api`'s `contracts/reservation.ts` and rendered from the
+`diner` translation namespace. Both surfaces call the same functions, so they
+cannot start promising different things — and the Armenian and Russian for all
+of it was already written.
+
+The functions return `{ key, params }` descriptors rather than strings, which is
+what keeps a React-free package free of `react-i18next` and makes every rule
+testable without a translation bundle.
+
+Two rules moved out of components when the second caller appeared:
+`nextHalfHour` out of the diner app's booking bar, and the area-mode decision
+out of `FloorPlan`'s own render into `shouldUseAreaMode`.
+
+### Cancelling without an account
+
+A booking made here reaches **no push channel**: no reminder, no "still coming?"
+nudge, no one-tap cancel. Everything Yalla does about no-shows is delivered
+through a notification this visitor will never receive.
+
+So the confirmation offers three things, in this order:
+
+1. **An `.ics` file.** Works everywhere, needs nothing, puts the reminder where
+   they already look. Its times are written with the branch's `TZID` and a
+   `VTIMEZONE` block, not as UTC instants — a tourist's calendar is on Moscow
+   time and would otherwise show a 20:00 table at 21:00.
+2. **A signed link to this one booking**, which opens and cancels it with no
+   session at all. Not optional: a page where not turning up is easier than
+   cancelling is a no-show generator for the venue that printed it on a card.
+3. **The app**, described as what it adds rather than as a download, and only
+   when there is one to link to.
+
+### What the page writes to the browser
+
+Nothing. No `localStorage`, no `sessionStorage`, no IndexedDB. The verification
+token lives in memory and dies with the tab — a visitor may be on somebody
+else's phone — and the language choice lives in the URL as `?lang=`, which also
+means a resident can forward the venue's link in Russian and their guest opens
+it in Russian.
+
+`productionBundle.test.ts` asserts the built chunks contain neither storage API,
+which is why `@yalla/i18n`'s `localStorage` adapter had to move into its own
+`webStorage.ts`: in one file with the memory adapter, no bundler could drop one
+and keep the other, and the guarantee would have stopped being checkable.
+
+### The floor plan at 380pt, honestly
+
+A thirty-table restaurant does not survive a 380pt phone whole: the room fits at
+scale 0.25, the smallest table is drawn 14px across against a 44px tap floor,
+nine of the thirty numbers are too small to draw, and the halos overlap three
+deep so a tap resolves by nearest centre. That is what `shouldUseAreaMode` is
+for, and it engages.
+
+One area at a time, **all thirty numbers become legible**, and two of the three
+areas clear the tap-target floor. The third does not: "Windows" is ten two-tops
+at an 88-unit pitch down a wall, which fits the 436px-high plan box at scale
+0.43 and leaves 41px between adjacent centres against a 44px floor — about 8%
+short. It clears at 1.2x zoom, well inside the component's own 4x ceiling, and
+the plan ships with pinch-zoom on.
+
+`src/public/areaMode.test.ts` asserts that set exactly rather than "at least one
+area is fine", so a change that fixes Windows fails there and gets this
+paragraph rewritten. The second fallback — for an area that still does not fit
+alone — belongs in `@yalla/floorplan` and is not built.
+
+### What the backend does not have yet
+
+There are **no `/api/public` routes**. `createPublicHttpGateway` calls the five
+it needs and each throws `EndpointNotWiredError`, which the page renders as
+"this is not available yet" rather than as a server error, because retrying will
+not deploy anything.
+
+Everything _else_ the page uses is already anonymous and already wired:
+`GET /api/branches/{id}/availability` carries the floor, the derived table
+states, the branch's zone and its turn time; `GET /api/branches/{id}/menu`
+excludes unfinished items; photos are anonymous; and the diner sign-in pair is
+anonymous by definition. So when the five land, nothing else changes.
+
+The five, and what each is for:
+
+| Route                                                      | Why the page cannot be built without it                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `GET /api/public/venues/{venueSlug}`                       | The branch chooser                                                                          |
+| `GET /api/public/venues/{venueSlug}/branches/{branchSlug}` | Turns a printable slug pair into a branch, and refuses a pair that does not belong together |
+| `.../meta`                                                 | The unfurl card, for a server that can render it                                            |
+| `GET /api/public/bookings/{token}`                         | Reading one booking with no account                                                         |
+| `POST /api/public/bookings/{token}/cancel`                 | Cancelling it                                                                               |
+
+`Booking.manageToken` is the sixth thing needed: the reservation response has to
+carry the signed token for a web-made booking. Until it does, the confirmation
+offers the venue's phone number instead of a link that goes nowhere.
+
+Run the whole page today with `VITE_DATA_SOURCE=mock`. The mock is complete —
+slug resolution, a suspended branch, a branch that takes no web bookings, a
+thirty-table room, and a manage link that operates on the very booking the
+confirmation screen just created.
+
 ## Repository layout
 
 ```
 apps/
   diner/      Expo Router, tabs: Explore / Scan / Bookings / Profile, portrait only
-  web/        Vite + React Router. Console (platform / owner / manager) and the
-              staff floor screen, which installs as a PWA on Android tablets
+  web/        Vite + React Router, three surfaces behind one origin:
+              the console (platform / owner / manager), the staff floor screen
+              (installs as a PWA on Android tablets), and the public branch page
+              at /{venueSlug}/{branchSlug} — a separate bundle, chosen in
+              main.tsx before either app is imported
 packages/
   api/        Typed fetch client, typed errors, TanStack Query client factory
   realtime/   SignalR connection, backoff, connection state

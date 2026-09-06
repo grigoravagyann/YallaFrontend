@@ -1,3 +1,4 @@
+import { nextHalfHour } from '@yalla/api';
 import { formatDate, formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { color, elevation, fontSize, fontWeight, radius, space, touchTarget } from '@yalla/tokens';
@@ -23,14 +24,14 @@ export interface BookingContextBarProps {
 const PARTY_SIZES = [1, 2, 3, 4, 5, 6, 8] as const;
 const DAY_OFFSETS = [0, 1, 2, 3, 4, 5, 6] as const;
 
-/** Round an instant up to the next half hour — the sensible default slot. */
-export function nextHalfHour(from: Date): Date {
-  const next = new Date(from);
-  next.setUTCSeconds(0, 0);
-  const minutes = next.getUTCMinutes();
-  next.setUTCMinutes(minutes < 30 ? 30 : 60);
-  return next;
-}
+/**
+ * Re-exported, not defined here.
+ *
+ * The public web page defaults its slot the same way and must land on the same
+ * instant, so the rule moved into `@yalla/api` when the second caller appeared.
+ * The re-export stays because every screen in this app imports it from here.
+ */
+export { nextHalfHour };
 
 /** Half-hourly slots for the day containing `around`, in UTC. */
 function slotsForDay(around: Date): Date[] {

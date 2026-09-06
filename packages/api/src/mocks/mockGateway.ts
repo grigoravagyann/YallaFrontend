@@ -481,6 +481,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         ).toISOString(),
         createdAtUtc: now().toISOString(),
         cancelledAtUtc: null,
+        // The mock issues one for every booking, so the manage-booking page is
+        // walkable from the app's own flow too. See `publicMock.ts` for what
+        // the token is and, more importantly, what it is not.
+        manageToken: `mbk_${id}`,
       };
 
       bookings.set(id, booking);

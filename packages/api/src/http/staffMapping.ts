@@ -17,6 +17,7 @@ import type {
   BranchMenu,
   FloorChange,
   FloorChangePage,
+  MenuItemDetail,
   OrderQueueEntry,
   OrderStatus,
   ParticipantShare,
@@ -574,6 +575,57 @@ export function serviceRequest(view: RequestView): ServiceRequest {
 
 // --- The menu --------------------------------------------------------------------
 
+/**
+ * One item, or `null` when it is not fit to put in front of a guest.
+ *
+ * The backend's diner-facing menu already excludes unfinished items, and every
+ * descriptive field on that read is documented as present. The *types* cannot
+ * say so — one DTO serves both that read and the console's `/menu/manage`,
+ * which deliberately includes the half-entered ones — so the guarantee is
+ * re-checked here rather than asserted with `!`.
+ *
+ * Dropping the item is the only safe answer. An empty allergen list is not
+ * missing information to a person reading it: it says there are no allergens.
+ */
+function completeItem(
+  item: MenuView['categories'][number]['items'][number],
+): MenuItemDetail | null {
+  const photo = item.photo;
+  if (!item.isComplete || !photo) return null;
+  if (
+    item.description == null ||
+    item.ingredients == null ||
+    item.allergens == null ||
+    item.portionSize == null ||
+    item.prepMinutes == null
+  ) {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    categoryId: item.categoryId,
+    name: item.name,
+    description: item.description,
+    priceDram: item.priceAmd,
+    photo: {
+      photoId: photo.photoId,
+      thumbnailUrl: photo.thumbnailUrl,
+      cardUrl: photo.cardUrl,
+      fullUrl: photo.fullUrl,
+      width: photo.width ?? null,
+      height: photo.height ?? null,
+    },
+    ingredients: item.ingredients,
+    allergens: item.allergens,
+    portionSize: item.portionSize,
+    spiceLevel: SPICE[item.spiceLevel] ?? 'notSpicy',
+    prepMinutes: item.prepMinutes,
+    isAvailable: item.isAvailable,
+    displayOrder: item.displayOrder,
+  };
+}
+
 export function branchMenu(view: MenuView, fetchedAtUtc: string): BranchMenu {
   return {
     branchId: view.branchId,
@@ -586,28 +638,8 @@ export function branchMenu(view: MenuView, fetchedAtUtc: string): BranchMenu {
         displayOrder: category.displayOrder,
         items: [...category.items]
           .sort((a, b) => a.displayOrder - b.displayOrder)
-          .map((item) => ({
-            id: item.id,
-            categoryId: item.categoryId,
-            name: item.name,
-            description: item.description,
-            priceDram: item.priceAmd,
-            photo: {
-              photoId: item.photo.photoId,
-              thumbnailUrl: item.photo.thumbnailUrl,
-              cardUrl: item.photo.cardUrl,
-              fullUrl: item.photo.fullUrl,
-              width: item.photo.width ?? null,
-              height: item.photo.height ?? null,
-            },
-            ingredients: item.ingredients,
-            allergens: item.allergens,
-            portionSize: item.portionSize,
-            spiceLevel: SPICE[item.spiceLevel] ?? 'notSpicy',
-            prepMinutes: item.prepMinutes,
-            isAvailable: item.isAvailable,
-            displayOrder: item.displayOrder,
-          })),
+          .map(completeItem)
+          .filter((item): item is MenuItemDetail => item !== null),
       })),
   };
 }

@@ -7,8 +7,8 @@ export type { AreaSelection, AreaSwitcherProps } from './AreaSwitcher';
 export { Legend } from './Legend';
 export type { LegendProps } from './Legend';
 
-export { floorAreas, hasUsableAreas, UNASSIGNED_AREA } from './areas';
-export type { FloorAreaSummary } from './areas';
+export { floorAreas, hasUsableAreas, shouldUseAreaMode, UNASSIGNED_AREA } from './areas';
+export type { AreaModeInput, FloorAreaSummary } from './areas';
 
 export { FITTED, useFloorGestures } from './gestures';
 export type { FloorGestures, FloorViewport, UseFloorGesturesOptions } from './gestures';

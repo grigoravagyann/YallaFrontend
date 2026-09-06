@@ -1,29 +1,44 @@
-import enAdmin from './locales/en/admin.json';
-import enCommon from './locales/en/common.json';
-import enDiner from './locales/en/diner.json';
-import enStaff from './locales/en/staff.json';
-import hyAdmin from './locales/hy/admin.json';
-import hyCommon from './locales/hy/common.json';
-import hyDiner from './locales/hy/diner.json';
-import hyStaff from './locales/hy/staff.json';
-import ruAdmin from './locales/ru/admin.json';
-import ruCommon from './locales/ru/common.json';
-import ruDiner from './locales/ru/diner.json';
-import ruStaff from './locales/ru/staff.json';
+import { admin } from './bundles/admin';
+import { common } from './bundles/common';
+import { diner } from './bundles/diner';
+import { publicBundle } from './bundles/public';
+import { staff } from './bundles/staff';
+export { DEFAULT_NAMESPACE, NAMESPACES } from './namespaces';
+export type { Namespace } from './namespaces';
 
 /**
  * Namespaces are per surface so an app only ships the copy it renders, plus
  * `common` which every surface needs.
+ *
+ * `public` is the branch page a stranger opens from a link. It is deliberately
+ * *small*: everything the page says about a table, a window, a cancellation
+ * deadline or a verification code comes from `diner`, because that copy is
+ * already written, already translated three times, and describes the same
+ * promise. A second wording of "held for you 20:00 – 21:45" would drift within
+ * a release and would have to be translated twice.
  */
-export const NAMESPACES = ['common', 'diner', 'staff', 'admin'] as const;
-export type Namespace = (typeof NAMESPACES)[number];
-
-export const DEFAULT_NAMESPACE: Namespace = 'common';
-
 export const resources = {
-  hy: { common: hyCommon, diner: hyDiner, staff: hyStaff, admin: hyAdmin },
-  ru: { common: ruCommon, diner: ruDiner, staff: ruStaff, admin: ruAdmin },
-  en: { common: enCommon, diner: enDiner, staff: enStaff, admin: enAdmin },
+  hy: {
+    common: common.hy,
+    diner: diner.hy,
+    public: publicBundle.hy,
+    staff: staff.hy,
+    admin: admin.hy,
+  },
+  ru: {
+    common: common.ru,
+    diner: diner.ru,
+    public: publicBundle.ru,
+    staff: staff.ru,
+    admin: admin.ru,
+  },
+  en: {
+    common: common.en,
+    diner: diner.en,
+    public: publicBundle.en,
+    staff: staff.en,
+    admin: admin.en,
+  },
 } as const;
 
 /**
