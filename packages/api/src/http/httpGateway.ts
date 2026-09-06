@@ -149,6 +149,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     async listVenues(): Promise<readonly VenueSummary[]> {
       try {
+        // gateway-schema: awaiting-route — browse has no backend route yet; this
+        // degrades through EndpointNotWiredError rather than pretending.
         const { data } = await client.get<readonly VenueSummary[]>('/api/venues', {
           skipAuth: true,
         });
@@ -160,6 +162,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     async getVenue(venueId): Promise<VenueSummary | null> {
       try {
+        // gateway-schema: awaiting-route — same feature, same absent route.
         const { data } = await client.get<VenueSummary>(`/api/venues/${venueId}`, {
           skipAuth: true,
         });
@@ -494,10 +497,14 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       try {
         const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabView']>(
           `/api/tabs/${command.tabId}/settlement-mode`,
-          {
-            mode: settlementModeCode(command.mode),
-            clientCommandId: command.clientCommandId,
-          },
+          /*
+           * `settlementMode`, not `mode`, and no command id. This body was
+           * `{ mode, clientCommandId }`: the server binds
+           * `SetSettlementModeRequest.settlementMode` and declares nothing else,
+           * so the mode never arrived and the request was refused for a missing
+           * required field. Found by check-gateway-schema.
+           */
+          { settlementMode: settlementModeCode(command.mode) },
         );
         return dinerTab(data, new Date().toISOString());
       } catch (error) {

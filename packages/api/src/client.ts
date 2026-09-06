@@ -121,8 +121,17 @@ function toError(response: Response, url: string, body: unknown): ApiError {
         actualVersion:
           stringField(body, 'actualVersion') ?? response.headers.get('etag') ?? undefined,
       });
+    /*
+     * 422 is two different answers on this API and the code is what separates
+     * them. `validation-failed` is "these fields are wrong", collected — since
+     * Backend Prompt 13 that is what a create with missing fields returns, and
+     * reading it as a state-transition refusal loses every field name it names.
+     * Everything else at 422 really is a transition the current state forbids.
+     */
     case 422:
-      return new InvalidTransitionError(base);
+      return base.problem?.code === 'validation-failed'
+        ? new ValidationError({ ...base, status: 422 })
+        : new InvalidTransitionError(base);
     case 400:
       return new ValidationError({ ...base, status: 400 });
     case 429:

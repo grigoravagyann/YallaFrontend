@@ -127,7 +127,8 @@
       "pinRequired": "Give the branch a map pin — both latitude and longitude.",
       "pinRange": "That map pin is not a real place. Latitude is between -90 and 90, longitude between -180 and 180.",
       "field": "The server refused the “{{field}}” field: {{detail}}",
-      "branchSlugRequired": "Give the branch a web address. A name written only in Armenian or Russian cannot become one on its own."
+      "branchSlugRequired": "Give the branch a web address. A name written only in Armenian or Russian cannot become one on its own.",
+      "fields": "The server refused these fields: {{fields}}"
     },
     "address": "Street address",
     "addressPlaceholder": "12 Abovyan Street, Yerevan",
