@@ -24,7 +24,9 @@
   "action": {
     "retry": "Повторить",
     "cancel": "Отмена",
-    "close": "Закрыть"
+    "close": "Закрыть",
+    "edit": "Изменить",
+    "delete": "Удалить"
   },
   "placeholder": {
     "comingSoon": "Этот экран скоро появится."

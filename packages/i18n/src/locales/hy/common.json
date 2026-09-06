@@ -24,7 +24,9 @@
   "action": {
     "retry": "Կրկնել",
     "cancel": "Չեղարկել",
-    "close": "Փակել"
+    "close": "Փակել",
+    "edit": "Խմբագրել",
+    "delete": "Ջնջել"
   },
   "placeholder": {
     "comingSoon": "Այս էջը շուտով պատրաստ կլինի։"
