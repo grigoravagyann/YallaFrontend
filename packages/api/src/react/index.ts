@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   createElement,
@@ -169,6 +169,11 @@ export const queryKeys = {
   floor: (branchId: string) => ['floor', branchId] as const,
   availability: (branchId: string, slotUtc: string, partySize: number) =>
     ['availability', branchId, slotUtc, partySize] as const,
+  // Under `availability` on purpose: every mutation that already invalidates
+  // `['availability', branchId]` invalidates the slot-aware room with it, and
+  // one that forgot would leave the drawn room stale after a booking landed.
+  slotFloor: (branchId: string, slotUtc: string, partySize: number, timeZoneId: string) =>
+    ['availability', branchId, 'slotFloor', slotUtc, partySize, timeZoneId] as const,
   consoleVenues: (query: ListVenuesQuery) => ['console', 'venues', query] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
   editorFloorPlan: (branchId: string) => ['console', 'floorPlan', branchId] as const,
@@ -233,6 +238,97 @@ export function useFloorPlan(branchId: string | undefined, options: { pollMs?: n
     ...(options.pollMs
       ? {
           refetchInterval: options.pollMs,
+          // A page in a background tab is a page nobody is reading. Polling it
+          // spends a stranger's mobile data on a room they cannot see.
+          refetchIntervalInBackground: false,
+        }
+      : {}),
+  });
+}
+
+/**
+ * How long the party-size stepper is allowed to settle before we ask again.
+ *
+ * A diner going from 2 to 6 taps four times in about a second. Each tap is a
+ * different question with a different answer, and asking all four wastes three
+ * round trips on a rate-limited anonymous endpoint and lands them out of order
+ * often enough to matter. Long enough to coalesce a run of taps, short enough
+ * that a deliberate single change still feels immediate.
+ */
+export const PARTY_SIZE_DEBOUNCE_MS = 300;
+
+/**
+ * The value once it has stopped moving.
+ *
+ * Deliberately not a debounce on the *request*: the query key carries the
+ * settled value, so React Query sees one key change and therefore one fetch,
+ * and a cached answer for a size the diner passes back through is served
+ * instantly rather than refetched.
+ */
+function useSettled<T>(value: T, delayMs: number): T {
+  const [settled, setSettled] = useState(value);
+
+  useEffect(() => {
+    if (delayMs <= 0) {
+      setSettled(value);
+      return;
+    }
+    const timer = setTimeout(() => setSettled(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return settled;
+}
+
+/**
+ * The room as it will be at a slot, and the answer for every table in it.
+ *
+ * The hook both booking surfaces render from. It replaces a pair — `useFloorPlan`
+ * for the geometry and `useTableAvailability` for the overlay — where the first
+ * asked about *now*: a diner picking Saturday at 20:00 was shown the room as it
+ * stood at that moment, with tonight's walk-ins greyed out and 20:00's bookings
+ * drawn free. Date, time and party size are all server inputs, so all three
+ * belong in the key.
+ *
+ * `keepPreviousData` matters more here than anywhere else in this file. Changing
+ * the time is a new key, and without it the room would blank to a spinner on
+ * every adjustment of a control that sits directly above it.
+ */
+export function useSlotFloor(input: {
+  readonly branchId: string | undefined;
+  readonly slotUtc: string;
+  readonly partySize: number;
+  /** The branch's IANA zone; the backend asks in wall-clock terms. */
+  readonly timeZoneId?: string | undefined;
+  /** Override for tests. `0` disables the wait entirely. */
+  readonly debounceMs?: number;
+  /**
+   * Refresh cadence, opt-in per surface exactly as {@link useFloorPlan}'s is.
+   *
+   * The public page asks for one because it is the surface genuinely left open
+   * on a table with nobody touching it, and a slot an hour out still gains and
+   * loses bookings while somebody reads the menu. The phone app does not: it
+   * refetches on focus, which is when a diner is actually looking.
+   */
+  readonly pollMs?: number;
+}) {
+  const gateway = useGateway();
+  const { branchId, slotUtc, timeZoneId, debounceMs = PARTY_SIZE_DEBOUNCE_MS, pollMs } = input;
+  const partySize = useSettled(input.partySize, debounceMs);
+
+  return useQuery({
+    // The zone is in the key because it decides the wall-clock date and time
+    // actually sent. It resolves a beat after the first render, and without it
+    // here that first answer — computed in the fallback zone — would be cached
+    // and never corrected.
+    queryKey: queryKeys.slotFloor(branchId ?? '', slotUtc, partySize, timeZoneId ?? ''),
+    queryFn: () => gateway.getSlotFloor({ branchId: branchId!, slotUtc, partySize, timeZoneId }),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.live,
+    placeholderData: keepPreviousData,
+    ...(pollMs
+      ? {
+          refetchInterval: pollMs,
           // A page in a background tab is a page nobody is reading. Polling it
           // spends a stranger's mobile data on a room they cannot see.
           refetchIntervalInBackground: false,

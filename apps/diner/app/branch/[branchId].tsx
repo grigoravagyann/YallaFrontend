@@ -1,4 +1,4 @@
-import { describeFailure, type TableAvailability } from '@yalla/api';
+import { describeFailure, unavailableCopy, type TableAvailability } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { FloorPlan, Legend } from '@yalla/floorplan';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -14,7 +14,7 @@ import {
 import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { TableSheet } from '../../src/components/TableSheet';
 import { Text } from '../../src/components/Text';
-import { useFloorPlan, useTableAvailability, useVenue } from '../../src/data/queries';
+import { useSlotFloor, useVenue } from '../../src/data/queries';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
 
@@ -50,16 +50,23 @@ export default function BranchFloorPlanScreen() {
 
   const slotIso = useMemo(() => booking.slotUtc.toISOString(), [booking.slotUtc]);
 
-  const floorQuery = useFloorPlan(branchId);
   const venueQuery = useVenue(venueId);
 
   const branchSummary = venueQuery.data?.branches.find((b) => b.id === branchId);
-  const timeZoneId = floorQuery.data?.timeZoneId ?? branchSummary?.timeZoneId ?? 'Asia/Yerevan';
+  const timeZoneId = branchSummary?.timeZoneId ?? 'Asia/Yerevan';
 
-  // The backend asks in the branch's wall-clock terms, so the zone travels with
-  // the slot. The floor answers first and carries the zone; until then the
-  // branch summary's zone, and failing both, Yerevan.
-  const availabilityQuery = useTableAvailability({
+  /*
+   * One question, one answer: the room **as it will be at the slot**, and every
+   * table's verdict for it.
+   *
+   * This used to be two calls, and the one that drew the room asked about
+   * *now*. A diner picking Saturday at 20:00 saw tonight's walk-ins greyed out
+   * and 20:00's bookings drawn free — the product's central question answered
+   * about the wrong moment. Date, time and party size are all server inputs, so
+   * changing any of them refetches; the party-size stepper is debounced inside
+   * the hook so 2 → 6 is one request.
+   */
+  const slotFloorQuery = useSlotFloor({
     branchId,
     slotUtc: slotIso,
     partySize: booking.partySize,
@@ -83,9 +90,11 @@ export default function BranchFloorPlanScreen() {
     [clearConflict],
   );
 
+  // From the same response the room was drawn from, so the window and the
+  // reason in the sheet describe the slot on screen rather than this moment.
   const sheetAvailability: TableAvailability | null = useMemo(
-    () => availabilityQuery.data?.find((a) => a.tableId === sheetTableId) ?? null,
-    [sheetTableId, availabilityQuery.data],
+    () => slotFloorQuery.data?.tables.find((a) => a.tableId === sheetTableId) ?? null,
+    [sheetTableId, slotFloorQuery.data],
   );
 
   /**
@@ -113,16 +122,25 @@ export default function BranchFloorPlanScreen() {
     [router, branchId, venueId, slotIso, booking.partySize],
   );
 
-  if (floorQuery.isLoading || floorQuery.isError || !floorQuery.data) {
+  /*
+   * The full-screen state is for having *no room to draw*, not for the query
+   * being unhappy. `keepPreviousData` keeps the last answer through a refetch,
+   * so a diner who changes the time and loses signal keeps the room they were
+   * looking at with a line above it, rather than watching it blank.
+   */
+  if (!slotFloorQuery.data) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
-        {isOfflinePaused(floorQuery) ? (
-          <QueryFailure offline onRetry={() => void floorQuery.refetch()} />
-        ) : floorQuery.isLoading ? (
+        {isOfflinePaused(slotFloorQuery) ? (
+          <QueryFailure offline onRetry={() => void slotFloorQuery.refetch()} />
+        ) : slotFloorQuery.isLoading ? (
           <QueryLoading label={t('net.loading')} />
-        ) : floorQuery.isError ? (
-          <QueryFailure error={floorQuery.error} onRetry={() => void floorQuery.refetch()} />
+        ) : slotFloorQuery.isError ? (
+          <QueryFailure
+            error={slotFloorQuery.error}
+            onRetry={() => void slotFloorQuery.refetch()}
+          />
         ) : (
           <View style={styles.centered}>
             <Text style={styles.emptyTitle}>{t('floorPlan.notFound')}</Text>
@@ -132,12 +150,25 @@ export default function BranchFloorPlanScreen() {
     );
   }
 
-  // The floor is on screen; a failed availability answer is a line above it,
-  // not a screen of its own — the diner can still see the room.
-  const availabilityFailure = isOfflinePaused(availabilityQuery)
+  const slotFloor = slotFloorQuery.data;
+
+  /*
+   * A rule that refused the whole request — the slot has passed, it is further
+   * ahead than the branch takes bookings, the venue is shut then. Named by the
+   * server and said out loud, above a room that stays on screen: a diner who
+   * picked yesterday by mistake needs to be told which control to move, and an
+   * empty room tells them the venue is full.
+   */
+  const rejection = slotFloor.rejection
+    ? unavailableCopy(slotFloor.rejection, booking.partySize)
+    : null;
+
+  // The room is on screen and possibly a slot behind; that is a line above it,
+  // not a screen of its own.
+  const availabilityFailure = isOfflinePaused(slotFloorQuery)
     ? 'offline'
-    : availabilityQuery.isError
-      ? describeFailure(availabilityQuery.error)
+    : slotFloorQuery.isError
+      ? describeFailure(slotFloorQuery.error)
       : null;
 
   return (
@@ -171,6 +202,10 @@ export default function BranchFloorPlanScreen() {
         <Text style={styles.conflict}>
           {t('confirm.error.tableTaken', { label: conflictLabel })}
         </Text>
+      ) : rejection ? (
+        <Text style={styles.conflict} accessibilityRole="alert">
+          {t(rejection.key, rejection.params)}
+        </Text>
       ) : availabilityFailure ? (
         <Text style={styles.conflict}>
           {availabilityFailure === 'offline' ? t('net.offline') : t('net.serverError')}
@@ -181,7 +216,7 @@ export default function BranchFloorPlanScreen() {
 
       <View style={styles.planWrap} onLayout={onLayout}>
         <FloorPlan
-          plan={floorQuery.data}
+          plan={slotFloor.plan}
           mode="diner"
           partySize={booking.partySize}
           selectedTableId={selectedTableId}

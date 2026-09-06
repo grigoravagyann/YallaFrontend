@@ -1,4 +1,5 @@
 import { formatTime, type Locale, type TimeZone } from '@yalla/format';
+import { isKnownUnavailableReason } from './booking';
 import type { AvailabilityWindowDto, TableAvailability, TableUnavailableReason } from './booking';
 import {
   ExpiredCodeError,
@@ -176,7 +177,21 @@ export function unavailableCopy(
   reason: TableUnavailableReason | null,
   partySize: number,
 ): CopyLine {
-  return line(`table.unavailable.${reason ?? 'notBookable'}`, { count: partySize });
+  if (reason == null) return line('table.unavailable.notBookable', { count: partySize });
+
+  /*
+   * A reason this build has no copy for is still the server's answer, and it is
+   * shown as such rather than swapped for one we do have words for. The
+   * alternative — falling back to a familiar reason — is not a smaller error: a
+   * diner asking about Saturday would be told somebody is sitting at the table
+   * right now, which sends them to look at an empty table and is worse than an
+   * unpolished sentence.
+   */
+  if (!isKnownUnavailableReason(reason)) {
+    return line('table.unavailable.other', { count: partySize, reason });
+  }
+
+  return line(`table.unavailable.${reason}`, { count: partySize });
 }
 
 /**

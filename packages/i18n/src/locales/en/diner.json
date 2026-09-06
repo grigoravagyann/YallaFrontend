@@ -121,6 +121,7 @@
     "reserve": "Reserve table {{label}}",
     "unavailable": {
       "occupied": "Someone is sitting here right now.",
+      "alreadyBooked": "Already booked at that time.",
       "held": "Someone else is booking this table.",
       "outOfService": "This table is out of service.",
       "tooSmall": "Too small for {{count}} guests.",
@@ -129,7 +130,8 @@
       "tooLarge": "Kept for larger parties. Pick a smaller table.",
       "tooFarAhead": "Too far ahead to book yet.",
       "closed": "Closed at that time.",
-      "invalidTime": "That time does not exist on this date — the clocks change."
+      "invalidTime": "That time does not exist on this date — the clocks change.",
+      "other": "Not available at that time: {{reason}}."
     },
     "close": "Close"
   },

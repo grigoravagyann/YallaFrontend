@@ -6,6 +6,7 @@ import type {
   BranchPolicy,
   CreateBookingCommand,
   PhoneChallenge,
+  SlotFloor,
   TableAvailability,
   TableUnavailableReason,
   VenueSummary,
@@ -45,6 +46,7 @@ import { mockMenuFor } from './menu';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, mockMenuItem } from './menuDetail';
+import { BOOKING_WINDOW_DAYS } from './publicMock';
 import { mockVenues, type Branch as MockBranch } from './venues';
 
 const URL_TAG = 'mock://yalla';
@@ -255,7 +257,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     slotUtc: string,
     policy: BranchPolicy,
   ): AvailabilityWindowDto {
-    const next = table.nextReservationStartUtc;
+    // Only a booking that starts *after* the requested slot bounds it. One
+    // earlier in the day is behind the diner and bounds nothing.
+    const next =
+      table.nextReservationStartUtc && new Date(table.nextReservationStartUtc) > new Date(slotUtc)
+        ? table.nextReservationStartUtc
+        : null;
     if (!next) {
       // No later booking. This is a real advantage and the UI says so.
       return {
@@ -276,11 +283,80 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     };
   }
 
-  function reasonFor(table: FloorTable, partySize: number): TableUnavailableReason | null {
-    if (table.state === 'occupied') return 'occupied';
-    if (table.state === 'held') return 'held';
+  /*
+   * How far ahead a slot can be and still have the *physical* state of the room
+   * in its answer.
+   *
+   * The backend's rule, mirrored: beyond a few minutes out, "somebody is
+   * sitting there" tells you nothing about the slot — they will have finished
+   * and gone — so physical status is dropped entirely and only bookings decide.
+   * Keeping it is what made a table occupied by tonight's walk-ins render
+   * unavailable for a booking three days away.
+   */
+  const PHYSICAL_HORIZON_MINUTES = 20;
+
+  /** Does the requested sitting collide with the one already booked here? */
+  function collidesWithBooking(table: FloorTable, slot: Date, policy: BranchPolicy): boolean {
+    const next = table.nextReservationStartUtc;
+    if (!next) return false;
+
+    const booked = new Date(next);
+    const requestedEnd = new Date(slot.getTime() + policy.turnMinutes * 60_000);
+    const bookedEnd = new Date(booked.getTime() + policy.turnMinutes * 60_000);
+
+    // Overlap in either direction, which is what makes "free now, booked at
+    // 20:00" refuse a 20:00 request and allow a 15:00 one.
+    return slot < bookedEnd && booked < requestedEnd;
+  }
+
+  /**
+   * The table's state **at the requested slot**, not now.
+   *
+   * The single most important line in this mock. It used to return `table.state`
+   * unchanged for every slot, which meant the fixtures answered "now" however
+   * far ahead the question was — so the defect the diner surfaces had was
+   * faithfully reproduced by the doubles that were supposed to catch it, and
+   * five prompts of tests passed over it.
+   */
+  function stateAt(table: FloorTable, slot: Date, policy: BranchPolicy): DerivedTableState {
+    // Not a session. A table taken out of service stays out of service.
     if (table.state === 'outOfService') return 'outOfService';
+
+    const minutesOut = minutesBetween(now(), slot);
+    if (minutesOut <= PHYSICAL_HORIZON_MINUTES) {
+      if (table.state === 'occupied' || table.state === 'held') return table.state;
+    }
+
+    return collidesWithBooking(table, slot, policy) ? 'reservedSoon' : 'free';
+  }
+
+  /**
+   * A rule that refuses the whole request, before any table is considered.
+   *
+   * Reported once rather than on forty tables, and it is what a surface shows
+   * instead of an empty room when somebody picks a slot that has already
+   * happened.
+   */
+  function branchRejection(slot: Date, policy: BranchPolicy): TableUnavailableReason | null {
+    const minutesOut = minutesBetween(now(), slot);
+    if (minutesOut < policy.leadTimeMinutes) return 'pastLeadTime';
+    if (minutesOut > BOOKING_WINDOW_DAYS * 24 * 60) return 'tooFarAhead';
+    return null;
+  }
+
+  function reasonFor(
+    table: FloorTable,
+    state: DerivedTableState,
+    partySize: number,
+  ): TableUnavailableReason | null {
     if (!table.isBookable) return 'notBookable';
+    if (state === 'outOfService') return 'outOfService';
+    if (state === 'held') return 'held';
+    // Physically occupied, which only survives projection near enough to now.
+    if (state === 'occupied') return 'occupied';
+    // Empty at this moment and spoken for at the one asked about. A different
+    // sentence, and a different next step: pick another time, not another table.
+    if (state === 'reservedSoon') return 'alreadyBooked';
     if (table.seats < partySize) return 'tooSmall';
     return null;
   }
@@ -294,13 +370,18 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     const floor = floors.get(branchId);
     if (!found || !floor) return [];
     const policy = DEFAULT_POLICY;
+    const slot = new Date(slotUtc);
+    const rejection = branchRejection(slot, policy);
 
     const freeCancellationUntilUtc = new Date(
-      new Date(slotUtc).getTime() - policy.freeCancellationMinutes * 60_000,
+      slot.getTime() - policy.freeCancellationMinutes * 60_000,
     ).toISOString();
 
     return floor.tables.map((table) => {
-      const reason = reasonFor(table, partySize);
+      const state = stateAt(table, slot, policy);
+      // A branch-level refusal applies to every table and outranks whatever the
+      // table itself would have said.
+      const reason = rejection ?? reasonFor(table, state, partySize);
       return {
         tableId: table.id,
         tableLabel: table.label,
@@ -313,6 +394,34 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         requiresApproval: partySize > policy.instantConfirmationMaxPartySize,
       };
     });
+  }
+
+  /** The room as it will be at the slot, drawn from the same projection. */
+  function slotFloorFor(branchId: string, slotUtc: string, partySize: number): SlotFloor | null {
+    const floor = floors.get(branchId);
+    if (!floor) return null;
+
+    const policy = DEFAULT_POLICY;
+    const slot = new Date(slotUtc);
+    const tables = availabilityFor(branchId, slotUtc, partySize);
+    const answers = new Map(tables.map((table) => [table.tableId, table]));
+
+    return {
+      plan: {
+        ...floor,
+        tables: floor.tables.map((table) => ({
+          ...table,
+          state: stateAt(table, slot, policy),
+          // The server's decision for this slot and party, not the table's
+          // standing configuration — so the drawn room and the sheet agree.
+          isBookable: answers.get(table.id)?.isBookable ?? false,
+        })),
+      },
+      tables,
+      rejection: branchRejection(slot, policy),
+      slotUtc,
+      partySize,
+    };
   }
 
   return {
@@ -340,6 +449,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async getTableAvailability({ branchId, slotUtc, partySize }) {
       await wait();
       return availabilityFor(branchId, slotUtc, partySize);
+    },
+
+    async getSlotFloor({ branchId, slotUtc, partySize }) {
+      await wait();
+      return slotFloorFor(branchId, slotUtc, partySize);
     },
 
     async requestPhoneCode(phoneE164) {
@@ -435,12 +549,20 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         });
       }
 
-      const lost = simulateTakenOnce || reasonFor(table, command.partySize) !== null;
+      // Judged at the slot being booked, not at now — the same projection the
+      // availability answer used. Judging it at now would refuse a Saturday
+      // booking because somebody is sitting there this evening.
+      const refusal = reasonFor(
+        table,
+        stateAt(table, new Date(command.slotUtc), policy),
+        command.partySize,
+      );
+
+      const lost = simulateTakenOnce || refusal !== null;
       if (lost) {
         simulateTakenOnce = false;
         // Mark it taken in the mock's world so the refreshed floor is honest.
-        const takenState: DerivedTableState =
-          reasonFor(table, command.partySize) === null ? 'occupied' : table.state;
+        const takenState: DerivedTableState = refusal === null ? 'occupied' : table.state;
         const refreshed: FloorPlanData = {
           ...floor,
           tables: floor.tables.map((t) => (t.id === table.id ? { ...t, state: takenState } : t)),

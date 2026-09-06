@@ -28,6 +28,7 @@ import type { components } from '../generated/schema';
 import {
   availabilityFromResponse,
   floorFromAvailability,
+  slotFloorFromResponse,
   floorFromState,
   localDateTime,
 } from './mapping';
@@ -200,6 +201,19 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     async getTableAvailability({ branchId, slotUtc, partySize, timeZoneId }) {
       const { date, time } = localDateTime(slotUtc, timeZoneId ?? defaultZone);
       return availabilityFromResponse(await availability(branchId, { date, time, partySize }));
+    },
+
+    async getSlotFloor({ branchId, slotUtc, partySize, timeZoneId }) {
+      try {
+        // The branch's wall clock, never the device's: the backend asks in
+        // local date and time terms, and a tourist's phone on Moscow time would
+        // otherwise book a table three hours from the one they picked.
+        const { date, time } = localDateTime(slotUtc, timeZoneId ?? defaultZone);
+        return slotFloorFromResponse(await availability(branchId, { date, time, partySize }));
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
     },
 
     // --- Phone verification: the diner sign-in ---------------------------------

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
+import { unavailableCopy } from '../contracts/reservation';
 import {
   availabilityFromResponse,
   derivedTableState,
   floorFromAvailability,
   floorFromState,
   localDateTime,
+  slotFloorFromResponse,
   unavailableReason,
 } from './mapping';
 
@@ -74,6 +76,14 @@ describe('enums', () => {
     expect(unavailableReason(7, 'outOfService')).toBe('outOfService');
     expect(unavailableReason(8, 'held')).toBe('held');
     expect(unavailableReason(8, 'occupied')).toBe('occupied');
+    /*
+     * The one that mattered. `TableAlreadyBooked` at a *future* slot is not
+     * somebody sitting at the table — the room is empty and the table is
+     * spoken for. This used to fall through to `occupied`, so a diner asking
+     * about Saturday was told there were people at it and walked over to look.
+     */
+    expect(unavailableReason(8, 'reservedSoon')).toBe('alreadyBooked');
+    expect(unavailableReason(8, 'free')).toBe('alreadyBooked');
     expect(unavailableReason(9, 'free')).toBe('invalidTime');
     expect(unavailableReason(null, 'free')).toBeNull();
   });
@@ -190,5 +200,106 @@ describe('localDateTime', () => {
       date: '2026-09-05',
       time: '20:30',
     });
+  });
+});
+
+describe('a reason this build has no word for', () => {
+  /*
+   * Test 5 of the brief: the reason shown is the server's, never one inferred
+   * from the table's state.
+   *
+   * The backend can add a refusal rule in a release this client was not built
+   * against. What used to happen then was the worst of the options: the unknown
+   * code mapped to `null`, `null` fell through to a guess made from the derived
+   * state, and a diner was told something specific and wrong. An unfamiliar
+   * reason carried verbatim is worse copy and strictly better information.
+   */
+  const UNMAPPED = 97;
+
+  it('is carried rather than replaced by a guess from the table state', () => {
+    const [row] = availabilityFromResponse(
+      availability([
+        table({
+          isAvailable: false,
+          unavailableReason: UNMAPPED as never,
+          // Deliberately a state the client *does* have a confident story for.
+          // If the inference were still in play it would win and say "someone
+          // is sitting here right now".
+          state: 4,
+          physicalStatus: 4,
+        }),
+      ]),
+    );
+
+    expect(row?.isBookable).toBe(false);
+    expect(row?.unavailableReason).toBe(`unknown:${UNMAPPED}`);
+    expect(row?.unavailableReason).not.toBe('occupied');
+  });
+
+  it('still falls back to the state when the server named no reason at all', () => {
+    // The fallback is not gone, it is just no longer allowed to overrule an
+    // answer. A refusal with no reason attached is the one case where reading
+    // the state is all anybody can do.
+    const [row] = availabilityFromResponse(
+      // `state: 3` is Held. `physicalStatus` is deliberately left at its
+      // default: a hold is a claim on a slot, not a physical state of the
+      // table, and the wire type does not admit 3 for it.
+      availability([table({ isAvailable: false, state: 3 })]),
+    );
+    expect(row?.unavailableReason).toBe('held');
+  });
+
+  it('reaches the copy layer as itself', () => {
+    const line = unavailableCopy(`unknown:${UNMAPPED}`, 2);
+    expect(line.key).toBe('table.unavailable.other');
+    expect(line.params.reason).toBe(`unknown:${UNMAPPED}`);
+  });
+
+  it('routes a known reason to that reason own sentence', () => {
+    expect(unavailableCopy('alreadyBooked', 2).key).toBe('table.unavailable.alreadyBooked');
+    expect(unavailableCopy('occupied', 2).key).toBe('table.unavailable.occupied');
+  });
+});
+
+describe('slotFloorFromResponse', () => {
+  it('carries the server verdict onto the drawn room, not the standing config', () => {
+    /*
+     * A ten-top the venue will not give to a couple. `isBookable` on the wire
+     * is the table's *configuration* — it takes bookings — while `isAvailable`
+     * is the answer for this party at this slot. Drawing from the former is how
+     * a table the server has already refused renders pickable, and the diner
+     * finds out after choosing it.
+     */
+    const floor = slotFloorFromResponse(
+      availability([
+        table({
+          tableId: 'big',
+          seats: 10,
+          isBookable: true,
+          isAvailable: false,
+          unavailableReason: 5,
+        }),
+        table({ tableId: 'ok', seats: 2, isBookable: true, isAvailable: true }),
+      ]),
+    );
+
+    expect(floor.plan.tables.find((t) => t.id === 'big')?.isBookable).toBe(false);
+    expect(floor.plan.tables.find((t) => t.id === 'ok')?.isBookable).toBe(true);
+    expect(floor.tables.find((t) => t.tableId === 'big')?.unavailableReason).toBe('tooLarge');
+  });
+
+  it('reports a whole-request refusal once, with the room intact', () => {
+    const floor = slotFloorFromResponse(
+      availability([table({ isAvailable: false })], { unavailableReason: 3 }),
+    );
+
+    expect(floor.rejection).toBe('closed');
+    expect(floor.plan.tables).toHaveLength(1);
+    expect(floor.slotUtc).toBe('2026-09-05T15:30:00Z');
+    expect(floor.partySize).toBe(2);
+  });
+
+  it('leaves rejection null when the request itself was fine', () => {
+    expect(slotFloorFromResponse(availability([table({})])).rejection).toBeNull();
   });
 });

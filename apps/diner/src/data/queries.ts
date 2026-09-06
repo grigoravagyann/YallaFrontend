@@ -16,7 +16,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
  * Everything below is diner-only and follows on to the shared hooks once the
  * booking and tab endpoints are wired.
  */
-export { useFloorPlan, useTableAvailability, useVenue, useVenues } from '@yalla/api/react';
+export {
+  useFloorPlan,
+  useSlotFloor,
+  useTableAvailability,
+  useVenue,
+  useVenues,
+} from '@yalla/api/react';
 
 /** Query keys in one place, so an invalidation cannot miss a cache entry. */
 export const keys = {

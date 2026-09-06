@@ -56,7 +56,12 @@ function bookingIdFromToken(token: string): string | null {
 }
 
 /** `ReservationPolicy.bookingWindowDays`'s own default. */
-const BOOKING_WINDOW_DAYS = 14;
+/**
+ * Exported so the diner mock refuses the same slots this page offers. Two
+ * copies of "how far ahead can I book" is how the picker offers a day the
+ * answer then rejects.
+ */
+export const BOOKING_WINDOW_DAYS = 14;
 
 /** The four numbers the reservation flow's copy is driven by. */
 const DEFAULT_POLICY: BranchPolicy = {

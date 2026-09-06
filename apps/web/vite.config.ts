@@ -73,8 +73,60 @@ function emitChunkGraph(): Plugin {
  * Vite default: the aliasing and extension order below are what let one
  * React Native component render in a browser.
  */
+
+/**
+ * Put the brand card on the static shell, but only when it can be absolute.
+ *
+ * The shell is what a link unfurler actually receives: WhatsApp's fetcher,
+ * Telegram's and Slack's do not run JavaScript, so `src/public/meta.ts` never
+ * executes for them. Without an `og:image` here, every shared link on the
+ * channel this page exists to serve unfurls as a text-only card.
+ *
+ * The reason it is a plugin rather than two lines in `index.html` is that an
+ * `og:image` **must** be an absolute URL — several unfurlers drop a relative
+ * one — and there is no origin available at build time unless somebody supplies
+ * it. A `%VITE_PUBLIC_ORIGIN%` placeholder left unsubstituted would ship a tag
+ * pointing at a URL that resolves nowhere, and a card with a broken image slot
+ * in it looks worse than the plain `summary` card it replaced. So: origin set,
+ * the card is added and the card type is upgraded; origin absent, the shell is
+ * left exactly as it is today, which is a correct if plainer card.
+ */
+function brandCardMeta(publicOrigin: string): Plugin {
+  return {
+    name: 'yalla:og-card',
+    transformIndexHtml(html) {
+      if (!publicOrigin) return html;
+
+      const card = new URL('/og-card.png', publicOrigin).toString();
+      return html
+        .replace(
+          '<meta name="twitter:card" content="summary" />',
+          '<meta name="twitter:card" content="summary_large_image" />',
+        )
+        .replace(
+          '</head>',
+          `  <meta property="og:image" content="${card}" />
+` +
+            `    <meta property="og:image:width" content="1200" />
+` +
+            `    <meta property="og:image:height" content="630" />
+` +
+            `    <meta property="og:image:alt" content="Yalla" />
+` +
+            `    <meta name="twitter:image" content="${card}" />
+` +
+            '  </head>',
+        );
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), emitChunkGraph()],
+  plugins: [
+    react(),
+    emitChunkGraph(),
+    brandCardMeta((process.env['VITE_PUBLIC_ORIGIN'] ?? '').trim()),
+  ],
   resolve: {
     alias: [
       // Order matters: the more specific alias must come first, or

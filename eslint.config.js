@@ -58,9 +58,9 @@ export default tseslint.config(
     },
   },
 
-  // Node-side tooling: codegen and the i18n parity check.
+  // Node-side tooling: codegen, the i18n parity check, the og-card generator.
   {
-    files: ['**/*.config.{js,ts,mjs}', 'packages/*/scripts/**/*.mjs'],
+    files: ['**/*.config.{js,ts,mjs}', 'packages/*/scripts/**/*.mjs', 'apps/*/scripts/**/*.mjs'],
     languageOptions: {
       sourceType: 'module',
       globals: { ...globals.node },

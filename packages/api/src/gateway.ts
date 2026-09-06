@@ -3,6 +3,7 @@ import type {
   Booking,
   CreateBookingCommand,
   PhoneChallenge,
+  SlotFloor,
   TableAvailability,
   VenueSummary,
   VerifiedPhone,
@@ -88,6 +89,31 @@ export interface YallaGateway {
     partySize: number;
     timeZoneId?: string | undefined;
   }): Promise<readonly TableAvailability[]>;
+
+  /**
+   * The room **as it will be at a slot**, with the answer for every table.
+   *
+   * This is what the two booking surfaces render, and it replaces the pair they
+   * used to call: `getFloorPlan` for the geometry and state, plus
+   * `getTableAvailability` for the overlay. `getFloorPlan` asks about *now*, so
+   * a diner picking Saturday at 20:00 was shown tables greyed out for tonight's
+   * walk-ins and shown as free the ones already booked at 20:00 — the exact
+   * question this product exists to answer, answered about the wrong moment.
+   *
+   * One request, not two. The endpoint already returns the geometry alongside
+   * the answer, and two calls could disagree about the room in between.
+   *
+   * @returns `null` when there is no such branch. A slot the branch refuses
+   * outright — in the past, beyond the booking window, outside opening hours —
+   * is **not** null: it comes back with `rejection` set and the room intact, so
+   * a surface can say why instead of showing an empty room.
+   */
+  getSlotFloor(input: {
+    branchId: string;
+    slotUtc: string;
+    partySize: number;
+    timeZoneId?: string | undefined;
+  }): Promise<SlotFloor | null>;
 
   // --- Phone verification -------------------------------------------------
   /**

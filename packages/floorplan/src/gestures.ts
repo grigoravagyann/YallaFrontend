@@ -28,6 +28,16 @@ export interface FloorGestures {
   readonly panHandlers: PanResponderInstance['panHandlers'];
   readonly reset: () => void;
   readonly setZoom: (zoom: number) => void;
+  /**
+   * Jump to a zoom with the room centred, discarding any pan.
+   *
+   * Distinct from {@link setZoom}, which preserves pan because it is the
+   * control a person drives. This is the one the component uses when it *opens*
+   * a view — a fresh area at the scale its tap targets need — where carrying
+   * the previous area's pan would land the diner in a corner of a room they
+   * have not seen yet.
+   */
+  readonly openAt: (zoom: number) => void;
   /** True while a pinch or pan is in flight; renderers suppress taps then. */
   readonly isGesturing: boolean;
 }
@@ -92,6 +102,11 @@ export function useFloorGestures(options: UseFloorGesturesOptions = {}): FloorGe
       // offset there would letterbox the room off-centre for no reason.
       apply(clamped === MIN_ZOOM ? FITTED : { ...current.current, zoom: clamped });
     },
+    [apply],
+  );
+
+  const openAt = useCallback(
+    (zoom: number) => apply({ zoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM), panX: 0, panY: 0 }),
     [apply],
   );
 
@@ -184,6 +199,7 @@ export function useFloorGestures(options: UseFloorGesturesOptions = {}): FloorGe
     panHandlers: responder.panHandlers,
     reset,
     setZoom,
+    openAt,
     isGesturing,
   };
 }

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LOCALE_STORAGE_KEY, initI18n, type LocaleStorage } from '@yalla/i18n';
-import { resources } from '@yalla/i18n/resources';
+import { DINER_NAMESPACES, dinerResources } from '@yalla/i18n/diner';
 import { getLocales } from 'expo-localization';
 
 /** AsyncStorage adapter for the manual language override. */
@@ -22,13 +22,19 @@ function deviceLocales(): string[] {
 
 export function bootstrapI18n() {
   return initI18n({
-    // The whole map: Metro has no tree-shaking worth relying on, and the phone
-    // app ships as one binary anyway. The narrow entry point exists for the web
-    // page, where the download is a stranger's mobile data.
-    resources,
+    /*
+     * The narrow map, not the whole one.
+     *
+     * These two namespaces were always the ones declared here, but the import
+     * was `@yalla/i18n/resources` — the whole map — and Metro bundles what is
+     * imported regardless of what i18next is later told to register. That put
+     * the venue console's and the counter screen's copy, about 149 kB of JSON
+     * across three languages, inside a phone binary that renders neither.
+     */
+    resources: dinerResources,
     deviceLocales: deviceLocales(),
     storage,
-    namespaces: ['common', 'diner'],
+    namespaces: [...DINER_NAMESPACES],
     defaultNamespace: 'diner',
     debug: __DEV__,
   });

@@ -6,6 +6,7 @@ import type {
 } from '@yalla/floorplan/types';
 import type {
   AvailabilityWindowDto,
+  SlotFloor,
   TableAvailability,
   TableUnavailableReason,
 } from '../contracts/booking';
@@ -73,12 +74,35 @@ export function unavailableReason(
       return 'notBookable';
     case 7:
       return 'outOfService';
+    /*
+     * `TableAlreadyBooked` covers two situations a diner must not be told
+     * apart wrongly: somebody is sitting there *right now*, and the slot they
+     * asked about collides with a booking. The server separates them in the
+     * state it derived **for the requested instant** — `occupied` only survives
+     * into a slot that is essentially now — so this reads that rather than
+     * assuming the near case. Assuming it is what told a diner asking about
+     * Saturday that someone was sitting at the table.
+     */
     case 8:
-      return state === 'held' ? 'held' : 'occupied';
+      switch (state) {
+        case 'held':
+          return 'held';
+        case 'occupied':
+          return 'occupied';
+        default:
+          return 'alreadyBooked';
+      }
     case 9:
       return 'invalidTime';
     default:
-      return null;
+      /*
+       * A rule this build has no word for. Carried rather than dropped: a
+       * dropped reason falls through to a guess made from the table's state,
+       * and a guess is how a diner asking about Saturday is told somebody is
+       * sitting at the table right now. An unfamiliar reason shown as itself is
+       * worse copy and better information.
+       */
+      return reason == null ? null : `unknown:${reason}`;
   }
 }
 
@@ -195,7 +219,15 @@ export function availabilityFromResponse(response: Availability): readonly Table
       tableLabel: table.label,
       floorAreaName: table.floorAreaName ?? null,
       seats: table.seats,
-      isBookable: table.isBookable,
+      isBookable: available,
+      /*
+       * The server's answer, or — only when it gave none — one derived from the
+       * state it sent. The order matters and used to be the other way round for
+       * any reason code this client could not name: an unmapped code became
+       * `null` and was then replaced by a guess from the table's state, so a
+       * refusal the server was specific about arrived as "someone is sitting
+       * there now". A reason is never overwritten by an inference now.
+       */
       unavailableReason: available ? null : (reason ?? fallbackReason(state)),
       window,
       // The backend does not report a free-cancellation deadline on the
@@ -206,6 +238,47 @@ export function availabilityFromResponse(response: Availability): readonly Table
       requiresApproval: table.requiresApproval,
     };
   });
+}
+
+/**
+ * The room and its answer for one slot, from the one response that carries both.
+ *
+ * `floorFromAvailability` above builds the same geometry, but from a call made
+ * with no date or time — "now" — which is the shape the diner surfaces were
+ * drawing the room from while asking about a slot three days out. This keeps
+ * the two together so they cannot be sourced from different questions again.
+ *
+ * The plan's `isBookable` carries the **server's** decision for this slot and
+ * party, not the table's standing configuration. That is what makes the drawn
+ * room agree with the sheet: a ten-top the venue will not give to a party of
+ * two is refused by the server with `tooLarge`, and a client re-deriving
+ * selectability from `seats >= partySize` would draw it as pickable.
+ */
+export function slotFloorFromResponse(response: Availability): SlotFloor {
+  const tables = availabilityFromResponse(response);
+  const answers = new Map(tables.map((table) => [table.tableId, table]));
+  const rejection = unavailableReason(response.unavailableReason ?? null, 'free');
+
+  const plan: FloorPlanData = {
+    branchId: response.branchId,
+    branchName: response.branchName,
+    canvasWidth: response.floorWidth,
+    canvasHeight: response.floorHeight,
+    timeZoneId: response.timeZoneId,
+    tables: byArea(response.tables).map((table: AvailabilityTable) => ({
+      ...toFloorTable(table, null),
+      // The server decided this, for this slot and this party size.
+      isBookable: answers.get(table.tableId)?.isBookable ?? false,
+    })),
+  };
+
+  return {
+    plan,
+    tables,
+    rejection,
+    slotUtc: response.requestedStartUtc,
+    partySize: response.partySize,
+  };
 }
 
 function fallbackReason(state: DerivedTableState): TableUnavailableReason {

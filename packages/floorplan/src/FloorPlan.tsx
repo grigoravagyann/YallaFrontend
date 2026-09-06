@@ -7,7 +7,7 @@ import {
   tableStatusStyle,
   type TableStatus,
 } from '@yalla/tokens';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, {
   Circle,
@@ -22,7 +22,14 @@ import Svg, {
 import { AreaSwitcher, OVERVIEW, type AreaSelection } from './AreaSwitcher';
 import { floorAreas, shouldUseAreaMode } from './areas';
 import { FITTED, useFloorGestures, type FloorViewport } from './gestures';
-import { AREA_MODE_MAX_WIDTH_PX, computeFloorLayout, type LaidOutTable } from './layout';
+import {
+  AREA_MODE_MAX_WIDTH_PX,
+  AUTO_SCALE_CAP,
+  computeFloorLayout,
+  MIN_ZOOM,
+  scaleToClearHitRects,
+  type LaidOutTable,
+} from './layout';
 import type { FloorFeature, FloorPlanData, FloorPlanMode, Rect as FloorRect } from './types';
 
 /** Opacity applied to a table a diner cannot pick. */
@@ -80,6 +87,11 @@ export interface FloorPlanProps {
   /** Pinch, pan and double-tap. Off for a decorative or embedded plan. */
   readonly enableZoom?: boolean;
   /**
+   * Ceiling on the scale an area may be *opened* at to clear its tap targets.
+   * Only the tests and the dev harness pass it; see {@link AUTO_SCALE_CAP}.
+   */
+  readonly autoScaleCapPx?: number;
+  /**
    * Drive zoom and pan from outside instead — the dev harness and the editor
    * preview do, so the values can be shown and reproduced.
    */
@@ -123,6 +135,7 @@ export function FloorPlan({
   areaMode = 'auto',
   areaModeMaxWidthPx = AREA_MODE_MAX_WIDTH_PX,
   enableZoom = true,
+  autoScaleCapPx = AUTO_SCALE_CAP,
   transform,
   testID,
 }: FloorPlanProps) {
@@ -169,6 +182,9 @@ export function FloorPlan({
 
   const gestures = useFloorGestures({ enabled: enableZoom && transform === undefined });
   const active: FloorViewport = transform ?? (enableZoom ? gestures.viewport : FITTED);
+  // Stable across renders, unlike `gestures` itself, so the open effect below
+  // is driven by the view it is opening rather than by every frame.
+  const { openAt: openArea } = gestures;
 
   // The switcher takes real height off the top; laying the plan out against the
   // whole box would push the room under it.
@@ -176,6 +192,103 @@ export function FloorPlan({
     () => ({ width: viewport.width, height: Math.max(0, viewport.height - switcherHeight) }),
     [viewport.width, viewport.height, switcherHeight],
   );
+
+  // Hoisted: the auto-scale probe below and the layout itself must ask about
+  // the same region, or the plan opens at a scale computed for a different one.
+  const areaFilter = areaModeAvailable && !isOverview ? selection : null;
+
+  /*
+   * The whole room as a map rather than a control surface: tables are drawn
+   * back and `handleTap` is withheld entirely below, so nothing in it can be
+   * mis-tapped.
+   *
+   * That is why it is exempt from the auto-scale. A diner taps Overview to see
+   * where the areas are in relation to each other, and this fixture's whole-room
+   * view would otherwise open at 1.97x — showing a quarter of the room, which
+   * is the one thing Overview exists not to do. Solving a tap-target problem on
+   * a view that takes no taps would be solving it in the wrong place.
+   */
+  const overviewMode = areaModeAvailable && isOverview;
+
+  /*
+   * The scale this view has to open at for its tap targets to be distinguishable.
+   *
+   * Twice now an area has shipped opening with overlapping hit rects — eight bar
+   * stools 2px short of the floor, then ten two-tops 8% short — and twice the
+   * resolution was "pinch-zoom exists". It does, and nobody uses it, because
+   * nobody pinches a floor plan that looks fine. The mis-tap is silent: the
+   * diner selects the neighbouring table and finds out at the door.
+   *
+   * So the component computes the crossing point rather than reporting the
+   * collision. Staff are excluded deliberately — a waiter needs the whole room
+   * at a glance and taps it with context a stranger does not have, so that
+   * screen keeps fit-to-viewport.
+   */
+  const autoScale = useMemo(() => {
+    if (mode === 'staff') return MIN_ZOOM;
+    if (overviewMode) return MIN_ZOOM;
+    if (planViewport.width <= 0 || planViewport.height <= 0) return MIN_ZOOM;
+    return scaleToClearHitRects(
+      {
+        canvasWidth: plan.canvasWidth,
+        canvasHeight: plan.canvasHeight,
+        tables: plan.tables,
+        viewport: planViewport,
+        mode,
+        partySize,
+        areaFilter,
+      },
+      { cap: autoScaleCapPx },
+    );
+  }, [
+    plan.canvasWidth,
+    plan.canvasHeight,
+    plan.tables,
+    planViewport,
+    mode,
+    partySize,
+    areaFilter,
+    overviewMode,
+    autoScaleCapPx,
+  ]);
+
+  /*
+   * Applied when a view *opens*, and never again.
+   *
+   * Keyed on what the scale was computed from, so switching area re-opens at
+   * that area's own scale while a pinch — which changes the gesture viewport and
+   * nothing in the key — is left alone. Re-applying on every render would make
+   * the plan un-zoomable: each pinch would be overwritten on the next frame.
+   */
+  const openedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enableZoom || transform !== undefined) return;
+    if (planViewport.width <= 0 || planViewport.height <= 0) return;
+
+    const key = [
+      plan.branchId,
+      areaFilter ?? (overviewMode ? ' overview' : ' whole'),
+      Math.round(planViewport.width),
+      Math.round(planViewport.height),
+      mode,
+      partySize,
+    ].join('|');
+
+    if (openedFor.current === key) return;
+    openedFor.current = key;
+    openArea(autoScale);
+  }, [
+    enableZoom,
+    transform,
+    plan.branchId,
+    areaFilter,
+    overviewMode,
+    planViewport,
+    mode,
+    partySize,
+    autoScale,
+    openArea,
+  ]);
 
   const layout = useMemo(
     () =>
@@ -187,7 +300,7 @@ export function FloorPlan({
         mode,
         partySize,
         // Overview is the whole room; an area selection is that area alone.
-        areaFilter: areaModeAvailable && !isOverview ? selection : null,
+        areaFilter,
         zoom: active.zoom,
         panX: active.panX,
         panY: active.panY,
@@ -199,9 +312,7 @@ export function FloorPlan({
       planViewport,
       mode,
       partySize,
-      areaModeAvailable,
-      isOverview,
-      selection,
+      areaFilter,
       active.zoom,
       active.panX,
       active.panY,
@@ -215,7 +326,6 @@ export function FloorPlan({
 
   // In Overview the tables are a map. Tapping one would select a table the
   // diner cannot see the state of properly; tapping its *area* is the action.
-  const overviewMode = areaModeAvailable && isOverview;
   const overviewAreas = useMemo(
     () => (overviewMode ? areaOutlines(layout.tables) : []),
     [overviewMode, layout.tables],

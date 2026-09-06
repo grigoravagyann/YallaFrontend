@@ -1,9 +1,11 @@
 import { createMockGateway } from '@yalla/api';
 import {
+  AUTO_SCALE_CAP,
   computeFloorLayout,
   floorAreas,
   hasUsableAreas,
   MIN_TAP_TARGET_PX,
+  scaleToClearHitRects,
   shouldUseAreaMode,
 } from '@yalla/floorplan';
 import type { FloorPlanData } from '@yalla/floorplan/types';
@@ -175,46 +177,65 @@ describe('what a diner can actually see and hit at 380pt', () => {
     }
   });
 
-  it('clears the tap-target collision in every area but the dense column', () => {
+  it('opens no area with colliding tap targets, except where the cap stops it', () => {
     /*
-     * An honest test rather than a flattering one.
+     * This assertion used to be `expect(colliding).toEqual(['Windows'])`.
      *
-     * Two of the three areas come out clean. **"Windows" does not**: ten
-     * two-tops at an 88-unit pitch down a wall is a tall, narrow strip, it
-     * fits the 436px-high box at scale 0.43, and that puts 41px between
-     * adjacent centres against a 44px floor — about 8% short. The remedy that
-     * already exists is the pinch-zoom the plan ships with, and the remedy that
-     * does not is a second fallback inside `@yalla/floorplan` for an area that
-     * still does not fit alone.
+     * That is a defect written down as a specification. Ten two-tops at an
+     * 88-unit pitch fitted to the 436px box put 41px between adjacent centres
+     * against a 44px floor — 8% short — and the test recorded it, with a note
+     * that pinch-zoom was the remedy. It is not a remedy: nobody pinches a
+     * floor plan that looks fine, so the diner taps table 6, gets table 7, and
+     * finds out at the door. Worse, the shape of the assertion meant *fixing*
+     * Windows would fail here and read as a regression.
      *
-     * Asserted as the exact set rather than "at least one is fine", so that a
-     * change which fixes Windows fails here and gets this comment deleted, and
-     * a change which breaks Bar or Terrace fails here too.
+     * What is asserted now is the property the component actually owes a
+     * diner: whatever scale an area opens at, its tap targets are
+     * distinguishable — unless clearing them would cost more than the cap, in
+     * which case the cap is what stopped it and the plan says so by opening
+     * there. No fixture is named, so an area added tomorrow is covered.
      */
-    const colliding = floorAreas(room)
-      .filter((area) => fit(area.name, PHONE_WITH_SWITCHER).hasOverlappingHitRects)
-      .map((area) => area.name);
+    for (const area of floorAreas(room)) {
+      const base = {
+        canvasWidth: room.canvasWidth,
+        canvasHeight: room.canvasHeight,
+        tables: room.tables,
+        viewport: PHONE_WITH_SWITCHER,
+        mode: 'diner' as const,
+        partySize: 2,
+        areaFilter: area.name,
+      };
 
-    expect(colliding).toEqual(['Windows']);
+      const opensAt = scaleToClearHitRects(base, { cap: AUTO_SCALE_CAP });
+      const opened = computeFloorLayout({ ...base, zoom: opensAt });
+      const where = area.name ?? 'unassigned';
+
+      expect(opensAt, `${where} opens beyond the cap`).toBeLessThanOrEqual(AUTO_SCALE_CAP);
+      if (opened.hasOverlappingHitRects) {
+        expect(opensAt, `${where} opens broken without reaching the cap`).toBe(AUTO_SCALE_CAP);
+      }
+    }
   });
 
-  it('leaves that column one pinch away rather than unusable', () => {
-    // 520px of plan height clears it at the fitted zoom, which is more than a
-    // phone can give the room without pushing the free-table count off screen.
-    // Within the box the page does give it, the same column clears at 1.2x —
-    // well inside the component's own 4x ceiling.
-    expect(fit('Windows', { width: 380, height: 520 }).hasOverlappingHitRects).toBe(false);
-
-    const zoomed = computeFloorLayout({
+  it('opens the window wall above the fit, because that is what it needs', () => {
+    // The specific area the old assertion pinned. It is still the one that
+    // does not survive its own fit — the change is that the component now
+    // computes the scale that clears it instead of leaving it to a gesture.
+    const base = {
       canvasWidth: room.canvasWidth,
       canvasHeight: room.canvasHeight,
       tables: room.tables,
       viewport: PHONE_WITH_SWITCHER,
-      mode: 'diner',
+      mode: 'diner' as const,
       partySize: 2,
       areaFilter: 'Windows',
-      zoom: 1.2,
-    });
-    expect(zoomed.hasOverlappingHitRects).toBe(false);
+    };
+
+    expect(computeFloorLayout(base).hasOverlappingHitRects).toBe(true);
+
+    const opensAt = scaleToClearHitRects(base, { cap: AUTO_SCALE_CAP });
+    expect(opensAt).toBeGreaterThan(1);
+    expect(opensAt).toBeLessThan(AUTO_SCALE_CAP);
+    expect(computeFloorLayout({ ...base, zoom: opensAt }).hasOverlappingHitRects).toBe(false);
   });
 });

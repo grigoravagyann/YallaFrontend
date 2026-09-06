@@ -74,13 +74,17 @@ export type {
   BranchPolicy,
   BranchSummary,
   CreateBookingCommand,
+  KnownTableUnavailableReason,
   PhoneChallenge,
+  SlotFloor,
   TableAvailability,
   TableUnavailableReason,
   VenueSummary,
   VenueType,
   VerifiedPhone,
 } from './contracts/booking';
+
+export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
 
 export {
   EndpointNotWiredError,

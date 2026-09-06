@@ -1,3 +1,5 @@
+import type { FloorPlanData } from '@yalla/floorplan/types';
+
 /**
  * Domain contracts for the reservation flow.
  *
@@ -73,7 +75,7 @@ export interface AvailabilityWindowDto {
 }
 
 /**
- * Why a table cannot be reserved. `null` means it can.
+ * Why a table cannot be reserved, as the *server* said it.
  *
  * One member per distinct thing the backend refuses for
  * (`Yalla.Domain.Occupancy.ReservationRejectionReason`), because each has a
@@ -81,10 +83,22 @@ export interface AvailabilityWindowDto {
  * is "too small for 2", or that a closed venue is "too soon to book" — and
  * then tries again in five minutes.
  */
-export type TableUnavailableReason =
+export type KnownTableUnavailableReason =
+  /** Somebody is physically sitting there **now**. Only ever true of a slot now. */
   | 'occupied'
   | 'held'
   | 'outOfService'
+  /**
+   * The slot collides with another booking.
+   *
+   * Distinct from `occupied`, and the distinction is the whole point: a table
+   * that is free this second and booked at 20:00 is not a table with people at
+   * it, and telling a diner asking about 20:00 that "someone is sitting there"
+   * sends them to look at an empty table. The backend reports both as
+   * `TableAlreadyBooked` and separates them by the state it derived *for the
+   * requested instant*; this is that separation, made once, in the mapper.
+   */
+  | 'alreadyBooked'
   /** The party is bigger than the table. */
   | 'tooSmall'
   /** The party is far smaller than the table: the venue will not seat 2 at a 10-top. */
@@ -99,6 +113,40 @@ export type TableUnavailableReason =
   /** That wall-clock time does not exist on that date — the clocks change. */
   | 'invalidTime';
 
+/**
+ * Deliberately open at the edges.
+ *
+ * The backend can add a refusal rule in a release this client has not been
+ * rebuilt for, and the honest thing to do with a reason we have no word for is
+ * to **carry it and show it**, not to look at the table's state and guess a
+ * reason we do happen to have a word for. Guessing is how a diner asking about
+ * Saturday is told somebody is sitting at the table right now.
+ *
+ * `KNOWN_UNAVAILABLE_REASONS` is what has copy; anything else renders through
+ * the `other` key with the server's own word interpolated.
+ */
+export type TableUnavailableReason = KnownTableUnavailableReason | (string & {});
+
+export const KNOWN_UNAVAILABLE_REASONS: readonly KnownTableUnavailableReason[] = [
+  'occupied',
+  'held',
+  'outOfService',
+  'alreadyBooked',
+  'tooSmall',
+  'tooLarge',
+  'notBookable',
+  'pastLeadTime',
+  'tooFarAhead',
+  'closed',
+  'invalidTime',
+];
+
+export function isKnownUnavailableReason(
+  reason: TableUnavailableReason,
+): reason is KnownTableUnavailableReason {
+  return (KNOWN_UNAVAILABLE_REASONS as readonly string[]).includes(reason);
+}
+
 export interface TableAvailability {
   readonly tableId: string;
   readonly tableLabel: string;
@@ -112,6 +160,43 @@ export interface TableAvailability {
   readonly freeCancellationUntilUtc: string;
   /** True when this party size exceeds the instant-confirmation limit. */
   readonly requiresApproval: boolean;
+}
+
+/**
+ * The room **and** its answer, for one slot, from one request.
+ *
+ * This type exists because the two were separate and the room came from the
+ * wrong question. Both diner surfaces drew the plan from a floor-state call
+ * meaning *now* and then overlaid availability meaning *the slot the diner
+ * asked about*, so a table occupied by tonight's walk-ins rendered unavailable
+ * for a booking three days away, and a table free this second rendered free at
+ * 20:00 when it was already booked. Changing the time control moved the
+ * overlay and left the room where it was.
+ *
+ * They are one shape now because they are one answer to one question, and
+ * because `GET /api/branches/{id}/availability` has returned both since
+ * Backend Prompt 7 — the geometry, the state derived *for the requested
+ * instant*, the per-table refusal and the window — in a single anonymous round
+ * trip. The client's job is to pass the slot and render what comes back.
+ */
+export interface SlotFloor {
+  /** The room, with every table's state derived for {@link slotUtc}. */
+  readonly plan: FloorPlanData;
+  /** Per-table answer, in the same order as `plan.tables`. */
+  readonly tables: readonly TableAvailability[];
+  /**
+   * A rule that refused the **whole request** before any table was considered:
+   * the slot is in the past, beyond the booking window, or the branch is shut.
+   *
+   * Reported once rather than repeated on forty tables, so a surface can say
+   * "we are closed at 03:00" instead of listing forty tables that are each
+   * individually unavailable for the same reason. Null when the request was
+   * fine — which is not the same as every table being free.
+   */
+  readonly rejection: TableUnavailableReason | null;
+  /** The slot this answer is about, echoed back so a stale render is detectable. */
+  readonly slotUtc: string;
+  readonly partySize: number;
 }
 
 // ---------------------------------------------------------------------------

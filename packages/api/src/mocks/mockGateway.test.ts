@@ -285,20 +285,44 @@ describe('createBooking', () => {
       expect(await g.listBookings()).toHaveLength(0);
     });
 
-    it('rejects booking a table that is already occupied', async () => {
+    it('rejects booking a table already booked for that slot', async () => {
+      /*
+       * This used to look for a table refused as `occupied` at a slot three and
+       * a half hours out, and it found one — because the mock answered "now"
+       * for every slot it was asked about, exactly as the two screens did. The
+       * double reproduced the defect it existed to catch, which is how this
+       * shipped through five prompts.
+       *
+       * The refusal that genuinely applies to a future slot is a *booking* on
+       * it, so the test makes one and then asks again.
+       */
+      const target = await firstBookableTableId();
+      await gateway.createBooking({
+        commandId: 'cmd-first',
+        branchId: BRANCH,
+        tableId: target,
+        slotUtc: SLOT,
+        partySize: 2,
+        verificationToken: await verifiedToken(),
+      });
+
       const availability = await gateway.getTableAvailability({
         branchId: BRANCH,
         slotUtc: SLOT,
         partySize: 2,
       });
-      const busy = availability.find((a) => a.unavailableReason === 'occupied');
-      expect(busy).toBeDefined();
+      const busy = availability.find((a) => a.tableId === target);
+
+      // `alreadyBooked`, not `occupied`. Nobody is sitting there — it is 18:00
+      // and the room is empty — and telling a diner otherwise sends them to
+      // look at a table with nobody at it.
+      expect(busy?.unavailableReason).toBe('alreadyBooked');
 
       await expect(
         gateway.createBooking({
           commandId: 'cmd-busy',
           branchId: BRANCH,
-          tableId: busy!.tableId,
+          tableId: target,
           slotUtc: SLOT,
           partySize: 2,
           verificationToken: await verifiedToken(),

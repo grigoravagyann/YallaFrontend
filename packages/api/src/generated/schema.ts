@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: https://localhost:7289/swagger/v1/swagger.json
+ * Source: http://localhost:5086/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -692,6 +692,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/reports/menu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What sold, what did not, and what got sent back
+         * @description Top items by count and by revenue - frequently two different lists - plus voids by item and reason, because a dish voided often is either mis-described or badly made.
+         *
+         *     **`neverOrdered` is the one report that changes behaviour.** A dish nobody orders is inventory that spoils and menu space that could sell something else, and no venue knows which those are: they are, by definition, the ones nobody mentions.
+         */
+        get: operations["getMenuReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reports/occupancy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How full the room was, and how long people actually stayed
+         * @description Tables occupied by hour of day and by weekday, seats filled against capacity, and walk-ins against bookings.
+         *
+         *     **`turnTime` is a distribution, not an average, and it is the most useful number in the whole set.** A cafe whose policy says 120 minutes and whose real median is 165 is refusing a 20:00 sitting because it believes the 18:00 one ends at 20:00 - and half the time it does not. It is losing bookings it has no other way to see. An average hides exactly that: a fast lunch and a slow dinner average to something plausible and describe neither service. Read `medianMinutes`, `p90Minutes` and `overPolicyFraction` together.
+         *
+         *     A sitting is counted in **every hour it spans**, not only the one it started in: "how busy is the room at eight" is a question about occupancy, and counting arrivals makes a restaurant look empty at its busiest hour.
+         */
+        get: operations["getOccupancyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reports/reservations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bookings, and what became of them
+         * @description Booked, seated, cancelled and no-show with their rates, late cancellations against the branch's own deadline, and how far ahead people book.
+         *
+         *     `leadTime` is what `bookingWindowDays` should be set from - a venue taking bookings 30 days out when nobody books more than 5 days ahead is holding tables against demand that does not exist.
+         *
+         *     **`webBookingsWithoutAnApp` is the number that decides a commercial question.** Somebody who booked from the public page and has no registered device cannot be reached by the reminder, the late nudge or one-tap cancel - the entire no-show story. If that number is large, an SMS or Telegram channel is worth paying for; if it is small, the install prompt on the confirmation screen is enough. See `docs/reports.md`.
+         */
+        get: operations["getReservationReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reports/revenue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What was taken, by day and by hour
+         * @description Total, average tab and **average per head** - a different question from average tab, and the one a menu is priced against. Service charge collected, cash against in-app, and comps and discounts as their own line **with who authorised them**.
+         *
+         *     That last part is why adjustments are manager-only: an owner asking "what did we give away last month, and who decided" is asking both halves.
+         *
+         *     Revenue is counted on the tab **closing**, so a sitting that starts at 23:30 and settles at 00:40 belongs to the night it was taken - which is the day the venue counted its drawer.
+         */
+        get: operations["getRevenueReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reports/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Orders entered and tables turned, per branch
+         * @description Aggregated across the branch, and **deliberately not per waiter**.
+         *
+         *     The audit log has the per-person data and an owner will ask for it. A ranked list of employees that renders itself every morning is a different product from a report somebody requests - it is a management decision with consequences, made on the venue's behalf by software. If a venue wants per-person numbers they can be given a report. See `docs/reports.md`.
+         */
+        get: operations["getStaffReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/reservation-policy": {
         parameters: {
             query?: never;
@@ -1171,6 +1287,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/branches/{branchId}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Availability, through the existing read model.
+         * @description The public gate is applied first and the query is then the same one the app calls. Growing a
+         *     second availability implementation here would be the beginning of two answers to "is table 7
+         *     free", and the two would eventually disagree in front of somebody standing at the door.
+         */
+        get: operations["getPublicAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/branches/{branchId}/menu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's menu, complete items only
+         * @description Exactly what the diner app receives, from the same read model - not a second implementation.
+         *
+         *     **An item without a photo or without allergens never appears here**, for the same reason it never reaches the app: somebody reading an empty allergen list reasonably concludes there are none. Sold-out items *are* shown, flagged.
+         */
+        get: operations["getPublicMenu"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/branches/{branchId}/meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open Graph and Twitter card fields for this branch
+         * @description What a link should look like when it is pasted into WhatsApp or Telegram. Served here so the web page and any future renderer do not each invent their own.
+         *
+         *     **The free-table count is deliberately absent.** A card is fetched once by whichever chat app saw the link and cached for hours, so a live number would be frozen at whatever it was when somebody first pasted it - and "4 tables free" three hours stale is worse than no number. The venue description does not move.
+         */
+        get: operations["getPublicBranchMeta"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/branches/{venueSlug}/{branchSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One branch's public page, by its slug pair
+         * @description Address, coordinates, opening hours, whether it is open **now** in its own time zone, the live free-table count, and the floor plan in diner shape.
+         *
+         *     The floor plan here is not the editor's: it carries no QR tokens and no table status beyond whether somebody is sitting there. A QR token is the credential that opens a tab.
+         *
+         *     A suspended venue, an inactive branch and a wrong slug pairing all answer **404**, identically and on purpose - a public page that distinguished them would be publishing a customer's billing status to anybody who guessed a slug.
+         */
+        get: operations["getPublicBranch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every venue on Yalla, for the browse case
+         * @description Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, and a **live free-table count**.
+         *
+         *     The estate is cached for minutes and the table counts for seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening.
+         */
+        get: operations["getPublicVenues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reservations": {
         parameters: {
             query?: never;
@@ -1421,8 +1649,11 @@ export interface paths {
          *     - The caller's **own items and own subtotal are always present**, whatever the flags.
          *     - The **table total and other people's items appear only with `canSeeTableTotal`**, and only once approved. When hidden they are **absent from the body** - not zero, not null - with `tableTotalVisible: false` beside the gap, so no client can render a hidden total as a free bill.
          *     - A **pending** participant sees their own row and nothing else.
+         *     - **Nothing silently disappears.** A voided line stays in both arrays with `isVoided`, `voidReason` and `voidedAtUtc`, worth zero and counted toward no total; comps and discounts appear in `adjustments` with the reason the manager typed. A bill whose number drops with no visible cause is the fastest way to make somebody distrust the app, and a waiter then has to explain it at the table.
          *
-         *     Menu prices are not part of this view and stay visible through the menu, so a guest without the total can always work out what their own order costs.
+         *     Menu prices are not part of this view and stay visible through the menu, so a guest without the total can always work out what their own order costs - and `serviceChargePercent` is on the response **for everyone**, hidden total or not, because the percentage is a fact about the venue rather than an aggregate.
+         *
+         *     `timeZoneId` is the branch's IANA zone: render every instant here in it and never in the device's. `maxSequence` is where the tab's event stream stands, so a client never has to call `/events` purely to find out.
          */
         get: operations["getTab"];
         put?: never;
@@ -2006,6 +2237,8 @@ export interface components {
              * @description The branch being booked.
              */
             branchId: string;
+            /** @description Where a booking was made from. */
+            channel: components["schemas"]["Yalla.Domain.Enums.ReservationChannel"];
             /**
              * Format: uuid
              * @description The caller's own id for this booking. <b>Required.</b> A phone on a patchy connection retries,
@@ -4014,6 +4247,14 @@ export interface components {
              */
             serviceRequestId: string;
             /**
+             * Format: int64
+             * @description Where the tab's event stream stands. Raising or acknowledging a request appends an event, so the
+             *     response says where that left the stream - otherwise the phone that just called a waiter is the
+             *     one client guaranteed to be behind. Zero on the branch-wide list, which spans many tabs and so
+             *     has no single stream to be caught up with.
+             */
+            tabEventSequence: number;
+            /**
              * Format: uuid
              * @description Its tab.
              */
@@ -4079,6 +4320,13 @@ export interface components {
              * @description How much fell to the host from removed participants.
              */
             absorbedFromRemovedAmd: number;
+            /**
+             * Format: int64
+             * @description Where the tab's event stream stands, so a client that just read the split knows whether it has
+             *     missed anything. Prompt 8 said every tab response carries it; this one did not, which made the
+             *     bill screen - the screen where being out of date matters most - the one that had to ask twice.
+             */
+            maxSequence: number;
             /** @description The caller's own share. Always present. */
             myShare?: components["schemas"]["Yalla.Application.Ordering.ParticipantShareView"] | null;
             /** @description Everyone's share. Absent when not visible. */
@@ -4262,6 +4510,477 @@ export interface components {
              * @description The venue.
              */
             venueId: string;
+        };
+        /** @description One branch on the browse list. */
+        "Yalla.Application.Public.PublicBranchCard": {
+            /** @description Where it is. */
+            address: string;
+            /**
+             * Format: uuid
+             * @description The id, for the menu and availability routes.
+             */
+            branchId: string;
+            /** @description The other half of a printed link. */
+            branchSlug: string;
+            /**
+             * Format: int32
+             * @description How many tables have nobody sitting at them right now. The one volatile number here, and the
+             *     reason the browse list is cached for seconds rather than minutes.
+             */
+            freeTableCount: number;
+            /** @description Whether it is inside an opening block at this moment, in its own zone. */
+            isOpenNow: boolean;
+            /** @description The branch's name. */
+            name: string;
+        };
+        /** @description What a link to this branch should look like when it is pasted into WhatsApp or Telegram. */
+        "Yalla.Application.Public.PublicBranchMeta": {
+            /** @description The path this branch lives at, for `og:url`. */
+            canonicalPath: string;
+            /** @description What the venue is. Stable enough to cache. */
+            description: string;
+            /** @description The branch cover photo, or the venue's, or null. */
+            imageUrl?: string | null;
+            /** @description The locale tag to advertise. */
+            locale: string;
+            /** @description Venue and branch, as one line. */
+            title: string;
+        };
+        /** @description One branch's public page. */
+        "Yalla.Application.Public.PublicBranchPage": {
+            /** @description Street address, as a person would read it. */
+            address: string;
+            /**
+             * Format: uuid
+             * @description The id the menu and availability routes take.
+             */
+            branchId: string;
+            /** @description The branch's name. */
+            branchName: string;
+            /** @description The branch half. */
+            branchSlug: string;
+            /**
+             * @description The room, in diner shape: the canvas, the areas and the tables with their geometry and whether
+             *     each is free. <b>No QR tokens and no staff state</b> - see Yalla.Application.Public.PublicFloorTable.
+             */
+            floorPlan: components["schemas"]["Yalla.Application.Public.PublicFloorPlan"];
+            /**
+             * Format: int32
+             * @description Tables with nobody at them right now.
+             */
+            freeTableCount: number;
+            /** @description Whether it is open at this moment, decided in the branch's own zone. */
+            isOpenNow: boolean;
+            /**
+             * Format: double
+             * @description For the map pin.
+             */
+            latitude: number;
+            /**
+             * Format: double
+             * @description For the map pin.
+             */
+            longitude: number;
+            /** @description The weekly hours. */
+            openingHours: components["schemas"]["Yalla.Application.BranchSettings.OpeningHoursView"][];
+            /**
+             * Format: int32
+             * @description How many bookable tables there are, so the count has a denominator.
+             */
+            tableCount: number;
+            /**
+             * @description The branch's IANA zone. Every time on this page is rendered in it - a tourist's phone is on the
+             *     wrong zone, and a tourist is a named primary user of this surface.
+             */
+            timeZoneId: string;
+            /** @description The venue's name. */
+            venueName: string;
+            /** @description The venue half of the link. */
+            venueSlug: string;
+            /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
+            venueType: components["schemas"]["Yalla.Domain.Enums.VenueType"];
+        };
+        /** @description The room as a diner sees it: a canvas, areas, and tables. */
+        "Yalla.Application.Public.PublicFloorPlan": {
+            areas: components["schemas"]["Yalla.Application.BranchSettings.FloorAreaView"][];
+            /** Format: int32 */
+            floorHeight: number;
+            /** Format: int32 */
+            floorWidth: number;
+            tables: components["schemas"]["Yalla.Application.Public.PublicFloorTable"][];
+        };
+        /** @description One table on the public floor plan. */
+        "Yalla.Application.Public.PublicFloorTable": {
+            /** @description Which area it is in, by name. Null for none. */
+            areaName?: string | null;
+            /**
+             * Format: int32
+             * @description Height on the canvas.
+             */
+            height: number;
+            /** @description False for the bar stools that only ever take walk-ins. */
+            isBookable: boolean;
+            /** @description Whether anybody is sitting at it right now. */
+            isFree: boolean;
+            /** @description What is printed on it. */
+            label: string;
+            /**
+             * Format: double
+             * @description Clockwise rotation.
+             */
+            rotationDegrees: number;
+            /**
+             * Format: int32
+             * @description How many it seats.
+             */
+            seats: number;
+            /** @description Footprint of a table on the floor plan. */
+            shape: components["schemas"]["Yalla.Domain.Enums.TableShape"];
+            /**
+             * Format: int32
+             * @description Width on the canvas.
+             */
+            width: number;
+            /**
+             * Format: int32
+             * @description Left edge on the canvas.
+             */
+            x: number;
+            /**
+             * Format: int32
+             * @description Top edge on the canvas.
+             */
+            y: number;
+        };
+        /** @description One venue on the browse list, with its branches. */
+        "Yalla.Application.Public.PublicVenueCard": {
+            /** @description Its active branches. */
+            branches: components["schemas"]["Yalla.Application.Public.PublicBranchCard"][];
+            /** @description The venue's name. */
+            name: string;
+            /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
+            type: components["schemas"]["Yalla.Domain.Enums.VenueType"];
+            /** @description The public identity. Half of a printed link. */
+            venueSlug: string;
+        };
+        "Yalla.Application.Reports.AdjustmentLine": {
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            count: number;
+            /** @description Why money is coming off a bill. */
+            kind: components["schemas"]["Yalla.Domain.Enums.AdjustmentKind"];
+            /** @description What the manager typed. */
+            reason: string;
+            /**
+             * Format: uuid
+             * @description Who authorised it.
+             */
+            staffMemberId: string;
+            /** @description Their name. */
+            staffName: string;
+            /**
+             * Format: int64
+             * @description What they came to.
+             */
+            totalAmd: number;
+        };
+        /** @description One number, beside what it was over the previous equivalent period. */
+        "Yalla.Application.Reports.Compared": {
+            /**
+             * Format: double
+             * @description The change as a fraction, or null when there is nothing to compare against.
+             */
+            readonly changeFraction?: number | null;
+            /**
+             * Format: double
+             * @description The same measure over the equivalent period immediately before. Null when there is no prior
+             *     data at all - which is <b>not</b> the same as zero, and a client must render it differently: a
+             *     venue's first week has no previous week, and "down 100%" would be a lie about it.
+             */
+            previous?: number | null;
+            /**
+             * Format: double
+             * @description This period.
+             */
+            value: number;
+        };
+        "Yalla.Application.Reports.DailyRevenue": {
+            /**
+             * Format: date
+             * @description The branch's own day.
+             */
+            localDate: string;
+            /**
+             * Format: int64
+             * @description Taken that day, in whole dram.
+             */
+            revenueAmd: number;
+            /**
+             * Format: int32
+             * @description How many tabs closed.
+             */
+            tabs: number;
+        };
+        "Yalla.Application.Reports.DurationBucket": {
+            /**
+             * Format: int32
+             * @description How many sittings fell in it.
+             */
+            sessions: number;
+            /**
+             * Format: int32
+             * @description The top of this bucket, in minutes. The last one is open-ended.
+             */
+            upToMinutes: number;
+        };
+        "Yalla.Application.Reports.HourBucket": {
+            /**
+             * Format: int32
+             * @description Local hour of day, 0 to 23.
+             */
+            hour: number;
+            /**
+             * Format: int32
+             * @description Sittings that were in progress during that hour.
+             */
+            sessions: number;
+        };
+        "Yalla.Application.Reports.HourlyRevenue": {
+            /**
+             * Format: int32
+             * @description Local hour of day.
+             */
+            hour: number;
+            /**
+             * Format: int64
+             * @description Taken in that hour, in whole dram.
+             */
+            revenueAmd: number;
+        };
+        "Yalla.Application.Reports.LeadTimeBucket": {
+            /**
+             * Format: int32
+             * @description How many were made that far ahead.
+             */
+            bookings: number;
+            /**
+             * Format: int32
+             * @description Top of this bucket, in hours before the sitting.
+             */
+            upToHours: number;
+        };
+        "Yalla.Application.Reports.MenuItemPerformance": {
+            /** @description Which section of the menu it sits in. */
+            categoryName: string;
+            /**
+             * Format: uuid
+             * @description The item.
+             */
+            menuItemId: string;
+            /** @description Its name now, not the snapshot on the line. */
+            name: string;
+            /**
+             * Format: int32
+             * @description How many were ordered.
+             */
+            quantity: number;
+            /**
+             * Format: int64
+             * @description What they came to.
+             */
+            revenueAmd: number;
+        };
+        "Yalla.Application.Reports.MenuReport": {
+            /**
+             * @description <b>The report that changes behaviour.</b> Items with no line in the period at all. A dish nobody
+             *                 orders is inventory that spoils and menu space that could sell something else, and no venue
+             *                 knows which those are - they are, by definition, the ones nobody mentions.
+             */
+            neverOrdered: components["schemas"]["Yalla.Application.Reports.MenuItemPerformance"][];
+            /** @description What was asked for. */
+            scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
+            /** @description Most ordered. */
+            topByCount: components["schemas"]["Yalla.Application.Reports.MenuItemPerformance"][];
+            /** @description Most valuable, which is frequently a different list. */
+            topByRevenue: components["schemas"]["Yalla.Application.Reports.MenuItemPerformance"][];
+            /** @description Voided lines by item and reason. A dish voided often is mis-described or badly made. */
+            voids: components["schemas"]["Yalla.Application.Reports.VoidLine"][];
+        };
+        "Yalla.Application.Reports.OccupancyReport": {
+            /** @description In progress by local hour of day. */
+            byHour: components["schemas"]["Yalla.Application.Reports.HourBucket"][];
+            /** @description Started, by local weekday. */
+            byWeekday: components["schemas"]["Yalla.Application.Reports.WeekdayBucket"][];
+            /** @description Sittings seated against a booking. */
+            fromReservations: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description What was asked for. */
+            scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
+            /**
+             * Format: int64
+             * @description Seats the room has, times the days in the period.
+             */
+            seatsAvailable: number;
+            /** @description Seats occupied across every sitting. */
+            seatsFilled: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Sittings that started in the period. */
+            sessions: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Actual against policy. */
+            turnTime: components["schemas"]["Yalla.Application.Reports.TurnTimeDistribution"];
+            /** @description Sittings with no booking behind them. */
+            walkIns: components["schemas"]["Yalla.Application.Reports.Compared"];
+        };
+        /** @description A date range in the <b>branch's local dates</b>, inclusive of both ends. */
+        "Yalla.Application.Reports.ReportRange": {
+            /**
+             * Format: int32
+             * @description How many local days the range covers.
+             */
+            readonly days: number;
+            /**
+             * Format: date
+             * @description First day included.
+             */
+            fromLocalDate: string;
+            /**
+             * Format: date
+             * @description Last day included.
+             */
+            toLocalDate: string;
+        };
+        /** @description Which branches a report covers, and over what. */
+        "Yalla.Application.Reports.ReportScope": {
+            /** @description One branch, or every branch of a venue for an owner's rollup. */
+            branchIds: string[];
+            /** @description The local date range. */
+            range: components["schemas"]["Yalla.Application.Reports.ReportRange"];
+            /** @description The zone the local dates were interpreted in. */
+            timeZoneId: string;
+        };
+        "Yalla.Application.Reports.ReservationReport": {
+            /** @description Bookings made for a sitting in the period. */
+            booked: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Cancellations over bookings. */
+            cancellationRate: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Those called off, by anyone. */
+            cancelled: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /**
+             * @description Called off inside the branch's own cancellation deadline. Distinguished from an ordinary
+             *     cancellation because a table given up in time is resold and one given up at 19:50 is not.
+             */
+            lateCancellations: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description How far ahead people book - what `BookingWindowDays` should be set from. */
+            leadTime: components["schemas"]["Yalla.Application.Reports.LeadTimeBucket"][];
+            /** @description Those where grace ran out and the table was released. */
+            noShow: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description No-shows over bookings. The number the whole reminder feature exists to move. */
+            noShowRate: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description What was asked for. */
+            scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
+            /** @description Those the party turned up for. */
+            seated: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /**
+             * @description Booked from the public page by somebody with no registered device. <b>These people cannot be
+             *     reminded</b>: no app means no push channel, so the reminder, the late nudge and one-tap cancel -
+             *     the entire no-show story - do not reach them. This is the number that decides whether an SMS or
+             *     Telegram channel is worth paying for. See `docs/reports.md`.
+             */
+            webBookingsWithoutAnApp: components["schemas"]["Yalla.Application.Reports.Compared"];
+        };
+        "Yalla.Application.Reports.RevenueReport": {
+            /** @description Comps and discounts, with who authorised them. */
+            adjustments: components["schemas"]["Yalla.Application.Reports.AdjustmentLine"][];
+            /** @description What they came to altogether. */
+            adjustmentsTotalAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Per person on a tab. A different question from per tab, and the one a menu is priced against. */
+            averagePerHeadAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Per tab. */
+            averageTabAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Day by day, in local dates. */
+            byDay: components["schemas"]["Yalla.Application.Reports.DailyRevenue"][];
+            /** @description Hour by hour, in local hours. */
+            byHour: components["schemas"]["Yalla.Application.Reports.HourlyRevenue"][];
+            /** @description Taken in cash. */
+            cashAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Taken in the app. Zero until there is a wallet rail; the column is here so the day it exists nothing has to change. */
+            inAppAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description What was asked for. */
+            scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
+            /** @description Of which service charge. */
+            serviceChargeAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Taken in the period. */
+            totalAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+        };
+        /** @description What the venue needs to run the floor, and nothing more. */
+        "Yalla.Application.Reports.StaffReport": {
+            /**
+             * Format: int32
+             * @description How many people worked the period.
+             */
+            activeStaff: number;
+            /** @description Orders keyed in by staff, across the branch. */
+            ordersEntered: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description What was asked for. */
+            scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
+            /** @description Sittings closed, across the branch. */
+            tablesTurned: components["schemas"]["Yalla.Application.Reports.Compared"];
+        };
+        /** @description How long parties actually stay, against what the policy assumes. */
+        "Yalla.Application.Reports.TurnTimeDistribution": {
+            /** @description The whole shape, so the tail is visible rather than summarised away. */
+            buckets: components["schemas"]["Yalla.Application.Reports.DurationBucket"][];
+            /**
+             * Format: int32
+             * @description How many sittings the distribution was computed from.
+             */
+            closedSessions: number;
+            /**
+             * Format: int32
+             * @description The middle sitting. Null when nothing closed in the period.
+             */
+            medianMinutes?: number | null;
+            /**
+             * Format: double
+             * @description The fraction of sittings that ran past the policy's turn time. The single number to put next to
+             *     the chart, and the one that says whether the policy needs changing.
+             */
+            overPolicyFraction: number;
+            /**
+             * Format: int32
+             * @description Nine sittings in ten finish inside this.
+             */
+            p90Minutes?: number | null;
+            /**
+             * Format: int32
+             * @description What the branch's policy assumes.
+             */
+            policyTurnTimeMinutes: number;
+        };
+        "Yalla.Application.Reports.VoidLine": {
+            /**
+             * Format: int32
+             * @description How many times.
+             */
+            count: number;
+            /**
+             * Format: uuid
+             * @description The item.
+             */
+            menuItemId: string;
+            /** @description Its name. */
+            name: string;
+            /** @description Why it was taken off, in the waiter's words. */
+            reason: string;
+        };
+        "Yalla.Application.Reports.WeekdayBucket": {
+            /** @description Local day of week. */
+            day: components["schemas"]["System.DayOfWeek"];
+            /**
+             * Format: int32
+             * @description Sittings that started on that weekday.
+             */
+            sessions: number;
         };
         /**
          * Format: int32
@@ -4689,6 +5408,45 @@ export interface components {
              */
             wasReplay: boolean;
         };
+        /** @description One comp or discount, as the diner sees it. */
+        "Yalla.Application.Tabs.TabAdjustmentView": {
+            /**
+             * Format: uuid
+             * @description The adjustment row.
+             */
+            adjustmentId: string;
+            /**
+             * Format: int64
+             * @description The flat amount, when it is one.
+             */
+            amountAmd?: number | null;
+            /**
+             * Format: date-time
+             * @description When it was applied.
+             */
+            appliedAtUtc: string;
+            /** @description True once it was reversed. It stays on the record, marked. */
+            isVoided: boolean;
+            /** @description Why money is coming off a bill. */
+            kind: components["schemas"]["Yalla.Domain.Enums.AdjustmentKind"];
+            /**
+             * Format: uuid
+             * @description The line it applies to, or null for one against the whole tab.
+             */
+            lineId?: string | null;
+            /**
+             * Format: double
+             * @description The percentage, when it is one.
+             */
+            percent?: number | null;
+            /** @description What the manager typed. */
+            reason: string;
+            /**
+             * Format: int64
+             * @description What it took off, in whole dram.
+             */
+            reductionAmd: number;
+        };
         /** @description An invitation to a tab. One token, two ways to hand it over. */
         "Yalla.Application.Tabs.TabJoinTokenResult": {
             /**
@@ -4711,17 +5469,36 @@ export interface components {
             /** @description True when the item belongs to the table and is split across those present. */
             isShared: boolean;
             /**
+             * @description True once staff took it off the bill. <b>The line stays here, labelled.</b> It is excluded from
+             *     every total, and a diner watching their bill must still see that the coffee was removed.
+             */
+            isVoided: boolean;
+            /**
              * Format: uuid
              * @description The order line.
              */
             lineId: string;
             /**
              * Format: int64
-             * @description Unit price times quantity, in whole dram.
+             * @description Unit price times quantity, in whole dram. <b>Zero once voided.</b>
              */
             lineTotalAmd: number;
+            /**
+             * Format: uuid
+             * @description The item, so the client can link back to the menu entry.
+             */
+            menuItemId: string;
             /** @description The item name as it read on the menu when ordered. */
             name: string;
+            /** @description The kitchen note that was sent with it, e.g. "no onions". */
+            note?: string | null;
+            /**
+             * Format: uuid
+             * @description The order it was part of, so the client can group a round together.
+             */
+            orderId: string;
+            /** @description Kitchen-facing progress of one order placed against a tab. */
+            orderStatus: components["schemas"]["Yalla.Domain.Enums.TabOrderStatus"];
             /** @description Their name at the time of reading. */
             placedByDisplayName?: string | null;
             /**
@@ -4735,10 +5512,25 @@ export interface components {
              */
             quantity: number;
             /**
+             * Format: int32
+             * @description How many people a shared line is split between. <b>From the line's own participant snapshot, not
+             *     the current roster</b>: a friend who joined ten minutes after the bottle was poured is not on it,
+             *     and a badge computed from the roster would silently re-split every existing line each time
+             *     somebody else scanned the code.
+             */
+            sharedWithCount: number;
+            /**
              * Format: int64
              * @description Unit price in whole dram as it stood when ordered.
              */
             unitPriceAmd: number;
+            /**
+             * Format: date-time
+             * @description When it was removed.
+             */
+            voidedAtUtc?: string | null;
+            /** @description Why, in the waiter's own words. */
+            voidReason?: string | null;
         };
         /**
          * Format: int32
@@ -4797,6 +5589,7 @@ export interface components {
          *     not participants and are not subject to the host's visibility flags.
          */
         "Yalla.Application.Tabs.TabStaffView": {
+            adjustments: components["schemas"]["Yalla.Application.Tabs.TabAdjustmentView"][];
             /** Format: uuid */
             branchId: string;
             /** Format: date-time */
@@ -4805,9 +5598,14 @@ export interface components {
             diningTableId: string;
             /** Format: uuid */
             hostParticipantId?: string | null;
+            lines: components["schemas"]["Yalla.Application.Tabs.TabLineView"][];
+            /** Format: int64 */
+            maxSequence: number;
             /** Format: date-time */
             openedAtUtc: string;
             participants: components["schemas"]["Yalla.Application.Tabs.TabParticipantView"][];
+            /** Format: double */
+            serviceChargePercent: number;
             /** @description How the people on a tab agreed to split the bill. */
             settlementMode: components["schemas"]["Yalla.Domain.Enums.SettlementMode"];
             settlementModeLocked: boolean;
@@ -4816,6 +5614,7 @@ export interface components {
             /** Format: uuid */
             tabId: string;
             tableLabel: string;
+            timeZoneId: string;
             /** @description The table aggregate, in whole dram. Server-computed; the client only displays it. */
             totals: components["schemas"]["Yalla.Application.Tabs.TabTotalsView"];
         };
@@ -4835,6 +5634,11 @@ export interface components {
         /** @description A tab as one participant is allowed to see it. */
         "Yalla.Application.Tabs.TabView": {
             /**
+             * @description Comps and discounts, with the reason the manager typed. Present for everyone, for the same
+             *     reason voided lines are: a total that drops with no visible cause makes people distrust the app.
+             */
+            adjustments: components["schemas"]["Yalla.Application.Tabs.TabAdjustmentView"][];
+            /**
              * Format: uuid
              * @description The branch.
              */
@@ -4851,6 +5655,12 @@ export interface components {
              * @description Who hosts. Null only on a tab built by hand with no host.
              */
             hostParticipantId?: string | null;
+            /**
+             * Format: int64
+             * @description The tab's newest event position. On every tab response, so a client knows where it stands
+             *     without a second call to `/events` purely to ask.
+             */
+            maxSequence: number;
             /** @description The caller's own participant row, with every flag and whether they may order right now. */
             me: components["schemas"]["Yalla.Application.Tabs.TabParticipantView"];
             /**
@@ -4872,6 +5682,14 @@ export interface components {
              *     themself while they are pending, because a pending joiner may see their own state and nothing else.
              */
             participants: components["schemas"]["Yalla.Application.Tabs.TabParticipantSummary"][];
+            /**
+             * Format: double
+             * @description The branch's service charge as it stood when this tab opened, snapshotted onto the tab.
+             *     <b>Present for everyone</b>, including a guest whose host has hidden the total: the percentage
+             *     is a fact about the venue rather than an aggregate, and the bill has to state it from the first
+             *     item. It was manager-only, sitting on the reservation policy behind `ManagerOrAbove`.
+             */
+            serviceChargePercent: number;
             /** @description How the people on a tab agreed to split the bill. */
             settlementMode: components["schemas"]["Yalla.Domain.Enums.SettlementMode"];
             /** @description True once a payment has landed; the split can no longer change. */
@@ -4885,12 +5703,19 @@ export interface components {
             tabId: string;
             /** @description The table as printed on the floor, e.g. 7 or T12. */
             tableLabel: string;
-            /** @description Every live line on the tab with who placed it. Absent when the total is hidden. */
+            /** @description Every line on the tab with who placed it, voided ones included. Absent when the total is hidden. */
             tableLines?: components["schemas"]["Yalla.Application.Tabs.TabLineView"][] | null;
             /** @description The table aggregate. <b>Absent</b> when not visible - never zero, never null-as-free. */
             tableTotal?: components["schemas"]["Yalla.Application.Tabs.TabTotalsView"] | null;
             /** @description Whether the two members below are present. */
             tableTotalVisible: boolean;
+            /**
+             * @description The branch's IANA zone, e.g. `Asia/Yerevan`. <b>Every time on this response is to be
+             *     rendered in it, never in the device's.</b> A tourist's phone is on the wrong zone, and a diner
+             *     who has just landed is the exact person least able to work out the offset - and without this the
+             *     client had to make a second call to a different endpoint to find out.
+             */
+            timeZoneId: string;
         };
         /**
          * Format: int32
@@ -4941,6 +5766,14 @@ export interface components {
          * @enum {integer}
          */
         "Yalla.Domain.Enums.PaymentStatus": 1 | 2 | 3 | 4;
+        /**
+         * Format: int32
+         * @description Where a booking was made from.
+         *
+         *     Values: 0 Unknown, 1 App, 2 Web, 3 Staff.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.ReservationChannel": 0 | 1 | 2 | 3;
         /**
          * Format: int32
          * @description Lifecycle of a booking. Every member is the result of somebody doing something.
@@ -7784,6 +8617,366 @@ export interface operations {
             };
         };
     };
+    getMenuReport: {
+        parameters: {
+            query: {
+                format?: string;
+                from: string;
+                rollUpVenue?: boolean;
+                to: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reports.MenuReport"];
+                };
+            };
+            /** @description The range is longer than a report will run; `context.max` says the limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getOccupancyReport: {
+        parameters: {
+            query: {
+                format?: string;
+                from: string;
+                rollUpVenue?: boolean;
+                to: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reports.OccupancyReport"];
+                };
+            };
+            /** @description The range is longer than a report will run; `context.max` says the limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getReservationReport: {
+        parameters: {
+            query: {
+                format?: string;
+                from: string;
+                rollUpVenue?: boolean;
+                to: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reports.ReservationReport"];
+                };
+            };
+            /** @description The range is longer than a report will run; `context.max` says the limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getRevenueReport: {
+        parameters: {
+            query: {
+                format?: string;
+                from: string;
+                rollUpVenue?: boolean;
+                to: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reports.RevenueReport"];
+                };
+            };
+            /** @description The range is longer than a report will run; `context.max` says the limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffReport: {
+        parameters: {
+            query: {
+                format?: string;
+                from: string;
+                rollUpVenue?: boolean;
+                to: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reports.StaffReport"];
+                };
+            };
+            /** @description The range is longer than a report will run; `context.max` says the limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getReservationPolicy: {
         parameters: {
             query?: never;
@@ -10100,6 +11293,380 @@ export interface operations {
             };
             /** @description No such venue. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicAvailability: {
+        parameters: {
+            query: {
+                date?: string;
+                partySize: number;
+                time?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.BranchAvailability"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or it is not published. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicMenu: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Menus.BranchMenuView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or it is not published. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicBranchMeta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBranchMeta"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or it is not published. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicBranch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchSlug: string;
+                venueSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBranchPage"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No branch is published at that pairing. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicVenues: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicVenueCard"][];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

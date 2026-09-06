@@ -16,9 +16,11 @@ export type { FloorGestures, FloorViewport, UseFloorGesturesOptions } from './ge
 export {
   computeFloorLayout,
   isTableSelectable,
+  scaleToClearHitRects,
   tapTargetFloorFor,
   estimateTextWidth,
   AREA_MODE_MAX_WIDTH_PX,
+  AUTO_SCALE_CAP,
   MAX_ZOOM,
   MIN_ZOOM,
   MIN_FONT_SIZE_PX,

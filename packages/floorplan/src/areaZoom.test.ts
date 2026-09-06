@@ -115,16 +115,20 @@ describe('areaFilter', () => {
       );
     }
 
-    // The bar does not, and that is a fact about the room rather than a bug.
-    // Eight stools at a 96-unit pitch across a 380pt phone draw 42px apart;
-    // the tap floor is 44. Area mode gets it to within 2px and zoom closes the
-    // rest — which is why both exist and neither alone is the answer.
+    /*
+     * The bar does not clear on the fit alone: eight stools at a 96-unit pitch
+     * across a 380pt phone draw 42px apart against a 44px floor. That used to
+     * be asserted here as `true` with a note that pinch-zoom was the remedy,
+     * which pinned the defect as the specification — a diner does not pinch a
+     * plan that looks fine, so in practice they mis-tapped.
+     *
+     * What is asserted now is that *area mode alone is not the whole answer for
+     * this room* — the fact the component needs — and, below, that the
+     * component therefore does not open it at the fit.
+     */
     expect(layout(restaurantFloorPlan, PHONE, { areaFilter: 'Bar' }).hasOverlappingHitRects).toBe(
       true,
     );
-    expect(
-      layout(restaurantFloorPlan, PHONE, { areaFilter: 'Bar', zoom: 1.1 }).hasOverlappingHitRects,
-    ).toBe(false);
   });
 
   it('yields an empty layout for an area with no tables, not a divide-by-zero', () => {

@@ -483,3 +483,68 @@ function findOverlap(tables: readonly LaidOutTable[]): boolean {
   }
   return false;
 }
+
+/**
+ * How far past fit-to-viewport an area may be opened to clear its tap targets.
+ *
+ * An area that needs more than this is not a scaling problem. Two-tops at a
+ * 60cm pitch in a room drawn to scale are physically closer together than a
+ * fingertip, and opening at 3x would show four tables of a ten-table area with
+ * the rest off screen — trading a mis-tap for a room the diner cannot find. At
+ * the cap the honest behaviour is to open as far in as the cap allows and leave
+ * the remainder to the pinch that already works.
+ */
+export const AUTO_SCALE_CAP = 2;
+
+/** Zoom steps finer than this are not worth another layout pass. */
+const AUTO_SCALE_TOLERANCE = 0.01;
+
+/**
+ * The smallest zoom at which no two tappable hit rects collide, or the cap.
+ *
+ * The component already asks {@link computeFloorLayout} whether hit rects
+ * overlap at the fit. This asks the next question — *at what scale do they stop*
+ * — so an area whose fitted layout puts 41px between adjacent centres against a
+ * 44px floor opens at 1.08x instead of opening broken and waiting for a pinch
+ * that nobody performs on a room that looks fine.
+ *
+ * Monotone, which is what makes a bisection sound here: separation between two
+ * centres grows linearly with scale while the tap floor does not grow at all,
+ * so a pair that has cleared cannot collide again further in. The search
+ * therefore converges on the single crossing point rather than one of several.
+ *
+ * @returns {@link MIN_ZOOM} when the fitted layout is already clean — the
+ * common case, and the one that must cost nothing — and never more than `cap`.
+ * A layout that still collides *at* the cap also returns the cap: opening there
+ * is strictly better than opening at the fit, and the caller is not asked to
+ * tell the two apart.
+ */
+export function scaleToClearHitRects(
+  input: ComputeFloorLayoutInput,
+  options: { readonly cap?: number } = {},
+): number {
+  const cap = Math.min(options.cap ?? AUTO_SCALE_CAP, MAX_ZOOM);
+  if (cap <= MIN_ZOOM) return MIN_ZOOM;
+
+  const collidesAt = (zoom: number): boolean =>
+    computeFloorLayout({ ...input, zoom }).hasOverlappingHitRects;
+
+  // The overwhelmingly common case: the room fits and nothing is asked of it.
+  if (!collidesAt(MIN_ZOOM)) return MIN_ZOOM;
+
+  // Still broken as far in as we are willing to go. Open at the cap anyway —
+  // it is closer to usable than the fit, and pan reaches the rest.
+  if (collidesAt(cap)) return cap;
+
+  let low = MIN_ZOOM; // known to collide
+  let high = cap; // known to be clear
+  while (high - low > AUTO_SCALE_TOLERANCE) {
+    const mid = (low + high) / 2;
+    if (collidesAt(mid)) low = mid;
+    else high = mid;
+  }
+
+  // The clear end of the bracket, so the returned scale is one the caller can
+  // use directly rather than one that is a rounding error short of working.
+  return high;
+}

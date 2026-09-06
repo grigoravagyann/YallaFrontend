@@ -35,6 +35,19 @@ import type { PublicPageMeta } from '@yalla/api';
 /** The tags this module owns, so a repeat call replaces rather than accumulates. */
 const MANAGED = 'data-yalla-meta';
 
+/**
+ * The generated brand card, used when a branch has no cover photo of its own.
+ *
+ * Root-relative, and that is safe here in a way it would not be in the static
+ * shell: `applyPageMeta` resolves it against the page's own canonical URL
+ * below, so what reaches the tag is always absolute. A venue *with* a cover
+ * photo still gets its own picture — a real photograph of the room beats a logo
+ * every time, and this is only the floor under that.
+ *
+ * Built by `scripts/generate-og-card.mjs`.
+ */
+const BRAND_CARD = '/og-card.png';
+
 function setTag(attribute: 'property' | 'name', key: string, content: string): void {
   const existing = document.head.querySelector(`meta[${attribute}="${key}"]`);
   const tag = existing instanceof HTMLMetaElement ? existing : document.createElement('meta');
@@ -74,17 +87,18 @@ export function applyPageMeta(meta: PublicPageMeta): void {
   setTag('property', 'og:description', meta.description);
   setTag('property', 'og:url', meta.canonicalUrl);
   setTag('property', 'og:locale', OG_LOCALE[meta.locale] ?? 'hy_AM');
-  setTag('name', 'twitter:card', meta.imageUrl ? 'summary_large_image' : 'summary');
+  // Always a large card now: there is always an image, because a branch with no
+  // cover photo falls back to the brand one rather than to nothing.
+  setTag('name', 'twitter:card', 'summary_large_image');
   setTag('name', 'twitter:title', meta.title);
   setTag('name', 'twitter:description', meta.description);
 
-  if (meta.imageUrl) {
-    // Relative image URLs are dropped by every unfurler, so make it absolute
-    // against the page it belongs to rather than hoping.
-    const absolute = new URL(meta.imageUrl, meta.canonicalUrl).toString();
-    setTag('property', 'og:image', absolute);
-    setTag('name', 'twitter:image', absolute);
-  }
+  // Relative image URLs are dropped by every unfurler, so make it absolute
+  // against the page it belongs to rather than hoping.
+  const absolute = new URL(meta.imageUrl ?? BRAND_CARD, meta.canonicalUrl).toString();
+  setTag('property', 'og:image', absolute);
+  setTag('name', 'twitter:image', absolute);
+  setTag('property', 'og:image:alt', meta.imageUrl ? meta.title : meta.siteName);
 
   setCanonical(meta.canonicalUrl);
 }
