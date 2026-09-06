@@ -39,48 +39,42 @@ function bundleFiles(): readonly string[] {
     .filter((path) => statSync(path).isFile());
 }
 
-/** The newest mtime under a directory, recursively. `0` when it does not exist. */
-function newestMtime(root: string): number {
-  if (!existsSync(root)) return 0;
-  let newest = 0;
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    const path = join(root, entry.name);
-    if (entry.isDirectory()) newest = Math.max(newest, newestMtime(path));
-    else newest = Math.max(newest, statSync(path).mtimeMs);
-  }
-  return newest;
-}
-
 /**
- * Build if there is nothing to read, **or if what is there is stale**.
+ * The bundle these tests read is built **by these tests, every run**.
  *
- * Deliberately not a skip, and deliberately not "exists is good enough". A test
- * that quietly passes because the artefact it is about is missing is the same
- * category of mistake as the four defects the regression suite was written
- * for — and one that passes against last week's bundle is worse, because it
- * looks like it checked something. So the sources are compared against the
- * output and a stale bundle is rebuilt.
+ * Two earlier versions got this wrong in the same direction, and the direction
+ * is the point. The first built only when `dist/` was missing, so a stale
+ * bundle passed and looked like it had checked something. The second compared
+ * source mtimes against output mtimes — a better guess, still a guess, and
+ * blind to the thing that actually broke it: a build is a function of its
+ * *environment* as well as its sources, and the assertions below are partly
+ * about which variables were set when it ran. No mtime can see that.
+ *
+ * So there is no reuse and no heuristic left to be wrong. One build, launched
+ * here, with the variables the assertions name pinned rather than inherited.
+ * It costs a few seconds and it removes the whole category.
  */
 beforeAll(() => {
-  const built = newestMtime(join(DIST, 'assets'));
-  const sources = Math.max(
-    newestMtime(join(WEB_ROOT, 'src')),
-    newestMtime(join(WEB_ROOT, 'public')),
-    newestMtime(join(WEB_ROOT, '..', '..', 'packages')),
-  );
-
-  if (built > 0 && built >= sources) return;
-
   execSync('pnpm --filter @yalla/web build', {
     cwd: resolve(WEB_ROOT, '..', '..'),
     stdio: 'inherit',
-    // `NODE_ENV` has to be forced. Vitest sets it to `test`, a child process
-    // inherits it, and `@vitejs/plugin-react` picks its JSX runtime from it —
-    // so a build launched from here without this produces `jsxDEV` calls and a
-    // truthy `import.meta.env.DEV`, and every dev affordance this test exists
-    // to find survives into the output. The first run of this rebuild found
-    // exactly that, which is the test working rather than a regression.
-    env: { ...process.env, NODE_ENV: 'production' },
+    env: {
+      ...process.env,
+      // `NODE_ENV` has to be forced. Vitest sets it to `test`, a child process
+      // inherits it, and `@vitejs/plugin-react` picks its JSX runtime from it —
+      // so a build launched from here without this produces `jsxDEV` calls and a
+      // truthy `import.meta.env.DEV`, and every dev affordance this test exists
+      // to find survives into the output. The first run of this rebuild found
+      // exactly that, which is the test working rather than a regression.
+      NODE_ENV: 'production',
+      // The variable the "baked in" assertion below is about, pinned so that
+      // the assertion is about the code rather than about the machine. A
+      // developer with `mock` in their `.env`, a developer with no `.env` at
+      // all and a CI runner with an empty environment must all produce the
+      // same bundle here. A value passed in the environment wins over a `.env`
+      // entry, which is what makes the pin effective.
+      VITE_DATA_SOURCE: 'real',
+    },
   });
 }, 600_000);
 
@@ -120,6 +114,13 @@ describe('the production bundle', () => {
     // Vite inlined**, not as something read at runtime — `{…,VITE_DATA_SOURCE:
     // "real"}.VITE_DATA_SOURCE`. There is therefore no switch: choosing the mock
     // is a rebuild, not a query string or a stored setting.
+    //
+    // The value comes from the pin in `beforeAll`, not from the machine. Left
+    // to the environment this asserted that somebody had exported the variable
+    // before running the tests: it passed on a laptop because a `.env` file
+    // happened to be there, and failed on a runner where the key was simply
+    // absent from the inlined object — a property of the environment wearing
+    // the costume of a property of the build.
     //
     // Note what this deliberately does *not* claim. `createStaffMockGateway` is
     // still **in** the bundle: `resolveStaffGateway` imports both

@@ -45,7 +45,7 @@ export async function bootstrapPublic(container: HTMLElement): Promise<void> {
     <StrictMode>
       <I18nextProvider i18n={i18next}>
         <QueryClientProvider client={queryClient}>
-          <GatewayProvider gateway={dinerGateway} publicGateway={publicGateway}>
+          <GatewayProvider gateway={dinerGateway()} publicGateway={publicGateway()}>
             <BrowserRouter>
               <PublicApp />
             </BrowserRouter>

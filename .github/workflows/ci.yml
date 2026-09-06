@@ -9,6 +9,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The contract job below is the reason this is here: it needs credentials a
+  # fork's pull request does not get, so when it cannot run automatically it
+  # still has to be runnable deliberately.
+  workflow_dispatch:
 
 # A second push to the same branch makes the first run pointless. Cancelling it
 # is what keeps the queue short enough that people actually wait for it.
@@ -25,8 +29,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # Stated here rather than left to a `.env` file, which is gitignored and so
+    # does not exist on a runner. The web app's config resolves this at first
+    # use and throws with the variable's name when it is missing — correct
+    # behaviour, and a confusing way to find out that CI simply has no
+    # environment. The value is a placeholder: nothing in this job reaches a
+    # backend, and every test that touches data uses the in-memory mock.
+    env:
+      VITE_API_URL: http://localhost:5086
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # pnpm before Node, because `setup-node`'s pnpm cache needs the binary to
       # exist in order to ask it where the store is.
@@ -34,10 +47,10 @@ jobs:
       # The version is not pinned here: `packageManager` in package.json pins it
       # to 11.25.0, and a second copy of that number is a second thing to forget.
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # From .nvmrc, so a developer's shell and CI cannot drift.
           node-version-file: .nvmrc
@@ -67,15 +80,60 @@ jobs:
       - name: Translation parity
         run: pnpm i18n:check
 
-      # Before the tests, not after: `apps/web/src/productionBundle.test.ts`
-      # greps the built output and builds it itself if `dist/` is missing. Doing
-      # the build as its own named step means a broken build reads as a broken
-      # build rather than as a mysterious test failure, and the test reuses it.
+      # Before the tests, and no longer *for* them.
+      #
+      # `apps/web/src/productionBundle.test.ts` builds its own bundle now, with
+      # the variables it asserts about pinned, because reusing whatever happened
+      # to be in `dist/` made the test a statement about the environment that
+      # built it. This step is kept anyway and kept first: it costs seconds, and
+      # a broken build reading as a broken build rather than as a mysterious
+      # test failure is worth those seconds.
       - name: Build the web console
         run: pnpm build:web
 
       - name: Test
         run: pnpm test
+
+  # Can the contract suite run on this trigger at all?
+  #
+  # Its own job because the `secrets` context is not available in a job-level
+  # `if`, only inside a step — so answering the question needs a step, and
+  # gating on the answer needs the job below to depend on this one.
+  #
+  # The alternative was leaving `contract` to fail at the backend checkout with
+  # "Input required and not supplied: token" on every push from anyone without
+  # the credentials, including every fork. A job that is always red is a job
+  # everybody learns to scroll past, and it takes the rest of the workflow's
+  # credibility with it.
+  contract-preflight:
+    name: is a live contract run configured?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      configured: ${{ steps.secrets.outputs.configured }}
+    steps:
+      - name: Look for the credentials the contract run needs
+        id: secrets
+        env:
+          BACKEND_REPO_TOKEN: ${{ secrets.BACKEND_REPO_TOKEN }}
+          CONTRACT_VENUE_EMAIL: ${{ secrets.CONTRACT_VENUE_EMAIL }}
+          CONTRACT_VENUE_PASSWORD: ${{ secrets.CONTRACT_VENUE_PASSWORD }}
+          CONTRACT_JWT_KEY: ${{ secrets.CONTRACT_JWT_KEY }}
+        run: |
+          missing=()
+          for name in BACKEND_REPO_TOKEN CONTRACT_VENUE_EMAIL CONTRACT_VENUE_PASSWORD CONTRACT_JWT_KEY; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo 'configured=false' >> "$GITHUB_OUTPUT"
+          # A notice rather than a warning: on a fork's pull request this is the
+          # expected state, not a problem with the change under test.
+          echo "::notice title=Contract suite skipped::Missing ${missing[*]}. The mock adapter is still checked by the build job; the live half needs these secrets and a backend, and can be run from the Actions tab once they are set."
 
   # The half of the contract suite that makes the other half mean anything.
   #
@@ -93,6 +151,10 @@ jobs:
     name: contract suite against a live backend
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: contract-preflight
+    # Skipped, not failed, when the credentials are not here. The suite is
+    # exactly as valuable as before on the repository that has them.
+    if: needs.contract-preflight.outputs.configured == 'true'
 
     services:
       # The backend's own dependency. `sqlcmd` is not needed: the API migrates
@@ -111,20 +173,20 @@ jobs:
           --health-retries 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The backend lives in its own repository. Checked out beside this one and
       # run from source rather than from a published image, so the contract runs
       # against the branch that is actually shipping.
       - name: Check out the backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: grigoravagyann/Yalla
           ref: master
           path: backend
           token: ${{ secrets.BACKEND_REPO_TOKEN }}
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -154,10 +216,10 @@ jobs:
           exit 1
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm

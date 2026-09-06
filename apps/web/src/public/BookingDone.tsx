@@ -38,6 +38,9 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
   const { locale } = useLocale();
   const [copied, setCopied] = useState(false);
 
+  /* Resolved here rather than at import: see `gateways.ts`. */
+  const installUrl = appUrl();
+
   const pending = booking.status === 'pendingApproval';
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
     booking.slotUtc,
@@ -186,13 +189,13 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
         entirely when `VITE_APP_URL` is unset, because an app-store badge for an
         app that is not published is a dead end with a logo on it.
       */}
-      {appUrl ? (
+      {installUrl ? (
         <section className="pub-offer pub-offer-quiet">
           <h4>{t('done.getApp')}</h4>
           <p className="pub-muted">{t('done.getAppBody')}</p>
           <a
             className="pub-button pub-button-quiet"
-            href={appUrl}
+            href={installUrl}
             target="_blank"
             rel="noreferrer noopener"
           >
