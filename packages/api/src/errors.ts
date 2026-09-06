@@ -122,10 +122,23 @@ export class ValidationError extends ApiError {
   /** Field name to messages, as the backend reports them. */
   readonly errors: Readonly<Record<string, readonly string[]>>;
 
+  /**
+   * The single field the backend blamed, when it named one.
+   *
+   * This API answers a bad field with `context: { field: 'slug' }` and a
+   * sentence in `detail`, not with the ModelState `errors` bag that
+   * {@link errors} reads — so that bag is empty for every 400 it raises and a
+   * screen reading only it can say nothing more useful than "that failed".
+   * `message` already carries `detail`; this carries the pointer.
+   */
+  readonly field: string | null;
+
   constructor(options: ErrorOptions) {
     super('The request was rejected as invalid.', options);
     this.name = 'ValidationError';
     this.errors = options.problem?.errors ?? {};
+    const named = (options.problem?.context as { field?: unknown } | undefined)?.field;
+    this.field = typeof named === 'string' && named.length > 0 ? named : null;
   }
 }
 

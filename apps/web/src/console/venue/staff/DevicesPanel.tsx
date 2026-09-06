@@ -154,7 +154,7 @@ export function DevicesPanel({ branchId, timeZoneId, locale }: DevicesPanelProps
                 className="button button-ghost"
                 onClick={() => setConfirming(null)}
               >
-                {t('cancel')}
+                {t('common:action.cancel')}
               </button>
             </div>
           </div>

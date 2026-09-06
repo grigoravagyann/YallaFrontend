@@ -1,9 +1,17 @@
-import { VenueHasOpenTabsError, type BlockingTab } from '@yalla/api';
+import {
+  StaffPermissionError,
+  VenueHasOpenTabsError,
+  type BlockingTab,
+  type CreateStaffInput,
+} from '@yalla/api';
+import { useCreateStaff, useStaff } from '@yalla/api/react';
 import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { newCommandId } from '../../lib/commandId';
+import { PinDialog } from '../venue/staff/PinDialog';
+import { StaffForm } from '../venue/staff/StaffForm';
 import {
   useConsoleVenue,
   useDeleteVenue,
@@ -28,6 +36,15 @@ export function VenueDetailRoute() {
   const { venueId } = useParams<{ venueId: string }>();
 
   const { data: venue, isLoading } = useConsoleVenue(venueId);
+  /*
+   * Staff come from a venue-scoped endpoint this screen used not to call, so
+   * the card rendered "not available from the backend yet" over a backend that
+   * has served `/api/venues/{id}/staff` all along. A platform admin has no
+   * venue of their own, so this page is the only place they can give a new
+   * venue its first owner.
+   */
+  const staff = useStaff(venueId);
+  const createStaff = useCreateStaff(venueId ?? '');
   const suspend = useSuspendVenue();
   const resume = useResumeVenue();
   const remove = useDeleteVenue();
@@ -36,6 +53,9 @@ export function VenueDetailRoute() {
   const [typed, setTyped] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<readonly BlockingTab[] | null>(null);
+  const [hiring, setHiring] = useState(false);
+  const [refusal, setRefusal] = useState<StaffPermissionError | null>(null);
+  const [shownPin, setShownPin] = useState<{ name: string; pin: string } | null>(null);
 
   if (isLoading) return <p className="muted">{t('loading')}</p>;
   if (!venue) return <p className="error">{t('venue.notFound')}</p>;
@@ -130,19 +150,69 @@ export function VenueDetailRoute() {
       </div>
 
       <div className="card">
-        <h2>{t('venue.staff')}</h2>
-        {/* `null` is "not loaded", which must not render as "nobody has been
-            added yet" — the backend serves staff from a venue-scoped endpoint
-            this screen does not call. */}
-        {venue.staff === null ? (
-          <p className="muted">{t('state.notAvailable')}</p>
-        ) : venue.staff.length === 0 ? (
+        <header className="card-header">
+          <h2>{t('venue.staff')}</h2>
+          <button type="button" className="button" onClick={() => setHiring(true)}>
+            {t('staff.add')}
+          </button>
+        </header>
+
+        {hiring ? (
+          <StaffForm
+            actorRole="platformAdmin"
+            // A platform admin belongs to no branch, so they may place the new
+            // person anywhere in the venue — including across all of it.
+            fixedBranchId={null}
+            branches={venue.branches}
+            editing={null}
+            refusal={refusal}
+            isSaving={createStaff.isPending}
+            onCancel={() => {
+              setHiring(false);
+              setRefusal(null);
+            }}
+            onCreate={async (input: CreateStaffInput) => {
+              setRefusal(null);
+              try {
+                const created = await createStaff.mutateAsync(input);
+                setHiring(false);
+                // The single moment the PIN is on a screen, same as the venue
+                // staff screen: it came from the form and goes no further.
+                setShownPin({ name: created.fullName, pin: input.pin });
+              } catch (error) {
+                if (error instanceof StaffPermissionError) setRefusal(error);
+                else throw error;
+              }
+            }}
+            onUpdate={async () => {
+              // Editing happens on the venue's own staff screen; this card only
+              // hires, because the first owner is the thing a platform admin
+              // cannot do anywhere else.
+            }}
+          />
+        ) : null}
+
+        {shownPin ? (
+          <PinDialog
+            name={shownPin.name}
+            pin={shownPin.pin}
+            // Dropped from state entirely, same as the venue staff screen.
+            // There is nowhere else it lives.
+            onClose={() => setShownPin(null)}
+          />
+        ) : null}
+
+        {staff.isLoading ? (
+          <p className="muted">{t('loading')}</p>
+        ) : staff.isError ? (
+          <p className="error">{t('venue.staffFailed')}</p>
+        ) : (staff.data?.length ?? 0) === 0 ? (
           <p className="muted">{t('venue.noStaff')}</p>
         ) : (
           <ul className="rows">
-            {venue.staff.map((member) => (
+            {staff.data?.map((member) => (
               <li key={member.id} className="row">
-                <div className="row-title">{member.displayName}</div>
+                <div className="row-title">{member.fullName}</div>
                 <span className="muted small">{t(`role.${member.role}`)}</span>
               </li>
             ))}

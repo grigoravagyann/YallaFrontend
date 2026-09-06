@@ -1,4 +1,4 @@
-import { SlugTakenError, type VenueType } from '@yalla/api';
+import { SlugTakenError, ValidationError, slugify, type VenueType } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -7,14 +7,6 @@ import { newCommandId } from '../../lib/commandId';
 
 /** Every venue in the pilot is in Yerevan; the field exists so the second is not a migration. */
 const TIME_ZONES = ['Asia/Yerevan'] as const;
-
-function slugify(name: string): string {
-  return name
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/gu, '-')
-    .replace(/^-+|-+$/gu, '');
-}
 
 /**
  * Create a venue and its first branch — one flow, not two.
@@ -35,6 +27,11 @@ export function CreateVenueRoute() {
   const [type, setType] = useState<VenueType>('cafe');
   const [branchName, setBranchName] = useState('');
   const [timeZoneId, setTimeZoneId] = useState<string>(TIME_ZONES[0]);
+  const [branchSlug, setBranchSlug] = useState('');
+  const [branchSlugEdited, setBranchSlugEdited] = useState(false);
+  const [address, setAddress] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -44,6 +41,14 @@ export function CreateVenueRoute() {
   const commandId = useRef(newCommandId()).current;
 
   const effectiveSlug = slugEdited ? slug : slugify(name);
+  /*
+   * The branch needs its own, and it cannot be silently derived: `slugify`
+   * strips everything outside a-z0-9, so "Կոնդ" and "Кафе" both come out empty
+   * and the server answers 400 on a field the form never showed. In an Armenian
+   * market that is the common name, not an edge case — so the branch gets the
+   * same editable web address the venue has.
+   */
+  const effectiveBranchSlug = branchSlugEdited ? branchSlug : slugify(branchName);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -52,6 +57,23 @@ export function CreateVenueRoute() {
     if (!name.trim()) return setError(t('create.error.nameRequired'));
     if (!effectiveSlug) return setError(t('create.error.slugRequired'));
     if (!branchName.trim()) return setError(t('create.error.branchRequired'));
+    if (!effectiveBranchSlug) return setError(t('create.error.branchSlugRequired'));
+    if (!address.trim()) return setError(t('create.error.addressRequired'));
+
+    /*
+     * The backend takes these as non-nullable doubles, so a blank field would
+     * arrive as 0,0 — a point in the Atlantic that renders as a valid map pin.
+     * Refusing here is the difference between "you missed a field" and a venue
+     * whose "Open in maps" link sends a diner to Null Island.
+     */
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!latitude.trim() || !longitude.trim() || Number.isNaN(lat) || Number.isNaN(lon)) {
+      return setError(t('create.error.pinRequired'));
+    }
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return setError(t('create.error.pinRange'));
+    }
 
     try {
       const venue = await createVenue.mutateAsync({
@@ -59,16 +81,31 @@ export function CreateVenueRoute() {
         name: name.trim(),
         slug: effectiveSlug,
         type,
-        firstBranch: { name: branchName.trim(), timeZoneId },
+        firstBranch: {
+          name: branchName.trim(),
+          slug: effectiveBranchSlug,
+          timeZoneId,
+          address: address.trim(),
+          latitude: lat,
+          longitude: lon,
+        },
       });
       navigate(`/platform/venues/${venue.id}`, { replace: true });
     } catch (caught) {
       // Names the field at fault rather than reporting a generic failure at the
       // bottom of a form the person then has to re-read.
+      /*
+       * The backend names the field it refused (`context.field`) and puts a
+       * sentence in `detail`. Dropping both for a flat "we could not create
+       * that" is how a wrong payload stayed invisible: the server had been
+       * saying "slug" on every attempt and nothing showed it.
+       */
       setError(
         caught instanceof SlugTakenError
           ? t('create.error.slugTaken', { slug: caught.slug })
-          : t('create.error.generic'),
+          : caught instanceof ValidationError && caught.field
+            ? t('create.error.field', { field: caught.field, detail: caught.message })
+            : t('create.error.generic'),
       );
     }
     return undefined;
@@ -141,6 +178,70 @@ export function CreateVenueRoute() {
               autoComplete="off"
             />
           </label>
+
+          <label className="labelled">
+            <span>{t('create.branchSlug')}</span>
+            <input
+              className="field"
+              value={effectiveBranchSlug}
+              onChange={(event) => {
+                setBranchSlugEdited(true);
+                setBranchSlug(slugify(event.target.value));
+              }}
+              placeholder={t('create.branchSlugPlaceholder')}
+              autoComplete="off"
+            />
+            <span className="muted small">
+              {t('create.branchSlugHint', {
+                venue: effectiveSlug || t('create.slugPlaceholder'),
+                branch: effectiveBranchSlug || t('create.branchSlugPlaceholder'),
+              })}
+            </span>
+          </label>
+
+          <label className="labelled">
+            <span>{t('create.address')}</span>
+            <input
+              className="field"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder={t('create.addressPlaceholder')}
+              autoComplete="off"
+            />
+          </label>
+
+          <div className="pair">
+            <label className="labelled">
+              <span>{t('create.latitude')}</span>
+              <input
+                className="field"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={-90}
+                max={90}
+                value={latitude}
+                onChange={(event) => setLatitude(event.target.value)}
+                placeholder="40.1830"
+              />
+            </label>
+
+            <label className="labelled">
+              <span>{t('create.longitude')}</span>
+              <input
+                className="field"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={-180}
+                max={180}
+                value={longitude}
+                onChange={(event) => setLongitude(event.target.value)}
+                placeholder="44.5150"
+              />
+            </label>
+          </div>
+          <p className="hint">{t('create.pinHint')}</p>
 
           <label className="labelled">
             <span>{t('create.timeZone')}</span>

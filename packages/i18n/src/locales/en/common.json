@@ -24,7 +24,10 @@
   "action": {
     "retry": "Try again",
     "cancel": "Cancel",
-    "close": "Close"
+    "close": "Close",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save"
   },
   "placeholder": {
     "comingSoon": "This screen is coming soon."

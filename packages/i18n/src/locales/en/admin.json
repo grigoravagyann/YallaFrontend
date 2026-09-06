@@ -95,7 +95,8 @@
       "unknown": "A table is still mid-service. The server did not say which."
     },
     "failed": "That did not go through. Nothing changed — try again.",
-    "working": "Working…"
+    "working": "Working…",
+    "staffFailed": "Could not load this venue’s staff. Try again."
   },
   "create": {
     "title": "Add a venue",
@@ -121,8 +122,21 @@
       "slugRequired": "Give it a web address.",
       "slugTaken": "\"{{slug}}\" is already in use. Pick another.",
       "branchRequired": "Name the first branch.",
-      "generic": "We could not create that. Nothing was saved."
-    }
+      "generic": "We could not create that. Nothing was saved.",
+      "addressRequired": "Give the branch a street address.",
+      "pinRequired": "Give the branch a map pin — both latitude and longitude.",
+      "pinRange": "That map pin is not a real place. Latitude is between -90 and 90, longitude between -180 and 180.",
+      "field": "The server refused the “{{field}}” field: {{detail}}",
+      "branchSlugRequired": "Give the branch a web address. A name written only in Armenian or Russian cannot become one on its own."
+    },
+    "address": "Street address",
+    "addressPlaceholder": "12 Abovyan Street, Yerevan",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "pinHint": "The map pin diners are sent to. Right-click the spot in Google Maps and copy the two numbers.",
+    "branchSlug": "Web address",
+    "branchSlugPlaceholder": "northern-avenue",
+    "branchSlugHint": "yalla.am/{{venue}}/{{branch}}"
   },
   "branchSwitcher": {
     "label": "Branch",

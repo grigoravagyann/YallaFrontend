@@ -14,7 +14,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "i18n:check": "node scripts/check-parity.mjs"
+    "i18n:check": "node scripts/check-parity.mjs && node scripts/check-used-keys.mjs"
   },
   "dependencies": {
     "i18next": "^26.4.2",

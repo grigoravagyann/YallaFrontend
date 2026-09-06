@@ -281,7 +281,7 @@ export function StaffScreen() {
                             setEditing(member);
                           }}
                         >
-                          {t('edit')}
+                          {t('common:action.edit')}
                         </button>
 
                         <button

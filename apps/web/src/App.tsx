@@ -33,6 +33,7 @@ import { usingMockData } from './data/gateway';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
 import { DevTokensRoute } from './routes/DevTokensRoute';
 import { StaffRoute } from './staff/StaffRoute';
+import { useDocumentLocale } from './useDocumentLocale';
 
 /**
  * The router, built from the role.
@@ -65,6 +66,8 @@ import { StaffRoute } from './staff/StaffRoute';
  * account living on a counter.
  */
 export function App() {
+  useDocumentLocale();
+
   return (
     <Routes>
       <Route path="/staff/*" element={<StaffRoute />} />

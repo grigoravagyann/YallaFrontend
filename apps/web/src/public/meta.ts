@@ -75,10 +75,21 @@ const OG_LOCALE: Readonly<Record<string, string>> = {
 
 export function applyPageMeta(meta: PublicPageMeta): void {
   document.title = meta.title;
-  // `lang` on the root element is not decoration: it decides hyphenation, the
-  // voice a screen reader uses, and whether a browser offers to translate the
-  // page. An Armenian menu announced in English is unintelligible.
-  document.documentElement.lang = meta.locale;
+  /*
+   * `<html lang>` is deliberately NOT set here any more, though it used to be.
+   *
+   * It matters for the same reason it always did — it decides hyphenation, the
+   * voice a screen reader uses, and whether a browser offers to translate the
+   * page, and an Armenian menu announced in English is unintelligible. But it
+   * has to follow the language the visitor is actually reading, and this call
+   * knows only the language the *backend* chose for the unfurl card. Those
+   * disagree the moment somebody uses the language switcher: the meta route
+   * answered `hy_AM` while the page was rendering in English.
+   *
+   * `useDocumentLocale` owns it now, on both surfaces, keyed to the live i18n
+   * locale. `og:locale` below still comes from the meta payload, which is the
+   * one place the backend's answer is the right one.
+   */
 
   setTag('name', 'description', meta.description);
   setTag('property', 'og:type', 'website');

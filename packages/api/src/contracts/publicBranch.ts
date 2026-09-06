@@ -73,7 +73,12 @@ export interface PublicBranchCard {
   readonly status: PublicBranchStatus;
   readonly openState: OpenState;
   readonly freeTables: number;
-  readonly totalTables: number;
+  /**
+   * Null when the source does not carry a denominator — the public venue list
+   * sends a free count per branch and no total. The chooser then says "7 tables
+   * free" rather than "7 of 0".
+   */
+  readonly totalTables: number | null;
   readonly timeZoneId: string;
 }
 
@@ -121,7 +126,12 @@ export interface PublicBranch {
   readonly totalTables: number;
   readonly asOfUtc: string;
 
-  readonly policy: BranchPolicy;
+  /**
+   * Null over HTTP: the four reservation numbers live on an authenticated
+   * console route, and this page is served with no token at all. The mock
+   * supplies them, so anything reading this must handle both.
+   */
+  readonly policy: BranchPolicy | null;
 
   /**
    * How far ahead this branch takes bookings.
@@ -133,7 +143,7 @@ export interface PublicBranch {
    * and pick a day in March that the server will refuse after they have chosen
    * a table.
    */
-  readonly bookingWindowDays: number;
+  readonly bookingWindowDays: number | null;
 
   /**
    * Whether this branch takes bookings from the web at all.

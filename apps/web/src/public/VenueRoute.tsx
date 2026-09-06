@@ -64,12 +64,17 @@ export function VenueRoute() {
                     <span className="pub-branch-card-name">{branch.name}</span>
                     <span className="pub-muted">{branch.addressLine}</span>
                     <span className="pub-branch-card-free">
-                      {branch.freeTables > 0
-                        ? t('branches.free', {
-                            free: branch.freeTables,
-                            total: branch.totalTables,
-                          })
-                        : t('page.fullyBooked')}
+                      {branch.freeTables === 0
+                        ? t('page.fullyBooked')
+                        : branch.totalTables === null
+                          ? // No denominator from this source; the count alone is
+                            // the honest sentence, and `page.freeNow` already
+                            // says it on the branch page.
+                            t('page.freeNow', { count: branch.freeTables })
+                          : t('branches.free', {
+                              free: branch.freeTables,
+                              total: branch.totalTables,
+                            })}
                     </span>
                     <OpenBadge
                       openState={branch.openState}

@@ -7,3 +7,8 @@ packages/api/src/generated
 
 # Written by packages/tokens/scripts/generate-css.mjs; formatting it by hand would only make the next run rewrite it.
 apps/web/src/tokens.generated.css
+
+# gstack's own working directory: QA reports, screenshots and its local state.
+# Gitignored, so CI never sees it — without this, `pnpm format:check` fails
+# locally for anyone with gstack installed while passing in CI.
+.gstack

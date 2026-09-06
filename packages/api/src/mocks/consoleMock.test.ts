@@ -119,7 +119,14 @@ describe('console mock — creating a venue', () => {
       name: 'Kond Bakery',
       slug: 'kond-bakery',
       type: 'cafe',
-      firstBranch: { name: 'Kond', timeZoneId: 'Asia/Yerevan' },
+      firstBranch: {
+        name: 'Kond',
+        slug: 'kond',
+        timeZoneId: 'Asia/Yerevan',
+        address: '3 Paronyan Street, Yerevan',
+        latitude: 40.1826,
+        longitude: 44.5035,
+      },
     });
 
     // A venue with no branch has no floor, no menu and no tables — it cannot be
@@ -137,7 +144,14 @@ describe('console mock — creating a venue', () => {
         name: 'Lumen Coffee Two',
         slug: 'lumen-coffee',
         type: 'cafe',
-        firstBranch: { name: 'Somewhere', timeZoneId: 'Asia/Yerevan' },
+        firstBranch: {
+          name: 'Somewhere',
+          slug: 'somewhere',
+          timeZoneId: 'Asia/Yerevan',
+          address: '1 Somewhere Street, Yerevan',
+          latitude: 40.1792,
+          longitude: 44.4991,
+        },
       })
       .then(() => null)
       .catch((error: unknown) => error);
