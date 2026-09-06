@@ -11,10 +11,25 @@
  * `common:action.save` reached the venue Overview, Menu and dish dialog — 27
  * visible key paths across two screens, with every parity check green.
  *
- * Only the explicit `namespace:key` form is checked. A bare `t('foo.bar')` leans
- * on whatever `defaultNS`/`ns` the calling component was set up with, which is
- * not knowable from a regex, and a computed key is not knowable at all. The
- * explicit form is unambiguous, and it is the form that broke.
+ * Two call forms are checked, and the bare one needs care.
+ *
+ * An explicit `t('common:action.save')` names its own namespace, so it is
+ * checked against exactly that bundle.
+ *
+ * A bare `t('save')` resolves against whatever the calling component passed to
+ * `useTranslation`, and a file holds several components — `PageStates.tsx` alone
+ * has four, three on `public` and one on `diner`. Tying each call to its own
+ * component means scope analysis, which a regex cannot do. So a bare key is
+ * accepted if **any** namespace the file mentions defines it. That is a
+ * deliberate over-approximation: it can miss a key that resolves only in a
+ * sibling component's namespace, and in exchange it never reports a key that
+ * really is fine. A check that cries wolf gets switched off.
+ *
+ * It still earns its keep — that rule is what catches `t('save')` in a file that
+ * only ever asks for `['admin', 'common']`, which is how a lowercase `save` and
+ * `cancel` ended up on the staff dialog's two buttons.
+ *
+ * A computed key is not knowable at all and is not checked.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -40,6 +55,17 @@ const PLURAL_RE = new RegExp(`_(${PLURAL_SUFFIXES.join('|')})$`, 'u');
  * `http`, and every URL in the repo becomes a missing key.
  */
 const CALL_RE = /(?<![A-Za-z0-9_$.])t\(\s*['"]([a-z][a-zA-Z0-9]*):([A-Za-z0-9_.]+)['"]/gu;
+
+/**
+ * `t('action.save')` — no namespace prefix. Closed with `)` on purpose: a call
+ * that goes on to options may carry a `defaultValue`, which renders fine with no
+ * key behind it and is not this check's business.
+ */
+const BARE_CALL_RE = /(?<![A-Za-z0-9_$.])t\(\s*'([a-zA-Z][A-Za-z0-9_.]*)'\s*\)/gu;
+
+/** The namespaces a file asks for: `useTranslation('public')`, `useTranslation(['admin', 'common'])`. */
+const USE_TRANSLATION_RE = /useTranslation\(\s*(\[[^\]]*\]|'[a-z]+')/gu;
+const QUOTED_NAME_RE = /'([a-z]+)'/gu;
 
 /** Flatten to dotted leaf paths, mirroring check-parity.mjs. */
 function leafKeys(value, prefix = '') {
@@ -92,17 +118,46 @@ const defined = new Map(
 /** `namespace:key` -> ["path:line", …], so one bad key reports every call site. */
 const used = new Map();
 
+/** Bare keys, already resolved against their file's namespaces: one entry per unresolved site. */
+const unresolvedBare = [];
+
+let bareCount = 0;
+
 for (const root of SOURCE_ROOTS) {
   const absolute = join(REPO_ROOT, root);
   for (const file of sourceFiles(absolute)) {
     const source = readFileSync(file, 'utf8');
+    const at = (index) =>
+      `${relative(REPO_ROOT, file).replaceAll('\\', '/')}:${source.slice(0, index).split('\n').length}`;
+
     for (const match of source.matchAll(CALL_RE)) {
       const reference = `${match[1]}:${match[2]}`;
-      const line = source.slice(0, match.index).split('\n').length;
-      const where = `${relative(REPO_ROOT, file).replaceAll('\\', '/')}:${line}`;
       const sites = used.get(reference);
-      if (sites) sites.push(where);
-      else used.set(reference, [where]);
+      if (sites) sites.push(at(match.index));
+      else used.set(reference, [at(match.index)]);
+    }
+
+    // Every namespace this file asks for, pooled — see the header on why the
+    // pool is per file rather than per component.
+    const pooled = new Set(
+      [...source.matchAll(USE_TRANSLATION_RE)].flatMap((match) =>
+        [...match[1].matchAll(QUOTED_NAME_RE)].map((name) => name[1]),
+      ),
+    );
+    if (pooled.size === 0) continue;
+
+    for (const match of source.matchAll(BARE_CALL_RE)) {
+      bareCount += 1;
+      const key = match[1];
+      const resolves = [...pooled].some((namespace) => {
+        const keys = defined.get(namespace);
+        return keys?.has(key) || keys?.has(baseKey(key));
+      });
+      if (resolves) continue;
+      unresolvedBare.push(
+        `"${key}" is used but defined in none of [${[...pooled].sort().join(', ')}]\n` +
+          `    ${at(match.index)}`,
+      );
     }
   }
 }
@@ -126,6 +181,8 @@ for (const [reference, sites] of [...used].sort(([a], [b]) => a.localeCompare(b)
   }
 }
 
+problems.push(...unresolvedBare.sort());
+
 if (problems.length > 0) {
   console.error('i18n:used-keys failed:\n');
   for (const problem of problems) console.error(`  - ${problem}`);
@@ -134,6 +191,6 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `i18n:used-keys passed — ${used.size} explicit t('ns:key') references across ` +
-    `${SOURCE_ROOTS.join(', ')} all resolve against ${REFERENCE}.`,
+  `i18n:used-keys passed — ${used.size} explicit and ${bareCount} bare t() references ` +
+    `across ${SOURCE_ROOTS.join(', ')} all resolve against ${REFERENCE}.`,
 );
