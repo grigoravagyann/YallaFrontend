@@ -95,7 +95,8 @@
       "unknown": "A table is still mid-service. The server did not say which."
     },
     "failed": "That did not go through. Nothing changed — try again.",
-    "working": "Working…"
+    "working": "Working…",
+    "staffFailed": "Could not load this venue’s staff. Try again."
   },
   "create": {
     "title": "Add a venue",

@@ -110,13 +110,25 @@ export interface EnrolmentCode {
  * the server will refuse, and being refused something you were offered reads as
  * a broken product rather than as a rule.
  *
- * `platformAdmin` is absent from every list on purpose. A platform admin has no
- * venue and no branch, so creating one from inside a venue's staff screen is a
- * category error; if they are creatable at all it belongs under `/platform`.
+ * `platformAdmin` is absent from every list on purpose — as a role that can be
+ * *assigned*. A platform admin has no venue and no branch, so creating one from
+ * inside a venue's staff screen is a category error; if they are creatable at
+ * all it belongs under `/platform`. That is separate from what a platform admin
+ * may assign to others, which is everything below them, owner included.
  */
 export function assignableRoles(actor: StaffRole | 'platformAdmin'): readonly StaffRole[] {
   switch (actor) {
+    /*
+     * Owner included, and only here. The rule is "nobody creates at or above
+     * their own rank", and a platform admin outranks an owner — they run the
+     * platform and belong to no venue. They are also the only actor who *can*
+     * give a venue its first owner: an owner cannot create another owner, and
+     * a brand new venue has nobody in it, so leaving this list at `manager`
+     * meant a venue could be created and then never handed to anybody. The
+     * server already allows it; this list was the stricter of the two.
+     */
     case 'platformAdmin':
+      return ['owner', 'manager', 'waiter', 'kitchen'];
     case 'owner':
       return ['manager', 'waiter', 'kitchen'];
     case 'manager':
