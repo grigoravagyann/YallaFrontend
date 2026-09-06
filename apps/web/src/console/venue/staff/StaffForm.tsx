@@ -252,10 +252,10 @@ export function StaffForm({
 
       <div className="actions">
         <button type="submit" className="button button-primary" disabled={isSaving}>
-          {isSaving ? t('saving') : editing ? t('save') : t('staff.form.create')}
+          {isSaving ? t('saving') : editing ? t('common:action.save') : t('staff.form.create')}
         </button>
         <button type="button" className="button button-ghost" onClick={onCancel}>
-          {t('cancel')}
+          {t('common:action.cancel')}
         </button>
       </div>
     </form>
