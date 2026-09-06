@@ -1,0 +1,78 @@
+# Continuous integration for the Yalla frontend monorepo.
+#
+# Everything that can say "this is broken" without a phone, a tablet or a
+# backend. Five gates, and the one people are most tempted to drop is the one
+# that matters most in a three-language product — see `i18n:check` below.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run pointless. Cancelling it
+# is what keeps the queue short enough that people actually wait for it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: typecheck, test, lint, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm before Node, because `setup-node`'s pnpm cache needs the binary to
+      # exist in order to ask it where the store is.
+      #
+      # The version is not pinned here: `packageManager` in package.json pins it
+      # to 11.25.0, and a second copy of that number is a second thing to forget.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          # From .nvmrc, so a developer's shell and CI cannot drift.
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # `--frozen-lockfile` is the point of running this in CI at all: it fails
+      # when the lockfile does not match package.json, which is how a dependency
+      # someone added locally and never committed is caught here rather than by
+      # the next person's install.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Formatting
+        run: pnpm format:check
+
+      # Deliberately a build failure, not a warning.
+      #
+      # A key added in English and missing in Armenian ships an English string
+      # to a waiter who does not read it, and nobody notices until a shift.
+      # Parity is cheap to enforce and expensive to discover.
+      - name: Translation parity
+        run: pnpm i18n:check
+
+      # Before the tests, not after: `apps/web/src/productionBundle.test.ts`
+      # greps the built output and builds it itself if `dist/` is missing. Doing
+      # the build as its own named step means a broken build reads as a broken
+      # build rather than as a mysterious test failure, and the test reuses it.
+      - name: Build the web console
+        run: pnpm build:web
+
+      - name: Test
+        run: pnpm test

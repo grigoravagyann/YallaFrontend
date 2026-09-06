@@ -1,5 +1,7 @@
 # Yalla — frontend monorepo
 
+[![CI](https://github.com/grigoravagyann/YallaFrontend/actions/workflows/ci.yml/badge.svg)](https://github.com/grigoravagyann/YallaFrontend/actions/workflows/ci.yml)
+
 Table reservation and in-app ordering for restaurants and cafes, launching in
 Yerevan. **Two apps** share one set of packages:
 
@@ -710,6 +712,50 @@ never on each other except `api → format` and `floorplan → tokens`.
   to be handled by refetching and telling the user, never by a generic error.
 - **Connection state is rendered, not hidden.** A floor plan that looks live but
   is forty seconds stale is worse than one that says it's reconnecting.
+
+## Continuous integration
+
+`.github/workflows/ci.yml`, on every push to `main` and every pull request.
+Six gates, in the order that makes a failure quickest to read:
+
+| Gate                 | Command                              |
+| -------------------- | ------------------------------------ |
+| Lockfile and install | `pnpm install --frozen-lockfile`     |
+| Types                | `pnpm typecheck` (all nine projects) |
+| Lint                 | `pnpm lint`                          |
+| Formatting           | `pnpm format:check`                  |
+| Translation parity   | `pnpm i18n:check`                    |
+| Production build     | `pnpm build:web`                     |
+| Tests                | `pnpm test`                          |
+
+Three of those are worth saying why.
+
+**`--frozen-lockfile` is the reason to run install in CI at all.** It fails when
+the lockfile disagrees with `package.json`, which is how a dependency somebody
+added locally and never committed is caught here rather than by the next
+person's clean checkout.
+
+**`i18n:check` fails the build, deliberately.** A key added in English and
+missing in Armenian ships an English string to a waiter who does not read it,
+and nobody finds out until a shift. Parity is cheap to assert and expensive to
+discover; 1,073 keys across three locales is already past the point where
+review catches it.
+
+**The build runs before the tests, not after.** `apps/web/src/productionBundle.test.ts`
+greps the built output — asserting the dev flags and the role switcher are gone
+— and builds it itself if `dist/` is missing. Doing the build as its own named
+step means a broken build reads as a broken build rather than as a mysterious
+test failure, and the test then reuses the output.
+
+Node comes from `.nvmrc` and pnpm from `packageManager` in `package.json`, so
+neither version is written down twice. The pnpm store is cached on the lockfile.
+
+### Branch protection
+
+Not something a workflow file can do for itself. **Settings → Branches → Add
+rule** on `main`, with _Require status checks to pass before merging_ and the
+`typecheck, test, lint, build` check selected. Without it the workflow is
+advisory and a red run can still be merged, which is most of the value gone.
 
 ## Running against the real backend
 
