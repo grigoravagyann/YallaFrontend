@@ -1,6 +1,5 @@
 import type { ConsoleUser } from '@yalla/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocale } from '@yalla/i18n';
 import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { onSignedOut } from './auth/authSession';
@@ -34,6 +33,7 @@ import { usingMockData } from './data/gateway';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
 import { DevTokensRoute } from './routes/DevTokensRoute';
 import { StaffRoute } from './staff/StaffRoute';
+import { useDocumentLocale } from './useDocumentLocale';
 
 /**
  * The router, built from the role.
@@ -74,25 +74,6 @@ export function App() {
       <Route path="*" element={<ConsoleApp />} />
     </Routes>
   );
-}
-
-/**
- * Keeps `<html lang>` on the locale the person is actually reading.
- *
- * `index.html` ships `lang="en"` and nothing here moved it, so the console and
- * the counter screen announced Armenian and Russian in an English voice — the
- * exact failure `applyPageMeta` already guards against on the public page. It
- * also decides hyphenation and whether the browser offers to translate.
- *
- * Both surfaces sit under this component, so one effect covers them; the public
- * page has its own router and keeps setting it in `applyPageMeta`.
- */
-function useDocumentLocale(): void {
-  const { locale } = useLocale();
-
-  useEffect(() => {
-    document.documentElement.lang = locale;
-  }, [locale]);
 }
 
 function ConsoleApp() {
