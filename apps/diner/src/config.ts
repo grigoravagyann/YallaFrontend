@@ -40,3 +40,21 @@ export const apiConfig: ApiConfig | null =
         example: 'http://192.168.1.42:5086',
       })
     : null;
+
+/**
+ * The EAS project id, for the Expo push token.
+ *
+ * Read from the app config rather than an env var: `expo-notifications` needs
+ * the same id EAS builds under, and having two sources for it is how a build
+ * ends up requesting a token for a project that will never send to it.
+ *
+ * `undefined` on a bare `expo start` with no EAS project, and that is a
+ * supported state: `currentPushToken` returns `null`, the opt-in card says the
+ * reminder will not arrive, and nothing else in the app changes. Push is the
+ * one feature that cannot be honestly simulated — a token nobody will send to
+ * looks exactly like a working one.
+ */
+export const projectId: string | undefined =
+  Constants.expoConfig?.extra?.['eas']?.['projectId'] ??
+  Constants.easConfig?.projectId ??
+  undefined;

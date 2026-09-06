@@ -11,7 +11,16 @@ import { useDevRole } from './auth/session';
 import { consoleGatewayFor, staffDataGateway, staffGateway } from './data/gateway';
 import { registerServiceWorker } from './offline/registerServiceWorker';
 
-const queryClient = createQueryClient();
+/**
+ * `'online'`: an offline write waits for the connection rather than failing.
+ *
+ * The counter tablet's own command queue owns retry, and the wifi in a basement
+ * drops for seconds at a time; failing a table transition the moment it does
+ * would put a warning in front of a waiter who is mid-service and whose action
+ * is about to succeed. A waiter is also standing in the room, which a diner is
+ * not — `apps/diner` sets the opposite for that reason.
+ */
+const queryClient = createQueryClient({ mutationNetworkMode: 'online' });
 
 /**
  * The data layer, as context.

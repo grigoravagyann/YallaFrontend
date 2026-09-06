@@ -10,6 +10,7 @@ import { createSequenceStream, type LiveStream } from '@yalla/realtime';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { applyTabEvents, liveMarkers, type ChangeMarker } from '../tab/events';
+import { createRefetchCoalescer } from '../tab/refetchQueue';
 
 /**
  * Ordering and the bill, as query hooks.
@@ -27,7 +28,27 @@ export const orderKeys = {
   menuDetail: (branchId: string) => ['menuDetail', branchId] as const,
   dinerTab: (tabId: string) => ['dinerTab', tabId] as const,
   shares: (tabId: string) => ['tabShares', tabId] as const,
+  branchZone: (branchId: string) => ['branchZone', branchId] as const,
 };
+
+/**
+ * The branch's zone.
+ *
+ * Its own query because no tab endpoint carries one — see
+ * `YallaGateway.getBranchTimeZone`. Cached as static: a branch does not move,
+ * and a second read of it on every tab render would be a request per screen for
+ * a string that never changes.
+ */
+export function useBranchTimeZone(branchId: string | undefined) {
+  const gateway = useGateway();
+  return useQuery({
+    queryKey: orderKeys.branchZone(branchId ?? ''),
+    queryFn: () => gateway.getBranchTimeZone(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.static,
+    gcTime: 24 * 60 * 60_000,
+  });
+}
 
 /**
  * The menu, cached for the session.
@@ -80,13 +101,10 @@ export function usePlaceOrder() {
   return useMutation({
     mutationFn: (command: PlaceOrderCommand) => gateway.placeOrder(command),
     retry: false,
-    // Attempt it even when the browser says there is no network, so the request
-    // fails and the screen can say the order was not placed. The default is to
-    // *pause* an offline mutation, which here would leave the button spinning
-    // for ever and the diner believing food is on the way. This is the opposite
-    // of the staff app's rule, and deliberately: a waiter is standing in the
-    // room and can reconcile a late order, a diner on a phone cannot.
-    networkMode: 'always',
+    // `networkMode` is not set here. It is the diner app's client-wide setting
+    // — see `app/_layout.tsx` — because it is a property of *which app this is*
+    // rather than of this one mutation, and a per-mutation override is how the
+    // next ordering mutation quietly gets the library default instead.
     onSuccess: (_result, command) => {
       void queryClient.invalidateQueries({ queryKey: orderKeys.dinerTab(command.tabId) });
       void queryClient.invalidateQueries({ queryKey: orderKeys.shares(command.tabId) });
@@ -128,6 +146,12 @@ export interface TabLiveState {
  * The events decide *whether* to refetch; the money always comes from the
  * server. Reconstructing a bill from event payloads would be a second
  * implementation of the billing arithmetic.
+ *
+ * **The cursor starts at zero and the first page carries it forward.** It used
+ * to be seeded from the tab read's own `lastSequence`; `TabView` has no such
+ * field and never did. `GET /events?afterSequence=0` answers with the tab's
+ * history and its `maxSequence`, which is where the position actually comes
+ * from — one extra page on open, and no invented high-water mark.
  */
 export function useTabStream(tabId: string | undefined, enabled: boolean): TabLiveState {
   const gateway = useGateway();
@@ -143,6 +167,30 @@ export function useTabStream(tabId: string | undefined, enabled: boolean): TabLi
   useEffect(() => {
     if (!tabId || !enabled) return;
 
+    /**
+     * One refetch in flight, one queued.
+     *
+     * Both queries are invalidated together and awaited together, so "the
+     * refetch has landed" means the bill *and* the shares agree — a marker that
+     * appeared between the two would point at a total that was about to move
+     * again.
+     */
+    const refetch = createRefetchCoalescer(() =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: orderKeys.dinerTab(tabId) }),
+        queryClient.invalidateQueries({ queryKey: orderKeys.shares(tabId) }),
+      ]),
+    );
+
+    /** The name this device currently shows for a line, before it is refetched away. */
+    const nameLine = (lineId: string): string | null => {
+      const tab = queryClient.getQueryData<DinerTabView | null>(orderKeys.dinerTab(tabId));
+      const line =
+        tab?.myLines.find((candidate) => candidate.id === lineId) ??
+        tab?.tableLines?.find((candidate) => candidate.id === lineId);
+      return line?.name ?? null;
+    };
+
     const stream = createSequenceStream({
       fetchPage: async (afterSequence) => {
         const page = await gateway.getTabEvents({ tabId, afterSequence });
@@ -151,14 +199,24 @@ export function useTabStream(tabId: string | undefined, enabled: boolean): TabLi
       handlers: {
         onItems: (events) => {
           setConnected(true);
-          const update = applyTabEvents(cursor.current, events);
+          // Names are resolved here, against the snapshot that still holds the
+          // line. After the refetch below, a voided line is gone.
+          const update = applyTabEvents(cursor.current, events, nameLine);
           cursor.current = update.lastSequence;
           if (update.kind !== 'refetch') return;
-          if (update.markers.length > 0) {
-            setMarkers((current) => [...current, ...update.markers]);
-          }
-          void queryClient.invalidateQueries({ queryKey: orderKeys.dinerTab(tabId) });
-          void queryClient.invalidateQueries({ queryKey: orderKeys.shares(tabId) });
+
+          // The announcement waits for the data.
+          //
+          // This used to `setMarkers` and *then* invalidate, which meant "the
+          // waiter removed your Khorovats" rendered against a bill that still
+          // showed it — and, for a moment, against a total that had not moved.
+          // A marker that describes a change the screen has not made yet reads
+          // as a bug in the bill rather than as an explanation of it.
+          void refetch.request().then(() => {
+            if (update.markers.length > 0) {
+              setMarkers((current) => [...current, ...update.markers]);
+            }
+          });
         },
         onResync: (reason) => {
           if (reason === 'notWired') {
@@ -166,7 +224,7 @@ export function useTabStream(tabId: string | undefined, enabled: boolean): TabLi
             return;
           }
           setConnected(true);
-          void queryClient.invalidateQueries({ queryKey: orderKeys.dinerTab(tabId) });
+          void refetch.request();
         },
         onError: () => setConnected(false),
       },
@@ -181,16 +239,6 @@ export function useTabStream(tabId: string | undefined, enabled: boolean): TabLi
       streamRef.current = null;
     };
   }, [tabId, enabled, gateway, queryClient]);
-
-  // Seed the cursor from whatever the tab itself reports, so the first page
-  // continues from the right place rather than replaying the tab's history.
-  const tab = queryClient.getQueryData<DinerTabView | null>(orderKeys.dinerTab(tabId ?? ''));
-  useEffect(() => {
-    if (tab && cursor.current === 0) {
-      cursor.current = tab.lastSequence;
-      streamRef.current?.setSequence(tab.lastSequence);
-    }
-  }, [tab]);
 
   // Markers age out rather than piling up. A change nobody read within a few
   // seconds is not worth keeping on a bill somebody is trying to check.

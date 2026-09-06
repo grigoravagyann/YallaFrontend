@@ -19,6 +19,7 @@ import {
   useParticipantSummary,
 } from '../../../src/components/Participants';
 import { LiveBill } from '../../../src/components/LiveBill';
+import { useBranchTimeZone } from '../../../src/data/orderQueries';
 import { useLeaveTab, useTab } from '../../../src/data/queries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { useActiveTab } from '../../../src/stores/tab';
@@ -49,6 +50,7 @@ export default function TabScreen() {
   // open — and a stale participants list is the thing this screen exists to
   // avoid showing.
   const { data: tab, isLoading, isError, refetch, isFetching } = useTab(tabId, { pollMs: POLL_MS });
+  const { data: branchZone } = useBranchTimeZone(tab?.branchId);
   const leaveTab = useLeaveTab();
   const clearActive = useActiveTab((s) => s.clear);
 
@@ -194,7 +196,11 @@ export default function TabScreen() {
             anybody refreshing anything. */}
         <LiveBill
           tabId={tab.id}
-          participantId={tab.yourParticipantId}
+          // The branch's own zone, read from the anonymous availability
+          // endpoint. `tab.timeZoneId` is the roster contract's, which is still
+          // mock-backed; falling back to it keeps the screen rendering while the
+          // zone loads rather than blanking every time on it.
+          timeZoneId={branchZone ?? tab.timeZoneId}
           active={tab.yourStatus === 'active'}
         />
 

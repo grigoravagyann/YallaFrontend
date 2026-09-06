@@ -59,6 +59,23 @@ describe('applying a page of events', () => {
     expect(update).toEqual({ kind: 'unchanged', lastSequence: 5 });
   });
 
+  it('ignores an unrecognised type mixed into a page it does understand', () => {
+    // The realistic shape of the problem: a server one version ahead sends a
+    // type 21 in the middle of a page. The known events must still apply, the
+    // unknown one must not throw, and the cursor must end past all of them —
+    // otherwise the next poll replays the page for ever.
+    const update = applyTabEvents(10, [
+      event(11, { type: 'orderPlaced' }),
+      event(12, { type: 'unknown' }),
+      event(13, { type: 'lineVoided', data: { lineId: 'line-9' } }),
+    ]);
+
+    expect(update.kind).toBe('refetch');
+    expect(update.lastSequence).toBe(13);
+    if (update.kind !== 'refetch') return;
+    expect(update.markers.map((marker) => marker.type)).toEqual(['orderPlaced', 'lineVoided']);
+  });
+
   it('reaches the same state as a full refetch', async () => {
     const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
     const scan = await gateway.scanTableCode({
@@ -70,8 +87,10 @@ describe('applying a page of events', () => {
     const menu = await gateway.getBranchMenuDetail(tab.branchId);
     const item = (menu?.categories ?? []).flatMap((category) => category.items)[0]!;
 
-    const before = await gateway.getDinerTab(tab.id);
-    let cursor = before!.lastSequence;
+    // The cursor comes from the event stream, not the tab: `TabView` carries no
+    // high-water mark and never did.
+    const before = await gateway.getTabEvents({ tabId: tab.id, afterSequence: 0 });
+    let cursor = before.lastSequence;
 
     await gateway.placeOrder({
       tabId: tab.id,
@@ -93,11 +112,14 @@ describe('applying a page of events', () => {
     // The full-refetch path: throw the cursor away and read everything.
     const full = await gateway.getDinerTab(tab.id);
 
-    expect(incremental?.lines.map((line) => line.id)).toEqual(full?.lines.map((line) => line.id));
+    expect(incremental?.myLines.map((line) => line.id)).toEqual(
+      full?.myLines.map((line) => line.id),
+    );
     expect(incremental?.money).toEqual(full?.money);
-    // And the cursor the incremental path kept matches what a cold read reports,
-    // so the next page continues from the right place rather than replaying.
-    expect(cursor).toBe(full?.lastSequence);
+    // And the cursor the incremental path kept matches what a cold read of the
+    // stream reports, so the next page continues rather than replaying.
+    const cold = await gateway.getTabEvents({ tabId: tab.id, afterSequence: 0 });
+    expect(cursor).toBe(cold.lastSequence);
   });
 });
 
@@ -127,6 +149,30 @@ describe('a gap in the sequence', () => {
 // --- staff changes are announced, not silent -------------------------------
 
 describe('what the diner is told', () => {
+  it('carries the voided line name from the snapshot held before the refetch', () => {
+    // The line will not be in the next tab read: `TabProjection` filters voided
+    // lines out of the diner's view. The name is resolvable only now.
+    const update = applyTabEvents(
+      1,
+      [event(2, { type: 'lineVoided', data: { lineId: 'l-7' } })],
+      (lineId) => (lineId === 'l-7' ? 'Khorovats' : null),
+    );
+
+    expect(update.kind).toBe('refetch');
+    if (update.kind !== 'refetch') return;
+    expect(update.markers[0]?.lineName).toBe('Khorovats');
+  });
+
+  it('leaves the name null when this phone never held the line', () => {
+    const update = applyTabEvents(
+      1,
+      [event(2, { type: 'lineVoided', data: { lineId: 'l-7' } })],
+      () => null,
+    );
+    if (update.kind !== 'refetch') return;
+    expect(update.markers[0]?.lineName).toBeNull();
+  });
+
   it('marks a line a waiter voided, naming who did it', () => {
     const update = applyTabEvents(4, [
       event(5, { type: 'lineVoided', actorName: 'Aram', data: { lineId: 'l7' } }),
@@ -158,6 +204,7 @@ describe('what the diner is told', () => {
         actorName: 'Aram',
         atUtc: '2026-09-06T10:00:00Z',
         lineId: 'l7',
+        lineName: 'Khorovats',
         sequence: 5,
       },
     ];

@@ -2145,6 +2145,11 @@ export interface components {
         "Yalla.Api.Endpoints.RedeemEnrolmentCodeRequest": {
             /** @description The one-time enrolment code a manager generated for this branch. */
             code: string;
+            /**
+             * @description The identifier the tablet minted for itself, stable across reinstalls. Enrolling the same one
+             *     twice on a branch is refused as a client bug rather than as a credential problem - the tablet is
+             *     already enrolled and holding a token it is not using.
+             */
             deviceId: string;
             /**
              * @description What the tablet should be called in the admin panel - "Bar tablet", "Terrace". A manager
@@ -2755,11 +2760,11 @@ export interface components {
             /** @description Rotating handle. Send it once; the response carries its successor. */
             refreshToken: string;
         };
-        /** @description One enrolled tablet, as the admin panel lists it. */
+        /** @description Where an enrolled device thinks it is, shown on the PIN screen before anybody taps. */
         "Yalla.Application.Auth.EnrolledDeviceView": {
             /**
              * Format: uuid
-             * @description The branch it is bound to.
+             * @description The one branch it can act on.
              */
             branchId: string;
             /** @description That branch, in words, because an id on a counter screen means nothing. */
@@ -2775,12 +2780,12 @@ export interface components {
             deviceName: string;
             /**
              * Format: date-time
-             * @description When it redeemed its enrolment code.
+             * @description When it was set up.
              */
             enrolledAtUtc: string;
             /**
              * Format: date-time
-             * @description Last time a token from it was used. Null if never.
+             * @description When it was last used.
              */
             lastSeenAtUtc?: string | null;
             /** @description The venue, for a chain where two branches share a name. */
@@ -2798,16 +2803,31 @@ export interface components {
             /** @description The successor handle. The one you sent is now dead. */
             refreshToken: string;
         };
+        /** @description One enrolled tablet, as the admin panel lists it. */
         "Yalla.Application.Auth.StaffDeviceSummary": {
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description The branch it is bound to.
+             */
             branchId: string;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description When it redeemed its enrolment code.
+             */
             enrolledAtUtc: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description The device.
+             */
             id: string;
+            /** @description True once a manager killed it. Revocation is permanent; re-enrol instead. */
             isRevoked: boolean;
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Last time a token from it was used. Null if never.
+             */
             lastSeenAtUtc?: string | null;
+            /** @description What the manager called it. */
             name: string;
         };
         /** @description A staff member's session on a tablet, opened by a PIN. */

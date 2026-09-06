@@ -16,7 +16,18 @@ import { findSequenceGap } from '@yalla/realtime';
  * bill that is wrong and a bill that is being kept.
  */
 
-/** What a change marker says, once, on the line or total it belongs to. */
+/**
+ * What a change marker says, once, on the line or total it belongs to.
+ *
+ * `lineName` is the field the reconciliation forced. A `lineVoided` marker used
+ * to carry only `lineId`, on the assumption that the refetched bill would still
+ * hold that line struck through and the marker would attach to it. It does not:
+ * `TabProjection` filters voided lines out of the diner's view entirely, so
+ * after the refetch there is nothing to attach to. The name is therefore read
+ * from the snapshot the phone held **before** the refetch, and the marker
+ * stands alone — "Your Khorovats was removed by the waiter" — which is the only
+ * honest thing left to say and, as it turns out, the more readable one.
+ */
 export interface ChangeMarker {
   readonly type: TabEventType;
   readonly actor: TabEvent['actor'];
@@ -24,6 +35,11 @@ export interface ChangeMarker {
   readonly atUtc: string;
   /** The line it belongs to, when the event names one. */
   readonly lineId: string | null;
+  /**
+   * The line's name as this device last saw it. `null` when the phone never
+   * held the line — it joined late, or the line was never theirs to see.
+   */
+  readonly lineName: string | null;
   readonly sequence: number;
 }
 
@@ -78,7 +94,17 @@ export type TabStreamUpdate =
  * somebody's phone must not break on a tab that used one. It advances the
  * sequence and does nothing else.
  */
-export function applyTabEvents(lastSequence: number, events: readonly TabEvent[]): TabStreamUpdate {
+export function applyTabEvents(
+  lastSequence: number,
+  events: readonly TabEvent[],
+  /**
+   * Resolves a line id to the name this device currently shows for it.
+   *
+   * Called **before** the refetch, deliberately: a `lineVoided` event names a
+   * line that the next tab read will not contain.
+   */
+  nameLine?: (lineId: string) => string | null,
+): TabStreamUpdate {
   if (events.length === 0) return { kind: 'unchanged', lastSequence };
 
   const ordered = [...events].sort((a, b) => a.sequence - b.sequence);
@@ -104,14 +130,21 @@ export function applyTabEvents(lastSequence: number, events: readonly TabEvent[]
     // own tap back at you is noise, and noise is what makes people stop reading
     // the markers that matter.
     .filter((event) => event.actor === 'staff')
-    .map((event): ChangeMarker => ({
-      type: event.type,
-      actor: event.actor,
-      actorName: event.actorName,
-      atUtc: event.atUtc,
-      lineId: typeof event.data?.['lineId'] === 'string' ? event.data['lineId'] : null,
-      sequence: event.sequence,
-    }));
+    .map((event): ChangeMarker => {
+      const lineId = typeof event.data?.['lineId'] === 'string' ? event.data['lineId'] : null;
+      return {
+        type: event.type,
+        actor: event.actor,
+        actorName: event.actorName,
+        atUtc: event.atUtc,
+        lineId,
+        // Resolved by the caller against what it currently holds, because after
+        // the refetch the line is gone. `nameLine` is passed in rather than
+        // read here so this stays a pure fold over the page.
+        lineName: lineId ? (nameLine?.(lineId) ?? null) : null,
+        sequence: event.sequence,
+      };
+    });
 
   return { kind: 'refetch', reason: 'changed', lastSequence: nextSequence, markers };
 }

@@ -1,4 +1,9 @@
-import { isEndpointNotWired, isOffline } from '@yalla/api';
+import {
+  isEndpointNotWired,
+  isOffline,
+  MenuItemUnavailableError,
+  TabNotAcceptingOrdersError,
+} from '@yalla/api';
 import { formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
@@ -34,7 +39,25 @@ export default function TrayScreen() {
 
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [sent, setSent] = useState<{ readonly estimatedReadyAtUtc: string | null } | null>(null);
-  const [failure, setFailure] = useState<'offline' | 'notWired' | 'error' | null>(null);
+  /**
+   * Why the order did not go.
+   *
+   * Two of these are real outcomes rather than failures, and both were
+   * unreachable until the endpoints were wired:
+   *
+   * - `soldOut` — `menu-item-unavailable`, 409, with `context.itemName`. The
+   *   **whole** order is refused, by the server, on purpose: a partial order is
+   *   a decision made on somebody's behalf that they discover when the food
+   *   arrives. So the copy names the dish and says nothing was sent.
+   * - `closing` — `tab-not-accepting-orders`, 409. A waiter marked the tab
+   *   closing while this person was mid-tray. They need to understand what
+   *   happened, not see a generic failure, so this one offers the bill.
+   */
+  const [failure, setFailure] = useState<
+    | { readonly kind: 'offline' | 'notWired' | 'error' | 'closing' }
+    | { readonly kind: 'soldOut'; readonly itemName: string }
+    | null
+  >(null);
 
   /**
    * One id per tap on send, reused if that same send is retried.
@@ -59,13 +82,35 @@ export default function TrayScreen() {
         lines: trayToOrderLines(tray, tab.yourParticipantId),
       });
       commandId.current = null;
-      dispatch({ type: 'clear' });
+      // The confirmation carries the server's own order id and estimate, and it
+      // is what the bar on the menu reads. Set only from a `PlaceOrderResult` —
+      // never optimistically, and never assembled from the tray.
+      dispatch({
+        type: 'sent',
+        order: {
+          orderId: result.orderId,
+          estimatedReadyAtUtc: result.estimatedReadyAtUtc,
+          atMs: Date.now(),
+        },
+      });
       setSent({ estimatedReadyAtUtc: result.estimatedReadyAtUtc });
     } catch (error) {
       // Not queued, and said plainly. This is the opposite of the staff app's
       // rule and for a stated reason: a waiter is standing in the room and can
       // reconcile a late order, a diner on a phone cannot.
-      setFailure(isOffline(error) ? 'offline' : isEndpointNotWired(error) ? 'notWired' : 'error');
+      //
+      // **The tray is not cleared on any of these paths.** Nothing was placed,
+      // so the items are still what this person wants; throwing them away would
+      // make them rebuild an order the server merely declined to take yet.
+      if (error instanceof MenuItemUnavailableError) {
+        setFailure({ kind: 'soldOut', itemName: error.itemName });
+      } else if (error instanceof TabNotAcceptingOrdersError) {
+        setFailure({ kind: 'closing' });
+      } else {
+        setFailure({
+          kind: isOffline(error) ? 'offline' : isEndpointNotWired(error) ? 'notWired' : 'error',
+        });
+      }
     }
   }
 
@@ -197,13 +242,34 @@ export default function TrayScreen() {
         {failure ? (
           <View style={styles.failure}>
             <Text style={styles.failureText}>
-              {failure === 'offline'
-                ? t('tray.failed.offline')
-                : failure === 'notWired'
-                  ? t('tray.failed.notWired')
-                  : t('tray.failed.error')}
+              {failure.kind === 'soldOut'
+                ? // Named. "Something on your order has sold out" makes a person
+                  // re-read six lines to work out which; the server told us.
+                  t('tray.failed.soldOut', { item: failure.itemName })
+                : failure.kind === 'closing'
+                  ? t('tray.failed.closing')
+                  : failure.kind === 'offline'
+                    ? t('tray.failed.offline')
+                    : failure.kind === 'notWired'
+                      ? t('tray.failed.notWired')
+                      : t('tray.failed.error')}
             </Text>
-            <Text style={styles.failureHint}>{t('tray.failed.askWaiter')}</Text>
+            <Text style={styles.failureHint}>
+              {failure.kind === 'soldOut'
+                ? t('tray.failed.soldOutHint')
+                : failure.kind === 'closing'
+                  ? t('tray.failed.closingHint')
+                  : t('tray.failed.askWaiter')}
+            </Text>
+            {failure.kind === 'closing' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.replace({ pathname: '/tab/[tabId]', params: { tabId } })}
+                style={styles.failureAction}
+              >
+                <Text style={styles.failureActionText}>{t('tray.failed.toBill')}</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
@@ -310,6 +376,16 @@ const styles = StyleSheet.create({
   },
   failureText: { color: color.danger, fontWeight: fontWeight.bold, lineHeight: lineHeight.md },
   failureHint: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
+  failureAction: {
+    marginTop: space.sm,
+    minHeight: touchTarget.minimum,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+    backgroundColor: color.primary,
+  },
+  failureActionText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
 
   footer: {
     padding: space.lg,

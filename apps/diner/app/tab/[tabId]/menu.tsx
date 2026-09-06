@@ -18,7 +18,9 @@ import { Text } from '../../../src/components/Text';
 import { useMenuDetail } from '../../../src/data/orderQueries';
 import { useTab } from '../../../src/data/queries';
 import { useTray } from '../../../src/order/TrayProvider';
-import { trayItemCount, traySubtotalDram } from '../../../src/order/tray';
+
+import { TrayBar } from '../../../src/order/TrayBar';
+import { useBranchTimeZone } from '../../../src/data/orderQueries';
 
 /**
  * The menu, and the way an order is built.
@@ -39,7 +41,7 @@ export default function MenuScreen() {
 
   const { data: tab } = useTab(tabId);
   const { data: menu, isLoading, isError, error, refetch, isPaused } = useMenuDetail(tab?.branchId);
-  const { state: tray, dispatch } = useTray();
+  const { dispatch } = useTray();
 
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -68,7 +70,9 @@ export default function MenuScreen() {
     return categories.find((category) => category.id === activeCategory)?.items ?? [];
   }, [categories, activeCategory, search, locale]);
 
-  const count = trayItemCount(tray);
+  // The branch's own zone, for the kitchen estimate on the sent bar. Never the
+  // device's: a tourist's phone on Moscow time would put it three hours out.
+  const { data: branchZone } = useBranchTimeZone(tab?.branchId);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -151,25 +155,26 @@ export default function MenuScreen() {
                   locale={locale}
                   expanded={openItemId === item.id}
                   onToggle={() => setOpenItemId(openItemId === item.id ? null : item.id)}
-                  onAdd={() => dispatch({ type: 'add', item })}
+                  onAdd={() => dispatch({ type: 'add', item, atMs: Date.now() })}
                 />
               ))
             )}
           </ScrollView>
 
-          {/* The tray bar: what is in it and what it comes to, always visible
-              once there is anything, tappable to review before sending. */}
-          {count > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push({ pathname: '/tab/[tabId]/tray', params: { tabId } })}
-              style={styles.trayBar}
-            >
-              <Text style={styles.trayCount}>{t('tray.bar.count', { count })}</Text>
-              <Text style={styles.trayTotal}>{formatDram(traySubtotalDram(tray), locale)}</Text>
-              <Text style={styles.trayGo}>{t('tray.bar.review')}</Text>
-            </Pressable>
-          ) : null}
+          {/*
+            The tray bar. It renders three states and only one of them is a
+            tray — see `TrayBar`, which exists because this used to be a single
+            green pill reading "Review" and a diner could read that as an order
+            that had been placed.
+          */}
+          <View style={styles.barSlot}>
+            <TrayBar
+              tabId={tabId}
+              timeZoneId={branchZone ?? 'Asia/Yerevan'}
+              onReview={() => router.push({ pathname: '/tab/[tabId]/tray', params: { tabId } })}
+              onSeeBill={() => router.push({ pathname: '/tab/[tabId]', params: { tabId } })}
+            />
+          </View>
         </>
       )}
     </SafeAreaView>
@@ -347,15 +352,11 @@ const styles = StyleSheet.create({
   },
   outText: { color: color.mutedForeground, fontWeight: fontWeight.medium, fontSize: fontSize.sm },
 
-  trayBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    minHeight: touchTarget.large,
-    paddingHorizontal: space.lg,
-    backgroundColor: color.primary,
-  },
-  trayCount: { color: color.primaryForeground, fontWeight: fontWeight.bold },
-  trayTotal: { flex: 1, color: color.primaryForeground, fontWeight: fontWeight.bold },
-  trayGo: { color: color.primaryForeground, fontWeight: fontWeight.medium },
+  /**
+   * The bar sits above the safe area with its own padding rather than being
+   * edge-to-edge. The old full-bleed green bar read as a system affordance —
+   * part of the app chrome — which is half of why "Review" on it looked like a
+   * confirmation rather than a step.
+   */
+  barSlot: { padding: space.md, paddingTop: 0 },
 });

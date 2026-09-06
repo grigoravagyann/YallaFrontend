@@ -5,6 +5,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, SafeAreaView, Share, StyleSheet, View } from 'react-native';
 import { Text } from '../../src/components/Text';
 import { useBooking } from '../../src/data/queries';
+import { ReminderOptIn } from '../../src/push/ReminderOptIn';
 
 export default function SuccessScreen() {
   const { t } = useTranslation('diner');
@@ -54,6 +55,13 @@ export default function SuccessScreen() {
           {pending ? t('success.pendingTitle') : t('success.confirmedTitle')}
         </Text>
         {pending ? <Text style={styles.pendingBody}>{t('success.pendingBody')}</Text> : null}
+
+        {/*
+          The one place the notification permission is asked for.
+          A booking has just been made and the question answers itself; asked on
+          launch it is a prompt nobody understands and therefore declines.
+        */}
+        <ReminderOptIn />
 
         {/*
           Large and legible: staff ask for this at the door and it gets read

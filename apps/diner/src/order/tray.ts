@@ -33,6 +33,15 @@ export interface TrayLine {
   readonly isShared: boolean;
 }
 
+/** What the server said when it accepted an order. Never assembled locally. */
+export interface SentOrder {
+  readonly orderId: string;
+  /** From the server: the longest prep time on the order, not the sum. */
+  readonly estimatedReadyAtUtc: string | null;
+  /** The device clock at the moment the server answered, for "just now". */
+  readonly atMs: number;
+}
+
 export interface TrayState {
   readonly lines: readonly TrayLine[];
   /** Bumped per add, so two taps on one item cannot collide on a key. */
@@ -42,18 +51,39 @@ export interface TrayState {
    * shown the first time and not on every line forever after.
    */
   readonly sharedExplained: boolean;
+  /**
+   * When the tray stopped being empty, so an unsent tray can say how long it
+   * has been sitting there. Cleared when the tray empties.
+   */
+  readonly startedAtMs: number | null;
+  /**
+   * The last order the **server accepted**, or `null`.
+   *
+   * Set only from a `PlaceOrderResult`, and never optimistically. It is what
+   * lets the bar show a confirmed state that a tray cannot be mistaken for.
+   */
+  readonly lastSent: SentOrder | null;
 }
 
-export const emptyTray: TrayState = { lines: [], nextKey: 1, sharedExplained: false };
+export const emptyTray: TrayState = {
+  lines: [],
+  nextKey: 1,
+  sharedExplained: false,
+  startedAtMs: null,
+  lastSent: null,
+};
 
 export type TrayAction =
-  | { readonly type: 'add'; readonly item: MenuItemDetail }
+  | { readonly type: 'add'; readonly item: MenuItemDetail; readonly atMs: number }
   | { readonly type: 'increment'; readonly key: string }
   | { readonly type: 'decrement'; readonly key: string }
   | { readonly type: 'setNote'; readonly key: string; readonly note: string }
   | { readonly type: 'toggleShared'; readonly key: string }
   /** After a send the server has accepted. Never before. */
-  | { readonly type: 'clear' };
+  | { readonly type: 'sent'; readonly order: SentOrder }
+  /** Abandoning a tray without sending it, and dismissing a confirmation. */
+  | { readonly type: 'clear' }
+  | { readonly type: 'dismissSent' };
 
 export function trayReducer(state: TrayState, action: TrayAction): TrayState {
   switch (action.type) {
@@ -68,6 +98,8 @@ export function trayReducer(state: TrayState, action: TrayAction): TrayState {
       if (existing) {
         return {
           ...state,
+          startedAtMs: state.startedAtMs ?? action.atMs,
+          lastSent: null,
           lines: state.lines.map((line) =>
             line.key === existing.key ? { ...line, quantity: line.quantity + 1 } : line,
           ),
@@ -75,6 +107,13 @@ export function trayReducer(state: TrayState, action: TrayAction): TrayState {
       }
       return {
         ...state,
+        // The moment the tray stopped being empty, so it can say how long it has
+        // been sitting unsent.
+        startedAtMs: state.startedAtMs ?? action.atMs,
+        // Adding to a tray after a send ends the confirmation. Showing "order
+        // sent" above a tray with new items in it is the exact confusion this
+        // bar exists to prevent.
+        lastSent: null,
         lines: [
           ...state.lines,
           {
@@ -97,17 +136,15 @@ export function trayReducer(state: TrayState, action: TrayAction): TrayState {
         ),
       };
 
-    case 'decrement':
+    case 'decrement': {
       // Down to zero removes the line. A stepper that stops at one leaves a
       // diner hunting for a delete control that does not exist.
-      return {
-        ...state,
-        lines: state.lines
-          .map((line) =>
-            line.key === action.key ? { ...line, quantity: line.quantity - 1 } : line,
-          )
-          .filter((line) => line.quantity > 0),
-      };
+      const lines = state.lines
+        .map((line) => (line.key === action.key ? { ...line, quantity: line.quantity - 1 } : line))
+        .filter((line) => line.quantity > 0);
+      // An emptied tray is not an old tray: the clock restarts with the next add.
+      return { ...state, lines, startedAtMs: lines.length === 0 ? null : state.startedAtMs };
+    }
 
     case 'setNote':
       return {
@@ -126,10 +163,16 @@ export function trayReducer(state: TrayState, action: TrayAction): TrayState {
         ),
       };
 
+    case 'sent':
+      // The lines go, the confirmation arrives. `sharedExplained` survives: the
+      // explanation is per session, not per order.
+      return { ...emptyTray, sharedExplained: state.sharedExplained, lastSent: action.order };
+
     case 'clear':
-      // `sharedExplained` survives: the explanation is per session, not per
-      // order, and showing it again after every send is noise.
       return { ...emptyTray, sharedExplained: state.sharedExplained };
+
+    case 'dismissSent':
+      return { ...state, lastSent: null };
 
     default:
       return state;
@@ -176,4 +219,78 @@ export function trayToOrderLines(
     participantId,
     ...(line.note.trim() ? { note: line.note.trim() } : {}),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// The bar
+// ---------------------------------------------------------------------------
+
+/**
+ * How long a tray may sit before the bar says so, in milliseconds.
+ *
+ * Long enough not to nag somebody still reading the menu; short enough to catch
+ * the person who thinks they have ordered. Three minutes is roughly the point at
+ * which a diner starts glancing towards the kitchen.
+ */
+export const UNSENT_NUDGE_MS = 3 * 60_000;
+
+/**
+ * What the bar at the bottom of the menu is showing.
+ *
+ * A discriminated union, and that is the whole fix. The bar used to be one
+ * Pressable whose call to action read **"Review"** — a word that describes
+ * looking at something that already exists, next to a count and a total, on a
+ * screen where the only other totals are the bill's. A diner reading it as
+ * "review your order" rather than "you have not ordered" waits twenty minutes
+ * for food nobody is cooking, which is the worst failure this screen has.
+ *
+ * So the three states are separate values with separate copy, and the sent one
+ * cannot be reached by rendering the holding one differently:
+ *
+ * - `empty` — no bar at all.
+ * - `holding` — items in the tray, **nothing sent**, said in words rather than
+ *   implied by a button. Its action reads "Send to kitchen".
+ * - `sent` — the server has accepted an order. Visually distinct, carries the
+ *   server's own estimate, and never a count or a tray subtotal.
+ */
+export type TrayBarState =
+  | { readonly kind: 'empty' }
+  | {
+      readonly kind: 'holding';
+      readonly count: number;
+      readonly subtotalDram: number;
+      /** True once the tray has sat unsent long enough to be worth saying. */
+      readonly nudge: boolean;
+    }
+  | {
+      readonly kind: 'sent';
+      readonly orderId: string;
+      /** The server's estimate. `null` when it did not give one. */
+      readonly estimatedReadyAtUtc: string | null;
+    };
+
+/**
+ * `nowMs` is passed in rather than read, so the nudge is testable and so the
+ * bar re-renders on a clock the screen subscribes to rather than on whatever
+ * happened to cause the last render.
+ */
+export function trayBarState(state: TrayState, nowMs: number): TrayBarState {
+  if (state.lines.length > 0) {
+    return {
+      kind: 'holding',
+      count: trayItemCount(state),
+      subtotalDram: traySubtotalDram(state),
+      nudge: state.startedAtMs !== null && nowMs - state.startedAtMs >= UNSENT_NUDGE_MS,
+    };
+  }
+
+  if (state.lastSent) {
+    return {
+      kind: 'sent',
+      orderId: state.lastSent.orderId,
+      estimatedReadyAtUtc: state.lastSent.estimatedReadyAtUtc,
+    };
+  }
+
+  return { kind: 'empty' };
 }

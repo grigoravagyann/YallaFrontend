@@ -187,6 +187,15 @@ describe('the shares', () => {
     };
   }
 
+  /**
+   * Self-consistency, not agreement.
+   *
+   * This proves the port's shares add up to the port's own total across shapes
+   * no hand-picked vector reaches. It does **not** prove the port agrees with
+   * the server — two implementations can both be internally coherent and
+   * quietly disagree. That job belongs to `goldenBilling.test.ts`, which runs
+   * the same function against the backend's committed answers.
+   */
   it('sum to the total across a few thousand random tabs', () => {
     const random = rng(20260906);
     let checked = 0;

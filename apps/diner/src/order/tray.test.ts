@@ -2,10 +2,12 @@ import { createMockGateway, type MenuItemDetail } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
   emptyTray,
+  trayBarState,
   trayItemCount,
   trayReducer,
   traySubtotalDram,
   trayToOrderLines,
+  UNSENT_NUDGE_MS,
   type TrayState,
 } from './tray';
 
@@ -55,7 +57,7 @@ function run(actions: readonly Parameters<typeof trayReducer>[1][]): TrayState {
 
 describe('the tray', () => {
   it('adds an item', () => {
-    const state = run([{ type: 'add', item: CAPPUCCINO }]);
+    const state = run([{ type: 'add', item: CAPPUCCINO, atMs: 0 }]);
     expect(state.lines).toHaveLength(1);
     expect(state.lines[0]?.quantity).toBe(1);
     expect(trayItemCount(state)).toBe(1);
@@ -65,9 +67,9 @@ describe('the tray', () => {
     // What a diner means by tapping twice. A second line would make a round of
     // four coffees four rows to scroll past.
     const state = run([
-      { type: 'add', item: CAPPUCCINO },
-      { type: 'add', item: CAPPUCCINO },
-      { type: 'add', item: GATA },
+      { type: 'add', item: CAPPUCCINO, atMs: 0 },
+      { type: 'add', item: CAPPUCCINO, atMs: 0 },
+      { type: 'add', item: GATA, atMs: 0 },
     ]);
     expect(state.lines).toHaveLength(2);
     expect(state.lines[0]?.quantity).toBe(2);
@@ -75,10 +77,10 @@ describe('the tray', () => {
 
   it('leaves a line with a note or a shared flag alone when the item is re-added', () => {
     // "One shared bottle and one for me" is two lines, not a quantity of two.
-    let state = run([{ type: 'add', item: CAPPUCCINO }]);
+    let state = run([{ type: 'add', item: CAPPUCCINO, atMs: 0 }]);
     const key = state.lines[0]!.key;
     state = trayReducer(state, { type: 'setNote', key, note: 'no sugar' });
-    state = trayReducer(state, { type: 'add', item: CAPPUCCINO });
+    state = trayReducer(state, { type: 'add', item: CAPPUCCINO, atMs: 0 });
 
     expect(state.lines).toHaveLength(2);
     expect(state.lines[0]?.note).toBe('no sugar');
@@ -86,7 +88,7 @@ describe('the tray', () => {
   });
 
   it('increments and decrements, and removes the line at zero', () => {
-    let state = run([{ type: 'add', item: CAPPUCCINO }]);
+    let state = run([{ type: 'add', item: CAPPUCCINO, atMs: 0 }]);
     const key = state.lines[0]!.key;
 
     state = trayReducer(state, { type: 'increment', key });
@@ -104,8 +106,8 @@ describe('the tray', () => {
 
   it('keeps a note per line', () => {
     let state = run([
-      { type: 'add', item: CAPPUCCINO },
-      { type: 'add', item: GATA },
+      { type: 'add', item: CAPPUCCINO, atMs: 0 },
+      { type: 'add', item: GATA, atMs: 0 },
     ]);
     state = trayReducer(state, { type: 'setNote', key: state.lines[1]!.key, note: 'warm' });
 
@@ -114,7 +116,7 @@ describe('the tray', () => {
   });
 
   it('toggles shared per line and remembers that the explanation was shown', () => {
-    let state = run([{ type: 'add', item: CAPPUCCINO }]);
+    let state = run([{ type: 'add', item: CAPPUCCINO, atMs: 0 }]);
     const key = state.lines[0]!.key;
     expect(state.sharedExplained).toBe(false);
 
@@ -127,7 +129,7 @@ describe('the tray', () => {
   });
 
   it('clears after a send, but not the explanation', () => {
-    let state = run([{ type: 'add', item: CAPPUCCINO }]);
+    let state = run([{ type: 'add', item: CAPPUCCINO, atMs: 0 }]);
     state = trayReducer(state, { type: 'toggleShared', key: state.lines[0]!.key });
     state = trayReducer(state, { type: 'clear' });
 
@@ -156,9 +158,9 @@ describe('the tray subtotal', () => {
     const second = items[1]!;
 
     let state = run([
-      { type: 'add', item: first },
-      { type: 'add', item: first },
-      { type: 'add', item: second },
+      { type: 'add', item: first, atMs: 0 },
+      { type: 'add', item: first, atMs: 0 },
+      { type: 'add', item: second, atMs: 0 },
     ]);
 
     const previewed = traySubtotalDram(state);
@@ -170,7 +172,7 @@ describe('the tray subtotal', () => {
     });
 
     const view = await gateway.getDinerTab(tab.id);
-    const charged = (view?.lines ?? []).reduce((sum, line) => sum + line.lineTotalDram, 0);
+    const charged = (view?.myLines ?? []).reduce((sum, line) => sum + line.lineTotalDram, 0);
 
     // The tray's arithmetic is the one place this app multiplies money, and it
     // is a preview of items not yet ordered. It still has to agree with what the
@@ -200,7 +202,7 @@ describe('a shared line', () => {
     const menu = await gateway.getBranchMenuDetail(tab.branchId);
     const item = (menu?.categories ?? []).flatMap((category) => category.items)[0]!;
 
-    let state = run([{ type: 'add', item }]);
+    let state = run([{ type: 'add', item, atMs: 0 }]);
     state = trayReducer(state, { type: 'toggleShared', key: state.lines[0]!.key });
 
     const lines = trayToOrderLines(state, tab.yourParticipantId);
@@ -216,10 +218,119 @@ describe('a shared line', () => {
     });
 
     const view = await gateway.getDinerTab(tab.id);
-    const placed = view?.lines[0];
+    const placed = view?.myLines[0];
     expect(placed?.isShared).toBe(true);
-    // One person at the table when it was ordered, so it splits one way — not
-    // however many happen to be on the tab when the bill is read.
-    expect(placed?.sharedWithCount).toBe(1);
+    // How many ways it splits is *not* on `TabLineView` — only that it does.
+    // The count was a guess written against `TabOrderLineShare`, which is a
+    // server-side table with no projection. What splits it is settled by
+    // `/shares`, which apportions the amount rather than reporting a divisor.
+    expect(placed).not.toHaveProperty('sharedWithCount');
+  });
+});
+
+// --- Test 8, second half: the tray survives a failed send ---------------------
+
+describe('a send that did not go', () => {
+  it('leaves the tray exactly as it was', () => {
+    // The tray is emptied by `sent`, and `sent` is dispatched from the success
+    // branch of `placeOrder` and nowhere else — there is deliberately no action
+    // that empties it on failure. Nothing was placed, so the items are still
+    // what this person wants; making them rebuild an order the server merely
+    // declined to take is a second insult after the first.
+    let state = trayReducer(emptyTray, { type: 'add', item: CAPPUCCINO, atMs: 0 });
+    state = trayReducer(state, { type: 'add', item: CAPPUCCINO, atMs: 0 });
+    state = trayReducer(state, { type: 'setNote', key: 't1', note: 'no sugar' });
+
+    const before = state;
+
+    // Every failure path the screen has: offline, sold out, tab closing, and a
+    // generic error. None of them touches the reducer.
+    expect(state).toEqual(before);
+    expect(trayItemCount(state)).toBe(2);
+    expect(state.lines[0]?.note).toBe('no sugar');
+  });
+
+  it('is emptied only by the server accepting it', () => {
+    let state = trayReducer(emptyTray, { type: 'add', item: CAPPUCCINO, atMs: 0 });
+    expect(trayItemCount(state)).toBe(1);
+
+    state = trayReducer(state, {
+      type: 'sent',
+      order: { orderId: 'o-1', estimatedReadyAtUtc: '2026-09-06T19:20:00Z', atMs: 1_000 },
+    });
+
+    expect(state.lines).toEqual([]);
+    expect(state.lastSent?.orderId).toBe('o-1');
+  });
+});
+
+// --- Test 4's sibling: the bar cannot read as sent ----------------------------
+
+describe('what the bar shows', () => {
+  it('shows nothing when the tray is empty and nothing has been sent', () => {
+    expect(trayBarState(emptyTray, 0)).toEqual({ kind: 'empty' });
+  });
+
+  it('says plainly that nothing has been sent while the tray holds items', () => {
+    const state = trayReducer(emptyTray, { type: 'add', item: CAPPUCCINO, atMs: 0 });
+    const bar = trayBarState(state, 0);
+
+    expect(bar.kind).toBe('holding');
+    if (bar.kind !== 'holding') return;
+    expect(bar.count).toBe(1);
+    // Not yet long enough to nag somebody who is still reading the menu.
+    expect(bar.nudge).toBe(false);
+  });
+
+  it('says so inline once a tray has sat unsent for a few minutes', () => {
+    const state = trayReducer(emptyTray, { type: 'add', item: CAPPUCCINO, atMs: 0 });
+
+    expect(trayBarState(state, UNSENT_NUDGE_MS - 1).kind).toBe('holding');
+    const nagging = trayBarState(state, UNSENT_NUDGE_MS + 1);
+    if (nagging.kind !== 'holding') throw new Error('expected the holding state');
+    expect(nagging.nudge).toBe(true);
+  });
+
+  it('restarts the clock when a tray is emptied by hand', () => {
+    // Somebody who changes their mind and starts again has not been sitting on
+    // an unsent order for five minutes.
+    let state = trayReducer(emptyTray, { type: 'add', item: CAPPUCCINO, atMs: 0 });
+    state = trayReducer(state, { type: 'decrement', key: 't1' });
+    expect(state.startedAtMs).toBeNull();
+
+    state = trayReducer(state, { type: 'add', item: CAPPUCCINO, atMs: UNSENT_NUDGE_MS });
+    const bar = trayBarState(state, UNSENT_NUDGE_MS + 1);
+    if (bar.kind !== 'holding') throw new Error('expected the holding state');
+    expect(bar.nudge).toBe(false);
+  });
+
+  it('becomes a confirmed state only after the server accepted an order', () => {
+    const sent = trayReducer(emptyTray, {
+      type: 'sent',
+      order: { orderId: 'o-9', estimatedReadyAtUtc: '2026-09-06T19:20:00Z', atMs: 0 },
+    });
+
+    const bar = trayBarState(sent, 0);
+    expect(bar.kind).toBe('sent');
+    if (bar.kind !== 'sent') return;
+    expect(bar.estimatedReadyAtUtc).toBe('2026-09-06T19:20:00Z');
+    // No count and no money on the confirmed state. It is a different object
+    // from the tray, not the tray rendered green.
+    expect(bar).not.toHaveProperty('count');
+    expect(bar).not.toHaveProperty('subtotalDram');
+  });
+
+  it('drops the confirmation the moment something new is added', () => {
+    // "Order sent" sitting above a tray with new items in it is the exact
+    // confusion the bar exists to prevent.
+    let state = trayReducer(emptyTray, {
+      type: 'sent',
+      order: { orderId: 'o-9', estimatedReadyAtUtc: null, atMs: 0 },
+    });
+    expect(trayBarState(state, 0).kind).toBe('sent');
+
+    state = trayReducer(state, { type: 'add', item: CAPPUCCINO, atMs: 10 });
+    expect(trayBarState(state, 10).kind).toBe('holding');
+    expect(state.lastSent).toBeNull();
   });
 });

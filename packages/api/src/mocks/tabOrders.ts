@@ -1,8 +1,8 @@
 import type {
   BranchMenu,
+  DinerTabLine,
   DinerTabView,
   MenuItemDetail,
-  ParticipantShare,
   PlaceOrderCommand,
   PlaceOrderResult,
   TabAdjustment,
@@ -27,8 +27,34 @@ import { computeBill, type BillingLine } from './billing';
  * arithmetic in `billing.ts`. Nothing in this file adds up a price.
  */
 
-/** The branch percentage, snapshotted when a tab opens. */
+/**
+ * The branch percentage, snapshotted when a tab opens.
+ *
+ * Used by the mock's own arithmetic only. **No diner endpoint carries it** —
+ * the one view that does is `ReservationPolicyView`, behind `ManagerOrAbove` —
+ * so nothing projected to a diner may state it.
+ */
 export const MOCK_SERVICE_CHARGE_PERCENT = 10;
+
+/**
+ * A tab line narrowed to what `TabLineView` actually carries.
+ *
+ * The mock stores the richer staff-side line because its void and adjustment
+ * paths need it. The diner projection throws that away, exactly as the server
+ * does: no note, no menu item, no order id, no status.
+ */
+function dinerLine(line: TabLine): DinerTabLine {
+  return {
+    id: line.id,
+    name: line.name,
+    quantity: line.quantity,
+    unitPriceDram: line.unitPriceDram,
+    lineTotalDram: line.lineTotalDram,
+    isShared: line.isShared || line.isTableAttributed,
+    participantId: line.participantId,
+    orderedByName: line.orderedByName,
+  };
+}
 
 interface MockOrder {
   readonly id: string;
@@ -369,15 +395,38 @@ export function createTabOrders(options: TabOrdersOptions) {
       };
     },
 
-    shares(tab: TableTab): TabShares {
+    /**
+     * Who owes what, projected through the caller's own visibility.
+     *
+     * `participantId` is what the real endpoint reads from the token, so the
+     * mock takes it explicitly rather than answering as an omniscient observer.
+     * It used to return `kind: 'table'` unconditionally with `yourShare: null`,
+     * which meant the hidden-total branch was unreachable through the mock and
+     * every screen that narrows on it was untested.
+     */
+    shares(tab: TableTab, participantId: string): TabShares {
       const record = contentFor(tab.id, tab.branchId);
       const { bill: computed, shares } = bill(tab, record);
+      const me = tab.participants.find((person) => person.id === participantId);
+      const mine = shares.find((share) => share.participantId === participantId) ?? null;
+
+      // `TabSharesView.tableTotalVisible` false means `totals` and `shares` are
+      // absent from the body. Not zeroed, and not empty arrays.
+      if (!(me?.permissions.canSeeTableTotal ?? false)) {
+        return {
+          kind: 'yourShareOnly',
+          tabId: tab.id,
+          absorbedFromRemovedDram: computed.absorbedFromRemovedDram,
+          yourShare: mine,
+        };
+      }
+
       return {
         kind: 'table',
         tabId: tab.id,
         totals: computed,
         absorbedFromRemovedDram: computed.absorbedFromRemovedDram,
-        yourShare: null,
+        yourShare: mine,
         shares: shares.filter((share) =>
           tab.participants.some(
             (person) => person.id === share.participantId && person.status === 'active',
@@ -400,24 +449,28 @@ export function createTabOrders(options: TabOrdersOptions) {
       const me = tab.participants.find((person) => person.id === participantId);
       const canSeeTableTotal = me?.permissions.canSeeTableTotal ?? false;
 
+      /**
+       * Voided lines are gone, not struck through.
+       *
+       * `TabProjection` builds both of its line arrays from
+       * `tab.Lines.Where(l => !l.IsVoided)`, so a diner never receives a voided
+       * line in any form. The mock filters identically on purpose: a mock that
+       * kept them would let this screen be built against a strike-through the
+       * server will never send, and the disagreement would surface at a table.
+       */
+      const liveLines = record.lines.filter((line) => line.status !== 'voided');
+
       const visibleLines = canSeeTableTotal
-        ? record.lines
-        : record.lines.filter(
+        ? liveLines
+        : liveLines.filter(
             (line) =>
               line.participantId === participantId || line.isShared || line.isTableAttributed,
           );
 
       let money: TabMoney;
       if (canSeeTableTotal) {
-        const { bill: computed, shares } = bill(tab, record);
-        money = {
-          kind: 'table',
-          bill: computed,
-          serviceChargePercent: MOCK_SERVICE_CHARGE_PERCENT,
-          yourShare:
-            (shares.find((share) => share.participantId === participantId) as
-              ParticipantShare | undefined) ?? null,
-        };
+        const { bill: computed } = bill(tab, record);
+        money = { kind: 'table', bill: computed };
       } else {
         // Their own lines only, summed by the same arithmetic — a voided line
         // counts zero here exactly as it does on the table's bill.
@@ -446,27 +499,50 @@ export function createTabOrders(options: TabOrdersOptions) {
           serviceChargePercent: 0,
           paidDram: 0,
         });
-        money = {
-          kind: 'ownItemsOnly',
-          yourItemsSubtotalDram: own.bill.subtotalDram,
-          serviceChargePercent: MOCK_SERVICE_CHARGE_PERCENT,
-        };
+        money = { kind: 'ownItemsOnly', yourItemsSubtotalDram: own.bill.subtotalDram };
       }
+
+      const host = tab.participants.find((person) => person.role === 'host') ?? null;
 
       return {
         tabId: tab.id,
         branchId: tab.branchId,
         tableLabel: tab.tableLabel,
-        timeZoneId: tab.timeZoneId,
         status: tab.status === 'closed' ? 'closed' : 'open',
         settlementMode: record.settlementMode,
         settlementModeLocked: record.settlementModeLocked,
-        lines: visibleLines,
-        // Adjustments are only meaningful beside a table total.
-        adjustments: canSeeTableTotal ? record.adjustments : [],
+        hostParticipantId: host?.id ?? null,
+        hideTotalFromGuests: !(tab.defaultPermissions.canSeeTableTotal ?? true),
+        me: {
+          participantId: participantId,
+          displayName: me?.displayName ?? '',
+          role: me?.role ?? 'guest',
+          status: me?.status === 'pending' ? 'pendingApproval' : 'approved',
+          canOrder: me?.permissions.canOrder ?? false,
+          // The same three-way rule the ordering endpoint enforces, in one
+          // place. A screen must never assemble this itself.
+          canOrderNow:
+            (me?.permissions.canOrder ?? false) && me?.status === 'active' && tab.status === 'open',
+          canPay: me?.permissions.canPay ?? false,
+          canSeeTableTotal,
+          joinedAtUtc: me?.joinedAtUtc ?? tab.openedAtUtc,
+        },
+        participants: tab.participants.map((person) => ({
+          participantId: person.id,
+          displayName: person.displayName ?? '',
+          role: person.role,
+          status: person.status === 'pending' ? 'pendingApproval' : 'approved',
+        })),
+        myLines: visibleLines
+          .filter((line) => line.participantId === participantId || line.isShared)
+          .map(dinerLine),
+        // `null`, not `[]`. "You are not shown the table's items" and "the table
+        // has ordered nothing" must not be the same value.
+        tableLines: canSeeTableTotal ? visibleLines.map(dinerLine) : null,
         money,
-        lastSequence: record.sequence,
-        asOfUtc: iso(now()),
+        openedAtUtc: tab.openedAtUtc,
+        closedAtUtc: tab.closedAtUtc,
+        fetchedAtUtc: iso(now()),
       };
     },
   };

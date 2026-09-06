@@ -596,3 +596,48 @@ export class PolicyBoundsError extends ApiError {
 export function isPolicyBounds(error: unknown): error is PolicyBoundsError {
   return error instanceof PolicyBoundsError;
 }
+
+/**
+ * The one hold extension is already spent.
+ *
+ * **Inferred from the endpoint, not from a code**, and that is worth stating.
+ * `Reservation.ExtendHold` throws `DomainStateException`, which the API maps to
+ * a 409 with the generic `conflicting-state` code and prose only — no field
+ * name, no `graceExtensionsUsed` in the context. Three domain rules produce it:
+ * the booking is not confirmed, the branch offers no extensions, or the one
+ * extension is used.
+ *
+ * The late nudge is only sent for a confirmed booking at a branch whose policy
+ * has a non-zero `GraceExtensionMinutes` — the notification payload carries the
+ * number — so on that path the third is the only one left. The gateway raises
+ * this instead of a generic conflict so the screen can say "you have already
+ * let them know" rather than "something went wrong".
+ *
+ * A dedicated `hold-already-extended` code, or `graceExtensionsUsed` on
+ * `ReservationView`, would remove the inference. Both are worth asking for.
+ */
+export class HoldAlreadyExtendedError extends ApiError {
+  readonly reservationId: string;
+  /** What the server actually said, kept for logs rather than for the screen. */
+  readonly serverDetail: string | null;
+
+  constructor(options: {
+    url: string;
+    reservationId: string;
+    serverDetail?: string | null | undefined;
+    requestId?: string | undefined;
+  }) {
+    super('This booking has already had its one extension.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'HoldAlreadyExtendedError';
+    this.reservationId = options.reservationId;
+    this.serverDetail = options.serverDetail ?? null;
+  }
+}
+
+export function isHoldAlreadyExtended(error: unknown): error is HoldAlreadyExtendedError {
+  return error instanceof HoldAlreadyExtendedError;
+}

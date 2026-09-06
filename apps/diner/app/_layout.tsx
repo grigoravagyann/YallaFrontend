@@ -9,10 +9,24 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { authSession } from '../src/auth/session';
+import { projectId } from '../src/config';
 import { gateway } from '../src/data/gateway';
 import { bootstrapI18n } from '../src/i18n';
+import { useSession } from '../src/stores/session';
+import { usePushNotifications } from '../src/push/usePushNotifications';
 
-const queryClient = createQueryClient();
+/**
+ * `'always'`: an offline send fails rather than pausing.
+ *
+ * A paused mutation leaves the send button spinning for ever and the diner
+ * believing food is on the way. The tab screen would rather say "no signal, so
+ * this order has not been placed" and keep the tray intact than queue anything:
+ * nobody is standing at this table who can reconcile a late order, and twenty
+ * minutes of waiting for food nobody is cooking is the worst outcome this app
+ * has. `apps/web` sets the opposite for the opposite reason — see
+ * `createQueryClient`.
+ */
+const queryClient = createQueryClient({ mutationNetworkMode: 'always' });
 
 /**
  * Two families for Armenian, Cyrillic and Latin — Yalla Sans for body, Yalla
@@ -32,6 +46,29 @@ const FONTS = {
   [nativeDisplayFontFace['700']]: require('../assets/fonts/YallaSerif-700.ttf'),
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
+
+/**
+ * Notification wiring, as a component rather than a call in `RootLayout`.
+ *
+ * It needs `useGateway`, which only resolves *inside* `GatewayProvider`, and
+ * `RootLayout` renders that provider. A hook call in the parent would run one
+ * level too high.
+ */
+function PushNotifications() {
+  // Subscribed rather than read once: a diner who verifies their phone mid-
+  // session becomes registerable at that moment, and a value read at mount
+  // would leave them unreachable until the next launch.
+  const verified = useSession((state) => state.verificationToken !== null);
+
+  usePushNotifications({
+    projectId,
+    // `POST /api/diner/devices` is `VerifiedDiner`-scoped, so there is nothing
+    // to register before then. A walk-in who scanned a QR holds a tab-
+    // participant token and no account; the server has nobody to address.
+    signedIn: verified,
+  });
+  return null;
+}
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -74,6 +111,10 @@ export default function RootLayout() {
     <I18nextProvider i18n={i18next}>
       <QueryClientProvider client={queryClient}>
         <GatewayProvider gateway={gateway}>
+          {/* Inside the providers, because it needs the gateway and the locale;
+              above the navigator, because a cold-start tap has to be able to
+              route before any screen has mounted. */}
+          <PushNotifications />
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />

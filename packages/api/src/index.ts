@@ -126,6 +126,19 @@ export type { TabPermissionKey } from './contracts/permissions';
 
 export { extractScannedCode } from './contracts/scanCode';
 
+// --- Notifications -----------------------------------------------------------
+export { actionIsLive, canExtendHold } from './contracts/push';
+export type {
+  CancelReservationCommand,
+  DevicePlatform,
+  ExtendHoldCommand,
+  ExtendHoldOutcome,
+  RegisterPushDeviceCommand,
+  ReservationState,
+  ReservationStatusCode,
+} from './contracts/push';
+export { HoldAlreadyExtendedError, isHoldAlreadyExtended } from './contracts/errors';
+
 export type { Menu, MenuItem, MenuSection } from './contracts/menu';
 
 /**
@@ -342,6 +355,8 @@ export type {
   BranchMenu,
   CallWaiterCommand,
   CompCommand,
+  DinerTabLine,
+  DinerTabMe,
   DinerTabView,
   FloorChange,
   FloorChangePage,
@@ -367,6 +382,7 @@ export type {
   StaffTab,
   TabAdjustment,
   TabBill,
+  TabRosterEntry,
   TabEvent,
   TabEventActor,
   TabEventPage,

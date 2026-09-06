@@ -26,6 +26,26 @@ const MAX_QUERY_RETRIES = 3;
 export interface CreateQueryClientOptions {
   /** Overridden in tests to make failures immediate. */
   readonly retry?: boolean | undefined;
+  /**
+   * What a mutation does when the device reports no network.
+   *
+   * **There is no safe shared default here, which is why there is no default
+   * here.** Each app passes its own and says why at the call site:
+   *
+   * - `'online'` — TanStack's default. The mutation is *paused* and fires when
+   *   the connection returns. Right for the counter tablet, where an order
+   *   keyed in during a wifi drop should land by itself and a waiter is
+   *   standing in the room to reconcile it if it does not.
+   * - `'always'` — attempt it regardless, so it fails fast and the screen can
+   *   say the thing did not happen. Right for a diner's phone, where a paused
+   *   mutation is a spinner that never resolves and a person who believes food
+   *   is on the way.
+   *
+   * This library default has now caused a defect in both apps in opposite
+   * directions, which is the argument for making it explicit rather than
+   * choosing a better one.
+   */
+  readonly mutationNetworkMode: 'online' | 'always';
 }
 
 /**
@@ -33,6 +53,9 @@ export interface CreateQueryClientOptions {
  *
  * Two deliberate choices:
  *
+ * - **`mutationNetworkMode` is required, not defaulted.** See the option: the
+ *   two apps want opposite behaviour offline, and a shared default is how one
+ *   of them silently gets the other's.
  * - **Mutations never retry.** Seating a walk-in, closing a bill and taking an
  *   order are not idempotent. An automatic retry after a timeout can double-add
  *   a round of drinks, and the client cannot tell a lost response from a lost
@@ -41,7 +64,7 @@ export interface CreateQueryClientOptions {
  * - **Queries retry only on transport and 5xx failures.** Retrying a 404 or a
  *   409 just delays the error the user needs to see.
  */
-export function createQueryClient(options: CreateQueryClientOptions = {}): QueryClient {
+export function createQueryClient(options: CreateQueryClientOptions): QueryClient {
   const retryEnabled = options.retry ?? true;
 
   return new QueryClient({
@@ -61,6 +84,7 @@ export function createQueryClient(options: CreateQueryClientOptions = {}): Query
       },
       mutations: {
         retry: false,
+        networkMode: options.mutationNetworkMode,
       },
     },
   });

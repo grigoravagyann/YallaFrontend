@@ -11,8 +11,10 @@ import type {
   VenueSummary,
   VerifiedPhone,
 } from '../contracts/booking';
+import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
   ExpiredCodeError,
+  HoldAlreadyExtendedError,
   LeadTimeExceededError,
   RateLimitedError,
   TableTakenError,
@@ -105,6 +107,54 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   // Mutable in-memory state. A real backend owns all of this.
   const floors = new Map<string, FloorPlanData>();
   const bookings = new Map<string, Booking>();
+  /** pushToken -> deviceId. Idempotent on the token, as the server is. */
+  const pushDevices = new Map<string, string>();
+  /** reservationId -> the one extension it is allowed, and what claimed it. */
+  const holdExtensions = new Map<
+    string,
+    { readonly clientCommandId: string; readonly outcome: ExtendHoldOutcome }
+  >();
+
+  /**
+   * A booking narrowed to what the wire actually carries.
+   *
+   * The mock holds the richer `Booking`; `ReservationView` has six fewer fields
+   * (see `contracts/push.ts`). Narrowing here rather than returning the whole
+   * thing keeps the mock honest about what a real notification landing can read.
+   */
+  function toReservationState(booking: Booking): ReservationState {
+    const status: ReservationState['status'] =
+      booking.status === 'cancelled'
+        ? 'cancelledByDiner'
+        : booking.status === 'pendingApproval'
+          ? 'pendingApproval'
+          : booking.status === 'confirmed'
+            ? 'confirmed'
+            : 'unknown';
+
+    return {
+      reservationId: booking.id,
+      code: booking.code,
+      status,
+      branchId: booking.branchId,
+      branchName: booking.branchName,
+      tableLabel: booking.tableLabel,
+      partySize: booking.partySize,
+      startUtc: booking.slotUtc,
+      // `AvailabilityWindowDto.untilUtc` is nullable — the window is unbounded
+      // when nothing is booked after. The wire's `endUtc` is always set (start
+      // plus the branch's turn time), so fall back to the slot itself rather
+      // than emitting an empty string.
+      endUtc: booking.window.untilUtc ?? booking.slotUtc,
+      localDate: booking.slotUtc.slice(0, 10),
+      localStartTime: booking.slotUtc.slice(11, 16),
+      timeZoneId: booking.timeZoneId,
+      cancelledAtUtc: booking.cancelledAtUtc,
+      cancelledAfterDeadline:
+        booking.cancelledAtUtc !== null &&
+        Date.parse(booking.cancelledAtUtc) > Date.parse(booking.freeCancellationUntilUtc),
+    };
+  }
   const challenges = new Map<string, Challenge>();
   const codesPerNumber = new Map<string, number[]>();
   /** commandId -> bookingId. This is what makes createBooking idempotent. */
@@ -282,6 +332,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return floors.get(branchId) ?? null;
     },
 
+    async getBranchTimeZone(branchId) {
+      await wait();
+      return findBranch(branchId)?.branch.timeZoneId ?? null;
+    },
+
     async getTableAvailability({ branchId, slotUtc, partySize }) {
       await wait();
       return availabilityFor(branchId, slotUtc, partySize);
@@ -456,6 +511,65 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return bookings.get(bookingId) ?? null;
     },
 
+    // --- Notifications --------------------------------------------------------
+    //
+    // The mock has no push channel and cannot pretend to: a token it accepted
+    // would never receive anything. What it *can* do honestly is behave like the
+    // registration endpoint and hold reservation state, so the routing, the
+    // stale-action rule and the one-extension rule are all walkable without a
+    // phone in your hand.
+
+    async registerPushDevice({ pushToken }) {
+      await wait();
+      // Idempotent on the token, as the server is: the app calls this on every
+      // launch and on rotation.
+      let deviceId = pushDevices.get(pushToken);
+      if (!deviceId) {
+        deviceId = `device-${pushDevices.size + 1}`;
+        pushDevices.set(pushToken, deviceId);
+      }
+      return { deviceId };
+    },
+
+    async getReservationState(reservationId) {
+      await wait();
+      const booking = bookings.get(reservationId);
+      return booking ? toReservationState(booking) : null;
+    },
+
+    async cancelReservation({ reservationId }) {
+      const booking = await this.cancelBooking(reservationId);
+      return toReservationState(booking);
+    },
+
+    async extendReservationHold({ reservationId, clientCommandId }) {
+      await wait();
+      const booking = bookings.get(reservationId);
+      if (!booking) throw new Error(`Unknown booking ${reservationId}`);
+
+      const previous = holdExtensions.get(reservationId);
+      if (previous) {
+        // The same command again is a replay, not a second attempt: a
+        // notification is tappable twice and the second tap is not an error.
+        if (previous.clientCommandId === clientCommandId) {
+          return { ...previous.outcome, wasReplay: true };
+        }
+        // A genuinely second attempt. The one extension is spent.
+        throw new HoldAlreadyExtendedError({ url: URL_TAG, reservationId });
+      }
+
+      const minutes = 15;
+      const outcome = {
+        reservationId,
+        holdExpiresAtUtc: new Date(now().getTime() + minutes * 60_000).toISOString(),
+        extensionMinutes: minutes,
+        extensionsRemaining: 0,
+        wasReplay: false,
+      };
+      holdExtensions.set(reservationId, { clientCommandId, outcome });
+      return outcome;
+    },
+
     async cancelBooking(bookingId) {
       await wait();
       const booking = bookings.get(bookingId);
@@ -586,7 +700,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async getTabShares(tabId): Promise<TabShares | null> {
       await wait();
       const tab = world.get(tabId);
-      return tab ? orders.shares(tab) : null;
+      return tab ? orders.shares(tab, tab.yourParticipantId) : null;
     },
 
     async setSettlementMode(command): Promise<DinerTabView> {

@@ -1,18 +1,25 @@
 import type { ParticipantShare, TabBill } from '../contracts/ordering';
 
 /**
- * The bill, computed the way the server computes it.
+ * The bill, computed the way the server computes it — **for mock data only**.
  *
- * A port of `Yalla.Domain.Billing.TabBilling.Compute`, kept faithful on purpose.
- * The alternative — a mock that sums line totals and calls it a bill — would let
- * every screen be built and demonstrated against arithmetic the server does not
- * do, and the disagreement would surface on the day the backend is wired, at a
- * table, in front of a guest.
+ * A port of `Yalla.Domain.Billing.TabBilling.Compute`. It exists so the
+ * in-memory gateway can produce a bill that behaves like a real one; the
+ * alternative, a mock that sums line totals, would let every screen be built and
+ * demonstrated against arithmetic the server does not do.
  *
- * **The client never uses this to display money.** Real screens read totals from
- * the server; this exists so the mock can behave like one. The one place the app
- * does arithmetic is the order tray's subtotal, which is a basket preview of
- * items not yet ordered and is labelled as such.
+ * **Nothing rendered to a diner comes from here, and nothing may.** Every screen
+ * reads its money from the server: `TabView.tableTotal`, `TabSharesView`,
+ * `OrderView.totals`. Against the real gateway this file is not on the path at
+ * all. The one place the app does arithmetic is the order tray's subtotal, which
+ * is a preview of items **not yet ordered** and is labelled as such.
+ *
+ * It is a second implementation of money, and a second implementation drifts.
+ * What stops it drifting silently is not this file's own tests —
+ * `goldenBilling.test.ts` runs it against `fixtures/billing-vectors.json`,
+ * emitted by the backend's own test suite from `TabBilling.Compute` and
+ * committed by the side that owns the arithmetic. A rule change there turns this
+ * red with the vector that moved.
  *
  * The order of operations is the part that gets decided by accident elsewhere,
  * so it is stated:

@@ -27,6 +27,7 @@
  */
 
 import type { Photo } from './menuAdmin';
+import type { TabParticipantRole } from './tab';
 import type {
   SettlementMode,
   StaffTabStatus,
@@ -345,67 +346,155 @@ export interface TabBill {
 }
 
 /**
+ * One line on a tab as a **diner** reads it.
+ *
+ * Separate from {@link TabLine} because the two wires are genuinely different
+ * shapes, not two spellings of one. `TabLineView` — the only line a diner token
+ * can reach — carries eight fields. `OrderLineView`, which the counter screen
+ * assembles from the kitchen queue, carries the menu item, the note, the
+ * table-attribution flag and the share snapshot, and keeps voided lines with
+ * their totals zeroed. Collapsing them into one interface meant ten fields that
+ * were `null` forever on the diner path and a `status` that could never be
+ * `voided`.
+ *
+ * **There is no `status` here, and that is the finding rather than an
+ * omission.** `TabProjection` filters `IsVoided` out of both `myLines` and
+ * `tableLines`, so a voided line does not arrive at a diner in any form: not
+ * struck through, not zeroed, not at all. The `lineVoided` event is the only
+ * signal, and what it says is that a line the phone *used to* hold is gone.
+ * See `useTabStream` for how that is announced by name.
+ */
+export interface DinerTabLine {
+  readonly id: string;
+  /** The name as it was when ordered. A renamed dish does not rewrite history. */
+  readonly name: string;
+  readonly quantity: number;
+  readonly unitPriceDram: number;
+  /** `unitPriceDram × quantity`, from the server. */
+  readonly lineTotalDram: number;
+  /** True when the item belongs to the table and splits across those present. */
+  readonly isShared: boolean;
+  /** Who ordered it. `null` when a waiter keyed it in without attributing it. */
+  readonly participantId: string | null;
+  /** Their name at the time of reading. `null` for a table-attributed line. */
+  readonly orderedByName: string | null;
+}
+
+/** One other person at the table, as the roster lists them. */
+export interface TabRosterEntry {
+  readonly participantId: string;
+  readonly displayName: string;
+  readonly role: TabParticipantRole;
+  readonly status: TabParticipantStatusCode;
+}
+
+/**
+ * The caller's own row, with the flags the screens branch on.
+ *
+ * `canOrderNow` is the one that matters: the server computes it as approved
+ * **and** allowed to order **and** the tab still open, by the same rule the
+ * ordering endpoint enforces. A screen that assembles that condition itself
+ * from three other fields will eventually disagree with the endpoint, and the
+ * disagreement shows up as a rejected order the diner was invited to place.
+ */
+export interface DinerTabMe {
+  readonly participantId: string;
+  readonly displayName: string;
+  readonly role: TabParticipantRole;
+  readonly status: TabParticipantStatusCode;
+  readonly canOrder: boolean;
+  readonly canOrderNow: boolean;
+  readonly canPay: boolean;
+  readonly canSeeTableTotal: boolean;
+  readonly joinedAtUtc: string;
+}
+
+/**
  * The money on a tab, or the deliberate absence of it.
  *
  * A union rather than nullable fields, and that is the point. When the host has
- * hidden the total, the backend returns no aggregate at all — `tableTotalVisible`
- * false with `totals` and `shares` **absent from the body**, not zeroed — and a
- * `totalDram` that could be `0` or `null` is one careless render away from a
- * bill that says a table owes nothing. Here the aggregate is not reachable
- * without narrowing, so a screen cannot draw a zero by accident.
+ * hidden the total the backend sends no aggregate — `tableTotalVisible` false,
+ * and `tableTotal` **absent from the body** because the API serialises with
+ * `JsonIgnoreCondition.WhenWritingNull`. A `totalDram` that could be `0` or
+ * `null` is one careless render away from a bill that says a table owes
+ * nothing. Here the aggregate is unreachable without narrowing.
+ *
+ * The mapper narrows on **`tableTotalVisible`, never on whether `tableTotal`
+ * arrived**. The generated type is `?: T | null` because OpenAPI cannot say
+ * "absent exactly when this boolean is false", so presence-testing would flip
+ * the branch silently the day the serializer starts emitting nulls.
  *
  * What is hidden is the **table** total and **other people's** items. Never
  * prices, and never your own lines: a guest always knows what their own coffee
  * costs.
+ *
+ * **There is no `serviceChargePercent` on either branch.** It was here, and it
+ * was a guess. The only endpoint that carries a branch's percentage is
+ * `GET /api/branches/{id}/reservation-policy`, which is `ManagerOrAbove`; no
+ * diner token can read it. The `ownItemsOnly` branch was designed around
+ * stating the percentage without stating the total, and that copy cannot be
+ * written honestly today — see the README.
  */
 export type TabMoney =
   | {
       readonly kind: 'table';
-      readonly bill: TabBill;
-      /**
-       * The branch percentage, snapshotted when the tab opened. Shown on the
-       * service-charge line from the first item, never revealed at the end.
-       */
-      readonly serviceChargePercent: number;
-      /** This participant's own share, when the server can attribute one. */
-      readonly yourShare: ParticipantShare | null;
+      /** The table aggregate. `TabTotalsView`, in dram. */
+      readonly bill: TabTotals;
     }
   | {
       readonly kind: 'ownItemsOnly';
       /**
-       * The sum of this participant's own lines, from the server.
+       * The sum of this participant's own **unshared** lines, from the server.
        *
-       * There is deliberately no `total`, no `serviceChargeDram` and no
-       * `remaining` on this branch. The percentage is a fact about the branch
-       * rather than an aggregate, so it is safe to say a service charge applies
-       * without saying what the table's comes to.
+       * Shared lines are listed in `myLines` with `isShared` set and are
+       * apportioned by the shares endpoint, not folded in here. There is
+       * deliberately no total, no service charge and no remaining.
        */
       readonly yourItemsSubtotalDram: number;
-      readonly serviceChargePercent: number;
     };
 
 /**
- * The tab as one diner sees it: the lines they may see, and the money they may
- * see.
+ * The tab as one diner sees it. `Yalla.Application.Tabs.TabView`.
+ *
+ * Two line arrays rather than one, because the server sends two and the
+ * difference is the permission: `myLines` is always present, `tableLines` is
+ * absent exactly when the total is hidden. A single `lines` array — what this
+ * interface used to have — had to pick one of them at map time and threw away
+ * the distinction the screens need to render "your items" against "the table".
  */
 export interface DinerTabView {
   readonly tabId: string;
   readonly branchId: string;
   readonly tableLabel: string;
-  readonly timeZoneId: string;
   readonly status: 'open' | 'closing' | 'closed' | 'abandoned';
   readonly settlementMode: SettlementMode;
   readonly settlementModeLocked: boolean;
+  readonly hostParticipantId: string | null;
+  /** The table default for a joiner's `canSeeTableTotal`. */
+  readonly hideTotalFromGuests: boolean;
+  readonly me: DinerTabMe;
   /**
-   * Every line this participant may see: all of them when they may see the
-   * table total, their own only when they may not.
+   * Who is at the table. Everyone still on the tab for an approved participant;
+   * only the caller themself while they are pending.
    */
-  readonly lines: readonly TabLine[];
-  readonly adjustments: readonly TabAdjustment[];
+  readonly participants: readonly TabRosterEntry[];
+  /** The caller's own items — placed by them, or shared with them. */
+  readonly myLines: readonly DinerTabLine[];
+  /** Every live line on the tab. `null` when the total is hidden. */
+  readonly tableLines: readonly DinerTabLine[] | null;
   readonly money: TabMoney;
-  /** Sequence high-water mark, so the event stream can continue from here. */
-  readonly lastSequence: number;
-  readonly asOfUtc: string;
+  readonly openedAtUtc: string;
+  readonly closedAtUtc: string | null;
+  /**
+   * When this copy was read, from the client's own clock.
+   *
+   * `TabView` carries no `asOfUtc` and no sequence high-water mark. This is not
+   * the server's opinion of when the tab last changed — it is when this device
+   * fetched it, which is the only honest thing a stale-bill banner can say. The
+   * event cursor is seeded from `GET /events`'s `maxSequence` instead; see
+   * `useTabStream`.
+   */
+  readonly fetchedAtUtc: string;
 }
 
 // ---------------------------------------------------------------------------

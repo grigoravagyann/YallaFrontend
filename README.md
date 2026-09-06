@@ -800,8 +800,13 @@ from `mocks/`; the switch is `resolveGateway` and `resolveConsoleGateway` in
 | Voids, comps and discounts             | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                            |
 | Cash, closing, abandon, reassign host  | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                 |
 | Releasing a late booking               | real   | `POST /api/reservations/{id}/release`                                                               |
+| Diner menu, tab, shares, events        | real   | `GET /api/branches/{id}/menu`, `/api/tabs/{id}`, `/shares`, `/events`                               |
+| Diner ordering                         | real   | `POST /api/tabs/{id}/orders` — wired, and **refused by the server**; see below                      |
+| Settlement mode, calling a waiter      | real   | `POST /api/tabs/{id}/settlement-mode`, `/service-requests`                                          |
+| Push registration and the two actions  | real   | `POST /api/diner/devices`, `/api/reservations/{id}/{cancel,extend-hold}`                            |
+| Branch time zone                       | real   | `GET /api/branches/{id}/availability` — the only diner-readable source                              |
 | Diner venue and branch lists           | —      | **no backend endpoint exists**                                                                      |
-| Bookings, diner tabs, menus            | mock   | contracts not yet reconciled                                                                        |
+| Bookings and the tab roster            | mock   | `TableTab`/`Booking` carry six fields no reservation or tab view has                                |
 
 Nothing on the counter screen says "not available yet" any more.
 `EndpointNotWiredError` survives for the diner's venue catalogue and nothing
@@ -853,6 +858,101 @@ and somebody it has never seen types their id once. A device-token-readable
 roster — ids and names only — would remove the one genuinely bad moment in the
 flow.
 
+### What the diner's endpoints actually carry, and the eight places they did not agree
+
+The diner half of the ordering loop was built against `contracts/unshipped.ts`
+before the endpoints existed. `unshipped.ts` had already been renamed to
+`ordering.ts` when the counter screen was wired; what had **not** happened is
+the diner-side reconciliation, and eight of its shapes disagreed with the wire.
+
+`pnpm api:generate` against a running backend produced **no shape changes at
+all** — the schema in the repo was already current with Backend 9 — so every
+disagreement below was between the hand-written contract and a generated type
+that had been sitting there correct the whole time. The compiler found them the
+moment `DinerTabView` stopped being a guess: eleven errors, in the mock and its
+tests, which is exactly where you want them.
+
+Three are naming. Five are logic, and two of those changed what a screen can
+honestly say.
+
+| #   | Contract said                                                                                                          | Wire says                                                                  | Kind      |
+| --- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------- |
+| 1   | `TabShares.yourShare`                                                                                                  | `TabSharesView.myShare`                                                    | naming    |
+| 2   | `TabEventPage.lastSequence`                                                                                            | `TabEventPage.maxSequence`                                                 | naming    |
+| 3   | `TabEvent.data`                                                                                                        | `TabEventView.payload`                                                     | naming    |
+| 4   | `DinerTabView.lines` — one array                                                                                       | `myLines` **and** `tableLines`, the second absent when the total is hidden | **logic** |
+| 5   | `DinerTabView.lastSequence`                                                                                            | nothing; the cursor comes from `GET /events`'s `maxSequence`               | **logic** |
+| 6   | `DinerTabView.timeZoneId`                                                                                              | nothing; the zone is on `BranchAvailability`                               | **logic** |
+| 7   | `TabMoney.serviceChargePercent`, on both branches                                                                      | nothing a diner token can read                                             | **logic** |
+| 8   | `TabLine.status`, `voidReason`, `voidedByName`, plus `orderId`, `menuItemId`, `note`, `orderStatus`, `sharedWithCount` | none of the eight                                                          | **logic** |
+
+Plus two smaller ones: `DinerTabView.adjustments` does not exist on `TabView` at
+all, and `SetSettlementModeCommand.clientCommandId` was invented —
+`SetSettlementModeRequest` carries only the mode, so that endpoint is the one
+mutation in the product with no idempotency key.
+
+**The shares union survived, and it is genuinely absent rather than nullable.**
+This was the one worth being most careful about. `TabSharesView` is
+`tableTotalVisible: boolean` with `totals?` and `shares?`, which openapi-typescript
+renders as `?: T | null` — the shape that would let a screen render `0 ֏`. It
+does not, for a reason that is not visible in the schema:
+`DependencyInjectionExtension` sets `JsonIgnoreCondition.WhenWritingNull`
+globally, so the members are omitted from the body. Verified against a live
+guest with the total hidden: `'tableTotal' in body === false`,
+`'tableLines' in body === false`, `'totals' in body === false`. The mapper
+therefore narrows on **`tableTotalVisible`, never on presence** — presence-testing
+works today and would flip the branch silently the day anything changes the
+serializer.
+
+**A voided line does not reach a diner at all.** This is the finding that
+changed a screen. `TabProjection` builds both line arrays from
+`tab.Lines.Where(l => !l.IsVoided)`, so a void is not a strike-through — it is a
+row that vanishes and a total that moves. The void endpoint's own documentation
+says the line "stays visible to the diner, labelled as removed by staff, with
+the reason", and that is true of no `GET` on either path. `LiveBill` no longer
+renders a struck-through row, because it can never be sent one; instead the
+`lineVoided` event names the dish from the snapshot the phone held **before** the
+refetch, which is the only place that name still exists. `RenderedLine` has no
+`isVoided`, `voidReason` or `voidedByName`, so no component can reach for one.
+
+Adjustments are the same gap without the workaround: a comp moves the total and
+no read model tells the diner why.
+
+**The tab event stream needed no change.** The enum is 1–20, the reducer's union
+is those twenty plus `unknown`, and Backend 9's scheduler introduced none — its
+five message types go through the outbox, not the tab's sequence. A test now
+pins the realistic case rather than the tidy one: a type 21 arriving _in the
+middle_ of a page the client does understand, where the known events must still
+apply and the cursor must end past all three.
+
+### One thing that stops the ordering loop, and it is not in this repo
+
+`POST /api/tabs/{tabId}/orders` **refuses every diner**, with
+`403 forbidden`, `"Ordering is allowed only for somebody on this tab."`
+
+The client is correct and the authorization is correct. The service is not:
+
+- `IssueTabParticipantToken` mints `PrincipalType = TabParticipant` with
+  `ParticipantId` and `TabId` claims, and **no `DinerUserId`**.
+- `TabParticipantHandler` reads exactly those claims, checks the participant's
+  standing, and lets the request through — it even computes `canOrderNow`, which
+  the tab read reports as `true`.
+- `TabOrderService` then does
+  `var participantId = actor.DinerUserId ?? throw new TabPermissionException("Ordering", "somebody on this tab")`.
+  `ClaimsCurrentActor.DinerUserId` returns a value only when
+  `PrincipalType == Diner`, so for a scanned QR it is null and the order is
+  refused after passing the gate that exists to allow it.
+
+There is no token that satisfies both: a `Diner` principal fails the policy at
+`PrincipalType() != PrincipalType.TabParticipant`, and even if it did not,
+`DinerUserId` is a user id being compared against `TabParticipant.Id`, which is
+a participant row id.
+
+`ServiceRequestService` is the working pattern in the same codebase — it takes
+`actingParticipantId` as a parameter, passed from the claim, and calling a
+waiter works. The fix is to give `ICurrentActor` a `TabParticipantId` and have
+`TabOrderService` read it. Nothing in this repo changes when it lands.
+
 ### Where the wire shapes live
 
 `packages/api/src/contracts/ordering.ts`, which used to be `unshipped.ts` and is
@@ -870,11 +970,29 @@ into one), and a tab's adjustments as a read.
 `packages/api/src/mocks/billing.ts` is a faithful port of
 `TabBilling.Compute` — line adjustments, then tab adjustments, then a service
 charge on what is left, rounded once, remainders to the host by largest
-remainder. Every mock computes money through it. A mock that summed line totals
-and called it a bill would let every screen be built against arithmetic the
-server does not do, and the disagreement would surface at a table. A property
-test over two thousand random tabs asserts the shares sum to the total to the
-dram.
+remainder. **Mock data generation only.** Nothing rendered to a diner comes from
+it: every screen reads its money from `TabView.tableTotal`, `TabSharesView` or
+`OrderView.totals`, and against the real gateway this file is not on the path at
+all. The one place the app multiplies money is the tray subtotal, which is a
+preview of items _not yet ordered_ and is labelled as such.
+
+What keeps a second implementation of money from drifting is not its own tests.
+The property test over two thousand random tabs proves the port is
+_self-consistent_ — its shares sum to its own total — which two implementations
+can both be while quietly disagreeing about what three people owe. So the side
+that owns the arithmetic publishes its answers: Backend 8b emits
+`docs/billing-vectors.json` from `TabBilling.Compute` itself, by a test that
+**compares rather than overwrites**, and it is copied here as
+`mocks/fixtures/billing-vectors.json`. `goldenBilling.test.ts` runs the port
+against all fourteen — round numbers, a three-way split, an indivisible
+residue, rounding once at the end, a voided line, a comped dish comping its
+service charge, a tab-wide percentage, a flat discount capped at its line, a
+removed guest absorbed by the host, a pending guest who still owes, a
+table-attributed line, no service charge, a partial payment, everything voided.
+All fourteen passed on the first run, aggregate and per-participant share.
+Regenerating is a deliberate act on their side (`YALLA_WRITE_BILLING_VECTORS=1`)
+followed by copying the file here, and a rule change turns this red with the
+vector that moved.
 
 **No component is typed against a mock.** Screens depend on the contracts; the
 mocks implement them. A screen typed against what a mock happens to return stops
@@ -888,6 +1006,159 @@ Run with `VITE_DATA_SOURCE=mock` to exercise the whole service against the
 in-memory one, which simulates transitions, warnings, an idempotency log, a
 sequence counter and — since Prompt 8b — **row versions**, so both halves of a
 precondition failure can be walked without a backend.
+
+### The tray bar, and why "Review" was the worst word on the screen
+
+The bar at the bottom of the menu used to be one filled green pill: a count, a
+subtotal, and the word **Review**. Every part of that reads like an order that
+already exists. "Review" describes looking at something done; a total beside it
+looks like a bill; and the only other green pill in the flow is the one that
+confirms things. A diner who reads it that way puts the phone down and waits
+twenty minutes for food nobody is cooking, which is the worst failure in the
+app.
+
+`src/order/TrayBar.tsx` renders a three-member union and **only one member is a
+tray**:
+
+- `empty` — no bar.
+- `holding` — an _outlined, dashed_ surface, never a filled pill. It states the
+  negative in words — "Not sent yet" — at the same size as the count rather than
+  as grey subtext, and its action reads **Send to kitchen**. After three minutes
+  the line becomes "Still here — nothing has gone to the kitchen".
+- `sent` — a different object: filled, no count, no money, carrying the server's
+  own `estimatedReadyAtUtc`. It cannot be produced by rendering the tray
+  differently, which is what stops the two converging next time somebody edits
+  the file.
+
+`lastSent` is set from a `PlaceOrderResult` and from nothing else — never
+optimistically — and adding anything to the tray clears it, because "Order sent"
+above a tray with new items in it is the exact confusion the bar exists to
+prevent. The same honesty rule the staff queue follows: never present a state
+the server does not agree with.
+
+`trayBarState` is a pure function of the tray and a clock, so all of that is
+tested without rendering anything. A failed send never clears the tray: nothing
+was placed, so the items are still what that person wants.
+
+### `networkMode`, which has now caused a defect in both apps
+
+Prompt 9 needed `networkMode: 'always'` so an offline send fails rather than
+pausing. It landed on **one mutation** in the diner app, not on the shared query
+client, so `apps/web` was never affected — but as an unexplained one-liner it was
+one copy-paste away from being.
+
+`createQueryClient` now **requires** `mutationNetworkMode` and has no default,
+because there is no safe shared one:
+
+- `apps/diner` passes `'always'`. A paused mutation leaves the send button
+  spinning forever and a diner believing food is on the way. Nobody is standing
+  at that table who can reconcile a late order.
+- `apps/web` passes `'online'`. The tablet's own command queue owns retry, the
+  wifi in a basement drops for seconds, and failing a table transition the
+  moment it does puts a warning in front of a waiter mid-service whose action is
+  about to succeed. A waiter _is_ standing in the room.
+
+Both call sites carry the reason. `queryClient.test.ts` drives a real
+`MutationObserver` with the online manager forced off and asserts the two
+opposite behaviours: `'always'` calls the mutation function once and settles
+`error`; `'online'` never calls it, reports `isPaused`, and lands when the
+connection returns.
+
+### Coalescing refetches, and why an announcement waits
+
+Tab events arrive batched per poll today and will arrive individually once a hub
+exists. `invalidateQueries` per batch was survivable; per event it is a refetch
+per person at a busy table.
+
+`src/tab/refetchQueue.ts` caps it at **one in flight and one queued**. The cap is
+deliberately not zero-queued: a request that arrives mid-flight describes a
+change the running fetch started too early to see, so dropping it would leave
+the bill an order out of date with nothing on screen saying so. Ten events in
+quick succession produce exactly two refetches, which is what the test asserts.
+
+`request()` returning a promise is the other half. It resolves only once a run
+that **began after the call** has finished, and `useTabStream` awaits it before
+publishing the change markers. Previously the markers were set first, so "the
+waiter removed your Khorovats" rendered against a bill that still showed it and
+a total that had not moved — an explanation arriving before the thing it
+explains reads as a bug in the bill rather than as an account of it.
+
+### Push: registration, three app states, and two buttons
+
+Backend 9 sends five message types through Expo. Until this task they reached
+nothing.
+
+**The permission is requested in exactly one place** —
+`src/push/ReminderOptIn.tsx`, on the booking-confirmed screen, one line under a
+booking that has just been made. Never on launch: a prompt somebody sees before
+they understand it is a prompt they decline, and on iOS declining is close to
+permanent. Declining costs nothing here — the booking is already made — so a
+"no" produces one honest sentence saying the reminder will not arrive, and never
+a second prompt. There is deliberately no "not now" button; the OS prompt has
+one, and a custom pre-prompt with three options is a dark pattern wearing a
+cardigan.
+
+The token goes up with the **device locale**, which is not a formality: the
+backend picks the language for every message from the most recently seen device
+row, so a Russian speaker's Russian reminder comes from that argument and
+nothing else. `addPushTokenListener` re-registers on rotation, because a rotated
+token is a silently unreachable phone — the outbox reports a successful send to
+a token nobody holds.
+
+`usePushNotifications` handles all three states through one code path:
+
+| State          | How the response arrives                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| Foreground     | `addNotificationResponseReceivedListener`, with a handler that opts back in to showing the banner    |
+| Background     | the same listener; the router is already mounted                                                     |
+| **Cold start** | `getLastNotificationResponseAsync()`, read once on mount — the tap fired before any listener existed |
+
+Cold start is the one that breaks, and it breaks silently: without that read
+every notification tapped from a killed app lands on the home tab. The hook is
+mounted inside the providers and above the navigator so a cold-start tap can
+route before any screen has mounted.
+
+**The two action buttons run without opening the app** —
+`opensAppToForeground: false` on both categories. That is the entire feature: a
+reminder whose cancel takes four taps and a scroll is just a notification.
+
+`parsePushTarget` is a pure function over the payload dictionary, which is how
+cold-start routing is testable at all. Everything arrives as a string, including
+`approved` and `extensionMinutes`, so parsing happens there rather than at a
+call site where `"false"` would be truthy. An unrecognised `kind`, or one missing
+the id its screen needs, routes **nowhere** rather than to the home tab.
+
+**A notification never performs the action from a screen.** It routes, and
+`ReservationActions` reads the booking's state _now_ to decide what to offer:
+a reminder read the next morning must not offer to cancel a table somebody
+already sat at. `actionIsLive` allows only `confirmed` and `pendingApproval`;
+`canExtendHold` allows only `confirmed`, because a pending booking holds nothing.
+
+**`extend-hold` works once**, and the second refusal is the specific message
+rather than a generic error. Getting there took an inference, which is worth
+recording: `Reservation.ExtendHold` throws `DomainStateException`, mapped to a
+409 with the generic `conflicting-state` code and **prose only** — no field name,
+no `graceExtensionsUsed` in the context. Three domain rules produce it, and on
+the nudge's path (a confirmed booking at a branch whose policy has non-zero
+`GraceExtensionMinutes` — the payload carries the number) only "already
+extended" is left. `HoldAlreadyExtendedError` says so at the boundary, and the
+screen renders "you have already let them know". A dedicated
+`hold-already-extended` code, or `graceExtensionsUsed` on `ReservationView`,
+would replace the inference with a fact; both are worth asking for.
+
+Both actions are idempotent by a `clientCommandId` held per reservation for the
+life of the process and **reused on retry** — a fresh id would turn a retry
+after a lost response into a genuine second attempt, which is the thing that
+gets refused. Except cancel: `CancelReservationRequest` carries `reason` and
+nothing else, so it is the one mutation with no idempotency key, and the gateway
+compensates by reading the booking back on a 409 and reporting success when it
+is genuinely cancelled.
+
+`ReservationState` is deliberately narrower than `Booking`. The rich contract
+carries `venueId`, `venueName`, `floorAreaName`, the availability `window`,
+`freeCancellationUntilUtc` and `createdAtUtc`; `ReservationView` carries none of
+the six, which is why the booking screens are still on the mock. What is real is
+the subset an action needs, and that is what this reads.
 
 ### Signing a tablet in
 

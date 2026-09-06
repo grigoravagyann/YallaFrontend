@@ -1,4 +1,4 @@
-import type { DinerTabView, TabAdjustment, TabLine } from '@yalla/api';
+import type { DinerTabLine, DinerTabView } from '@yalla/api';
 
 /**
  * The tab, reduced to exactly what a screen renders.
@@ -13,6 +13,22 @@ import type { DinerTabView, TabAdjustment, TabLine } from '@yalla/api';
  * `totals` node at all — not a zero, not a dash. A zero on a bill reads as
  * "nothing to pay", and a dash reads as "we could not load it"; both are worse
  * than the truth, which is that this person is not shown the table's total.
+ *
+ * ## Three things this used to render that the server does not send
+ *
+ * All three were written against the domain entities before the endpoints
+ * existed, and all three are gone rather than defaulted:
+ *
+ * 1. **Voided lines.** `TabProjection` builds both of its line arrays from
+ *    `tab.Lines.Where(l => !l.IsVoided)`. A voided line does not reach a diner
+ *    at all — not struck through, not zeroed. There is no `isVoided` here
+ *    because there is nothing that could ever set it. What a diner sees is the
+ *    line **disappearing**, which `useTabStream` announces by name from the
+ *    snapshot it held before the refetch.
+ * 2. **Adjustments.** `TabView` carries none. A comp moves the total and the
+ *    diner is told nothing about why by any GET.
+ * 3. **The service-charge percentage.** Only `ReservationPolicyView` carries
+ *    it, and that is `ManagerOrAbove`.
  */
 
 export interface RenderedLine {
@@ -20,28 +36,11 @@ export interface RenderedLine {
   readonly name: string;
   readonly quantity: number;
   readonly lineTotalDram: number;
-  readonly note: string | null;
   /** Whose it is, in initials or a short name. `null` for a table line. */
   readonly orderedByName: string | null;
   readonly isMine: boolean;
   /** True for a line split across the table. */
   readonly isShared: boolean;
-  /** How many ways it splits, from the line's own snapshot. */
-  readonly sharedWithCount: number;
-  /** Struck through and labelled, never removed. */
-  readonly isVoided: boolean;
-  readonly voidReason: string | null;
-  readonly voidedByName: string | null;
-  readonly placedAtUtc: string;
-}
-
-/** A discount or comp, rendered as its own row with the manager's reason. */
-export interface RenderedAdjustment {
-  readonly id: string;
-  readonly kind: TabAdjustment['kind'];
-  readonly reductionDram: number;
-  readonly reason: string;
-  readonly byName: string | null;
 }
 
 /**
@@ -57,111 +56,90 @@ export type RenderedMoney =
       readonly subtotalDram: number;
       /** Its own line, present from the very first item. Never folded in. */
       readonly serviceChargeDram: number;
-      readonly serviceChargePercent: number;
       readonly totalDram: number;
       readonly paidDram: number;
       readonly remainingDram: number;
-      /** What this participant owes, when the server attributes a share. */
-      readonly yourShareDram: number | null;
     }
   | {
       readonly kind: 'ownItemsOnly';
       readonly yourItemsSubtotalDram: number;
-      /**
-       * The branch's percentage. A fact about the venue rather than an
-       * aggregate, so it can be stated without saying what the table owes.
-       */
-      readonly serviceChargePercent: number;
     };
 
 export interface RenderedTab {
   readonly tabId: string;
   readonly tableLabel: string;
+  /**
+   * The branch's zone, passed in.
+   *
+   * **Not on `TabView`.** A diner reads it from
+   * `GET /api/branches/{id}/availability`, which is anonymous and carries it.
+   * Threading it through rather than defaulting is what stops a tourist's phone
+   * on Moscow time from rendering an Armenian kitchen's estimate three hours out.
+   */
   readonly timeZoneId: string;
   readonly status: DinerTabView['status'];
-  readonly lines: readonly RenderedLine[];
-  readonly adjustments: readonly RenderedAdjustment[];
+  /** This participant's own items — placed by them, or shared with them. */
+  readonly myLines: readonly RenderedLine[];
+  /** Every live line on the tab, or `null` when the total is hidden. */
+  readonly tableLines: readonly RenderedLine[] | null;
   readonly money: RenderedMoney;
   /** True when this participant is shown the table's aggregate. */
   readonly showsTableTotal: boolean;
+  /** True once the bill has been asked for: no more items go on. */
+  readonly acceptsOrders: boolean;
+  readonly fetchedAtUtc: string;
 }
 
-export function projectTab(tab: DinerTabView, participantId: string): RenderedTab {
+export function projectTab(tab: DinerTabView, timeZoneId: string): RenderedTab {
+  const participantId = tab.me.participantId;
+  const render = (line: DinerTabLine): RenderedLine => ({
+    id: line.id,
+    name: line.name,
+    quantity: line.quantity,
+    lineTotalDram: line.lineTotalDram,
+    orderedByName: line.orderedByName,
+    isMine: line.participantId === participantId,
+    isShared: line.isShared,
+  });
+
   return {
     tabId: tab.tabId,
     tableLabel: tab.tableLabel,
-    timeZoneId: tab.timeZoneId,
+    timeZoneId,
     status: tab.status,
-    lines: tab.lines.map((line) => renderLine(line, participantId)),
-    adjustments: tab.adjustments.map((adjustment) => ({
-      id: adjustment.id,
-      kind: adjustment.kind,
-      reductionDram: adjustment.reductionDram,
-      reason: adjustment.reason,
-      byName: adjustment.byName,
-    })),
+    myLines: tab.myLines.map(render),
+    // `null` survives the projection. A screen that turned it into `[]` here
+    // would render "nothing ordered" at a table mid-meal.
+    tableLines: tab.tableLines ? tab.tableLines.map(render) : null,
     money:
       tab.money.kind === 'table'
         ? {
             kind: 'table',
             subtotalDram: tab.money.bill.subtotalDram,
             serviceChargeDram: tab.money.bill.serviceChargeDram,
-            serviceChargePercent: tab.money.serviceChargePercent,
             totalDram: tab.money.bill.totalDram,
             paidDram: tab.money.bill.paidDram,
             remainingDram: tab.money.bill.remainingDram,
-            yourShareDram: tab.money.yourShare?.shareDram ?? null,
           }
-        : {
-            kind: 'ownItemsOnly',
-            yourItemsSubtotalDram: tab.money.yourItemsSubtotalDram,
-            serviceChargePercent: tab.money.serviceChargePercent,
-          },
+        : { kind: 'ownItemsOnly', yourItemsSubtotalDram: tab.money.yourItemsSubtotalDram },
     showsTableTotal: tab.money.kind === 'table',
-  };
-}
-
-function renderLine(line: TabLine, participantId: string): RenderedLine {
-  return {
-    id: line.id,
-    name: line.name,
-    quantity: line.quantity,
-    lineTotalDram: line.lineTotalDram,
-    note: line.note,
-    orderedByName: line.orderedByName,
-    isMine: line.participantId === participantId,
-    isShared: line.isShared || line.isTableAttributed,
-    // From the line's own snapshot, never from the current participant count.
-    // Recomputing it would relabel every past line the moment somebody joins,
-    // and the amount beside it would stop matching.
-    sharedWithCount: line.sharedWithCount,
-    isVoided: line.status === 'voided',
-    voidReason: line.voidReason,
-    voidedByName: line.voidedByName,
-    placedAtUtc: line.placedAtUtc,
+    // The server's own flag, computed by the rule the ordering endpoint
+    // enforces. Never reassembled here from status and tab state.
+    acceptsOrders: tab.me.canOrderNow,
+    fetchedAtUtc: tab.fetchedAtUtc,
   };
 }
 
 /**
- * What this participant's own active lines come to.
+ * What this participant's own unshared lines come to.
  *
- * Used only on the `ownItemsOnly` branch, where the server sends this figure and
- * this function is the check that the screen agrees with it. A voided line
- * counts zero, exactly as it does on the table's bill — a struck-through row
- * that still adds to a subtotal is the kind of thing a guest spots and nobody
- * can explain.
+ * A cross-check against the server's `myItemsSubtotalAmd` on the hidden-total
+ * branch, never a substitute for it. Shared lines are excluded because the
+ * server excludes them: they are apportioned by the shares endpoint, and adding
+ * a whole bottle to one person's subtotal here would overstate what they owe.
  */
-export function ownItemsSubtotalDram(
-  lines: readonly RenderedLine[],
-  participantId: string,
-  allLines: readonly TabLine[],
-): number {
-  const mine = new Set(
-    allLines
-      .filter((line) => line.participantId === participantId && !line.isShared)
-      .map((line) => line.id),
-  );
+export function ownItemsSubtotalDram(lines: readonly RenderedLine[]): number {
   return lines
-    .filter((line) => mine.has(line.id) && !line.isVoided)
+    .filter((line) => line.isMine && !line.isShared)
     .reduce((sum, line) => sum + line.lineTotalDram, 0);
 }

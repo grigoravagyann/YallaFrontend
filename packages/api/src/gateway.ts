@@ -9,6 +9,13 @@ import type {
 } from './contracts/booking';
 import type { Menu } from './contracts/menu';
 import type {
+  CancelReservationCommand,
+  ExtendHoldCommand,
+  ExtendHoldOutcome,
+  RegisterPushDeviceCommand,
+  ReservationState,
+} from './contracts/push';
+import type {
   BranchMenu,
   DinerTabView,
   PlaceOrderCommand,
@@ -49,6 +56,21 @@ export interface YallaGateway {
 
   /** Current floor state for a branch. */
   getFloorPlan(branchId: string): Promise<FloorPlanData | null>;
+
+  /**
+   * The branch's IANA zone.
+   *
+   * Its own method because **no tab endpoint carries it**. `TabView` has no
+   * `timeZoneId`; the only diner-reachable source is
+   * `GET /api/branches/{id}/availability`, which is anonymous and returns it
+   * alongside the floor. Every time a tab screen renders — a kitchen estimate,
+   * a last-updated stamp — goes through this, never through the device's zone:
+   * a tourist's phone on Moscow time would put an Armenian kitchen three hours
+   * out.
+   *
+   * Cached hard by the caller. A branch does not move.
+   */
+  getBranchTimeZone(branchId: string): Promise<string | null>;
 
   /**
    * Per-table availability for a specific slot and party size.
@@ -107,6 +129,43 @@ export interface YallaGateway {
    * venue than a no-show, so lateness is a message, not a block.
    */
   cancelBooking(bookingId: string): Promise<Booking>;
+
+  // --- Notifications ------------------------------------------------------
+
+  /**
+   * Register this phone for push.
+   *
+   * Idempotent on the token, server-side: the app calls it on launch and on
+   * every rotation, and a row per launch would mean one diner with a hundred
+   * devices and a hundred copies of every message.
+   */
+  registerPushDevice(command: RegisterPushDeviceCommand): Promise<{ deviceId: string }>;
+
+  /**
+   * The current state of one booking, read when a notification lands on it.
+   *
+   * Deliberately narrower than {@link getBooking} — see {@link ReservationState}
+   * for why the rich contract cannot be built from the wire. This one is real.
+   */
+  getReservationState(reservationId: string): Promise<ReservationState | null>;
+
+  /**
+   * Cancel, from the reminder's own action button.
+   *
+   * The whole reason the reminder exists: cancelling has to be easier than not
+   * showing up. A booking that is already cancelled is reported as success —
+   * see {@link CancelReservationCommand}.
+   */
+  cancelReservation(command: CancelReservationCommand): Promise<ReservationState>;
+
+  /**
+   * Keep the table a little longer, from the late nudge's action button.
+   *
+   * @throws {HoldAlreadyExtendedError} the one extension is spent. A refusal to
+   * say plainly, not a generic conflict: the diner has already done this and
+   * needs telling so, not an error dialog.
+   */
+  extendReservationHold(command: ExtendHoldCommand): Promise<ExtendHoldOutcome>;
 
   // --- Scanning in and the shared tab -------------------------------------
   /**

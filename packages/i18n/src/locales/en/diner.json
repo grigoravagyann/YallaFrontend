@@ -397,7 +397,13 @@
     "bar": {
       "count_one": "{{count}} item",
       "count_other": "{{count}} items",
-      "review": "Review"
+      "send": "Send to kitchen",
+      "notSent": "Not sent yet",
+      "stillNotSent": "Still here — nothing has gone to the kitchen",
+      "sentTitle": "Order sent",
+      "sentReady": "Ready around {{time}}",
+      "sentNoEstimate": "The kitchen has it",
+      "seeBill": "See bill"
     },
     "sent": {
       "title": "Sent to the kitchen",
@@ -409,7 +415,12 @@
       "offline": "No signal, so this order has not been placed.",
       "notWired": "Ordering is not switched on for this place yet, so nothing was sent.",
       "error": "This order has not been placed.",
-      "askWaiter": "Nothing was sent to the kitchen. Try again in a moment, or ask a waiter and they will take it."
+      "askWaiter": "Nothing was sent to the kitchen. Try again in a moment, or ask a waiter and they will take it.",
+      "soldOut": "{{item}} has just sold out, so nothing was sent.",
+      "soldOutHint": "Take it out of your order and send the rest, or ask a waiter what else there is.",
+      "closing": "The bill has been asked for on this table, so nothing more can go on it.",
+      "closingHint": "Nothing was sent to the kitchen. If you still want this, a waiter can add it.",
+      "toBill": "Look at the bill"
     }
   },
   "bill": {
@@ -426,25 +437,18 @@
     "yours": "Yours",
     "orderedBy": "{{name}}",
     "forTheTable": "For the table",
-    "sharedWays_one": "shared {{count}} way",
-    "sharedWays_other": "shared {{count}} ways",
-    "removed": "Removed by the staff · {{reason}}",
-    "removedBy": "Removed by {{name}} · {{reason}}",
-    "adjustment": {
-      "discount": "Discount",
-      "comp": "On the house"
-    },
-    "adjustedBy": "{{reason}} · {{name}}",
     "marker": {
       "added": "Just added by {{name}}",
-      "removed": "Just removed by {{name}}"
+      "removed": "Just removed by {{name}}",
+      "removedNamed": "{{item}} was removed by {{name}}"
     },
     "subtotal": "Items",
-    "serviceCharge": "Service charge ({{percent}}%)",
+    "serviceCharge": "Service charge",
     "total": "Total",
     "yourShare": "Your share",
     "yourItems": "Your items",
-    "hiddenTotal": "The table total is kept to whoever opened the tab. A {{percent}}% service charge applies to it."
+    "hiddenTotal": "The table total is kept to whoever opened the tab. You are still shown every price and everything you ordered.",
+    "shared": "Shared with the table"
   },
   "settle": {
     "title": "Settling up",
@@ -481,6 +485,36 @@
       "title": "Paying",
       "body": "Payment is taken at the table in cash. Ask for the bill and a waiter will come over with it.",
       "askForBill": "Ask for the bill"
+    }
+  },
+  "push": {
+    "action": {
+      "cancel": "Cancel booking",
+      "extendHold": "Extend hold"
+    },
+    "optIn": {
+      "explain": "We can remind you an hour before, so you can cancel in one tap if plans change.",
+      "allow": "Remind me",
+      "granted": "We will remind you an hour before.",
+      "declined": "No reminder will arrive for this booking. Your table is still held."
+    },
+    "actions": {
+      "hint": "Cancelling late is far better for the restaurant than not turning up.",
+      "working": "One moment…",
+      "extended": "The table is held until {{time}}. That was your one extension.",
+      "alreadyExtended": "You have already let them know — the table had its one extension. If you need longer, the restaurant will decide.",
+      "cancelled": "Cancelled. Thank you for saying so.",
+      "offline": "No signal, so nothing changed. Try again when you are back online.",
+      "failed": "That did not go through, so nothing changed.",
+      "unknown": "We could not read this booking, so there is nothing safe to offer here.",
+      "stale": {
+        "seated": "You are already at the table. Enjoy it.",
+        "completed": "This booking is finished.",
+        "cancelledByDiner": "You cancelled this booking.",
+        "cancelledByVenue": "The restaurant cancelled this booking.",
+        "noShow": "This booking was marked as a no-show.",
+        "unknown": "This booking is no longer one you can change here."
+      }
     }
   }
 }

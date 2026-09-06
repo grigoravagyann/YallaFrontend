@@ -17,6 +17,7 @@ import { Text } from '../../src/components/Text';
 import { BookingStatusPill } from '../../src/components/BookingStatusPill';
 import { useBooking, useCancelBooking } from '../../src/data/queries';
 import { useNow } from '../../src/hooks/useNow';
+import { ReservationActions } from '../../src/push/ReservationActions';
 
 export default function BookingDetailScreen() {
   const { t } = useTranslation('diner');
@@ -65,6 +66,16 @@ export default function BookingDetailScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>{t('bookings.detail.title')}</Text>
         <BookingStatusPill status={booking.status} />
+
+        {/*
+          What a notification asked this person to do, decided from the
+          booking's state **now** rather than from the notification. A reminder
+          read the next morning must not offer to cancel a table somebody
+          already sat at. Reads the real reservation endpoint; the rest of this
+          screen is still on the mock because `Booking` carries six fields no
+          reservation view has.
+        */}
+        <ReservationActions reservationId={booking.id} />
 
         <View
           style={[styles.codeCard, booking.status === 'pendingApproval' && styles.codeCardPending]}

@@ -3,10 +3,15 @@ import { createDinerAuth, type DinerAuth } from '../auth/endpoints';
 import type { AuthSession } from '../auth/session';
 import type { ApiClient } from '../client';
 import type { PhoneChallenge, VenueSummary, VerifiedPhone } from '../contracts/booking';
+import type { WaiterCall, WaiterCallReason } from '../contracts/tab';
 import {
   EndpointNotWiredError,
   ExpiredCodeError,
+  HoldAlreadyExtendedError,
+  MenuItemUnavailableError,
+  NotTabHostError,
   RateLimitedError,
+  TabNotAcceptingOrdersError,
   TooManyAttemptsError,
   WrongCodeError,
 } from '../contracts/errors';
@@ -26,6 +31,9 @@ import {
   floorFromState,
   localDateTime,
 } from './mapping';
+import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
+import { dinerTab, reservationState, settlementModeCode } from './dinerMapping';
+import { branchMenu, placeOrderResult, tabEventPage, tabShares } from './staffMapping';
 
 type Schemas = components['schemas'];
 
@@ -45,8 +53,9 @@ export interface HttpGatewayOptions {
   /**
    * Where the methods this task has not wired yet still come from.
    *
-   * Bookings, tabs, menus and waiter calls stay on the mock until the pattern
-   * proven here is extended to them — see the list at the bottom of this file.
+   * Bookings and the tab roster stay on the mock: `TableTab` carries the venue
+   * name, branch name, floor area and time zone, and `TabView` carries none of
+   * them. See the list at the bottom of this file.
    * Passing the mock explicitly keeps that decision visible at the call site
    * rather than buried in a default.
    */
@@ -58,6 +67,14 @@ export interface HttpGatewayOptions {
 
 /** Resend is allowed once the backend's code-request window has passed. */
 const RESEND_AFTER_MS = 60_000;
+
+/** `ServiceRequestPreset`: 1 Napkins, 2 Water, 3 TheBill, 4 Other. */
+const SERVICE_PRESET_CODE: Readonly<Record<WaiterCallReason, 1 | 2 | 3 | 4>> = {
+  napkins: 1,
+  water: 2,
+  bill: 3,
+  other: 4,
+};
 
 /**
  * The real data source, over HTTP, typed from the generated schema.
@@ -81,6 +98,38 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       throw new EndpointNotWiredError({ url: error.url, endpoint });
     }
     throw error;
+  }
+
+  /**
+   * The two refusals an ordering screen has to say something specific about.
+   *
+   * Both are 409s, and both are the *normal* outcome of a race rather than a
+   * failure: a dish sold out while the tray was open, or a waiter marked the
+   * tab closing while somebody was mid-tray. Generic error copy on either one
+   * leaves the diner with no idea what to do next, which on the sold-out case
+   * is "pick something else" and on the closing case is "go and look at the
+   * bill". Everything else keeps the client's generic mapping.
+   */
+  function rethrowOrdering(error: unknown): never {
+    if (!(error instanceof ApiError) || !error.problem) throw error;
+    const context = error.problem.context ?? {};
+
+    switch (error.problem.code) {
+      case 'menu-item-unavailable':
+        throw new MenuItemUnavailableError({
+          url: error.url,
+          itemName: String(context['itemName'] ?? ''),
+          requestId: error.requestId,
+        });
+      case 'tab-not-accepting-orders':
+        throw new TabNotAcceptingOrdersError({
+          url: error.url,
+          tabId: String(context['tabId'] ?? ''),
+          requestId: error.requestId,
+        });
+      default:
+        throw error;
+    }
   }
 
   async function availability(
@@ -132,6 +181,16 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         // No date, time or party size: the backend answers for "now, one
         // person", which is exactly the room as it stands.
         return floorFromAvailability(await availability(branchId, {}));
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async getBranchTimeZone(branchId): Promise<string | null> {
+      try {
+        const data = await availability(branchId, {});
+        return data.timeZoneId;
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -200,12 +259,21 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     // --- Still on the mock ------------------------------------------------------
     //
-    // Everything below is answered by `fallback`. The backend has the endpoints
-    // for bookings and tabs; what it does not have is agreement with the shapes
-    // these screens were built on (see the README's contract notes), so they
-    // follow in the next task once the four screens above are proven on a real
-    // phone. `callWaiter` has no backend endpoint at all and the mock already
-    // raises `EndpointNotWiredError` for it.
+    // Everything below is answered by `fallback`, and the reason is now one
+    // reason rather than "not done yet".
+    //
+    // `TableTab` — the roster contract every tab screen is built on — carries
+    // `venueName`, `branchName`, `floorAreaName` and `timeZoneId`. `TabView`
+    // carries none of the four, and no diner-reachable endpoint composes them:
+    // there is no venue catalogue, and `BranchAvailability` (the one anonymous
+    // read that knows a zone) knows nothing about a tab. Wiring `getTab` today
+    // would mean inventing a venue name on a screen that shows it in the header.
+    // `getBranchTimeZone` above is the one piece that could be extracted
+    // honestly, and it is.
+    //
+    // Bookings are the same shape of gap in the other direction: the endpoints
+    // exist and are close, but reconciling `Booking` against `ReservationView`
+    // is a task of its own and not this one's.
 
     createBooking: (command) => fallback.createBooking(command),
     listBookings: () => fallback.listBookings(),
@@ -221,37 +289,209 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     removeParticipant: (input) => fallback.removeParticipant(input),
     setParticipantPermissions: (input) => fallback.setParticipantPermissions(input),
     setTabDefaultPermissions: (input) => fallback.setTabDefaultPermissions(input),
-    callWaiter: (input) => fallback.callWaiter(input),
+
+    /**
+     * Raising a hand, for real.
+     *
+     * `RaiseServiceRequest` takes the preset and an optional note and nothing
+     * else; the response is a `ServiceRequestView`, which carries far more than
+     * a diner needs — the table label, the waiting minutes, the acknowledgement
+     * — because the same view feeds the counter screen's queue. Only the four
+     * fields `WaiterCall` names are read.
+     */
+    async callWaiter({ tabId, reason }): Promise<WaiterCall> {
+      const { data } = await client.post<Schemas['Yalla.Application.Ordering.ServiceRequestView']>(
+        `/api/tabs/${tabId}/service-requests`,
+        { preset: SERVICE_PRESET_CODE[reason] },
+      );
+      return {
+        id: data.serviceRequestId,
+        tabId: data.tabId,
+        reason,
+        requestedAtUtc: data.createdAtUtc,
+      };
+    },
+
+    // --- Notifications --------------------------------------------------------
+
+    async registerPushDevice({ pushToken, platform, locale }): Promise<{ deviceId: string }> {
+      const { data } = await client.post<{ deviceId: string }>('/api/diner/devices', {
+        pushToken,
+        platform: platform === 'ios' ? 1 : 2,
+        locale,
+      } satisfies Schemas['Yalla.Api.Endpoints.RegisterDeviceRequest']);
+      return { deviceId: data.deviceId };
+    },
+
+    async getReservationState(reservationId): Promise<ReservationState | null> {
+      // There is no `GET /api/reservations/{id}`. `/mine` is the only read, and
+      // it is scoped to the caller — which is the right scope for this, since a
+      // notification only ever lands on the diner's own booking.
+      const { data } =
+        await client.get<Schemas['Yalla.Application.Reservations.MyReservations']>(
+          '/api/reservations/mine',
+        );
+      const all = [...(data.upcoming ?? []), ...(data.past ?? [])];
+      const found = all.find((reservation) => reservation.id === reservationId);
+      return found ? reservationState(found) : null;
+    },
+
+    async cancelReservation({ reservationId, reason }): Promise<ReservationState> {
+      try {
+        const { data } = await client.post<
+          Schemas['Yalla.Application.Reservations.ReservationView']
+        >(`/api/reservations/${reservationId}/cancel`, reason ? { reason } : {});
+        return reservationState(data);
+      } catch (error) {
+        // Already cancelled is the outcome the diner asked for.
+        //
+        // This endpoint takes no `clientCommandId`, so a retry after a lost
+        // response is indistinguishable from a second tap, and both land as a
+        // 409. Reading the booking back and reporting success when it is
+        // genuinely cancelled is the honest resolution; reporting a conflict
+        // would tell somebody their cancellation failed when it did not.
+        if (error instanceof ApiError && error.status === 409) {
+          const current = await this.getReservationState(reservationId);
+          if (
+            current &&
+            (current.status === 'cancelledByDiner' || current.status === 'cancelledByVenue')
+          ) {
+            return current;
+          }
+        }
+        throw error;
+      }
+    },
+
+    async extendReservationHold({ reservationId, clientCommandId }): Promise<ExtendHoldOutcome> {
+      try {
+        const { data } = await client.post<
+          Schemas['Yalla.Application.Reservations.ExtendHoldResult']
+        >(`/api/reservations/${reservationId}/extend-hold`, {
+          clientCommandId,
+        } satisfies Schemas['Yalla.Api.Endpoints.ExtendHoldRequest']);
+        return {
+          reservationId: data.reservationId,
+          holdExpiresAtUtc: data.holdExpiresAtUtc,
+          extensionMinutes: data.extensionMinutes,
+          extensionsRemaining: data.extensionsRemaining,
+          wasReplay: data.wasReplay,
+        };
+      } catch (error) {
+        // See `HoldAlreadyExtendedError`: the server gives prose and the generic
+        // `conflicting-state`, so this is an inference from the endpoint rather
+        // than a code. It is the right one on the nudge's path, and it is the
+        // difference between "you have already let them know" and "error".
+        if (error instanceof ApiError && error.status === 409) {
+          throw new HoldAlreadyExtendedError({
+            url: error.url,
+            reservationId,
+            serverDetail: error.problem?.detail ?? null,
+            requestId: error.requestId,
+          });
+        }
+        throw error;
+      }
+    },
 
     // --- Ordering and the bill ---------------------------------------------
     //
-    // None of this exists on the server. The domain entities do — `MenuItem`
-    // carries the descriptive fields, `TabOrderLine` the snapshots, `TabEvent`
-    // its sequence — but no endpoint exposes any of them, so every one of these
-    // says so by name rather than falling back to the mock. A diner shown an
-    // invented bill is the worst failure this app has.
-    async getBranchMenuDetail(): Promise<BranchMenu | null> {
-      throw new EndpointNotWiredError({ url: '', endpoint: 'getBranchMenuDetail' });
+    // Real, all six. Every shape is built by `dinerMapping.ts` from
+    // `generated/schema.ts`, so a renamed server field is a compile error here
+    // rather than an `undefined` on a bill somebody is about to pay.
+
+    async getBranchMenuDetail(branchId): Promise<BranchMenu | null> {
+      try {
+        const { data } = await client.get<Schemas['Yalla.Application.Menus.BranchMenuView']>(
+          `/api/branches/${branchId}/menu`,
+        );
+        // The client's own clock, and labelled as such: `BranchMenuView` carries
+        // no timestamp, so a cached-menu banner can only honestly say when this
+        // device read it.
+        return branchMenu(data, new Date().toISOString());
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
     },
 
-    async getDinerTab(): Promise<DinerTabView | null> {
-      throw new EndpointNotWiredError({ url: '', endpoint: 'getDinerTab' });
+    async getDinerTab(tabId): Promise<DinerTabView | null> {
+      try {
+        const { data } = await client.get<Schemas['Yalla.Application.Tabs.TabView']>(
+          `/api/tabs/${tabId}`,
+        );
+        return dinerTab(data, new Date().toISOString());
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
     },
 
-    async getTabEvents(): Promise<TabEventPage> {
-      throw new EndpointNotWiredError({ url: '', endpoint: 'getTabEvents' });
+    async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
+      const { data } = await client.get<Schemas['Yalla.Application.Ordering.TabEventPage']>(
+        `/api/tabs/${tabId}/events`,
+        { query: { afterSequence } },
+      );
+      return tabEventPage(data);
     },
 
-    async placeOrder(): Promise<PlaceOrderResult> {
-      throw new EndpointNotWiredError({ url: '', endpoint: 'placeOrder' });
+    /**
+     * One order for the whole tray.
+     *
+     * No grouping by participant, unlike the staff path: `onBehalfOfParticipantId`
+     * is staff-only on the wire, and a diner's lines are their own by
+     * construction. `isShared` is the only per-line attribution a phone can send.
+     */
+    async placeOrder(command): Promise<PlaceOrderResult> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Ordering.OrderView']>(
+          `/api/tabs/${command.tabId}/orders`,
+          {
+            clientCommandId: command.clientCommandId,
+            items: command.lines.map((line) => ({
+              menuItemId: line.menuItemId,
+              quantity: line.quantity,
+              isShared: line.isShared,
+              ...(line.note ? { note: line.note } : {}),
+            })),
+          } satisfies Schemas['Yalla.Api.Endpoints.PlaceOrderRequest'],
+        );
+        return placeOrderResult(data);
+      } catch (error) {
+        rethrowOrdering(error);
+      }
     },
 
-    async getTabShares(): Promise<TabShares | null> {
-      throw new EndpointNotWiredError({ url: '', endpoint: 'getTabShares' });
+    async getTabShares(tabId): Promise<TabShares | null> {
+      try {
+        const { data } = await client.get<Schemas['Yalla.Application.Ordering.TabSharesView']>(
+          `/api/tabs/${tabId}/shares`,
+        );
+        // No `hostParticipantId` on this response, so `isHost` is reported false
+        // rather than guessed. The tab read is where a screen learns who hosts.
+        return tabShares(data);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
     },
 
-    async setSettlementMode(): Promise<DinerTabView> {
-      throw new EndpointNotWiredError({ url: '', endpoint: 'setSettlementMode' });
+    async setSettlementMode(command): Promise<DinerTabView> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabView']>(
+          `/api/tabs/${command.tabId}/settlement-mode`,
+          {
+            mode: settlementModeCode(command.mode),
+            clientCommandId: command.clientCommandId,
+          },
+        );
+        return dinerTab(data, new Date().toISOString());
+      } catch (error) {
+        if (error instanceof ApiError && error.problem?.code === 'forbidden') {
+          throw new NotTabHostError({ url: error.url });
+        }
+        throw error;
+      }
     },
   };
 }

@@ -27,7 +27,8 @@ describe('a diner ordering from their own phone', () => {
 
     // Nothing ordered: the bill exists and is honestly empty rather than absent.
     const empty = await gateway.getDinerTab(tab.id);
-    expect(empty?.lines).toEqual([]);
+    expect(empty?.myLines).toEqual([]);
+    expect(empty?.tableLines).toEqual([]);
     expect(empty?.money.kind).toBe('table');
 
     const menu = await gateway.getBranchMenuDetail(tab.branchId);
@@ -66,13 +67,18 @@ describe('a diner ordering from their own phone', () => {
     if (view?.money.kind !== 'table') return;
 
     expect(view.money.bill.subtotalDram).toBe(coffee.priceDram * 2);
-    // Its own line, from the very first item, at the branch's percentage.
-    expect(view.money.serviceChargePercent).toBe(10);
     expect(view.money.bill.serviceChargeDram).toBe(Math.round(coffee.priceDram * 2 * 0.1));
     expect(view.money.bill.totalDram).toBe(
       view.money.bill.subtotalDram + view.money.bill.serviceChargeDram,
     );
-    expect(view.money.yourShare?.shareDram).toBe(view.money.bill.totalDram);
+
+    // The percentage itself is not on this view and is not on any diner
+    // endpoint: `ReservationPolicyView` is `ManagerOrAbove`. What a share comes
+    // to is read from the shares endpoint, which is where the server puts it.
+    const shares = await gateway.getTabShares(tab.id);
+    expect(shares?.kind).toBe('table');
+    if (shares?.kind !== 'table') return;
+    expect(shares.yourShare?.shareDram).toBe(view.money.bill.totalDram);
   });
 
   it('replays a repeated send rather than doubling the round', async () => {
@@ -107,7 +113,7 @@ describe('a diner ordering from their own phone', () => {
     expect(second.orderId).toBe(first.orderId);
 
     const view = await gateway.getDinerTab(scan.tab.id);
-    expect(view?.lines).toHaveLength(1);
+    expect(view?.myLines).toHaveLength(1);
   });
 
   it('shows what the shares endpoint says, summing to the total', async () => {
