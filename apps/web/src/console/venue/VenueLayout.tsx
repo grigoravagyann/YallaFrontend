@@ -59,6 +59,7 @@ export function VenueLayout({ user }: VenueLayoutProps) {
           {
             branchId,
             timeZoneId: current?.timeZoneId ?? 'Asia/Yerevan',
+            branchCount: branches.length,
           } satisfies VenueOutletContext
         }
       />
@@ -70,6 +71,15 @@ export function VenueLayout({ user }: VenueLayoutProps) {
 export interface VenueOutletContext {
   readonly branchId: string | null;
   readonly timeZoneId: string;
+  /**
+   * How many branches this token actually covers.
+   *
+   * A count rather than the list, deliberately. Reports needs to know whether
+   * an "all branches" rollup is a meaningful offer; it does not need branch
+   * ids, and handing them out would put a second branch picker on a screen
+   * that already has one above it.
+   */
+  readonly branchCount: number;
 }
 
 export function useVenueOutlet(): VenueOutletContext {

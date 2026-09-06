@@ -19,6 +19,16 @@ import type {
   WeeklyHours,
 } from './contracts/branchSettings';
 import type {
+  MenuReport,
+  OccupancyReport,
+  ReportExport,
+  ReportQuery,
+  ReportSection,
+  ReservationReport,
+  RevenueReport,
+  StaffReport,
+} from './contracts/reports';
+import type {
   ConsoleUser,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -241,6 +251,44 @@ export interface ConsoleGateway {
     branchId: string;
     policy: ReservationPolicy;
   }): Promise<PolicyChangeResult>;
+
+  // --- Reports ------------------------------------------------------------------
+
+  /*
+   * Five separate reads, not one.
+   *
+   * They are separate on the wire and they stay separate here, because they are
+   * separate queries of very different cost — the menu report anti-joins the
+   * branch's whole menu to find what never sold — and an owner who wants
+   * tonight's covers should not wait on that. Each section of the screen loads,
+   * fails and retries on its own; one slow or broken report must not blank the
+   * page around it.
+   *
+   * Every range is in the **branch's local dates**, and every number arrives
+   * with its own comparison against the previous equivalent period already
+   * computed. The client neither converts the dates nor divides for the
+   * percentage: doing either is how a screen ends up disagreeing with the CSV
+   * exported from the same request.
+   *
+   * @throws {ReportRangeTooLongError} the range exceeds `REPORT_MAX_DAYS`.
+   */
+  getOccupancyReport(query: ReportQuery): Promise<OccupancyReport>;
+  getReservationReport(query: ReportQuery): Promise<ReservationReport>;
+  getRevenueReport(query: ReportQuery): Promise<RevenueReport>;
+  getMenuReport(query: ReportQuery): Promise<MenuReport>;
+  getStaffReport(query: ReportQuery): Promise<StaffReport>;
+
+  /**
+   * One section's CSV, **as the server wrote it**.
+   *
+   * Bytes off the wire, never rows re-derived from the JSON on screen. The
+   * export is what an owner forwards to their accountant, and a client that
+   * built its own would eventually round, localise or order something
+   * differently from the server — at which point two documents claiming to be
+   * the same report disagree, and the one with a spreadsheet open beside it
+   * wins the argument.
+   */
+  exportReport(input: ReportQuery & { section: ReportSection }): Promise<ReportExport>;
 }
 
 /** What one upload produced. */

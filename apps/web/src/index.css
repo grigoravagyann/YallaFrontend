@@ -3188,3 +3188,305 @@ kbd {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* --- Reports ---------------------------------------------------------------
+   The renewal argument, and the only screen that tells a venue something about
+   their own room they did not already know. Laid out as a column of sections
+   rather than a grid of tiles: a dashboard is a wall of numbers nobody reads
+   twice, and this is meant to be read top to bottom once a week. */
+
+.reports-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.reports-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+.report-presets {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.report-section {
+  margin-top: var(--space-xl);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+}
+
+.report-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+/* The whole heading is the toggle, so the target is a heading-sized thing
+   rather than a caret somebody has to aim at. */
+.report-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-regular);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.report-caret {
+  color: var(--color-muted-foreground);
+}
+
+.report-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+}
+
+.report-section-blurb {
+  margin: var(--space-xs) 0 var(--space-md);
+}
+
+.report-block {
+  margin-top: var(--space-xl);
+}
+
+/* The two blocks that carry a finding rather than a figure: turn time against
+   policy, and the dishes nobody ordered. Tinted so they are found by somebody
+   scrolling, not because they are alarming. */
+.report-highlight {
+  padding: var(--space-lg);
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+}
+
+.report-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-xl);
+}
+
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-lg);
+  margin-top: var(--space-md);
+}
+
+.report-stat-label {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.report-stat-value {
+  margin: var(--space-xxs) 0 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.report-stat-large .report-stat-value {
+  font-size: var(--font-size-xxl);
+}
+
+/* Direction is carried by the arrow and the wording as well as the hue. About
+   one in twelve men cannot tell this red from this green, and it is a number
+   somebody is making a decision on. */
+.report-delta {
+  margin: var(--space-xxs) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+.report-delta-up {
+  color: var(--color-primary);
+}
+
+.report-delta-down {
+  color: var(--color-danger);
+}
+
+.report-delta-flat {
+  color: var(--color-muted-foreground);
+}
+
+.report-delta-arrow {
+  font-weight: var(--font-weight-bold);
+}
+
+.report-compared-note {
+  margin-top: var(--space-md);
+}
+
+.report-chart {
+  margin: var(--space-lg) 0 0;
+}
+
+.report-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.report-chart-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-foreground);
+}
+
+.report-chart-canvas {
+  margin-top: var(--space-sm);
+}
+
+/* The plain-language reading of the chart above it. The sentence is the point
+   of the block; the bars are how it is checked. */
+.report-reading {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border-inline-start: 3px solid var(--color-primary);
+  background: var(--color-paper);
+  color: var(--color-foreground);
+}
+
+/* Owners screenshot tables and send them to accountants; nobody reads a number
+   off a bar. Wide ones scroll inside their own box rather than pushing the
+   page sideways. */
+.report-table-wrap {
+  overflow-x: auto;
+  margin-top: var(--space-md);
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.report-table th,
+.report-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--color-border-soft);
+  text-align: start;
+}
+
+.report-table thead th {
+  color: var(--color-muted-foreground);
+  font-weight: var(--font-weight-medium);
+}
+
+.report-table .numeric {
+  text-align: end;
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.report-never-ordered {
+  margin: var(--space-md) 0 0;
+  padding-inline-start: var(--space-lg);
+}
+
+.report-never-ordered li {
+  margin-bottom: var(--space-xs);
+}
+
+.report-notice {
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  background: var(--color-paper);
+  color: var(--color-foreground);
+}
+
+/* Not a zeroed chart. A chart of zeroes says "your venue took no money", which
+   is a claim about the business; what is true is that this range has nothing
+   in it. */
+.report-empty {
+  margin-top: var(--space-md);
+  padding: var(--space-xl);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  text-align: center;
+}
+
+.report-empty-title {
+  margin: 0 0 var(--space-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+}
+
+/* Reports take seconds, so this is a state somebody will actually look at.
+   Shaped like the answer rather than being a blank panel. */
+.report-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.report-skeleton-bar {
+  height: 2.5rem;
+  border-radius: var(--radius-soft);
+  background: var(--color-border-soft);
+}
+
+.report-skeleton-bar:nth-child(3) {
+  width: 60%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .report-skeleton-bar {
+    animation: report-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes report-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* A row arrived at from the reports screen.
+   The fade is CSS rather than a timer in React: the highlight answers "which
+   one did I click", which stops being a question about two seconds after it is
+   answered, and that is not a thing worth holding in state. Reduced motion
+   keeps the tint and drops the animation, so the row is still findable. */
+.row-linked > * {
+  background: var(--color-green-tint);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .row-linked > * {
+    animation: row-linked-fade 2.5s ease-out forwards;
+  }
+}
+
+@keyframes row-linked-fade {
+  0%,
+  60% {
+    background: var(--color-green-tint);
+  }
+  100% {
+    background: transparent;
+  }
+}

@@ -1,6 +1,6 @@
 import type { ConsoleUser } from '@yalla/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { onSignedOut } from './auth/authSession';
 import { Forbidden, LoadingScreen, RequireRole } from './auth/RequireRole';
@@ -18,6 +18,17 @@ import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
 import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolicyScreen';
 import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
 import { VenuePlaceholder } from './console/venue/VenuePlaceholder';
+
+/**
+ * Behind `lazy()` because it is the only screen in the console that needs a
+ * charting library, and Recharts is not small. Everything else in the venue
+ * section loads with the shell; this arrives when somebody asks for it.
+ */
+const ReportsScreen = lazy(() =>
+  import('./console/venue/reports/ReportsScreen').then((module) => ({
+    default: module.ReportsScreen,
+  })),
+);
 import { usingMockData } from './data/gateway';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
 import { DevTokensRoute } from './routes/DevTokensRoute';
@@ -190,9 +201,16 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
               path="staff"
               element={<VenuePlaceholder titleKey="nav.staff" prompt="Prompt 10" />}
             />
+            {/* Lazy: the reports screen is the only thing in the console
+                that needs a charting library, and an owner who opens the floor
+                plan should not download one. */}
             <Route
               path="reports"
-              element={<VenuePlaceholder titleKey="nav.reports" prompt="Prompt 11" />}
+              element={
+                <Suspense fallback={<div className="report-skeleton" aria-hidden="true" />}>
+                  <ReportsScreen />
+                </Suspense>
+              }
             />
           </Route>
         ) : null}

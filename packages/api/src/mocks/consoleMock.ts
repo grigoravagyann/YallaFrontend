@@ -51,6 +51,7 @@ import type {
   FloorPlanSaveResult,
   TableDeletionResult,
 } from '../contracts/floorPlan';
+import { createMockReports } from './reports';
 import { mockVenues } from './venues';
 
 const URL_TAG = 'mock://yalla/console';
@@ -197,8 +198,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const latency = options.latencyMs ?? 0;
   const role: UserRole = options.role ?? 'platformAdmin';
 
-  const wait = () =>
-    latency > 0 ? new Promise((resolve) => setTimeout(resolve, latency)) : Promise.resolve();
+  /**
+   * `multiplier` exists for the reports.
+   *
+   * The menu report anti-joins a branch's whole menu against the period's order
+   * lines and is comfortably the slowest of the five against a real database.
+   * Letting the mock answer it as fast as everything else would mean its
+   * loading state — the one that will actually be seen in production — is the
+   * one nobody ever looks at while building the screen.
+   */
+  const wait = (multiplier = 1) =>
+    latency > 0
+      ? new Promise((resolve) => setTimeout(resolve, latency * multiplier))
+      : Promise.resolve();
 
   const venues = new Map<string, VenueRecord>();
   let sequence = 0;
@@ -329,6 +341,39 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     hours.set(branchId, seeded);
     return seeded;
   }
+
+  /** Every branch in the fixture, flattened once for the report scope lookups. */
+  function allBranches(): readonly ConsoleBranch[] {
+    return [...venues.values()].flatMap((venue) => venue.branches);
+  }
+
+  /*
+   * The report generator reads the world rather than inventing one.
+   *
+   * `menuOf` matters most: the never-ordered list has to name items the menu
+   * editor actually has, or the "one tap to act on it" link goes nowhere — and
+   * that link is the entire reason the block earns its prominence.
+   */
+  const reports = createMockReports({
+    menuOf: (branchId) =>
+      menuFor(branchId).flatMap((category) =>
+        category.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          categoryName: category.name,
+          priceDram: item.priceDram,
+        })),
+      ),
+    branchIdsFor: (branchId, rollUpVenue) => {
+      if (!rollUpVenue) return [branchId];
+      const venue = [...venues.values()].find((record) =>
+        record.branches.some((branch) => branch.id === branchId),
+      );
+      return venue?.branches.map((branch) => branch.id) ?? [branchId];
+    },
+    timeZoneOf: (branchId) =>
+      allBranches().find((branch) => branch.id === branchId)?.timeZoneId ?? 'Asia/Yerevan',
+  });
 
   function policyFor(branchId: string): ReservationPolicy {
     const existing = policies.get(branchId);
@@ -1040,6 +1085,42 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async getReservationPolicy(branchId): Promise<ReservationPolicy> {
       await wait();
       return policyFor(branchId);
+    },
+
+    // --- Reports ------------------------------------------------------------
+
+    async getOccupancyReport(query) {
+      await wait();
+      return reports.occupancy(query);
+    },
+
+    async getReservationReport(query) {
+      await wait();
+      return reports.reservations(query);
+    },
+
+    async getRevenueReport(query) {
+      await wait();
+      return reports.revenue(query);
+    },
+
+    async getMenuReport(query) {
+      // The slowest of the five against a real database — it anti-joins the
+      // whole menu to find what never sold — so the mock is slow too. A section
+      // that always answers instantly is a section whose loading state nobody
+      // ever sees, and this is the one that needs a real one.
+      await wait(3);
+      return reports.menu(query);
+    },
+
+    async getStaffReport(query) {
+      await wait();
+      return reports.staff(query);
+    },
+
+    async exportReport(input) {
+      await wait();
+      return reports.csv(input);
     },
 
     async replaceReservationPolicy({ branchId, policy }): Promise<PolicyChangeResult> {

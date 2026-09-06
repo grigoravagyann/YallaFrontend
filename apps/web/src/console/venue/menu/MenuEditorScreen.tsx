@@ -26,8 +26,10 @@ import {
 import { CategoryInUseError } from '@yalla/api';
 import { formatDram } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { menuItemAnchorId, menuItemIdFromHash } from '../menuAnchors';
 import { useVenueOutlet } from '../VenueLayout';
 import { BulkPhotoDrop } from './BulkPhotoDrop';
 import { ItemForm, knownValues } from './ItemForm';
@@ -73,6 +75,48 @@ export function MenuEditorScreen() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [onlyIncomplete, setOnlyIncomplete] = useState(false);
+
+  /*
+   * Arriving from a report.
+   *
+   * The never-ordered list links here with `#menu-item-<id>`, and a hash alone
+   * does nothing in a single-page app: the row does not exist when the browser
+   * would have scrolled to it, because the menu is still loading and the row
+   * sits inside a category that may not be the selected one.
+   *
+   * Both halves are **derived** rather than set from an effect. The category to
+   * open is a function of the hash and the loaded menu, and the highlight is a
+   * function of the hash — writing either into state from an effect would be a
+   * cascading render and a frame of showing the wrong category. The highlight
+   * fades through a CSS animation rather than a timer, for the same reason:
+   * "which one did I click" stops being a question about two seconds after it
+   * is answered, and that does not need to be state.
+   *
+   * The one genuine side effect left is scrolling, which is what an effect is
+   * actually for.
+   */
+  const { hash } = useLocation();
+  const linkedItemId = menuItemIdFromHash(hash);
+
+  const linkedCategoryId = useMemo(
+    () =>
+      linkedItemId
+        ? (categories.find((category) => category.items.some((item) => item.id === linkedItemId))
+            ?.id ?? null)
+        : null,
+    [linkedItemId, categories],
+  );
+
+  useEffect(() => {
+    if (!linkedItemId) return;
+    // After the category holding it has rendered its rows.
+    const frame = requestAnimationFrame(() => {
+      document
+        .getElementById(menuItemAnchorId(linkedItemId))
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [linkedItemId, linkedCategoryId]);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<
     | { mode: 'create'; categoryId: string; draft: MenuItemDraft; photo: Photo | null }
@@ -86,7 +130,12 @@ export function MenuEditorScreen() {
   );
 
   const selected =
-    categories.find((category) => category.id === selectedId) ?? categories[0] ?? null;
+    categories.find((category) => category.id === selectedId) ??
+    // Nothing picked yet and we arrived from a report: open the category the
+    // linked item is in, or its row would be inside a section nobody opened.
+    categories.find((category) => category.id === linkedCategoryId) ??
+    categories[0] ??
+    null;
 
   const allItems = useMemo(() => categories.flatMap((category) => category.items), [categories]);
   const known = useMemo(() => knownValues(allItems), [allItems]);
@@ -390,6 +439,12 @@ export function MenuEditorScreen() {
                   return (
                     <tr
                       key={item.id}
+                      // Addressable, so the reports screen can link straight at
+                      // a dish nobody ordered. Acting on that report means
+                      // editing this row, and a link that lands on the right
+                      // page but the wrong part of a sixty-item menu is a link
+                      // nobody follows twice.
+                      id={menuItemAnchorId(item.id)}
                       draggable
                       onDragStart={() => setDragging({ list: 'item', index })}
                       onDragOver={(event) => event.preventDefault()}
@@ -399,7 +454,14 @@ export function MenuEditorScreen() {
                         }
                         setDragging(null);
                       }}
-                      className={gaps.length > 0 ? 'row-incomplete' : ''}
+                      className={
+                        [
+                          gaps.length > 0 ? 'row-incomplete' : '',
+                          linkedItemId === item.id ? 'row-linked' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
                     >
                       <td>
                         {item.photo.thumbnailUrl ? (

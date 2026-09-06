@@ -141,6 +141,16 @@ export interface ApiResponse<T> {
   /** `ETag`, when present — feed it back as `ifMatch` on the next write. */
   readonly version: string | undefined;
   readonly status: number;
+  /**
+   * The response headers, for the few callers that need one this shape does not
+   * already name.
+   *
+   * The report CSV export is the reason: the filename an owner's browser saves
+   * lives in `Content-Disposition`, and deriving it client-side instead would
+   * mean writing the server's naming convention down a second time, in another
+   * language, where it could quietly drift.
+   */
+  readonly headers: Headers;
 }
 
 export class ApiClient {
@@ -227,6 +237,7 @@ export class ApiClient {
       data: payload as T,
       version: response.headers.get('etag') ?? undefined,
       status: response.status,
+      headers: response.headers,
     };
   }
 

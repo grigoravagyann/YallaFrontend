@@ -86,6 +86,30 @@ export type {
 
 export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
 
+export { REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
+export type {
+  AdjustmentLine,
+  Compared,
+  DailyRevenue,
+  DurationBucket,
+  HourBucket,
+  HourlyRevenue,
+  LeadTimeBucket,
+  MenuItemPerformance,
+  MenuReport,
+  OccupancyReport,
+  ReportExport,
+  ReportQuery,
+  ReportScope,
+  ReportSection,
+  ReservationReport,
+  RevenueReport,
+  StaffReport,
+  TurnTimeDistribution,
+  VoidLine,
+  WeekdayBucket,
+} from './contracts/reports';
+
 export {
   EndpointNotWiredError,
   ExpiredCodeError,
@@ -234,6 +258,7 @@ export {
   FloorPlanInvalidError,
   OutOfScopeError,
   SlugTakenError,
+  ReportRangeTooLongError,
   VenueHasOpenTabsError,
   isFloorPlanInvalid,
 } from './contracts/errors';

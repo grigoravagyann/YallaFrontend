@@ -548,5 +548,165 @@
       "staff": "Staff added",
       "devices": "At least one tablet enrolled"
     }
+  },
+  "reports": {
+    "intro": "How the week went, and what is worth changing.",
+    "loading": "Working it out…",
+    "rangeTooLong": "A report covers at most {{max}} days. Narrow the range.",
+    "partialRange": "Nothing was recorded before {{date}} in this range.",
+    "comparedWith": "Compared with {{from}} – {{to}}.",
+    "minutes_one": "{{count}} minute",
+    "minutes_other": "{{count}} minutes",
+    "delta": {
+      "up": "up {{percent}}% on the {{days}} days before",
+      "down": "down {{percent}}% on the {{days}} days before",
+      "flat": "level with the {{days}} days before"
+    },
+    "range": {
+      "legend": "Date range",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "lastWeek": "Last week",
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "custom": "Custom",
+      "from": "From",
+      "to": "To",
+      "backwards": "The end date is before the start date.",
+      "showing": "{{days}} days: {{from}} – {{to}}"
+    },
+    "scope": {
+      "label": "Covering",
+      "thisBranch": "This branch",
+      "allBranches": "All branches"
+    },
+    "export": {
+      "csv": "CSV",
+      "all": "Export everything",
+      "working": "Preparing…",
+      "failed": "That file could not be downloaded. Try again."
+    },
+    "empty": {
+      "title": "No data in this range",
+      "body": "Try a wider range. This does not mean the venue took nothing — there is simply nothing recorded on these days."
+    },
+    "chart": {
+      "showTable": "Show table",
+      "hideTable": "Hide table"
+    },
+    "summary": {
+      "title": "This week",
+      "covers": "Covers",
+      "revenue": "Revenue",
+      "tabsClosed": "Tabs closed",
+      "averageTab": "Average tab",
+      "averagePerHead": "Average per head",
+      "tablesTurned": "Tables turned"
+    },
+    "occupancy": {
+      "title": "Occupancy",
+      "blurb": "When the room fills, and how long people actually stay.",
+      "byHour": "By hour of day",
+      "hour": "Hour",
+      "sittings": "Sittings",
+      "byWeekday": "By day of week",
+      "weekday": "Day",
+      "mix": {
+        "title": "Walk-ins against reservations",
+        "walkIns": "Walk-ins",
+        "fromReservations": "From reservations",
+        "share": "{{value}} ({{percent}}%)"
+      },
+      "turnTime": {
+        "title": "Actual turn time against policy",
+        "blurb": "A distribution, not an average. A fast lunch and a slow dinner average to a number that describes neither.",
+        "chartTitle": "How long sittings ran",
+        "bucket": "to {{minutes}} min",
+        "bucketHeader": "Duration",
+        "policyMarker": "Policy: {{minutes}} min",
+        "median": "Median",
+        "p90": "90th percentile",
+        "policy": "Policy says",
+        "noSittings": "No sittings closed in this range.",
+        "overPolicy": "The middle sitting runs {{median}} minutes against a policy of {{policy}} — {{overBy}} minutes longer. {{percent}}% of sittings run past the policy, so the system is refusing bookings the table could actually have taken.",
+        "withinPolicy": "The middle sitting runs {{median}} minutes, inside the {{policy}}-minute policy. {{percent}}% of sittings run past it."
+      }
+    },
+    "reservations": {
+      "title": "Reservations",
+      "blurb": "How many were booked, and what became of them.",
+      "booked": "Booked",
+      "seated": "Seated",
+      "cancelled": "Cancelled",
+      "noShow": "No-shows",
+      "lateCancellations": "Late cancellations",
+      "countWithRate": "{{value}} ({{rate}})",
+      "bookings": "Bookings",
+      "noApp": {
+        "title": "Web bookings without an app",
+        "blurb": "These guests cannot be reminded. No app means no push channel, so the reminder, the late nudge and one-tap cancel never reach them. This is the number that decides whether SMS is worth paying for.",
+        "label": "No way to reach them",
+        "value": "{{value}} bookings ({{percent}}%)"
+      },
+      "leadTime": {
+        "title": "How far ahead people book",
+        "header": "Ahead by",
+        "bucket": "to {{hours}} h",
+        "reading": "This is the distribution the booking window should be set from.",
+        "policyLink": "Open the reservation policy"
+      }
+    },
+    "menu": {
+      "title": "Menu",
+      "blurb": "What sold, what did not, and what got sent back.",
+      "item": "Item",
+      "category": "Section",
+      "value": "Value",
+      "noneSold": "Nothing was ordered in this range.",
+      "topByCount": "Most ordered",
+      "topByRevenue": "Most valuable",
+      "neverOrdered": {
+        "title_one": "{{count}} dish nobody ordered",
+        "title_other": "{{count}} dishes nobody ordered",
+        "blurb": "A dish nobody orders is inventory, prep time and menu space. Tap a name to open it in the editor.",
+        "none": "Everything on the menu sold in this range."
+      },
+      "voids": {
+        "title": "Voided lines",
+        "blurb": "A dish voided often is either mis-described on the menu or badly made.",
+        "none": "Nothing was voided.",
+        "reason": "Reason",
+        "count": "Times"
+      }
+    },
+    "revenue": {
+      "title": "Revenue",
+      "blurb": "What was taken, by day and by hour.",
+      "total": "Total",
+      "serviceCharge": "Service charge",
+      "byDay": "By day",
+      "day": "Day",
+      "taken": "Taken",
+      "byHour": "By hour",
+      "hour": "Hour",
+      "howPaid": {
+        "title": "Cash against in-app",
+        "cash": "Cash",
+        "inApp": "In-app",
+        "value": "{{amount}} ({{percent}}%)"
+      },
+      "adjustments": {
+        "title": "Comps and discounts",
+        "total": "Given away",
+        "none": "Nothing was comped or discounted in this range.",
+        "reason": "Reason",
+        "kind": "Kind",
+        "authorisedBy": "Authorised by",
+        "count": "Count",
+        "amount": "Amount",
+        "discount": "Discount",
+        "comp": "Comp"
+      }
+    }
   }
 }

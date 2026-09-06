@@ -641,3 +641,34 @@ export class HoldAlreadyExtendedError extends ApiError {
 export function isHoldAlreadyExtended(error: unknown): error is HoldAlreadyExtendedError {
   return error instanceof HoldAlreadyExtendedError;
 }
+
+/**
+ * The range asked for is longer than a report will run.
+ *
+ * Not a failure of the request so much as of the question: everything in the
+ * report section is queried live against the operational tables, and a range
+ * nobody meant to ask for is a table scan nobody meant to run. The server
+ * refuses and names its own limit, which is more use than a request that spins
+ * for ninety seconds and times out — so the limit travels on the error and the
+ * screen says what it is rather than inventing a number of its own.
+ */
+export class ReportRangeTooLongError extends ApiError {
+  readonly requestedDays: number;
+  readonly maxDays: number;
+
+  constructor(options: {
+    url: string;
+    requestedDays: number;
+    maxDays: number;
+    requestId?: string | undefined;
+  }) {
+    super(`A report may cover at most ${options.maxDays} days.`, {
+      status: 400,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ReportRangeTooLongError';
+    this.requestedDays = options.requestedDays;
+    this.maxDays = options.maxDays;
+  }
+}
