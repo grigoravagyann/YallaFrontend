@@ -26,6 +26,7 @@
  * Screens depend on these contracts; both gateways implement them.
  */
 
+import type { Photo } from './menuAdmin';
 import type {
   SettlementMode,
   StaffTabStatus,
@@ -59,8 +60,15 @@ export interface MenuItemDetail {
   readonly description: string;
   /** Integer dram. The client displays this and never sums prices. */
   readonly priceDram: number;
-  /** Required on the wire; empty string when the venue has not set one. */
-  readonly photoUrl: string | null;
+  /**
+   * Three variant URLs and the id behind them.
+   *
+   * Was a single `photoUrl` until Backend 9; a menu photo is now stored once
+   * and served at three sizes, and which one a screen uses is a layout
+   * decision rather than a data one — a card that loads the 1600px variant to
+   * draw it at 120 is a phone connection in a basement wasted.
+   */
+  readonly photo: Photo;
   /**
    * Free text as the venue wrote it, comma-separated in practice.
    *

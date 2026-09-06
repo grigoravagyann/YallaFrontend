@@ -491,6 +491,189 @@ so neither can exist in anything a venue installs:
   waiter got there first. One device cannot race itself, so this is the only way
   to walk the live-race message and the conflict list in a browser.
 
+## Onboarding a venue
+
+Four screens under `/venue`, and between them a venue can be set up end to end
+without anybody inserting a row by hand: the floor plan, the menu, the opening
+hours and the reservation policy. `/venue` itself is the overview, and it
+carries the **onboarding checklist** — floor plan drawn, tables labelled, menu
+categories, dishes finished, hours set, policy reviewed, staff, devices.
+
+A checklist and not a wizard. Onboarding happens out of order, in a cafe, with
+interruptions; a wizard insists on a sequence nobody follows and gets abandoned
+at step two. What the checklist is for is the question nobody could answer
+before without opening five screens: **is this venue ready?**
+
+Both remaining rows — staff and devices — are listed as not done and say so,
+because "is this venue ready" is false without them and a checklist that left
+them out would answer wrongly. Neither has a screen in this build.
+
+### The menu editor
+
+Two audiences pulling in opposite directions, and where they conflict the first
+one wins: a **bulk first pass**, where somebody enters eighty dishes in an
+afternoon sitting beside the owner, and a **one-off edit in March** by the same
+person, who remembers nothing. A slow first pass means the menu never gets
+finished, and an unfinished menu means ordering does not exist for that venue.
+
+So: a **dense table rather than cards** — scanning eighty dishes for the one
+with the wrong price needs density, and a grid of photo cards is four dishes a
+screen. **Inline editing** of name, price and availability, saving on blur,
+because a three-field dialog to change one number is the difference between a
+menu kept current and one abandoned. And **duplicate as a first-class action**,
+because three sizes of one coffee differ by a name and a price and nothing else.
+
+`duplicateDraft` copies every field except the identity and **clears the photo
+reference**. Sharing one would look like a saving and is not: two items pointing
+at one photo means deleting either breaks the other's card, and the server's own
+content-hash dedupe already makes re-uploading the same bytes free — it returns
+the first photo and writes nothing.
+
+**Allergens are a fixed list plus free text**, not free text alone. Free text
+produces fourteen spellings of "dairy" across three alphabets and a filter
+nobody can build on. The nine presets are joined with commas into the one string
+the server stores, so the wire format is unchanged and the data stops being a
+mess. Anything that does not match a preset — "celery", or something typed
+before the presets existed — survives a round trip in the free-text field rather
+than being dropped.
+
+**Ingredients are chips with autocomplete** from what this branch has already
+used, and portion size suggests recent values. The second khachapuri is much
+faster than the first.
+
+### Completeness
+
+`menuItemGaps` walks exactly the fields `CreateMenuItemCommand` marks required,
+and **names all of them at once**. A form that reveals one missing field per
+submit makes somebody press the button seven times to learn seven things, and
+they stop at three.
+
+The same function answers the count on each category row, the banner at the top
+of the screen, and the checklist's "every dish finished" — so the three cannot
+disagree, and the venue cannot be reported ready while the editor is still
+showing a to-do count. A zero price and a zero prep time count as gaps, not
+values: a free dish is a comp, and a venue's own numbers stop meaning anything
+if one is entered as an item that costs nothing.
+
+### Photos
+
+`POST /api/branches/{id}/photos` is multipart, sniffs the bytes, strips EXIF and
+returns three variants. Two things about the client side of it:
+
+**It does not go through `ApiClient`.** `fetch` cannot report upload progress —
+no shipping browser exposes a stream for the request body — and these are
+eight-megabyte phone photos over a cafe's wifi, where a bar is the difference
+between waiting and reloading. So `uploadPhoto` uses `XMLHttpRequest`, which
+still has `upload.onprogress`, and is the only request in the client that does.
+
+**The crop happens before the upload.** Owner photos are portrait and
+off-centre; the card a diner looks at is a 4:3 landscape crop from the middle,
+so a photo that looks fine in the form loses half the plate on the card. The
+crop offers one control — a vertical offset — because the aspect is fixed and
+every extra handle is time spent on the twelfth of eighty photos. The preview
+then renders at **diner card size**, 160px, not at whatever the form has room
+for: a photo that reads at 400px and is a brown rectangle at 120 is worth
+catching here.
+
+Rejections are surfaced by reason, because the three have three different fixes.
+The confusing one is worth spelling out: **the server ignores the file name and
+the declared content type** — both are attacker-controlled — so a photo an
+iPhone saved as `IMG_0421.jpg` that is really a HEIC is refused as the wrong
+format while every label on it says JPEG. The copy says so, with the format the
+bytes turned out to be.
+
+### Bulk photo matching
+
+Drop thirty photos; names are matched against dish names and **nothing is
+attached until somebody confirms**. A photo on the wrong dish is found by a
+diner weeks later and nobody connects it to an import, so a wrong match is far
+worse than no match. Anything ambiguous — two dishes wanting one file, two files
+wanting one dish — goes to the tray untouched rather than being guessed at.
+
+Matching normalises the extension, the `IMG_`/`DSC_`/`PXL_` prefixes and a
+duplicate counter, then compares by containment first and bounded edit distance
+second. Only a `(2)`-style counter is stripped, not any trailing number: a dish
+called "Beer 500" is a dish, and losing the 500 would send its photo to the
+tray.
+
+**On real camera filenames the tray is where most of them land**, and that is
+the honest outcome rather than a failure — `IMG_20260904_141233.jpg` contains
+nothing to match. Placing twelve photos by hand beside a list is still an order
+of magnitude faster than opening twelve forms, which is what the tray is for.
+
+### Opening hours
+
+Seven rows. **`closesNextDay` is derived, never asked**: a closing time at or
+before the opening time crosses midnight, shown as "10:00 – 01:00 (next day)".
+A checkbox for it is a checkbox somebody gets wrong on the one row where it
+matters, and the server refuses to accept the flag from a client anyway. Equal
+times are twenty-four hours, not zero.
+
+**A closed day emits no interval at all.** Not `00:00–00:00`, which looks like
+"shut" and reads to every consumer as a venue open for an instant at midnight.
+
+Overlaps are checked before the request, because the server refuses the whole
+PUT with one sentence about the week and that marks nothing on a table of seven
+identical-looking days. The check is never _stricter_ than the server's:
+touching spans are allowed, since a venue that closes at 15:00 and reopens at
+15:00 has not overlapped anything. A span that crosses midnight is measured
+forward from its opening, so 22:00–02:00 and 23:00–03:00 are correctly caught as
+overlapping rather than read as disjoint.
+
+The diner-facing preview is on the page because that string is generated from
+this data and getting it wrong is silently visible to every user.
+
+### The reservation policy
+
+Every field, grouped by the question an owner is actually asking, and **each one
+with a plain sentence** in terms of what a diner or a waiter experiences. "Turn
+time" is not a concept a cafe owner has; "how long a table is held for a
+booking — it is why a diner is told 'available 18:00 – 19:45'" is. The sentence
+is under the input, not behind an icon, because an owner who has to hover will
+not hover.
+
+The shipped default is beside every field with a reset, so an owner who set turn
+time to 45 minutes and watched bookings collapse has a way back without knowing
+what it used to be. `defaultPolicyFor` mirrors `ReservationPolicy.DefaultFor`,
+and the two differ in exactly one field: a cafe holds a table for two hours and
+a restaurant for ninety minutes.
+
+**Out-of-range values are refused, never clamped**, and the refusal lands
+against the field it is about. That takes a small piece of string matching and
+it is worth explaining why: `ReservationPolicyLimits.Validate` throws
+`ArgumentOutOfRangeException` with a message that opens with the field's label —
+_"Turn time must be between 15 and 360 minutes; 5 minutes was given."_ — and the
+API's mapper turns it into a 400 carrying the message and **nothing else**: no
+`errors` map, no `context`, no field name. So `policyFieldFromMessage` maps that
+prose back to a key. A message it cannot place is shown above the form rather
+than dropped; a refusal swallowed by a missed mapping is a save button that
+does nothing.
+
+**Changing a policy never rewrites an existing booking.** The server reports how
+many now fall outside the new rules and which ones; the screen shows that count
+until somebody dismisses it, never as a toast. It is the most surprising
+behaviour on the screen.
+
+### Two things this build does not do
+
+**Bulk CSV import of a menu.** An obvious later win, and deliberately not here:
+filename matching covers the photo half, which is the slow half. Typing eighty
+names and prices is an hour; attaching eighty photos one at a time is an
+afternoon.
+
+**Multilingual menu content.** The schema holds **one name per item** — one
+`Name`, one `Description`, one `Ingredients` string — so a venue with an
+Armenian menu and Russian-speaking guests has to pick one. Answering it properly
+would need, at minimum: a translations table keyed by item and locale with the
+venue's own language as the fallback, `MenuItemView` returning the caller's
+locale rather than the stored string, the ordering endpoints continuing to
+snapshot **one** name onto an order line so a bill does not change language
+when somebody's phone does, and an editor that makes the second and third
+languages optional without letting an untranslated dish look finished — which
+means `menuItemGaps` would need a per-locale notion of complete. That is a
+product decision about whether Yalla is a one-language-per-venue product, and it
+has not been made. Flagged rather than invented.
+
 ## Repository layout
 
 ```

@@ -1,3 +1,4 @@
+import type { Photo } from '../contracts/menuAdmin';
 import type { Menu } from '../contracts/menu';
 import type {
   BranchMenu,
@@ -175,6 +176,19 @@ const DETAILS: Readonly<Record<string, Detail>> = {
   },
 };
 
+/** Three URLs shaped exactly like the real ones, for one deterministic id. */
+export function mockPhoto(seed: string): Photo {
+  const photoId = `photo-${seed}`;
+  return {
+    photoId,
+    thumbnailUrl: `/api/photos/${photoId}/thumbnail`,
+    cardUrl: `/api/photos/${photoId}/card`,
+    fullUrl: `/api/photos/${photoId}/full`,
+    width: 1600,
+    height: 1200,
+  };
+}
+
 function detailed(
   item: Menu['sections'][number]['items'][number],
   categoryId: string,
@@ -187,10 +201,12 @@ function detailed(
     name: item.name,
     description: item.description ?? '',
     priceDram: item.priceDram,
-    // No photo in the mock. `null` rather than a placeholder URL, so the card
-    // renders its no-photo layout — which is what most venues will have on day
-    // one, and the layout that has to look deliberate rather than broken.
-    photoUrl: null,
+    // A photo record with no real bytes behind it. The URLs point at the
+    // backend's own serve route, so a card in mock mode renders the same
+    // element and the same layout it will in production and simply shows a
+    // broken image — which is honest — rather than a placeholder that makes
+    // every venue look like it has finished its menu.
+    photo: mockPhoto(item.id),
     ingredients: detail.ingredients,
     allergens: detail.allergens,
     portionSize: detail.portionSize,

@@ -29,6 +29,7 @@ export function navItemsFor(role: UserRole): readonly NavItem[] {
 
   if (VENUE_ROLES.includes(role)) {
     items.push(
+      { to: '/venue', labelKey: 'nav.overview' },
       { to: '/venue/floorplan', labelKey: 'nav.floorplan' },
       { to: '/venue/menu', labelKey: 'nav.menu' },
       { to: '/venue/hours', labelKey: 'nav.hours' },

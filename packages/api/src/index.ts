@@ -184,6 +184,65 @@ export {
 } from './contracts/errors';
 export type { BlockingTab } from './contracts/errors';
 
+// --- The menu editor, opening hours and the reservation policy ---------------
+export type { PhotoUpload } from './consoleGateway';
+export {
+  ALLERGEN_PRESETS,
+  EMPTY_DRAFT,
+  REQUIRED_MENU_ITEM_FIELDS,
+  allergenText,
+  duplicateDraft,
+  incompleteCount,
+  isComplete,
+  itemToDraft,
+  menuItemGaps,
+  parseAllergens,
+  reorder,
+  splitList,
+  storedItemGaps,
+} from './contracts/menuAdmin';
+export type {
+  AdminMenuCategory,
+  AdminMenuItem,
+  AllergenPreset,
+  CreateMenuItemInput,
+  DisplayOrderChange,
+  MenuItemDeletion,
+  MenuItemDraft,
+  MenuItemField,
+  Photo,
+  UpdateMenuItemInput,
+} from './contracts/menuAdmin';
+
+export {
+  POLICY_BOUNDS,
+  WEEK_ORDER,
+  blockMinutes,
+  closesNextDay,
+  defaultPolicyFor,
+  toClock,
+  toMinutes,
+} from './contracts/branchSettings';
+export type {
+  BoundedPolicyField,
+  HoursBlock,
+  HoursDay,
+  PolicyChangeResult,
+  ReservationPolicy,
+  WeekdayIndex,
+  WeeklyHours,
+} from './contracts/branchSettings';
+
+export {
+  CategoryInUseError,
+  OverlappingHoursError,
+  PolicyBoundsError,
+  UnsupportedImageError,
+  isPolicyBounds,
+  isUnsupportedImage,
+} from './contracts/errors';
+export type { UnsupportedImageReason } from './contracts/errors';
+
 export type {
   EditorFloorArea,
   EditorFloorPlan,

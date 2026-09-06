@@ -2689,3 +2689,601 @@ kbd {
   color: var(--color-muted-foreground);
   font-weight: var(--font-weight-regular);
 }
+
+/* --- The venue overview and its checklist ------------------------------------ */
+
+.checklist {
+  max-width: 44rem;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.checklist header h3 {
+  margin: 0;
+}
+
+.checklist-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist-list li {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr auto;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.checklist-mark {
+  color: var(--color-subtle-foreground);
+  font-weight: var(--font-weight-bold);
+}
+
+.checklist-list li.is-done .checklist-mark {
+  color: var(--color-primary);
+}
+
+/* Done rows recede. The list is a to-do, and what is left is what it is for. */
+.checklist-list li.is-done .checklist-label {
+  color: var(--color-muted-foreground);
+}
+
+/* --- The menu editor ---------------------------------------------------------- */
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* First thing on the screen whenever anything is unfinished: during onboarding
+   this is the to-do list and the readiness answer. */
+.completeness-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.completeness-banner p {
+  margin: 0;
+  flex: 1;
+}
+
+.menu-panes {
+  display: grid;
+  grid-template-columns: minmax(14rem, 20rem) 1fr;
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  .menu-panes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.menu-categories h3 {
+  margin-top: 0;
+}
+
+.category-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.category-row > button {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.category-row.is-on {
+  background: var(--color-green-tint);
+}
+
+.category-name {
+  font-weight: var(--font-weight-medium);
+}
+
+.category-tools {
+  display: flex;
+  gap: var(--space-sm);
+  padding-inline-end: var(--space-sm);
+}
+
+.menu-items-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.menu-items-head h3 {
+  margin: 0;
+}
+
+/*
+  A table, not cards.
+
+  Somebody scanning eighty dishes for the one with the wrong price needs
+  density. A grid of photo cards is four dishes a screen and turns a two-minute
+  correction into five minutes of scrolling.
+*/
+.menu-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-md);
+}
+
+.menu-table th,
+.menu-table td {
+  padding: var(--space-xs) var(--space-sm);
+  text-align: start;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.menu-table th {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  font-weight: var(--font-weight-medium);
+}
+
+.menu-table tr[draggable='true'] {
+  cursor: grab;
+}
+
+/* Unfinished rows are marked on the row, not only in a column: the eye scans
+   the left edge. */
+.menu-table .row-incomplete {
+  box-shadow: inset 3px 0 0 var(--color-warning);
+}
+
+.menu-thumb {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+}
+
+.menu-thumb-empty {
+  border: 1px dashed var(--color-border-strong);
+  background: none;
+}
+
+/* Inline editing, saving on blur. A dialog to change one number is the
+   difference between a menu kept current and one abandoned. */
+.inline-field {
+  width: 100%;
+  min-width: 6rem;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.inline-field.numeric {
+  width: 7rem;
+  text-align: end;
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.row-actions {
+  display: flex;
+  gap: var(--space-sm);
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.badge-ok {
+  background: var(--color-green-tint);
+  color: var(--color-primary);
+}
+
+/* The house treatment for a warning: the colour on the border and the text,
+   never a tint nobody defined. */
+.badge-warn {
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button.danger {
+  color: var(--color-danger);
+}
+
+/* --- The item form ------------------------------------------------------------- */
+
+.item-form {
+  width: min(48rem, 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-md);
+}
+
+.form-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+/* The descriptive group is visibly a group, and labelled with why it exists. */
+.form-group {
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.form-group h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.gap-list {
+  margin: var(--space-xs) 0 0;
+  padding-inline-start: var(--space-lg);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.chip-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.is-invalid,
+.chip-input.is-invalid .field {
+  border-color: var(--color-danger);
+}
+
+/* --- Photos ---------------------------------------------------------------------- */
+
+.photo-drop {
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  padding: var(--space-md);
+}
+
+.photo-empty,
+.bulk-target {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xl);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.photo-current {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+}
+
+/*
+  Shown at the size a diner's card is drawn at, not at whatever the form has
+  room for. A photo that reads at 400px and is a brown rectangle at 120 is worth
+  catching in an afternoon of onboarding rather than in the app.
+*/
+.photo-card-preview {
+  object-fit: cover;
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+}
+
+.photo-crop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.photo-crop-frame {
+  width: 100%;
+  max-width: 22rem;
+  overflow: hidden;
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+}
+
+.photo-crop-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.upload-progress progress {
+  flex: 1;
+}
+
+.bulk-drop {
+  width: min(52rem, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.bulk-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bulk-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) auto minmax(10rem, 1.5fr) auto auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bulk-file {
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.bulk-row.state-done {
+  background: var(--color-green-tint);
+}
+
+.bulk-row.state-failed {
+  box-shadow: inset 3px 0 0 var(--color-warning);
+}
+
+/* A near match is the one worth reading. It is marked, not just ordered. */
+.confidence-near {
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+}
+
+/* --- Opening hours ----------------------------------------------------------------- */
+
+.hours-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.hours-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hours-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(14rem, 2fr) minmax(9rem, 1fr) auto;
+  gap: var(--space-md);
+  align-items: start;
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+@media (max-width: 60rem) {
+  .hours-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hours-row.is-closed {
+  color: var(--color-muted-foreground);
+}
+
+.hours-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.hours-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.hours-block {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.hours-block.is-invalid .time-field {
+  border-color: var(--color-danger);
+}
+
+.time-field {
+  width: 8rem;
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+/* What the diner's branch card will say. On the page because that string is
+   generated here and getting it wrong is invisible everywhere else. */
+.hours-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--color-muted-foreground);
+}
+
+.copy-days {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 18rem;
+}
+
+/* --- The reservation policy ---------------------------------------------------------- */
+
+.policy-group {
+  margin: 0 0 var(--space-xl);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+
+.policy-group legend {
+  padding: 0 var(--space-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.policy-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-lg);
+  margin-top: var(--space-md);
+}
+
+.policy-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.policy-input {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.policy-input .numeric {
+  width: 7rem;
+  text-align: end;
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+/*
+  The sentence, not help text behind an icon.
+
+  Every field here is a number whose meaning is not obvious from its name, and
+  an owner who has to hover to find out what turn time is will not hover.
+*/
+.policy-why {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  color: var(--color-muted-foreground);
+}
+
+.policy-default {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.policy-field.is-invalid .field {
+  border-color: var(--color-danger);
+}
+
+/* Not a toast. The most surprising behaviour on the screen stays on the page. */
+.policy-affected {
+  border-color: var(--color-warning);
+}
+
+.affected-ids {
+  margin: var(--space-xs) 0 0;
+  padding-inline-start: var(--space-lg);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

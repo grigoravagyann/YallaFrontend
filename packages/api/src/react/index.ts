@@ -11,6 +11,8 @@ import type {
   VoidLineCommand,
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
+import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
+import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
 import type { ReleaseReservationCommand } from '../staffGateway';
 import type { YallaGateway } from '../gateway';
 import type { StaffGateway } from '../staffGateway';
@@ -124,6 +126,9 @@ export const queryKeys = {
   serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
   staffMenu: (branchId: string) => ['staff', 'menu', branchId] as const,
   tabLines: (tabId: string) => ['staff', 'tabLines', tabId] as const,
+  adminMenu: (branchId: string) => ['console', 'menu', branchId] as const,
+  openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
+  reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
 };
 
 // --- Diner: browse ------------------------------------------------------------
@@ -537,6 +542,171 @@ export function useReleaseReservation(branchId: string | undefined) {
     retry: false,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+    },
+  });
+}
+
+// --- The menu editor, opening hours and the reservation policy ----------------
+
+/**
+ * The whole menu for a branch.
+ *
+ * Reference data with a long stale time and **no refetch on focus**: somebody
+ * entering eighty dishes alt-tabs to a spreadsheet constantly, and a list that
+ * reordered itself under the cursor on every return is a list that gets the
+ * wrong price edited.
+ */
+export function useAdminMenu(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.adminMenu(branchId ?? ''),
+    queryFn: () => gateway.getAdminMenu(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Every menu mutation invalidates the whole menu, and none of them patches it.
+ *
+ * Patching would be faster and is the wrong trade here: a reorder changes the
+ * display order of rows the response does not mention, and a client that
+ * patched one row would show an order the server does not have. The menu is one
+ * request.
+ */
+function useMenuMutation<TInput, TResult>(
+  branchId: string | undefined,
+  run: (input: TInput) => Promise<TResult>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+    },
+  });
+}
+
+export function useCreateCategory(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (input: { name: string; displayOrder: number }) =>
+    gateway.createCategory({ branchId: branchId!, ...input }),
+  );
+}
+
+export function useUpdateCategory(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(
+    branchId,
+    (input: { categoryId: string; name?: string | undefined; displayOrder?: number | undefined }) =>
+      gateway.updateCategory({ branchId: branchId!, ...input }),
+  );
+}
+
+export function useDeleteCategory(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (input: { categoryId: string }) =>
+    gateway.deleteCategory({ branchId: branchId!, ...input }),
+  );
+}
+
+export function useCreateMenuItem(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (item: CreateMenuItemInput) =>
+    gateway.createMenuItem({ branchId: branchId!, item }),
+  );
+}
+
+export function useUpdateMenuItem(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (input: { itemId: string; patch: UpdateMenuItemInput }) =>
+    gateway.updateMenuItem({ branchId: branchId!, ...input }),
+  );
+}
+
+export function useSetMenuItemAvailability(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (input: { itemId: string; isAvailable: boolean }) =>
+    gateway.setMenuItemAvailability({ branchId: branchId!, ...input }),
+  );
+}
+
+export function useDeleteMenuItem(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMenuMutation(branchId, (input: { itemId: string }) =>
+    gateway.deleteMenuItem({ branchId: branchId!, ...input }),
+  );
+}
+
+/**
+ * One photo upload.
+ *
+ * Not a query mutation with cache side effects: a photo is attached to an item
+ * by a separate call, and an upload that invalidated the menu would redraw the
+ * table under a form somebody is still filling in.
+ */
+export function useUploadPhoto(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useMutation({
+    mutationFn: (input: {
+      file: Blob;
+      fileName: string;
+      onProgress?: ((fraction: number) => void) | undefined;
+      signal?: AbortSignal | undefined;
+    }) => gateway.uploadPhoto({ branchId: branchId!, ...input }),
+    retry: false,
+  });
+}
+
+export function useOpeningHours(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.openingHours(branchId ?? ''),
+    queryFn: () => gateway.getOpeningHours(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    // Explicit-save screen: a refetch mid-edit would replace a half-typed week
+    // with the server's copy and lose it without saying so.
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSaveOpeningHours(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (week: WeeklyHours) => gateway.replaceOpeningHours({ branchId: branchId!, week }),
+    retry: false,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.openingHours(branchId ?? ''), saved);
+    },
+  });
+}
+
+export function useReservationPolicy(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.reservationPolicy(branchId ?? ''),
+    queryFn: () => gateway.getReservationPolicy(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSaveReservationPolicy(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (policy: ReservationPolicy) =>
+      gateway.replaceReservationPolicy({ branchId: branchId!, policy }),
+    retry: false,
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.reservationPolicy(branchId ?? ''), result.policy);
+      // The floor and availability both read the turn time and the buffer.
+      void queryClient.invalidateQueries({ queryKey: ['availability', branchId] });
     },
   });
 }

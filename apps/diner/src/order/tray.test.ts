@@ -24,7 +24,16 @@ function menuItem(id: string, priceDram: number, name = id): MenuItemDetail {
     name,
     description: '',
     priceDram,
-    photoUrl: null,
+    // A photo record rather than a URL since Backend 9: one upload, three
+    // variants, and which one a screen draws is a layout decision.
+    photo: {
+      photoId: `photo-${id}`,
+      thumbnailUrl: `/api/photos/photo-${id}/thumbnail`,
+      cardUrl: `/api/photos/photo-${id}/card`,
+      fullUrl: `/api/photos/photo-${id}/full`,
+      width: 1600,
+      height: 1200,
+    },
     ingredients: '',
     allergens: '',
     portionSize: '',

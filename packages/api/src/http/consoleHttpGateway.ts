@@ -18,13 +18,48 @@ import type {
   FloorPlanSaveResult,
   TableDeletionResult,
 } from '../contracts/floorPlan';
-import { FloorPlanInvalidError, SlugTakenError } from '../contracts/errors';
-import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
+import type {
+  PolicyChangeResult,
+  ReservationPolicy,
+  WeeklyHours,
+} from '../contracts/branchSettings';
+import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../contracts/menuAdmin';
+import type { PhotoUpload } from '../consoleGateway';
+import {
+  CategoryInUseError,
+  FloorPlanInvalidError,
+  OverlappingHoursError,
+  PolicyBoundsError,
+  SlugTakenError,
+  UnsupportedImageError,
+} from '../contracts/errors';
+import { ApiError, ForbiddenError, NetworkError, TimeoutError, UnauthorizedError } from '../errors';
 import type { components } from '../generated/schema';
+import { parseProblem } from '../problem';
 import { venueDetailFromWire, venuePageFromWire } from './consoleMapping';
+import {
+  adminCategory,
+  adminItem,
+  adminMenu,
+  hoursBlocks,
+  menuItemDeletion,
+  overlappingDaysFromMessage,
+  photo,
+  policyChangeResult,
+  policyCommand,
+  policyFieldFromMessage,
+  reservationPolicy,
+  spiceCode,
+  weeklyHours,
+} from './venueSettingsMapping';
 
 type Schemas = components['schemas'];
 type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
+type WireCategory = Schemas['Yalla.Application.Menus.MenuCategoryView'];
+type WireItem = Schemas['Yalla.Application.Menus.MenuItemView'];
+type WireHours = Schemas['Yalla.Application.BranchSettings.OpeningHoursView'];
+type WirePolicy = Schemas['Yalla.Application.BranchSettings.ReservationPolicyView'];
+type WirePolicyResult = Schemas['Yalla.Application.BranchSettings.ReservationPolicyChangeResult'];
 type WirePage =
   Schemas['Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]'];
 
@@ -309,7 +344,267 @@ export function createConsoleHttpGateway(
       // Re-read the venue so the screen replaces rather than patches.
       return venueDetail(`${PLATFORM}/venues/${data.venueId}`);
     },
+    // --- The menu editor --------------------------------------------------------
+
+    async getAdminMenu(branchId: string): Promise<readonly AdminMenuCategory[]> {
+      // `/menu/manage`, not the diner's `/menu`: this one is reachable for a
+      // suspended venue, and a manager fixing their menu during a suspension is
+      // exactly who is looking at this screen.
+      const { data } = await client.get<WireCategory[]>(`${BRANCHES}/${branchId}/menu/manage`);
+      return adminMenu(data ?? []);
+    },
+
+    async createCategory({ branchId, name, displayOrder }): Promise<AdminMenuCategory> {
+      const { data } = await client.post<WireCategory>(`${BRANCHES}/${branchId}/menu/categories`, {
+        name,
+        displayOrder,
+      } satisfies Schemas['Yalla.Application.Menus.CreateMenuCategoryCommand']);
+      return adminCategory(data);
+    },
+
+    async updateCategory({ branchId, categoryId, name, displayOrder }) {
+      const { data } = await client.patch<WireCategory>(
+        `${BRANCHES}/${branchId}/menu/categories/${categoryId}`,
+        {
+          ...(name !== undefined ? { name } : {}),
+          ...(displayOrder !== undefined ? { displayOrder } : {}),
+        } satisfies Schemas['Yalla.Application.Menus.UpdateMenuCategoryCommand'],
+      );
+      return adminCategory(data);
+    },
+
+    async deleteCategory({ branchId, categoryId }): Promise<void> {
+      try {
+        await client.delete(`${BRANCHES}/${branchId}/menu/categories/${categoryId}`);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          throw new CategoryInUseError({
+            url: error.url,
+            categoryId,
+            requestId: error.requestId,
+          });
+        }
+        throw error;
+      }
+    },
+
+    async createMenuItem({ branchId, item }): Promise<AdminMenuItem> {
+      const { data } = await client.post<WireItem>(
+        `${BRANCHES}/${branchId}/menu/categories/${item.categoryId}/items`,
+        {
+          name: item.name,
+          description: item.description,
+          priceAmd: item.priceDram,
+          ingredients: item.ingredients,
+          allergens: item.allergens,
+          portionSize: item.portionSize,
+          spiceLevel: spiceCode(item.spiceLevel),
+          prepMinutes: item.prepMinutes,
+          photoId: item.photoId,
+          displayOrder: item.displayOrder,
+        } satisfies Schemas['Yalla.Application.Menus.CreateMenuItemCommand'],
+      );
+      return adminItem(data);
+    },
+
+    async updateMenuItem({ branchId, itemId, patch }): Promise<AdminMenuItem> {
+      const { data } = await client.patch<WireItem>(
+        `${BRANCHES}/${branchId}/menu/items/${itemId}`,
+        {
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.description !== undefined ? { description: patch.description } : {}),
+          ...(patch.priceDram !== undefined ? { priceAmd: patch.priceDram } : {}),
+          ...(patch.ingredients !== undefined ? { ingredients: patch.ingredients } : {}),
+          ...(patch.allergens !== undefined ? { allergens: patch.allergens } : {}),
+          ...(patch.portionSize !== undefined ? { portionSize: patch.portionSize } : {}),
+          ...(patch.spiceLevel !== undefined ? { spiceLevel: spiceCode(patch.spiceLevel) } : {}),
+          ...(patch.prepMinutes !== undefined ? { prepMinutes: patch.prepMinutes } : {}),
+          ...(patch.photoId !== undefined ? { photoId: patch.photoId } : {}),
+          ...(patch.displayOrder !== undefined ? { displayOrder: patch.displayOrder } : {}),
+        } satisfies Schemas['Yalla.Application.Menus.UpdateMenuItemCommand'],
+      );
+      return adminItem(data);
+    },
+
+    async setMenuItemAvailability({ branchId, itemId, isAvailable }): Promise<AdminMenuItem> {
+      const { data } = await client.post<WireItem>(
+        `${BRANCHES}/${branchId}/menu/items/${itemId}/availability`,
+        {
+          isAvailable,
+        } satisfies Schemas['Yalla.Api.Endpoints.VenueAdminEndpoints.SetAvailabilityRequest'],
+      );
+      return adminItem(data);
+    },
+
+    async deleteMenuItem({ branchId, itemId }): Promise<MenuItemDeletion> {
+      const { data } = await client.delete<
+        Schemas['Yalla.Application.Menus.MenuItemDeletionResult']
+      >(`${BRANCHES}/${branchId}/menu/items/${itemId}`);
+      return menuItemDeletion(data);
+    },
+
+    // --- Photos ------------------------------------------------------------------
+
+    /**
+     * The one request in this client that does not go through `ApiClient`.
+     *
+     * Two reasons, and both are about the upload being large. `fetch` cannot
+     * report upload progress at all — there is no readable stream for the
+     * request body in any shipping browser — and these are eight-megabyte phone
+     * photos over a hotel wifi, where a bar is the difference between waiting
+     * and reloading. `XMLHttpRequest` still has `upload.onprogress`, so it is
+     * what this uses.
+     *
+     * The body is `FormData` with a single `file` part and **no explicit
+     * content type**: the boundary is generated by the browser, and setting the
+     * header by hand omits it and produces a body the server cannot parse.
+     */
+    uploadPhoto({ branchId, file, fileName, onProgress, signal }): Promise<PhotoUpload> {
+      return new Promise<PhotoUpload>((resolve, reject) => {
+        void (async () => {
+          const url = `${client.baseUrl.replace(/\/+$/u, '')}${BRANCHES}/${branchId}/photos`;
+          const token = await auth.getAccessToken();
+
+          const request = new XMLHttpRequest();
+          request.open('POST', url, true);
+          request.responseType = 'json';
+          if (token) request.setRequestHeader('authorization', `Bearer ${token}`);
+          request.setRequestHeader('accept', 'application/json');
+
+          request.upload.onprogress = (event) => {
+            if (event.lengthComputable && event.total > 0) {
+              onProgress?.(event.loaded / event.total);
+            }
+          };
+
+          request.onerror = () => reject(new NetworkError({ url }));
+          request.ontimeout = () => reject(new TimeoutError({ url, timeoutMs: 0 }));
+          request.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+
+          request.onload = () => {
+            const body: unknown =
+              typeof request.response === 'string' && request.response.length > 0
+                ? safeJson(request.response)
+                : request.response;
+
+            if (request.status >= 200 && request.status < 300) {
+              const result = body as Schemas['Yalla.Application.Media.PhotoUploadResult'];
+              onProgress?.(1);
+              resolve({
+                photo: photo(result.photo),
+                wasDeduplicated: result.wasDeduplicated,
+                bytesStored: result.bytesStored,
+              });
+              return;
+            }
+
+            reject(photoRejection(url, request.status, body));
+          };
+
+          signal?.addEventListener('abort', () => request.abort(), { once: true });
+
+          const form = new FormData();
+          form.append('file', file, fileName);
+          request.send(form);
+        })().catch(reject);
+      });
+    },
+
+    // --- Opening hours ------------------------------------------------------------
+
+    async getOpeningHours(branchId: string): Promise<WeeklyHours> {
+      const { data } = await client.get<WireHours[]>(`${BRANCHES}/${branchId}/opening-hours`);
+      return weeklyHours(data ?? []);
+    },
+
+    async replaceOpeningHours({ branchId, week }): Promise<WeeklyHours> {
+      try {
+        const { data } = await client.put<WireHours[]>(
+          `${BRANCHES}/${branchId}/opening-hours`,
+          hoursBlocks(week),
+        );
+        return weeklyHours(data ?? []);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 400) {
+          const detail = error.problem?.detail ?? error.message;
+          throw new OverlappingHoursError({
+            url: error.url,
+            days: overlappingDaysFromMessage(detail),
+            detail,
+            requestId: error.requestId,
+          });
+        }
+        throw error;
+      }
+    },
+
+    // --- The reservation policy ---------------------------------------------------
+
+    async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {
+      const { data } = await client.get<WirePolicy>(`${BRANCHES}/${branchId}/reservation-policy`);
+      return reservationPolicy(data);
+    },
+
+    async replaceReservationPolicy({ branchId, policy }): Promise<PolicyChangeResult> {
+      try {
+        const { data } = await client.put<WirePolicyResult>(
+          `${BRANCHES}/${branchId}/reservation-policy`,
+          policyCommand(policy),
+        );
+        return policyChangeResult(data);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 400) {
+          const detail = error.problem?.detail ?? error.message;
+          throw new PolicyBoundsError({
+            url: error.url,
+            field: policyFieldFromMessage(detail),
+            detail,
+            requestId: error.requestId,
+          });
+        }
+        throw error;
+      }
+    },
   };
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Which of the three refusals this is.
+ *
+ * The server answers 409 for both "not an image we store" and "too big", with
+ * the reason only in the sentence — so the sentence is what is read, and the
+ * sentence itself is shown either way. The three cases have three different
+ * fixes and lumping them together as "upload failed" is the version that
+ * generates a support conversation about a `.jpg` that is really a HEIC.
+ */
+function photoRejection(url: string, status: number, body: unknown): ApiError {
+  const problem = parseProblem(body);
+  const detail = problem?.detail ?? 'That photo could not be uploaded.';
+  const lower = detail.toLowerCase();
+
+  if (status === 413 || lower.includes('larger') || lower.includes('too big')) {
+    return new UnsupportedImageError({ url, reason: 'tooLarge', detail });
+  }
+  if (status === 409 || status === 415) {
+    const detected = problem?.context?.['detectedFormat'];
+    return new UnsupportedImageError({
+      url,
+      reason: lower.includes('pixel') || lower.includes('dimension') ? 'dimensions' : 'format',
+      detectedFormat: typeof detected === 'string' ? detected : null,
+      detail,
+    });
+  }
+  if (status === 401) return new UnauthorizedError({ url, body, problem });
+  if (status === 403) return new ForbiddenError({ url, body, problem });
+  return new ApiError(detail, { status, url, body, problem });
 }
 
 type WireArea = EditorFloorArea;

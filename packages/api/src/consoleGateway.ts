@@ -6,6 +6,19 @@ import type {
   TableDeletionResult,
 } from './contracts/floorPlan';
 import type {
+  AdminMenuCategory,
+  AdminMenuItem,
+  CreateMenuItemInput,
+  MenuItemDeletion,
+  Photo,
+  UpdateMenuItemInput,
+} from './contracts/menuAdmin';
+import type {
+  PolicyChangeResult,
+  ReservationPolicy,
+  WeeklyHours,
+} from './contracts/branchSettings';
+import type {
   ConsoleUser,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -110,4 +123,131 @@ export interface ConsoleGateway {
    * the printed sticker on that table stops working the moment it lands.
    */
   regenerateTableQr(input: { tableId: string }): Promise<{ qrToken: string }>;
+  // --- The menu editor --------------------------------------------------------
+
+  /**
+   * Every category with every item, including unavailable ones.
+   *
+   * `GET /api/branches/{id}/menu/manage`, not the diner's `/menu`. The two
+   * return the same shape and only this one is reachable for a **suspended**
+   * venue — a manager fixing their menu during a suspension needs to see it,
+   * and the diner route refuses on purpose.
+   */
+  getAdminMenu(branchId: string): Promise<readonly AdminMenuCategory[]>;
+
+  createCategory(input: {
+    branchId: string;
+    name: string;
+    displayOrder: number;
+  }): Promise<AdminMenuCategory>;
+
+  updateCategory(input: {
+    branchId: string;
+    categoryId: string;
+    name?: string | undefined;
+    displayOrder?: number | undefined;
+  }): Promise<AdminMenuCategory>;
+
+  /**
+   * Remove a category **and its items**.
+   *
+   * There is no reassignment: the items go with it. The screen therefore has to
+   * say how many, because "delete category" is a very different decision when
+   * it takes fourteen dishes with it.
+   *
+   * @throws {CategoryInUseError} 409 — one of its items appears on an order, so
+   * nothing is deleted. The way through is to mark those items unavailable.
+   */
+  deleteCategory(input: { branchId: string; categoryId: string }): Promise<void>;
+
+  createMenuItem(input: { branchId: string; item: CreateMenuItemInput }): Promise<AdminMenuItem>;
+
+  updateMenuItem(input: {
+    branchId: string;
+    itemId: string;
+    patch: UpdateMenuItemInput;
+  }): Promise<AdminMenuItem>;
+
+  /** "We're out of khachapuri tonight." Separate from delete, and reversible. */
+  setMenuItemAvailability(input: {
+    branchId: string;
+    itemId: string;
+    isAvailable: boolean;
+  }): Promise<AdminMenuItem>;
+
+  /**
+   * Delete an item, or deactivate one that appears on an order.
+   *
+   * The result says which happened. An item referenced by an order line cannot
+   * go — the reference has to survive — so it is marked unavailable instead,
+   * and the screen shows the server's own sentence rather than a success.
+   */
+  deleteMenuItem(input: { branchId: string; itemId: string }): Promise<MenuItemDeletion>;
+
+  // --- Photos ------------------------------------------------------------------
+
+  /**
+   * Upload one photo and get its three variants back.
+   *
+   * Multipart, one `file` part. The bytes are **sniffed rather than trusted**,
+   * so a `.jpg` that is really a HEIC is refused with that said plainly — the
+   * file name and the declared content type are both attacker-controlled and
+   * neither is consulted.
+   *
+   * Uploading the same image twice returns the first photo and writes nothing,
+   * with `wasDeduplicated` set. Reported rather than hidden: an upload that
+   * wrote nothing looks like a failure.
+   *
+   * @throws {UnsupportedImageError} not a JPEG, PNG or WebP, or too large.
+   */
+  uploadPhoto(input: {
+    branchId: string;
+    file: Blob;
+    fileName: string;
+    /** 0–1, for the progress bar. These are phone photos and they are large. */
+    onProgress?: ((fraction: number) => void) | undefined;
+    signal?: AbortSignal | undefined;
+  }): Promise<PhotoUpload>;
+
+  // --- Opening hours ------------------------------------------------------------
+
+  getOpeningHours(branchId: string): Promise<WeeklyHours>;
+
+  /**
+   * Replace the whole week, atomically.
+   *
+   * Every block for every day, in one call. `closesNextDay` is derived
+   * server-side and is not accepted from a client, so it is not sent.
+   *
+   * @throws {OverlappingHoursError} two blocks on one day overlap; the error
+   * names the days.
+   */
+  replaceOpeningHours(input: { branchId: string; week: WeeklyHours }): Promise<WeeklyHours>;
+
+  // --- The reservation policy ---------------------------------------------------
+
+  getReservationPolicy(branchId: string): Promise<ReservationPolicy>;
+
+  /**
+   * Replace the policy.
+   *
+   * Out-of-range values are **refused, never clamped**, and the refusal names
+   * the field in prose. The result says how many existing bookings now fall
+   * outside the new rules — they are not changed, and somebody has to be told.
+   *
+   * @throws {PolicyBoundsError} a field is outside its bounds.
+   */
+  replaceReservationPolicy(input: {
+    branchId: string;
+    policy: ReservationPolicy;
+  }): Promise<PolicyChangeResult>;
+}
+
+/** What one upload produced. */
+export interface PhotoUpload {
+  readonly photo: Photo;
+  /** True when these exact bytes were already stored and nothing was written. */
+  readonly wasDeduplicated: boolean;
+  /** Total across the three variants. */
+  readonly bytesStored: number;
 }

@@ -13,11 +13,37 @@ import type {
   VenueStatus,
 } from '../contracts/console';
 import {
+  CategoryInUseError,
   FloorPlanInvalidError,
   OutOfScopeError,
+  OverlappingHoursError,
+  PolicyBoundsError,
   SlugTakenError,
+  UnsupportedImageError,
   VenueHasOpenTabsError,
 } from '../contracts/errors';
+import { NotFoundError } from '../errors';
+import type { PhotoUpload } from '../consoleGateway';
+import type {
+  AdminMenuCategory,
+  AdminMenuItem,
+  MenuItemDeletion,
+  Photo,
+} from '../contracts/menuAdmin';
+import type { SpiceLevel } from '../contracts/ordering';
+import type {
+  HoursBlock,
+  PolicyChangeResult,
+  ReservationPolicy,
+  WeeklyHours,
+} from '../contracts/branchSettings';
+import {
+  POLICY_BOUNDS,
+  WEEK_ORDER,
+  defaultPolicyFor,
+  toMinutes,
+} from '../contracts/branchSettings';
+import { mockBranchMenu, mockPhoto } from './menuDetail';
 import type {
   EditorFloorArea,
   EditorFloorPlan,
@@ -28,6 +54,99 @@ import type {
 import { mockVenues } from './venues';
 
 const URL_TAG = 'mock://yalla/console';
+// ---------------------------------------------------------------------------
+// The menu editor, opening hours and the reservation policy
+// ---------------------------------------------------------------------------
+
+/**
+ * The stand-in for an item that has no photo yet.
+ *
+ * The server requires one, so this shape cannot come off the wire — but a mock
+ * that refused to represent an unfinished item would make the completeness
+ * filter, which is the whole point of the onboarding screen, unreachable. The
+ * empty id is what {@link storedItemGaps} keys on.
+ */
+const NO_PHOTO: Photo = {
+  photoId: '',
+  thumbnailUrl: '',
+  cardUrl: '',
+  fullUrl: '',
+  width: null,
+  height: null,
+};
+
+/** Eight megabytes, matching `PhotoRules.MaxUploadBytes`. */
+const MOCK_MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Bookings the policy screen reports as falling outside a tightened rule.
+ *
+ * Fixed ids rather than a simulation of the booking table: the point of the
+ * report is that a number appears and does not go away, and that branch of the
+ * screen is unreachable without one.
+ */
+const MOCK_AFFECTED_RESERVATIONS: readonly string[] = ['res-mock-1', 'res-mock-2', 'res-mock-3'];
+
+/** The labels the server's bounds messages open with. */
+const POLICY_LABELS: Readonly<Record<string, string>> = {
+  turnTimeMinutes: 'Turn time',
+  bufferMinutes: 'Buffer',
+  graceMinutes: 'Grace period',
+  lateNudgeAfterMinutes: 'Late nudge delay',
+  graceExtensionMinutes: 'Grace extension',
+  minLeadMinutes: 'Minimum lead time',
+  bookingWindowDays: 'Booking window',
+  cancellationDeadlineMinutes: 'Cancellation deadline',
+  walkInHoldbackMinutes: 'Walk-in holdback',
+  serviceChargePercent: 'Service charge',
+};
+
+interface MockItem {
+  id: string;
+  categoryId: string;
+  name: string;
+  description: string;
+  priceDram: number;
+  ingredients: string;
+  allergens: string;
+  portionSize: string;
+  spiceLevel: SpiceLevel;
+  prepMinutes: number;
+  /** Null for an item seeded incomplete, which is what the to-do list is for. */
+  photoId: string | null;
+  isAvailable: boolean;
+  displayOrder: number;
+}
+
+interface MockCategory {
+  id: string;
+  name: string;
+  displayOrder: number;
+  items: MockItem[];
+}
+
+/** Two blocks on one day that overlap. Touching is allowed; overlapping is not. */
+function overlapsWithin(blocks: readonly HoursBlock[]): boolean {
+  const spans = blocks
+    .map((block) => {
+      const opens = toMinutes(block.opensAt);
+      const closes = toMinutes(block.closesAt);
+      if (opens < 0 || closes < 0) return null;
+      // A block that crosses midnight is measured forward from its opening, so
+      // 22:00–01:00 is 22:00–25:00 and can be compared with an ordinary span.
+      return { start: opens, end: closes <= opens ? closes + 1440 : closes };
+    })
+    .filter((span): span is { start: number; end: number } => span !== null)
+    .sort((a, b) => a.start - b.start);
+
+  for (let index = 1; index < spans.length; index += 1) {
+    const previous = spans[index - 1]!;
+    const current = spans[index]!;
+    if (current.start < previous.end) return true;
+  }
+  return false;
+}
+
 const DEFAULT_PAGE_SIZE = 10;
 
 interface VenueRecord {
@@ -83,6 +202,141 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   const venues = new Map<string, VenueRecord>();
   let sequence = 0;
+
+  // --- The menu, the week and the policy, per branch ---------------------------
+
+  const menus = new Map<string, MockCategory[]>();
+  const hours = new Map<string, WeeklyHours>();
+  const policies = new Map<string, ReservationPolicy>();
+  const photosById = new Map<string, Photo>();
+  const uploadedPhotos = new Map<string, Photo>();
+  /** Items the fixture pretends have been ordered, so deletion is refused. */
+  const orderedItemIds = new Set<string>();
+
+  let mockSequence = 0;
+  const nextId = (prefix: string) => `${prefix}-${(mockSequence += 1)}`;
+
+  /** A branch's menu, seeded from the shared fixture on first read. */
+  function menuFor(branchId: string): MockCategory[] {
+    const existing = menus.get(branchId);
+    if (existing) return existing;
+
+    const seeded: MockCategory[] = mockBranchMenu(branchId, 'cafe').categories.map(
+      (category, categoryIndex) => ({
+        id: category.id,
+        name: category.name,
+        displayOrder: categoryIndex,
+        items: category.items.map((item, itemIndex) => ({
+          id: item.id,
+          categoryId: category.id,
+          name: item.name,
+          description: item.description,
+          priceDram: item.priceDram,
+          ingredients: item.ingredients,
+          allergens: item.allergens,
+          portionSize: item.portionSize,
+          spiceLevel: item.spiceLevel,
+          prepMinutes: item.prepMinutes,
+          // Two seeded items have no photo and one has no allergens, so the
+          // completeness filter and its count are reachable on first load —
+          // which is the state every real venue is in on day one.
+          photoId: itemIndex === 0 && categoryIndex === 0 ? null : item.photo.photoId,
+          isAvailable: item.isAvailable,
+          displayOrder: itemIndex,
+        })),
+      }),
+    );
+
+    for (const category of seeded) {
+      for (const item of category.items) {
+        if (item.photoId) photosById.set(item.photoId, mockPhoto(item.id));
+      }
+    }
+    // The first item of the second category is "on an order": deleting it
+    // deactivates rather than removes, and its category cannot be deleted.
+    const ordered = seeded[1]?.items[0];
+    if (ordered) orderedItemIds.add(ordered.id);
+
+    menus.set(branchId, seeded);
+    return seeded;
+  }
+
+  function sortedMenu(categories: readonly MockCategory[]): readonly AdminMenuCategory[] {
+    return [...categories].sort((a, b) => a.displayOrder - b.displayOrder).map(toCategory);
+  }
+
+  function toCategory(category: MockCategory): AdminMenuCategory {
+    return {
+      id: category.id,
+      name: category.name,
+      displayOrder: category.displayOrder,
+      items: [...category.items].sort((a, b) => a.displayOrder - b.displayOrder).map(toItem),
+    };
+  }
+
+  /**
+   * An item with no photo cannot exist on the wire — the server requires one —
+   * so the mock's incomplete rows carry a placeholder whose id is empty. The
+   * completeness check keys on that, exactly as it does against a real API when
+   * a draft has not uploaded one yet.
+   */
+  function toItem(item: MockItem): AdminMenuItem {
+    return {
+      id: item.id,
+      categoryId: item.categoryId,
+      name: item.name,
+      description: item.description,
+      priceDram: item.priceDram,
+      ingredients: item.ingredients,
+      allergens: item.allergens,
+      portionSize: item.portionSize,
+      spiceLevel: item.spiceLevel,
+      prepMinutes: item.prepMinutes,
+      photo: item.photoId ? (photosById.get(item.photoId) ?? mockPhoto(item.photoId)) : NO_PHOTO,
+      isAvailable: item.isAvailable,
+      displayOrder: item.displayOrder,
+    };
+  }
+
+  function requireCategory(branchId: string, categoryId: string): MockCategory {
+    const category = menuFor(branchId).find((candidate) => candidate.id === categoryId);
+    if (!category) throw new NotFoundError({ url: `${URL_TAG}/menu/${categoryId}` });
+    return category;
+  }
+
+  function requireItem(branchId: string, itemId: string): MockItem {
+    for (const category of menuFor(branchId)) {
+      const item = category.items.find((candidate) => candidate.id === itemId);
+      if (item) return item;
+    }
+    throw new NotFoundError({ url: `${URL_TAG}/menu/items/${itemId}` });
+  }
+
+  /** A plausible week: open every day, one late night at the weekend. */
+  function hoursFor(branchId: string): WeeklyHours {
+    const existing = hours.get(branchId);
+    if (existing) return existing;
+
+    const seeded: WeeklyHours = WEEK_ORDER.map((day) => ({
+      day,
+      blocks:
+        day === 0
+          ? // Sunday shut, so the "closed" row is on screen from the first load
+            // rather than being a state somebody has to construct.
+            []
+          : [{ opensAt: '09:00', closesAt: day === 5 || day === 6 ? '01:00' : '23:00' }],
+    }));
+    hours.set(branchId, seeded);
+    return seeded;
+  }
+
+  function policyFor(branchId: string): ReservationPolicy {
+    const existing = policies.get(branchId);
+    if (existing) return existing;
+    const seeded = defaultPolicyFor('cafe');
+    policies.set(branchId, seeded);
+    return seeded;
+  }
 
   mockVenues.forEach((venue, venueIndex) => {
     const branches: ConsoleBranch[] = venue.branches.map((branch, branchIndex) => ({
@@ -590,6 +844,238 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         return toDetail(record);
       }
       throw new OutOfScopeError({ url: URL_TAG });
+    },
+
+    // --- The menu editor --------------------------------------------------------
+
+    async getAdminMenu(branchId): Promise<readonly AdminMenuCategory[]> {
+      await wait();
+      return sortedMenu(menuFor(branchId));
+    },
+
+    async createCategory({ branchId, name, displayOrder }): Promise<AdminMenuCategory> {
+      await wait();
+      const category: MockCategory = { id: nextId('cat'), name, displayOrder, items: [] };
+      menuFor(branchId).push(category);
+      return toCategory(category);
+    },
+
+    async updateCategory({ branchId, categoryId, name, displayOrder }) {
+      await wait();
+      const category = requireCategory(branchId, categoryId);
+      if (name !== undefined) category.name = name;
+      if (displayOrder !== undefined) category.displayOrder = displayOrder;
+      return toCategory(category);
+    },
+
+    async deleteCategory({ branchId, categoryId }): Promise<void> {
+      await wait();
+      const category = requireCategory(branchId, categoryId);
+      // The real refusal, simulated: an item that has been ordered cannot go,
+      // and the category cannot go without it. `orderedItemIds` is seeded so
+      // the branch is reachable without placing an order first.
+      if (category.items.some((item) => orderedItemIds.has(item.id))) {
+        throw new CategoryInUseError({ url: `${URL_TAG}/menu/${categoryId}`, categoryId });
+      }
+      const categories = menuFor(branchId);
+      categories.splice(categories.indexOf(category), 1);
+    },
+
+    async createMenuItem({ branchId, item }): Promise<AdminMenuItem> {
+      await wait();
+      const category = requireCategory(branchId, item.categoryId);
+      const created: MockItem = {
+        id: nextId('item'),
+        categoryId: category.id,
+        name: item.name,
+        description: item.description,
+        priceDram: item.priceDram,
+        ingredients: item.ingredients,
+        allergens: item.allergens,
+        portionSize: item.portionSize,
+        spiceLevel: item.spiceLevel,
+        prepMinutes: item.prepMinutes,
+        photoId: item.photoId,
+        isAvailable: true,
+        displayOrder: item.displayOrder,
+      };
+      category.items.push(created);
+      return toItem(created);
+    },
+
+    async updateMenuItem({ branchId, itemId, patch }): Promise<AdminMenuItem> {
+      await wait();
+      const item = requireItem(branchId, itemId);
+      if (patch.name !== undefined) item.name = patch.name;
+      if (patch.description !== undefined) item.description = patch.description;
+      if (patch.priceDram !== undefined) item.priceDram = patch.priceDram;
+      if (patch.ingredients !== undefined) item.ingredients = patch.ingredients;
+      if (patch.allergens !== undefined) item.allergens = patch.allergens;
+      if (patch.portionSize !== undefined) item.portionSize = patch.portionSize;
+      if (patch.spiceLevel !== undefined) item.spiceLevel = patch.spiceLevel;
+      if (patch.prepMinutes !== undefined) item.prepMinutes = patch.prepMinutes;
+      if (patch.photoId !== undefined) item.photoId = patch.photoId;
+      if (patch.displayOrder !== undefined) item.displayOrder = patch.displayOrder;
+      return toItem(item);
+    },
+
+    async setMenuItemAvailability({ branchId, itemId, isAvailable }): Promise<AdminMenuItem> {
+      await wait();
+      const item = requireItem(branchId, itemId);
+      item.isAvailable = isAvailable;
+      return toItem(item);
+    },
+
+    async deleteMenuItem({ branchId, itemId }): Promise<MenuItemDeletion> {
+      await wait();
+      const item = requireItem(branchId, itemId);
+
+      // An item on an order is deactivated rather than deleted: the order line
+      // points at it and that reference has to survive. The server says which
+      // happened and so does this, because a "deleted" item still on the list
+      // is the kind of thing somebody deletes twice.
+      if (orderedItemIds.has(item.id)) {
+        item.isAvailable = false;
+        return {
+          itemId,
+          deleted: false,
+          deactivated: true,
+          message: 'This item appears on an order, so it was marked unavailable instead.',
+        };
+      }
+
+      for (const category of menuFor(branchId)) {
+        const index = category.items.indexOf(item);
+        if (index >= 0) category.items.splice(index, 1);
+      }
+      return { itemId, deleted: true, deactivated: false, message: 'Removed.' };
+    },
+
+    // --- Photos ------------------------------------------------------------------
+
+    async uploadPhoto({ file, fileName, onProgress }): Promise<PhotoUpload> {
+      // Progress in steps, because a bar that jumps from nothing to done is a
+      // bar nobody believes, and this is the one screen where the wait is real.
+      for (const fraction of [0.25, 0.6, 0.9]) {
+        await wait();
+        onProgress?.(fraction);
+      }
+
+      // The real refusals, on the same signals the server uses. The bytes are
+      // not sniffed here — a mock cannot decode an image — so the extension
+      // stands in, with the one case that matters called out: a HEIC saved as
+      // `.jpg` is refused by the server and would sail through this check.
+      if (file.size > MOCK_MAX_UPLOAD_BYTES) {
+        throw new UnsupportedImageError({
+          url: `${URL_TAG}/photos`,
+          reason: 'tooLarge',
+          detail: 'That photo is larger than 8 MB. Export it smaller and try again.',
+        });
+      }
+      if (!/\.(jpe?g|png|webp)$/iu.test(fileName)) {
+        throw new UnsupportedImageError({
+          url: `${URL_TAG}/photos`,
+          reason: 'format',
+          detectedFormat: fileName.split('.').pop()?.toLowerCase() ?? null,
+          detail: 'That file is not a JPEG, PNG or WebP.',
+        });
+      }
+
+      // Deduplicated by size and name, which is the closest a mock gets to the
+      // server's content hash. Reported rather than hidden: an upload that
+      // wrote nothing looks like a failure.
+      const key = `${fileName}:${file.size}`;
+      const existing = uploadedPhotos.get(key);
+      if (existing) {
+        onProgress?.(1);
+        return { photo: existing, wasDeduplicated: true, bytesStored: 0 };
+      }
+
+      const photoId = nextId('photo');
+      const stored: Photo = {
+        photoId,
+        thumbnailUrl: `/api/photos/${photoId}/thumbnail`,
+        cardUrl: `/api/photos/${photoId}/card`,
+        fullUrl: `/api/photos/${photoId}/full`,
+        width: 1600,
+        height: 1200,
+      };
+      uploadedPhotos.set(key, stored);
+      photosById.set(photoId, stored);
+      onProgress?.(1);
+      return { photo: stored, wasDeduplicated: false, bytesStored: file.size };
+    },
+
+    // --- Opening hours ------------------------------------------------------------
+
+    async getOpeningHours(branchId): Promise<WeeklyHours> {
+      await wait();
+      return hoursFor(branchId);
+    },
+
+    async replaceOpeningHours({ branchId, week }): Promise<WeeklyHours> {
+      await wait();
+
+      // The server's own check, so the screen's client-side validation has
+      // something to be tested against rather than being the only opinion.
+      const clashing = week.filter((day) => overlapsWithin(day.blocks)).map((day) => day.day);
+      if (clashing.length > 0) {
+        throw new OverlappingHoursError({
+          url: `${URL_TAG}/opening-hours`,
+          days: clashing,
+          detail: 'Two opening times on the same day overlap.',
+        });
+      }
+
+      const stored: WeeklyHours = week.map((day) => ({
+        day: day.day,
+        blocks: day.blocks.map((block) => ({ ...block })),
+      }));
+      hours.set(branchId, stored);
+      return stored;
+    },
+
+    // --- The reservation policy ---------------------------------------------------
+
+    async getReservationPolicy(branchId): Promise<ReservationPolicy> {
+      await wait();
+      return policyFor(branchId);
+    },
+
+    async replaceReservationPolicy({ branchId, policy }): Promise<PolicyChangeResult> {
+      await wait();
+
+      // Refused, never clamped, and named — the same sentence shape the server
+      // produces, so the message-to-field mapping is exercised by the mock too.
+      for (const [field, bounds] of Object.entries(POLICY_BOUNDS)) {
+        const value = policy[field as keyof ReservationPolicy];
+        if (typeof value !== 'number') continue;
+        if (value < bounds.min || value > bounds.max) {
+          throw new PolicyBoundsError({
+            url: `${URL_TAG}/reservation-policy`,
+            field,
+            detail: `${POLICY_LABELS[field] ?? field} must be between ${bounds.min} and ${bounds.max}; ${value} was given.`,
+          });
+        }
+      }
+
+      const previous = policyFor(branchId);
+      policies.set(branchId, policy);
+
+      // Bookings that would not have been allowed under the new rules. They are
+      // **not** changed — a settings edit never rewrites a booking — and the
+      // count is the whole reason this screen reports anything at all.
+      const affected =
+        policy.bookingWindowDays < previous.bookingWindowDays ||
+        policy.turnTimeMinutes > previous.turnTimeMinutes
+          ? MOCK_AFFECTED_RESERVATIONS
+          : [];
+
+      return {
+        policy,
+        affectedExistingReservations: affected.length,
+        affectedReservationIds: affected,
+      };
     },
   };
 }

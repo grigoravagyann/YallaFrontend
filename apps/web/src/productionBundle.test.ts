@@ -33,18 +33,48 @@ function bundleFiles(): readonly string[] {
     .filter((path) => statSync(path).isFile());
 }
 
+/** The newest mtime under a directory, recursively. `0` when it does not exist. */
+function newestMtime(root: string): number {
+  if (!existsSync(root)) return 0;
+  let newest = 0;
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) newest = Math.max(newest, newestMtime(path));
+    else newest = Math.max(newest, statSync(path).mtimeMs);
+  }
+  return newest;
+}
+
 /**
- * Build if there is nothing to read.
+ * Build if there is nothing to read, **or if what is there is stale**.
  *
- * Deliberately not a skip. A test that quietly passes when the artefact it is
- * about does not exist is the same category of mistake as the four defects
- * this suite was written for — it is green, and it is checking nothing.
+ * Deliberately not a skip, and deliberately not "exists is good enough". A test
+ * that quietly passes because the artefact it is about is missing is the same
+ * category of mistake as the four defects the regression suite was written
+ * for — and one that passes against last week's bundle is worse, because it
+ * looks like it checked something. So the sources are compared against the
+ * output and a stale bundle is rebuilt.
  */
 beforeAll(() => {
-  if (bundleFiles().length > 0) return;
+  const built = newestMtime(join(DIST, 'assets'));
+  const sources = Math.max(
+    newestMtime(join(WEB_ROOT, 'src')),
+    newestMtime(join(WEB_ROOT, 'public')),
+    newestMtime(join(WEB_ROOT, '..', '..', 'packages')),
+  );
+
+  if (built > 0 && built >= sources) return;
+
   execSync('pnpm --filter @yalla/web build', {
     cwd: resolve(WEB_ROOT, '..', '..'),
     stdio: 'inherit',
+    // `NODE_ENV` has to be forced. Vitest sets it to `test`, a child process
+    // inherits it, and `@vitejs/plugin-react` picks its JSX runtime from it —
+    // so a build launched from here without this produces `jsxDEV` calls and a
+    // truthy `import.meta.env.DEV`, and every dev affordance this test exists
+    // to find survives into the output. The first run of this rebuild found
+    // exactly that, which is the test working rather than a regression.
+    env: { ...process.env, NODE_ENV: 'production' },
   });
 }, 600_000);
 

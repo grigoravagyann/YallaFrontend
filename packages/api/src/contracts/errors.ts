@@ -471,3 +471,128 @@ export class OutOfScopeError extends ApiError {
     this.name = 'OutOfScopeError';
   }
 }
+
+// ---------------------------------------------------------------------------
+// The menu editor, opening hours and the reservation policy
+// ---------------------------------------------------------------------------
+
+/**
+ * A category cannot be deleted because one of its items is on an order.
+ *
+ * Its own type because the way through is specific and not obvious: mark those
+ * items unavailable, which keeps them off every menu without breaking the order
+ * lines that point at them. "Cannot delete" alone sends somebody looking for a
+ * force button that does not exist and should not.
+ */
+export class CategoryInUseError extends ApiError {
+  readonly categoryId: string;
+
+  constructor(options: { url: string; categoryId: string; requestId?: string | undefined }) {
+    super('Items in this category appear on orders.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'CategoryInUseError';
+    this.categoryId = options.categoryId;
+  }
+}
+
+/** Why an upload was refused. The three cases have three different fixes. */
+export type UnsupportedImageReason =
+  /** Not a JPEG, PNG or WebP — whatever the extension claimed. */
+  | 'format'
+  /** Over the upload cap. */
+  | 'tooLarge'
+  /** Too few pixels to be useful at card size, or a decompression bomb. */
+  | 'dimensions';
+
+/**
+ * The bytes are not an image this system will store.
+ *
+ * The reason matters because the fixes differ, and one of them is genuinely
+ * confusing: **the server sniffs the bytes and ignores both the file name and
+ * the declared content type**, so a photo an iPhone saved as `IMG_0421.jpg`
+ * that is really a HEIC is refused as the wrong format while every label on it
+ * says JPEG. Telling somebody "that .jpg is actually a HEIC — export it as JPEG
+ * first" is the difference between a fixed photo and a support conversation.
+ */
+export class UnsupportedImageError extends ApiError {
+  readonly reason: UnsupportedImageReason;
+  /** What the bytes turned out to be, when the server could tell. */
+  readonly detectedFormat: string | null;
+  /** The server's own sentence, which is more specific than the reason. */
+  readonly detail: string;
+
+  constructor(options: {
+    url: string;
+    reason: UnsupportedImageReason;
+    detectedFormat?: string | null | undefined;
+    detail: string;
+    requestId?: string | undefined;
+  }) {
+    super(options.detail, { status: 409, url: options.url, requestId: options.requestId });
+    this.name = 'UnsupportedImageError';
+    this.reason = options.reason;
+    this.detectedFormat = options.detectedFormat ?? null;
+    this.detail = options.detail;
+  }
+}
+
+export function isUnsupportedImage(error: unknown): error is UnsupportedImageError {
+  return error instanceof UnsupportedImageError;
+}
+
+/**
+ * Two spans on one day overlap.
+ *
+ * Validated client-side before the request as well, so the rows can be marked
+ * rather than a form-level message shown — but the server is the authority and
+ * this is what it says when the client's check missed something.
+ */
+export class OverlappingHoursError extends ApiError {
+  /** `System.DayOfWeek` indices, 0 Sunday. Empty when the server did not say. */
+  readonly days: readonly number[];
+
+  constructor(options: {
+    url: string;
+    days: readonly number[];
+    detail: string;
+    requestId?: string | undefined;
+  }) {
+    super(options.detail, { status: 400, url: options.url, requestId: options.requestId });
+    this.name = 'OverlappingHoursError';
+    this.days = options.days;
+  }
+}
+
+/**
+ * One policy field is outside its bounds.
+ *
+ * The server refuses rather than clamping — a value silently corrected to
+ * something the owner did not choose is worse than a refusal — and names the
+ * field in prose: *"Turn time must be between 15 and 360 minutes; 5 minutes was
+ * given."* `field` is that prose mapped back to the form's own field, so the
+ * message lands against the input rather than at the top of the page.
+ */
+export class PolicyBoundsError extends ApiError {
+  /** The client's field name, or `null` when the message named nothing known. */
+  readonly field: string | null;
+  readonly detail: string;
+
+  constructor(options: {
+    url: string;
+    field: string | null;
+    detail: string;
+    requestId?: string | undefined;
+  }) {
+    super(options.detail, { status: 400, url: options.url, requestId: options.requestId });
+    this.name = 'PolicyBoundsError';
+    this.field = options.field;
+    this.detail = options.detail;
+  }
+}
+
+export function isPolicyBounds(error: unknown): error is PolicyBoundsError {
+  return error instanceof PolicyBoundsError;
+}

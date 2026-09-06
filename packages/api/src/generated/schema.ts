@@ -638,6 +638,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a photo for a menu item or a venue card
+         * @description Multipart upload of a single `file` part. Returns the photo id and its three variant URLs; attach the id to a menu item or a branch.\n\n**The bytes are sniffed, never trusted.** JPEG, PNG and WebP are accepted and everything else is refused, whatever the declared content type or the file name says - those are both attacker-controlled.\n\n**EXIF is stripped.** A menu photo comes off the owner's phone carrying GPS coordinates and a device serial; the original bytes are never stored. Three variants are generated and the originals are discarded.\n\nUploading the same image twice returns the first photo and writes nothing, with `wasDeduplicated: true`. A photo nothing attaches to is deleted after 24 hours.
+         */
+        post: operations["uploadBranchPhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/reservation-policy": {
         parameters: {
             query?: never;
@@ -903,6 +923,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/diner/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register this phone for notifications
+         * @description Call it on every launch. **Idempotent on the push token** - a row per launch would mean one diner accumulating a hundred devices and a hundred copies of every message.
+         *
+         *     Re-registering a token that was revoked brings it back, because that is what a reinstall looks like. A token that turns up under a different diner is moved: the phone belongs to whoever is holding it, and the previous owner stops receiving their bookings on it.
+         */
+        post: operations["registerDinerDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/orders/{orderId}/status": {
         parameters: {
             query?: never;
@@ -919,6 +961,26 @@ export interface paths {
          *     **The Kitchen role may make exactly one move: `InKitchen -> Ready`.** Serving is a floor action and belongs to whoever carried the plate.
          */
         post: operations["moveOrderStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/photos/{photoId}/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serve one variant of a photo
+         * @description `thumbnail`, `card` or `full`, always WebP. Anonymous: a menu photo is public, and the diner reading it has no account.\n\nThe content hash is part of the storage path, so a given URL always returns the same bytes - replacing a photo produces a new id rather than changing what this one serves, which is why these are safe to cache hard.
+         */
+        get: operations["getPhotoVariant"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -943,6 +1005,30 @@ export interface paths {
          * @description `subscriptionTier` is set here, per branch. Moving a branch to Free switches off tabs and ordering there; the tab endpoints answer `feature-not-enabled`.
          */
         patch: operations["updateBranch"];
+        trace?: never;
+    };
+    "/api/platform/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pending, failed and dead-lettered message counts
+         * @description **The first place to look when notifications quietly stop working.** Without it the symptom is silence, and silence is indistinguishable from nothing having happened.
+         *
+         *     `deadLettered` is the number that needs a person: those have been given up on and will never be retried. Each carries its last error and the key that names what caused it, so a dead reminder can be traced back to its booking.
+         *
+         *     A `sentLastDay` of zero on a live venue means the channel is broken, whatever the other counts say.
+         */
+        get: operations["getOutboxHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/platform/venues": {
@@ -1099,6 +1185,54 @@ export interface paths {
          * @description A diner may only cancel their own; anyone else's is 403. Free until the branch's cancellation deadline and still allowed after it - a late cancellation is far better than a no-show - with `cancelledAfterDeadline` recording which it was.
          */
         post: operations["cancelReservation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{id}/extend-hold": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep the table a little longer - the late nudge's action
+         * @description What the **late nudge** notification's action button calls. The diner taps it from the lock screen; they never open a screen and hunt for it.
+         *
+         *     **Once.** `graceExtensionsUsed` enforces it, and a second attempt is refused with a reason a diner can read. Repeated requests for five more minutes are how a table stays held all evening for somebody who is not coming.
+         *
+         *     The extension goes onto the branch change sequence, so the waiter watching that table sees it immediately rather than in a column nothing reads.
+         */
+        post: operations["extendReservationHold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{id}/no-show": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a booking as a no-show, and free the table
+         * @description The same action as `release` with `outcome: 1`, under the name the tablet's late-booking panel uses - one implementation, two doors, so the two cannot drift.
+         *
+         *     **Never automatic.** Prompt 2's rule that the decision belongs to a waiter applies here more than anywhere: only a person standing in the room knows whether the party is late or absent.
+         *
+         *     Counts toward the diner's rolling no-show threshold. If they telephoned to say they could not come, use `release` with `outcome: 2` instead - a diner who let the venue know must not be punished for it.
+         */
+        post: operations["markReservationNoShow"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1871,6 +2005,15 @@ export interface components {
             /** @description Optional free text, recorded when declining. */
             reason?: string | null;
         };
+        /** @description Body of `POST /api/reservations/{id}/extend-hold`. */
+        "Yalla.Api.Endpoints.ExtendHoldRequest": {
+            /**
+             * Format: uuid
+             * @description Idempotency. The late nudge is a notification the diner can tap twice, and the second tap must be
+             *     a no-op rather than an error about an extension already used.
+             */
+            clientCommandId: string;
+        };
         /** @description Body of `POST /api/tabs/join`. */
         "Yalla.Api.Endpoints.JoinTabRequest": {
             /** @description See Yalla.Api.Endpoints.OpenTabRequest.DeviceId. */
@@ -1879,6 +2022,16 @@ export interface components {
             displayName?: string | null;
             /** @description The invitation from the host's QR or share link. Thirty-minute lifetime. */
             joinToken: string;
+        };
+        /** @description Body of `POST /api/reservations/{id}/no-show`. */
+        "Yalla.Api.Endpoints.MarkNoShowRequest": {
+            /**
+             * Format: uuid
+             * @description Idempotency - see Yalla.Api.Endpoints.ExtendHoldRequest.
+             */
+            clientCommandId: string;
+            /** @description Optional free text for the audit row. */
+            reason?: string | null;
         };
         /** @description Moving an order along the kitchen rail. */
         "Yalla.Api.Endpoints.MoveOrderStatusRequest": {
@@ -2006,6 +2159,18 @@ export interface components {
              *     response next time. Sending a spent handle revokes the whole chain.
              */
             refreshToken: string;
+        };
+        /** @description Body of `POST /api/diner/devices`. */
+        "Yalla.Api.Endpoints.RegisterDeviceRequest": {
+            /**
+             * @description BCP-47. <b>The person's language, not the venue's</b> - a Russian-speaking regular at an
+             *     Armenian venue is written to in Russian. Anything unrecognised falls back to Armenian.
+             */
+            locale: string;
+            /** @description Which app store the device came from. Expo needs it and so does message formatting. */
+            platform: components["schemas"]["Yalla.Domain.Identity.DevicePlatform"];
+            /** @description The Expo push token this phone reported. */
+            pushToken: string;
         };
         /** @description Body of `POST /api/reservations/{id}/release`. */
         "Yalla.Api.Endpoints.ReleaseReservationRequest": {
@@ -3129,6 +3294,47 @@ export interface components {
             /** Format: int32 */
             y: number;
         };
+        /** @description What an upload produced. */
+        "Yalla.Application.Media.PhotoUploadResult": {
+            /**
+             * Format: int64
+             * @description Total across the three variants.
+             */
+            bytesStored: number;
+            /** @description SHA-256 of the processed bytes, which is also part of the storage path. */
+            contentHash: string;
+            /** @description The three links, ready to attach to a menu item or a branch. */
+            photo: components["schemas"]["Yalla.Application.Media.PhotoView"];
+            /**
+             * @description True when these exact bytes were already stored for this branch and the existing photo was
+             *     returned. Reported rather than hidden - an upload that wrote nothing looks like a failure.
+             */
+            wasDeduplicated: boolean;
+        };
+        /** @description One photo as a client consumes it: three URLs and the id behind them. */
+        "Yalla.Application.Media.PhotoView": {
+            /** @description Menu card size - what a diner actually looks at. */
+            cardUrl: string;
+            /** @description The largest kept. */
+            fullUrl: string;
+            /**
+             * Format: int32
+             * @description Pixel height of the full variant. Null for a migrated photo.
+             */
+            height?: number | null;
+            /**
+             * Format: uuid
+             * @description The photo row.
+             */
+            photoId: string;
+            /** @description Small square, for lists and the floor screen. */
+            thumbnailUrl: string;
+            /**
+             * Format: int32
+             * @description Pixel width of the full variant. Null for a migrated photo.
+             */
+            width?: number | null;
+        };
         /** @description One branch's whole menu, as a diner reads it. */
         "Yalla.Application.Menus.BranchMenuView": {
             /**
@@ -3155,7 +3361,8 @@ export interface components {
             displayOrder: number;
             ingredients: string;
             name: string;
-            photoUrl: string;
+            /** Format: uuid */
+            photoId: string;
             portionSize: string;
             /** Format: int32 */
             prepMinutes: number;
@@ -3192,7 +3399,8 @@ export interface components {
             ingredients: string;
             isAvailable: boolean;
             name: string;
-            photoUrl: string;
+            /** @description One photo as a client consumes it: three URLs and the id behind them. */
+            photo: components["schemas"]["Yalla.Application.Media.PhotoView"];
             portionSize: string;
             /** Format: int32 */
             prepMinutes: number;
@@ -3214,13 +3422,73 @@ export interface components {
             displayOrder?: number | null;
             ingredients?: string | null;
             name?: string | null;
-            photoUrl?: string | null;
+            /** Format: uuid */
+            photoId?: string | null;
             portionSize?: string | null;
             /** Format: int32 */
             prepMinutes?: number | null;
             /** Format: int64 */
             priceAmd?: number | null;
             spiceLevel?: components["schemas"]["Yalla.Domain.Enums.SpiceLevel"] | null;
+        };
+        /** @description One message nobody is going to retry. */
+        "Yalla.Application.Messaging.DeadLetterView": {
+            /**
+             * Format: int32
+             * @description How many times it was tried before being given up on.
+             */
+            attemptCount: number;
+            /**
+             * Format: date-time
+             * @description When it was given up on.
+             */
+            deadLetteredAtUtc?: string | null;
+            /**
+             * Format: uuid
+             * @description The message.
+             */
+            id: string;
+            /** @description What caused it - this names the booking or the tab. */
+            idempotencyKey: string;
+            /** @description Why. The first thing to read. */
+            lastError?: string | null;
+            /**
+             * Format: date-time
+             * @description When it was due.
+             */
+            scheduledForUtc: string;
+            /** @description What it was, e.g. `reservation.reminder`. */
+            type: string;
+        };
+        /** @description What the platform view shows about the outbox. */
+        "Yalla.Application.Messaging.OutboxHealthView": {
+            /**
+             * Format: int32
+             * @description Given up on. These need a person.
+             */
+            deadLettered: number;
+            /** @description The dead-lettered messages themselves, newest first. */
+            deadLetters: components["schemas"]["Yalla.Application.Messaging.DeadLetterView"][];
+            /**
+             * Format: int32
+             * @description Pending and due now - the backlog, if there is one.
+             */
+            due: number;
+            /**
+             * Format: int32
+             * @description Pending with at least one failed attempt behind them.
+             */
+            failed: number;
+            /**
+             * Format: int32
+             * @description Written, not yet sent, not dead. Includes ones not yet due.
+             */
+            pending: number;
+            /**
+             * Format: int32
+             * @description Sent in the last twenty-four hours, so "nothing is sending" is visible.
+             */
+            sentLastDay: number;
         };
         /** @description An adjustment as the diner sees it, reason included. */
         "Yalla.Application.Ordering.AdjustmentView": {
@@ -3817,6 +4085,32 @@ export interface components {
              *     out, the slot is too soon, the branch is shut. Null when the request itself was fine.
              */
             unavailableReason?: components["schemas"]["Yalla.Domain.Occupancy.ReservationRejectionReason"] | null;
+        };
+        /** @description What extending the hold did. */
+        "Yalla.Application.Reservations.ExtendHoldResult": {
+            /**
+             * Format: int32
+             * @description How long was added, from the branch's policy.
+             */
+            extensionMinutes: number;
+            /**
+             * Format: int32
+             * @description Always zero after a successful extension. Stated so the app can grey the button out rather than
+             *     letting the diner tap it and be told no.
+             */
+            extensionsRemaining: number;
+            /**
+             * Format: date-time
+             * @description Until when the table is now held.
+             */
+            holdExpiresAtUtc: string;
+            /**
+             * Format: uuid
+             * @description The booking.
+             */
+            reservationId: string;
+            /** @description True when this command had already been applied. */
+            wasReplay: boolean;
         };
         /** @description A diner's own bookings, split the way the app shows them. */
         "Yalla.Application.Reservations.MyReservations": {
@@ -4520,6 +4814,14 @@ export interface components {
          * @enum {integer}
          */
         "Yalla.Domain.Enums.VenueType": 1 | 2;
+        /**
+         * Format: int32
+         * @description Which app store the device came from. Expo needs it and so does message formatting.
+         *
+         *     Values: 0 Unknown, 1 Ios, 2 Android.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Identity.DevicePlatform": 0 | 1 | 2;
         /**
          * Format: int32
          * @description Why a table cannot be booked for a particular slot.
@@ -7058,6 +7360,95 @@ export interface operations {
             };
         };
     };
+    uploadBranchPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": string;
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Media.PhotoUploadResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Requires the Manager role. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The upload is not a JPEG, PNG or WebP, or it is larger than this system accepts. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getReservationPolicy: {
         parameters: {
             query?: never;
@@ -8380,6 +8771,75 @@ export interface operations {
             };
         };
     };
+    registerDinerDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.RegisterDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Needs a verified diner. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     moveOrderStatus: {
         parameters: {
             query?: never;
@@ -8460,6 +8920,74 @@ export interface operations {
             };
         };
     };
+    getPhotoVariant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoId: string;
+                variant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such photo or variant. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     updateBranch: {
         parameters: {
             query?: never;
@@ -8513,6 +9041,73 @@ export interface operations {
             };
             /** @description No such branch. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getOutboxHealth: {
+        parameters: {
+            query?: {
+                deadLetterLimit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Messaging.OutboxHealthView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Platform admin only. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9443,6 +10038,184 @@ export interface operations {
                 };
             };
             /** @description The booking is not in a state that permits this - cancelling one that is already seated, or approving one that was never pending. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    extendReservationHold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.ExtendHoldRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ExtendHoldResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not the diner who made the booking. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The one extension is already used, or the booking is not one that holds a table. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    markReservationNoShow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.MarkNoShowRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationReleaseResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not staff at this booking's branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The booking cannot be released. */
             409: {
                 headers: {
                     [name: string]: unknown;

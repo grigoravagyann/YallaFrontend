@@ -7,7 +7,8 @@
     "staff": "Staff",
     "reports": "Reports",
     "venues": "Venues",
-    "floor": "Floor"
+    "floor": "Floor",
+    "overview": "Overview"
   },
   "shell": {
     "title": "Yalla console",
@@ -259,6 +260,293 @@
       "body": "The real viewer at phone width. Check the labels survive, and whether the room is dense enough to split into areas.",
       "partySize": "Party size",
       "busy": "Show a busy floor"
+    }
+  },
+  "saving": "Saving…",
+  "menu": {
+    "noBranch": "Your account is not attached to a branch.",
+    "available": "In",
+    "soldOut": "Sold out",
+    "complete": "Done",
+    "category": {
+      "title": "Categories",
+      "empty": "No categories yet.",
+      "emptyHint": "Start with a category — “Coffee”, say, or “Hot dishes”.",
+      "add": "Add a category",
+      "addPrompt": "Category name",
+      "rename": "New name for this category",
+      "itemCount_one": "{{count}} dish",
+      "itemCount_other": "{{count}} dishes",
+      "confirmEmpty": "Delete “{{name}}”?",
+      "confirmWithItems": "Delete “{{name}}”? Its {{count}} dishes go with it — they are not moved to another category.",
+      "inUse": "One of this category's dishes is already on an order, so nothing was deleted. Mark those dishes sold out instead.",
+      "deleteFailed": "Could not delete that category."
+    },
+    "item": {
+      "title": "Dishes",
+      "add": "Add a dish",
+      "addTitle": "New dish",
+      "editTitle": "Edit dish",
+      "empty": "Nothing in this category yet.",
+      "search": "Search by name or ingredient",
+      "duplicate": "Duplicate",
+      "confirmDelete": "Delete “{{name}}”?",
+      "missingTitle_one": "{{count}} field still to fill in:",
+      "missingTitle_other": "{{count}} fields still to fill in:",
+      "dinerAsksTitle": "What a diner would otherwise ask a waiter",
+      "dinerAsksBody": "These are required. They are the reason a diner stops having to ask — without them the ordering feature is not worth much."
+    },
+    "field": {
+      "name": "Name",
+      "description": "Description",
+      "priceDram": "Price",
+      "priceHint": "Whole dram. Changing a price never affects lines already ordered.",
+      "ingredients": "Ingredients",
+      "ingredientsPlaceholder": "Flour, sulguni… Enter to add",
+      "allergens": "Allergens",
+      "allergensOther": "Anything else, comma separated",
+      "allergensNone": "No allergens listed",
+      "portionSize": "Portion size",
+      "prepMinutes": "Prep minutes",
+      "prepHint": "The diner sees this as an estimate at order time.",
+      "spiceLevel": "Spice",
+      "photoId": "Photo"
+    },
+    "allergen": {
+      "gluten": "Gluten",
+      "dairy": "Dairy",
+      "egg": "Egg",
+      "nuts": "Nuts",
+      "peanuts": "Peanuts",
+      "sesame": "Sesame",
+      "fish": "Fish",
+      "shellfish": "Shellfish",
+      "soy": "Soy"
+    },
+    "spice": {
+      "notSpicy": "Not spicy",
+      "mild": "Mild",
+      "medium": "Medium",
+      "hot": "Hot"
+    },
+    "column": {
+      "photo": "Photo",
+      "name": "Name",
+      "price": "Price",
+      "available": "In",
+      "complete": "Done",
+      "actions": "Actions"
+    },
+    "incomplete": {
+      "label": "Not finished yet",
+      "body_one": "{{count}} dish is not ready to show a diner. Ordering cannot be switched on until it is.",
+      "body_other": "{{count}} dishes are not ready to show a diner. Ordering cannot be switched on until they are.",
+      "showOnly": "Show only these",
+      "showAll": "Show everything",
+      "badge_one": "{{count}} missing",
+      "badge_other": "{{count}} missing",
+      "noneHere": "Everything in this category is finished."
+    },
+    "photo": {
+      "dropHere": "Drop a photo here, or click to choose one",
+      "accepted": "JPEG, PNG or WebP, up to 8 MB",
+      "replace": "Replace",
+      "variantCard": "Card size — this is what a diner looks at",
+      "dinerSize": "Shown at {{width}} pixels wide",
+      "uploading": "Uploading… {{percent}}%",
+      "uploadingShort": "Uploading…",
+      "useThis": "Use this",
+      "framing": "Framing",
+      "tooLarge": "That photo is larger than 8 MB. Export it smaller and try again.",
+      "badDimensions": "Those dimensions will not work as a card.",
+      "wrongFormat": "That file is not a JPEG, PNG or WebP.",
+      "wrongFormatDetected": "The file name says one thing and the bytes say another: this is really a {{format}}. Export it as a JPEG and try again.",
+      "failed": "Could not upload that photo."
+    },
+    "bulk": {
+      "open": "Upload many photos",
+      "title": "Photos in bulk",
+      "body": "Drop the whole set. Names are matched against dishes, and nothing is attached until you confirm it.",
+      "dropHere": "Drop photos here",
+      "matchedTitle_one": "{{count}} match to confirm",
+      "matchedTitle_other": "{{count}} matches to confirm",
+      "noneMatched": "Nothing matched by name. Place them by hand below.",
+      "trayTitle_one": "{{count}} waiting to be placed",
+      "trayTitle_other": "{{count}} waiting to be placed",
+      "trayBody": "Camera filenames match nothing. Pick a dish for each.",
+      "chooseDish": "Pick a dish",
+      "hasPhoto": "already has a photo",
+      "leaveInTray": "Leave unattached",
+      "attach_one": "Attach {{count}} photo",
+      "attach_other": "Attach {{count}} photos",
+      "attaching": "Attaching…",
+      "attached": "Attached",
+      "uploading": "Uploading…",
+      "confidence": {
+        "exact": "exact",
+        "normalised": "match",
+        "near": "close — check"
+      }
+    }
+  },
+  "hours": {
+    "body": "The whole week saves at once. Crossing midnight is worked out for you — a closing time before the opening time means the next day.",
+    "unsaved": "Unsaved changes",
+    "saved": "Saved",
+    "save": "Save the week",
+    "saveFailed": "Could not save the opening hours.",
+    "discard": "Discard changes",
+    "open": "Open",
+    "closed": "Closed",
+    "closedAllDay": "Closed all day.",
+    "split": "Split the day (a lunch break, say)",
+    "copyTo": "Copy to other days",
+    "copy": "Copy",
+    "sameEveryDay": "Same every day",
+    "sameEveryDayHint": "Copies Monday onto every other day.",
+    "previewClosed": "A diner sees “closed”",
+    "nextDay": "(next day)",
+    "overlapWarning": "Two spans on the same day overlap. Fix the marked rows before saving.",
+    "day": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "dayShort": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    }
+  },
+  "policy": {
+    "save": "Save the policy",
+    "saveFailed": "Could not save the policy.",
+    "on": "On",
+    "off": "Off",
+    "noLimit": "no limit",
+    "shipped": "Ships as {{value}}",
+    "reset": "Reset to default",
+    "outOfBounds": "Must be between {{min}} and {{max}}.",
+    "changedCount_one": "{{count}} field differs from the default.",
+    "changedCount_other": "{{count}} fields differ from the defaults.",
+    "serviceChargeNote": "The service charge appears on every diner's bill as its own line, from the first item. It is snapshotted onto a tab when the tab opens, so changing it does not affect tabs already open.",
+    "unit": {
+      "minutes": "minutes",
+      "days": "days",
+      "percent": "%",
+      "people": "people"
+    },
+    "group": {
+      "booking": {
+        "title": "How far ahead people can book",
+        "body": "How far the calendar opens, and how late a booking can still be made."
+      },
+      "holding": {
+        "title": "How long a table is held",
+        "body": "These decide how many bookings fit on one table in an evening."
+      },
+      "lateness": {
+        "title": "When somebody is late",
+        "body": "Nothing is cancelled automatically. These decide when staff are prompted."
+      },
+      "approval": {
+        "title": "What needs a person",
+        "body": "A booking is either confirmed straight away or it waits for you."
+      },
+      "money": {
+        "title": "What goes on the bill",
+        "body": "Both of these are visible to every diner."
+      }
+    },
+    "field": {
+      "turnTimeMinutes": {
+        "label": "How long a table is held",
+        "why": "How long a table is kept for a booking. It is why a diner is told “available 18:00 – 19:45”."
+      },
+      "bufferMinutes": {
+        "label": "Turnaround between bookings",
+        "why": "Extra time between two bookings for clearing the table. Not shown to the diner."
+      },
+      "walkInHoldbackMinutes": {
+        "label": "Walk-in warning window",
+        "why": "How close to a booking a walk-in may still be seated before staff are warned."
+      },
+      "maxSeatOverhang": {
+        "label": "People over the seat count",
+        "why": "How many more than a table seats may be sat at it. Five at a four-top is normal."
+      },
+      "graceMinutes": {
+        "label": "How long a late party keeps the table",
+        "why": "How long past the booked time the table is still theirs before it may be released."
+      },
+      "lateNudgeAfterMinutes": {
+        "label": "When to ask if they are coming",
+        "why": "How long past the start before the diner is asked to confirm they are on their way."
+      },
+      "graceExtensionMinutes": {
+        "label": "What “we're on our way” buys",
+        "why": "How much longer one tap from the diner keeps the table."
+      },
+      "minLeadMinutes": {
+        "label": "Shortest notice",
+        "why": "How close to a slot a booking may still be made. Thirty minutes means a 19:00 table cannot be booked at 18:45."
+      },
+      "bookingWindowDays": {
+        "label": "How far ahead the calendar goes",
+        "why": "How far into the future a diner can book."
+      },
+      "cancellationDeadlineMinutes": {
+        "label": "Free cancellation deadline",
+        "why": "How long before the booking a diner may cancel without it going on their record."
+      },
+      "autoConfirm": {
+        "label": "Confirm bookings automatically",
+        "why": "Off sends every booking to you to approve."
+      },
+      "approvalRequiredAbovePartySize": {
+        "label": "Party size that needs approval",
+        "why": "Parties above this wait for you even when automatic confirmation is on."
+      },
+      "serviceChargePercent": {
+        "label": "Service charge",
+        "why": "Added to every bill as its own line, from the first item."
+      },
+      "pricesIncludeVat": {
+        "label": "Prices include VAT",
+        "why": "Affects how the bill is presented, nothing else."
+      }
+    },
+    "affected": {
+      "label": "Existing bookings",
+      "body_one": "{{count}} existing booking no longer fits the new rules.",
+      "body_other": "{{count}} existing bookings no longer fit the new rules.",
+      "none": "No existing booking was affected.",
+      "explain": "They were not changed and not cancelled — a settings edit never rewrites a booking. The new rules apply to future bookings only."
+    }
+  },
+  "checklist": {
+    "title": "What is still needed",
+    "body": "This branch can take diners once all of this is done. The order does not matter.",
+    "progress": "{{done}} of {{total}} done",
+    "finish": "Finish",
+    "elsewhere": "Done from another screen",
+    "step": {
+      "floorPlan": "Floor plan drawn",
+      "tableLabels": "Every table labelled",
+      "menuCategories": "Menu has categories",
+      "menuItems": "Every dish finished",
+      "hours": "Opening hours set",
+      "policy": "Reservation policy reviewed",
+      "staff": "Staff added",
+      "devices": "At least one tablet enrolled"
     }
   }
 }

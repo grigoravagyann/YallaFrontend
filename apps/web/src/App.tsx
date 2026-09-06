@@ -13,6 +13,10 @@ import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
 import { FloorPlanEditorScreen } from './console/venue/floorplan/FloorPlanEditorScreen';
+import { MenuEditorScreen } from './console/venue/menu/MenuEditorScreen';
+import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
+import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolicyScreen';
+import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
 import { VenuePlaceholder } from './console/venue/VenuePlaceholder';
 import { usingMockData } from './data/gateway';
 import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
@@ -174,20 +178,14 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
 
         {VENUE_ROLES.includes(role) ? (
           <Route path="/venue" element={<VenueLayout user={user} />}>
-            <Route index element={<Navigate to="/venue/floorplan" replace />} />
+            {/* The overview carries the onboarding checklist, which is the
+                one screen that answers "is this venue ready" — so it is what
+                the venue section opens on rather than the floor plan. */}
+            <Route index element={<VenueOverviewScreen />} />
             <Route path="floorplan" element={<FloorPlanEditorScreen />} />
-            <Route
-              path="menu"
-              element={<VenuePlaceholder titleKey="nav.menu" prompt="Prompt 8" />}
-            />
-            <Route
-              path="hours"
-              element={<VenuePlaceholder titleKey="nav.hours" prompt="Prompt 9" />}
-            />
-            <Route
-              path="policy"
-              element={<VenuePlaceholder titleKey="nav.policy" prompt="Prompt 9" />}
-            />
+            <Route path="menu" element={<MenuEditorScreen />} />
+            <Route path="hours" element={<OpeningHoursScreen />} />
+            <Route path="policy" element={<ReservationPolicyScreen />} />
             <Route
               path="staff"
               element={<VenuePlaceholder titleKey="nav.staff" prompt="Prompt 10" />}
