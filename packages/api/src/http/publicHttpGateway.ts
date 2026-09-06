@@ -5,6 +5,14 @@ import type {
   PublicPageMeta,
   PublicVenue,
 } from '../contracts/publicBranch';
+import {
+  publicBranchFromWire,
+  publicPageMetaFromWire,
+  publicVenueFromCards,
+  type WirePublicBranch,
+  type WirePublicBranchMeta,
+  type WirePublicVenueCard,
+} from './publicMapping';
 import { EndpointNotWiredError } from '../contracts/errors';
 import { NotFoundError } from '../errors';
 import type { PublicGateway } from '../publicGateway';
@@ -14,23 +22,26 @@ import type { PublicGateway } from '../publicGateway';
  *
  * ## What exists today, and what does not
  *
- * As of this task the backend has **no `/api/public` routes at all**. What it
- * does have, and what this page already uses through `YallaGateway`, is every
- * *live* read keyed by branch id: `GET /api/branches/{id}/availability` is
- * anonymous and carries the floor, the derived table states, the branch's zone
- * and its turn time; `GET /api/branches/{id}/menu` is anonymous and already
- * excludes unfinished items; `GET /api/photos/{id}/{variant}` is anonymous; and
- * the diner sign-in pair is anonymous by definition.
+ * The `/api/public` routes have landed, and three of the five methods below now
+ * call them. This file was written before they existed, against a guessed
+ * shape, and the guess was wrong in both path and body — `/api/public/venues/
+ * {venueSlug}/branches/{branchSlug}` where the backend serves
+ * `/api/public/branches/{venueSlug}/{branchSlug}`. Every public page 404'd for
+ * as long as that stood, so the URLs here are now taken from the routes in
+ * `generated/schema.ts` and the bodies go through {@link publicBranchFromWire}
+ * rather than being cast.
  *
- * What is missing is precisely the part that turns a guid into a link somebody
- * can put in an Instagram bio: resolving a slug pair, the venue's published
- * profile, its opening hours, the unfurl metadata, and a signed link that lets
- * a person with no account cancel. Those are the five methods below, and each
- * one throws {@link EndpointNotWiredError} rather than inventing an answer.
+ * Still genuinely absent server-side: the managed-booking pair. A signed link
+ * that lets a person with no account cancel has no route yet, so those two keep
+ * throwing {@link EndpointNotWiredError} rather than inventing an answer.
  *
- * The split matters for what happens when those routes land. Nothing else has
- * to change: the room, the availability window, the menu, the verification and
- * the booking all already go to the real backend through the shared gateway.
+ * `resolveVenue` has no by-slug route either, so it filters the list route. That
+ * is a real limitation rather than a guess, and it is written down where it
+ * happens.
+ *
+ * The rest of the page never went through this gateway at all: the room, the
+ * availability window, the menu, the verification and the booking all go to the
+ * real backend through the shared `YallaGateway`.
  *
  * ## Why a bare 404 is not "no such venue"
  *
@@ -64,11 +75,13 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
   return {
     async resolveVenue(venueSlug): Promise<PublicVenue | null> {
       try {
-        const { data } = await client.get<PublicVenue>(
-          `/api/public/venues/${encodeURIComponent(venueSlug)}`,
-          anonymous,
-        );
-        return data;
+        /*
+         * The list route, filtered client-side. There is no by-slug venue route
+         * — `/api/public/venues` is the only venue read the backend publishes —
+         * and asking for one that does not exist is what used to 404 this page.
+         */
+        const { data } = await client.get<WirePublicVenueCard[]>('/api/public/venues', anonymous);
+        return publicVenueFromCards(data ?? [], venueSlug);
       } catch (error) {
         return readMiss('resolveVenue', error);
       }
@@ -76,32 +89,26 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
 
     async resolveBranch({ venueSlug, branchSlug }): Promise<PublicBranch | null> {
       try {
-        const { data } = await client.get<PublicBranch>(
-          `/api/public/venues/${encodeURIComponent(venueSlug)}/branches/${encodeURIComponent(
-            branchSlug,
-          )}`,
+        const { data } = await client.get<WirePublicBranch>(
+          `/api/public/branches/${encodeURIComponent(venueSlug)}/${encodeURIComponent(branchSlug)}`,
           anonymous,
         );
-        return data;
+        // The response carries no timestamp; the arrival is what ages the count.
+        return publicBranchFromWire(data, new Date().toISOString());
       } catch (error) {
         return readMiss('resolveBranch', error);
       }
     },
 
-    async getBranchMeta({
-      venueSlug,
-      branchSlug,
-      canonicalUrl,
-      locale,
-    }): Promise<PublicPageMeta | null> {
+    async getBranchMeta({ branchId, canonicalUrl, locale }): Promise<PublicPageMeta | null> {
       try {
-        const { data } = await client.get<PublicPageMeta>(
-          `/api/public/venues/${encodeURIComponent(venueSlug)}/branches/${encodeURIComponent(
-            branchSlug,
-          )}/meta`,
-          { ...anonymous, query: { canonicalUrl, locale } },
+        // Keyed by branch id, not by the slug pair. The caller already resolved
+        // the branch, so this costs no extra round trip.
+        const { data } = await client.get<WirePublicBranchMeta>(
+          `/api/public/branches/${encodeURIComponent(branchId)}/meta`,
+          { ...anonymous, query: { locale } },
         );
-        return data;
+        return publicPageMetaFromWire(data, canonicalUrl);
       } catch (error) {
         return readMiss('getBranchMeta', error);
       }

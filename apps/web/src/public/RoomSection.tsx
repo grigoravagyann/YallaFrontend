@@ -133,9 +133,20 @@ export function RoomSection({
       ...(problem === 'date' ? { date: today } : { time: selection.time }),
     });
   };
-  // The venue's own horizon, so the platform's date picker cannot offer a day
-  // the server will refuse once a table has already been chosen.
-  const lastBookableDay = addDays(today, branch.bookingWindowDays);
+  /*
+   * The venue's own horizon, so the platform's date picker cannot offer a day
+   * the server will refuse once a table has already been chosen.
+   *
+   * Undefined when the branch does not publish a window — the public API serves
+   * it only to authenticated console callers. An unbounded picker is the right
+   * degradation rather than a guessed horizon: `availability` answers every slot
+   * with `OutsideBookingWindow` when it is beyond the window, and the rejection
+   * below is rendered as a sentence *before* a table is chosen, so the late
+   * refusal this bound exists to prevent does not happen either way. A guessed
+   * `max` would instead forbid days the venue really does take.
+   */
+  const lastBookableDay =
+    branch.bookingWindowDays === null ? undefined : addDays(today, branch.bookingWindowDays);
 
   const handleTap = (tableId: string) => {
     const availability = slotFloorQuery.data?.tables.find((entry) => entry.tableId === tableId);

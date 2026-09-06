@@ -4,6 +4,7 @@ import { BranchRoute } from './BranchRoute';
 import { LanguageSwitcher } from './language';
 import { ManageBookingRoute } from './ManageBookingRoute';
 import { NotFoundPage } from './PageStates';
+import { useDocumentLocale } from '../useDocumentLocale';
 import { VenueRoute } from './VenueRoute';
 
 /**
@@ -17,6 +18,9 @@ import { VenueRoute } from './VenueRoute';
  */
 export function PublicApp() {
   const { t } = useTranslation('public');
+  // This surface has its own entry point, so it does not inherit the console's
+  // shell — it has to adopt the hook itself.
+  useDocumentLocale();
 
   return (
     /*

@@ -98,9 +98,11 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
    *
    * Read `meta.ts` before concluding this makes shared links work: WhatsApp's
    * fetcher and every other unfurler take the static shell and never execute
-   * this. What it genuinely fixes is the document title, the `lang` attribute,
-   * and the in-app browsers that *do* run the page before offering a share
-   * sheet.
+   * this. What it genuinely fixes is the document title and the in-app browsers
+   * that *do* run the page before offering a share sheet. The `lang` attribute
+   * used to be on that list; `useDocumentLocale` owns it now, because it has to
+   * follow the language the reader picked rather than the one the meta route
+   * chose.
    */
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +113,7 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
 
     void publicGateway
       .getBranchMeta({
+        branchId: branch.id,
         venueSlug: branch.venue.slug,
         branchSlug: branch.slug,
         canonicalUrl,
@@ -128,7 +131,7 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
     return () => {
       cancelled = true;
     };
-  }, [publicGateway, branch.venue.slug, branch.slug, locale]);
+  }, [publicGateway, branch.id, branch.venue.slug, branch.slug, locale]);
 
   return (
     <main className="pub-page">

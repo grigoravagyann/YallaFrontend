@@ -59,6 +59,8 @@ export interface PublicGateway {
    * — which is a smaller set than people expect. See `public/meta.ts`.
    */
   getBranchMeta(input: {
+    /** The id the meta route is keyed by; the caller has it from `resolveBranch`. */
+    readonly branchId: string;
     readonly venueSlug: string;
     readonly branchSlug: string;
     readonly canonicalUrl: string;
