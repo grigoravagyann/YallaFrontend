@@ -3490,3 +3490,139 @@ kbd {
     background: transparent;
   }
 }
+
+/* --- Staff and devices -----------------------------------------------------
+   The screen that makes a venue staffable. Two scopes on one page: people
+   belong to a venue, tablets belong to a branch. */
+
+.staff-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  margin: var(--space-lg) 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.page-section {
+  margin-top: var(--space-xxl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.staff-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+/* Deactivated people and revoked tablets stay listed — the list is a history,
+   not a roster — so they are held back rather than hidden. Never by colour
+   alone: each carries a badge saying what it is. */
+.is-inactive > * {
+  opacity: 0.62;
+}
+
+.block {
+  display: block;
+}
+
+/* A server refusal, under the control that caused it. Form-level would leave
+   somebody rereading four fields to find which one it meant. */
+.field-error {
+  display: block;
+  margin-top: var(--space-xxs);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+/* The common state during onboarding, so it routes into hiring somebody
+   rather than reporting an absence and stopping. */
+.empty-state {
+  margin-top: var(--space-lg);
+  padding: var(--space-xxl) var(--space-lg);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-soft);
+  text-align: center;
+}
+
+.empty-title {
+  margin: 0 0 var(--space-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-foreground);
+}
+
+.empty-state .button {
+  margin-top: var(--space-md);
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: var(--color-scrim);
+  z-index: 40;
+}
+
+.scrim > .card {
+  max-width: 30rem;
+  width: 100%;
+}
+
+/* A PIN and an enrolment code are both *dictated* — read aloud across a
+   counter to somebody holding a tablet — so both are set large, in tabular
+   figures, with the characters spaced far enough apart to be read one at a
+   time. No copy button on either: the clipboard is a place a credential leaks
+   from, and the person who needs it is going to type it.
+
+   They are sized differently because they are different lengths: a PIN is four
+   digits and an enrolment code is ten characters of the server's readable
+   alphabet, and one size for both would either waste the PIN or wrap the code. */
+.pin-value,
+.enrolment-code-value {
+  margin: var(--space-lg) 0;
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  font-variant-numeric: var(--font-feature-tabular);
+  color: var(--color-foreground);
+  overflow-wrap: anywhere;
+}
+
+.pin-value {
+  font-size: 3rem;
+  letter-spacing: 0.28em;
+}
+
+.enrolment-code-value {
+  font-size: clamp(1.75rem, 6vw, 2.5rem);
+  letter-spacing: 0.16em;
+}
+
+.pin-warning {
+  padding: var(--space-sm) var(--space-md);
+  border-inline-start: 3px solid var(--color-warning);
+  background: var(--color-paper);
+  color: var(--color-foreground);
+}
+
+.enrolment-code {
+  margin: var(--space-lg) 0;
+  text-align: center;
+}
+
+.device-note {
+  margin-top: var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  border-inline-start: 3px solid var(--color-primary);
+  background: var(--color-paper);
+}

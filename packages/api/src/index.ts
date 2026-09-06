@@ -87,6 +87,15 @@ export type {
 export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
 
 export { REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
+
+export { assignableRoles, canChooseBranch, canEditStaff } from './contracts/staff';
+export type {
+  CreateStaffInput,
+  EnrolmentCode,
+  StaffDevice,
+  StaffMember,
+  UpdateStaffInput,
+} from './contracts/staff';
 export type {
   AdjustmentLine,
   Compared,
@@ -259,6 +268,7 @@ export {
   OutOfScopeError,
   SlugTakenError,
   ReportRangeTooLongError,
+  StaffPermissionError,
   VenueHasOpenTabsError,
   isFloorPlanInvalid,
 } from './contracts/errors';

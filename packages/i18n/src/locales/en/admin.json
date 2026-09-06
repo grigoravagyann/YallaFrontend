@@ -128,10 +128,6 @@
     "label": "Branch",
     "onlyOne": "{{name}}"
   },
-  "todo": {
-    "label": "Not built yet",
-    "body": "This screen arrives in {{prompt}}."
-  },
   "state": {
     "offline": "You are offline. Check the connection and try again.",
     "notAvailable": "This is not available from the backend yet.",
@@ -707,6 +703,91 @@
         "discount": "Discount",
         "comp": "Comp"
       }
+    }
+  },
+  "staff": {
+    "intro": "Who works here, and which devices they sign in on.",
+    "add": "Add someone",
+    "noVenue": "This account is not attached to a venue.",
+    "allBranches": "All branches",
+    "column": {
+      "name": "Name",
+      "role": "Role",
+      "branch": "Branch",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "filter": {
+      "search": "Search",
+      "role": "Role",
+      "allRoles": "All roles",
+      "inactive": "Show deactivated"
+    },
+    "status": {
+      "inactive": "Deactivated",
+      "pinLocked": "PIN locked"
+    },
+    "action": {
+      "unlock": "Unlock PIN",
+      "resetPin": "New PIN",
+      "deactivate": "Deactivate",
+      "reactivate": "Reactivate",
+      "notYours": "Above your role"
+    },
+    "empty": {
+      "title": "Nobody here yet",
+      "body": "Without staff, nobody can sign in to the counter screen.",
+      "action": "Add the first person",
+      "noneInactive": "Nobody has been deactivated."
+    },
+    "field": {
+      "name": "Full name",
+      "phone": "Phone",
+      "role": "Role",
+      "branch": "Branch",
+      "branchFixed": "Works at {{name}}.",
+      "pin": "PIN (4 digits)"
+    },
+    "form": {
+      "title": "New staff member",
+      "editTitle": "Edit {{name}}",
+      "create": "Add"
+    },
+    "pin": {
+      "fourDigits": "A PIN is exactly 4 digits.",
+      "help": "Personal. There are no shared PINs — a shared one makes \"who gave away my table\" unanswerable.",
+      "shownOnceTitle": "PIN for {{name}}",
+      "shownOnceBody": "Shown now and never again. After this it can only be replaced, not looked up.",
+      "neverShared": "Everyone has their own. Do not write it on the till.",
+      "written": "Written down"
+    }
+  },
+  "devices": {
+    "title": "Devices",
+    "blurb": "The tablets the counter screen runs on.",
+    "generate": "Generate a code",
+    "regenerate": "Generate a new one",
+    "empty": "No devices enrolled at this branch.",
+    "revoked": "Revoked",
+    "revoke": "Revoke",
+    "neverSeen": "Never connected",
+    "grantsNothing": "A device grants nothing on its own — every action still needs a PIN on top. A stolen tablet is not a stolen till.",
+    "column": {
+      "name": "Name",
+      "enrolled": "Enrolled",
+      "lastSeen": "Last seen",
+      "actions": "Actions"
+    },
+    "code": {
+      "instructions": "Type this code on the tablet to enrol it.",
+      "expires": "Good until {{when}}.",
+      "onceOnly": "One use only. Lose it and generate another — the old one cannot be looked up."
+    },
+    "confirm": {
+      "title": "Revoke {{name}}?",
+      "body": "{{name}} stops working immediately. If that is the tablet in service, the counter screen goes offline.",
+      "permanent": "Permanent. A device that turns up again is enrolled afresh.",
+      "revoke": "Yes, revoke it"
     }
   }
 }

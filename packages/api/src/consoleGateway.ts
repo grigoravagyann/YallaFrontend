@@ -19,6 +19,13 @@ import type {
   WeeklyHours,
 } from './contracts/branchSettings';
 import type {
+  CreateStaffInput,
+  EnrolmentCode,
+  StaffDevice,
+  StaffMember,
+  UpdateStaffInput,
+} from './contracts/staff';
+import type {
   MenuReport,
   OccupancyReport,
   ReportExport,
@@ -251,6 +258,77 @@ export interface ConsoleGateway {
     branchId: string;
     policy: ReservationPolicy;
   }): Promise<PolicyChangeResult>;
+
+  // --- Staff ----------------------------------------------------------------
+
+  /*
+   * Staff belong to a **venue**, not a branch — an owner works everywhere — so
+   * these are addressed by venue while the device methods below are addressed
+   * by branch. The two scopes sit on one screen and the difference is real:
+   * `branchId` of `null` means every branch of the venue, which is how a
+   * floating manager is represented and was unreachable before this screen.
+   *
+   * Every role guard is enforced server-side from the acting staff member's
+   * *stored* role. The client builds its pickers from `assignableRoles` so it
+   * never offers an action the server will refuse; it does not re-implement the
+   * check, and it does not rely on having made it.
+   */
+  listStaff(venueId: string): Promise<readonly StaffMember[]>;
+
+  /**
+   * @throws {StaffPermissionError} the role asked for is at or above the
+   * caller's own.
+   */
+  createStaff(input: { venueId: string; staff: CreateStaffInput }): Promise<StaffMember>;
+
+  /**
+   * @throws {StaffPermissionError} changing your own role, or editing somebody
+   * you could not have created.
+   */
+  updateStaff(input: {
+    venueId: string;
+    staffMemberId: string;
+    patch: UpdateStaffInput;
+  }): Promise<StaffMember>;
+
+  /**
+   * Set or reset a PIN. Four digits.
+   *
+   * The PIN travels in the body and is shown to the manager exactly once, on a
+   * screen built to be read aloud across a counter. It is never returned by any
+   * read, never logged, never put in a URL and never stored anywhere on the
+   * client — a PIN that can be looked up later is a PIN that ends up written on
+   * the till.
+   */
+  setStaffPin(input: { venueId: string; staffMemberId: string; pin: string }): Promise<StaffMember>;
+
+  /**
+   * Unlock somebody who mistyped their PIN too many times.
+   *
+   * Branch-addressed rather than venue-addressed, following the endpoint. This
+   * is the path that actually gets used mid-service: a waiter who fat-fingered
+   * a PIN during a rush cannot be made to wait out a timer.
+   */
+  clearPinLockout(input: { branchId: string; staffMemberId: string }): Promise<void>;
+
+  // --- Devices --------------------------------------------------------------
+
+  /** Every tablet enrolled to this branch, revoked ones included. */
+  listDevices(branchId: string): Promise<readonly StaffDevice[]>;
+
+  /**
+   * Mint a one-time enrolment code, returned **once**.
+   *
+   * Only its hash is stored, so "regenerate" is genuinely a new code rather
+   * than a second look at the old one.
+   */
+  createEnrolmentCode(branchId: string): Promise<EnrolmentCode>;
+
+  /**
+   * Kill a tablet. Permanent, and effective on its next request rather than
+   * when its token expires.
+   */
+  revokeDevice(input: { branchId: string; deviceId: string }): Promise<void>;
 
   // --- Reports ------------------------------------------------------------------
 

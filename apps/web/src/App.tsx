@@ -17,7 +17,7 @@ import { MenuEditorScreen } from './console/venue/menu/MenuEditorScreen';
 import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
 import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolicyScreen';
 import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
-import { VenuePlaceholder } from './console/venue/VenuePlaceholder';
+import { StaffScreen } from './console/venue/staff/StaffScreen';
 
 /**
  * Behind `lazy()` because it is the only screen in the console that needs a
@@ -197,10 +197,7 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="menu" element={<MenuEditorScreen />} />
             <Route path="hours" element={<OpeningHoursScreen />} />
             <Route path="policy" element={<ReservationPolicyScreen />} />
-            <Route
-              path="staff"
-              element={<VenuePlaceholder titleKey="nav.staff" prompt="Prompt 10" />}
-            />
+            <Route path="staff" element={<StaffScreen />} />
             {/* Lazy: the reports screen is the only thing in the console
                 that needs a charting library, and an owner who opens the floor
                 plan should not download one. */}

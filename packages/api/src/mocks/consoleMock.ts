@@ -22,7 +22,11 @@ import {
   UnsupportedImageError,
   VenueHasOpenTabsError,
 } from '../contracts/errors';
-import { NotFoundError } from '../errors';
+import { NotFoundError, ValidationError } from '../errors';
+import { StaffPermissionError } from '../contracts/errors';
+import { assignableRoles, canEditStaff } from '../contracts/staff';
+import type { StaffDevice, StaffMember } from '../contracts/staff';
+import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
 import type {
   AdminMenuCategory,
@@ -339,6 +343,160 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           : [{ opensAt: '09:00', closesAt: day === 5 || day === 6 ? '01:00' : '23:00' }],
     }));
     hours.set(branchId, seeded);
+    return seeded;
+  }
+
+  /*
+   * Staff and devices, per venue and per branch respectively.
+   *
+   * Two scopes, because that is what the API has: staff belong to a venue (an
+   * owner works everywhere) and a tablet is bolted to one counter.
+   */
+  const staffByVenue = new Map<string, StaffMember[]>();
+  const devicesByBranch = new Map<string, StaffDevice[]>();
+
+  function venueOfBranch(branchId: string): string | null {
+    for (const record of venues.values()) {
+      if (record.branches.some((branch) => branch.id === branchId)) return record.id;
+    }
+    return null;
+  }
+
+  /**
+   * Who the mock is acting as.
+   *
+   * Derived from the signed-in console user rather than assumed, because every
+   * role guard below is about the *actor* — a manager sees a different screen
+   * from an owner, and a mock that always acted as an owner would let a
+   * manager's picker be wrong with every test still passing.
+   */
+  function actingStaff(venueId: string): { id: string; role: StaffRole | 'platformAdmin' } {
+    if (role === 'platformAdmin') return { id: 'u-platform', role: 'platformAdmin' };
+
+    const list = staffFor(venueId);
+    // The seeded person this console role corresponds to, so "you cannot edit
+    // yourself" has a real row to point at rather than an id nothing matches.
+    const self =
+      role === 'owner'
+        ? list.find((member) => member.role === 'owner')
+        : list.find((member) => member.role === 'manager');
+
+    return self ? { id: self.id, role: self.role } : { id: `u-${role}`, role: 'owner' };
+  }
+
+  /** A venue's people, seeded from the same names the venue fixture uses. */
+  function staffFor(venueId: string): StaffMember[] {
+    const existing = staffByVenue.get(venueId);
+    if (existing) return existing;
+
+    const record = venues.get(venueId);
+    const branches = record?.branches ?? [];
+
+    const seeded: StaffMember[] = [
+      {
+        id: `${venueId}-owner`,
+        venueId,
+        // Venue-wide: the owner works everywhere, which is what a null branch
+        // means and what this screen finally makes reachable.
+        branchId: null,
+        fullName: 'Aram Sargsyan',
+        phone: '+37477101010',
+        role: 'owner',
+        isActive: true,
+        email: `owner@${slugify(record?.name ?? 'venue')}.am`,
+        hasPasswordSignIn: true,
+        isPinLocked: false,
+      },
+      ...branches.flatMap((branch, index): StaffMember[] => [
+        {
+          id: `${branch.id}-manager`,
+          venueId,
+          branchId: branch.id,
+          fullName:
+            ['Nare Petrosyan', 'Tigran Avetisyan', 'Lilit Grigoryan'][index % 3] ?? 'Manager',
+          phone: `+3747720${index}0${index}0`,
+          role: 'manager',
+          isActive: true,
+          email: null,
+          hasPasswordSignIn: false,
+          isPinLocked: false,
+        },
+        {
+          id: `${branch.id}-waiter-1`,
+          venueId,
+          branchId: branch.id,
+          // Unique per branch: an owner sees every branch's people in one
+          // list, and two rows with the same name are two rows nobody can
+          // tell apart.
+          fullName: `Ani Hakobyan (${branch.name})`,
+          phone: `+3747730${index}111`,
+          role: 'waiter',
+          isActive: true,
+          email: null,
+          hasPasswordSignIn: false,
+          // Somebody is always locked out mid-service. It is the most
+          // time-critical row on the screen, so the fixture has one.
+          isPinLocked: index === 0,
+        },
+        {
+          id: `${branch.id}-waiter-2`,
+          venueId,
+          branchId: branch.id,
+          fullName: `Davit Manukyan (${branch.name})`,
+          phone: `+3747730${index}222`,
+          role: 'waiter',
+          // Left in March, and the record stays so a return in June is a
+          // reactivation rather than a second person with the same history.
+          isActive: false,
+          email: null,
+          hasPasswordSignIn: false,
+          isPinLocked: false,
+        },
+        {
+          id: `${branch.id}-kitchen`,
+          venueId,
+          branchId: branch.id,
+          fullName: `Sona Vardanyan (${branch.name})`,
+          phone: `+3747740${index}333`,
+          role: 'kitchen',
+          isActive: true,
+          email: null,
+          hasPasswordSignIn: false,
+          isPinLocked: false,
+        },
+      ]),
+    ];
+
+    staffByVenue.set(venueId, seeded);
+    return seeded;
+  }
+
+  /** A branch's tablets, including one already killed. */
+  function devicesFor(branchId: string): StaffDevice[] {
+    const existing = devicesByBranch.get(branchId);
+    if (existing) return existing;
+
+    const seeded: StaffDevice[] = [
+      {
+        id: `${branchId}-device-counter`,
+        name: 'Counter tablet',
+        branchId,
+        enrolledAtUtc: '2026-08-21T08:00:00Z',
+        lastSeenAtUtc: new Date(Date.now() - 4 * 60_000).toISOString(),
+        isRevoked: false,
+      },
+      {
+        id: `${branchId}-device-old`,
+        name: 'Old iPad (left in a taxi)',
+        branchId,
+        enrolledAtUtc: '2026-07-02T09:30:00Z',
+        lastSeenAtUtc: '2026-08-14T22:10:00Z',
+        // Revoked and still listed: the list is an audit trail, not a roster.
+        isRevoked: true,
+      },
+    ];
+
+    devicesByBranch.set(branchId, seeded);
     return seeded;
   }
 
@@ -1085,6 +1243,177 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async getReservationPolicy(branchId): Promise<ReservationPolicy> {
       await wait();
       return policyFor(branchId);
+    },
+
+    // --- Staff ----------------------------------------------------------------
+
+    async listStaff(venueId) {
+      await wait();
+      return [...staffFor(venueId)];
+    },
+
+    async createStaff({ venueId, staff }) {
+      await wait();
+      /*
+       * The role guard, enforced here as the server enforces it.
+       *
+       * The mock has to refuse what the server refuses or the screen's pickers
+       * could be wrong and every test would still pass — which is precisely
+       * how the availability bug survived. `assignableRoles` is the same
+       * function the picker is built from, so the two cannot disagree about
+       * what a manager may create.
+       */
+      const actor = actingStaff(venueId);
+      if (!assignableRoles(actor.role).includes(staff.role)) {
+        throw new StaffPermissionError({
+          url: URL_TAG,
+          detail: `A ${actor.role} cannot create a ${staff.role}.`,
+          field: 'role',
+        });
+      }
+
+      const created: StaffMember = {
+        id: nextId('staff'),
+        venueId,
+        branchId: staff.branchId,
+        fullName: staff.fullName,
+        phone: staff.phone,
+        role: staff.role,
+        isActive: true,
+        email: staff.email ?? null,
+        hasPasswordSignIn: Boolean(staff.password),
+        isPinLocked: false,
+      };
+
+      // The PIN is *not* kept. Nothing in this mock can hand it back, which is
+      // the same promise the server makes and the reason the screen shows it
+      // once and never again.
+      staffFor(venueId).push(created);
+      return created;
+    },
+
+    async updateStaff({ venueId, staffMemberId, patch }) {
+      await wait();
+      const list = staffFor(venueId);
+      const index = list.findIndex((member) => member.id === staffMemberId);
+      if (index < 0) throw new NotFoundError({ url: URL_TAG });
+
+      const subject = list[index]!;
+      const actor = actingStaff(venueId);
+
+      if (!canEditStaff(actor, subject)) {
+        throw new StaffPermissionError({
+          url: URL_TAG,
+          detail:
+            actor.id === subject.id
+              ? 'You cannot change your own role or deactivate your own account.'
+              : `A ${actor.role} cannot edit a ${subject.role}.`,
+          field: actor.id === subject.id ? 'role' : 'role',
+        });
+      }
+
+      if (patch.role !== undefined && !assignableRoles(actor.role).includes(patch.role)) {
+        throw new StaffPermissionError({
+          url: URL_TAG,
+          detail: `A ${actor.role} cannot assign the role ${patch.role}.`,
+          field: 'role',
+        });
+      }
+
+      const updated: StaffMember = {
+        ...subject,
+        ...(patch.fullName === undefined ? {} : { fullName: patch.fullName }),
+        ...(patch.phone === undefined ? {} : { phone: patch.phone }),
+        ...(patch.role === undefined ? {} : { role: patch.role }),
+        ...(patch.isActive === undefined ? {} : { isActive: patch.isActive }),
+        // Applied only behind the flag, so "venue-wide" (null) is reachable and
+        // distinguishable from "leave it alone".
+        ...(patch.setBranch ? { branchId: patch.branchId ?? null } : {}),
+      };
+
+      list[index] = updated;
+      return updated;
+    },
+
+    async setStaffPin({ venueId, staffMemberId, pin }) {
+      await wait();
+      const list = staffFor(venueId);
+      const index = list.findIndex((member) => member.id === staffMemberId);
+      if (index < 0) throw new NotFoundError({ url: URL_TAG });
+
+      if (!/^\d{4,8}$/u.test(pin)) {
+        throw new ValidationError({
+          url: URL_TAG,
+          status: 400,
+          problem: {
+            type: 'about:blank',
+            title: 'Invalid PIN',
+            status: 400,
+            detail: 'A PIN is 4 to 8 digits.',
+            code: 'validation-failed',
+            traceId: 'mock',
+            errors: { pin: ['A PIN is 4 to 8 digits.'] },
+          },
+        });
+      }
+
+      // Setting a PIN clears any lockout, as the server's does. The PIN itself
+      // is discarded: this mock could not return it later if it wanted to.
+      const updated = { ...list[index]!, isPinLocked: false };
+      list[index] = updated;
+      return updated;
+    },
+
+    async clearPinLockout({ branchId, staffMemberId }) {
+      await wait();
+      const venueId = venueOfBranch(branchId);
+      const list = venueId ? staffFor(venueId) : [];
+      const index = list.findIndex((member) => member.id === staffMemberId);
+      if (index < 0) throw new NotFoundError({ url: URL_TAG });
+      list[index] = { ...list[index]!, isPinLocked: false };
+    },
+
+    // --- Devices --------------------------------------------------------------
+
+    async listDevices(branchId) {
+      await wait();
+      return [...devicesFor(branchId)];
+    },
+
+    async createEnrolmentCode(branchId) {
+      await wait();
+      /*
+       * A fresh code every time, and the old one is not retrievable — the same
+       * promise the server makes, which is why "regenerate" is a new code
+       * rather than a second look at the last one.
+       *
+       * **Ten characters of the server's own readable alphabet.** No I, L, O or
+       * U and no digits that resemble them: a manager reading this across a bar
+       * should not have to say "letter O, not zero". The mock used to emit six
+       * digits, which looked plausible, sized differently on screen, and would
+       * have let a client built against it meet a real code it had never been
+       * laid out for.
+       */
+      const alphabet = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
+      const code = Array.from({ length: 10 }, () => {
+        sequence = (sequence * 1103515245 + 12345) % 2147483648;
+        return alphabet[sequence % alphabet.length];
+      }).join('');
+      return {
+        code,
+        expiresAtUtc: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+        branchId,
+      };
+    },
+
+    async revokeDevice({ branchId, deviceId }) {
+      await wait();
+      const list = devicesFor(branchId);
+      const index = list.findIndex((device) => device.id === deviceId);
+      if (index < 0) throw new NotFoundError({ url: URL_TAG });
+      // Revoked, not removed: the list is an audit trail, and "which tablet was
+      // this done from, and was it still ours" is asked after the fact.
+      list[index] = { ...list[index]!, isRevoked: true };
     },
 
     // --- Reports ------------------------------------------------------------

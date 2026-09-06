@@ -30,6 +30,7 @@ import type { ReportExport, ReportQuery } from '../contracts/reports';
 import {
   CategoryInUseError,
   ReportRangeTooLongError,
+  StaffPermissionError,
   FloorPlanInvalidError,
   OverlappingHoursError,
   PolicyBoundsError,
@@ -40,6 +41,13 @@ import { ApiError, ForbiddenError, NetworkError, TimeoutError, UnauthorizedError
 import type { components } from '../generated/schema';
 import { parseProblem } from '../problem';
 import { venueDetailFromWire, venuePageFromWire } from './consoleMapping';
+import {
+  createStaffBody,
+  enrolmentCode,
+  staffDevice,
+  staffMember,
+  updateStaffBody,
+} from './staffAdminMapping';
 import {
   fileNameFrom,
   menuReport,
@@ -113,6 +121,33 @@ const CLAIM = {
 
 const PLATFORM = '/api/platform';
 const BRANCHES = '/api/branches';
+const VENUES = '/api/venues';
+
+// `WireStaff` is taken by the staff *report*; this is the staff *member*.
+type WireStaffMember = components['schemas']['Yalla.Application.Staff.StaffMemberView'];
+type WireDevice = components['schemas']['Yalla.Application.Auth.StaffDeviceSummary'];
+type WireCode = components['schemas']['Yalla.Application.Auth.DeviceEnrolmentCodeResult'];
+
+/**
+ * A 403 from the staff routes is the role guard, and it names the field.
+ *
+ * Surfaced against the control that caused it rather than as a form-level
+ * banner: "you cannot assign that role" belongs under the role picker, where
+ * the next action is obvious, not above a form where it reads as a refusal of
+ * the whole thing.
+ */
+function staffRefusal(error: unknown): never {
+  if (error instanceof ApiError && error.status === 403) {
+    const problem = parseProblem(error.body);
+    const field = problem?.context?.['field'];
+    throw new StaffPermissionError({
+      url: error.url,
+      detail: problem?.detail ?? error.message,
+      field: typeof field === 'string' ? field : null,
+    });
+  }
+  throw error;
+}
 
 /**
  * Reports are queried live against the operational tables and the menu one
@@ -626,6 +661,69 @@ export function createConsoleHttpGateway(
     async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {
       const { data } = await client.get<WirePolicy>(`${BRANCHES}/${branchId}/reservation-policy`);
       return reservationPolicy(data);
+    },
+
+    // --- Staff ----------------------------------------------------------------
+
+    async listStaff(venueId) {
+      const { data } = await client.get<WireStaffMember[]>(`${VENUES}/${venueId}/staff`);
+      return data.map(staffMember);
+    },
+
+    async createStaff({ venueId, staff }) {
+      try {
+        const { data } = await client.post<WireStaffMember>(
+          `${VENUES}/${venueId}/staff`,
+          createStaffBody(staff),
+        );
+        return staffMember(data);
+      } catch (error) {
+        return staffRefusal(error);
+      }
+    },
+
+    async updateStaff({ venueId, staffMemberId, patch }) {
+      try {
+        const { data } = await client.patch<WireStaffMember>(
+          `${VENUES}/${venueId}/staff/${staffMemberId}`,
+          updateStaffBody(patch),
+        );
+        return staffMember(data);
+      } catch (error) {
+        return staffRefusal(error);
+      }
+    },
+
+    async setStaffPin({ venueId, staffMemberId, pin }) {
+      // In the body, never the path. A PIN in a URL is a PIN in the server log,
+      // the browser history and every proxy in between.
+      const { data } = await client.post<WireStaffMember>(
+        `${VENUES}/${venueId}/staff/${staffMemberId}/pin`,
+        { pin },
+      );
+      return staffMember(data);
+    },
+
+    async clearPinLockout({ branchId, staffMemberId }) {
+      await client.post<void>(`${BRANCHES}/${branchId}/staff/${staffMemberId}/clear-pin-lockout`);
+    },
+
+    // --- Devices --------------------------------------------------------------
+
+    async listDevices(branchId) {
+      const { data } = await client.get<WireDevice[]>(`${BRANCHES}/${branchId}/devices`);
+      return data.map(staffDevice);
+    },
+
+    async createEnrolmentCode(branchId) {
+      const { data } = await client.post<WireCode>(
+        `${BRANCHES}/${branchId}/devices/enrolment-codes`,
+      );
+      return enrolmentCode(data);
+    },
+
+    async revokeDevice({ branchId, deviceId }) {
+      await client.post<void>(`${BRANCHES}/${branchId}/devices/${deviceId}/revoke`);
     },
 
     // --- Reports ------------------------------------------------------------

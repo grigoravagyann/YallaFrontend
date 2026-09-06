@@ -672,3 +672,32 @@ export class ReportRangeTooLongError extends ApiError {
     this.maxDays = options.maxDays;
   }
 }
+
+/**
+ * The server refused a staff change on the role rules.
+ *
+ * Its own error because the UI is meant to make this unreachable: pickers are
+ * built from `assignableRoles`, so a refusal here means either a stale screen —
+ * somebody's own role changed under them in another tab — or a client bug. It
+ * carries the field so the message lands against the control that caused it
+ * rather than as a form-level banner nobody can act on.
+ */
+export class StaffPermissionError extends ApiError {
+  /** `role`, `branchId` or `isActive`, from the problem's `context.field`. */
+  readonly field: string | null;
+
+  constructor(options: {
+    url: string;
+    detail: string;
+    field?: string | null | undefined;
+    requestId?: string | undefined;
+  }) {
+    super(options.detail, {
+      status: 403,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'StaffPermissionError';
+    this.field = options.field ?? null;
+  }
+}

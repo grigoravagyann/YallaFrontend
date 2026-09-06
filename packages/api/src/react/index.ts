@@ -22,6 +22,7 @@ import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menu
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
+import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
 import { ReportRangeTooLongError } from '../contracts/errors';
 import type { PublicGateway } from '../publicGateway';
 import type { ReleaseReservationCommand } from '../staffGateway';
@@ -193,6 +194,8 @@ export const queryKeys = {
   managedBooking: (token: string) => ['public', 'booking', token] as const,
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
+  staff: (venueId: string) => ['console', 'staff', venueId] as const,
+  devices: (branchId: string) => ['console', 'devices', branchId] as const,
   /*
    * One key per section, and the section name is in it.
    *
@@ -953,6 +956,123 @@ export function useExportReport() {
   const gateway = useConsoleGateway();
   return useMutation({
     mutationFn: (input: ReportQuery & { section: ReportSection }) => gateway.exportReport(input),
+  });
+}
+
+// --- Staff and devices ---------------------------------------------------------
+
+/**
+ * Everyone who works for the venue, active and not.
+ *
+ * Reference data rather than live state: a staff list changes when somebody
+ * hires or fires, which is not something to poll for. Deactivated people stay
+ * in it — a waiter who left in March and comes back in June is a reactivation,
+ * and their audit history has to stay attached to one person.
+ */
+export function useStaff(venueId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.staff(venueId ?? ''),
+    queryFn: () => gateway.listStaff(venueId!),
+    enabled: Boolean(venueId),
+    staleTime: staleTime.reference,
+  });
+}
+
+export function useCreateStaff(venueId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (staff: CreateStaffInput) => gateway.createStaff({ venueId: venueId!, staff }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
+      // A new person may be the line the readiness checklist was waiting for.
+      void queryClient.invalidateQueries({ queryKey: ['console', 'readiness'] });
+    },
+  });
+}
+
+export function useUpdateStaff(venueId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { staffMemberId: string; patch: UpdateStaffInput }) =>
+      gateway.updateStaff({ venueId: venueId!, ...input }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: ['console', 'readiness'] });
+    },
+  });
+}
+
+/**
+ * Set or reset a PIN.
+ *
+ * The result is **not** written into any cache. The mutation returns the staff
+ * member, and the PIN the caller sent is theirs to show once and then drop —
+ * putting either in a query cache would leave a credential sitting in memory
+ * for every screen that reads that key.
+ */
+export function useSetStaffPin(venueId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { staffMemberId: string; pin: string }) =>
+      gateway.setStaffPin({ venueId: venueId!, ...input }),
+    onSuccess: () => {
+      // Only the list, which carries the lockout flag. Never the PIN.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
+    },
+  });
+}
+
+/** The one people use mid-rush. */
+export function useClearPinLockout(venueId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { branchId: string; staffMemberId: string }) =>
+      gateway.clearPinLockout(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
+    },
+  });
+}
+
+export function useDevices(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.devices(branchId ?? ''),
+    queryFn: () => gateway.listDevices(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+  });
+}
+
+/**
+ * Mint an enrolment code.
+ *
+ * A mutation rather than a query, and deliberately uncached: the code is
+ * returned once, only its hash is stored, and caching it would put a live
+ * credential in a place a later render could read. "Regenerate" is another
+ * call, which is what it genuinely is.
+ */
+export function useCreateEnrolmentCode() {
+  const gateway = useConsoleGateway();
+  return useMutation({
+    mutationFn: (branchId: string) => gateway.createEnrolmentCode(branchId),
+  });
+}
+
+export function useRevokeDevice() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { branchId: string; deviceId: string }) => gateway.revokeDevice(input),
+    onSuccess: (_result, input) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.devices(input.branchId) });
+      void queryClient.invalidateQueries({ queryKey: ['console', 'readiness'] });
+    },
   });
 }
 

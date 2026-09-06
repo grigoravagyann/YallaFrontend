@@ -1,12 +1,15 @@
 import { incompleteCount, isComplete, type AdminMenuCategory, type WeeklyHours } from '@yalla/api';
 import {
   useAdminMenu,
+  useDevices,
   useEditorFloorPlan,
   useOpeningHours,
   useReservationPolicy,
+  useStaff,
 } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { Link } from 'react-router-dom';
+import { useCurrentUser } from '../../auth/useCurrentUser';
 import { useVenueOutlet } from './VenueLayout';
 
 /**
@@ -25,19 +28,31 @@ import { useVenueOutlet } from './VenueLayout';
 export function OnboardingChecklist() {
   const { t } = useTranslation(['admin', 'common']);
   const { branchId } = useVenueOutlet();
+  const { user } = useCurrentUser();
 
   const plan = useEditorFloorPlan(branchId ?? undefined);
   const menu = useAdminMenu(branchId ?? undefined);
   const hours = useOpeningHours(branchId ?? undefined);
   const policy = useReservationPolicy(branchId ?? undefined);
+  // The two lines nobody could satisfy until the staff screen existed.
+  const staff = useStaff(user?.scope.venueId ?? undefined);
+  const devices = useDevices(branchId ?? undefined);
 
-  const loading = plan.isLoading || menu.isLoading || hours.isLoading || policy.isLoading;
+  const loading =
+    plan.isLoading || menu.isLoading || hours.isLoading || policy.isLoading || staff.isLoading;
   const steps = checklistSteps({
     tables: plan.data?.tables.length ?? 0,
     unlabelled: (plan.data?.tables ?? []).filter((table) => !table.label.trim()).length,
     categories: menu.data ?? [],
     week: hours.data ?? [],
     hasPolicy: Boolean(policy.data),
+    // Only people who can actually work this branch count: somebody assigned to
+    // another branch does not staff this one, and a venue-wide manager does.
+    staffHere: (staff.data ?? []).filter(
+      (member) => member.isActive && (member.branchId === null || member.branchId === branchId),
+    ).length,
+    // A revoked tablet is not a tablet the counter can be run from.
+    devicesHere: (devices.data ?? []).filter((device) => !device.isRevoked).length,
   });
 
   const done = steps.filter((step) => step.done).length;
@@ -99,6 +114,8 @@ export function checklistSteps(input: {
   readonly categories: readonly AdminMenuCategory[];
   readonly week: WeeklyHours;
   readonly hasPolicy: boolean;
+  readonly staffHere: number;
+  readonly devicesHere: number;
 }): readonly ChecklistStep[] {
   const items = input.categories.flatMap((category) => category.items);
   const incomplete = input.categories.reduce((sum, c) => sum + incompleteCount(c), 0);
@@ -142,12 +159,25 @@ export function checklistSteps(input: {
       done: input.hasPolicy,
       to: '/venue/policy',
     },
-    // Staff and devices are managed from screens this build does not have —
-    // `/api/venues/{id}/staff` and the branch device list. Listed anyway,
-    // because "is this venue ready" is false without them and a checklist that
-    // omitted them would answer the question wrongly.
-    { id: 'staff', done: false, to: null },
-    { id: 'devices', done: false, to: null },
+    /*
+     * Both of these were listed with no link and no way to satisfy them: the
+     * API had staff CRUD and device enrolment since Backend 6 and 8b, and
+     * nothing in the console called either. A venue could not be staffed
+     * through the product at all, which made every other screen unreachable for
+     * the people who use them.
+     */
+    {
+      id: 'staff',
+      done: input.staffHere > 0,
+      detail: input.staffHere > 0 ? String(input.staffHere) : undefined,
+      to: '/venue/staff',
+    },
+    {
+      id: 'devices',
+      done: input.devicesHere > 0,
+      detail: input.devicesHere > 0 ? String(input.devicesHere) : undefined,
+      to: '/venue/staff',
+    },
   ];
 }
 
