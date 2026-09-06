@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { PublicBranch } from '@yalla/api';
+import { nextHalfHour, type PublicBranch } from '@yalla/api';
 import { useSlotFloor } from '@yalla/api/react';
 import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
@@ -144,12 +144,15 @@ describe('the room refetches for every control', () => {
 /** Drives `RoomSection` the way `BranchRoute` does, so the controls are live. */
 function LiveRoom({ branch, initial }: { branch: PublicBranch; initial: SlotSelection }) {
   const [selection, setSelection] = useState(initial);
+  // Same fallback `BranchRoute` uses: the page must never reach a render it
+  // cannot complete, because there is no error boundary above it.
+  const instant = slotInstant(selection, branch.timeZoneId) ?? nextHalfHour(new Date());
   return (
     <RoomSection
       branch={branch}
       selection={selection}
       onSelectionChange={setSelection}
-      slotUtc={slotInstant(selection, branch.timeZoneId).toISOString()}
+      slotUtc={instant.toISOString()}
       selectedTableId={null}
       onTableTap={() => {}}
       takenTableLabel={null}
@@ -202,3 +205,61 @@ describe('a slot the branch refuses', () => {
     await waitFor(() => expect(screen.queryByText(/too soon to book this table/i)).toBeNull());
   });
 });
+
+describe('clearing the date input', () => {
+  it('leaves the room on screen instead of white-screening the page', async () => {
+    /*
+     * The regression. `slotInstant` threw `RangeError` on an empty date, during
+     * render, in a tree with no error boundary — so clearing this input took the
+     * whole page down. On the one surface strangers open from a WhatsApp link.
+     *
+     * Driven through a **real** change event on the real input, with an empty
+     * value, because the crash lived in the path between the control and the
+     * slot. A synthetic call to `onSelectionChange` would have skipped it
+     * entirely and passed against the bug.
+     */
+    const harness = createConsoleFreeHarness();
+    const branch = await branchOf(harness);
+    const selection = defaultSelection(branch.timeZoneId, new Date());
+
+    render(harness.wrap(<LiveRoom branch={branch} initial={selection} />));
+    await waitFor(() => expect(screen.getByLabelText(/date/i)).toBeTruthy());
+
+    const dateInput = screen.getByLabelText(/date/i) as HTMLInputElement;
+    fireEvent.change(dateInput, { target: { value: '' } });
+
+    // Still rendered, and the control has fallen back rather than sitting empty:
+    // an empty date is not a state a diner ever means to be in.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/date/i)).toBeTruthy();
+      expect((screen.getByLabelText(/date/i) as HTMLInputElement).value).not.toBe('');
+    });
+    expect(screen.getByLabelText(/guests/i)).toBeTruthy();
+  });
+
+  it('survives the same treatment on the time and party controls', async () => {
+    // The sibling controls, audited for the same class of failure.
+    const harness = createConsoleFreeHarness();
+    const branch = await branchOf(harness);
+
+    render(
+      harness.wrap(
+        <LiveRoom branch={branch} initial={defaultSelection(branch.timeZoneId, new Date())} />,
+      ),
+    );
+    await waitFor(() => expect(screen.getByLabelText(/time/i)).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText(/time/i), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(/guests/i), { target: { value: '' } });
+
+    await waitFor(() => {
+      expect((screen.getByLabelText(/time/i) as HTMLSelectElement).value).not.toBe('');
+      expect(screen.getByLabelText(/date/i)).toBeTruthy();
+    });
+  });
+});
+
+/** The same harness, named for what these tests need it to be: not console. */
+function createConsoleFreeHarness() {
+  return createHarness();
+}

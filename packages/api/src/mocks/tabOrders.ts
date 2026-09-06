@@ -259,7 +259,10 @@ export function createTabOrders(options: TabOrdersOptions) {
           isTableAttributed: requested.participantId === null,
           participantId: requested.participantId,
           orderedByName: shortName(owner),
-          sharedWithCount: splits ? presentIds.length : 1,
+          // Zero when it does not split, matching the share record written
+          // two lines below — which already stored an empty array here while
+          // this said 1.
+          sharedWithCount: splits ? presentIds.length : 0,
           status: 'active',
           voidReason: null,
           voidedByName: null,

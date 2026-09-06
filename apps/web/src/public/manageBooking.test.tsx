@@ -45,7 +45,9 @@ async function bookedLink(harness: Harness): Promise<{ url: string; code: string
     ...defaultSelection(branch.timeZoneId, new Date(Date.now() + 2 * 60 * 60_000)),
     partySize: 2,
   };
-  const slotUtc = slotInstant(selection, branch.timeZoneId).toISOString();
+  const instant = slotInstant(selection, branch.timeZoneId);
+  expect(instant, 'the default selection must always resolve').not.toBeNull();
+  const slotUtc = instant!.toISOString();
   const table = (
     await harness.gateway.getTableAvailability({
       branchId: branch.id,

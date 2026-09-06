@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { Bars, ChartFrame, TrendLine, type ChartDatum } from './Chart';
 import { ReportSectionFrame } from './ReportSection';
 import { Stat } from './Stat';
-import { daysInRange } from './range';
+import { daysInRange, everyDayIn } from './range';
 
 export interface RevenueSectionProps {
   readonly query: ReportQuery | null;
@@ -35,16 +35,25 @@ export function RevenueSection({ query, locale, timeZoneId }: RevenueSectionProp
     [locale, timeZoneId],
   );
 
+  /*
+   * Gaps filled before plotting.
+   *
+   * `byDay` is sparse — the server sends a row only for a day a tab closed — so
+   * plotting it straight would draw a straight line across the days the venue
+   * was shut and read as steady trade through them.
+   */
   const byDay: ChartDatum[] = useMemo(
     () =>
-      (data?.byDay ?? []).map((day) => ({
-        // Parsed as UTC midnight and formatted in the branch's zone. The key is
-        // already a local date key, so this is a label for a day rather than a
-        // conversion of an instant.
-        label: dayLabel.format(new Date(`${day.localDate}T12:00:00Z`)),
-        value: day.revenueAmd,
-      })),
-    [data, dayLabel],
+      (query && data ? everyDayIn({ from: query.from, to: query.to }, data.byDay) : []).map(
+        (day) => ({
+          // Parsed as UTC midnight and formatted in the branch's zone. The key is
+          // already a local date key, so this is a label for a day rather than a
+          // conversion of an instant.
+          label: dayLabel.format(new Date(`${day.localDate}T12:00:00Z`)),
+          value: day.revenueAmd,
+        }),
+      ),
+    [data, query, dayLabel],
   );
 
   const byHour: ChartDatum[] = useMemo(

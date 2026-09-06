@@ -9,7 +9,6 @@ export {
   useConsoleVenues,
   useCreateVenue,
   useDeleteVenue,
-  useFloorPlan,
   useResumeVenue,
   useSuspendVenue,
 } from '@yalla/api/react';

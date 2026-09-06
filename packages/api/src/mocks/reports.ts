@@ -489,11 +489,23 @@ export function createMockReports(world: MockReportWorld): MockReports {
         serviceChargeAmd: compare(current, prior, (day) => Math.round(day.revenueAmd * 0.1)),
         averageTabAmd: average(revenue, tabs, priorRevenue, priorTabs),
         averagePerHeadAmd: average(revenue, covers, priorRevenue, priorCovers),
-        byDay: current.map((day) => ({
-          localDate: day.date,
-          revenueAmd: day.revenueAmd,
-          tabs: day.tabs,
-        })),
+        /*
+         * Sparse, as the server's is.
+         *
+         * `ByDay` on the backend groups the tabs that actually closed, so a day
+         * with no takings produces no row. The mock used to emit a row per day
+         * in the range — which made the reports screen's assumption that every
+         * day is present look correct, right up until it met a real backend.
+         * Same failure mode as the availability bug: the double agreeing with
+         * the client instead of with the server.
+         */
+        byDay: current
+          .filter((day) => day.tabs > 0)
+          .map((day) => ({
+            localDate: day.date,
+            revenueAmd: day.revenueAmd,
+            tabs: day.tabs,
+          })),
         byHour: hourShape.map((weight, hour) => ({
           hour,
           revenueAmd: Math.round((revenue * weight) / hourTotal),

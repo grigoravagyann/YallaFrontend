@@ -76,3 +76,101 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # The half of the contract suite that makes the other half mean anything.
+  #
+  # `packages/api/src/contract` is one set of assertions run against both
+  # implementations of the gateway interfaces. The `build` job above runs it
+  # against the mock adapter, which is fast and offline — and on its own is
+  # exactly the problem it was written to fix. The mock is only trustworthy
+  # while something checks it against the real thing.
+  #
+  # Its own job because it needs a database and a backend container, and because
+  # a failure here means something different from a failure above: the two
+  # implementations disagree, and one of them is lying to every test that uses
+  # it.
+  contract:
+    name: contract suite against a live backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      # The backend's own dependency. `sqlcmd` is not needed: the API migrates
+      # and seeds on startup.
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: ${{ secrets.CONTRACT_SQL_PASSWORD || 'Yalla!Contract1' }}
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The backend lives in its own repository. Checked out beside this one and
+      # run from source rather than from a published image, so the contract runs
+      # against the branch that is actually shipping.
+      - name: Check out the backend
+        uses: actions/checkout@v4
+        with:
+          repository: grigoravagyann/Yalla
+          ref: master
+          path: backend
+          token: ${{ secrets.BACKEND_REPO_TOKEN }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Start the API
+        working-directory: backend
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          ConnectionStrings__Yalla: >-
+            Server=localhost,1433;Database=Yalla;User Id=sa;Password=${{ secrets.CONTRACT_SQL_PASSWORD || 'Yalla!Contract1' }};TrustServerCertificate=True;MultipleActiveResultSets=True
+          # It refuses to start without these, and the contract run signs in as
+          # this account to reach the console reads.
+          PlatformAdmin__Email: ${{ secrets.CONTRACT_VENUE_EMAIL }}
+          PlatformAdmin__Password: ${{ secrets.CONTRACT_VENUE_PASSWORD }}
+          Jwt__SigningKey: ${{ secrets.CONTRACT_JWT_KEY }}
+          # Off, or every request acts as the seeded waiter regardless of the
+          # token and the suite would be testing a role nobody signs in as.
+          DevActor__Enabled: 'false'
+        run: |
+          dotnet run --project src/Yalla.Api/Yalla.Api.csproj &
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:5086/api/public/venues >/dev/null 2>&1; then
+              echo "API up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "The API never came up; the contract suite has nothing to run against." >&2
+          exit 1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Against the running backend. A capability the run cannot authenticate
+      # for prints its reason in the test name rather than passing quietly — see
+      # `ContractSubject.unsupported`.
+      - name: Contract suite
+        env:
+          YALLA_CONTRACT_BASE_URL: http://localhost:5086
+          YALLA_CONTRACT_VENUE_EMAIL: ${{ secrets.CONTRACT_VENUE_EMAIL }}
+          YALLA_CONTRACT_VENUE_PASSWORD: ${{ secrets.CONTRACT_VENUE_PASSWORD }}
+        run: pnpm --filter @yalla/api exec vitest run src/contract

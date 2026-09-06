@@ -237,34 +237,22 @@ export function useVenue(venueId: string | undefined) {
 
 // --- Floor ---------------------------------------------------------------------
 
-/**
- * Live table state: stale almost immediately.
+/*
+ * `useFloorPlan` was here, and it is deliberately gone.
  *
- * `pollMs` is opt-in at the call site rather than a default, because the three
- * surfaces that read this room have three different reasons not to share one
- * cadence. The counter screen must **not** poll — its `LiveStream` owns
- * refreshing, and a second poller would fight it over the same cache entry. The
- * phone app refetches on focus, which is when a diner is looking. The public
- * branch page is the one that is genuinely left open on a table with nobody
- * touching it, so it asks for an interval.
+ * It fetched the room **as it is now**, and it is what both booking surfaces
+ * drew the floor plan from while asking the availability endpoint about a slot
+ * three days out — so a diner picking Saturday at 20:00 saw tonight's walk-ins
+ * greyed out and Saturday's bookings drawn free. `useSlotFloor` below replaced
+ * it, and after that it had no callers at all.
+ *
+ * Leaving an unused public hook exported would have been the whole bug's
+ * re-entry point: the next screen that needs "a floor plan" would reach for the
+ * one named `useFloorPlan`, get now-shaped state, and reintroduce a defect that
+ * took five prompts to notice. A surface that genuinely wants the room as it
+ * stands right now wants the *staff* floor — `useStaffFloor` — and should say
+ * so at the call site.
  */
-export function useFloorPlan(branchId: string | undefined, options: { pollMs?: number } = {}) {
-  const gateway = useGateway();
-  return useQuery({
-    queryKey: queryKeys.floor(branchId ?? ''),
-    queryFn: () => gateway.getFloorPlan(branchId!),
-    enabled: Boolean(branchId),
-    staleTime: staleTime.live,
-    ...(options.pollMs
-      ? {
-          refetchInterval: options.pollMs,
-          // A page in a background tab is a page nobody is reading. Polling it
-          // spends a stranger's mobile data on a room they cannot see.
-          refetchIntervalInBackground: false,
-        }
-      : {}),
-  });
-}
 
 /**
  * How long the party-size stepper is allowed to settle before we ask again.
@@ -303,12 +291,12 @@ function useSettled<T>(value: T, delayMs: number): T {
 /**
  * The room as it will be at a slot, and the answer for every table in it.
  *
- * The hook both booking surfaces render from. It replaces a pair — `useFloorPlan`
- * for the geometry and `useTableAvailability` for the overlay — where the first
- * asked about *now*: a diner picking Saturday at 20:00 was shown the room as it
- * stood at that moment, with tonight's walk-ins greyed out and 20:00's bookings
- * drawn free. Date, time and party size are all server inputs, so all three
- * belong in the key.
+ * The hook both booking surfaces render from. It replaced a pair — a now-shaped
+ * floor read for the geometry and `useTableAvailability` for the overlay —
+ * where the first asked about *now*: a diner picking Saturday at 20:00 was
+ * shown the room as it stood at that moment, with tonight's walk-ins greyed out
+ * and 20:00's bookings drawn free. Date, time and party size are all server
+ * inputs, so all three belong in the key.
  *
  * `keepPreviousData` matters more here than anywhere else in this file. Changing
  * the time is a new key, and without it the room would blank to a spinner on
@@ -323,7 +311,7 @@ export function useSlotFloor(input: {
   /** Override for tests. `0` disables the wait entirely. */
   readonly debounceMs?: number;
   /**
-   * Refresh cadence, opt-in per surface exactly as {@link useFloorPlan}'s is.
+   * Refresh cadence, opt-in per surface rather than a default.
    *
    * The public page asks for one because it is the surface genuinely left open
    * on a table with nobody touching it, and a slot an hour out still gains and

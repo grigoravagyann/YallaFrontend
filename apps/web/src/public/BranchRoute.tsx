@@ -1,4 +1,4 @@
-import type { PublicBranch, TableAvailability } from '@yalla/api';
+import { nextHalfHour, type PublicBranch, type TableAvailability } from '@yalla/api';
 import {
   isOfflinePaused,
   usePublicBranch,
@@ -78,10 +78,20 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
   const [chosen, setChosen] = useState<TableAvailability | null>(null);
   const [takenTableLabel, setTakenTableLabel] = useState<string | null>(null);
 
-  const slotUtc = useMemo(
-    () => slotInstant(selection, branch.timeZoneId).toISOString(),
-    [selection, branch.timeZoneId],
-  );
+  /*
+   * Defence in depth behind `RoomSection`, which already refuses to store an
+   * unusable selection.
+   *
+   * The page must never be able to reach a render it cannot complete: there is
+   * no error boundary anywhere in this app, so a throw here unmounts the whole
+   * tree and a stranger who opened a link gets a white tab. The default slot is
+   * the same one the page opened on, so falling back to it costs the diner
+   * nothing they chose.
+   */
+  const slotUtc = useMemo(() => {
+    const instant = slotInstant(selection, branch.timeZoneId);
+    return (instant ?? nextHalfHour(new Date())).toISOString();
+  }, [selection, branch.timeZoneId]);
 
   /*
    * The unfurl tags, corrected for anything that runs JavaScript.

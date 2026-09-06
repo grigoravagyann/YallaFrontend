@@ -29,6 +29,17 @@ interface Detail {
   readonly prepMinutes: number;
 }
 
+/**
+ * What an item looks like before its venue has finished writing it up.
+ *
+ * Deliberately *not* publishable: `allergens` is empty, and the diner-facing
+ * read refuses to show an item in that state. One item in the fixture is left
+ * this way on purpose (see `compote`) so the console's "incomplete" affordance
+ * has something real to mark and the publication rule has something real to
+ * filter. Everything else says "None" — which is what a venue writes for a
+ * black coffee, and is the whole point of the backend requiring the field: an
+ * empty list and "no allergens" are different claims.
+ */
 const DEFAULT: Detail = {
   ingredients: '',
   allergens: '',
@@ -43,9 +54,16 @@ const DEFAULT: Detail = {
  * vocabulary here would be guessing at something the backend stores as a string.
  */
 const DETAILS: Readonly<Record<string, Detail>> = {
-  espresso: { ...DEFAULT, ingredients: 'Arabica coffee', portionSize: '30 ml', prepMinutes: 2 },
+  espresso: {
+    ...DEFAULT,
+    allergens: 'None',
+    ingredients: 'Arabica coffee',
+    portionSize: '30 ml',
+    prepMinutes: 2,
+  },
   americano: {
     ...DEFAULT,
+    allergens: 'None',
     ingredients: 'Arabica coffee, water',
     portionSize: '180 ml',
     prepMinutes: 3,
@@ -66,11 +84,18 @@ const DETAILS: Readonly<Record<string, Detail>> = {
   },
   'armenian-coffee': {
     ...DEFAULT,
+    allergens: 'None',
     ingredients: 'Finely ground coffee, sugar',
     portionSize: '60 ml',
     prepMinutes: 6,
   },
-  'cold-brew': { ...DEFAULT, ingredients: 'Arabica coffee', portionSize: '300 ml', prepMinutes: 2 },
+  'cold-brew': {
+    ...DEFAULT,
+    allergens: 'None',
+    ingredients: 'Arabica coffee',
+    portionSize: '300 ml',
+    prepMinutes: 2,
+  },
   gata: {
     ...DEFAULT,
     ingredients: 'Flour, butter, sugar, egg',
@@ -151,23 +176,40 @@ const DETAILS: Readonly<Record<string, Detail>> = {
   },
   'salad-summer': {
     ...DEFAULT,
+    allergens: 'None',
     ingredients: 'Tomato, cucumber, red onion, herbs, sunflower oil',
     portionSize: '250 g',
     prepMinutes: 7,
   },
-  'water-still': { ...DEFAULT, ingredients: 'Still water', portionSize: '500 ml', prepMinutes: 1 },
+  'water-still': {
+    ...DEFAULT,
+    allergens: 'None',
+    ingredients: 'Still water',
+    portionSize: '500 ml',
+    prepMinutes: 1,
+  },
   jermuk: {
     ...DEFAULT,
+    allergens: 'None',
     ingredients: 'Sparkling mineral water',
     portionSize: '500 ml',
     prepMinutes: 1,
   },
   lemonade: {
     ...DEFAULT,
+    allergens: 'None',
     ingredients: 'Tarragon, lemon, sugar, sparkling water',
     portionSize: '400 ml',
     prepMinutes: 3,
   },
+  /*
+   * The one item left unfinished on purpose.
+   *
+   * No allergens written, so the diner-facing read filters it out and the
+   * console shows it flagged. Both halves of the publication rule need
+   * something real to act on, and a fixture where every item was complete
+   * would let the filter be deleted without a test noticing.
+   */
   compote: {
     ...DEFAULT,
     ingredients: 'Dried apricot, sugar, water',
@@ -227,6 +269,36 @@ export function mockBranchMenu(branchId: string, venueType: 'cafe' | 'restaurant
   }));
 
   return { branchId, fetchedAtUtc: menu.updatedAtUtc, categories };
+}
+
+/**
+ * Whether a diner may be shown this item at all.
+ *
+ * The backend's publication rule, quoted from the branch-menu endpoint:
+ *
+ * > An item without a photo or without allergens never appears here, for the
+ * > same reason it never reaches the app: somebody reading an empty allergen
+ * > list reasonably concludes there are none.
+ *
+ * It lives on the *read* rather than on the fixture, exactly as it does on the
+ * server: the console must keep showing an incomplete item, or an owner has no
+ * way to finish it. `mockBranchMenu` is therefore the whole world, and this is
+ * what a diner is allowed to see of it.
+ */
+export function isPublishable(item: MenuItemDetail): boolean {
+  return item.allergens.trim() !== '' && Boolean(item.photo?.thumbnailUrl);
+}
+
+/**
+ * The diner-facing menu: complete items only, and no empty categories left
+ * behind by the filter.
+ */
+export function publishedBranchMenu(menu: BranchMenu): BranchMenu {
+  const categories = menu.categories
+    .map((category) => ({ ...category, items: category.items.filter(isPublishable) }))
+    .filter((category) => category.items.length > 0);
+
+  return { ...menu, categories };
 }
 
 /** One item, for snapshotting a name and price onto an order line. */

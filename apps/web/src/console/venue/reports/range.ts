@@ -161,29 +161,59 @@ export function problemWith(range: DateRange): RangeProblem {
   return null;
 }
 
+/** One day of takings, as the revenue report reports them. */
+export interface DailyRow {
+  readonly localDate: string;
+  readonly revenueAmd: number;
+  readonly tabs: number;
+}
+
 /**
- * The first day in the range that anything was recorded on, when the range
- * starts before the venue was trading.
+ * The first day in the range that anything was recorded on, when that is not
+ * the range's own first day.
  *
  * A branch that went live mid-range shows a ramp, and an owner reading it
  * without this reads a decline. Derived from the daily series rather than from
- * a go-live date, because **there is no go-live date on the wire** — the report
- * contract does not carry one and neither does `ConsoleBranch`. So the sentence
- * this feeds says only what is actually known: nothing was recorded before this
- * day. That is weaker than "the branch opened on the 20th" and it is the honest
- * version of it.
+ * a go-live date, because **there is no go-live date on the wire** — neither
+ * the report contract nor `ConsoleBranch` carries one. So the sentence this
+ * feeds says only what is actually known: nothing was recorded before this day.
  *
- * Null when the range has activity on its first day, or no activity at all —
- * an empty range is the empty state's business, not this one's.
+ * Compared against the **range**, not against leading zero rows. `byDay` is
+ * sparse — the server groups the tabs that closed, so a day with no takings has
+ * no row at all — and the first version of this function looked for leading
+ * zeroes that the real backend never sends. The contract suite's live run is
+ * what caught it; the mock had been emitting a dense series and agreeing with
+ * the mistake.
+ *
+ * Null when the range was trading from its first day, or not at all — an empty
+ * range is the empty state's business, not this one's.
  */
-export function firstActiveDay(
-  days: readonly {
-    readonly localDate: string;
-    readonly revenueAmd: number;
-    readonly tabs: number;
-  }[],
-): string | null {
-  const firstActive = days.findIndex((day) => day.revenueAmd > 0 || day.tabs > 0);
-  if (firstActive <= 0) return null;
-  return days[firstActive]?.localDate ?? null;
+export function firstActiveDay(range: DateRange, days: readonly DailyRow[]): string | null {
+  const active = days
+    .filter((day) => day.revenueAmd > 0 || day.tabs > 0)
+    .map((day) => day.localDate)
+    .sort();
+
+  const first = active[0];
+  if (first === undefined || first <= range.from) return null;
+  return first;
+}
+
+/**
+ * The series with a point for every day in the range, zero where the server
+ * sent nothing.
+ *
+ * A line chart plotted straight off a sparse series draws a straight slope
+ * across the days it is missing, which reads as steady trade through a week the
+ * venue was shut. The gaps are the venue's quiet days and they belong on the
+ * chart.
+ */
+export function everyDayIn(range: DateRange, days: readonly DailyRow[]): DailyRow[] {
+  const known = new Map(days.map((day) => [day.localDate, day]));
+  const filled: DailyRow[] = [];
+
+  for (let day = range.from; day <= range.to; day = addDays(day, 1)) {
+    filled.push(known.get(day) ?? { localDate: day, revenueAmd: 0, tabs: 0 });
+  }
+  return filled;
 }

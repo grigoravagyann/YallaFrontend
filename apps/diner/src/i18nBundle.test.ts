@@ -65,3 +65,31 @@ describe('the diner i18n entry point', () => {
     expect(Object.keys(dinerResources).sort()).toEqual(['en', 'hy', 'ru']);
   });
 });
+
+/**
+ * `useFloorPlan` is gone, and must stay gone.
+ *
+ * It fetched the room **as it is now**, and it is what both booking surfaces
+ * drew the plan from while asking the availability endpoint about a slot days
+ * away. `useSlotFloor` replaced it and it lost every caller — but an unused
+ * public hook named `useFloorPlan` is the bug's re-entry point: the next screen
+ * that needs "a floor plan" reaches for it, gets now-shaped state, and
+ * reintroduces a defect that took five prompts to notice.
+ *
+ * Asserted on the module's exports rather than by grepping source, so a
+ * re-export through another barrel is caught too.
+ */
+describe('the hook that drew the room for the wrong moment', () => {
+  it('is not exported from the react entry point', async () => {
+    const react = await import('@yalla/api/react');
+    expect(Object.keys(react)).not.toContain('useFloorPlan');
+    // And the replacement is there, so this cannot pass by the module failing
+    // to load at all.
+    expect(Object.keys(react)).toContain('useSlotFloor');
+  });
+
+  it('is not re-exported by either app data layer', async () => {
+    const dinerQueries = await import('./data/queries');
+    expect(Object.keys(dinerQueries)).not.toContain('useFloorPlan');
+  });
+});

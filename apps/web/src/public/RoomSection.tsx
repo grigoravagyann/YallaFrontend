@@ -2,7 +2,14 @@ import { unavailableCopy, type PublicBranch, type TableAvailability } from '@yal
 import { isOfflinePaused, PUBLIC_REFRESH_MS, useSlotFloor } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { Suspense, lazy, useEffect, useRef, useState } from 'react';
-import { PARTY_SIZES, addDays, branchToday, timeOptions, type SlotSelection } from './slots';
+import {
+  PARTY_SIZES,
+  addDays,
+  branchToday,
+  slotProblem,
+  timeOptions,
+  type SlotSelection,
+} from './slots';
 
 /**
  * The room, the three controls above it, and nothing else.
@@ -98,6 +105,34 @@ export function RoomSection({
   });
 
   const today = branchToday(branch.timeZoneId);
+
+  /**
+   * Apply a change to one control, refusing to store an unusable selection.
+   *
+   * A `type="date"` input is **empty** between a clear and the next keystroke,
+   * and stays empty for as long as somebody leaves it that way. That used to
+   * reach `slotInstant`, throw inside `Intl` during render, and white-screen
+   * the page — on the one surface in the product that is opened by strangers
+   * from a link, who have no reason to try again.
+   *
+   * So the control falls back rather than clearing: an empty date is not a
+   * state a diner ever *means* to be in, and the nearest thing they do mean is
+   * today. The room stays on screen throughout, which is the actual
+   * requirement — a diner mid-edit has not asked to stop seeing the room.
+   */
+  const applySelection = (next: SlotSelection) => {
+    const problem = slotProblem(next);
+    if (problem === null) {
+      onSelectionChange(next);
+      return;
+    }
+
+    onSelectionChange({
+      ...next,
+      // Only the broken half is replaced; the other keeps whatever was picked.
+      ...(problem === 'date' ? { date: today } : { time: selection.time }),
+    });
+  };
   // The venue's own horizon, so the platform's date picker cannot offer a day
   // the server will refuse once a table has already been chosen.
   const lastBookableDay = addDays(today, branch.bookingWindowDays);
@@ -132,7 +167,7 @@ export function RoomSection({
               min={today}
               max={lastBookableDay}
               onChange={(event) =>
-                onSelectionChange({ ...selection, date: event.currentTarget.value })
+                applySelection({ ...selection, date: event.currentTarget.value })
               }
             />
           </label>
@@ -141,7 +176,7 @@ export function RoomSection({
             <select
               value={selection.time}
               onChange={(event) =>
-                onSelectionChange({ ...selection, time: event.currentTarget.value })
+                applySelection({ ...selection, time: event.currentTarget.value })
               }
             >
               {/* Half-hourly rather than a free-form time input: the backend
@@ -157,12 +192,17 @@ export function RoomSection({
             <span>{t('booking.partySize', { ns: 'diner' })}</span>
             <select
               value={selection.partySize}
-              onChange={(event) =>
-                onSelectionChange({
+              onChange={(event) => {
+                // `Number('')` is `NaN`, which would reach the availability
+                // query as a party size and come back as a refusal nobody
+                // asked for. The list is fixed, so anything off it is a bug
+                // rather than a choice.
+                const partySize = Number(event.currentTarget.value);
+                applySelection({
                   ...selection,
-                  partySize: Number(event.currentTarget.value),
-                })
-              }
+                  partySize: PARTY_SIZES.includes(partySize) ? partySize : selection.partySize,
+                });
+              }}
             >
               {PARTY_SIZES.map((size) => (
                 <option key={size} value={size}>

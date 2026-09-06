@@ -4,6 +4,7 @@ import {
   addDays,
   branchToday,
   daysInRange,
+  everyDayIn,
   firstActiveDay,
   previousRange,
   problemWith,
@@ -141,24 +142,64 @@ describe('a range the server will refuse', () => {
 });
 
 describe('a branch that only went live mid-range', () => {
+  const RANGE = { from: '2026-08-01', to: '2026-08-05' };
   const day = (localDate: string, revenueAmd: number) => ({ localDate, revenueAmd, tabs: 1 });
-  const closed = (localDate: string) => ({ localDate, revenueAmd: 0, tabs: 0 });
 
+  /*
+   * `byDay` is **sparse**. The server groups the tabs that closed, so a quiet
+   * day has no row at all — which is why this compares against the range rather
+   * than looking for leading zero rows. The first version did the latter, and
+   * the contract suite's live run is what proved it wrong: the mock had been
+   * sending a dense series and agreeing with the mistake.
+   */
   it('reports the first day anything was recorded', () => {
-    expect(
-      firstActiveDay([closed('2026-08-01'), closed('2026-08-02'), day('2026-08-03', 90_000)]),
-    ).toBe('2026-08-03');
+    expect(firstActiveDay(RANGE, [day('2026-08-03', 90_000), day('2026-08-04', 80_000)])).toBe(
+      '2026-08-03',
+    );
   });
 
   it('says nothing when the range was trading from its first day', () => {
-    // There is no ramp to explain, so no sentence.
-    expect(firstActiveDay([day('2026-08-01', 90_000), day('2026-08-02', 80_000)])).toBeNull();
+    expect(
+      firstActiveDay(RANGE, [day('2026-08-01', 90_000), day('2026-08-02', 80_000)]),
+    ).toBeNull();
   });
 
   it('says nothing for a range with no activity at all', () => {
-    // That is the empty state's job, and two explanations of the same blank
-    // screen is one more than anybody reads.
-    expect(firstActiveDay([closed('2026-08-01'), closed('2026-08-02')])).toBeNull();
-    expect(firstActiveDay([])).toBeNull();
+    // That is the empty state's job, and two explanations of one blank screen
+    // is one more than anybody reads.
+    expect(firstActiveDay(RANGE, [])).toBeNull();
+  });
+
+  it('is not fooled by rows arriving out of order', () => {
+    expect(firstActiveDay(RANGE, [day('2026-08-04', 10), day('2026-08-02', 10)])).toBe(
+      '2026-08-02',
+    );
+  });
+});
+
+describe('filling the gaps in a sparse series', () => {
+  const day = (localDate: string, revenueAmd: number) => ({ localDate, revenueAmd, tabs: 1 });
+
+  it('gives every day in the range a point', () => {
+    // A line chart plotted off the sparse series draws a straight slope across
+    // the days the venue was shut, which reads as steady trade through them.
+    const filled = everyDayIn({ from: '2026-08-01', to: '2026-08-05' }, [
+      day('2026-08-03', 90_000),
+    ]);
+
+    expect(filled.map((entry) => entry.localDate)).toEqual([
+      '2026-08-01',
+      '2026-08-02',
+      '2026-08-03',
+      '2026-08-04',
+      '2026-08-05',
+    ]);
+    expect(filled.map((entry) => entry.revenueAmd)).toEqual([0, 0, 90_000, 0, 0]);
+    expect(filled.map((entry) => entry.tabs)).toEqual([0, 0, 1, 0, 0]);
+  });
+
+  it('leaves a dense series alone', () => {
+    const dense = [day('2026-08-01', 10), day('2026-08-02', 20)];
+    expect(everyDayIn({ from: '2026-08-01', to: '2026-08-02' }, dense)).toEqual(dense);
   });
 });

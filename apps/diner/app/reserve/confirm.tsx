@@ -37,7 +37,25 @@ export default function ConfirmScreen() {
     partySize: string;
   }>();
 
-  const size = Number(partySize ?? '2');
+  /*
+   * Route params, treated as untrusted input.
+   *
+   * These are pushed by the branch screen from state it built, so in the
+   * ordinary flow they are always sound. But Expo Router serves deep links, and
+   * a hand-made one can carry anything — and `formatDate` below throws
+   * `InvalidInstantError` on a string it cannot read, during render, in a tree
+   * with no error boundary. That is the same failure the public page had when
+   * its date input was cleared: unreadable input reaching a formatter.
+   *
+   * So both are parsed once, here, and the screen renders what it can.
+   */
+  const size = Number.isInteger(Number(partySize)) && Number(partySize) > 0 ? Number(partySize) : 2;
+
+  const slotDate = useMemo(() => {
+    if (!slotUtc) return null;
+    const parsed = new Date(slotUtc);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, [slotUtc]);
   const [errorText, setErrorText] = useState<string | null>(null);
 
   /**
@@ -141,8 +159,8 @@ export default function ConfirmScreen() {
         <Row
           label={t('confirm.when')}
           value={
-            slotUtc
-              ? `${formatDate(slotUtc, timeZoneId, locale)} · ${formatTime(slotUtc, timeZoneId, locale)}`
+            slotDate
+              ? `${formatDate(slotDate, timeZoneId, locale)} · ${formatTime(slotDate, timeZoneId, locale)}`
               : ''
           }
         />

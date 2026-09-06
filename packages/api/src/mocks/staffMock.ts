@@ -386,7 +386,12 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         ownerParticipantId: null,
         participantId: null,
         orderedByName: null,
-        sharedWithCount: seededTab.participants.length,
+        // Zero, because this line is not shared. The wire's
+        // `sharedWithParticipantIds` is "who it splits across, snapshotted at
+        // order time", and an unshared line splits across nobody. This used to
+        // report the roster size, which made every solo line claim to split
+        // four ways the moment four people were on the tab.
+        sharedWithCount: 0,
         status: 'active',
         voidReason: null,
         voidedByName: null,
@@ -1027,8 +1032,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           // panel must not be built against something the wire never sends.
           participantId: null,
           orderedByName: null,
-          // Snapshotted now. A friend who arrives later is not on this line.
-          sharedWithCount: tab.participants.length,
+          /*
+           * Snapshotted now, and zero when the line is not shared.
+           *
+           * The count is `sharedWithParticipantIds.length` on the wire, so an
+           * unshared line is 0 rather than "everyone currently here". Reporting
+           * the roster size for every line was the mock's own version of the
+           * bug its comment warns about — it just made the error on the
+           * *unshared* lines instead of the late-arriving ones.
+           */
+          sharedWithCount: line.isShared ? tab.participants.length : 0,
           status: 'active',
           voidReason: null,
           voidedByName: null,

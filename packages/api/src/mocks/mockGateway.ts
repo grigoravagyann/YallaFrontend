@@ -45,7 +45,7 @@ import type { YallaGateway } from '../gateway';
 import { mockMenuFor } from './menu';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
-import { mockBranchMenu, mockMenuItem } from './menuDetail';
+import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
 import { mockVenues, type Branch as MockBranch } from './venues';
 
@@ -798,7 +798,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async getBranchMenuDetail(branchId): Promise<BranchMenu | null> {
       await wait();
-      return venueTypeFor(branchId) ? mockBranchMenu(branchId, venueTypeFor(branchId)!) : null;
+      const type = venueTypeFor(branchId);
+      // Complete items only. The server applies this and the mock did not, so
+      // a screen built against the mock was being handed items with empty
+      // allergen lists that production would never send.
+      return type ? publishedBranchMenu(mockBranchMenu(branchId, type)) : null;
     },
 
     async getDinerTab(tabId): Promise<DinerTabView | null> {

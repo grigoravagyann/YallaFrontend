@@ -72,7 +72,9 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
   // A range that starts before the venue was trading. Said out loud so a ramp
   // is not read as a decline — and phrased as what is actually known, because
   // no go-live date exists on the wire to claim.
-  const startedOn = firstActiveDay(revenue.data.byDay);
+  const startedOn = query
+    ? firstActiveDay({ from: query.from, to: query.to }, revenue.data.byDay)
+    : null;
 
   return (
     <section className="report-section report-summary" aria-labelledby="report-summary-title">

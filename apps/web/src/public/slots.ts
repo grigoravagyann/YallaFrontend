@@ -82,9 +82,77 @@ export function timeOptions(): readonly string[] {
   return options;
 }
 
-/** The instant a selection names, resolved in the branch's zone. */
-export function slotInstant(selection: SlotSelection, timeZoneId: TimeZone): Date {
-  const [year, month, day] = selection.date.split('-').map(Number) as [number, number, number];
-  const [hour, minute] = selection.time.split(':').map(Number) as [number, number];
+/**
+ * What is wrong with a selection, or `null` when nothing is.
+ *
+ * Named rather than boolean because the two halves have different fallbacks:
+ * a missing date falls back to today, a missing time to the next half hour.
+ * Mirrors `problemWith` in the reports range module — same idiom, same reason.
+ */
+export type SlotProblem = 'date' | 'time';
+
+/** `YYYY-MM-DD`, and a real calendar day rather than 2026-13-45. */
+function readDate(value: string): [number, number, number] | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  // Round-tripped, so 2026-02-30 is refused rather than silently becoming the
+  // 2nd of March — a date control can produce one and a diner would be booking
+  // a day they did not pick.
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
+
+  return [year, month, day];
+}
+
+/** `HH:mm` on a 24-hour clock. */
+function readTime(value: string): [number, number] | null {
+  const match = /^(\d{2}):(\d{2})$/u.exec(value);
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour > 23 || minute > 59 ? null : [hour, minute];
+}
+
+export function slotProblem(selection: SlotSelection): SlotProblem | null {
+  if (readDate(selection.date) === null) return 'date';
+  if (readTime(selection.time) === null) return 'time';
+  return null;
+}
+
+/**
+ * The instant a selection names, resolved in the branch's zone — or `null`.
+ *
+ * **Null rather than a throw, and this is the whole point of the function.**
+ *
+ * It used to parse with `split` and `Number` and hand whatever came out to
+ * `instantFromZonedClock`. An empty date gave `NaN` for the year, which became
+ * an Invalid Date, which threw `RangeError: Invalid time value` inside
+ * `Intl.DateTimeFormat.formatToParts` — during render, in a tree with no error
+ * boundary anywhere in the app. Clearing the date input on the public branch
+ * page white-screened the tab.
+ *
+ * That page is the one sent to strangers on WhatsApp. It is opened by somebody
+ * who has never heard of Yalla, on a phone, with no reason whatsoever to try
+ * again — so of every place in the product a crash could live, this was the
+ * worst. A `type="date"` input is *empty* between a clear and the next
+ * keystroke, and it is empty for as long as somebody leaves it that way.
+ *
+ * Callers decide what an unresolvable selection means. None of them may render
+ * a room for it, and none of them has to catch anything.
+ */
+export function slotInstant(selection: SlotSelection, timeZoneId: TimeZone): Date | null {
+  const date = readDate(selection.date);
+  const time = readTime(selection.time);
+  if (!date || !time) return null;
+
+  const [year, month, day] = date;
+  const [hour, minute] = time;
   return instantFromZonedClock({ year, month, day, hour, minute }, timeZoneId);
 }
