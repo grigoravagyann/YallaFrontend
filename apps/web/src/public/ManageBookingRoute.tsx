@@ -1,4 +1,4 @@
-import { freeCancellationCopy, newCommandId } from '@yalla/api';
+import { freeCancellationCopy } from '@yalla/api';
 import {
   isOfflinePaused,
   useCancelManagedBooking,
@@ -7,7 +7,7 @@ import {
 } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FailedPage, LoadingPage } from './PageStates';
 
@@ -35,19 +35,15 @@ export function ManageBookingRoute() {
   const { t: td } = useTranslation('diner');
   const { locale } = useLocale();
 
-  const bookingQuery = useManagedBooking(token);
-  const cancel = useCancelManagedBooking(token);
+  // The slugs travel from this URL: the endpoint does not send them back, and
+  // the page links home with them.
+  const slugs = { venueSlug: venueSlug ?? '', branchSlug: branchSlug ?? '' };
+  const bookingQuery = useManagedBooking(token, slugs);
+  const cancel = useCancelManagedBooking(token, slugs);
   const [confirming, setConfirming] = useState(false);
   // Subscribed to rather than read during render, so the deadline actually
   // passes on a page somebody left open — and so the render stays pure.
   const now = useNow(30_000);
-
-  /*
-   * One id for the life of this page, reused on every retry — the same rule the
-   * booking itself follows. Cancelling twice because the first response was
-   * lost must be the same command, not a second one.
-   */
-  const commandId = useRef(newCommandId()).current;
 
   if (bookingQuery.isLoading) return <LoadingPage />;
   if (bookingQuery.isError || isOfflinePaused(bookingQuery)) {
@@ -159,7 +155,9 @@ export function ManageBookingRoute() {
                   type="button"
                   className="pub-button pub-button-danger"
                   disabled={cancel.isPending}
-                  onClick={() => cancel.mutate(commandId)}
+                  // No reason is collected: one button, and asking why would be a
+                  // second screen between a diner and the thing the venue needs.
+                  onClick={() => cancel.mutate(undefined)}
                 >
                   {cancel.isPending ? t('manage.cancelling') : td('bookings.detail.cancelConfirm')}
                 </button>

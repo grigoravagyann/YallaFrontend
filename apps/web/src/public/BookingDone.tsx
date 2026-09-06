@@ -1,5 +1,5 @@
 import { freeCancellationCopy, type Booking, type PublicBranch } from '@yalla/api';
-import { formatDate, formatTime } from '@yalla/format';
+import { formatDate, formatDuration, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
 import { appUrl } from './gateways';
@@ -138,6 +138,19 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
       </dl>
 
       <p className="pub-muted">{td(cancellation.key, cancellation.params)}</p>
+
+      {/*
+        What happens *after* that time, which the deadline alone does not say.
+        Cancelling late is allowed and merely recorded as late — a venue would
+        far rather know than have the table sit empty — and a diner who thinks
+        they have missed their chance to cancel simply does not turn up. The
+        number is the branch's own published rule, not a constant.
+      */}
+      <p className="pub-muted">
+        {t('done.lateCancellation', {
+          window: formatDuration(branch.policy.cancellationDeadlineMinutes, locale),
+        })}
+      </p>
 
       {/* 1. The reminder they would otherwise never get. */}
       <section className="pub-offer">

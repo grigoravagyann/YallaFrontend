@@ -6,9 +6,11 @@ import type {
   PublicVenue,
 } from '../contracts/publicBranch';
 import {
+  managedBookingFromWire,
   publicBranchFromWire,
   publicPageMetaFromWire,
   publicVenueFromCards,
+  type WirePublicBooking,
   type WirePublicBranch,
   type WirePublicBranchMeta,
   type WirePublicVenueCard,
@@ -93,8 +95,7 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
           `/api/public/branches/${encodeURIComponent(venueSlug)}/${encodeURIComponent(branchSlug)}`,
           anonymous,
         );
-        // The response carries no timestamp; the arrival is what ages the count.
-        return publicBranchFromWire(data, new Date().toISOString());
+        return publicBranchFromWire(data);
       } catch (error) {
         return readMiss('resolveBranch', error);
       }
@@ -114,26 +115,37 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
       }
     },
 
-    async getManagedBooking(token): Promise<ManagedBooking | null> {
+    async getManagedBooking({ token, venueSlug, branchSlug }): Promise<ManagedBooking | null> {
       try {
-        const { data } = await client.get<ManagedBooking>(
+        const { data } = await client.get<WirePublicBooking>(
           `/api/public/bookings/${encodeURIComponent(token)}`,
           anonymous,
         );
-        return data;
+        return managedBookingFromWire(data, { venueSlug, branchSlug });
       } catch (error) {
+        /*
+         * A 404 here is the *only* answer for an unknown token, an expired one
+         * and a booking that no longer exists — deliberately indistinguishable,
+         * so the link cannot be used to find out which tokens are real. It is
+         * `null`, which the route renders as "this link is not valid".
+         *
+         * A cancelled, missed or finished booking is not a 404: it answers 200
+         * with its state, so somebody opening a three-week-old link learns what
+         * happened to their table.
+         */
         return readMiss('getManagedBooking', error);
       }
     },
 
-    async cancelManagedBooking({ token, commandId }): Promise<ManagedBooking> {
+    async cancelManagedBooking({ token, venueSlug, branchSlug, reason }): Promise<ManagedBooking> {
       try {
-        const { data } = await client.post<ManagedBooking>(
+        // `reason` is the only field this route accepts; there is no command id.
+        const { data } = await client.post<WirePublicBooking>(
           `/api/public/bookings/${encodeURIComponent(token)}/cancel`,
-          { clientCommandId: commandId },
+          reason === undefined ? {} : { reason },
           anonymous,
         );
-        return data;
+        return managedBookingFromWire(data, { venueSlug, branchSlug });
       } catch (error) {
         if (error instanceof NotFoundError && !error.code) {
           throw new EndpointNotWiredError({ url: error.url, endpoint: 'cancelManagedBooking' });

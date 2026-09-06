@@ -1,4 +1,4 @@
-import type { BranchPolicy, VenueType } from './booking';
+import type { VenueType } from './booking';
 import type { WeeklyHours } from './branchSettings';
 
 /**
@@ -32,6 +32,24 @@ export interface PublicPhoto {
   readonly fullUrl: string;
   readonly width: number | null;
   readonly height: number | null;
+}
+
+/**
+ * The reservation rules a diner needs in order to book, and nothing else.
+ *
+ * Deliberately **not** `BranchPolicy`. The backend publishes a hand-picked
+ * subset on this route and withholds the rest — `docs/public-surface.md` is
+ * explicit that it is "a hand-picked subset, not a projection of
+ * `ReservationPolicy`" — so reusing the console's four-field shape would mean
+ * inventing the two it does not send. Three numbers, all real.
+ */
+export interface PublicBranchPolicy {
+  /** How long the table is held. The answer to "can we linger?". */
+  readonly turnTimeMinutes: number;
+  /** How far ahead a booking must be made; greys out the next slot. */
+  readonly minLeadMinutes: number;
+  /** Cancelling later than this is still allowed, but recorded as late. */
+  readonly cancellationDeadlineMinutes: number;
 }
 
 /**
@@ -126,24 +144,20 @@ export interface PublicBranch {
   readonly totalTables: number;
   readonly asOfUtc: string;
 
-  /**
-   * Null over HTTP: the four reservation numbers live on an authenticated
-   * console route, and this page is served with no token at all. The mock
-   * supplies them, so anything reading this must handle both.
-   */
-  readonly policy: BranchPolicy | null;
+  /** The three published rules. Served on this route since Backend Prompt 13. */
+  readonly policy: PublicBranchPolicy;
 
   /**
    * How far ahead this branch takes bookings.
    *
-   * On `PublicBranch` rather than inside {@link BranchPolicy}, which the phone
-   * app shares and which carries only the four numbers its copy interpolates.
+   * On `PublicBranch` rather than inside {@link PublicBranchPolicy}, which is
+   * the rules for booking rather than the horizon they apply within.
    * The web page needs this one for a different job: it is the `max` on a
    * native date input, and without it a visitor can open their phone's calendar
    * and pick a day in March that the server will refuse after they have chosen
    * a table.
    */
-  readonly bookingWindowDays: number | null;
+  readonly bookingWindowDays: number;
 
   /**
    * Whether this branch takes bookings from the web at all.
@@ -206,8 +220,14 @@ export interface ManagedBooking {
   readonly floorAreaName: string | null;
   readonly partySize: number;
   readonly slotUtc: string;
-  /** End of the sitting; the `.ics` needs both ends. */
-  readonly endsAtUtc: string;
+  /**
+   * End of the sitting.
+   *
+   * Null from the manage link: `PublicBookingView` carries the start and the
+   * cancellation deadline but not the turn time, and a sitting length guessed
+   * on the client would be written into somebody's calendar as fact.
+   */
+  readonly endsAtUtc: string | null;
   readonly freeCancellationUntilUtc: string;
 
   /**

@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: https://localhost:7289/swagger/v1/swagger.json
+ * Source: http://localhost:5086/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -670,6 +670,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/public-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What this branch publishes on its public page */
+        get: operations["getBranchPublicProfile"];
+        /**
+         * Set the published phone number and whether the page takes bookings
+         * @description `acceptsWebBookings` is **false until somebody switches it on**, and stays false for every branch that has never been asked. A venue has not agreed to take bookings from strangers on the internet by never having been consulted, so this is a decision made during onboarding rather than a default inherited - which is also why it appears on the branch readiness checklist.
+         *
+         *     While it is off the public page still shows the room, the menu and the hours and simply offers no booking.
+         *
+         *     `phoneE164` must be E.164 (`+37411223344`); spaces, dashes and brackets are stripped first. Null or blank clears it. A branch with no number published is a branch a diner on the public page has no way to ask about a high chair.
+         */
+        put: operations["putBranchPublicProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/readiness": {
         parameters: {
             query?: never;
@@ -1203,6 +1228,10 @@ export interface paths {
         /**
          * Create a venue with its first branch
          * @description A venue with no branch is useless, so the first branch is created in the same transaction. A failure creates neither. The branch's `subscriptionTier` defaults to Free.
+         *
+         *     **Missing fields are reported together.** An empty body names `name`, `slug` and `firstBranch` in one 422, each in `context.fields`, rather than making somebody submit three times to discover three problems. Nested fields are dotted - `firstBranch.address`.
+         *
+         *     **Out-of-range values are still reported one at a time**, as a 400 - a latitude of 200 refuses before the next field is looked at. The bounds live in the `Venue` and `Branch` constructors rather than in a limits class of their own, so collecting them would mean a second copy of every rule. See `docs/platform-admin.md`.
          */
         post: operations["createVenue"];
         delete?: never;
@@ -1281,6 +1310,53 @@ export interface paths {
          * @description What happens when someone stops paying. The venue disappears from diner browsing but keeps all its data and stays visible to its owner.
          */
         post: operations["suspendVenue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/bookings/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One booking, by the manage link that was mailed with it
+         * @description What the confirmation screen renders, for somebody holding nothing but the link: venue, branch, address, table, local date and time, party size, status, the code quoted at the door, and the instant past which cancelling counts as late.
+         *
+         *     **Nothing else.** No diner id, no phone number, no other bookings, no floor state. The token is the whole credential and it will be pasted into WhatsApp, left in browser history and read by whoever picks the phone up, so this response is a hand-picked subset rather than a trimmed reservation.
+         *
+         *     **A cancelled, missed or finished booking answers 200 with its state**, not 404. Somebody opening a three-week-old link should learn what happened to their table.
+         *
+         *     **An unknown token, an expired one and a booking that no longer exists answer identically** - same status, same code, same sentence. The link must not be usable to find out which tokens are real. The link stops working `ManageTokenGraceDays` after the booking ends.
+         */
+        get: operations["getPublicBooking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/bookings/{token}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancels a booking from its manage link.
+         * @description The reason is optional and comes from the body, which may be absent entirely - a diner
+         *     tapping Cancel on a page has nothing to say and should not have to send an empty object.
+         */
+        post: operations["cancelPublicBooking"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2224,6 +2300,11 @@ export interface components {
              * @description The line, or null for the whole tab.
              */
             tabOrderLineId?: string | null;
+        };
+        /** @description Why a booking was cancelled, if the diner said. Optional in every sense. */
+        "Yalla.Api.Endpoints.CancelBookingRequest": {
+            /** @description Free text, stored on the booking. Null when the body is absent or the field is omitted. */
+            reason?: string | null;
         };
         /** @description Body for a diner cancelling their own booking. */
         "Yalla.Api.Endpoints.CancelReservationRequest": {
@@ -3307,6 +3388,16 @@ export interface components {
         /** @description What a branch still needs before it can take diners. */
         "Yalla.Application.BranchSettings.BranchReadinessView": {
             /**
+             * @description Whether the branch takes bookings from its public page.
+             *     <b>Reported, and deliberately not a blocker.</b> A venue that does not want bookings from
+             *     strangers on the internet is not an unfinished venue - most will start this way, and its public
+             *     page showing the room, the menu and the hours is a perfectly good page. It is on the checklist
+             *     so that leaving it off is something somebody saw and chose, rather than a default they never
+             *     knew they had inherited; a line that blocked going live would instead teach every onboarder to
+             *     switch it on without reading it, which is the opposite of the point.
+             */
+            acceptsWebBookings: boolean;
+            /**
              * @description One sentence per unsatisfied line, in checklist order. The console renders its own labels; this
              *     is for the places that need to say what is wrong without reimplementing the list - a log line,
              *     a support answer, an email to the venue.
@@ -3519,6 +3610,27 @@ export interface components {
             day: components["schemas"]["System.DayOfWeek"];
             /** Format: time */
             opensAt: string;
+        };
+        /** @description The same two settings, as written. Both are replaced at once. */
+        "Yalla.Application.BranchSettings.PublicProfileCommand": {
+            /** @description Whether to offer booking on the public page. */
+            acceptsWebBookings: boolean;
+            /**
+             * @description E.164, e.g. `+37411223344`. Spaces, dashes and brackets are stripped before validation.
+             *     Null or blank clears the number.
+             */
+            phoneE164?: string | null;
+        };
+        /** @description The two settings that decide what a branch publishes to anybody with its link. */
+        "Yalla.Application.BranchSettings.PublicProfileView": {
+            /**
+             * @description Whether the public page offers booking. See
+             *     Yalla.Domain.Venues.Branch.AcceptsWebBookings for why this is false until somebody
+             *     says otherwise.
+             */
+            acceptsWebBookings: boolean;
+            /** @description The published contact number in E.164, or null when there is none. */
+            phoneE164?: string | null;
         };
         /** @description The whole plan, replaced in one atomic call. */
         "Yalla.Application.BranchSettings.ReplaceFloorPlanCommand": {
@@ -4511,6 +4623,55 @@ export interface components {
              */
             venueId: string;
         };
+        /** @description One booking as its manage link shows it, to somebody holding nothing but the link. */
+        "Yalla.Application.Public.PublicBookingView": {
+            /** @description Where to go. */
+            branchAddress: string;
+            /** @description Which location. */
+            branchName: string;
+            /**
+             * @description Whether cancelling would do anything - false once the booking is already cancelled, missed or
+             *     finished. <b>Not</b> the deadline: cancelling past the deadline is allowed and merely recorded.
+             */
+            canCancel: boolean;
+            /**
+             * Format: date-time
+             * @description The instant past which cancelling is recorded as late. Absolute rather than a number of minutes
+             *     so the page does not have to reimplement the arithmetic, and so a policy edit cannot silently
+             *     move a deadline the diner has already been shown.
+             */
+            cancellationDeadlineUtc: string;
+            /** @description Whether this booking's cancellation, if it has one, arrived past the deadline. */
+            cancelledAfterDeadline: boolean;
+            /** @description The short code quoted at the door. */
+            code: string;
+            /**
+             * Format: date
+             * @description The booked date, as the diner reads it off the confirmation.
+             */
+            localDate: string;
+            /**
+             * Format: time
+             * @description The booked wall-clock start.
+             */
+            localStartTime: string;
+            /**
+             * Format: int32
+             * @description How many people.
+             */
+            partySize: number;
+            /** @description Lifecycle of a booking. Every member is the result of somebody doing something. */
+            status: components["schemas"]["Yalla.Domain.Enums.ReservationStatus"];
+            /** @description The table, as printed on the floor. */
+            tableLabel: string;
+            /**
+             * @description The branch's IANA zone. Every time here is wall-clock in it, and a diner reading this on a
+             *     phone set to another zone must not be shown a converted time.
+             */
+            timeZoneId: string;
+            /** @description The venue, as the confirmation names it. */
+            venueName: string;
+        };
         /** @description One branch on the browse list. */
         "Yalla.Application.Public.PublicBranchCard": {
             /** @description Where it is. */
@@ -4548,8 +4709,27 @@ export interface components {
         };
         /** @description One branch's public page. */
         "Yalla.Application.Public.PublicBranchPage": {
+            /**
+             * @description Whether this branch takes bookings from this page. <b>False unless somebody switched it on</b> -
+             *     see Yalla.Domain.Venues.Branch.AcceptsWebBookings. When false the page shows the
+             *     room, the menu and the hours and offers no booking, which is a perfectly good page.
+             */
+            acceptsWebBookings: boolean;
             /** @description Street address, as a person would read it. */
             address: string;
+            /**
+             * Format: date-time
+             * @description When the server read the live half of this page. FreeTableCount,
+             *     IsOpenNow and each table's `isFree` are true as of this instant and no
+             *     later; the rest is stable. The page shows the staleness rather than implying there is none,
+             *     because this link is cached for seconds and shared for days.
+             */
+            asOfUtc: string;
+            /**
+             * Format: int32
+             * @description How many days ahead this branch takes bookings, which is the maximum of the date input.
+             */
+            bookingWindowDays: number;
             /**
              * Format: uuid
              * @description The id the menu and availability routes take.
@@ -4584,6 +4764,21 @@ export interface components {
             /** @description The weekly hours. */
             openingHours: components["schemas"]["Yalla.Application.BranchSettings.OpeningHoursView"][];
             /**
+             * @description The branch's contact number in E.164, or null when nobody has supplied one. The only way a
+             *     diner on this page can ask about a high chair or a wheelchair ramp.
+             */
+            phoneE164?: string | null;
+            /**
+             * @description The reservation rules a diner needs, and <b>only</b> those - see
+             *     Yalla.Application.Public.PublicReservationPolicy for what is deliberately withheld.
+             */
+            policy: components["schemas"]["Yalla.Application.Public.PublicReservationPolicy"];
+            /**
+             * @description Open or Closed - see Yalla.Application.Public.PublicBranchStatus. Lets the page tell "shut tonight" from
+             *     "this venue is gone", which neither IsOpenNow alone nor a 404 can say.
+             */
+            status: components["schemas"]["Yalla.Application.Public.PublicBranchStatus"];
+            /**
              * Format: int32
              * @description How many bookable tables there are, so the count has a denominator.
              */
@@ -4600,6 +4795,14 @@ export interface components {
             /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
             venueType: components["schemas"]["Yalla.Domain.Enums.VenueType"];
         };
+        /**
+         * Format: int32
+         * @description Whether the page is showing a branch a diner can act on.
+         *
+         *     Values: 1 Open, 2 Closed.
+         * @enum {integer}
+         */
+        "Yalla.Application.Public.PublicBranchStatus": 1 | 2;
         /** @description The room as a diner sees it: a canvas, areas, and tables. */
         "Yalla.Application.Public.PublicFloorPlan": {
             areas: components["schemas"]["Yalla.Application.BranchSettings.FloorAreaView"][];
@@ -4651,6 +4854,26 @@ export interface components {
              * @description Top edge on the canvas.
              */
             y: number;
+        };
+        /** @description The reservation rules a diner needs in order to book, and nothing else. */
+        "Yalla.Application.Public.PublicReservationPolicy": {
+            /**
+             * Format: int32
+             * @description How long before the start a diner may still cancel freely. On the page because a deadline
+             *     nobody was told about is a deadline that produces no-shows rather than cancellations.
+             */
+            cancellationDeadlineMinutes: number;
+            /**
+             * Format: int32
+             * @description How far ahead a booking must be made, which is what greys out the next available slot.
+             */
+            minLeadMinutes: number;
+            /**
+             * Format: int32
+             * @description How long the table is held. The diner is told this before booking because it is the answer to
+             *     "can we linger?", and finding out at the table is worse.
+             */
+            turnTimeMinutes: number;
         };
         /** @description One venue on the browse list, with its branches. */
         "Yalla.Application.Public.PublicVenueCard": {
@@ -5154,6 +5377,11 @@ export interface components {
             localEndTime: string;
             /** Format: time */
             localStartTime: string;
+            /**
+             * @description The plaintext manage token, <b>returned exactly once</b> - in the response to the request
+             *     that created this booking - and null on every later read.
+             */
+            manageToken?: string | null;
             /** Format: int32 */
             partySize: number;
             /** Format: date-time */
@@ -8541,6 +8769,162 @@ export interface operations {
             };
         };
     };
+    getBranchPublicProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.BranchSettings.PublicProfileView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putBranchPublicProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Application.BranchSettings.PublicProfileCommand"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.BranchSettings.PublicProfileView"];
+                };
+            };
+            /** @description `phoneE164` is not a valid E.164 number. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getBranchReadiness: {
         parameters: {
             query?: never;
@@ -10773,7 +11157,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Platform.VenueDetail"];
                 };
             };
-            /** @description A field is missing or out of range. */
+            /** @description A field is out of range, or the body is malformed. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -10807,6 +11191,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Required fields are missing; `context.fields` names every one. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -11292,6 +11685,162 @@ export interface operations {
                 };
             };
             /** @description No such venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBookingView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The link is not valid. Deliberately indistinguishable from an expired one. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelPublicBooking: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.CancelBookingRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBookingView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The link is not valid. Deliberately indistinguishable from an expired one. */
             404: {
                 headers: {
                     [name: string]: unknown;

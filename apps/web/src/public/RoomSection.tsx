@@ -149,6 +149,7 @@ export function RoomSection({
     branch.bookingWindowDays === null ? undefined : addDays(today, branch.bookingWindowDays);
 
   const handleTap = (tableId: string) => {
+    if (!branch.acceptsWebBookings) return;
     const availability = slotFloorQuery.data?.tables.find((entry) => entry.tableId === tableId);
     if (availability) onTableTap(availability);
   };
@@ -160,9 +161,16 @@ export function RoomSection({
    * table greyed out reads as "fully booked", which is a different fact and
    * sends the visitor away instead of to the date picker.
    */
-  const rejection = slotFloorQuery.data?.rejection
-    ? unavailableCopy(slotFloorQuery.data.rejection, selection.partySize)
-    : null;
+  /*
+   * Only when booking is on offer. `availability` still answers for a venue with
+   * web booking switched off — the room's free/taken colouring comes from it —
+   * but "too soon to book this table" on a page with no booking on it is an
+   * answer to a question nobody asked.
+   */
+  const rejection =
+    branch.acceptsWebBookings && slotFloorQuery.data?.rejection
+      ? unavailableCopy(slotFloorQuery.data.rejection, selection.partySize)
+      : null;
 
   return (
     <section className="pub-section" aria-labelledby="room" ref={holder}>
@@ -232,7 +240,7 @@ export function RoomSection({
         banner. It sits above the room because the room is where the next step
         is, and it survives until another table is picked.
       */}
-      {takenTableLabel ? (
+      {branch.acceptsWebBookings && takenTableLabel ? (
         <p className="pub-notice pub-notice-alert" role="status">
           {t('confirm.error.tableTaken', { ns: 'diner', label: takenTableLabel })}
         </p>
@@ -265,6 +273,7 @@ export function RoomSection({
             partySize={selection.partySize}
             selectedTableId={selectedTableId}
             onTableTap={handleTap}
+            bookable={branch.acceptsWebBookings}
           />
         </Suspense>
       )}
