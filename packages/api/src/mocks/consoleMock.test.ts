@@ -121,6 +121,7 @@ describe('console mock — creating a venue', () => {
       type: 'cafe',
       firstBranch: {
         name: 'Kond',
+        slug: 'kond',
         timeZoneId: 'Asia/Yerevan',
         address: '3 Paronyan Street, Yerevan',
         latitude: 40.1826,
@@ -145,6 +146,7 @@ describe('console mock — creating a venue', () => {
         type: 'cafe',
         firstBranch: {
           name: 'Somewhere',
+          slug: 'somewhere',
           timeZoneId: 'Asia/Yerevan',
           address: '1 Somewhere Street, Yerevan',
           latitude: 40.1792,

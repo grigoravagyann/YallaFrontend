@@ -185,6 +185,13 @@ export interface CreateVenueCommand {
      * missing from this command, which is why every create returned 400: the
      * comment on the old gateway assumed the server filled them in.
      */
+    /**
+     * The branch half of `/{venueSlug}/{branchSlug}`. Supplied rather than
+     * derived from the name: `slugify` strips everything outside a-z0-9, so an
+     * Armenian or Russian branch name derives to an empty string and the server
+     * refuses it — which is the common case in this market, not an edge one.
+     */
+    readonly slug: string;
     readonly address: string;
     readonly latitude: number;
     readonly longitude: number;

@@ -2,7 +2,6 @@ import { staffRoleToUserRole, type VenueUserIdentity } from '../auth/endpoints';
 import { claimString, decodeJwtPayload } from '../auth/jwt';
 import type { AuthSession } from '../auth/session';
 import type { ApiClient } from '../client';
-import { slugify } from '../slug';
 import type { ConsoleGateway } from '../consoleGateway';
 import type {
   ConsoleUser,
@@ -365,7 +364,7 @@ export function createConsoleHttpGateway(
           type: command.type === 'restaurant' ? 2 : 1,
           firstBranch: {
             name: command.firstBranch.name,
-            slug: slugify(command.firstBranch.name),
+            slug: command.firstBranch.slug,
             address: command.firstBranch.address,
             latitude: command.firstBranch.latitude,
             longitude: command.firstBranch.longitude,

@@ -1,8 +1,7 @@
-import { SlugTakenError, type VenueType } from '@yalla/api';
+import { SlugTakenError, ValidationError, slugify, type VenueType } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { slugify } from '@yalla/api';
 import { useCreateVenue } from '../../data/queries';
 import { newCommandId } from '../../lib/commandId';
 
@@ -28,6 +27,8 @@ export function CreateVenueRoute() {
   const [type, setType] = useState<VenueType>('cafe');
   const [branchName, setBranchName] = useState('');
   const [timeZoneId, setTimeZoneId] = useState<string>(TIME_ZONES[0]);
+  const [branchSlug, setBranchSlug] = useState('');
+  const [branchSlugEdited, setBranchSlugEdited] = useState(false);
   const [address, setAddress] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -40,6 +41,14 @@ export function CreateVenueRoute() {
   const commandId = useRef(newCommandId()).current;
 
   const effectiveSlug = slugEdited ? slug : slugify(name);
+  /*
+   * The branch needs its own, and it cannot be silently derived: `slugify`
+   * strips everything outside a-z0-9, so "Կոնդ" and "Кафе" both come out empty
+   * and the server answers 400 on a field the form never showed. In an Armenian
+   * market that is the common name, not an edge case — so the branch gets the
+   * same editable web address the venue has.
+   */
+  const effectiveBranchSlug = branchSlugEdited ? branchSlug : slugify(branchName);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -48,6 +57,7 @@ export function CreateVenueRoute() {
     if (!name.trim()) return setError(t('create.error.nameRequired'));
     if (!effectiveSlug) return setError(t('create.error.slugRequired'));
     if (!branchName.trim()) return setError(t('create.error.branchRequired'));
+    if (!effectiveBranchSlug) return setError(t('create.error.branchSlugRequired'));
     if (!address.trim()) return setError(t('create.error.addressRequired'));
 
     /*
@@ -73,6 +83,7 @@ export function CreateVenueRoute() {
         type,
         firstBranch: {
           name: branchName.trim(),
+          slug: effectiveBranchSlug,
           timeZoneId,
           address: address.trim(),
           latitude: lat,
@@ -83,10 +94,18 @@ export function CreateVenueRoute() {
     } catch (caught) {
       // Names the field at fault rather than reporting a generic failure at the
       // bottom of a form the person then has to re-read.
+      /*
+       * The backend names the field it refused (`context.field`) and puts a
+       * sentence in `detail`. Dropping both for a flat "we could not create
+       * that" is how a wrong payload stayed invisible: the server had been
+       * saying "slug" on every attempt and nothing showed it.
+       */
       setError(
         caught instanceof SlugTakenError
           ? t('create.error.slugTaken', { slug: caught.slug })
-          : t('create.error.generic'),
+          : caught instanceof ValidationError && caught.field
+            ? t('create.error.field', { field: caught.field, detail: caught.message })
+            : t('create.error.generic'),
       );
     }
     return undefined;
@@ -158,6 +177,26 @@ export function CreateVenueRoute() {
               placeholder={t('create.branchNamePlaceholder')}
               autoComplete="off"
             />
+          </label>
+
+          <label className="labelled">
+            <span>{t('create.branchSlug')}</span>
+            <input
+              className="field"
+              value={effectiveBranchSlug}
+              onChange={(event) => {
+                setBranchSlugEdited(true);
+                setBranchSlug(slugify(event.target.value));
+              }}
+              placeholder={t('create.branchSlugPlaceholder')}
+              autoComplete="off"
+            />
+            <span className="muted small">
+              {t('create.branchSlugHint', {
+                venue: effectiveSlug || t('create.slugPlaceholder'),
+                branch: effectiveBranchSlug || t('create.branchSlugPlaceholder'),
+              })}
+            </span>
           </label>
 
           <label className="labelled">
