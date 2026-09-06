@@ -239,15 +239,15 @@ const schemaSegments = schemaPaths.map((path) => ({ path, parts: segments(path) 
  * has both, and `api:generate` writes them from the same source in the same run,
  * so they cannot disagree. Absent, the URL half still runs.
  */
-let bodies = null;
-try {
-  const swagger = JSON.parse(
-    readFileSync(join(PACKAGE_ROOT, 'src', 'generated', 'swagger.json'), 'utf8'),
-  );
-  bodies = swagger;
-} catch {
-  bodies = null;
+function readSwagger() {
+  try {
+    return JSON.parse(readFileSync(join(PACKAGE_ROOT, 'src', 'generated', 'swagger.json'), 'utf8'));
+  } catch {
+    return null;
+  }
 }
+
+const bodies = readSwagger();
 
 function schemaFor(swagger, name) {
   return swagger?.components?.schemas?.[name] ?? null;
