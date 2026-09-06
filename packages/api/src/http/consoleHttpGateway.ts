@@ -2,6 +2,7 @@ import { staffRoleToUserRole, type VenueUserIdentity } from '../auth/endpoints';
 import { claimString, decodeJwtPayload } from '../auth/jwt';
 import type { AuthSession } from '../auth/session';
 import type { ApiClient } from '../client';
+import { slugify } from '../slug';
 import type { ConsoleGateway } from '../consoleGateway';
 import type {
   ConsoleUser,
@@ -202,6 +203,19 @@ const TIER_TO_WIRE: Readonly<Record<SubscriptionTier, number>> = { free: 1, paid
  * Every method maps a real endpoint. Nothing is faked: a fabricated
  * "suspended" would be worse than any error.
  */
+/**
+ * The canvas a new branch's floor starts on, in the editor's own units.
+ *
+ * `CreateBranchCommand` requires both, and the create form does not ask: an
+ * owner sets the real room size in the floor plan editor, with the room in
+ * front of them. This is a starting canvas, not a claim about the building, and
+ * it matches the dimensions the seeded demo branch uses.
+ */
+const NEW_BRANCH_FLOOR = { width: 1000, height: 700 } as const;
+
+/** `SubscriptionTier.Free`. Every venue starts free; the platform upgrades it later. */
+const FREE_TIER = 1;
+
 export function createConsoleHttpGateway(
   client: ApiClient,
   options: ConsoleHttpGatewayOptions,
@@ -336,16 +350,29 @@ export function createConsoleHttpGateway(
 
     async createVenue(command: CreateVenueCommand) {
       try {
-        // The backend takes no `commandId` on this route and derives the
-        // branch slug from its name; the fields it does take are sent, and
-        // nothing is invented for the ones it does not.
+        /*
+         * The backend takes no `commandId` on this route. It also does **not**
+         * derive the branch slug from its name, which an earlier comment here
+         * claimed: `CreateBranchCommand` requires all nine of name, slug,
+         * address, latitude, longitude, timeZoneId, floorWidth, floorHeight and
+         * subscriptionTier, and sending two of them answered
+         * `400 Value must not be null or blank. (Parameter 'slug')` on every
+         * attempt. Venue creation had never worked against a real backend.
+         */
         const { data } = await client.post<WireDetail>(`${PLATFORM}/venues`, {
           name: command.name,
           slug: command.slug,
           type: command.type === 'restaurant' ? 2 : 1,
           firstBranch: {
             name: command.firstBranch.name,
+            slug: slugify(command.firstBranch.name),
+            address: command.firstBranch.address,
+            latitude: command.firstBranch.latitude,
+            longitude: command.firstBranch.longitude,
             timeZoneId: command.firstBranch.timeZoneId,
+            floorWidth: NEW_BRANCH_FLOOR.width,
+            floorHeight: NEW_BRANCH_FLOOR.height,
+            subscriptionTier: FREE_TIER,
           },
         });
         return venueDetailFromWire(data);

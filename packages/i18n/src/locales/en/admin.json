@@ -121,8 +121,16 @@
       "slugRequired": "Give it a web address.",
       "slugTaken": "\"{{slug}}\" is already in use. Pick another.",
       "branchRequired": "Name the first branch.",
-      "generic": "We could not create that. Nothing was saved."
-    }
+      "generic": "We could not create that. Nothing was saved.",
+      "addressRequired": "Give the branch a street address.",
+      "pinRequired": "Give the branch a map pin — both latitude and longitude.",
+      "pinRange": "That map pin is not a real place. Latitude is between -90 and 90, longitude between -180 and 180."
+    },
+    "address": "Street address",
+    "addressPlaceholder": "12 Abovyan Street, Yerevan",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "pinHint": "The map pin diners are sent to. Right-click the spot in Google Maps and copy the two numbers."
   },
   "branchSwitcher": {
     "label": "Branch",

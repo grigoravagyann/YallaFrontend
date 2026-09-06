@@ -1,4 +1,5 @@
 import type { ConsoleGateway } from '../consoleGateway';
+import { slugify } from '../slug';
 import type {
   ConsoleBranch,
   ConsoleStaffMember,
@@ -175,14 +176,6 @@ export interface ConsoleMockOptions {
    * walked without four accounts.
    */
   readonly role?: UserRole;
-}
-
-function slugify(name: string): string {
-  return name
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/gu, '-')
-    .replace(/^-+|-+$/gu, '');
 }
 
 /** Both tiers across the fixture so the list column is not one repeated value. */

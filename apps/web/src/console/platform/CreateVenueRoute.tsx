@@ -2,19 +2,12 @@ import { SlugTakenError, type VenueType } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { slugify } from '@yalla/api';
 import { useCreateVenue } from '../../data/queries';
 import { newCommandId } from '../../lib/commandId';
 
 /** Every venue in the pilot is in Yerevan; the field exists so the second is not a migration. */
 const TIME_ZONES = ['Asia/Yerevan'] as const;
-
-function slugify(name: string): string {
-  return name
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/gu, '-')
-    .replace(/^-+|-+$/gu, '');
-}
 
 /**
  * Create a venue and its first branch — one flow, not two.
@@ -35,6 +28,9 @@ export function CreateVenueRoute() {
   const [type, setType] = useState<VenueType>('cafe');
   const [branchName, setBranchName] = useState('');
   const [timeZoneId, setTimeZoneId] = useState<string>(TIME_ZONES[0]);
+  const [address, setAddress] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -52,6 +48,22 @@ export function CreateVenueRoute() {
     if (!name.trim()) return setError(t('create.error.nameRequired'));
     if (!effectiveSlug) return setError(t('create.error.slugRequired'));
     if (!branchName.trim()) return setError(t('create.error.branchRequired'));
+    if (!address.trim()) return setError(t('create.error.addressRequired'));
+
+    /*
+     * The backend takes these as non-nullable doubles, so a blank field would
+     * arrive as 0,0 — a point in the Atlantic that renders as a valid map pin.
+     * Refusing here is the difference between "you missed a field" and a venue
+     * whose "Open in maps" link sends a diner to Null Island.
+     */
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+    if (!latitude.trim() || !longitude.trim() || Number.isNaN(lat) || Number.isNaN(lon)) {
+      return setError(t('create.error.pinRequired'));
+    }
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return setError(t('create.error.pinRange'));
+    }
 
     try {
       const venue = await createVenue.mutateAsync({
@@ -59,7 +71,13 @@ export function CreateVenueRoute() {
         name: name.trim(),
         slug: effectiveSlug,
         type,
-        firstBranch: { name: branchName.trim(), timeZoneId },
+        firstBranch: {
+          name: branchName.trim(),
+          timeZoneId,
+          address: address.trim(),
+          latitude: lat,
+          longitude: lon,
+        },
       });
       navigate(`/platform/venues/${venue.id}`, { replace: true });
     } catch (caught) {
@@ -141,6 +159,50 @@ export function CreateVenueRoute() {
               autoComplete="off"
             />
           </label>
+
+          <label className="labelled">
+            <span>{t('create.address')}</span>
+            <input
+              className="field"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder={t('create.addressPlaceholder')}
+              autoComplete="off"
+            />
+          </label>
+
+          <div className="pair">
+            <label className="labelled">
+              <span>{t('create.latitude')}</span>
+              <input
+                className="field"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={-90}
+                max={90}
+                value={latitude}
+                onChange={(event) => setLatitude(event.target.value)}
+                placeholder="40.1830"
+              />
+            </label>
+
+            <label className="labelled">
+              <span>{t('create.longitude')}</span>
+              <input
+                className="field"
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={-180}
+                max={180}
+                value={longitude}
+                onChange={(event) => setLongitude(event.target.value)}
+                placeholder="44.5150"
+              />
+            </label>
+          </div>
+          <p className="hint">{t('create.pinHint')}</p>
 
           <label className="labelled">
             <span>{t('create.timeZone')}</span>

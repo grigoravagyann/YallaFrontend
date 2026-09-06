@@ -470,3 +470,5 @@ export type {
   VoidLineCommand,
   VoidReason,
 } from './contracts/ordering';
+
+export { slugify } from './slug';

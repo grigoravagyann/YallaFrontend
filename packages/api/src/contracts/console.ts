@@ -179,5 +179,14 @@ export interface CreateVenueCommand {
   readonly firstBranch: {
     readonly name: string;
     readonly timeZoneId: string;
+    /**
+     * Street address, latitude and longitude are all required by the backend
+     * and cannot be derived from anything the form already has. They were
+     * missing from this command, which is why every create returned 400: the
+     * comment on the old gateway assumed the server filled them in.
+     */
+    readonly address: string;
+    readonly latitude: number;
+    readonly longitude: number;
   };
 }
