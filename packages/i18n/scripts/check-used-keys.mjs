@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fails if the source calls `t('namespace:key')` for a key no locale defines.
+ * Fails if the source calls `t()` for a key no locale defines.
  *
  * `check-parity.mjs` compares the locales against *each other*, so a key that is
  * missing from all three is perfectly in parity and passes clean. i18next then
@@ -11,25 +11,43 @@
  * `common:action.save` reached the venue Overview, Menu and dish dialog — 27
  * visible key paths across two screens, with every parity check green.
  *
- * Two call forms are checked, and the bare one needs care.
+ * ## Which namespace a key is checked against
  *
- * An explicit `t('common:action.save')` names its own namespace, so it is
- * checked against exactly that bundle.
+ * Three ways a call names one, in the order they are trusted:
  *
- * A bare `t('save')` resolves against whatever the calling component passed to
- * `useTranslation`, and a file holds several components — `PageStates.tsx` alone
- * has four, three on `public` and one on `diner`. Tying each call to its own
- * component means scope analysis, which a regex cannot do. So a bare key is
- * accepted if **any** namespace the file mentions defines it. That is a
- * deliberate over-approximation: it can miss a key that resolves only in a
- * sibling component's namespace, and in exchange it never reports a key that
- * really is fine. A check that cries wolf gets switched off.
+ * 1. **In the key** — `t('common:action.save')` is unambiguous, so it is checked
+ *    against exactly that bundle.
+ * 2. **In the options** — `t('booking.date', { ns: 'diner' })` overrides whatever
+ *    the component was set up with, and eight call sites on the public page rely
+ *    on it. Honoured, or every one of them would be reported as missing.
+ * 3. **From the file** — a bare `t('save')` resolves against whatever the calling
+ *    component passed to `useTranslation`, and a file holds several components:
+ *    `PageStates.tsx` alone has four, three on `public` and one on `diner`. Tying
+ *    each call to its own component means scope analysis, which a regex cannot
+ *    do. So a bare key is accepted if **any** namespace the file mentions defines
+ *    it. That is a deliberate over-approximation: it can miss a key that resolves
+ *    only in a sibling component's namespace, and in exchange it never reports a
+ *    key that really is fine. A check that cries wolf gets switched off.
  *
- * It still earns its keep — that rule is what catches `t('save')` in a file that
- * only ever asks for `['admin', 'common']`, which is how a lowercase `save` and
- * `cancel` ended up on the staff dialog's two buttons.
+ * That third rule still earns its keep — it is what catches `t('save')` in a file
+ * that only ever asks for `['admin', 'common']`, which is how a lowercase `save`
+ * and `cancel` ended up on the staff dialog's two buttons.
  *
- * A computed key is not knowable at all and is not checked.
+ * ## Calls with options are checked too
+ *
+ * They did not used to be. The rule was "a call that goes on to options may carry
+ * a `defaultValue`", which is true of maybe one call in a thousand and was being
+ * paid for by the other 203 in this repo — including every interpolated and
+ * pluralised string on the diner surface. A missing `staff.pinShown` walked
+ * straight through the check that was written to catch exactly that.
+ *
+ * So the options are read rather than used as an excuse to stop: a call is
+ * skipped **only** when they literally contain a `defaultValue:` key, which is
+ * the one case where i18next renders something sensible with no bundle entry
+ * behind it.
+ *
+ * A computed key — a variable, a template literal, anything but a string literal
+ * — is not knowable and is not checked.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -49,23 +67,23 @@ const PLURAL_SUFFIXES = ['zero', 'one', 'two', 'few', 'many', 'other'];
 const PLURAL_RE = new RegExp(`_(${PLURAL_SUFFIXES.join('|')})$`, 'u');
 
 /**
- * `t('common:action.save')` and `t("common:action.save")`, with optional
- * whitespace after the paren. The leading boundary rejects any identifier that
- * merely *ends* in `t` — without it, `fetch('http://…')` reads as namespace
- * `http`, and every URL in the repo becomes a missing key.
+ * Any `t(` whose first argument is a string literal.
+ *
+ * The leading boundary rejects an identifier that merely *ends* in `t` — without
+ * it, `fetch('http://…')` reads as a call on namespace `http` and every URL in
+ * the repo becomes a missing key.
  */
-const CALL_RE = /(?<![A-Za-z0-9_$.])t\(\s*['"]([a-z][a-zA-Z0-9]*):([A-Za-z0-9_.]+)['"]/gu;
+const CALL_RE = /(?<![A-Za-z0-9_$.])t\(\s*(['"])([A-Za-z][A-Za-z0-9_.:]*)\1/gu;
 
-/**
- * `t('action.save')` — no namespace prefix. Closed with `)` on purpose: a call
- * that goes on to options may carry a `defaultValue`, which renders fine with no
- * key behind it and is not this check's business.
- */
-const BARE_CALL_RE = /(?<![A-Za-z0-9_$.])t\(\s*'([a-zA-Z][A-Za-z0-9_.]*)'\s*\)/gu;
+/** `defaultValue:` as an object key, not the word appearing inside some string. */
+const DEFAULT_VALUE_RE = /\bdefaultValue\s*:/u;
+
+/** `{ ns: 'diner' }` and `{ ns: ['diner', 'common'] }`. */
+const NS_OPTION_RE = /\bns\s*:\s*(\[[^\]]*\]|'[a-z]+'|"[a-z]+")/u;
 
 /** The namespaces a file asks for: `useTranslation('public')`, `useTranslation(['admin', 'common'])`. */
 const USE_TRANSLATION_RE = /useTranslation\(\s*(\[[^\]]*\]|'[a-z]+')/gu;
-const QUOTED_NAME_RE = /'([a-z]+)'/gu;
+const QUOTED_NAME_RE = /['"]([a-z]+)['"]/gu;
 
 /** Flatten to dotted leaf paths, mirroring check-parity.mjs. */
 function leafKeys(value, prefix = '') {
@@ -88,6 +106,41 @@ function readNamespace(locale, namespace) {
     if (error.code === 'ENOENT') return null;
     throw new Error(`${locale}/${namespace}.json is not valid JSON`, { cause: error });
   }
+}
+
+/**
+ * Everything between a call's parentheses, or `null` if they do not balance.
+ *
+ * Quotes are tracked so a `)` inside a string does not end the call early, and
+ * escapes so `'\\''` does not open one. Enough for an options object, which is
+ * all this reads; a template literal with a nested brace-expression containing
+ * an unbalanced bracket would defeat it, and the caller treats `null` as "cannot
+ * tell" rather than as permission to skip.
+ */
+function callArguments(source, openParenIndex) {
+  let depth = 0;
+  let quote = null;
+
+  for (let i = openParenIndex; i < source.length; i += 1) {
+    const character = source[i];
+
+    if (quote !== null) {
+      if (character === '\\') i += 1;
+      else if (character === quote) quote = null;
+      continue;
+    }
+
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character;
+    } else if (character === '(' || character === '[' || character === '{') {
+      depth += 1;
+    } else if (character === ')' || character === ']' || character === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(openParenIndex + 1, i);
+    }
+  }
+
+  return null;
 }
 
 function* sourceFiles(directory) {
@@ -115,82 +168,88 @@ const defined = new Map(
   ]),
 );
 
-/** `namespace:key` -> ["path:line", …], so one bad key reports every call site. */
-const used = new Map();
+function definesKey(namespace, key) {
+  const keys = defined.get(namespace);
+  return keys !== undefined && (keys.has(key) || keys.has(baseKey(key)));
+}
 
-/** Bare keys, already resolved against their file's namespaces: one entry per unresolved site. */
-const unresolvedBare = [];
-
-let bareCount = 0;
+const problems = [];
+let checked = 0;
+let skippedForDefault = 0;
 
 for (const root of SOURCE_ROOTS) {
   const absolute = join(REPO_ROOT, root);
+
   for (const file of sourceFiles(absolute)) {
     const source = readFileSync(file, 'utf8');
-    const at = (index) =>
+    const where = (index) =>
       `${relative(REPO_ROOT, file).replaceAll('\\', '/')}:${source.slice(0, index).split('\n').length}`;
-
-    for (const match of source.matchAll(CALL_RE)) {
-      const reference = `${match[1]}:${match[2]}`;
-      const sites = used.get(reference);
-      if (sites) sites.push(at(match.index));
-      else used.set(reference, [at(match.index)]);
-    }
 
     // Every namespace this file asks for, pooled — see the header on why the
     // pool is per file rather than per component.
-    const pooled = new Set(
-      [...source.matchAll(USE_TRANSLATION_RE)].flatMap((match) =>
-        [...match[1].matchAll(QUOTED_NAME_RE)].map((name) => name[1]),
+    const pooled = [
+      ...new Set(
+        [...source.matchAll(USE_TRANSLATION_RE)].flatMap((match) =>
+          [...match[1].matchAll(QUOTED_NAME_RE)].map((name) => name[1]),
+        ),
       ),
-    );
-    if (pooled.size === 0) continue;
+    ].sort();
 
-    for (const match of source.matchAll(BARE_CALL_RE)) {
-      bareCount += 1;
-      const key = match[1];
-      const resolves = [...pooled].some((namespace) => {
-        const keys = defined.get(namespace);
-        return keys?.has(key) || keys?.has(baseKey(key));
-      });
-      if (resolves) continue;
-      unresolvedBare.push(
-        `"${key}" is used but defined in none of [${[...pooled].sort().join(', ')}]\n` +
-          `    ${at(match.index)}`,
+    for (const match of source.matchAll(CALL_RE)) {
+      const literal = match[2];
+
+      // `t(` is the first two characters of the match; its paren opens the call.
+      const args = callArguments(source, match.index + 1);
+      if (args !== null && DEFAULT_VALUE_RE.test(args)) {
+        skippedForDefault += 1;
+        continue;
+      }
+
+      const colon = literal.indexOf(':');
+      if (colon !== -1) {
+        const namespace = literal.slice(0, colon);
+        const key = literal.slice(colon + 1);
+        checked += 1;
+        if (!defined.has(namespace)) {
+          problems.push(
+            `"${literal}" names namespace "${namespace}", which does not exist\n` +
+              `    ${where(match.index)}`,
+          );
+        } else if (!definesKey(namespace, key)) {
+          problems.push(`"${literal}" is used but defined in no locale\n    ${where(match.index)}`);
+        }
+        continue;
+      }
+
+      // An `ns` in the options overrides the component's own, so it is the
+      // answer when present — and a narrower one than the file-wide pool.
+      const declared = args === null ? null : NS_OPTION_RE.exec(args);
+      const candidates = declared
+        ? [...declared[1].matchAll(QUOTED_NAME_RE)].map((name) => name[1])
+        : pooled;
+
+      if (candidates.length === 0) continue;
+      checked += 1;
+      if (candidates.some((namespace) => definesKey(namespace, literal))) continue;
+
+      problems.push(
+        `"${literal}" is used but defined in none of [${candidates.join(', ')}]\n` +
+          `    ${where(match.index)}`,
       );
     }
   }
 }
 
-const problems = [];
-
-for (const [reference, sites] of [...used].sort(([a], [b]) => a.localeCompare(b))) {
-  const [namespace, key] = [
-    reference.slice(0, reference.indexOf(':')),
-    reference.slice(reference.indexOf(':') + 1),
-  ];
-  const keys = defined.get(namespace);
-  if (!keys) {
-    problems.push(`"${reference}" names namespace "${namespace}", which does not exist`);
-    for (const site of sites) problems.push(`    ${site}`);
-    continue;
-  }
-  if (!keys.has(key) && !keys.has(baseKey(key))) {
-    problems.push(`"${reference}" is used but defined in no locale`);
-    for (const site of sites) problems.push(`    ${site}`);
-  }
-}
-
-problems.push(...unresolvedBare.sort());
-
 if (problems.length > 0) {
   console.error('i18n:used-keys failed:\n');
-  for (const problem of problems) console.error(`  - ${problem}`);
+  for (const problem of problems.sort()) console.error(`  - ${problem}`);
   console.error('');
   process.exit(1);
 }
 
 console.log(
-  `i18n:used-keys passed — ${used.size} explicit and ${bareCount} bare t() references ` +
-    `across ${SOURCE_ROOTS.join(', ')} all resolve against ${REFERENCE}.`,
+  `i18n:used-keys passed — ${checked} t() references across ${SOURCE_ROOTS.join(', ')} all ` +
+    `resolve against ${REFERENCE}` +
+    (skippedForDefault > 0 ? `; ${skippedForDefault} skipped for a defaultValue` : '') +
+    '.',
 );
