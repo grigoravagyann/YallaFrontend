@@ -9,18 +9,20 @@ React Native and the web both consume it.
 
 ## The thesis
 
-**Colour means table state. Nothing else in the product is coloured.**
+**Chroma means one of two things: what state a table is in, or the single
+element you are meant to act on. Nothing else in the product is coloured.**
 
-Five hues carry meaning — free, reserved soon, held, occupied, out of service —
-and they are the only chroma a person sees. The primary action, the active
-navigation item, the progress fill, the big numbers: all ink on near-white.
+Five hues carry table state — free, reserved soon, held, occupied, out of
+service. One hue carries action: a violet on the primary button and the active
+navigation item, and nowhere else. Everything in between — body text, headings,
+metrics, chart fills, progress bars, borders — is achromatic.
 
 The thing a person should remember after using Yalla once is _the room, live_ —
-that you can see which tables are free right now. So the room is the only place
-in the product where colour appears, and everywhere a colour does appear it is
-answering that one question.
+that you can see which tables are free right now. So the room keeps most of the
+colour budget, and the one hue spent outside it is spent on the one place a
+person is being asked to do something.
 
-### Why the accent is ink, and not a colour
+### Why the accent is a violet, and why it is that violet
 
 The reference this system follows leads with a confident mint-green accent. We
 cannot use it, and the reason is the most important constraint in the product.
@@ -35,19 +37,35 @@ _bright_ green for free tables, kept apart by lightness, plus a
 was on screen. It worked. It also meant the accent was never confident on the
 screens that mattered most, and every new screen had to remember the swap.
 
-The five states already occupy green, amber, blue, red and grey — most of the
-wheel. Rather than hunt for the one leftover hue, we inverted the rule: **ink is
-the accent everywhere.** There is now no context in which the primary action and
-a table state can be confused, because the primary action has no hue at all.
+The first version of this system deleted the exception by making **ink** the
+accent: no hue at all, so nothing to confuse. That was correct about the floor
+plan and wrong about the console. A progress bar filled with `#131A22` reads as
+a redaction rather than a measure, an ink nav item does not announce itself, and
+the strongest value in the palette ended up spent on data nobody is being asked
+to act on. Built side by side, the ink dashboard read flat and the violet one
+read alive, while the two floor plans differed by exactly one button.
 
-`primaryOnFloorPlan` survives as a token, because four screens import it. It
-resolves to the same ink as `primary`, so those call sites are correct by
-construction rather than by remembering a rule.
+So the rule narrowed instead of the palette. The accent is `#6A38C7`:
 
-The cost is real and worth naming: outside its logo, Yalla has no brand colour.
-That is austere for hospitality. We think it buys more than it costs, because
-the alternative spends the product's one colour budget on chrome instead of on
-the room.
+- **Hue 261.** The nearest state hue is `held` blue at 220, 41 degrees away. It
+  is nowhere near the green/amber/red band a person actually scans a floor plan
+  for, and no table is ever violet — so the one violet on a floor screen is the
+  button in the corner.
+- **Chroma 0.56, 6.99:1 with white on it.** Deliberately not `#7C3AED`, the
+  violet every tool reaches for first: that one is 0.70 chroma and 5.70:1, loud
+  enough to compete with the room and too weak to carry a label on a tint.
+  `contrast.test.ts` holds a chroma _ceiling_ so it cannot drift back.
+
+`primaryOnFloorPlan` survives as a token because four screens import it, and it
+is still a no-op — the accent needs no swap. It is now correct for a measured
+reason rather than a remembered one.
+
+**What the move off ink cost, stated plainly.** Ink was 17.52:1 on white, so
+every state fill was separated from the accent by lightness for free. Violet is
+not: `occupied` red is 1.25:1 from it, the same value in greyscale. Hue and
+shape carry that separation instead — 40+ degrees, plus a pill button against a
+rectilinear table. Both are asserted in `contrast.test.ts`, and the lost
+guarantee is asserted as lost so nobody re-derives it.
 
 ---
 
@@ -58,25 +76,24 @@ file references a hex literal.
 
 ### Ground and ink
 
-| Token              | Value     | Notes                                     |
-| ------------------ | --------- | ----------------------------------------- |
-| `surface`          | `#FFFFFF` | Cards, sheets, the floor plan canvas      |
-| `paper`            | `#F4F6FA` | The page. Near-white, faint cool cast     |
-| `foreground`       | `#131A22` | Text **and** the accent. 17.52:1 on white |
-| `mutedForeground`  | `#55606E` | Secondary. 6.39 on white, 5.91 on paper   |
-| `subtleForeground` | `#646F7C` | Tertiary. 5.11 on white, 4.73 on paper    |
+| Token              | Value     | Notes                                   |
+| ------------------ | --------- | --------------------------------------- |
+| `surface`          | `#FFFFFF` | Cards, sheets, the floor plan canvas    |
+| `paper`            | `#F4F6FA` | The page. Near-white, faint cool cast   |
+| `foreground`       | `#131A22` | Text. 17.52:1 on white. Not the accent  |
+| `mutedForeground`  | `#55606E` | Secondary. 6.39 on white, 5.91 on paper |
+| `subtleForeground` | `#646F7C` | Tertiary. 5.11 on white, 4.73 on paper  |
 
 `paper` is never pure white, because a white card has to read as lifted off the
-page and it cannot do that against white. The cast is blue rather than the green
-it used to be: with ink as the accent there is no green in the chrome for a warm
-ground to agree with, and a cool ground keeps the five state hues looking like
-the only colour on screen.
+page and it cannot do that against white. The cast is blue rather than green: a
+cool ground agrees with the violet and keeps the five state hues looking like
+the only other colour on screen.
 
-`subtleForeground` clears AA on `surface` and `paper` and **fails on the tint**
-(4.31:1). That is deliberate and tested: tertiary text is never set on a tinted
-fill. Darkening it until it passed everywhere would collapse it into
-`mutedForeground` and leave the product with two text weights pretending to be
-three.
+`subtleForeground` clears AA on `surface` and `paper` and **fails on both
+tints** (4.31:1 on `greenTint`, 4.24:1 on `accentTint`). That is deliberate and
+tested: tertiary text is never set on a tinted fill. Darkening it until it
+passed everywhere would collapse it into `mutedForeground` and leave the product
+with two text weights pretending to be three.
 
 ### Lines
 
@@ -89,15 +106,43 @@ three.
 
 ### The accent
 
-| Token               | Value                                                |
-| ------------------- | ---------------------------------------------------- |
-| `primary`           | `#131A22` — ink                                      |
-| `primaryPressed`    | `#2A3644` — ink, lifted. White clears 12.28:1        |
-| `primaryForeground` | `#FFFFFF`                                            |
-| `greenTint`         | `#E7ECF3` — kept under its old name, no longer green |
+| Token               | Value                                                         |
+| ------------------- | ------------------------------------------------------------- |
+| `primary`           | `#6A38C7` — violet, hue 261, chroma 0.56. White clears 6.99:1 |
+| `primaryPressed`    | `#552CA0` — pressed. White clears 9.32:1                      |
+| `primaryForeground` | `#FFFFFF`                                                     |
+| `accentTint`        | `#EDE7FA` — the accent's own light ground                     |
+| `greenTint`         | `#E7ECF3` — kept under its old name, neutral, not the accent  |
 
-`greenTint` is now a neutral tint. The name survives because nineteen screens
-import it and this was a change to one package. Renaming it is a follow-up.
+The two tints are not interchangeable: `greenTint` is the neutral fill behind a
+selected row or an icon tile, `accentTint` is the light ground for something in
+the accent's role that is not the primary action itself — a hovered nav item, a
+selected chip in an accent context. The active nav item is a **solid** violet
+with a white label; the tint is the quieter step below it. Text clears AA on
+both tints — accent 5.80:1 and ink 14.53:1 on `accentTint` — and
+`subtleForeground` is banned from both.
+
+`greenTint` is neither green nor violet. The name survives because nineteen
+screens import it and this was a change to one package. Renaming it is a
+follow-up.
+
+### Data
+
+Charts are neutral. The accent marks the one bar that is current, and nothing
+else in a chart is allowed to carry it.
+
+| Token            | Value                                                             |
+| ---------------- | ----------------------------------------------------------------- |
+| `dataFill`       | `#6E7987` — every bar, line and progress fill that is not current |
+| `dataFillActive` | `#6A38C7` — the accent. The current bar, and only that            |
+| `dataTrack`      | `#E7ECF3` — the empty remainder of a bar. Nothing is read off it  |
+
+`dataFill` exists because the alternative was ink, and an ink progress fill
+reads as a redaction rather than a measure. It sits a step below
+`mutedForeground` and well above the hairlines: 4.42:1 on white, 4.09 on paper,
+**3.73 on `dataTrack`** — a chart is a meaningful graphic, so it owes 3:1 both
+against the card behind it and against the track it sits inside. Chroma 0.10, so
+it is not a state and it is not the thing you are meant to press.
 
 ---
 
@@ -118,18 +163,42 @@ from these same tokens so it cannot drift from what the room draws.
 
 ### Why each hue survives beside the accent
 
-The accent is achromatic (chroma 0.06). Every state that carries a hue carries a
-real one (chroma > 0.4). There is no lightness-based near-miss to reason about,
-because there is no chromatic accent to miss against. This is asserted, not
-assumed: `contrast.test.ts` measures the accent's chroma and each state's.
+This guarantee used to come free. With ink as the accent it was achromatic, so
+nothing could be mistaken for it and nothing had to be measured. A violet accent
+has to earn the same thing, so `contrast.test.ts` now measures it against **all
+six** states rather than the four that happen to carry a hue.
 
-Two states are close to grey, and lightness separates them: `outOfService` is a
-pale dead table, the accent is a near-black control, and they clear AA against
-each other.
+**The four chromatic states are separated by hue.** Every one carries a real hue
+(chroma > 0.4) and every one is at least 40 degrees from the accent:
 
-`yourPick` is deliberately the accent colour. It marks the table the diner's
-next action applies to, it is diner-only, it never co-occurs with a button in the
-same role, and it is the only state carrying a ring.
+| State          | Hue | Degrees from the accent (261) |
+| -------------- | --- | ----------------------------- |
+| `held`         | 220 | **41** — the near miss        |
+| `occupied`     | 0   | 99                            |
+| `free`         | 155 | 106                           |
+| `reservedSoon` | 40  | 139                           |
+
+`held` blue is the reason this violet is not bluer. One degree of headroom is
+not slack, it is the constraint, and the test holds the 40-degree floor.
+
+**The two hueless states are separated by chroma.** `outOfService` (0.09) and
+`yourPick` (0.06) both land near hue 213 on paper, but at that chroma the angle
+describes nothing a person can see. The real gap is saturation: 0.56 against
+0.09 and 0.06. `outOfService` is also checked at the opacity it is actually
+drawn at — `#8B95A1` at 70% resolves to `#AEB5BD`, 3.38:1 from the accent, where
+the raw hex would have measured a colour nobody ever sees.
+
+**What is not separated is lightness**, and the tests say so out loud.
+`occupied` red is 1.25:1 from the accent and `held` blue 1.47:1 — in greyscale
+they are the same value. Hue carries it, and shape carries the rest: a button is
+a pill (`radius.pill`), a table is rectilinear (`radius.table` ≤ 2), and no
+amount of colour confusion turns one into the other.
+
+`yourPick` is **ink, deliberately not the accent.** It used to be the accent,
+back when the accent was ink. Keeping it ink is the stronger arrangement: the
+table a diner has chosen and the button that confirms the choice now differ in
+hue rather than in shape and position alone, so the two can sit on the same
+sheet without either explaining itself.
 
 ### Why every state also works in greyscale
 
@@ -316,8 +385,16 @@ and on a tablet held at arm's length.
 ### Console — desktop browser, owners and managers, sitting down
 
 The reference direction lands here directly. Sidebar with quiet section
-headings, a solid-ink active item and secondary actions pinned to the bottom.
-Three metric cards across the top at `metric` 52. Card padding `xl` (24).
+headings, a solid violet active item and secondary actions pinned to the bottom.
+Three metric cards across the top at `metric` 52, set in ink — a number is read,
+not pressed. Card padding `xl` (24).
+
+The console carries exactly two violets: the active nav item and the primary
+button. Everything else on the screen is ink, neutral or a table state.
+
+This is the surface the accent was moved off ink for. Sparklines and progress
+bars draw in `dataFill`, with `dataFillActive` on the one current bar, so a card
+reads as filled-versus-empty instead of as a block of redacted text.
 
 ### Staff floor screen — 10-inch tablet, landscape, standing, during service
 
@@ -335,7 +412,8 @@ Three metric cards across the top at `metric` 52. Card padding `xl` (24).
   "seat" is a mis-tap during a Friday rush. Separate them with at least `xl` (24)
   or put them behind a confirm.
 - **Direct sunlight is the design condition**, which is why every state carries a
-  non-colour signal and why the ink accent is near-black rather than mid-grey.
+  non-colour signal and why the accent is a dark violet rather than a bright one:
+  white has to clear AA on it at full brightness on a terrace.
 
 ### Diner app — phone, portrait, ~380pt, often poor mobile data
 
@@ -356,7 +434,8 @@ Three metric cards across the top at `metric` 52. Card padding `xl` (24).
 Same phone rules as the diner app. One difference that matters: this page is
 often the first thing anyone sees of the product, and it is the surface where the
 thesis has to land in three seconds. The room, with its colours, sits above the
-fold. Everything else on the page is ink on near-white.
+fold. Everything else on the page is ink on near-white, with the accent on the
+single "Book a table" button and nowhere else.
 
 ---
 
@@ -376,15 +455,27 @@ resolves to zero under `prefers-reduced-motion`, and a test asserts it.
 - **The green-tinted shadow.**
 - **The brand/free green distinction and the floor-plan swap**, replaced by a
   rule that needs no exception.
+- **Ink as the accent**, the first draft of that rule. It kept the rule
+  perfectly and cost the console its data viz. The violet keeps the rule too —
+  it is 41 degrees from the nearest state and fills no table — and gives the
+  dashboard back a colour that means "act here".
 
 ---
 
 ## Verification
 
-`packages/tokens/src/contrast.test.ts` — **46 assertions, all passing**, up from 32. It covers text contrast on every ground, the state labels against their
-composited fills, control boundaries at 3:1, the achromatic accent, the pairwise
-distinctness of the six state treatments, the metric hierarchy, and reduced
-motion.
+`packages/tokens/src/contrast.test.ts` — **60 assertions, all passing**, up from
+32 in the system this replaces and 46 in its first ink-accent draft. It covers
+text contrast on every ground including both tints, the state labels against
+their composited fills, control boundaries at 3:1, the accent's hue separation
+from all six states, the chroma ceiling that keeps it off the default violet,
+the chart-fill rules, the pairwise distinctness of the six state treatments, the
+metric hierarchy, and reduced motion.
+
+The accent rules were checked red before being trusted. Nudging the accent 20
+degrees toward `held` blue fails three tests; setting it to `#7C3AED` fails the
+chroma ceiling; putting the chart fill back to ink fails two; leaking the accent
+into a chart's default fill fails three.
 
 Run it with `pnpm --filter @yalla/tokens test`. It runs in CI with the rest.
 
