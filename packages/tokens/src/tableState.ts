@@ -105,8 +105,15 @@ export const tableStatusStyle: Readonly<Record<TableStatus, TableStatusStyle>> =
   occupied: {
     fill: color.danger,
     fillOpacity: 1,
-    stroke: color.border,
-    strokeWidth: 1,
+    /*
+     * Its own hue, two units wide, where `free` takes a one-unit hairline in
+     * the neutral border colour. Both states are a flat fill with no pattern,
+     * so without this they differ only in hue — and the pair a floor screen
+     * shows most often would be the pair that vanishes in bright sun or for a
+     * red/green-deficient reader. The heavier edge is the signal.
+     */
+    stroke: color.dangerPressed,
+    strokeWidth: 2,
     strokeDash: null,
     pattern: 'none',
     patternAngleDegrees: 0,

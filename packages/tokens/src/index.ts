@@ -1,4 +1,4 @@
-export { color, subtleTextBackgrounds, textBackgrounds } from './color';
+export { color, subtleTextBackgrounds, textBackgrounds, tintedFills } from './color';
 export type { ColorToken } from './color';
 
 export { compositedFill, tableStatusStyle, tableStatusLegendOrder } from './tableState';
