@@ -133,16 +133,26 @@ else in a chart is allowed to carry it.
 
 | Token            | Value                                                             |
 | ---------------- | ----------------------------------------------------------------- |
-| `dataFill`       | `#6E7987` — every bar, line and progress fill that is not current |
+| `dataFill`       | `#7D8896` — every bar, line and progress fill that is not current |
 | `dataFillActive` | `#6A38C7` — the accent. The current bar, and only that            |
 | `dataTrack`      | `#E7ECF3` — the empty remainder of a bar. Nothing is read off it  |
 
 `dataFill` exists because the alternative was ink, and an ink progress fill
-reads as a redaction rather than a measure. It sits a step below
-`mutedForeground` and well above the hairlines: 4.42:1 on white, 4.09 on paper,
-**3.73 on `dataTrack`** — a chart is a meaningful graphic, so it owes 3:1 both
-against the card behind it and against the track it sits inside. Chroma 0.10, so
-it is not a state and it is not the thing you are meant to press.
+reads as a redaction rather than a measure. A chart recedes, so the value is
+pushed as light as the rules allow and then stopped by one of them.
+
+**The track is the pin.** A bar owes 3:1 as a meaningful graphic, and it owes it
+against every ground it sits on — including `dataTrack`, the strip drawn behind
+a progress fill, which is the tightest of the three. `dataFill` reads 3.60:1 on
+white and 3.33 on paper but **3.03:1 on the track**, and one step lighter
+(`#7E8997`) measures 2.99 and fails. This is the lightest a bar can be and still
+be a bar; `contrast.test.ts` checks all three grounds, so the floor cannot be
+crossed by accident.
+
+Chroma 0.10, so it is not a table state either. It lands close to
+`borderInteractive` in value (3.60 against 3.85 on white) and that is fine —
+one is a 1px control boundary, the other a filled bar, and no text sits on
+either.
 
 ---
 

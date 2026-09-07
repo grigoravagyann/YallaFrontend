@@ -96,13 +96,19 @@ const palette = {
   /**
    * The weight every chart, sparkline and progress bar is drawn in.
    *
-   * A step below `inkMuted` and well above the hairlines: 4.42:1 on white,
-   * 4.09 on paper, 3.73 on `inkTint` — so a bar clears the 3:1 owed by a
-   * meaningful graphic on the page *and* against the track it sits in. Neutral
-   * by construction (0.10 chroma), because a chart is not a table state and is
-   * not the thing you are meant to press.
+   * **Pinned by the track, not by the page.** A bar owes 3:1 as a meaningful
+   * graphic, and the tightest of the three grounds it sits on is `inkTint` —
+   * the progress track drawn *behind* it. This value reads 3.60:1 on white and
+   * 3.33 on paper, but only **3.03:1 on the track**, and that last number is
+   * the whole constraint: one step lighter (`#7E8997`) measures 2.99 and fails.
+   * This is the lightest a bar can be and still be a bar.
+   *
+   * Light is the goal. A chart recedes — it is read, not pressed — and the
+   * first draft of this system proved the opposite by filling bars with ink,
+   * which turned a progress meter into a redaction. Neutral by construction
+   * (0.10 chroma), because a chart is not a table state either.
    */
-  slate: '#6E7987',
+  slate: '#7D8896',
 
   // --- The accent ----------------------------------------------------------
   /** Violet, hue 261, 0.56 chroma. 6.99:1 with white on it. */
