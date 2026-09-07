@@ -1,12 +1,18 @@
 import { color } from './color';
 
 /**
- * Shadows: soft, diffused and green-tinted, never pure black.
+ * Shadows: soft, diffused and ink-tinted, never pure black.
  *
- * A grey shadow under a white card reads as a component library. These are the
- * brand green at low alpha with a large blur and a negative spread, so a card
- * sits on the paper the way a real card does — a warm halo underneath rather
- * than a hard drop.
+ * A pure-black shadow under a white card reads as a component library. These
+ * are the product's ink at low alpha with a large blur and a negative spread,
+ * so a card sits on the paper the way a real card does — a diffuse halo
+ * underneath rather than a hard drop.
+ *
+ * **This is what defines a card in this system.** Cards are separated from the
+ * page by elevation, not by a border: a soft shadow on near-white is what lets
+ * a dense dashboard stay calm, where a grid of outlined boxes reads as a form.
+ * The alphas are lower than the system they replace, because the ground moved
+ * closer to white and a shadow tuned for a tinted page is too heavy on this one.
  *
  * Three recipes, one directional variant:
  *
@@ -16,7 +22,7 @@ import { color } from './color';
  * - `sheet` — `float` mirrored upward, because a bottom sheet rises from the
  *   bottom edge and a downward shadow under it would be invisible.
  */
-const SHADOW_RGB = '30, 91, 60';
+const SHADOW_RGB = '19, 26, 34';
 
 interface NativeShadow {
   readonly shadowColor: string;
@@ -55,10 +61,10 @@ function shadow(
 }
 
 export const elevation = {
-  soft: shadow(4, 20, -2, 0.14, 3),
-  float: shadow(10, 40, -10, 0.2, 8),
-  lift: shadow(20, 40, -10, 0.16, 12),
-  sheet: shadow(-10, 40, -10, 0.2, 8),
+  soft: shadow(2, 12, -2, 0.08, 2),
+  float: shadow(8, 28, -8, 0.12, 6),
+  lift: shadow(12, 32, -8, 0.1, 10),
+  sheet: shadow(-8, 28, -8, 0.12, 6),
 } as const satisfies Record<string, Elevation>;
 
 export type ElevationToken = keyof typeof elevation;

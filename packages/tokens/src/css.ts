@@ -57,6 +57,10 @@ function scaleVars(surface: SurfaceName): string[] {
     ...Object.entries(scale.lineHeight).map(
       ([step, value]) => `--line-height-${step}: ${value}px;`,
     ),
+    // The hero number. Emitted per surface like the steps, because its size is
+    // a property of reading distance, not a constant.
+    `--font-size-metric: ${scale.metric.size}px;`,
+    `--line-height-metric: ${scale.metric.lineHeight}px;`,
   ];
 }
 

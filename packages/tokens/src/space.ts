@@ -52,13 +52,25 @@ export const radius = {
    */
   table: 2,
   /** Small containers that are not controls: icon tiles, code cells, banners. */
-  soft: 12,
-  /** Cards. */
-  card: 24,
-  /** The one corner of an asymmetric card that swells — the other three stay `card`. */
-  cardAccent: 48,
+  soft: 10,
+  /**
+   * Cards, on every surface.
+   *
+   * Down from 24. A 24px corner on a 200px metric card is a lozenge; the
+   * reference this system follows sits nearer 14, and at that radius a grid of
+   * cards reads as a grid rather than as a row of pills. Small enough to be
+   * calm, large enough that it is unmistakably deliberate.
+   */
+  card: 14,
+  /**
+   * Retained for the one dev screen that imports it, and no longer part of the
+   * system. It was the swelling corner of an asymmetric card — the signature
+   * move of the organic direction this replaces. Nothing in the new system
+   * asks a card to be asymmetric.
+   */
+  cardAccent: 28,
   /** Bottom sheets — top corners only. */
-  sheet: 28,
+  sheet: 20,
   /** Buttons, inputs, chips, avatars: fully round. */
   pill: 999,
 } as const;

@@ -99,11 +99,20 @@ export const fontFeature = {
 export type TypeStep = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl';
 
 /**
- * The two steps set in the display face. Everything below them is body.
+ * No step is set in the display face any more.
+ *
+ * The serif is retired from the scale. Hierarchy in this system comes from
+ * size, weight and colour inside one family, which is how a dense dashboard
+ * stays calm — a serif heading over a metric card is the clearest tell that two
+ * design directions are fighting. `Yalla Serif` is still built and still
+ * exported below, because retiring a face from the scale is a token decision
+ * and deleting it is a build decision; bringing it back is a one-line change
+ * here rather than a font rebuild.
+ *
  * Sentence case throughout: no all-caps labels, and no accenting one word
  * inside a heading — both read as templated.
  */
-export const displaySteps: readonly TypeStep[] = ['xl', 'xxl'] as const;
+export const displaySteps: readonly TypeStep[] = [] as const;
 
 export function isDisplayStep(step: TypeStep): boolean {
   return displaySteps.includes(step);
@@ -114,6 +123,20 @@ export interface TypeScale {
   readonly base: number;
   readonly size: Readonly<Record<TypeStep, number>>;
   readonly lineHeight: Readonly<Record<TypeStep, number>>;
+  /**
+   * The hero number, per surface.
+   *
+   * Covers taken, revenue, free tables, average tab: a figure a person reads
+   * from further away than anything else on the screen, paired with a small
+   * label above it and a change indicator beside it. It sits outside the step
+   * scale on purpose — it is not the next heading size up, it is a different
+   * kind of thing, and giving it a step would invite its use as one.
+   *
+   * Set in `tabularNumbers`. Dram is whole-integer and commonly four to six
+   * digits, so a column of totals has to align on the digit; proportional
+   * figures make a bill look wrong to anybody who reads one.
+   */
+  readonly metric: { readonly size: number; readonly lineHeight: number };
 }
 
 /** Round to the nearest whole pixel: half-pixel line heights blur on Android. */
@@ -124,10 +147,12 @@ function scale(
   sizes: readonly [number, number, number, number, number, number],
   bodyRatio: number,
   displayRatio: number,
+  metric: number,
 ): TypeScale {
   const [xs, sm, md, lg, xl, xxl] = sizes;
   return {
     base,
+    metric: { size: metric, lineHeight: round(metric * 1.1) },
     size: { xs, sm, md, lg, xl, xxl },
     lineHeight: {
       xs: round(xs * bodyRatio),
@@ -152,9 +177,17 @@ function scale(
  * disappears on the counter.
  */
 export const typeScale = {
-  diner: scale(16, [12, 14, 16, 20, 26, 34], 1.5, 1.2),
-  staff: scale(18, [14, 16, 18, 22, 30, 40], 1.4, 1.15),
-  console: scale(15, [11, 13, 15, 18, 22, 28], 1.45, 1.25),
+  /*
+   * The metric sizes are deliberately not proportional to each surface's body
+   * size. The console's is the largest of the three because a dashboard leads
+   * with three numbers and has the room; the staff screen's is smaller than its
+   * body scale would imply because the floor plan is the hero there and a
+   * 48px counter beside it would compete; the diner never leads with a figure
+   * at all, so its metric exists only for a bill total.
+   */
+  diner: scale(16, [12, 14, 16, 20, 26, 34], 1.5, 1.2, 40),
+  staff: scale(18, [14, 16, 18, 22, 30, 40], 1.4, 1.15, 44),
+  console: scale(15, [11, 13, 15, 18, 22, 28], 1.45, 1.25, 52),
 } as const;
 
 export type SurfaceName = keyof typeof typeScale;

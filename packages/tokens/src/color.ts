@@ -1,70 +1,105 @@
 /**
  * Raw palette. Nothing outside this file should reference a hex literal.
  *
- * White grounds, green identity, and a strictly separated set of state colours.
+ * ## The one rule this palette exists to enforce
+ *
+ * **Colour means table state. Nothing else in the product is coloured.**
+ *
+ * Five hues carry meaning — free, reserved soon, held, occupied, out of
+ * service — and they are the only chroma a person sees. Every other surface in
+ * the product is ink on near-white: the primary action, the active nav item,
+ * the progress fill, the big numbers. All of it is achromatic.
+ *
+ * That is a stronger rule than the one it replaces, and it removes a whole
+ * class of bug. The previous system had a brand green *and* a free-table green,
+ * kept apart by lightness, plus a `primaryOnFloorPlan` escape that quietly
+ * swapped the button to ink whenever a floor plan was on screen. It worked, but
+ * it meant the accent was never confident on the screens that matter most, and
+ * every new screen had to remember the swap. Making ink the accent everywhere
+ * deletes the exception: there is no context in which the primary action and a
+ * table state can be confused, because the primary action has no hue at all.
+ *
+ * `primaryOnFloorPlan` survives as a token because four screens import it. It
+ * now resolves to the same ink as `primary`, so those call sites keep working
+ * and are correct by construction rather than by remembering a rule.
+ *
+ * ## Solids, not tints
+ *
  * Every fill that text sits on is a solid: a translucent tint composites
  * differently over white, over `paper` and over a state fill, so its contrast
  * cannot be checked once and trusted. The three translucent values at the
- * bottom of `color` are things text never sits on — a scrim, a focus glow and
- * a frosted nav — and each says why it is allowed.
+ * bottom of `color` are things text never sits on — a scrim, a focus ring and a
+ * frosted nav — and each says why it is allowed.
  */
 const palette = {
   white: '#FFFFFF',
-  /** Unbleached paper with the faintest green cast. */
-  paper: '#F6F9F7',
+  /**
+   * The page. Near-white with a faint cool cast, never pure white — a white
+   * card has to read as lifted off the page, and it cannot do that against
+   * white. The cast is blue rather than the green it used to be: with ink as
+   * the accent there is no green in the chrome for it to agree with, and a cool
+   * ground keeps the five state hues looking like the only colour on screen.
+   */
+  paper: '#F4F6FA',
 
-  /** Deep green-black. The product's text colour, not grey and not black. */
-  ink: '#17281F',
   /**
-   * Two units darker than the brief's `#5F7268`, which lands at 4.48:1 on
-   * `greenTint` — a hair under AA for a label on a selected row or in an icon
-   * container. Section 9 of the brief asks for the fix to be darkening rather
-   * than lowering the standard; this is that fix. See `contrast.test.ts`.
+   * Near-black, faintly blue. The product's text colour *and* its accent.
+   *
+   * 17.52:1 on white, which is far past AA and deliberately so: this is the
+   * colour of a metric a manager reads across a desk and a button a waiter hits
+   * at arm's length on a bright terrace.
    */
-  inkMuted: '#5D7066',
+  ink: '#131A22',
+  /** Secondary text. 6.39:1 on white, 5.91 on paper, 5.39 on the tint. */
+  inkMuted: '#55606E',
   /**
-   * The brief's `#93A39A` scores 2.3–2.6:1 everywhere it would be used. This
-   * ships at ≥4.5:1 on `surface` and `paper`, the two grounds tertiary text is
-   * set on — placeholders, disabled labels, captions. It is *not* legible on
-   * `greenTint` (4.28:1), so tertiary text never sits on a tinted fill; the
-   * test suite holds that rule.
+   * Tertiary text: placeholders, captions, disabled labels.
+   *
+   * 5.11:1 on `surface` and 4.73:1 on `paper` — both clear AA — but 4.31:1 on
+   * `inkTint`, which does not. That is deliberate and load-bearing: tertiary
+   * text is never set on a tinted fill, and `contrast.test.ts` holds the rule by
+   * asserting the failure. Darkening this value until it passes everywhere would
+   * collapse it into `inkMuted` and leave the product with two text weights
+   * pretending to be three.
    */
-  inkSubtle: '#647569',
+  inkSubtle: '#646F7C',
 
   /** Hairlines: dividers, input edges, table rules. */
-  line: '#DCE6E0',
-  /**
-   * The brief's "`border` at 50%" for card edges, composited over `paper` and
-   * frozen as a solid so it renders identically over white and over paper.
-   */
-  lineSoft: '#E9F0EC',
+  line: '#E2E8F0',
+  /** The softest edge in the system. Cards do not use it — see `borderSoft`. */
+  lineSoft: '#EEF2F7',
   /** A firmer hairline for the outer edge of nested structure. */
-  lineStrong: '#B8C9BF',
+  lineStrong: '#C4CCD8',
   /**
-   * Control boundaries — outlined buttons that are not brand-coloured.
+   * Control boundaries — outlined buttons and inputs.
    *
-   * The brief's `border` is 1.28:1 against white: fine as a divider, which
-   * WCAG treats as decoration, but a control boundary owes 3:1.
+   * 3.85:1 on white and 3.56:1 on paper. A divider is decoration and owes
+   * nothing; a control boundary owes 3:1, and this clears it on both grounds.
    */
-  lineInteractive: '#7E8D84',
+  lineInteractive: '#79838F',
 
-  /** Icon containers, soft section fills, the pressed state of a ghost button. */
-  greenTint: '#E8F2EC',
-  /** Brand green. Deep and desaturated — lightness ~33. */
-  green: '#1E5B3C',
-  greenPressed: '#17462E',
+  /**
+   * The one neutral fill: icon tiles, the pressed state of a ghost button, a
+   * selected row. Light enough that ink and `inkMuted` sit on it comfortably,
+   * dark enough that `inkSubtle` does not — which is the rule above.
+   */
+  inkTint: '#E7ECF3',
+
+  /** The accent, pressed. Still ink, just lifted. White clears 12.28:1 on it. */
+  inkPressed: '#2A3644',
 
   // --- The protected six ---------------------------------------------------
   // The only colours in the product that carry meaning. See `tableState.ts`.
-  /** Free-table green. Bright and saturated — lightness ~58. */
+  // Carried over unchanged: they were chosen against each other and against a
+  // colour-deficient reader, and nothing about moving the accent to ink argues
+  // for moving them. What changed is that they no longer compete with anything.
+  /** Free-table green. Bright and saturated. */
   stateFree: '#35B37E',
   stateReservedSoon: '#C98A0E',
   stateHeld: '#3B6FD4',
   stateOccupied: '#B93B3B',
   stateOutOfService: '#8B95A1',
 
-  /** Ink lifted, for the pressed state of an ink button beside a floor plan. */
-  inkPressed: '#2B3D33',
   /** Occupied red, darkened, for a destructive button under a finger. */
   stateOccupiedPressed: '#9E3232',
 } as const;
@@ -72,7 +107,7 @@ const palette = {
 export const color = {
   /** Cards, sheets, the floor plan canvas. */
   surface: palette.white,
-  /** Page background. Carries the paper grain on diner and console surfaces. */
+  /** Page background. */
   paper: palette.paper,
 
   foreground: palette.ink,
@@ -80,30 +115,40 @@ export const color = {
   subtleForeground: palette.inkSubtle,
 
   border: palette.line,
+  /**
+   * The card edge.
+   *
+   * Cards in this system are defined by elevation, not by a line — a soft
+   * shadow on near-white does the separating, which is what makes a dense
+   * dashboard read as calm. This token stays because a card that must sit on
+   * `surface` rather than `paper` has no shadow to separate it and needs an
+   * edge after all. It is the softest line available so that the exception
+   * never reads as the rule.
+   */
   borderSoft: palette.lineSoft,
   borderStrong: palette.lineStrong,
   borderInteractive: palette.lineInteractive,
 
-  greenTint: palette.greenTint,
+  /**
+   * Kept under its old name because nineteen screens import it and this task
+   * changes one package, not screens. It is no longer green: it is the neutral
+   * tint described on `inkTint`.
+   */
+  greenTint: palette.inkTint,
 
-  primary: palette.green,
+  primary: palette.ink,
   /** Hover on the web, pressed everywhere. One value: two surfaces have no hover. */
-  primaryPressed: palette.greenPressed,
+  primaryPressed: palette.inkPressed,
   primaryForeground: palette.white,
 
   /**
-   * What `primary` becomes on any screen showing a floor plan.
+   * Retained for the four screens that import it, and now a no-op.
    *
-   * Brand green and free-table green are both green. They stay legible as
-   * different things because brand green is deep and desaturated while free is
-   * bright and saturated — but that separation collapses the moment they sit
-   * side by side. A green "Reserve" button next to green free tables teaches
-   * people that green means nothing in particular, and the floor plan is the
-   * one place in this product where a colour has to mean exactly one thing.
-   *
-   * So on those screens the primary action renders in ink instead. This is a
-   * token, not an override inside one component, because the rule applies to
-   * every control on such a screen — buttons, chips, active states.
+   * It used to swap a green button to ink beside a floor plan. The accent *is*
+   * ink now, so this resolves to the same value and the swap has nothing left to
+   * do. Those call sites keep working and are right for a better reason than
+   * before: not because they remembered a rule, but because there is no longer a
+   * rule to remember.
    */
   primaryOnFloorPlan: palette.ink,
   primaryOnFloorPlanPressed: palette.inkPressed,
@@ -111,6 +156,9 @@ export const color = {
   /**
    * Feedback reuses the state hues. One green, one amber, one red and one blue
    * in the entire product: a second red would be a second thing red means.
+   *
+   * This is the only place chroma appears outside the floor plan, and it is the
+   * same chroma — a success toast is the green that means a free table.
    */
   danger: palette.stateOccupied,
   warning: palette.stateReservedSoon,
@@ -131,12 +179,12 @@ export const color = {
    * The veil behind a bottom sheet. Ink at 45% keeps the floor plan visibly
    * underneath, which is the point of a sheet rather than a pushed screen.
    */
-  scrim: 'rgba(23, 40, 31, 0.45)',
+  scrim: 'rgba(19, 26, 34, 0.45)',
   /**
-   * The keyboard focus ring: `primary` at 30%, drawn 2px wide with a 2px
-   * offset — a soft glow, not a hard outline. Never removed.
+   * The keyboard focus ring: ink at 28%, drawn 2px wide with a 2px offset — a
+   * soft halo, not a hard outline. Never removed.
    */
-  focusRing: 'rgba(30, 91, 60, 0.30)',
+  focusRing: 'rgba(19, 26, 34, 0.28)',
   /**
    * The floating web nav: `surface` at 70% over a backdrop blur. Web only; the
    * diner app uses a standard tab bar and never fakes this on a phone.
