@@ -100,12 +100,23 @@ export function CreateVenueRoute() {
        * that" is how a wrong payload stayed invisible: the server had been
        * saying "slug" on every attempt and nothing showed it.
        */
+      /*
+       * Two shapes since Backend Prompt 13, and both name fields. A 422
+       * `validation-failed` collects every missing one in `context.fields`; a
+       * 400 names the first out-of-range one and stops. Listing what came back
+       * beats "we could not create that" either way — the server had been
+       * naming the field on every failed attempt and nothing showed it.
+       */
       setError(
         caught instanceof SlugTakenError
           ? t('create.error.slugTaken', { slug: caught.slug })
-          : caught instanceof ValidationError && caught.field
-            ? t('create.error.field', { field: caught.field, detail: caught.message })
-            : t('create.error.generic'),
+          : caught instanceof ValidationError && caught.violations.length > 1
+            ? t('create.error.fields', {
+                fields: caught.violations.map((violation) => violation.field).join(', '),
+              })
+            : caught instanceof ValidationError && caught.field
+              ? t('create.error.field', { field: caught.field, detail: caught.message })
+              : t('create.error.generic'),
       );
     }
     return undefined;

@@ -4,11 +4,12 @@ import type {
   ManagedBooking,
   PublicBranch,
   PublicBranchCard,
+  PublicBranchPolicy,
   PublicPageMeta,
   PublicVenue,
   PublicVenueHeader,
 } from '../contracts/publicBranch';
-import type { Booking, BranchPolicy } from '../contracts/booking';
+import type { Booking } from '../contracts/booking';
 import { openStateFrom } from './openState';
 import {
   publicBranchFixtures,
@@ -63,12 +64,18 @@ function bookingIdFromToken(token: string): string | null {
  */
 export const BOOKING_WINDOW_DAYS = 14;
 
-/** The four numbers the reservation flow's copy is driven by. */
-const DEFAULT_POLICY: BranchPolicy = {
-  turnMinutes: 105,
-  leadTimeMinutes: 30,
-  instantConfirmationMaxPartySize: 6,
-  freeCancellationMinutes: 120,
+/**
+ * The three numbers the public page publishes.
+ *
+ * Matches `PublicReservationPolicy`, not the console's four-field `BranchPolicy`
+ * — the backend publishes a hand-picked subset on this route and withholds the
+ * rest, so a fixture carrying more than the real API sends would let a screen
+ * read a field that does not exist in production.
+ */
+const DEFAULT_POLICY: PublicBranchPolicy = {
+  turnTimeMinutes: 105,
+  minLeadMinutes: 30,
+  cancellationDeadlineMinutes: 120,
 };
 
 function venueHeader(venue: Venue): PublicVenueHeader {
@@ -146,7 +153,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
     const endsAtUtc =
       booking.window.untilUtc ??
       new Date(
-        new Date(booking.slotUtc).getTime() + DEFAULT_POLICY.turnMinutes * 60_000,
+        new Date(booking.slotUtc).getTime() + DEFAULT_POLICY.turnTimeMinutes * 60_000,
       ).toISOString();
 
     return {
@@ -249,7 +256,7 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       };
     },
 
-    async getManagedBooking(token): Promise<ManagedBooking | null> {
+    async getManagedBooking({ token }): Promise<ManagedBooking | null> {
       await wait();
       const bookingId = bookingIdFromToken(token);
       if (!bookingId) return null;

@@ -1,7 +1,10 @@
+import { instantFromZonedClock, type TimeZone } from '@yalla/format';
 import type { HoursBlock, HoursDay, WeekdayIndex, WeeklyHours } from '../contracts/branchSettings';
 import type {
+  ManagedBooking,
   OpenState,
   PublicBranch,
+  PublicBranchPolicy,
   PublicPageMeta,
   PublicVenue,
   PublicVenueHeader,
@@ -13,6 +16,7 @@ type Schemas = components['schemas'];
 export type WirePublicBranch = Schemas['Yalla.Application.Public.PublicBranchPage'];
 export type WirePublicVenueCard = Schemas['Yalla.Application.Public.PublicVenueCard'];
 export type WirePublicBranchMeta = Schemas['Yalla.Application.Public.PublicBranchMeta'];
+export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingView'];
 
 /**
  * The public wire shapes to the public page's contract types.
@@ -26,27 +30,21 @@ export type WirePublicBranchMeta = Schemas['Yalla.Application.Public.PublicBranc
  * 404'd — and would have rendered undefined fields even if the path had matched.
  *
  * Typing the wire side from `generated/schema.ts` rather than by hand is the
- * point: that file is generated from the backend's own swagger, so the next
- * time a field is renamed server-side this stops compiling instead of failing
- * silently in a browser.
+ * point: that file is generated from the backend's own swagger, so the next time
+ * a field is renamed server-side this stops compiling instead of failing
+ * silently in a browser. `check-gateway-schema.mjs` enforces the other half —
+ * that the URLs are ones the backend actually serves.
  *
- * ## Three fields the public API does not serve
+ * ## Two things about this wire that are easy to get wrong
  *
- * `PublicBranchPage` carries fifteen fields. The page's contract wants
- * eighteen, and the gap is not laziness on either side — it is a genuine seam:
+ * **Enums are integers.** `venueType`, `status`, a table's `shape` and a day's
+ * `day` all arrive as numbers. Every one has a named mapping below rather than a
+ * cast, because the numbers do not line up with the string unions by accident.
  *
- * - **`phoneE164`** is absent from the wire and nullable in the contract, so it
- *   maps to `null`. Both call sites already guard it, and the page simply does
- *   not render a call button.
- * - **`policy`** and **`bookingWindowDays`** are per-branch reservation settings
- *   the backend exposes only on authenticated console routes. Both are nullable
- *   in the contract for exactly this reason; see the notes on each below.
- * - **`acceptsWebBookings`** has no backend concept at all, in any route. See
- *   {@link acceptsWebBookings} below.
- *
- * Nothing here invents a value it cannot source. Where the answer is unknown the
- * mapping says so with `null` and the page degrades, rather than guessing a
- * number a diner would act on.
+ * **Absent is not null.** The API serialises with
+ * `DefaultIgnoreCondition = WhenWritingNull`, so an unset `phoneE164` is missing
+ * from the JSON rather than present as `null`. `?? null` covers both, and
+ * neither is a failure.
  */
 
 /** `1 Cafe, 2 Restaurant`, per `Yalla.Domain.Enums.VenueType`. */
@@ -54,7 +52,7 @@ function venueTypeFromWire(type: number | undefined): VenueType {
   return type === 2 ? 'restaurant' : 'cafe';
 }
 
-/** `HH:mm:ss` on the wire, `HH:mm` in the contract — seconds are noise on a hours row. */
+/** `HH:mm:ss` on the wire, `HH:mm` in the contract — seconds are noise on an hours row. */
 function clockFromWire(value: string | undefined): string {
   return (value ?? '').slice(0, 5);
 }
@@ -118,16 +116,16 @@ function venueHeaderFromWire(wire: WirePublicBranch): PublicVenueHeader {
   };
 }
 
-/**
- * One branch's public page.
- *
- * `receivedAtUtc` is the caller's clock at the moment the response arrived, and
- * it stands in for `asOfUtc`, which this route does not send. `LiveCount` uses
- * it only to age the free-table count ("as of a minute ago"), so a round-trip's
- * worth of skew is immaterial — and a stale count that admits its age is the
- * whole point of the field.
- */
-export function publicBranchFromWire(wire: WirePublicBranch, receivedAtUtc: string): PublicBranch {
+function policyFromWire(wire: WirePublicBranch['policy']): PublicBranchPolicy {
+  return {
+    turnTimeMinutes: wire?.turnTimeMinutes ?? 0,
+    minLeadMinutes: wire?.minLeadMinutes ?? 0,
+    cancellationDeadlineMinutes: wire?.cancellationDeadlineMinutes ?? 0,
+  };
+}
+
+/** One branch's public page. */
+export function publicBranchFromWire(wire: WirePublicBranch): PublicBranch {
   return {
     venue: venueHeaderFromWire(wire),
 
@@ -136,19 +134,28 @@ export function publicBranchFromWire(wire: WirePublicBranch, receivedAtUtc: stri
     name: wire.branchName ?? '',
 
     /*
-     * Always `live`, and this is derived rather than assumed: `PublicVenueQuery`
-     * filters on `b.IsActive && b.Venue.IsActive && SuspendedAtUtc == null &&
-     * DeletedAtUtc == null`, so a branch this route returns at all is by
-     * definition live. A suspended one answers 404, which `resolveBranch` turns
-     * into `null` and the route renders as "not available".
+     * Always `live`, and the wire's `status` is deliberately not consulted.
+     *
+     * `PublicBranchStatus` is `1 Open, 2 Closed`, and `PublicVenueQuery` sets it
+     * as `isOpenNow ? Open : Closed` — it restates the opening hours, it is not
+     * an availability gate. Mapping `2` onto anything `BranchRoute` treats as
+     * unavailable would blank the page for every branch outside its opening
+     * hours, which is exactly the branch that still wants its menu read and its
+     * hours checked.
+     *
+     * There is no suspended state to map either, by design: a suspended venue,
+     * an inactive branch and a wrong slug all answer 404 identically, because a
+     * page that distinguished them would publish a customer's billing status to
+     * anybody who guessed a slug. So a branch this route returns at all is live,
+     * and Open/Closed is `openState.isOpen`'s job.
      */
     status: 'live',
 
     addressLine: wire.address ?? '',
     latitude: wire.latitude ?? null,
     longitude: wire.longitude ?? null,
-    // Not on the public wire. Nullable in the contract; both call sites guard.
-    phoneE164: null,
+    // Absent rather than null when unset — see the header on WhenWritingNull.
+    phoneE164: wire.phoneE164 ?? null,
 
     timeZoneId: wire.timeZoneId ?? '',
     openState: openStateFromWire(wire),
@@ -156,41 +163,23 @@ export function publicBranchFromWire(wire: WirePublicBranch, receivedAtUtc: stri
 
     freeTables: wire.freeTableCount ?? 0,
     totalTables: wire.tableCount ?? 0,
-    asOfUtc: receivedAtUtc,
+    /*
+     * Server-stamped beside the reads it describes. The page is cached for
+     * seconds and the link is shared for days, so the count says how old it is
+     * rather than implying it is live.
+     */
+    asOfUtc: wire.asOfUtc ?? '',
+
+    policy: policyFromWire(wire.policy),
+    bookingWindowDays: wire.bookingWindowDays ?? 0,
 
     /*
-     * The four reservation numbers live on an authenticated console route, not
-     * this one. Null rather than a plausible default: they drive the copy in the
-     * booking flow ("free cancellation up to 2 hours before"), and a sentence
-     * stating the wrong cancellation window is worse than no sentence.
+     * Read live server-side, and `false` by default there. Taken exactly as
+     * sent, never defaulted to `true` to keep a form on screen: a venue that
+     * switches bookings off must not have its page go on offering a button the
+     * reservation service will refuse.
      */
-    policy: null,
-
-    /*
-     * How far ahead this branch takes bookings — also console-only.
-     *
-     * Null leaves the date input unbounded, which the original comment on this
-     * field warns against. It is still the right answer: the server enforces the
-     * window and `availability` names `OutsideBookingWindow` as a rejection
-     * reason, which `RoomSection` already renders as a spoken sentence *before*
-     * a table is chosen. A guessed `max` would silently forbid days a venue
-     * really does take, which is the worse of the two failures.
-     */
-    bookingWindowDays: null,
-
-    /*
-     * True, because the backend has no concept of a branch that refuses web
-     * bookings — not on this route, not anywhere. There is no
-     * `acceptsWebBookings` field in the swagger document and nothing gates
-     * reservations on subscription tier, so the server accepts a booking from
-     * any live branch.
-     *
-     * This flag was written for a product rule ("false for a venue on the free
-     * tier") that was never built server-side. Mapping it to `false` would hide
-     * a working feature; mapping it to `true` matches what the API actually
-     * does. When the backend grows the rule, this reads it instead.
-     */
-    acceptsWebBookings: true,
+    acceptsWebBookings: wire.acceptsWebBookings ?? false,
   };
 }
 
@@ -222,7 +211,7 @@ export function publicVenueFromCards(
       slug: branch.branchSlug ?? '',
       name: branch.name ?? '',
       addressLine: branch.address ?? '',
-      // Same derivation as the branch page: the list route filters to live only.
+      // Same reasoning as the branch page: this route publishes live branches only.
       status: 'live' as const,
       openState: { isOpen: branch.isOpenNow ?? false, closesAtUtc: null, opensAtUtc: null },
       freeTables: branch.freeTableCount ?? 0,
@@ -239,9 +228,7 @@ export function publicVenueFromCards(
  * The unfurl card.
  *
  * The wire sends a canonical *path*; every unfurler drops a relative URL, so it
- * is resolved against the origin the caller is actually being served from. The
- * caller passes that as `canonicalUrl` — its own absolute address for this page
- * — and the backend's path wins over its query string and fragment.
+ * is resolved against the origin the caller is actually being served from.
  */
 export function publicPageMetaFromWire(
   wire: WirePublicBranchMeta,
@@ -274,4 +261,110 @@ export function publicPageMetaFromWire(
      */
     locale: (wire.locale ?? '').split('_')[0] ?? '',
   };
+}
+
+/**
+ * `ReservationStatus` to the five states the manage link renders.
+ *
+ * `Seated` folds into `confirmed`: the booking stands and the table is theirs,
+ * which is what the page says either way. Both cancellations fold into
+ * `cancelled` — who cancelled is the venue's business, and a diner reading their
+ * own link already knows whether it was them.
+ */
+function bookingStatusFromWire(status: number | undefined): ManagedBooking['status'] {
+  switch (status) {
+    case 1:
+      return 'pendingApproval';
+    case 5:
+      return 'completed';
+    case 6:
+    case 7:
+      return 'cancelled';
+    case 8:
+      return 'noShow';
+    // 2 Confirmed, 4 Seated, and anything a later backend adds: the booking
+    // stands until something says otherwise.
+    default:
+      return 'confirmed';
+  }
+}
+
+/**
+ * The booking's start as an instant, from the wall clock the wire sends.
+ *
+ * The endpoint reports `localDate` and `localStartTime` in the branch's zone
+ * rather than a UTC instant, so the two are resolved through the branch's zone —
+ * never the reader's, who is routinely in a different one.
+ */
+function slotInstant(
+  localDate: string | undefined,
+  localStartTime: string | undefined,
+  timeZoneId: string,
+): string {
+  if (!localDate || !localStartTime || !timeZoneId) return '';
+
+  const [year, month, day] = localDate.split('-').map(Number);
+  const [hour, minute] = localStartTime.split(':').map(Number);
+  const parts = [year, month, day, hour, minute];
+  if (parts.some((part) => part === undefined || Number.isNaN(part))) return '';
+
+  return instantFromZonedClock(
+    {
+      year: year as number,
+      month: month as number,
+      day: day as number,
+      hour: hour as number,
+      minute: minute as number,
+    },
+    timeZoneId as TimeZone,
+  ).toISOString();
+}
+
+/**
+ * One booking as its manage link shows it.
+ *
+ * `venueSlug` and `branchSlug` come from the caller rather than the wire,
+ * because the manage URL is `/{venueSlug}/{branchSlug}/booking/{token}` — the
+ * route already has both from its own address and the endpoint does not send
+ * them. That is a real source, not a guess.
+ */
+export function managedBookingFromWire(
+  wire: WirePublicBooking,
+  slugs: { readonly venueSlug: string; readonly branchSlug: string },
+): ManagedBooking {
+  const timeZoneId = wire.timeZoneId ?? '';
+
+  return {
+    code: wire.code ?? '',
+    status: bookingStatusFromWire(wire.status),
+
+    venueName: wire.venueName ?? '',
+    venueSlug: slugs.venueSlug,
+    branchName: wire.branchName ?? '',
+    branchSlug: slugs.branchSlug,
+    addressLine: wire.branchAddress ?? '',
+    timeZoneId,
+
+    tableLabel: wire.tableLabel ?? '',
+    // Not published on the manage link, and nullable in the contract.
+    floorAreaName: null,
+    partySize: wire.partySize ?? 0,
+    slotUtc: slotInstant(wire.localDate, wire.localStartTime, timeZoneId),
+    // No turn time on this route — see the note on the contract field.
+    endsAtUtc: null,
+    freeCancellationUntilUtc: wire.cancellationDeadlineUtc ?? '',
+
+    /*
+     * Server-decided, and taken as sent. Lateness must not turn this false:
+     * cancelling ten minutes before is far better for the venue than a no-show,
+     * so a late cancellation is a sentence on the page, never a disabled button.
+     * `cancelledLate` is what says it happened late.
+     */
+    canCancel: wire.canCancel ?? false,
+  };
+}
+
+/** Whether a cancellation was recorded as late — a sentence on the page, not a refusal. */
+export function cancelledLate(wire: WirePublicBooking): boolean {
+  return wire.cancelledAfterDeadline ?? false;
 }

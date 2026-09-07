@@ -281,10 +281,12 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
     async reassignHost(command: ReassignHostCommand): Promise<StaffTab> {
       const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabStaffView']>(
         `/api/tabs/${command.tabId}/reassign-host`,
-        {
-          newHostParticipantId: command.newHostParticipantId,
-          clientCommandId: command.clientCommandId,
-        },
+        /*
+         * `ReassignHostRequest` declares `newHostParticipantId` and nothing
+         * else. The `clientCommandId` this used to send was dropped on the floor
+         * by the serialiser, so the idempotency it implied was never real.
+         */
+        { newHostParticipantId: command.newHostParticipantId },
       );
       return staffTabFromView(data);
     },

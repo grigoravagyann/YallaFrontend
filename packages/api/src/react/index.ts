@@ -1166,11 +1166,16 @@ export function usePublicMenu(branchId: string | undefined) {
   });
 }
 
-export function useManagedBooking(token: string | undefined) {
+export function useManagedBooking(
+  token: string | undefined,
+  slugs: { readonly venueSlug: string; readonly branchSlug: string },
+) {
   const gateway = usePublicGateway();
   return useQuery({
     queryKey: queryKeys.managedBooking(token ?? ''),
-    queryFn: () => gateway.getManagedBooking(token!),
+    // The slugs come from the manage URL; the endpoint does not send them back
+    // and the page needs them to link home.
+    queryFn: () => gateway.getManagedBooking({ token: token!, ...slugs }),
     enabled: Boolean(token),
     staleTime: staleTime.frequent,
   });
@@ -1179,17 +1184,22 @@ export function useManagedBooking(token: string | undefined) {
 /**
  * Cancelling from the signed link.
  *
- * Retry is off, as everywhere: the `commandId` is what makes a *deliberate*
- * retry safe, not a licence for an automatic one. The result replaces the
+ * Retry is off, as everywhere. Safety on a deliberate retry comes from the
+ * domain rather than from a command id — cancelling an already-cancelled
+ * booking is not an error and returns it as it stands. The result replaces the
  * cached booking rather than invalidating it, so the page shows the cancelled
  * state without a second round trip on a connection that was already bad enough
  * to make somebody press the button twice.
  */
-export function useCancelManagedBooking(token: string | undefined) {
+export function useCancelManagedBooking(
+  token: string | undefined,
+  slugs: { readonly venueSlug: string; readonly branchSlug: string },
+) {
   const gateway = usePublicGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (commandId: string) => gateway.cancelManagedBooking({ token: token!, commandId }),
+    mutationFn: (reason?: string) =>
+      gateway.cancelManagedBooking({ token: token!, ...slugs, reason }),
     retry: false,
     onSuccess: (booking: ManagedBooking) => {
       queryClient.setQueryData(queryKeys.managedBooking(token ?? ''), booking);

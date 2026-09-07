@@ -28,6 +28,14 @@ export interface FloorPlanCanvasProps {
   readonly partySize: number;
   readonly selectedTableId: string | null;
   readonly onTableTap: (tableId: string) => void;
+  /**
+   * Whether tapping a table leads anywhere.
+   *
+   * False on a venue that has web booking switched off. The room is still worth
+   * seeing — which tables are free is the question this page exists to answer —
+   * but inviting a tap that goes nowhere is worse than not inviting one.
+   */
+  readonly bookable: boolean;
 }
 
 export default function FloorPlanCanvas({
@@ -35,6 +43,7 @@ export default function FloorPlanCanvas({
   partySize,
   selectedTableId,
   onTableTap,
+  bookable,
 }: FloorPlanCanvasProps) {
   const { t } = useTranslation('public');
   const [planRef, size] = useElementSize<HTMLDivElement>();
@@ -45,7 +54,7 @@ export default function FloorPlanCanvas({
         <Legend mode="diner" translate={(key) => t(key, { ns: 'common' })} />
       </div>
 
-      <p className="pub-muted pub-room-hint">{t('room.pick')}</p>
+      {bookable ? <p className="pub-muted pub-room-hint">{t('room.pick')}</p> : null}
 
       {/*
         The box is measured rather than assumed: the plan scales to whatever it

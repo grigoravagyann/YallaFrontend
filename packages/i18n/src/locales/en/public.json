@@ -64,7 +64,7 @@
     "empty": "This place has no branches listed yet."
   },
   "booking": {
-    "notOffered": "This place does not take bookings through Yalla yet.",
+    "notOffered": "Booking through Yalla is not switched on for this venue. The room below is live, and the menu and hours are up to date.",
     "pick": "Book a table",
     "closedNotice": "Closed right now — you can still book ahead.",
     "back": "Back to the room"
@@ -77,7 +77,8 @@
     "manage": "View or cancel this booking",
     "manageBody": "Keep this link. It works without an account, on any device.",
     "copyLink": "Copy link",
-    "copied": "Copied"
+    "copied": "Copied",
+    "lateCancellation": "Cancelling less than {{window}} before is still allowed — recorded as late, never refused. The venue would rather know than hold an empty table."
   },
   "manage": {
     "title": "Your booking",

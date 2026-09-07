@@ -73,20 +73,36 @@ export interface PublicGateway {
    * Null for an unknown, malformed or revoked token — one answer for all three,
    * because distinguishing them turns the endpoint into a token oracle.
    */
-  getManagedBooking(token: string): Promise<ManagedBooking | null>;
+  getManagedBooking(input: {
+    readonly token: string;
+    /**
+     * From the manage URL, which is `/{venueSlug}/{branchSlug}/booking/{token}`.
+     * The endpoint does not send them back and the page needs them to link home,
+     * so they travel from the address bar rather than being invented.
+     */
+    readonly venueSlug: string;
+    readonly branchSlug: string;
+  }): Promise<ManagedBooking | null>;
 
   /**
    * Cancel from that same link.
    *
-   * Idempotent on `commandId`, and idempotent in the domain sense too: an
-   * already-cancelled booking is reported as success rather than as a conflict.
-   * Someone tapping cancel twice on a bad connection has expressed their
-   * intention twice, not made a mistake.
+   * Idempotent in the domain, which is where it matters: cancelling an
+   * already-cancelled or finished booking is not an error, and the booking comes
+   * back as it stands. Someone tapping cancel twice on a bad connection has
+   * expressed their intention twice, not made a mistake.
+   *
+   * There is no command id. This route takes a token and an optional reason and
+   * nothing else — an earlier version of this interface promised idempotency on
+   * a `commandId` the endpoint has never accepted.
    *
    * Never refuses for lateness. See {@link ManagedBooking.canCancel}.
    */
   cancelManagedBooking(input: {
     readonly token: string;
-    readonly commandId: string;
+    readonly venueSlug: string;
+    readonly branchSlug: string;
+    /** Why, if the diner said. Optional, and the only field the route accepts. */
+    readonly reason?: string | undefined;
   }): Promise<ManagedBooking>;
 }

@@ -117,7 +117,13 @@ export class InvalidTransitionError extends ApiError {
   }
 }
 
-/** 400 with a problem-details payload. */
+/** One field the request got wrong, as the backend names it. */
+export interface FieldViolation {
+  readonly field: string;
+  readonly message: string;
+}
+
+/** A refusal that names fields: 400 for one out of range, 422 for a collected set. */
 export class ValidationError extends ApiError {
   /** Field name to messages, as the backend reports them. */
   readonly errors: Readonly<Record<string, readonly string[]>>;
@@ -133,12 +139,34 @@ export class ValidationError extends ApiError {
    */
   readonly field: string | null;
 
+  /**
+   * Every field the request got wrong, when the backend collected them.
+   *
+   * A 422 `validation-failed` names all of them in `context.fields`; a 400
+   * out-of-range names one in `context.field` and stops. Both end up here, so a
+   * form can list what it got back without caring which status said it — and
+   * {@link field} stays the first, for the single-field case.
+   */
+  readonly violations: readonly FieldViolation[];
+
   constructor(options: ErrorOptions) {
     super('The request was rejected as invalid.', options);
     this.name = 'ValidationError';
     this.errors = options.problem?.errors ?? {};
-    const named = (options.problem?.context as { field?: unknown } | undefined)?.field;
-    this.field = typeof named === 'string' && named.length > 0 ? named : null;
+
+    const context = options.problem?.context as { field?: unknown; fields?: unknown } | undefined;
+
+    const collected = Array.isArray(context?.fields) ? context.fields : [];
+    this.violations = collected.flatMap((entry) => {
+      const violation = entry as { field?: unknown; message?: unknown };
+      return typeof violation.field === 'string' && violation.field.length > 0
+        ? [{ field: violation.field, message: String(violation.message ?? '') }]
+        : [];
+    });
+
+    const named = context?.field;
+    this.field =
+      typeof named === 'string' && named.length > 0 ? named : (this.violations[0]?.field ?? null);
   }
 }
 
