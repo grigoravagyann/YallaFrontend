@@ -48,6 +48,20 @@ The switcher is deliberately not persisted: a remembered role would be a
 client-side claim outliving the session that granted it. A hard reload therefore
 puts you back on platform admin.
 
+### Before you push
+
+```bash
+./verify.sh
+```
+
+Runs the six gates CI runs, in CI's order, so a green run here means a green
+check there. `--no-test` for the fast half; `--help` for the rest. It exists
+because the six are otherwise written down only in the workflow file, and a
+pull request went out having passed two of them.
+
+It ends by saying what it did **not** prove: the contract suite ran against the
+mock only unless you set `YALLA_CONTRACT_BASE_URL`.
+
 ### Workspace scripts
 
 | Script              | What it does                                              |
