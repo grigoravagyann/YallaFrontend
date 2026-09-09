@@ -519,6 +519,56 @@ const AUTO_SCALE_TOLERANCE = 0.01;
  * is strictly better than opening at the fit, and the caller is not asked to
  * tell the two apart.
  */
+/**
+ * Half a pixel, so a fit that lands a hair over its own box in floating point
+ * is not reported as cut. The error is always smaller than this and the
+ * consequence of getting it wrong is a fade on a room that is whole.
+ */
+const CUT_EDGE_SLACK_PX = 0.5;
+
+/** Which sides of the viewport the room is cut at. */
+export interface CutEdges {
+  readonly left: boolean;
+  readonly right: boolean;
+  readonly top: boolean;
+  readonly bottom: boolean;
+}
+
+/**
+ * The edges a laid-out room runs past, so the view can say so.
+ *
+ * A room opened above the fit is normal rather than a fault - see
+ * {@link scaleToClearHitRects}, which puts it there so its tap targets clear
+ * the floor, on the argument that a silent mis-tap costs more than a room you
+ * have to drag. What that argument left out is that nobody drags it. A plan cut
+ * hard against a border reads as a rendering bug rather than as a window, and
+ * the component's own reasoning already says why that matters: nobody pinches a
+ * floor plan that looks fine, and nobody pans one that looks broken.
+ *
+ * So the view fades the sides it is cutting. This is the rule behind it, here
+ * rather than in the component because everything else that decides geometry is
+ * here and testable without rendering.
+ *
+ * All four are false for a fitted room, which is the common case and the one
+ * that must cost nothing.
+ */
+export function cutEdgesOf(
+  layout: Pick<FloorLayout, 'scale' | 'offsetX' | 'offsetY' | 'renderedWidth' | 'renderedHeight'>,
+  viewport: { readonly width: number; readonly height: number },
+): CutEdges {
+  // Before the first layout pass there is no room and nothing to cut.
+  if (layout.scale === 0) {
+    return { left: false, right: false, top: false, bottom: false };
+  }
+
+  return {
+    left: layout.offsetX < -CUT_EDGE_SLACK_PX,
+    right: layout.offsetX + layout.renderedWidth > viewport.width + CUT_EDGE_SLACK_PX,
+    top: layout.offsetY < -CUT_EDGE_SLACK_PX,
+    bottom: layout.offsetY + layout.renderedHeight > viewport.height + CUT_EDGE_SLACK_PX,
+  };
+}
+
 export function scaleToClearHitRects(
   input: ComputeFloorLayoutInput,
   options: { readonly cap?: number } = {},

@@ -15,6 +15,7 @@ export type { FloorGestures, FloorViewport, UseFloorGesturesOptions } from './ge
 
 export {
   computeFloorLayout,
+  cutEdgesOf,
   isTableSelectable,
   scaleToClearHitRects,
   tapTargetFloorFor,
@@ -28,7 +29,7 @@ export {
   STAFF_MIN_TAP_TARGET_PX,
   DEFAULT_PADDING_PX,
 } from './layout';
-export type { ComputeFloorLayoutInput, FloorLayout, LaidOutTable } from './layout';
+export type { ComputeFloorLayoutInput, CutEdges, FloorLayout, LaidOutTable } from './layout';
 
 export { pickTableAt } from './hitTest';
 

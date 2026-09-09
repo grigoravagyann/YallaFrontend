@@ -15,8 +15,10 @@ import Svg, {
   Ellipse,
   G,
   Line,
+  LinearGradient,
   Pattern,
   Rect,
+  Stop,
   Text as SvgText,
 } from 'react-native-svg';
 import { AreaSwitcher, OVERVIEW, type AreaSelection } from './AreaSwitcher';
@@ -26,6 +28,7 @@ import {
   AREA_MODE_MAX_WIDTH_PX,
   AUTO_SCALE_CAP,
   computeFloorLayout,
+  cutEdgesOf,
   MIN_ZOOM,
   scaleToClearHitRects,
   type LaidOutTable,
@@ -37,6 +40,14 @@ const DIMMED_OPACITY = 0.35;
 
 /** Overview is a map, not a control surface: its tables are drawn back. */
 const OVERVIEW_TABLE_OPACITY = 0.75;
+
+/**
+ * Width of the fade on an edge the room is cut at, in px.
+ *
+ * Wide enough that a table crossing it dissolves rather than ending, narrow
+ * enough that it never reaches a table that is fully inside the view.
+ */
+const EDGE_FADE_PX = 28;
 
 /**
  * `exactOptionalPropertyTypes` forbids passing an explicit `undefined` for an
@@ -333,6 +344,28 @@ export function FloorPlan({
 
   const handleTap = gestures.isGesturing || overviewMode ? undefined : onTableTap;
 
+  /*
+   * Which edges the room is cut at.
+   *
+   * A view opened above the fit is the normal case here, not a fault: the
+   * auto-scale above puts the room at the size its tap targets need, and pan
+   * reaches the rest. What was missing is any sign that there *is* a rest. A
+   * plan cropped hard against a border reads as a rendering bug - tables sliced
+   * in half at a straight edge - so nobody drags it, for exactly the reason the
+   * auto-scale exists: nobody pinches a floor plan that looks fine, and nobody
+   * pans one that looks broken.
+   *
+   * Fading the cut edges is the whole fix. It says "this continues" in the one
+   * vocabulary that needs no instructions, and it costs nothing when the room
+   * fits, because then there is no edge to fade.
+   */
+  const cutEdges = useMemo(
+    () => cutEdgesOf(layout, planViewport),
+    [layout, planViewport],
+  );
+
+  const anyCut = cutEdges.left || cutEdges.right || cutEdges.top || cutEdges.bottom;
+
   const body =
     layout.scale === 0 ? (
       // Before the first layout pass the viewport is 0x0. Drawing nothing is
@@ -344,7 +377,10 @@ export function FloorPlan({
         {...(enableZoom && transform === undefined ? gestures.panHandlers : {})}
       >
         <Svg width={planViewport.width} height={planViewport.height}>
-          <Defs>{uniquePatterns()}</Defs>
+          <Defs>
+            {uniquePatterns()}
+            {anyCut ? edgeFadeGradients() : null}
+          </Defs>
 
           {/* Room floor */}
           <Rect
@@ -428,6 +464,49 @@ export function FloorPlan({
               faded={overviewMode}
             />
           ))}
+
+          {/* Last, so it lies over the tables it is cutting. Never tappable:
+              pointerEvents="none" keeps a table under the fade reachable. */}
+          {cutEdges.left ? (
+            <Rect
+              x={0}
+              y={0}
+              width={EDGE_FADE_PX}
+              height={planViewport.height}
+              fill="url(#fp-fade-left)"
+              pointerEvents="none"
+            />
+          ) : null}
+          {cutEdges.right ? (
+            <Rect
+              x={planViewport.width - EDGE_FADE_PX}
+              y={0}
+              width={EDGE_FADE_PX}
+              height={planViewport.height}
+              fill="url(#fp-fade-right)"
+              pointerEvents="none"
+            />
+          ) : null}
+          {cutEdges.top ? (
+            <Rect
+              x={0}
+              y={0}
+              width={planViewport.width}
+              height={EDGE_FADE_PX}
+              fill="url(#fp-fade-top)"
+              pointerEvents="none"
+            />
+          ) : null}
+          {cutEdges.bottom ? (
+            <Rect
+              x={0}
+              y={planViewport.height - EDGE_FADE_PX}
+              width={planViewport.width}
+              height={EDGE_FADE_PX}
+              fill="url(#fp-fade-bottom)"
+              pointerEvents="none"
+            />
+          ) : null}
         </Svg>
       </View>
     );
@@ -678,6 +757,30 @@ function FeatureShape({
  * same stripe reads on an amber fill and on a grey one. The pattern is the
  * redundant channel; it must not introduce a new hue to interpret.
  */
+/**
+ * One gradient per edge, fading the room's own floor colour to nothing.
+ *
+ * Surface rather than a shadow: the fade has to read as "the floor carries on
+ * past here", and a shadow reads as a raised panel with an end to it. Ids are
+ * module constants like the patterns above - two plans on one screen share
+ * these defs, and want to.
+ */
+function edgeFadeGradients() {
+  const edges = [
+    { id: 'fp-fade-left', x1: '0', y1: '0', x2: '1', y2: '0' },
+    { id: 'fp-fade-right', x1: '1', y1: '0', x2: '0', y2: '0' },
+    { id: 'fp-fade-top', x1: '0', y1: '0', x2: '0', y2: '1' },
+    { id: 'fp-fade-bottom', x1: '0', y1: '1', x2: '0', y2: '0' },
+  ] as const;
+
+  return edges.map((edge) => (
+    <LinearGradient key={edge.id} id={edge.id} x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2}>
+      <Stop offset="0" stopColor={color.surface} stopOpacity={1} />
+      <Stop offset="1" stopColor={color.surface} stopOpacity={0} />
+    </LinearGradient>
+  ));
+}
+
 function uniquePatterns() {
   const styles = Object.values(tableStatusStyle);
   const kinds = new Set(styles.map((s) => s.pattern));
