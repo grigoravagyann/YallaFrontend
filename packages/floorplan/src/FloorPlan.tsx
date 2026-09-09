@@ -359,10 +359,7 @@ export function FloorPlan({
    * vocabulary that needs no instructions, and it costs nothing when the room
    * fits, because then there is no edge to fade.
    */
-  const cutEdges = useMemo(
-    () => cutEdgesOf(layout, planViewport),
-    [layout, planViewport],
-  );
+  const cutEdges = useMemo(() => cutEdgesOf(layout, planViewport), [layout, planViewport]);
 
   const anyCut = cutEdges.left || cutEdges.right || cutEdges.top || cutEdges.bottom;
 
