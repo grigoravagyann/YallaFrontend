@@ -114,8 +114,19 @@
   font-weight: var(--font-weight-medium);
 }
 
+/*
+ * Ink, not green. `--color-success` is `#35B37E`, which is the same hex as
+ * `--table-free-fill` — so "Open until 01:00" was rendering in the exact colour
+ * a free table is drawn in, about twelve pixels above a legend that says green
+ * means free. On the one page that shows the floor plan to a stranger, that
+ * teaches green means nothing in particular, which DESIGN.md gives as the
+ * reason the accent is not green in the first place.
+ *
+ * Open against closed survives as ink against grey, which is the value contrast
+ * the rest of the page already runs on.
+ */
 .pub-open-yes {
-  color: var(--color-success);
+  color: var(--color-foreground);
 }
 
 .pub-open-no {
@@ -136,13 +147,26 @@
   margin: var(--space-sm) 0 var(--space-lg);
 }
 
+/*
+ * The loudest thing on the page, and deliberately not the accent.
+ *
+ * DESIGN.md spends the accent on "the primary button and the active navigation
+ * item, and nowhere else". A free-table count is neither: it is the answer to
+ * the question the page exists to answer, not a thing to press. It was also the
+ * largest violet on a page whose legend, a few hundred pixels below, says green
+ * means free — two hues for one idea, on the one screen where a colour has to
+ * mean exactly one thing.
+ *
+ * It stays the loudest element by being the biggest, in the display face, at
+ * semibold. It never needed the hue to do that.
+ */
 .pub-count-value {
   margin: 0;
   font-family: var(--font-family-display);
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-xxl);
   line-height: 1.15;
-  color: var(--color-primary);
+  color: var(--color-foreground);
   letter-spacing: -0.02em;
 }
 
@@ -669,9 +693,11 @@
   font-size: var(--font-size-lg);
 }
 
+/* The same count as `.pub-count-value`, one screen earlier, and the same rule:
+   it reads as free rather than as pressable, so it carries weight, not hue. */
 .pub-branch-card-free {
   font-weight: var(--font-weight-medium);
-  color: var(--color-primary);
+  color: var(--color-foreground);
 }
 
 /* --------------------------------------------------------------------------
