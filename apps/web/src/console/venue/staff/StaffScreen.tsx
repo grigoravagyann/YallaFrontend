@@ -2,27 +2,60 @@ import {
   StaffPermissionError,
   canChooseBranch,
   canEditStaff,
+  isAdminRole,
   type StaffMember,
   type StaffRole,
+  type StaffSignInLink,
 } from '@yalla/api';
 import {
   useClearPinLockout,
   useConsoleVenue,
   useCreateStaff,
+  useIssueStaffSignIn,
   useSetStaffPin,
   useStaff,
   useUpdateStaff,
 } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { useVenueOutlet } from '../VenueLayout';
 import { DevicesPanel } from './DevicesPanel';
 import { PinDialog } from './PinDialog';
+import { SignInLinkDialog } from './SignInLinkDialog';
+import { SignInPrompt } from './SignInPrompt';
 import { StaffForm } from './StaffForm';
+import { issueFailureText } from './signInIssue';
 
 type RoleFilter = StaffRole | 'all';
+
+/**
+ * The one thing on screen that must exist exactly once: a credential.
+ *
+ * A single state rather than one per kind, so there is never a PIN dialog and
+ * a link dialog open at the same time — and so that a hire which made a
+ * person but not their link still shows the PIN, which otherwise dies with
+ * the form.
+ */
+export type ShownCredentials =
+  | { readonly kind: 'pin'; readonly name: string; readonly pin: string }
+  | {
+      readonly kind: 'signIn';
+      readonly name: string;
+      readonly pin: string | null;
+      readonly link: StaffSignInLink | null;
+      readonly failure: string | null;
+      /** Where "try again" goes: the row's prompt, with the address to fix. */
+      readonly retry: { readonly staffMemberId: string; readonly email: string } | null;
+    };
+
+/** The row whose address prompt is open, and what the last attempt said. */
+export interface SignInPromptState {
+  readonly staffMemberId: string;
+  readonly email: string;
+  readonly failure: string | null;
+}
 
 /**
  * Staff accounts and the tablets they sign in on.
@@ -51,6 +84,7 @@ export function StaffScreen() {
   const updateStaff = useUpdateStaff(venueId);
   const setPin = useSetStaffPin(venueId);
   const clearLockout = useClearPinLockout(venueId);
+  const issueSignIn = useIssueStaffSignIn(venueId);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
@@ -58,8 +92,56 @@ export function StaffScreen() {
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [creating, setCreating] = useState(false);
   const [refusal, setRefusal] = useState<StaffPermissionError | null>(null);
-  /** The one moment a PIN exists on screen. Cleared when the dialog closes. */
-  const [shownPin, setShownPin] = useState<{ name: string; pin: string } | null>(null);
+  /**
+   * The one moment a PIN or a sign-in link exists on screen. Cleared when the
+   * dialog closes; there is nowhere else either lives.
+   */
+  const [shown, setShown] = useState<ShownCredentials | null>(null);
+  const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
+
+  const failureText = (error: unknown) =>
+    issueFailureText(error, {
+      offline: t('state.offline'),
+      generic: t('state.error'),
+      badEmail: t('staff.signIn.emailRequired'),
+      tooManyRequests: t('staff.signIn.tooManyRequests'),
+    });
+
+  async function sendSignIn(member: StaffMember, email: string) {
+    try {
+      const link = await issueSignIn.mutateAsync({ staffMemberId: member.id, email });
+      setPrompt(null);
+      setShown({
+        kind: 'signIn',
+        name: member.fullName,
+        pin: null,
+        link,
+        failure: null,
+        retry: null,
+      });
+    } catch (error) {
+      // Under the field, where the address can be corrected and sent again.
+      setPrompt((current) => (current ? { ...current, failure: failureText(error) } : null));
+    } finally {
+      // The hook keeps the result as its own `data`. That is a second copy of
+      // the link, and the dialog's state is the only one wanted.
+      issueSignIn.reset();
+    }
+  }
+
+  // From the dialog to the row: the address is corrected there, and the
+  // reason it was refused goes with it — the dialog's alert unmounts with the
+  // dialog, and the sentence to act on belongs beside the field.
+  const retryFrom = (
+    retry: { staffMemberId: string; email: string } | null,
+    failure: string | null,
+  ) =>
+    retry
+      ? () => {
+          setShown(null);
+          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure });
+        }
+      : null;
 
   const actorRole: StaffRole | 'platformAdmin' =
     user?.role === 'platformAdmin' ? 'platformAdmin' : ((user?.role ?? 'manager') as StaffRole);
@@ -128,20 +210,59 @@ export function StaffScreen() {
           branches={branches}
           editing={editing}
           refusal={refusal}
-          isSaving={createStaff.isPending || updateStaff.isPending}
+          // The issue call counts: the form stays in "Saving…" until the
+          // dialog is ready, so there is never a moment with the person made
+          // and nothing on screen about it.
+          isSaving={createStaff.isPending || updateStaff.isPending || issueSignIn.isPending}
           onCancel={() => {
             setCreating(false);
             setEditing(null);
             setRefusal(null);
           }}
-          onCreate={async (input) => {
+          onCreate={async (input, signIn) => {
             setRefusal(null);
             try {
+              // `input` carries no email: the address goes on the second call,
+              // after the person exists, because the server refuses an email
+              // without a password on create and nobody types one here.
               const created = await createStaff.mutateAsync(input);
-              setCreating(false);
               // The single moment the PIN is on a screen. It came from the form
               // and goes no further than this dialog.
-              setShownPin({ name: created.fullName, pin: input.pin });
+              if (!signIn) {
+                setShown({ kind: 'pin', name: created.fullName, pin: input.pin });
+                setCreating(false);
+                return;
+              }
+              // The dialog opens whatever the second call says: the person
+              // exists now and their PIN must be shown or it is gone. The form
+              // closes only once the dialog is set, in the same render.
+              try {
+                const link = await issueSignIn.mutateAsync({
+                  staffMemberId: created.id,
+                  email: signIn.email,
+                });
+                setShown({
+                  kind: 'signIn',
+                  name: created.fullName,
+                  pin: input.pin,
+                  link,
+                  failure: null,
+                  retry: null,
+                });
+              } catch (error) {
+                setShown({
+                  kind: 'signIn',
+                  name: created.fullName,
+                  pin: input.pin,
+                  link: null,
+                  failure: failureText(error),
+                  retry: { staffMemberId: created.id, email: signIn.email },
+                });
+              } finally {
+                // Same as the row path: the dialog holds the only copy.
+                issueSignIn.reset();
+                setCreating(false);
+              }
             } catch (error) {
               if (error instanceof StaffPermissionError) setRefusal(error);
               else throw error;
@@ -241,86 +362,150 @@ export function StaffScreen() {
           <tbody>
             {visible.map((member) => {
               const editable = canEditStaff({ id: actorId, role: actorRole }, member);
+              const signsIn = isAdminRole(member.role);
               return (
-                <tr key={member.id} className={member.isActive ? '' : 'is-inactive'}>
-                  <th scope="row">
-                    {member.fullName}
-                    <span className="muted small block">{member.phone}</span>
-                  </th>
-                  <td>{t(`role.${member.role}`)}</td>
-                  {showBranchColumn ? <td>{branchNameOf(member)}</td> : null}
-                  <td>
-                    {member.isActive ? null : (
-                      <span className="badge">{t('staff.status.inactive')}</span>
-                    )}
-                    {member.isPinLocked ? (
-                      <span className="badge badge-warn">{t('staff.status.pinLocked')}</span>
-                    ) : null}
-                  </td>
-                  <td className="staff-actions">
-                    {/* The most time-critical control on the screen: a waiter
+                <Fragment key={member.id}>
+                  <tr className={member.isActive ? '' : 'is-inactive'}>
+                    <th scope="row">
+                      {member.fullName}
+                      <span className="muted small block">{member.phone}</span>
+                      {/* The address a link was issued to: weeks later, "which
+                        email did I send it to" has to be answerable here. */}
+                      {signsIn && member.email ? (
+                        <span className="muted small block">{member.email}</span>
+                      ) : null}
+                    </th>
+                    <td>{t(`role.${member.role}`)}</td>
+                    {showBranchColumn ? <td>{branchNameOf(member)}</td> : null}
+                    <td>
+                      {member.isActive ? null : (
+                        <span className="badge">{t('staff.status.inactive')}</span>
+                      )}
+                      {member.isPinLocked ? (
+                        <span className="badge badge-warn">{t('staff.status.pinLocked')}</span>
+                      ) : null}
+                      {/* Two states short of a working sign-in, told apart because
+                        the fix differs: no address at all is a person nobody
+                        has issued for; an address without a password is
+                        somebody who has not opened their link yet — or whose
+                        link has died, which is why the badge does not claim
+                        it is alive. Not on a deactivated row: "Deactivated"
+                        explains the state, no action is offered there, and
+                        the badge comes back with the action on reactivation. */}
+                      {member.isActive && signsIn && !member.email ? (
+                        <span className="badge badge-warn">{t('staff.status.noSignIn')}</span>
+                      ) : null}
+                      {member.isActive && signsIn && member.email && !member.hasPasswordSignIn ? (
+                        <span className="badge">{t('staff.status.awaitingPassword')}</span>
+                      ) : null}
+                    </td>
+                    <td className="staff-actions">
+                      {/* The most time-critical control on the screen: a waiter
                         locked out mid-rush cannot wait out a timer. */}
-                    {member.isPinLocked && branchId ? (
-                      <button
-                        type="button"
-                        className="button button-small"
-                        onClick={() => clearLockout.mutate({ branchId, staffMemberId: member.id })}
-                      >
-                        {t('staff.action.unlock')}
-                      </button>
-                    ) : null}
-
-                    {editable ? (
-                      <>
+                      {member.isPinLocked && branchId ? (
                         <button
                           type="button"
-                          className="button button-small button-ghost"
-                          onClick={() => {
-                            setRefusal(null);
-                            setCreating(false);
-                            setEditing(member);
-                          }}
-                        >
-                          {t('common:action.edit')}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="button button-small button-ghost"
-                          onClick={() => {
-                            const pin = String(Math.floor(1000 + Math.random() * 9000));
-                            setPin.mutate(
-                              { staffMemberId: member.id, pin },
-                              { onSuccess: () => setShownPin({ name: member.fullName, pin }) },
-                            );
-                          }}
-                        >
-                          {t('staff.action.resetPin')}
-                        </button>
-
-                        {/* Deactivate, never delete — the API offers no delete
-                            and the confirmation says so rather than showing a
-                            control that turns out to mean something else. */}
-                        <button
-                          type="button"
-                          className="button button-small button-ghost"
+                          className="button button-small"
                           onClick={() =>
-                            updateStaff.mutate({
-                              staffMemberId: member.id,
-                              patch: { isActive: !member.isActive },
-                            })
+                            clearLockout.mutate({ branchId, staffMemberId: member.id })
                           }
                         >
-                          {member.isActive
-                            ? t('staff.action.deactivate')
-                            : t('staff.action.reactivate')}
+                          {t('staff.action.unlock')}
                         </button>
-                      </>
-                    ) : (
-                      <span className="muted small">{t('staff.action.notYours')}</span>
-                    )}
-                  </td>
-                </tr>
+                      ) : null}
+
+                      {editable ? (
+                        <>
+                          <button
+                            type="button"
+                            className="button button-small button-ghost"
+                            onClick={() => {
+                              setRefusal(null);
+                              setCreating(false);
+                              setEditing(member);
+                            }}
+                          >
+                            {t('common:action.edit')}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="button button-small button-ghost"
+                            onClick={() => {
+                              const pin = String(Math.floor(1000 + Math.random() * 9000));
+                              setPin.mutate(
+                                { staffMemberId: member.id, pin },
+                                {
+                                  onSuccess: () =>
+                                    setShown({ kind: 'pin', name: member.fullName, pin }),
+                                },
+                              );
+                            }}
+                          >
+                            {t('staff.action.resetPin')}
+                          </button>
+
+                          {/* Only for somebody who signs in to the admin panel
+                            and is active: the server refuses both a PIN-only
+                            role and a deactivated person, and an action that
+                            will be refused is not offered. */}
+                          {signsIn && member.isActive ? (
+                            <button
+                              type="button"
+                              className="button button-small button-ghost"
+                              onClick={() =>
+                                setPrompt({
+                                  staffMemberId: member.id,
+                                  email: member.email ?? '',
+                                  failure: null,
+                                })
+                              }
+                            >
+                              {member.email
+                                ? t('staff.action.sendNewLink')
+                                : t('staff.action.issueSignIn')}
+                            </button>
+                          ) : null}
+
+                          {/* Deactivate, never delete — the API offers no delete
+                            and the confirmation says so rather than showing a
+                            control that turns out to mean something else. */}
+                          <button
+                            type="button"
+                            className="button button-small button-ghost"
+                            onClick={() =>
+                              updateStaff.mutate({
+                                staffMemberId: member.id,
+                                patch: { isActive: !member.isActive },
+                              })
+                            }
+                          >
+                            {member.isActive
+                              ? t('staff.action.deactivate')
+                              : t('staff.action.reactivate')}
+                          </button>
+                        </>
+                      ) : (
+                        <span className="muted small">{t('staff.action.notYours')}</span>
+                      )}
+                    </td>
+                  </tr>
+                  {prompt?.staffMemberId === member.id ? (
+                    <tr className="sign-in-prompt-row">
+                      <td colSpan={showBranchColumn ? 5 : 4}>
+                        <SignInPrompt
+                          key={prompt.email}
+                          member={member}
+                          initialEmail={prompt.email}
+                          failure={prompt.failure}
+                          isPending={issueSignIn.isPending}
+                          onSend={(email) => void sendSignIn(member, email)}
+                          onCancel={() => setPrompt(null)}
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               );
             })}
           </tbody>
@@ -331,12 +516,20 @@ export function StaffScreen() {
         <DevicesPanel branchId={branchId} timeZoneId={timeZoneId} locale={locale} />
       ) : null}
 
-      {shownPin ? (
-        <PinDialog
-          name={shownPin.name}
-          pin={shownPin.pin}
-          // Dropped from state entirely. There is nowhere else it lives.
-          onClose={() => setShownPin(null)}
+      {/* Dropped from state entirely on close. There is nowhere else either
+          credential lives. */}
+      {shown?.kind === 'pin' ? (
+        <PinDialog name={shown.name} pin={shown.pin} onClose={() => setShown(null)} />
+      ) : shown ? (
+        <SignInLinkDialog
+          name={shown.name}
+          pin={shown.pin}
+          link={shown.link}
+          failure={shown.failure}
+          timeZoneId={timeZoneId}
+          locale={locale}
+          onRetry={retryFrom(shown.retry, shown.failure)}
+          onClose={() => setShown(null)}
         />
       ) : null}
     </section>

@@ -46,6 +46,7 @@ import {
   enrolmentCode,
   staffDevice,
   staffMember,
+  staffSignInLink,
   updateStaffBody,
 } from './staffAdminMapping';
 import {
@@ -127,6 +128,7 @@ const VENUES = '/api/venues';
 type WireStaffMember = components['schemas']['Yalla.Application.Staff.StaffMemberView'];
 type WireDevice = components['schemas']['Yalla.Application.Auth.StaffDeviceSummary'];
 type WireCode = components['schemas']['Yalla.Application.Auth.DeviceEnrolmentCodeResult'];
+type WireSignInLink = components['schemas']['Yalla.Application.Staff.StaffSignInLink'];
 
 /**
  * A 403 from the staff routes is the role guard, and it names the field.
@@ -728,6 +730,23 @@ export function createConsoleHttpGateway(
         { pin },
       );
       return staffMember(data);
+    },
+
+    async issueStaffSignIn({ venueId, staffMemberId, email }) {
+      try {
+        const { data } = await client.post<WireSignInLink>(
+          `${VENUES}/${venueId}/staff/${staffMemberId}/sign-in`,
+          { email },
+        );
+        return staffSignInLink(data);
+      } catch (error) {
+        // Only the 403 is re-wrapped: it is the rank rule, same as create and
+        // edit. The 409 (PIN-only role, deactivated, address taken) and the 422
+        // (not an address) already arrive as ConcurrencyConflictError and
+        // ValidationError carrying the server's own sentence, which is the
+        // thing the screen shows.
+        return staffRefusal(error);
+      }
     },
 
     async clearPinLockout({ branchId, staffMemberId }) {

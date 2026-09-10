@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConsoleGateway } from '../consoleGateway';
 import { SlugTakenError, VenueHasOpenTabsError } from '../contracts/errors';
 import { createConsoleMockGateway } from './consoleMock';
@@ -158,5 +158,369 @@ describe('console mock — creating a venue', () => {
 
     expect(caught).toBeInstanceOf(SlugTakenError);
     expect((caught as SlugTakenError).slug).toBe('lumen-coffee');
+  });
+});
+
+describe('console mock — a sign-in for a manager or owner', () => {
+  const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
+
+  it('refuses an email on create without a password, as the server does', async () => {
+    /*
+     * The real backend answers 400 to this body. The mock used to accept it,
+     * which is exactly how a screen forwarding the address on the create call
+     * would have passed every test and failed every real hire.
+     */
+    const { ValidationError } = await import('../errors');
+    const caught = await failing(
+      createConsoleMockGateway({ role: 'owner' }).createStaff({
+        venueId: 'v-lumen',
+        staff: {
+          fullName: 'Marine Sahakyan',
+          phone: '+37477123456',
+          role: 'manager',
+          pin: '2941',
+          branchId: null,
+          email: 'marine@lumen.am',
+        },
+      }),
+    );
+    expect(caught).toBeInstanceOf(ValidationError);
+    expect((caught as InstanceType<typeof ValidationError>).status).toBe(400);
+  });
+
+  it('stores the address lowercased, leaves the password flag alone and returns one link', async () => {
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+    const link = await gateway.issueStaffSignIn({
+      venueId: 'v-lumen',
+      staffMemberId: 'b-lumen-north-manager',
+      email: '  Nare@Lumen.am ',
+    });
+
+    expect(link.email).toBe('nare@lumen.am');
+    // The fragment, where the real template puts it and the reset page reads it.
+    expect(link.resetLink).toMatch(/^mock:\/\/yalla\/console\/reset-password#token=[a-z0-9]{32}$/u);
+    expect(link.replacedExistingSignIn).toBe(false);
+
+    const after = (await gateway.listStaff('v-lumen')).find(
+      (member) => member.id === 'b-lumen-north-manager',
+    )!;
+    expect(after.email).toBe('nare@lumen.am');
+    // Awaiting password: the address is theirs now, the password only when
+    // they open the link.
+    expect(after.hasPasswordSignIn).toBe(false);
+  });
+
+  it('reports a replaced sign-in for somebody who already has a password', async () => {
+    const gateway = createConsoleMockGateway({ role: 'platformAdmin' });
+    const link = await gateway.issueStaffSignIn({
+      venueId: 'v-lumen',
+      staffMemberId: 'v-lumen-owner',
+      email: 'aram@lumen.am',
+    });
+    expect(link.replacedExistingSignIn).toBe(true);
+    const owner = (await gateway.listStaff('v-lumen')).find((m) => m.id === 'v-lumen-owner')!;
+    expect(owner.email).toBe('aram@lumen.am');
+    expect(owner.hasPasswordSignIn).toBe(true);
+  });
+
+  it('refuses yourself and a peer, and lets a platform admin reach an owner', async () => {
+    const { StaffPermissionError } = await import('../contracts/errors');
+    const owner = createConsoleMockGateway({ role: 'owner' });
+
+    // Self: the seeded owner is who the owner role acts as.
+    const self = await failing(
+      owner.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'v-lumen-owner',
+        email: 'me@lumen.am',
+      }),
+    );
+    expect(self).toBeInstanceOf(StaffPermissionError);
+    expect((self as Error).message).toContain('your own');
+
+    // A peer: a manager acting on another manager.
+    const manager = createConsoleMockGateway({ role: 'manager' });
+    const peer = await failing(
+      manager.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-cascade-manager',
+        email: 'tigran@lumen.am',
+      }),
+    );
+    expect(peer).toBeInstanceOf(StaffPermissionError);
+
+    const admin = createConsoleMockGateway({ role: 'platformAdmin' });
+    await expect(
+      admin.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'v-lumen-owner',
+        email: 'aram@lumen.am',
+      }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('refuses a PIN-only role, a deactivated person and a taken address with the server sentence', async () => {
+    const { ConcurrencyConflictError } = await import('../errors');
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+
+    const waiter = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-north-waiter-1',
+        email: 'ani@lumen.am',
+      }),
+    );
+    expect(waiter).toBeInstanceOf(ConcurrencyConflictError);
+    expect((waiter as Error).message).toContain('tapping a PIN');
+
+    await gateway.updateStaff({
+      venueId: 'v-lumen',
+      staffMemberId: 'b-lumen-cascade-manager',
+      patch: { isActive: false },
+    });
+    const inactive = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-cascade-manager',
+        email: 'tigran@lumen.am',
+      }),
+    );
+    expect(inactive).toBeInstanceOf(ConcurrencyConflictError);
+    expect((inactive as Error).message).toContain('Reactivate them first');
+
+    // The seeded owner's address, given to a manager.
+    const ownerEmail = (await gateway.listStaff('v-lumen')).find((m) => m.role === 'owner')!.email!;
+    const taken = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-north-manager',
+        email: ownerEmail,
+      }),
+    );
+    expect(taken).toBeInstanceOf(ConcurrencyConflictError);
+    expect((taken as Error).message).toContain('already has an account');
+  });
+
+  it('answers a bad address with a 422 naming the field, and an unknown person with 404', async () => {
+    const { NotFoundError, ValidationError } = await import('../errors');
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+
+    const bad = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-north-manager',
+        email: 'not-an-address',
+      }),
+    );
+    expect(bad).toBeInstanceOf(ValidationError);
+    expect((bad as InstanceType<typeof ValidationError>).status).toBe(422);
+    expect((bad as InstanceType<typeof ValidationError>).field).toBe('email');
+
+    const missing = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'nobody',
+        email: 'x@lumen.am',
+      }),
+    );
+    expect(missing).toBeInstanceOf(NotFoundError);
+  });
+
+  it('never hands the same link back twice', async () => {
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+    const input = { venueId: 'v-lumen', staffMemberId: 'b-lumen-north-manager', email: 'n@l.am' };
+    const first = await gateway.issueStaffSignIn(input);
+    const second = await gateway.issueStaffSignIn(input);
+    expect(second.resetLink).not.toBe(first.resetLink);
+  });
+});
+
+describe('console mock — the sign-in route refuses what the server refuses', () => {
+  const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
+
+  it('refuses an address that belongs to somebody in another venue', async () => {
+    /*
+     * The server's uniqueness is a filtered unique index over the whole
+     * StaffMembers table, not one list per venue. A mock that only looked at
+     * the target's own venue accepted the very address the server answers 409
+     * to, and every screen test with a cross-venue duplicate passed on it.
+     */
+    const { ConcurrencyConflictError } = await import('../errors');
+    const gateway = createConsoleMockGateway({ role: 'platformAdmin' });
+    const lumenOwner = (await gateway.listStaff('v-lumen')).find((m) => m.role === 'owner')!.email!;
+
+    const taken = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-tumanyan',
+        staffMemberId: 'b-tumanyan-main-manager',
+        email: lumenOwner,
+      }),
+    );
+    expect(taken).toBeInstanceOf(ConcurrencyConflictError);
+    expect((taken as Error).message).toContain('already has an account');
+
+    // The same index catches a credentialed create, whatever the case typed.
+    const created = await failing(
+      gateway.createStaff({
+        venueId: 'v-tumanyan',
+        staff: {
+          fullName: 'Hasmik Sargsyan',
+          phone: '+37477999999',
+          role: 'manager',
+          pin: '7315',
+          branchId: 'b-tumanyan-main',
+          email: lumenOwner.toUpperCase(),
+          password: 'correct horse battery',
+        },
+      }),
+    );
+    expect(created).toBeInstanceOf(ConcurrencyConflictError);
+  });
+
+  it('refuses an address over 320 characters with a 422 naming the field', async () => {
+    // `[StringLength(FieldLengths.Email)]` on the request, and 320 is that constant.
+    const { ValidationError } = await import('../errors');
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+    const bad = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-north-manager',
+        email: `${'a'.repeat(321)}@lumen.am`,
+      }),
+    );
+    expect(bad).toBeInstanceOf(ValidationError);
+    expect((bad as InstanceType<typeof ValidationError>).status).toBe(422);
+    expect((bad as InstanceType<typeof ValidationError>).field).toBe('email');
+  });
+
+  it('refuses a password without an email on create, and an empty address, as it refuses the reverse', async () => {
+    /*
+     * The server's rule is symmetric: either both or neither. Password alone
+     * used to slip through and produce a person with `hasPasswordSignIn` and
+     * no address, a state `HasPasswordCredentials` can never report; and `''`
+     * is `is not null` on the server but falsy here.
+     */
+    const { ValidationError } = await import('../errors');
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+    const person = {
+      fullName: 'Marine Sahakyan',
+      phone: '+37477123456',
+      role: 'manager' as const,
+      pin: '2941',
+      branchId: null,
+    };
+
+    const passwordOnly = await failing(
+      gateway.createStaff({ venueId: 'v-lumen', staff: { ...person, password: 'correct horse' } }),
+    );
+    expect(passwordOnly).toBeInstanceOf(ValidationError);
+    expect((passwordOnly as InstanceType<typeof ValidationError>).status).toBe(400);
+
+    const emptyAddress = await failing(
+      gateway.createStaff({ venueId: 'v-lumen', staff: { ...person, email: '' } }),
+    );
+    expect(emptyAddress).toBeInstanceOf(ValidationError);
+    expect((emptyAddress as InstanceType<typeof ValidationError>).status).toBe(400);
+  });
+
+  it('refuses credentials for a waiter on create with the PIN sentence', async () => {
+    const { ConcurrencyConflictError } = await import('../errors');
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+    const waiter = await failing(
+      gateway.createStaff({
+        venueId: 'v-lumen',
+        staff: {
+          fullName: 'Ani Hakobyan',
+          phone: '+37477123456',
+          role: 'waiter',
+          pin: '2941',
+          branchId: 'b-lumen-north',
+          email: 'ani@lumen.am',
+          password: 'correct horse battery',
+        },
+      }),
+    );
+    expect(waiter).toBeInstanceOf(ConcurrencyConflictError);
+    expect((waiter as Error).message).toContain('tapping a PIN');
+  });
+
+  it('answers a bad address with 422 before looking the person up or at their role', async () => {
+    /*
+     * DataAnnotations run in the endpoint filter, before the handler: a bad
+     * address is a 422 whatever the target is, and the backend's own test
+     * pins that. The mock used to answer 404 for an unknown id and 409 for a
+     * waiter first.
+     */
+    const { ValidationError } = await import('../errors');
+    const gateway = createConsoleMockGateway({ role: 'owner' });
+
+    const nobody = await failing(
+      gateway.issueStaffSignIn({ venueId: 'v-lumen', staffMemberId: 'nobody', email: 'nope' }),
+    );
+    expect(nobody).toBeInstanceOf(ValidationError);
+    expect((nobody as InstanceType<typeof ValidationError>).status).toBe(422);
+
+    const waiter = await failing(
+      gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-north-waiter-1',
+        email: 'nope',
+      }),
+    );
+    expect(waiter).toBeInstanceOf(ValidationError);
+    expect((waiter as InstanceType<typeof ValidationError>).status).toBe(422);
+  });
+
+  it('lowercases the address the way the server does, not the way the host locale does', async () => {
+    /*
+     * The server uses ToLowerInvariant. In a Turkish-locale process
+     * `'I'.toLocaleLowerCase()` is dotless ı, so a mock that used the locale
+     * stored an address the server never would. Emulated rather than assumed,
+     * because the test runner's own locale is not Turkish.
+     */
+    const turkish = vi.spyOn(String.prototype, 'toLocaleLowerCase').mockImplementation(function (
+      this: string,
+    ) {
+      return this.replaceAll('I', 'ı').toLowerCase();
+    });
+    try {
+      const gateway = createConsoleMockGateway({ role: 'owner' });
+      const link = await gateway.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-north-manager',
+        email: 'Irina@Lumen.am',
+      });
+      expect(link.email).toBe('irina@lumen.am');
+    } finally {
+      turkish.mockRestore();
+    }
+  });
+
+  it('names roles in its 403 sentences the way the server does', async () => {
+    // `StaffPermissionException` renders the `StaffRole` enum: PascalCase.
+    const { StaffPermissionError } = await import('../contracts/errors');
+
+    const self = await failing(
+      createConsoleMockGateway({ role: 'owner' }).issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'v-lumen-owner',
+        email: 'me@lumen.am',
+      }),
+    );
+    expect(self).toBeInstanceOf(StaffPermissionError);
+    expect((self as Error).message).toBe(
+      'Issuing your own sign-in requires the PlatformAdmin role; the caller is a Owner.',
+    );
+
+    const peer = await failing(
+      createConsoleMockGateway({ role: 'manager' }).issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-cascade-manager',
+        email: 'tigran@lumen.am',
+      }),
+    );
+    expect((peer as Error).message).toBe(
+      'Issuing a sign-in for a Manager requires the PlatformAdmin role; the caller is a Manager.',
+    );
   });
 });

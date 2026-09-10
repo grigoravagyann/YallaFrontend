@@ -710,11 +710,12 @@ from the console** — see below.
 
 `src/main.tsx` reads `location.pathname` once, before importing either app, and
 dynamically imports one of two bootstraps. `src/publicRoutes.ts` holds the
-decision: seven reserved first segments (`assets`, `dev`, `fonts`, `platform`,
-`sign-in`, `staff`, `venue`) belong to the console and the counter screen, `/`
-is the console's landing, and **everything else is a venue slug**.
+decision: eight reserved first segments (`assets`, `dev`, `fonts`, `platform`,
+`reset-password`, `sign-in`, `staff`, `venue`) belong to the console and the
+counter screen, `/` is the console's landing, and **everything else is a venue
+slug**.
 
-That is why a venue slug may never be one of those seven words. The backend has
+That is why a venue slug may never be one of those eight words. The backend has
 to enforce it at slug-assignment time; a venue that claimed `staff` would be
 unreachable and nothing on this side could fix it after the fact.
 

@@ -96,6 +96,42 @@ export interface EnrolmentCode {
   readonly branchId: string;
 }
 
+/**
+ * A freshly issued admin-panel sign-in, returned **once**.
+ *
+ * Nobody types a password for somebody else. The person who hired a manager
+ * or owner issues this, hands the link over the way everything in this product
+ * travels — pasted into a chat — and the recipient opens it and chooses a
+ * password of their own. The server keeps the token's hash and no read ever
+ * returns it, so `resetLink` exists only here: a lost link is replaced by
+ * issuing another, which retires this one. Good for 24 hours and one use.
+ */
+export interface StaffSignInLink {
+  readonly staffMemberId: string;
+  /** The address, as stored: trimmed and lowercased. */
+  readonly email: string;
+  /** The one copy. Never cached, stored, logged or put in a URL of our own. */
+  readonly resetLink: string;
+  readonly expiresAtUtc: string;
+  /**
+   * True when they already had a password. It keeps working until the link is
+   * used, at which point it is replaced and every session they had open ends.
+   */
+  readonly replacedExistingSignIn: boolean;
+}
+
+/**
+ * Whether a role signs in to the admin panel at all.
+ *
+ * The server's rule, mirrored: a waiter or kitchen hand taps a PIN on a tablet
+ * a manager enrolled and never holds an email or password, because a password
+ * mints a venue-scoped identity their PIN on the floor deliberately does not
+ * reach. Only these two roles get a sign-in badge, an email field, or a link.
+ */
+export function isAdminRole(role: StaffRole): boolean {
+  return role === 'owner' || role === 'manager';
+}
+
 // ---------------------------------------------------------------------------
 // Who may create whom
 // ---------------------------------------------------------------------------

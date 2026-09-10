@@ -24,10 +24,10 @@
  *
  * ## What is checked
  *
- * **Every URL.** A `client.get|post|put|patch|delete` whose path is a string or
- * a template literal is resolved — including `${PLATFORM}`-style constants
- * declared in the same file — and matched against the route templates in
- * `generated/schema.ts`. A parameter matches a parameter or a literal segment; a
+ * **Every URL.** A `client.get|post|put|patch|delete` in `src/http` or
+ * `src/auth` whose path is a string or a template literal is resolved —
+ * including `${PLATFORM}`-style constants declared in the same file — and
+ * matched against the route templates in `generated/schema.ts`. A parameter matches a parameter or a literal segment; a
  * literal segment must be present in the route. No match is a failure.
  *
  * **Every body that is written inline.** For a write whose second argument is an
@@ -60,7 +60,14 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(HERE, '..');
 const REPO_ROOT = resolve(HERE, '..', '..', '..');
-const GATEWAY_DIR = join(PACKAGE_ROOT, 'src', 'http');
+/**
+ * Where hand-written calls live. `auth` as well as `http`: the auth endpoints
+ * sit apart from the gateways because they must never carry a bearer, but
+ * they call routes the same way and drift the same way — the two reset
+ * routes were checked only by a test asserting the same literal as the source,
+ * which moves with it.
+ */
+const GATEWAY_DIRS = ['http', 'auth'].map((name) => join(PACKAGE_ROOT, 'src', name));
 const SCHEMA_FILE = join(PACKAGE_ROOT, 'src', 'generated', 'schema.ts');
 
 const WRITE_METHODS = new Set(['post', 'put', 'patch']);
@@ -307,12 +314,14 @@ let urlsChecked = 0;
 let bodiesChecked = 0;
 let awaitingRoutes = 0;
 
-const gatewayFiles = readdirSync(GATEWAY_DIR)
-  .filter((name) => name.endsWith('.ts') && !name.includes('.test.') && !name.includes('Mapping'))
-  .sort();
+const gatewayFiles = GATEWAY_DIRS.flatMap((dir) =>
+  readdirSync(dir)
+    .filter((name) => name.endsWith('.ts') && !name.includes('.test.') && !name.includes('Mapping'))
+    .sort()
+    .map((name) => join(dir, name)),
+);
 
-for (const name of gatewayFiles) {
-  const file = join(GATEWAY_DIR, name);
+for (const file of gatewayFiles) {
   const source = readFileSync(file, 'utf8');
   const shown = relative(REPO_ROOT, file).replaceAll('\\', '/');
 

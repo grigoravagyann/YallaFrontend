@@ -5,6 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
+    <!-- No page in the console sends its URL anywhere. The reset-password page
+         accepts a sign-in token in the query as a fallback for chat apps that
+         drop fragments, and a query travels in the Referer header where a
+         fragment never does. The page strips it before any request leaves;
+         this makes sure nothing else ever carries one. -->
+    <meta name="referrer" content="no-referrer" />
+
     <!-- Installed as a PWA on Android tablets. `start_url` in the manifest
          points at /staff, so installing from the floor screen gives a waiter an
          icon that opens straight into the room. -->

@@ -3615,6 +3615,36 @@ kbd {
   color: var(--color-foreground);
 }
 
+/* A sign-in link is pasted, not dictated, so it gets none of the read-aloud
+   sizing above: a hundred characters at 2.5rem with letter-spacing would be a
+   wall. A wrapping block that selects as one thing on a click, which is the
+   fallback where the clipboard is out of reach. The copy button beside it is
+   the deliberate exception to the rule above; SignInLinkDialog says why. */
+.sign-in-link-value {
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-soft);
+  background: var(--color-paper);
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* The address prompt sits on the person's own row rather than in a dialog:
+   it is one field, and the row is where the badge that asked for it is. */
+.sign-in-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 28rem;
+}
+
+.row.sign-in-prompt-row {
+  display: block;
+}
+
 .enrolment-code {
   margin: var(--space-lg) 0;
   text-align: center;

@@ -160,6 +160,22 @@
     "failed": "That email and password do not match an account.",
     "expired": "Your session ended. Sign in again to continue where you were."
   },
+  "resetPassword": {
+    "title": "Choose a password",
+    "body": "This is the password you will sign in to the venue console with.",
+    "password": "New password",
+    "confirm": "Repeat the password",
+    "tooShort": "At least {{min}} characters.",
+    "mismatch": "The two passwords do not match.",
+    "submit": "Save password",
+    "doneTitle": "Password set",
+    "doneBody": "Sign in with your email and the password you just chose.",
+    "goToSignIn": "Sign in",
+    "invalidTitle": "This link is no longer valid",
+    "invalidBody": "Ask the person who sent it for a new one.",
+    "signedInTitle": "You are signed in as {{name}}",
+    "signedInBody": "This link is for someone else. Opening it here would use it up. Send it on."
+  },
   "floorPlan": {
     "noBranch": "This account has no branch to draw a plan for.",
     "summary": "{{tables}} tables across {{areas}} areas",
@@ -740,14 +756,18 @@
     },
     "status": {
       "inactive": "Deactivated",
-      "pinLocked": "PIN locked"
+      "pinLocked": "PIN locked",
+      "noSignIn": "No sign-in",
+      "awaitingPassword": "Awaiting password"
     },
     "action": {
       "unlock": "Unlock PIN",
       "resetPin": "New PIN",
       "deactivate": "Deactivate",
       "reactivate": "Reactivate",
-      "notYours": "Above your role"
+      "notYours": "Above your role",
+      "issueSignIn": "Issue sign-in",
+      "sendNewLink": "Send new link"
     },
     "empty": {
       "title": "Nobody here yet",
@@ -761,7 +781,9 @@
       "role": "Role",
       "branch": "Branch",
       "branchFixed": "Works at {{name}}.",
-      "pin": "PIN (4 digits)"
+      "pin": "PIN (4 digits)",
+      "email": "Email",
+      "emailHelp": "They open a link and choose their own password. Nobody types one for them."
     },
     "form": {
       "title": "New staff member",
@@ -775,6 +797,29 @@
       "shownOnceBody": "Shown now and never again. After this it can only be replaced, not looked up.",
       "neverShared": "Everyone has their own. Do not write it on the till.",
       "written": "Written down"
+    },
+    "signIn": {
+      "emailRequired": "Enter the address they will sign in with.",
+      "emailTooLong": "An email address is at most 320 characters.",
+      "send": "Send link",
+      "sending": "Sending…",
+      "confirmSend": "Yes, send it",
+      "previousStops": "The previous link stops working.",
+      "addressChanges": "From the moment you send this they sign in with {{email}} instead of {{old}}; their password stays the same.",
+      "tooManyRequests": "Too many links issued in the last minute. Wait a moment, then try again.",
+      "dialogTitle": "Sign-in for {{name}}",
+      "pinLabel": "PIN",
+      "linkLabel": "Sign-in link",
+      "linkBody": "Paste it to them in a chat. They open it and choose their own password — nobody types one for them.",
+      "expires": "Good until {{when}}. Send it now.",
+      "onceOnly": "Shown now and never again. If it is lost, send a new one — the old one stops working.",
+      "keepsPassword": "Their current password keeps working until they open this.",
+      "copy": "Copy link",
+      "copyFirst": "Copy the link first, or press Done.",
+      "copied": "Copied",
+      "selectAndCopy": "Select and copy",
+      "notIssued": "Added, but without a sign-in link:",
+      "done": "Done"
     }
   },
   "devices": {

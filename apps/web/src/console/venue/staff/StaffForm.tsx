@@ -1,6 +1,7 @@
 import {
   assignableRoles,
   canChooseBranch,
+  isAdminRole,
   type StaffPermissionError,
   type ConsoleBranch,
   type CreateStaffInput,
@@ -11,6 +12,20 @@ import {
 import { useTranslation } from '@yalla/i18n';
 import { useState, type FormEvent } from 'react';
 
+/**
+ * The admin-panel sign-in a new manager or owner is to be issued.
+ *
+ * Handed back **beside** the create input, never inside it. `CreateStaffInput`
+ * has an `email` member for the one path where the caller also types a
+ * password, and the server answers 400 to an email without one. The console
+ * never types a password for anybody, so the address goes on a second call
+ * (`issueStaffSignIn`) after the person exists — and keeping it out of the
+ * create input is what stops a screen forwarding it by accident.
+ */
+export interface SignInRequest {
+  readonly email: string;
+}
+
 export interface StaffFormProps {
   readonly actorRole: StaffRole | 'platformAdmin';
   /** The branch a manager is fixed to; `null` when the actor may choose. */
@@ -18,7 +33,8 @@ export interface StaffFormProps {
   readonly branches: readonly ConsoleBranch[];
   /** Absent when creating. */
   readonly editing: StaffMember | null;
-  readonly onCreate: (input: CreateStaffInput) => Promise<void>;
+  /** `signIn` is set exactly when the role uses the admin panel. */
+  readonly onCreate: (input: CreateStaffInput, signIn: SignInRequest | null) => Promise<void>;
   readonly onUpdate: (patch: UpdateStaffInput) => Promise<void>;
   readonly onCancel: () => void;
   readonly refusal: StaffPermissionError | null;
@@ -27,6 +43,23 @@ export interface StaffFormProps {
 
 /** The sentinel the branch `<select>` uses for "every branch of the venue". */
 const ALL_BRANCHES = '__all__';
+
+/**
+ * Something with one `@` and no whitespace — the server's own `[EmailAddress]`
+ * is about this lax. Checked before the round trip because a blank address is
+ * the common slip and the answer is the same either way.
+ */
+export const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+$/u;
+
+/**
+ * Mirrors `FieldLengths.Email` on the server: the most an address may be.
+ *
+ * On the input as `maxLength`, so the keyboard stops where the server would;
+ * checked on submit as well, because `maxLength` binds typing and not a value
+ * a script or an autofill set, and the server's own refusal of an overlong
+ * address is a developer's sentence rather than one for the person typing.
+ */
+export const EMAIL_MAX_LENGTH = 320;
 
 /**
  * One form for hiring and for editing, because they are the same act.
@@ -73,12 +106,19 @@ export function StaffForm({
   );
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const branchId = branchChoice === ALL_BRANCHES ? null : branchChoice;
+  // Only when hiring. Editing has no email: the address is changed from the
+  // row's "Send new link", because changing it re-points a working sign-in
+  // and deserves its own confirmation rather than a field among five.
+  const needsSignIn = !editing && isAdminRole(role);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setPinError(null);
+    setEmailError(null);
 
     if (editing) {
       await onUpdate({
@@ -101,13 +141,28 @@ export function StaffForm({
       return;
     }
 
-    await onCreate({
-      fullName,
-      phone,
-      role,
-      pin,
-      branchId: chooseBranch ? branchId : fixedBranchId,
-    });
+    // Same idiom as the PIN. A manager without an address is the defect this
+    // form exists to close, so the address is required rather than offered.
+    const address = email.trim();
+    if (needsSignIn && !EMAIL_SHAPE.test(address)) {
+      setEmailError(t('staff.signIn.emailRequired'));
+      return;
+    }
+    if (needsSignIn && address.length > EMAIL_MAX_LENGTH) {
+      setEmailError(t('staff.signIn.emailTooLong'));
+      return;
+    }
+
+    await onCreate(
+      {
+        fullName,
+        phone,
+        role,
+        pin,
+        branchId: chooseBranch ? branchId : fixedBranchId,
+      },
+      needsSignIn ? { email: address } : null,
+    );
   }
 
   /** A refusal the server aimed at a specific control. */
@@ -241,6 +296,41 @@ export function StaffForm({
           ) : null}
         </div>
       )}
+
+      {/* Only for the two roles that reach the admin panel, and only when
+          hiring. A waiter taps a PIN on a tablet and never holds an address —
+          offering the field would be offering something the server refuses. */}
+      {needsSignIn ? (
+        <div className="labelled">
+          <label htmlFor="staff-email">{t('staff.field.email')}</label>
+          <input
+            id="staff-email"
+            className="field"
+            /*
+             * `inputMode` rather than `type="email"`: the phone keyboard still
+             * gets its @ key, and the shape is checked above with the app's
+             * own sentence in the app's own language, rather than by the
+             * browser in whatever language the browser happens to be in.
+             * `required` stays native, as on every other field here.
+             */
+            type="text"
+            inputMode="email"
+            value={email}
+            required
+            // Mirrors `FieldLengths.Email`; see EMAIL_MAX_LENGTH.
+            maxLength={EMAIL_MAX_LENGTH}
+            autoComplete="email"
+            {...(emailError ? { 'aria-describedby': 'staff-email-error' } : {})}
+            onChange={(event) => setEmail(event.currentTarget.value)}
+          />
+          <span className="muted small">{t('staff.field.emailHelp')}</span>
+          {emailError ? (
+            <span id="staff-email-error" className="field-error" role="alert">
+              {emailError}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Only a refusal that named no field lands here. One that named a field
           is already under that field, where the next action is obvious. */}

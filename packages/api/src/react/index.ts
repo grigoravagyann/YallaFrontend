@@ -1026,6 +1026,34 @@ export function useSetStaffPin(venueId: string | undefined) {
   });
 }
 
+/**
+ * Give a manager or owner their admin-panel sign-in.
+ *
+ * The result carries the one copy of a live sign-in link, so nothing here
+ * writes it anywhere: the mutation hands it to the caller, who shows it once
+ * and drops it. Only the staff list is invalidated, because it carries the
+ * address and the "awaiting password" state that a fresh issue changes.
+ *
+ * One thing this hook cannot avoid: TanStack keeps a mutation's result as
+ * its `data`, and in the mutation cache, until the mutation is reset and
+ * collected. So the cache keeps it for no time at all (`gcTime: 0`), and
+ * callers `reset()` as soon as their own state holds the link — after which
+ * the dialog's copy is the only one anywhere.
+ */
+export function useIssueStaffSignIn(venueId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { staffMemberId: string; email: string }) =>
+      gateway.issueStaffSignIn({ venueId: venueId!, ...input }),
+    gcTime: 0,
+    onSuccess: () => {
+      // The list, never the link.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
+    },
+  });
+}
+
 /** The one people use mid-rush. */
 export function useClearPinLockout(venueId: string | undefined) {
   const gateway = useConsoleGateway();

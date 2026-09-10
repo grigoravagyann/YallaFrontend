@@ -33,6 +33,14 @@ describe('which app owns a URL', () => {
     }
   });
 
+  it('keeps the page a sign-in link opens', () => {
+    // The only way a manager or owner ever gets a password is a link to this
+    // path, pasted into a chat. Sent to the public page it would read as a
+    // venue slug and answer "we could not find that place".
+    expect(isPublicPath('/reset-password')).toBe(false);
+    expect(isPublicPath('/reset-password/')).toBe(false);
+  });
+
   it('leaves the root to the console', () => {
     // `/` is where a signed-in venue user lands. A public page always names a
     // venue, so there is nothing for this route group to show there.

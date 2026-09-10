@@ -4,6 +4,7 @@ import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { onSignedOut } from './auth/authSession';
 import { Forbidden, LoadingScreen, RequireRole } from './auth/RequireRole';
+import { ResetPasswordRoute } from './auth/ResetPasswordRoute';
 import { SignInRoute } from './auth/SignInRoute';
 import { PLATFORM_ROLES, VENUE_ROLES, landingPathFor, useCurrentUser } from './auth/useCurrentUser';
 import { QueryFailureNotice } from './components/QueryFailureNotice';
@@ -64,6 +65,16 @@ import { useDocumentLocale } from './useDocumentLocale';
  * meant a tablet with no venue-user session was redirected to a password form,
  * which is both useless to a waiter and the shortest path to a shared owner
  * account living on a counter.
+ *
+ * `/reset-password` sits beside it for a related reason. The person opening a
+ * sign-in link has a credential of their own — the link — and usually either no
+ * console session or a stale one. Inside the console's router, a stale refresh
+ * token would be rejected on startup and `useSignedOutRedirect` would carry
+ * the link's URL into the sign-in form's history state and show a password
+ * form to somebody who has no password yet. Matched here, the page never has a
+ * session-driven redirect above it, and signing out from it (a signed-in owner
+ * clearing the way for the link's real recipient) does not remount it, so the
+ * token it read from the address bar survives the sign-out.
  */
 export function App() {
   useDocumentLocale();
@@ -71,6 +82,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/staff/*" element={<StaffRoute />} />
+      <Route path="/reset-password" element={<ResetPasswordRoute />} />
       <Route path="*" element={<ConsoleApp />} />
     </Routes>
   );

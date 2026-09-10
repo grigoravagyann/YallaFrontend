@@ -2210,7 +2210,9 @@ export interface paths {
         put?: never;
         /**
          * Add a staff member, with a PIN
-         * @description A manager may create waiters and kitchen staff; an owner or platform admin may create managers and owners. Nobody creates a role above their own. Email and password are for people who use the admin panel.
+         * @description A manager may create waiters and kitchen staff; an owner or platform admin may create managers and owners. Nobody creates a role above their own.
+         *
+         *     A manager or owner gets their admin-panel sign-in through `issueStaffSignIn` after they exist: it stores the address and returns a link they choose their own password by. Sending `email` and `password` here still works, and is the one path where the caller types a password for somebody else.
          */
         post: operations["createStaff"];
         delete?: never;
@@ -2253,6 +2255,32 @@ export interface paths {
          * @description 4 to 8 digits. Clears any lockout.
          */
         post: operations["setStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/venues/{venueId}/staff/{staffMemberId}/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give a manager or owner their admin-panel sign-in
+         * @description Stores the address and returns a link the person opens to choose their own password. Nobody types a password for somebody else: the reset endpoint that consumes the link is the only thing that ever sets one.
+         *
+         *     The link is returned **once** and this is the only copy - the server keeps the token's hash and never logs it, so a lost link is replaced by issuing another. It is good for 24 hours and exactly one use. Issuing a new link retires any earlier unused one; two links issued at the same instant can both be live until one is used.
+         *
+         *     Only somebody the caller strictly outranks: an owner issues for managers, a platform admin for owners and managers, and nobody for a peer or for themselves. A person who already has a password keeps it - and their open sessions - until the link is used, when both are replaced. Their sign-in address changes to the one given as soon as this answers.
+         *
+         *     Ten a minute per caller: this mints a credential, so it spends the sign-in budget rather than the global one.
+         */
+        post: operations["issueStaffSignIn"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2331,7 +2359,7 @@ export interface components {
              * Format: date
              * @description Local calendar date at the branch, e.g. `2026-09-12`.
              */
-            date: string;
+            date?: string | null;
             /** @description Who to ask for at the door. */
             guestName: string;
             /** @description How to reach them when they are late. */
@@ -2352,7 +2380,7 @@ export interface components {
              * Format: time
              * @description Local wall-clock start at the branch, e.g. `19:30`.
              */
-            time: string;
+            time?: string | null;
         };
         /** @description Body for staff accepting or declining a booking that is waiting for approval. */
         "Yalla.Api.Endpoints.DecideReservationRequest": {
@@ -2539,8 +2567,15 @@ export interface components {
              *     a diner's record.
              */
             clientCommandId: string;
-            /** @description Why a booking was let go, and whether it counts against the diner. */
-            outcome: components["schemas"]["Yalla.Application.Reservations.ReleaseOutcome"];
+            /**
+             * @description <b>1 NoShow</b> - nobody came and nobody called; counts toward the diner's rolling no-show
+             *                  threshold. <b>2 CancelledByVenue</b> - they phoned, or the table went out of service; does
+             *                  <b>not</b> count.
+             *
+             *                  Two buttons on the tablet, never one. A single "release" gets tapped for both cases by a busy
+             *                  waiter, and the threshold then punishes the diners who bothered to ring ahead.
+             */
+            outcome?: components["schemas"]["Yalla.Application.Reservations.ReleaseOutcome"] | null;
             /** @description Optional free text for the audit row. */
             reason?: string | null;
         };
@@ -2737,6 +2772,11 @@ export interface components {
             queued: boolean;
             /** @description Optional free text for the audit log. */
             reason?: string | null;
+        };
+        /** @description Body of the sign-in issue. */
+        "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
+            /** @description The address this person will sign in with. Stored lowercased. */
+            email: string;
         };
         /** @description Body of the availability toggle. */
         "Yalla.Api.Endpoints.VenueAdminEndpoints.SetAvailabilityRequest": {
@@ -4749,7 +4789,16 @@ export interface components {
              * @description Tables with nobody at them right now.
              */
             freeTableCount: number;
-            /** @description Whether it is open at this moment, decided in the branch's own zone. */
+            /**
+             * @description Whether it is open at this moment, decided in the branch's own zone.
+             *
+             *     <b>This is the only "is it worth going" signal, and there is deliberately no second one.</b> An
+             *     earlier draft carried a `status` of Open/Closed beside it, which was computed from this
+             *     field and therefore said nothing new under a name that implied venue lifecycle. A branch that is
+             *     suspended, deleted or switched off never reaches this response at all - every query behind it
+             *     filters those out and the route answers 404 - so "shut tonight" is this field being false, and
+             *     "this venue is gone" is the 404. Two names for one fact is how a mapper picks the wrong one.
+             */
             isOpenNow: boolean;
             /**
              * Format: double
@@ -4774,11 +4823,6 @@ export interface components {
              */
             policy: components["schemas"]["Yalla.Application.Public.PublicReservationPolicy"];
             /**
-             * @description Open or Closed - see Yalla.Application.Public.PublicBranchStatus. Lets the page tell "shut tonight" from
-             *     "this venue is gone", which neither IsOpenNow alone nor a 404 can say.
-             */
-            status: components["schemas"]["Yalla.Application.Public.PublicBranchStatus"];
-            /**
              * Format: int32
              * @description How many bookable tables there are, so the count has a denominator.
              */
@@ -4795,14 +4839,6 @@ export interface components {
             /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
             venueType: components["schemas"]["Yalla.Domain.Enums.VenueType"];
         };
-        /**
-         * Format: int32
-         * @description Whether the page is showing a branch a diner can act on.
-         *
-         *     Values: 1 Open, 2 Closed.
-         * @enum {integer}
-         */
-        "Yalla.Application.Public.PublicBranchStatus": 1 | 2;
         /** @description The room as a diner sees it: a canvas, areas, and tables. */
         "Yalla.Application.Public.PublicFloorPlan": {
             areas: components["schemas"]["Yalla.Application.BranchSettings.FloorAreaView"][];
@@ -5509,6 +5545,31 @@ export interface components {
             role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
             /** Format: uuid */
             venueId?: string | null;
+        };
+        /**
+         * @description A freshly issued sign-in link. ResetLink exists only here: the server keeps
+         *     the token's hash and no read ever returns it, so this is the one copy.
+         */
+        "Yalla.Application.Staff.StaffSignInLink": {
+            /** @description The address, as stored. */
+            email: string;
+            /**
+             * Format: date-time
+             * @description When the link stops working unused.
+             */
+            expiresAtUtc: string;
+            /**
+             * @description True when this person already had a password. It keeps working until the link is used, at
+             *     which point it is replaced and every session they had open is ended.
+             */
+            replacedExistingSignIn: boolean;
+            /** @description The link to hand over. Opening it is how they choose their password. */
+            resetLink: string;
+            /**
+             * Format: uuid
+             * @description Whose sign-in it is.
+             */
+            staffMemberId: string;
         };
         /**
          * @description Patch a staff member. BranchId is applied only when SetBranch
@@ -15175,6 +15236,105 @@ export interface operations {
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueStaffSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                staffMemberId: string;
+                venueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Staff.StaffSignInLink"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not allowed to issue a sign-in for this person: yourself, an equal, or someone above you. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such staff member in this venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A waiter or kitchen hand signs in with a PIN; the person is deactivated; or that address already has an account. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `email` is missing, not an address, or longer than 320 characters; `context.field` names it. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many sign-ins issued in the last minute. Wait, then retry. */
             429: {
                 headers: {
                     [name: string]: unknown;
