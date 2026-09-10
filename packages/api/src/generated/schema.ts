@@ -2277,6 +2277,8 @@ export interface paths {
          *     The link is returned **once** and this is the only copy - the server keeps the token's hash and never logs it, so a lost link is replaced by issuing another. It is good for 24 hours and exactly one use. Issuing a new link retires any earlier unused one; two links issued at the same instant can both be live until one is used.
          *
          *     Only somebody the caller strictly outranks: an owner issues for managers, a platform admin for owners and managers, and nobody for a peer or for themselves. A person who already has a password keeps it - and their open sessions - until the link is used, when both are replaced. Their sign-in address changes to the one given as soon as this answers.
+         *
+         *     Ten a minute per caller: this mints a credential, so it spends the sign-in budget rather than the global one.
          */
         post: operations["issueStaffSignIn"];
         delete?: never;
@@ -15323,7 +15325,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `email` is missing or not an address; `context.field` names it. */
+            /** @description `email` is missing, not an address, or longer than 320 characters; `context.field` names it. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15332,7 +15334,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
-            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            /** @description Too many sign-ins issued in the last minute. Wait, then retry. */
             429: {
                 headers: {
                     [name: string]: unknown;
