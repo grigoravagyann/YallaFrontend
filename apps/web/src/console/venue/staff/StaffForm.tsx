@@ -52,6 +52,16 @@ const ALL_BRANCHES = '__all__';
 export const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+$/u;
 
 /**
+ * Mirrors `FieldLengths.Email` on the server: the most an address may be.
+ *
+ * On the input as `maxLength`, so the keyboard stops where the server would;
+ * checked on submit as well, because `maxLength` binds typing and not a value
+ * a script or an autofill set, and the server's own refusal of an overlong
+ * address is a developer's sentence rather than one for the person typing.
+ */
+export const EMAIL_MAX_LENGTH = 320;
+
+/**
  * One form for hiring and for editing, because they are the same act.
  *
  * **A form, not a wizard.** Adding a waiter is four fields and takes twenty
@@ -136,6 +146,10 @@ export function StaffForm({
     const address = email.trim();
     if (needsSignIn && !EMAIL_SHAPE.test(address)) {
       setEmailError(t('staff.signIn.emailRequired'));
+      return;
+    }
+    if (needsSignIn && address.length > EMAIL_MAX_LENGTH) {
+      setEmailError(t('staff.signIn.emailTooLong'));
       return;
     }
 
@@ -303,6 +317,8 @@ export function StaffForm({
             inputMode="email"
             value={email}
             required
+            // Mirrors `FieldLengths.Email`; see EMAIL_MAX_LENGTH.
+            maxLength={EMAIL_MAX_LENGTH}
             autoComplete="email"
             {...(emailError ? { 'aria-describedby': 'staff-email-error' } : {})}
             onChange={(event) => setEmail(event.currentTarget.value)}

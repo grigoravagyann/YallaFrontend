@@ -75,7 +75,12 @@ export function VenueDetailRoute() {
   const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
 
   const failureText = (error: unknown) =>
-    issueFailureText(error, { offline: t('state.offline'), generic: t('state.error') });
+    issueFailureText(error, {
+      offline: t('state.offline'),
+      generic: t('state.error'),
+      badEmail: t('staff.signIn.emailRequired'),
+      tooManyRequests: t('staff.signIn.tooManyRequests'),
+    });
 
   async function sendSignIn(member: StaffMember, email: string) {
     try {
@@ -98,12 +103,17 @@ export function VenueDetailRoute() {
     }
   }
 
-  // From the dialog to the row: the address is corrected there.
-  const retryFrom = (retry: { staffMemberId: string; email: string } | null) =>
+  // From the dialog to the row: the address is corrected there, and the
+  // reason it was refused goes with it, since the dialog's alert unmounts
+  // with the dialog.
+  const retryFrom = (
+    retry: { staffMemberId: string; email: string } | null,
+    failure: string | null,
+  ) =>
     retry
       ? () => {
           setShown(null);
-          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure: null });
+          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure });
         }
       : null;
 
@@ -220,7 +230,9 @@ export function VenueDetailRoute() {
             branches={venue.branches}
             editing={null}
             refusal={refusal}
-            isSaving={createStaff.isPending}
+            // The issue call counts too: the form stays in "Saving…" until
+            // the dialog is ready, as on the venue staff screen.
+            isSaving={createStaff.isPending || issueSignIn.isPending}
             onCancel={() => {
               setHiring(false);
               setRefusal(null);
@@ -232,15 +244,16 @@ export function VenueDetailRoute() {
                 // a password, and the address goes on the issue call after the
                 // owner exists.
                 const created = await createStaff.mutateAsync(input);
-                setHiring(false);
                 // The single moment the PIN is on a screen, same as the venue
                 // staff screen: it came from the form and goes no further.
                 if (!signIn) {
                   setShown({ kind: 'pin', name: created.fullName, pin: input.pin });
+                  setHiring(false);
                   return;
                 }
                 // Always the dialog: the owner exists now, and their PIN has to
-                // be shown whether or not the link followed.
+                // be shown whether or not the link followed. The form closes
+                // only once the dialog is set, in the same render.
                 try {
                   const link = await issueSignIn.mutateAsync({
                     staffMemberId: created.id,
@@ -265,6 +278,7 @@ export function VenueDetailRoute() {
                   });
                 } finally {
                   issueSignIn.reset();
+                  setHiring(false);
                 }
               } catch (error) {
                 if (error instanceof StaffPermissionError) setRefusal(error);
@@ -291,7 +305,7 @@ export function VenueDetailRoute() {
             failure={shown.failure}
             timeZoneId={CONSOLE_TIME_ZONE}
             locale={locale}
-            onRetry={retryFrom(shown.retry)}
+            onRetry={retryFrom(shown.retry, shown.failure)}
             onClose={() => setShown(null)}
           />
         ) : null}
@@ -323,10 +337,13 @@ export function VenueDetailRoute() {
                       {member.isActive ? null : (
                         <span className="badge">{t('staff.status.inactive')}</span>
                       )}
-                      {signsIn && !member.email ? (
+                      {/* Not on a deactivated row, as on the venue staff screen:
+                          no action is offered there, and the badge returns
+                          with the action on reactivation. */}
+                      {member.isActive && signsIn && !member.email ? (
                         <span className="badge badge-warn">{t('staff.status.noSignIn')}</span>
                       ) : null}
-                      {signsIn && member.email && !member.hasPasswordSignIn ? (
+                      {member.isActive && signsIn && member.email && !member.hasPasswordSignIn ? (
                         <span className="badge">{t('staff.status.awaitingPassword')}</span>
                       ) : null}
                       <span className="muted small">{t(`role.${member.role}`)}</span>

@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
-import { createConsoleMockGateway, type ConsoleGateway, type StaffMember } from '@yalla/api';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  StaffPermissionError,
+  TooManyRequestsError,
+  ValidationError,
+  createConsoleMockGateway,
+  type ConsoleGateway,
+  type StaffMember,
+} from '@yalla/api';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -185,6 +192,32 @@ function cachedText(harness: ReturnType<typeof renderStaff>): string {
   return JSON.stringify([...queries.map((q) => q.state), ...mutations.map((m) => m.state)]);
 }
 
+/**
+ * Holds the issue call open until `release`, so the moment between the
+ * person existing and the link arriving can be looked at. On a slow
+ * connection that moment is seconds long.
+ */
+function withDeferredIssue(gateway: ConsoleGateway) {
+  const real = gateway.issueStaffSignIn.bind(gateway);
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const issue = vi.spyOn(gateway, 'issueStaffSignIn').mockImplementation(async (input) => {
+    await gate;
+    return real(input);
+  });
+  return { issue, release: () => release() };
+}
+
+/** The row prompt for a seeded manager, opened from the row. */
+async function openPromptFor(user: ReturnType<typeof userEvent.setup>, name: string) {
+  const row = screen.getByText(name).closest('tr')!;
+  await user.click(within(row).getByRole('button', { name: /issue sign-in|send new link/i }));
+  const first = name.split(' ')[0]!;
+  return screen.getByRole('form', { name: new RegExp(`sign-in for ${first}`, 'i') });
+}
+
 describe('the PIN', () => {
   it('is shown exactly once and never again, beside the sign-in link', async () => {
     const user = userEvent.setup();
@@ -358,6 +391,11 @@ describe('the sign-in email', () => {
     const prompt = screen.getByRole('form', { name: /sign-in for marine/i });
     const field = within(prompt).getByLabelText(/^email$/i) as HTMLInputElement;
     expect(field.value).toBe('owner@lumen-coffee.am');
+    // The reason travels with the address: the sentence the person is meant
+    // to act on is under the field, not lost with the dialog it arrived in.
+    expect(within(prompt).getByRole('alert').textContent).toContain('already has an account');
+    // And the cursor is in the field, since the button it came from is gone.
+    expect(document.activeElement).toBe(field);
 
     await user.clear(field);
     await user.type(field, 'marine@lumen.am');
@@ -366,6 +404,189 @@ describe('the sign-in email', () => {
     await waitFor(() => expect(issue).toHaveBeenCalledTimes(2));
     expect(issue.mock.calls[1]?.[0].email).toBe('marine@lumen.am');
     tokenIn((await screen.findByRole('dialog')).textContent);
+  });
+
+  it('keeps the form saving until the dialog is ready', async () => {
+    /*
+     * Between the create answering and the issue answering, the person
+     * exists and nothing is on screen yet. Closing the form in that gap left
+     * the list with a new row and no dialog, and the button live to open a
+     * second form — on a slow connection, for seconds.
+     */
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const { issue, release } = withDeferredIssue(gateway);
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    await hireManager(user);
+    await waitFor(() => expect(issue).toHaveBeenCalledTimes(1));
+
+    const form = screen.getByRole('form');
+    const submit = within(form).getByRole('button', { name: /saving/i }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    release();
+    await screen.findByRole('dialog');
+    expect(screen.queryByRole('form')).toBeNull();
+  });
+
+  it('caps the address at the 320 characters the server stores, on both forms', async () => {
+    // `FieldLengths.Email`, mirrored so the keyboard stops where the server would.
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner' });
+    await waitForList();
+
+    await user.click(screen.getByRole('button', { name: /add someone/i }));
+    const form = screen.getByRole('form');
+    expect(
+      within(form)
+        .getByLabelText(/^email$/i)
+        .getAttribute('maxlength'),
+    ).toBe('320');
+    await user.click(within(form).getByRole('button', { name: /cancel/i }));
+
+    const prompt = await openPromptFor(user, 'Nare Petrosyan');
+    expect(
+      within(prompt)
+        .getByLabelText(/^email$/i)
+        .getAttribute('maxlength'),
+    ).toBe('320');
+  });
+
+  it('refuses an address over 320 characters on the hire form before anything is sent', async () => {
+    /*
+     * `maxLength` stops the keyboard, not a paste a browser lets through or a
+     * value set by script — so the check is made on submit as well, with the
+     * app's own sentence rather than the server's developer-facing one.
+     */
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const create = vi.spyOn(gateway, 'createStaff');
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    await user.click(screen.getByRole('button', { name: /add someone/i }));
+    await user.type(screen.getByLabelText(/full name/i), 'Marine Sahakyan');
+    await user.type(screen.getByLabelText(/phone/i), '+37477123456');
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: `${'a'.repeat(315)}@lumen.am` },
+    });
+    await user.type(screen.getByLabelText(/pin/i), '2941');
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(create).not.toHaveBeenCalled();
+    expect(alert.textContent).toMatch(/at most 320 characters/i);
+  });
+
+  it('refuses an address over 320 characters from the row before anything is sent', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const issue = vi.spyOn(gateway, 'issueStaffSignIn');
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const prompt = await openPromptFor(user, 'Nare Petrosyan');
+    fireEvent.change(within(prompt).getByLabelText(/^email$/i), {
+      target: { value: `${'a'.repeat(315)}@lumen.am` },
+    });
+    await user.click(within(prompt).getByRole('button', { name: /send link/i }));
+
+    const alert = await within(prompt).findByRole('alert');
+    expect(issue).not.toHaveBeenCalled();
+    expect(alert.textContent).toMatch(/at most 320 characters/i);
+  });
+});
+
+describe('what a refusal from the row says', () => {
+  /** A rejection the server could send, as the gateway would raise it. */
+  function refusing(gateway: ConsoleGateway, error: Error) {
+    return vi.spyOn(gateway, 'issueStaffSignIn').mockRejectedValue(error);
+  }
+
+  async function sendFor(user: ReturnType<typeof userEvent.setup>, name: string, email: string) {
+    const prompt = await openPromptFor(user, name);
+    await user.type(within(prompt).getByLabelText(/^email$/i), email);
+    await user.click(within(prompt).getByRole('button', { name: /send link/i }));
+    return within(prompt).findByRole('alert');
+  }
+
+  it("shows the server's sentence when the refusal is about rank", async () => {
+    /*
+     * A 403 on this route is a StaffPermissionError, not a ForbiddenError,
+     * and the two used to be told apart badly enough that the sentence was
+     * dropped for the generic copy. Reachable when the actor's own row was
+     * demoted or deactivated after the list loaded.
+     */
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    refusing(
+      gateway,
+      new StaffPermissionError({
+        url: 'mock://yalla',
+        detail:
+          'Issuing a sign-in for a Owner requires the PlatformAdmin role; the caller is a Owner.',
+      }),
+    );
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const alert = await sendFor(user, 'Nare Petrosyan', 'nare@lumen.am');
+    expect(alert.textContent).toContain('requires the PlatformAdmin role');
+  });
+
+  it('reports the ten-a-minute limit as a wait, not a fault', async () => {
+    // The route spends the sign-in budget; a 429 is the limiter, not a bug.
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    refusing(
+      gateway,
+      new TooManyRequestsError({
+        url: 'mock://yalla',
+        problem: {
+          type: 'about:blank',
+          title: 'Too many requests',
+          status: 429,
+          detail: 'Too many sign-ins issued in the last minute. Wait, then retry.',
+          code: 'rate-limited',
+          traceId: 'mock',
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const alert = await sendFor(user, 'Nare Petrosyan', 'nare@lumen.am');
+    expect(alert.textContent).toMatch(/wait a moment, then try again/i);
+  });
+
+  it("translates a 422 naming the address rather than showing the server's own sentence", async () => {
+    // What .NET's DataAnnotations write is for a developer, in English.
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    refusing(
+      gateway,
+      new ValidationError({
+        url: 'mock://yalla',
+        status: 422,
+        problem: {
+          type: 'about:blank',
+          title: 'Validation failed',
+          status: 422,
+          detail: 'The field email must be a string with a maximum length of 320.',
+          code: 'validation-failed',
+          traceId: 'mock',
+          context: { field: 'email' },
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const alert = await sendFor(user, 'Nare Petrosyan', 'nare@lumen.am');
+    expect(alert.textContent).toBe('Enter the address they will sign in with.');
   });
 });
 
@@ -392,6 +613,8 @@ describe('the sign-in badge', () => {
 
     await user.click(within(managerRow).getByRole('button', { name: /issue sign-in/i }));
     const prompt = screen.getByRole('form', { name: /sign-in for nare/i });
+    // The address is the one thing to type, so the cursor is already there.
+    expect(document.activeElement).toBe(within(prompt).getByLabelText(/^email$/i));
     await user.type(within(prompt).getByLabelText(/^email$/i), 'nare@lumen.am');
     await user.click(within(prompt).getByRole('button', { name: /send link/i }));
 
@@ -459,19 +682,33 @@ describe('sending a new link', () => {
    * sets a password — the email-and-password create the server also allows —
    * so the mock's own state, not a stub, says `hasPasswordSignIn`.
    */
-  async function withSigningInManager(gateway: ConsoleGateway) {
+  async function withSigningInManager(
+    gateway: ConsoleGateway,
+    person: { readonly fullName: string; readonly email: string } = {
+      fullName: 'Karen Hovhannisyan',
+      email: 'karen@lumen.am',
+    },
+  ) {
     await gateway.createStaff({
       venueId: 'v-lumen',
       staff: {
-        fullName: 'Karen Hovhannisyan',
+        fullName: person.fullName,
         phone: '+37477555555',
         role: 'manager',
         pin: '1111',
         branchId: 'b-lumen-north',
-        email: 'karen@lumen.am',
+        email: person.email,
         password: 'correct horse battery',
       },
     });
+  }
+
+  /** Karen's prompt, with her current address in the field. */
+  async function openKarensPrompt(user: ReturnType<typeof userEvent.setup>) {
+    const prompt = await openPromptFor(user, 'Karen Hovhannisyan');
+    const field = within(prompt).getByLabelText(/^email$/i) as HTMLInputElement;
+    expect(field.value).toBe('karen@lumen.am');
+    return { prompt, field };
   }
 
   it('asks twice before re-pointing a working sign-in to a different address', async () => {
@@ -488,20 +725,19 @@ describe('sending a new link', () => {
     renderStaff({ role: 'owner', gateway });
     await waitForList();
 
-    const row = screen.getByText('Karen Hovhannisyan').closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: /send new link/i }));
-
-    const prompt = screen.getByRole('form', { name: /sign-in for karen/i });
-    expect(within(prompt).getByText(/previous link stops working/i)).toBeTruthy();
-    const field = within(prompt).getByLabelText(/^email$/i) as HTMLInputElement;
-    expect(field.value).toBe('karen@lumen.am');
+    const { prompt, field } = await openKarensPrompt(user);
+    // What is at stake for somebody who signs in is the working password, so
+    // that is what the help text says — before the send, not after it. "The
+    // previous link stops working" is for somebody still holding a link.
+    expect(within(prompt).getByText(/current password keeps working/i)).toBeTruthy();
+    expect(within(prompt).queryByText(/previous link stops working/i)).toBeNull();
 
     await user.clear(field);
     await user.type(field, 'karen.h@lumen.am');
     await user.click(within(prompt).getByRole('button', { name: /send link/i }));
 
     // Stated back, not sent.
-    expect(within(prompt).getByText(/changes to karen\.h@lumen\.am/i)).toBeTruthy();
+    expect(within(prompt).getByText(/karen\.h@lumen\.am instead of/i)).toBeTruthy();
     expect(issue).not.toHaveBeenCalled();
 
     await user.click(within(prompt).getByRole('button', { name: /yes, send it/i }));
@@ -513,6 +749,47 @@ describe('sending a new link', () => {
     expect(dialog.textContent).toMatch(/current password keeps working/i);
   });
 
+  it('names both addresses and says the password is unchanged, before the second click', async () => {
+    /*
+     * The three facts the owner needs before clicking again: the old address
+     * stops working the moment the server answers, which one it was, and
+     * that the password is untouched. A sentence naming only the new address
+     * cannot tell a corrected typo from a second one.
+     */
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    await withSigningInManager(gateway);
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const { prompt, field } = await openKarensPrompt(user);
+    await user.clear(field);
+    await user.type(field, 'karen.h@lumen.am');
+    await user.click(within(prompt).getByRole('button', { name: /send link/i }));
+
+    expect(
+      within(prompt).getByText(/sign in with karen\.h@lumen\.am instead of karen@lumen\.am/i),
+    ).toBeTruthy();
+    expect(within(prompt).getByText(/password stays the same/i)).toBeTruthy();
+  });
+
+  it('announces the read-back, since focus stays on the button that did not send', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    await withSigningInManager(gateway);
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const { prompt, field } = await openKarensPrompt(user);
+    await user.clear(field);
+    await user.type(field, 'karen.h@lumen.am');
+    await user.click(within(prompt).getByRole('button', { name: /send link/i }));
+
+    // A polite live region: a screen-reader user who pressed Enter and got no
+    // send hears why, rather than nothing.
+    expect(within(prompt).getByRole('status').textContent).toContain('karen.h@lumen.am');
+  });
+
   it('sends straight away for the same address', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     await withSigningInManager(gateway);
@@ -521,13 +798,85 @@ describe('sending a new link', () => {
     renderStaff({ role: 'owner', gateway });
     await waitForList();
 
-    const row = screen.getByText('Karen Hovhannisyan').closest('tr')!;
-    await user.click(within(row).getByRole('button', { name: /send new link/i }));
-    const prompt = screen.getByRole('form', { name: /sign-in for karen/i });
+    const { prompt } = await openKarensPrompt(user);
     await user.click(within(prompt).getByRole('button', { name: /send link/i }));
 
     await waitFor(() => expect(issue).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText(/changes to/i)).toBeNull();
+    expect(screen.queryByText(/instead of/i)).toBeNull();
+  });
+
+  it('compares the address without the host locale, so a change of case is not a change', async () => {
+    /*
+     * The server stores `ToLowerInvariant`. In a Turkish-locale browser
+     * `'I'.toLocaleLowerCase()` is dotless ı, so a comparison made with the
+     * locale would read IRINA as a different address from irina and demand
+     * the second click. Emulated: the runner's own locale is not Turkish.
+     */
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    await withSigningInManager(gateway, { fullName: 'Irina Petrosyan', email: 'irina@lumen.am' });
+    const issue = vi.spyOn(gateway, 'issueStaffSignIn');
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const prompt = await openPromptFor(user, 'Irina Petrosyan');
+    const field = within(prompt).getByLabelText(/^email$/i) as HTMLInputElement;
+    const turkish = vi.spyOn(String.prototype, 'toLocaleLowerCase').mockImplementation(function (
+      this: string,
+    ) {
+      return this.replaceAll('I', 'ı').toLowerCase();
+    });
+    try {
+      await user.clear(field);
+      await user.type(field, 'IRINA@LUMEN.AM');
+      await user.click(within(prompt).getByRole('button', { name: /send link/i }));
+      await waitFor(() => expect(issue).toHaveBeenCalledTimes(1));
+      expect(screen.queryByText(/instead of/i)).toBeNull();
+    } finally {
+      turkish.mockRestore();
+    }
+  });
+
+  it('says it is sending while the link is on its way', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const { issue, release } = withDeferredIssue(gateway);
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const prompt = await openPromptFor(user, 'Nare Petrosyan');
+    await user.type(within(prompt).getByLabelText(/^email$/i), 'nare@lumen.am');
+    await user.click(within(prompt).getByRole('button', { name: /send link/i }));
+
+    await waitFor(() => expect(issue).toHaveBeenCalledTimes(1));
+    // Nothing is being saved. The button says what is happening.
+    const pending = within(prompt).getByRole('button', { name: /sending…/i }) as HTMLButtonElement;
+    expect(pending.disabled).toBe(true);
+
+    release();
+    await screen.findByRole('dialog');
+  });
+
+  it('warns about the previous link only for somebody still waiting to open one', async () => {
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner' });
+    await waitForList();
+
+    // Issue once, so Nare has an address and no password.
+    const first = await openPromptFor(user, 'Nare Petrosyan');
+    await user.type(within(first).getByLabelText(/^email$/i), 'nare@lumen.am');
+    await user.click(within(first).getByRole('button', { name: /send link/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^done$/i }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByText('Nare Petrosyan').closest('tr')!).getByText(/awaiting password/i),
+      ).toBeTruthy(),
+    );
+
+    const again = await openPromptFor(user, 'Nare Petrosyan');
+    expect(within(again).getByText(/previous link stops working/i)).toBeTruthy();
+    expect(within(again).queryByText(/current password keeps working/i)).toBeNull();
   });
 });
 
@@ -550,10 +899,38 @@ describe('the sign-in link dialog', () => {
 
     const dialog = await openLinkDialog(user);
     const token = tokenIn(dialog.textContent);
-    await user.click(within(dialog).getByRole('button', { name: /copy link/i }));
+    const copy = within(dialog).getByRole('button', { name: /copy link/i });
+    // The one filled button is the one that does what the dialog is for. A
+    // mouse user clicks the filled button; "Done" filled meant the link was
+    // gone before it was copied.
+    expect(copy.className).toContain('button-primary');
+    expect(within(dialog).getByRole('button', { name: /^done$/i }).className).not.toContain(
+      'button-primary',
+    );
+    await user.click(copy);
 
     await within(dialog).findByText(/^copied$/i);
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining(token));
+  });
+
+  it('does not close on Escape until the link has been copied', async () => {
+    /*
+     * One keypress used to discard the only copy of a credential the server
+     * can never reproduce. Escape now says what to do first, and works once
+     * the link is on the clipboard.
+     */
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+    const dialog = await openLinkDialog(user);
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(dialog).getByRole('status').textContent).toMatch(/copy the link first/i);
+
+    await user.click(within(dialog).getByRole('button', { name: /copy link/i }));
+    await within(dialog).findByText(/^copied$/i);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
   it('falls back to selecting the link where the clipboard is out of reach', async () => {
@@ -702,6 +1079,9 @@ describe('what a manager sees', () => {
     const deactivated = (await screen.findByText('Nare Petrosyan')).closest('tr')!;
     expect(within(deactivated).getByRole('button', { name: /reactivate/i })).toBeTruthy();
     expect(within(deactivated).queryByRole('button', { name: /issue sign-in/i })).toBeNull();
+    // No warning either: deactivation explains the state, and a badge nobody
+    // can act on is noise. It comes back with the action, on reactivation.
+    expect(within(deactivated).queryByText(/no sign-in/i)).toBeNull();
   });
 
   it('sees no branch column, because there is one branch', async () => {

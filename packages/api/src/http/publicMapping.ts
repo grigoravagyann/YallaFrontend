@@ -134,14 +134,16 @@ export function publicBranchFromWire(wire: WirePublicBranch): PublicBranch {
     name: wire.branchName ?? '',
 
     /*
-     * Always `live`, and the wire's `status` is deliberately not consulted.
+     * Always `live`.
      *
-     * `PublicBranchStatus` is `1 Open, 2 Closed`, and `PublicVenueQuery` sets it
-     * as `isOpenNow ? Open : Closed` — it restates the opening hours, it is not
-     * an availability gate. Mapping `2` onto anything `BranchRoute` treats as
-     * unavailable would blank the page for every branch outside its opening
+     * The wire used to carry a `status` as well — `PublicBranchStatus`, `1 Open,
+     * 2 Closed`, which `PublicVenueQuery` set as `isOpenNow ? Open : Closed` —
+     * and this mapper never read it: it restated the opening hours, it was not
+     * an availability gate, and mapping `2` onto anything `BranchRoute` treats
+     * as unavailable would blank the page for every branch outside its opening
      * hours, which is exactly the branch that still wants its menu read and its
-     * hours checked.
+     * hours checked. The backend has since dropped the field, so `isOpenNow`
+     * (read into `openState` below) is the only open-or-closed signal there is.
      *
      * There is no suspended state to map either, by design: a suspended venue,
      * an inactive branch and a wrong slug all answer 404 identically, because a

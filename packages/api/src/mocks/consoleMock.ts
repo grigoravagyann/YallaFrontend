@@ -370,6 +370,73 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     });
   }
 
+  /**
+   * The 422 the endpoint filter answers before the handler runs.
+   *
+   * `IssueSignInRequest` carries `[Required][EmailAddress][StringLength(320)]`
+   * on its one field, and DataAnnotations run ahead of the service — so this
+   * is the first refusal on the route whatever the target is, and it names
+   * `email` in `context.field` the way the real 422 does.
+   */
+  function badAddress(detail: string): ValidationError {
+    return new ValidationError({
+      url: URL_TAG,
+      status: 422,
+      problem: {
+        type: 'about:blank',
+        title: 'Validation failed',
+        status: 422,
+        detail,
+        code: 'validation-failed',
+        traceId: 'mock',
+        context: { field: 'email', fields: [{ field: 'email', message: detail }] },
+      },
+    });
+  }
+
+  /** `FieldLengths.Email` on the server: the most an address may be. */
+  const EMAIL_MAX_LENGTH = 320;
+
+  /**
+   * `StaffRole` as the server's `StaffPermissionException` spells it. The
+   * console's vocabulary is camelCase; the sentence a screen shows is not.
+   */
+  const SERVER_ROLE: Readonly<Record<StaffRole | 'platformAdmin', string>> = {
+    platformAdmin: 'PlatformAdmin',
+    owner: 'Owner',
+    manager: 'Manager',
+    waiter: 'Waiter',
+    kitchen: 'Kitchen',
+  };
+
+  /** The server's `RequireCanHoldPassword` refusal: about the person, not the caller. */
+  const pinOnly = (role: StaffRole) =>
+    `A ${SERVER_ROLE[role]} signs in by tapping a PIN on a tablet a manager enrolled, so they cannot ` +
+    'have an email and password. Only an owner or a manager uses the admin panel. ' +
+    'Create them without credentials, or give them the Manager role.';
+
+  const ADDRESS_TAKEN =
+    'That email address already has an account. Every address signs in to one account, ' +
+    'so use a different one - or edit the existing account instead.';
+
+  /**
+   * Whether an address already signs in to some account, anywhere.
+   *
+   * The server's rule is the filtered unique index `UX_StaffMembers_Email`
+   * over the whole StaffMembers table, so this looks across every venue —
+   * seeding each one first, since a venue's people exist only once asked
+   * for. A mock that searched the target's own venue alone accepted the very
+   * address the server answers 409 to, and every screen test with a
+   * cross-venue duplicate passed against it. The person's own address is
+   * fine: re-issuing is the normal way to replace a lost link.
+   */
+  function addressTaken(address: string, exceptId: string | null): boolean {
+    for (const id of venues.keys()) staffFor(id);
+    return [...staffByVenue.values()].some((people) =>
+      people.some((member) => member.id !== exceptId && member.email === address),
+    );
+  }
+
   function venueOfBranch(branchId: string): string | null {
     for (const record of venues.values()) {
       if (record.branches.some((branch) => branch.id === branchId)) return record.id;
@@ -1288,13 +1355,22 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       }
 
       /*
-       * Email without a password is a 400 on the server, with no field named.
-       * This mock used to accept it and mark the person sign-in-less, which
-       * would have let a screen forward the address on the create call and
-       * pass every test while the real backend refused every hire. A manager
-       * gets their sign-in through `issueStaffSignIn`, after they exist.
+       * Either both or neither, as the server rules it: an email without a
+       * password is a 400 with no field named, and so is a password without
+       * an email — `HasPasswordCredentials` is `Email is not null &&
+       * PasswordHash is not null`, so a person holding one and not the other
+       * is a state the server can never report. An empty string counts as
+       * given: it `is not null` there, and is refused as blank.
+       *
+       * This mock used to accept the email half and mark the person
+       * sign-in-less, which would have let a screen forward the address on
+       * the create call and pass every test while the real backend refused
+       * every hire. A manager gets their sign-in through `issueStaffSignIn`,
+       * after they exist.
        */
-      if (staff.email && !staff.password) {
+      const email = staff.email ?? null;
+      const password = staff.password ?? null;
+      if ((email === null) !== (password === null) || email?.trim() === '' || password === '') {
         throw new ValidationError({
           url: URL_TAG,
           status: 400,
@@ -1309,6 +1385,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         });
       }
 
+      // Only the two roles that use the admin panel may hold a password: the
+      // server's `RequireCanHoldPassword`, a 409 about the person being made.
+      if (email !== null && !isAdminRole(staff.role)) throw conflict(pinOnly(staff.role));
+
+      // Stored as the server stores it, and one account per address across
+      // the whole table — see `addressTaken`.
+      const address = email === null ? null : email.trim().toLowerCase();
+      if (address !== null && addressTaken(address, null)) throw conflict(ADDRESS_TAKEN);
+
       const created: StaffMember = {
         id: nextId('staff'),
         venueId,
@@ -1317,8 +1402,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         phone: staff.phone,
         role: staff.role,
         isActive: true,
-        email: staff.email ?? null,
-        hasPasswordSignIn: Boolean(staff.password),
+        email: address,
+        hasPasswordSignIn: address !== null,
         isPinLocked: false,
       };
 
@@ -1403,6 +1488,34 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async issueStaffSignIn({ venueId, staffMemberId, email }) {
       await wait();
+
+      /*
+       * The server's refusals, in the server's order, because the screen shows
+       * the sentence it gets and a mock that refused in a different order would
+       * let the wrong sentence pass every test.
+       *
+       * The address goes first. `IssueSignInRequest` is validated by the
+       * endpoint filter before the handler runs, so a malformed or overlong
+       * address is a 422 naming `email` whatever the target is — unknown, a
+       * waiter, deactivated — and the backend's own test pins that. Then the
+       * handler: self and rank are the role guard (403); a PIN-only role, a
+       * deactivated person and a taken address are facts about the target
+       * (409).
+       *
+       * Lowercased with `toLowerCase`, not the host locale: the server uses
+       * `ToLowerInvariant`, and in a Turkish-locale browser the two disagree
+       * about `I`.
+       */
+      const address = email.trim().toLowerCase();
+      if (address.length > EMAIL_MAX_LENGTH) {
+        throw badAddress(
+          `The field email must be a string with a maximum length of ${EMAIL_MAX_LENGTH}.`,
+        );
+      }
+      if (!/^[^\s@]+@[^\s@]+$/u.test(address)) {
+        throw badAddress('The email field is not a valid e-mail address.');
+      }
+
       const list = staffFor(venueId);
       const index = list.findIndex((member) => member.id === staffMemberId);
       if (index < 0) throw new NotFoundError({ url: URL_TAG });
@@ -1410,27 +1523,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const subject = list[index]!;
       const actor = actingStaff(venueId);
 
-      /*
-       * The server's refusals, in the server's order, because the screen shows
-       * the sentence it gets and a mock that refused in a different order would
-       * let the wrong sentence pass every test. Self and rank are the role
-       * guard (403); a PIN-only role, a deactivated person and a taken address
-       * are facts about the target (409); a bad address is a 422 naming `email`.
-       */
       if (actor.id === subject.id) {
         throw new StaffPermissionError({
           url: URL_TAG,
-          detail: `Issuing your own sign-in requires the platformAdmin role; the caller is a ${actor.role}.`,
+          detail: `Issuing your own sign-in requires the PlatformAdmin role; the caller is a ${SERVER_ROLE[actor.role]}.`,
         });
       }
 
-      if (!isAdminRole(subject.role)) {
-        throw conflict(
-          `A ${subject.role} signs in by tapping a PIN on a tablet a manager enrolled, so they cannot ` +
-            'have an email and password. Only an owner or a manager uses the admin panel. ' +
-            'Create them without credentials, or give them the Manager role.',
-        );
-      }
+      if (!isAdminRole(subject.role)) throw conflict(pinOnly(subject.role));
 
       // Strictly above: an owner cannot issue for another owner, and a manager
       // reaches no admin role at all. `assignableRoles` is the same list the
@@ -1438,7 +1538,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       if (!assignableRoles(actor.role).includes(subject.role)) {
         throw new StaffPermissionError({
           url: URL_TAG,
-          detail: `Issuing a sign-in for a ${subject.role} requires the platformAdmin role; the caller is a ${actor.role}.`,
+          detail: `Issuing a sign-in for a ${SERVER_ROLE[subject.role]} requires the PlatformAdmin role; the caller is a ${SERVER_ROLE[actor.role]}.`,
         });
       }
 
@@ -1448,33 +1548,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         );
       }
 
-      const address = email.trim().toLocaleLowerCase();
-      if (!/^[^\s@]+@[^\s@]+$/u.test(address)) {
-        throw new ValidationError({
-          url: URL_TAG,
-          status: 422,
-          problem: {
-            type: 'about:blank',
-            title: 'Validation failed',
-            status: 422,
-            detail: 'The email field is not a valid e-mail address.',
-            code: 'validation-failed',
-            traceId: 'mock',
-            context: { field: 'email', fields: [{ field: 'email', message: 'Not an address.' }] },
-          },
-        });
-      }
-
-      // One account per address, across the venue as across the server's
-      // whole table. The person's own address is fine: re-issuing is the
-      // normal way to replace a lost link.
-      const taken = list.some((member) => member.id !== subject.id && member.email === address);
-      if (taken) {
-        throw conflict(
-          'That email address already has an account. Every address signs in to one account, ' +
-            'so use a different one - or edit the existing account instead.',
-        );
-      }
+      if (addressTaken(address, subject.id)) throw conflict(ADDRESS_TAKEN);
 
       // The address changes now; the password, if any, only when the link is
       // used. `hasPasswordSignIn` is therefore left exactly as it was, which

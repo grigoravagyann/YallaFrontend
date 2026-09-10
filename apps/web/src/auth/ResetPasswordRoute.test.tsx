@@ -13,6 +13,8 @@ import { resources } from '@yalla/i18n/resources';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { BrowserRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { authSession as AuthSessionModule } from './authSession';
@@ -175,6 +177,30 @@ describe('the token in the link', () => {
     expect(screen.queryByLabelText(/^new password$/i)).toBeNull();
   });
 
+  it('is out of the address bar before the first request leaves', async () => {
+    /*
+     * The current-user query fires the moment it subscribes, ahead of the
+     * passive effect that used to clean the address bar. A token in the query
+     * — the fallback path — was therefore still in `document.URL` when the
+     * refresh it triggers went out, and `document.URL` is what a Referer
+     * header is made from. A fragment never travels in one; a query does.
+     */
+    const seen: string[] = [];
+    const gateway: ConsoleGateway = {
+      ...createConsoleMockGateway({ latencyMs: 0 }),
+      getCurrentUser: () => {
+        seen.push(window.location.href);
+        return Promise.reject(new UnauthorizedError({ url: '/api/auth/venue/refresh' }));
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(noContent()));
+    renderAt('/reset-password?token=tok-referer', gateway);
+    await waitForForm();
+
+    expect(seen.length).toBeGreaterThan(0);
+    for (const href of seen) expect(href).not.toContain('tok-referer');
+  });
+
   it('is read from the query when a chat app has dropped the fragment', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(noContent());
     vi.stubGlobal('fetch', fetchImpl);
@@ -199,6 +225,17 @@ describe('the token in the link', () => {
     expect(screen.getByText(/ask the person who sent it/i)).toBeTruthy();
     expect(screen.queryByLabelText(/^new password$/i)).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('the console shell', () => {
+  it('sends no Referer from any page, so a token in a query never reaches a log', () => {
+    /*
+     * Belt and braces to the strip above: whatever a deployment does with the
+     * API's origin, no request from the console carries the page's URL.
+     */
+    const html = readFileSync(resolve(__dirname, '..', '..', 'index.html'), 'utf8');
+    expect(html).toMatch(/<meta name="referrer" content="no-referrer" \/>/u);
   });
 });
 

@@ -68,24 +68,44 @@ export function SignInLinkDialog({
   const closeRef = useRef<HTMLButtonElement>(null);
   const linkRef = useRef<HTMLParagraphElement>(null);
   const [copied, setCopied] = useState<'idle' | 'copied' | 'select'>('idle');
+  const [escaped, setEscaped] = useState(false);
 
-  // Copy takes focus when there is a link: Enter then does the one thing this
-  // dialog is for, rather than closing it on the only copy. Otherwise the
-  // dismiss, as the PIN dialog does, so Escape and Enter are both safe.
+  // Copy takes focus when there is a link, and is the one filled button:
+  // Enter and the mouse then both do the one thing this dialog is for, rather
+  // than closing it on the only copy. Otherwise the dismiss is primary and
+  // focused, as the PIN dialog does, so Escape and Enter are both safe.
   useEffect(() => {
     (link ? copyRef.current : closeRef.current)?.focus();
   }, [link]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Escape') return;
+      // Not while the only copy is uncopied: one keypress must not discard a
+      // credential the server cannot reproduce. Say what to do instead; Done
+      // is still one click away for somebody who means it.
+      if (link && copied === 'idle') {
+        setEscaped(true);
+        return;
+      }
+      onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, link, copied]);
 
   const when = (iso: string) =>
     `${formatDate(iso, timeZoneId, locale)} ${formatTime(iso, timeZoneId, locale)}`;
+
+  // Beside the copy button: what the copy did, or what Escape wants first.
+  const copyStatus =
+    copied === 'copied'
+      ? t('staff.signIn.copied')
+      : copied === 'select'
+        ? t('staff.signIn.selectAndCopy')
+        : escaped
+          ? t('staff.signIn.copyFirst')
+          : null;
 
   function selectLink() {
     const node = linkRef.current;
@@ -141,14 +161,19 @@ export function SignInLinkDialog({
               {link.resetLink}
             </p>
             <div className="actions">
-              <button ref={copyRef} type="button" className="button" onClick={() => void copy()}>
+              <button
+                ref={copyRef}
+                type="button"
+                className="button button-primary"
+                onClick={() => void copy()}
+              >
                 {t('staff.signIn.copy')}
               </button>
-              {copied === 'idle' ? null : (
+              {copyStatus ? (
                 <span className="muted small" role="status">
-                  {copied === 'copied' ? t('staff.signIn.copied') : t('staff.signIn.selectAndCopy')}
+                  {copyStatus}
                 </span>
-              )}
+              ) : null}
             </div>
             <p className="pin-warning">
               {t('staff.signIn.expires', { when: when(link.expiresAtUtc) })}
@@ -174,7 +199,12 @@ export function SignInLinkDialog({
         ) : null}
 
         <div className="actions">
-          <button ref={closeRef} type="button" className="button button-primary" onClick={onClose}>
+          <button
+            ref={closeRef}
+            type="button"
+            className={link ? 'button button-ghost' : 'button button-primary'}
+            onClick={onClose}
+          >
             {t('staff.signIn.done')}
           </button>
         </div>

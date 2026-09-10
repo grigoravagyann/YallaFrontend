@@ -100,7 +100,12 @@ export function StaffScreen() {
   const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
 
   const failureText = (error: unknown) =>
-    issueFailureText(error, { offline: t('state.offline'), generic: t('state.error') });
+    issueFailureText(error, {
+      offline: t('state.offline'),
+      generic: t('state.error'),
+      badEmail: t('staff.signIn.emailRequired'),
+      tooManyRequests: t('staff.signIn.tooManyRequests'),
+    });
 
   async function sendSignIn(member: StaffMember, email: string) {
     try {
@@ -124,12 +129,17 @@ export function StaffScreen() {
     }
   }
 
-  // From the dialog to the row: the address is corrected there.
-  const retryFrom = (retry: { staffMemberId: string; email: string } | null) =>
+  // From the dialog to the row: the address is corrected there, and the
+  // reason it was refused goes with it — the dialog's alert unmounts with the
+  // dialog, and the sentence to act on belongs beside the field.
+  const retryFrom = (
+    retry: { staffMemberId: string; email: string } | null,
+    failure: string | null,
+  ) =>
     retry
       ? () => {
           setShown(null);
-          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure: null });
+          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure });
         }
       : null;
 
@@ -200,7 +210,10 @@ export function StaffScreen() {
           branches={branches}
           editing={editing}
           refusal={refusal}
-          isSaving={createStaff.isPending || updateStaff.isPending}
+          // The issue call counts: the form stays in "Saving…" until the
+          // dialog is ready, so there is never a moment with the person made
+          // and nothing on screen about it.
+          isSaving={createStaff.isPending || updateStaff.isPending || issueSignIn.isPending}
           onCancel={() => {
             setCreating(false);
             setEditing(null);
@@ -213,15 +226,16 @@ export function StaffScreen() {
               // after the person exists, because the server refuses an email
               // without a password on create and nobody types one here.
               const created = await createStaff.mutateAsync(input);
-              setCreating(false);
               // The single moment the PIN is on a screen. It came from the form
               // and goes no further than this dialog.
               if (!signIn) {
                 setShown({ kind: 'pin', name: created.fullName, pin: input.pin });
+                setCreating(false);
                 return;
               }
               // The dialog opens whatever the second call says: the person
-              // exists now and their PIN must be shown or it is gone.
+              // exists now and their PIN must be shown or it is gone. The form
+              // closes only once the dialog is set, in the same render.
               try {
                 const link = await issueSignIn.mutateAsync({
                   staffMemberId: created.id,
@@ -247,6 +261,7 @@ export function StaffScreen() {
               } finally {
                 // Same as the row path: the dialog holds the only copy.
                 issueSignIn.reset();
+                setCreating(false);
               }
             } catch (error) {
               if (error instanceof StaffPermissionError) setRefusal(error);
@@ -374,11 +389,13 @@ export function StaffScreen() {
                         has issued for; an address without a password is
                         somebody who has not opened their link yet — or whose
                         link has died, which is why the badge does not claim
-                        it is alive. */}
-                      {signsIn && !member.email ? (
+                        it is alive. Not on a deactivated row: "Deactivated"
+                        explains the state, no action is offered there, and
+                        the badge comes back with the action on reactivation. */}
+                      {member.isActive && signsIn && !member.email ? (
                         <span className="badge badge-warn">{t('staff.status.noSignIn')}</span>
                       ) : null}
-                      {signsIn && member.email && !member.hasPasswordSignIn ? (
+                      {member.isActive && signsIn && member.email && !member.hasPasswordSignIn ? (
                         <span className="badge">{t('staff.status.awaitingPassword')}</span>
                       ) : null}
                     </td>
@@ -511,7 +528,7 @@ export function StaffScreen() {
           failure={shown.failure}
           timeZoneId={timeZoneId}
           locale={locale}
-          onRetry={retryFrom(shown.retry)}
+          onRetry={retryFrom(shown.retry, shown.failure)}
           onClose={() => setShown(null)}
         />
       ) : null}

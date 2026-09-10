@@ -1,7 +1,7 @@
 import { ValidationError, describeFailure } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useLayoutEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { usingMockData } from '../data/gateway';
 import { resetPassword, signOut } from './authSession';
@@ -31,7 +31,10 @@ const MINIMUM_PASSWORD_LENGTH = 12;
  *   reaches the static host's access log, and it is stripped so it does not
  *   sit in the browser's history either — a link that stays in the address bar
  *   is a link the next person at that keyboard can use. After that it lives in
- *   this component's state and nowhere else.
+ *   this component's state and nowhere else. The strip happens before the
+ *   first request leaves, not merely soon after: the current-user query fires
+ *   as it subscribes, and a token still in `document.URL` at that moment is
+ *   a token in the Referer header of the refresh it triggers.
  * - A person who already has a console session is shown a notice, not the
  *   form. The link is for someone else: an owner who "tests" it consumes the
  *   only copy and, if they go on, ends up knowing their manager's password.
@@ -58,7 +61,14 @@ export function ResetPasswordRoute() {
 
   // The token has been read; nothing about it belongs in the address bar or
   // the history entry any longer. A replace, so Back does not bring it back.
-  useEffect(() => {
+  //
+  // A layout effect, deliberately. `useCurrentUser` above subscribes its
+  // query in a passive effect and the fetch starts then; on the `?token=`
+  // fallback path a passive strip ran after it, so the refresh left with the
+  // token still in `document.URL` — eligible for the Referer header, and on a
+  // same-origin API for its access log. Layout effects run first, and the
+  // router rewrites the address bar synchronously.
+  useLayoutEffect(() => {
     if (location.hash === '' && location.search === '') return;
     navigate({ pathname: location.pathname, search: '', hash: '' }, { replace: true });
   }, [navigate, location.pathname, location.search, location.hash]);
