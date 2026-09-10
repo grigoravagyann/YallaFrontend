@@ -6,296 +6,6 @@
     "version": "v1"
   },
   "paths": {
-    "/api/tables/{tableId}/regenerate-qr": {
-      "post": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Replace a compromised QR code",
-        "description": "The one way a table's QR token changes. Editing the table never touches it - the printed code must keep working - so this is explicit, and audited to the platform log.",
-        "operationId": "regenerateTableQr",
-        "parameters": [
-          {
-            "name": "tableId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.BranchSettings.FloorTableView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such table.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/branches/{branchId}/photos": {
-      "post": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Upload a photo for a menu item or a venue card",
-        "description": "Multipart upload of a single `file` part. Returns the photo id and its three variant URLs; attach the id to a menu item or a branch.\\n\\n**The bytes are sniffed, never trusted.** JPEG, PNG and WebP are accepted and everything else is refused, whatever the declared content type or the file name says - those are both attacker-controlled.\\n\\n**EXIF is stripped.** A menu photo comes off the owner's phone carrying GPS coordinates and a device serial; the original bytes are never stored. Three variants are generated and the originals are discarded.\\n\\nUploading the same image twice returns the first photo and writes nothing, with `wasDeduplicated: true`. A photo nothing attaches to is deleted after 24 hours.",
-        "operationId": "uploadBranchPhoto",
-        "parameters": [
-          {
-            "name": "branchId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Media.PhotoUploadResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Requires the Manager role.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such branch.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The upload is not a JPEG, PNG or WebP, or it is larger than this system accepts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/platform/outbox": {
-      "get": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Pending, failed and dead-lettered message counts",
-        "description": "**The first place to look when notifications quietly stop working.** Without it the symptom is silence, and silence is indistinguishable from nothing having happened.\n\n`deadLettered` is the number that needs a person: those have been given up on and will never be retried. Each carries its last error and the key that names what caused it, so a dead reminder can be traced back to its booking.\n\nA `sentLastDay` of zero on a live venue means the channel is broken, whatever the other counts say.",
-        "operationId": "getOutboxHealth",
-        "parameters": [
-          {
-            "name": "deadLetterLimit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 50
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Messaging.OutboxHealthView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Platform admin only.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/branches/{branchId}/devices/enrolment-codes": {
       "post": {
         "tags": [
@@ -624,6 +334,296 @@
           },
           "404": {
             "description": "No such staff member in this branch's venue.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tables/{tableId}/regenerate-qr": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace a compromised QR code",
+        "description": "The one way a table's QR token changes. Editing the table never touches it - the printed code must keep working - so this is explicit, and audited to the platform log.",
+        "operationId": "regenerateTableQr",
+        "parameters": [
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.BranchSettings.FloorTableView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such table.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/photos": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Upload a photo for a menu item or a venue card",
+        "description": "Multipart upload of a single `file` part. Returns the photo id and its three variant URLs; attach the id to a menu item or a branch.\\n\\n**The bytes are sniffed, never trusted.** JPEG, PNG and WebP are accepted and everything else is refused, whatever the declared content type or the file name says - those are both attacker-controlled.\\n\\n**EXIF is stripped.** A menu photo comes off the owner's phone carrying GPS coordinates and a device serial; the original bytes are never stored. Three variants are generated and the originals are discarded.\\n\\nUploading the same image twice returns the first photo and writes nothing, with `wasDeduplicated: true`. A photo nothing attaches to is deleted after 24 hours.",
+        "operationId": "uploadBranchPhoto",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Media.PhotoUploadResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requires the Manager role.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The upload is not a JPEG, PNG or WebP, or it is larger than this system accepts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/outbox": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Pending, failed and dead-lettered message counts",
+        "description": "**The first place to look when notifications quietly stop working.** Without it the symptom is silence, and silence is indistinguishable from nothing having happened.\n\n`deadLettered` is the number that needs a person: those have been given up on and will never be retried. Each carries its last error and the key that names what caused it, so a dead reminder can be traced back to its booking.\n\nA `sentLastDay` of zero on a live venue means the channel is broken, whatever the other counts say.",
+        "operationId": "getOutboxHealth",
+        "parameters": [
+          {
+            "name": "deadLetterLimit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Messaging.OutboxHealthView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Platform admin only.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2869,7 +2869,7 @@
           "admin"
         ],
         "summary": "Add a staff member, with a PIN",
-        "description": "A manager may create waiters and kitchen staff; an owner or platform admin may create managers and owners. Nobody creates a role above their own. Email and password are for people who use the admin panel.",
+        "description": "A manager may create waiters and kitchen staff; an owner or platform admin may create managers and owners. Nobody creates a role above their own.\n\nA manager or owner gets their admin-panel sign-in through `issueStaffSignIn` after they exist: it stores the address and returns a link they choose their own password by. Sending `email` and `password` here still works, and is the one path where the caller types a password for somebody else.",
         "operationId": "createStaff",
         "parameters": [
           {
@@ -3158,6 +3158,143 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/venues/{venueId}/staff/{staffMemberId}/sign-in": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Give a manager or owner their admin-panel sign-in",
+        "description": "Stores the address and returns a link the person opens to choose their own password. Nobody types a password for somebody else: the reset endpoint that consumes the link is the only thing that ever sets one.\n\nThe link is returned **once** and this is the only copy - the server keeps the token's hash and never logs it, so a lost link is replaced by issuing another. It is good for 24 hours and exactly one use. Issuing a new link retires any earlier unused one; two links issued at the same instant can both be live until one is used.\n\nOnly somebody the caller strictly outranks: an owner issues for managers, a platform admin for owners and managers, and nobody for a peer or for themselves. A person who already has a password keeps it - and their open sessions - until the link is used, when both are replaced. Their sign-in address changes to the one given as soon as this answers.",
+        "operationId": "issueStaffSignIn",
+        "parameters": [
+          {
+            "name": "venueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "staffMemberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest"
+                  }
+                ],
+                "description": "Body of the sign-in issue."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Staff.StaffSignInLink"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed to issue a sign-in for this person: yourself, an equal, or someone above you.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such staff member in this venue.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A waiter or kitchen hand signs in with a PIN; the person is deactivated; or that address already has an account.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`email` is missing or not an address; `context.field` names it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
                 }
               }
             }
@@ -4942,501 +5079,6 @@
         }
       }
     },
-    "/api/branches/{branchId}/availability": {
-      "get": {
-        "tags": [
-          "diner"
-        ],
-        "summary": "Which tables a branch can offer for one slot",
-        "description": "Every table in the branch with its floor-plan geometry, its derived state at the requested time, whether it can be booked for this party - and if not, the one specific reason - and the window the diner may have. Assembled in a single query. Returns no guest names and no money. Omit date and time for 'now, at the branch'.",
-        "operationId": "getBranchAvailability",
-        "parameters": [
-          {
-            "name": "branchId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "date",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "time",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "time"
-            }
-          },
-          {
-            "name": "partySize",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 2
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Reservations.BranchAvailability"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such branch.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many availability queries from this address. Generous but finite - the endpoint is anonymous and a phone will poll it.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/branches/{branchId}/menu": {
-      "get": {
-        "tags": [
-          "diner"
-        ],
-        "summary": "The branch's menu",
-        "description": "Categories in display order, each with its items, in one query.\n\n**Sold-out items are returned with `isAvailable: false`, not hidden.** A dish that silently vanishes looks like a broken menu and sends the diner to ask a waiter - the exact question this feature exists to remove. Grey it out and keep the price.\n\n**Unfinished items are excluded entirely, which is the opposite rule for the opposite reason.** Since the photo requirement moved from create-time to go-live-time an item can exist without a photo, a description, ingredients, allergens, a portion size or a prep time - that is how a menu gets typed in before it gets photographed - and none of those may reach a diner. Somebody reading an empty allergen list reasonably concludes there are none.\n\nSo every descriptive field on this read is always present and `isComplete` is always true. The console's `GET /api/branches/{branchId}/menu/manage` is where the unfinished ones are visible.",
-        "operationId": "getBranchMenu",
-        "parameters": [
-          {
-            "name": "branchId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Menus.BranchMenuView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such branch.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The venue is suspended or no longer on Yalla.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tabs/{tabId}/service-requests": {
-      "post": {
-        "tags": [
-          "diner"
-        ],
-        "summary": "Ask a waiter for something",
-        "description": "Presets and one short optional note. **Not a chat**: a message box creates the expectation of a reply, and during the Friday rush nobody answers it.\n\nRate limited **per tab**, not per person - the list a waiter is looking at is the table's, and one bored guest must not be able to bury another table's request.",
-        "operationId": "raiseServiceRequest",
-        "parameters": [
-          {
-            "name": "tabId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RaiseServiceRequest"
-                  }
-                ],
-                "description": "A table asking for something."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Ordering.ServiceRequestView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "`service-request-rate-limited`: too many, too fast. `context.windowMinutes` says how long to wait.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.ServiceRequestRateLimitedProblem"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/photos/{photoId}/{variant}": {
-      "get": {
-        "tags": [
-          "diner"
-        ],
-        "summary": "Serve one variant of a photo",
-        "description": "`thumbnail`, `card` or `full`, always WebP. Anonymous: a menu photo is public, and the diner reading it has no account.\\n\\nThe content hash is part of the storage path, so a given URL always returns the same bytes - replacing a photo produces a new id rather than changing what this one serves, which is why these are safe to cache hard.",
-        "operationId": "getPhotoVariant",
-        "parameters": [
-          {
-            "name": "photoId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "variant",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such photo or variant.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/diner/devices": {
-      "post": {
-        "tags": [
-          "diner"
-        ],
-        "summary": "Register this phone for notifications",
-        "description": "Call it on every launch. **Idempotent on the push token** - a row per launch would mean one diner accumulating a hundred devices and a hundred copies of every message.\n\nRe-registering a token that was revoked brings it back, because that is what a reinstall looks like. A token that turns up under a different diner is moved: the phone belongs to whoever is holding it, and the previous owner stops receiving their bookings on it.",
-        "operationId": "registerDinerDevice",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RegisterDeviceRequest"
-                  }
-                ],
-                "description": "Body of `POST /api/diner/devices`."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Needs a verified diner.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/tabs/open": {
       "post": {
         "tags": [
@@ -6463,6 +6105,501 @@
           },
           "409": {
             "description": "The settlement mode is locked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/availability": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Which tables a branch can offer for one slot",
+        "description": "Every table in the branch with its floor-plan geometry, its derived state at the requested time, whether it can be booked for this party - and if not, the one specific reason - and the window the diner may have. Assembled in a single query. Returns no guest names and no money. Omit date and time for 'now, at the branch'.",
+        "operationId": "getBranchAvailability",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "time"
+            }
+          },
+          {
+            "name": "partySize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 2
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.BranchAvailability"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many availability queries from this address. Generous but finite - the endpoint is anonymous and a phone will poll it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/menu": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The branch's menu",
+        "description": "Categories in display order, each with its items, in one query.\n\n**Sold-out items are returned with `isAvailable: false`, not hidden.** A dish that silently vanishes looks like a broken menu and sends the diner to ask a waiter - the exact question this feature exists to remove. Grey it out and keep the price.\n\n**Unfinished items are excluded entirely, which is the opposite rule for the opposite reason.** Since the photo requirement moved from create-time to go-live-time an item can exist without a photo, a description, ingredients, allergens, a portion size or a prep time - that is how a menu gets typed in before it gets photographed - and none of those may reach a diner. Somebody reading an empty allergen list reasonably concludes there are none.\n\nSo every descriptive field on this read is always present and `isComplete` is always true. The console's `GET /api/branches/{branchId}/menu/manage` is where the unfinished ones are visible.",
+        "operationId": "getBranchMenu",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Menus.BranchMenuView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The venue is suspended or no longer on Yalla.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tabs/{tabId}/service-requests": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Ask a waiter for something",
+        "description": "Presets and one short optional note. **Not a chat**: a message box creates the expectation of a reply, and during the Friday rush nobody answers it.\n\nRate limited **per tab**, not per person - the list a waiter is looking at is the table's, and one bored guest must not be able to bury another table's request.",
+        "operationId": "raiseServiceRequest",
+        "parameters": [
+          {
+            "name": "tabId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RaiseServiceRequest"
+                  }
+                ],
+                "description": "A table asking for something."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Ordering.ServiceRequestView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`service-request-rate-limited`: too many, too fast. `context.windowMinutes` says how long to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ServiceRequestRateLimitedProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/photos/{photoId}/{variant}": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Serve one variant of a photo",
+        "description": "`thumbnail`, `card` or `full`, always WebP. Anonymous: a menu photo is public, and the diner reading it has no account.\\n\\nThe content hash is part of the storage path, so a given URL always returns the same bytes - replacing a photo produces a new id rather than changing what this one serves, which is why these are safe to cache hard.",
+        "operationId": "getPhotoVariant",
+        "parameters": [
+          {
+            "name": "photoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such photo or variant.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/devices": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Register this phone for notifications",
+        "description": "Call it on every launch. **Idempotent on the push token** - a row per launch would mean one diner accumulating a hundred devices and a hundred copies of every message.\n\nRe-registering a token that was revoked brings it back, because that is what a reinstall looks like. A token that turns up under a different diner is moved: the phone belongs to whoever is holding it, and the previous owner stops receiving their bookings on it.",
+        "operationId": "registerDinerDevice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RegisterDeviceRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/diner/devices`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a verified diner.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8854,561 +8991,6 @@
         }
       }
     },
-    "/api/tab-adjustments/{adjustmentId}/void": {
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Manager: reverse a discount or comp",
-        "description": "It stops counting and stays on the record. A comp applied to the wrong table is itself part of what happened, and reporting that cannot see it cannot explain why the evening's takings are short.",
-        "operationId": "voidTabAdjustment",
-        "parameters": [
-          {
-            "name": "adjustmentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Ordering.AdjustmentView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Requires the Manager role.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/branches/{branchId}/orders": {
-      "get": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "The kitchen queue",
-        "description": "Open orders for the branch, oldest first, with the table label, the lines and their kitchen notes. Omit `status` for everything still outstanding - New, InKitchen and Ready - which is what a kitchen screen shows.",
-        "operationId": "getBranchOrders",
-        "parameters": [
-          {
-            "name": "branchId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/Yalla.Domain.Enums.TabOrderStatus"
-                }
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Yalla.Application.Ordering.KitchenOrderView"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not staff at this branch.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/orders/{orderId}/status": {
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Move an order along the rail",
-        "description": "`New -> InKitchen -> Ready -> Served`. Named transitions against an explicit table, the same shape as the table state machine: going backwards is refused, because a Ready order tapped back to InKitchen loses the fact that it was ever cooked.\n\n**The Kitchen role may make exactly one move: `InKitchen -> Ready`.** Serving is a floor action and belongs to whoever carried the plate.",
-        "operationId": "moveOrderStatus",
-        "parameters": [
-          {
-            "name": "orderId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.MoveOrderStatusRequest"
-                  }
-                ],
-                "description": "Moving an order along the kitchen rail."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Ordering.KitchenOrderView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "This role may not make that move.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The rail does not allow that transition.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/branches/{branchId}/service-requests": {
-      "get": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "What tables are asking for",
-        "description": "Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.",
-        "operationId": "getOpenServiceRequests",
-        "parameters": [
-          {
-            "name": "branchId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Yalla.Application.Ordering.ServiceRequestView"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not staff at this branch.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/service-requests/{id}/acknowledge": {
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "A waiter has seen it",
-        "description": "Acknowledging one twice is a no-op rather than an error: two waiters tapping the same request is the normal case, and both seeing it is what the table wanted.",
-        "operationId": "acknowledgeServiceRequest",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Ordering.ServiceRequestView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Not staff.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/tabs/{tabId}/abandon": {
-      "post": {
-        "tags": [
-          "staff"
-        ],
-        "summary": "Manager: write off an outstanding balance",
-        "description": "The diners left without paying and the venue is accepting the loss. Kept for reporting rather than deleted - a venue's write-offs are a number it needs.",
-        "operationId": "abandonTab",
-        "parameters": [
-          {
-            "name": "tabId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.AbandonTabRequest"
-                  }
-                ],
-                "description": "Writing off an outstanding balance."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Ordering.TabTotalsSnapshot"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Requires the Manager role.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/tabs/{tabId}/participants": {
       "get": {
         "tags": [
@@ -11008,6 +10590,561 @@
         }
       }
     },
+    "/api/tab-adjustments/{adjustmentId}/void": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Manager: reverse a discount or comp",
+        "description": "It stops counting and stays on the record. A comp applied to the wrong table is itself part of what happened, and reporting that cannot see it cannot explain why the evening's takings are short.",
+        "operationId": "voidTabAdjustment",
+        "parameters": [
+          {
+            "name": "adjustmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Ordering.AdjustmentView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requires the Manager role.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/orders": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The kitchen queue",
+        "description": "Open orders for the branch, oldest first, with the table label, the lines and their kitchen notes. Omit `status` for everything still outstanding - New, InKitchen and Ready - which is what a kitchen screen shows.",
+        "operationId": "getBranchOrders",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Yalla.Domain.Enums.TabOrderStatus"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Ordering.KitchenOrderView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not staff at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{orderId}/status": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Move an order along the rail",
+        "description": "`New -> InKitchen -> Ready -> Served`. Named transitions against an explicit table, the same shape as the table state machine: going backwards is refused, because a Ready order tapped back to InKitchen loses the fact that it was ever cooked.\n\n**The Kitchen role may make exactly one move: `InKitchen -> Ready`.** Serving is a floor action and belongs to whoever carried the plate.",
+        "operationId": "moveOrderStatus",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.MoveOrderStatusRequest"
+                  }
+                ],
+                "description": "Moving an order along the kitchen rail."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Ordering.KitchenOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This role may not make that move.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The rail does not allow that transition.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/service-requests": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "What tables are asking for",
+        "description": "Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.",
+        "operationId": "getOpenServiceRequests",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Ordering.ServiceRequestView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not staff at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/service-requests/{id}/acknowledge": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "A waiter has seen it",
+        "description": "Acknowledging one twice is a no-op rather than an error: two waiters tapping the same request is the normal case, and both seeing it is what the table wanted.",
+        "operationId": "acknowledgeServiceRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Ordering.ServiceRequestView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not staff.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tabs/{tabId}/abandon": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Manager: write off an outstanding balance",
+        "description": "The diners left without paying and the venue is accepting the loss. Kept for reporting rather than deleted - a venue's write-offs are a number it needs.",
+        "operationId": "abandonTab",
+        "parameters": [
+          {
+            "name": "tabId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.AbandonTabRequest"
+                  }
+                ],
+                "description": "Writing off an outstanding balance."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Ordering.TabTotalsSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Requires the Manager role.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reservations/{id}/approve": {
       "post": {
         "tags": [
@@ -12044,12 +12181,10 @@
           "branchId",
           "channel",
           "clientCommandId",
-          "date",
           "guestName",
           "guestPhone",
           "partySize",
-          "tableId",
-          "time"
+          "tableId"
         ],
         "type": "object",
         "properties": {
@@ -12066,12 +12201,14 @@
           "date": {
             "type": "string",
             "description": "Local calendar date at the branch, e.g. `2026-09-12`.",
-            "format": "date"
+            "format": "date",
+            "nullable": true
           },
           "time": {
             "type": "string",
             "description": "Local wall-clock start at the branch, e.g. `19:30`.",
-            "format": "time"
+            "format": "time",
+            "nullable": true
           },
           "partySize": {
             "type": "integer",
@@ -12450,8 +12587,7 @@
       },
       "Yalla.Api.Endpoints.ReleaseReservationRequest": {
         "required": [
-          "clientCommandId",
-          "outcome"
+          "clientCommandId"
         ],
         "type": "object",
         "properties": {
@@ -12461,7 +12597,8 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reservations.ReleaseOutcome"
               }
             ],
-            "description": "Why a booking was let go, and whether it counts against the diner."
+            "description": "<b>1 NoShow</b> - nobody came and nobody called; counts toward the diner's rolling no-show\r\n             threshold. <b>2 CancelledByVenue</b> - they phoned, or the table went out of service; does\r\n             <b>not</b> count.\r\n            \r\n             Two buttons on the tablet, never one. A single \"release\" gets tapped for both cases by a busy\r\n             waiter, and the threshold then punishes the diners who bothered to ring ahead.",
+            "nullable": true
           },
           "clientCommandId": {
             "type": "string",
@@ -12809,6 +12946,20 @@
         },
         "additionalProperties": false,
         "description": "Body of a state-change request that needs nothing beyond the table."
+      },
+      "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The address this person will sign in with. Stored lowercased."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of the sign-in issue."
       },
       "Yalla.Api.Endpoints.VenueAdminEndpoints.SetAvailabilityRequest": {
         "required": [
@@ -16921,7 +17072,6 @@
           "longitude",
           "openingHours",
           "policy",
-          "status",
           "tableCount",
           "timeZoneId",
           "venueName",
@@ -16986,7 +17136,7 @@
           },
           "isOpenNow": {
             "type": "boolean",
-            "description": "Whether it is open at this moment, decided in the branch's own zone."
+            "description": "Whether it is open at this moment, decided in the branch's own zone.\r\n\r\n<b>This is the only \"is it worth going\" signal, and there is deliberately no second one.</b> An\r\nearlier draft carried a `status` of Open/Closed beside it, which was computed from this\r\nfield and therefore said nothing new under a name that implied venue lifecycle. A branch that is\r\nsuspended, deleted or switched off never reaches this response at all - every query behind it\r\nfilters those out and the route answers 404 - so \"shut tonight\" is this field being false, and\r\n\"this venue is gone\" is the 404. Two names for one fact is how a mapper picks the wrong one.\r\n"
           },
           "freeTableCount": {
             "type": "integer",
@@ -17005,14 +17155,6 @@
               }
             ],
             "description": "The room, in diner shape: the canvas, the areas and the tables with their geometry and whether\r\neach is free. <b>No QR tokens and no staff state</b> - see Yalla.Application.Public.PublicFloorTable."
-          },
-          "status": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Yalla.Application.Public.PublicBranchStatus"
-              }
-            ],
-            "description": "Open or Closed - see Yalla.Application.Public.PublicBranchStatus. Lets the page tell \"shut tonight\" from\r\n\"this venue is gone\", which neither IsOpenNow alone nor a 404 can say."
           },
           "phoneE164": {
             "type": "string",
@@ -17044,19 +17186,6 @@
         },
         "additionalProperties": false,
         "description": "One branch's public page."
-      },
-      "Yalla.Application.Public.PublicBranchStatus": {
-        "enum": [
-          1,
-          2
-        ],
-        "type": "integer",
-        "description": "Whether the page is showing a branch a diner can act on.\n\nValues: 1 Open, 2 Closed.",
-        "format": "int32",
-        "x-enum-varnames": [
-          "Open",
-          "Closed"
-        ]
       },
       "Yalla.Application.Public.PublicFloorPlan": {
         "required": [
@@ -18638,6 +18767,42 @@
           }
         },
         "additionalProperties": false
+      },
+      "Yalla.Application.Staff.StaffSignInLink": {
+        "required": [
+          "email",
+          "expiresAtUtc",
+          "replacedExistingSignIn",
+          "resetLink",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "Whose sign-in it is.",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "description": "The address, as stored."
+          },
+          "resetLink": {
+            "type": "string",
+            "description": "The link to hand over. Opening it is how they choose their password."
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "description": "When the link stops working unused.",
+            "format": "date-time"
+          },
+          "replacedExistingSignIn": {
+            "type": "boolean",
+            "description": "True when this person already had a password. It keeps working until the link is used, at\r\nwhich point it is replaced and every session they had open is ended."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A freshly issued sign-in link. ResetLink exists only here: the server keeps\r\nthe token's hash and no read ever returns it, so this is the one copy."
       },
       "Yalla.Application.Staff.UpdateStaffCommand": {
         "required": [

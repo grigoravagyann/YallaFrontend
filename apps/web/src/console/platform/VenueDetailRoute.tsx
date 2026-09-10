@@ -1,17 +1,24 @@
 import {
   StaffPermissionError,
   VenueHasOpenTabsError,
+  canEditStaff,
+  isAdminRole,
   type BlockingTab,
-  type CreateStaffInput,
+  type StaffMember,
 } from '@yalla/api';
-import { useCreateStaff, useStaff } from '@yalla/api/react';
+import { useCreateStaff, useIssueStaffSignIn, useStaff } from '@yalla/api/react';
 import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useCurrentUser } from '../../auth/useCurrentUser';
 import { newCommandId } from '../../lib/commandId';
 import { PinDialog } from '../venue/staff/PinDialog';
+import { SignInLinkDialog } from '../venue/staff/SignInLinkDialog';
+import { SignInPrompt } from '../venue/staff/SignInPrompt';
 import { StaffForm } from '../venue/staff/StaffForm';
+import { issueFailureText } from '../venue/staff/signInIssue';
+import type { ShownCredentials, SignInPromptState } from '../venue/staff/StaffScreen';
 import {
   useConsoleVenue,
   useDeleteVenue,
@@ -29,11 +36,18 @@ const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
  * The `venueId` in the URL is not a scope claim. A platform admin's token
  * covers every venue, which is why this route only exists in their router; the
  * server checks anyway and a 403 renders the plain refusal page.
+ *
+ * **This is the venue bootstrap path.** A new venue has nobody in it, an owner
+ * cannot create another owner, and the only actor above an owner is the
+ * platform admin — so the first owner is made here, and here is the only place
+ * an owner's sign-in can be issued or repaired. A hire from this card that did
+ * not also issue a sign-in produced an owner nobody could ever sign in as.
  */
 export function VenueDetailRoute() {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
   const { venueId } = useParams<{ venueId: string }>();
+  const { user } = useCurrentUser();
 
   const { data: venue, isLoading } = useConsoleVenue(venueId);
   /*
@@ -45,6 +59,7 @@ export function VenueDetailRoute() {
    */
   const staff = useStaff(venueId);
   const createStaff = useCreateStaff(venueId ?? '');
+  const issueSignIn = useIssueStaffSignIn(venueId ?? '');
   const suspend = useSuspendVenue();
   const resume = useResumeVenue();
   const remove = useDeleteVenue();
@@ -55,10 +70,49 @@ export function VenueDetailRoute() {
   const [blocked, setBlocked] = useState<readonly BlockingTab[] | null>(null);
   const [hiring, setHiring] = useState(false);
   const [refusal, setRefusal] = useState<StaffPermissionError | null>(null);
-  const [shownPin, setShownPin] = useState<{ name: string; pin: string } | null>(null);
+  /** The one moment a PIN or a link is on screen; same rule as the venue's staff screen. */
+  const [shown, setShown] = useState<ShownCredentials | null>(null);
+  const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
+
+  const failureText = (error: unknown) =>
+    issueFailureText(error, { offline: t('state.offline'), generic: t('state.error') });
+
+  async function sendSignIn(member: StaffMember, email: string) {
+    try {
+      const link = await issueSignIn.mutateAsync({ staffMemberId: member.id, email });
+      setPrompt(null);
+      setShown({
+        kind: 'signIn',
+        name: member.fullName,
+        pin: null,
+        link,
+        failure: null,
+        retry: null,
+      });
+    } catch (error) {
+      setPrompt((current) => (current ? { ...current, failure: failureText(error) } : null));
+    } finally {
+      // The hook keeps the result as its own `data` — a second copy of the
+      // link. The dialog's state is the only one wanted.
+      issueSignIn.reset();
+    }
+  }
+
+  // From the dialog to the row: the address is corrected there.
+  const retryFrom = (retry: { staffMemberId: string; email: string } | null) =>
+    retry
+      ? () => {
+          setShown(null);
+          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure: null });
+        }
+      : null;
 
   if (isLoading) return <p className="muted">{t('loading')}</p>;
   if (!venue) return <p className="error">{t('venue.notFound')}</p>;
+
+  // A platform admin belongs to no venue, so no row is ever theirs; the guard
+  // is still the shared one so the rank rule cannot drift from the server's.
+  const actor = { id: user?.id ?? 'platform', role: 'platformAdmin' as const };
 
   const close = () => {
     setConfirming(null);
@@ -171,14 +225,47 @@ export function VenueDetailRoute() {
               setHiring(false);
               setRefusal(null);
             }}
-            onCreate={async (input: CreateStaffInput) => {
+            onCreate={async (input, signIn) => {
               setRefusal(null);
               try {
+                // No email on the create call: the server refuses one without
+                // a password, and the address goes on the issue call after the
+                // owner exists.
                 const created = await createStaff.mutateAsync(input);
                 setHiring(false);
                 // The single moment the PIN is on a screen, same as the venue
                 // staff screen: it came from the form and goes no further.
-                setShownPin({ name: created.fullName, pin: input.pin });
+                if (!signIn) {
+                  setShown({ kind: 'pin', name: created.fullName, pin: input.pin });
+                  return;
+                }
+                // Always the dialog: the owner exists now, and their PIN has to
+                // be shown whether or not the link followed.
+                try {
+                  const link = await issueSignIn.mutateAsync({
+                    staffMemberId: created.id,
+                    email: signIn.email,
+                  });
+                  setShown({
+                    kind: 'signIn',
+                    name: created.fullName,
+                    pin: input.pin,
+                    link,
+                    failure: null,
+                    retry: null,
+                  });
+                } catch (error) {
+                  setShown({
+                    kind: 'signIn',
+                    name: created.fullName,
+                    pin: input.pin,
+                    link: null,
+                    failure: failureText(error),
+                    retry: { staffMemberId: created.id, email: signIn.email },
+                  });
+                } finally {
+                  issueSignIn.reset();
+                }
               } catch (error) {
                 if (error instanceof StaffPermissionError) setRefusal(error);
                 else throw error;
@@ -192,13 +279,20 @@ export function VenueDetailRoute() {
           />
         ) : null}
 
-        {shownPin ? (
-          <PinDialog
-            name={shownPin.name}
-            pin={shownPin.pin}
-            // Dropped from state entirely, same as the venue staff screen.
-            // There is nowhere else it lives.
-            onClose={() => setShownPin(null)}
+        {/* Dropped from state entirely on close, same as the venue staff
+            screen. There is nowhere else either credential lives. */}
+        {shown?.kind === 'pin' ? (
+          <PinDialog name={shown.name} pin={shown.pin} onClose={() => setShown(null)} />
+        ) : shown ? (
+          <SignInLinkDialog
+            name={shown.name}
+            pin={shown.pin}
+            link={shown.link}
+            failure={shown.failure}
+            timeZoneId={CONSOLE_TIME_ZONE}
+            locale={locale}
+            onRetry={retryFrom(shown.retry)}
+            onClose={() => setShown(null)}
           />
         ) : null}
 
@@ -210,12 +304,67 @@ export function VenueDetailRoute() {
           <p className="muted">{t('venue.noStaff')}</p>
         ) : (
           <ul className="rows">
-            {staff.data?.map((member) => (
-              <li key={member.id} className="row">
-                <div className="row-title">{member.fullName}</div>
-                <span className="muted small">{t(`role.${member.role}`)}</span>
-              </li>
-            ))}
+            {staff.data?.map((member) => {
+              const signsIn = isAdminRole(member.role);
+              // The same three-part gate as the venue staff screen: below the
+              // actor, an admin-panel role, and active — the server refuses
+              // the other two and a refused action is not offered.
+              const canIssue = signsIn && member.isActive && canEditStaff(actor, member);
+              return (
+                <Fragment key={member.id}>
+                  <li className={member.isActive ? 'row' : 'row is-inactive'}>
+                    <div>
+                      <div className="row-title">{member.fullName}</div>
+                      {signsIn && member.email ? (
+                        <div className="muted small">{member.email}</div>
+                      ) : null}
+                    </div>
+                    <div className="actions">
+                      {member.isActive ? null : (
+                        <span className="badge">{t('staff.status.inactive')}</span>
+                      )}
+                      {signsIn && !member.email ? (
+                        <span className="badge badge-warn">{t('staff.status.noSignIn')}</span>
+                      ) : null}
+                      {signsIn && member.email && !member.hasPasswordSignIn ? (
+                        <span className="badge">{t('staff.status.awaitingPassword')}</span>
+                      ) : null}
+                      <span className="muted small">{t(`role.${member.role}`)}</span>
+                      {canIssue ? (
+                        <button
+                          type="button"
+                          className="button button-small button-ghost"
+                          onClick={() =>
+                            setPrompt({
+                              staffMemberId: member.id,
+                              email: member.email ?? '',
+                              failure: null,
+                            })
+                          }
+                        >
+                          {member.email
+                            ? t('staff.action.sendNewLink')
+                            : t('staff.action.issueSignIn')}
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                  {prompt?.staffMemberId === member.id ? (
+                    <li className="row sign-in-prompt-row">
+                      <SignInPrompt
+                        key={prompt.email}
+                        member={member}
+                        initialEmail={prompt.email}
+                        failure={prompt.failure}
+                        isPending={issueSignIn.isPending}
+                        onSend={(email) => void sendSignIn(member, email)}
+                        onCancel={() => setPrompt(null)}
+                      />
+                    </li>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </ul>
         )}
       </div>

@@ -4,6 +4,7 @@ import type {
   EnrolmentCode,
   StaffDevice,
   StaffMember,
+  StaffSignInLink,
   UpdateStaffInput,
 } from '../contracts/staff';
 import type { components } from '../generated/schema';
@@ -12,6 +13,7 @@ type Schemas = components['schemas'];
 type WireStaff = Schemas['Yalla.Application.Staff.StaffMemberView'];
 type WireDevice = Schemas['Yalla.Application.Auth.StaffDeviceSummary'];
 type WireCode = Schemas['Yalla.Application.Auth.DeviceEnrolmentCodeResult'];
+type WireSignInLink = Schemas['Yalla.Application.Staff.StaffSignInLink'];
 
 /**
  * Staff and device wire shapes to screen shapes.
@@ -108,4 +110,18 @@ export function staffDevice(wire: WireDevice): StaffDevice {
 
 export function enrolmentCode(wire: WireCode): EnrolmentCode {
   return { code: wire.code, expiresAtUtc: wire.expiresAtUtc, branchId: wire.branchId };
+}
+
+/**
+ * Field for field, and named so a renamed wire member fails here at test time
+ * rather than as an `undefined` in the dialog that shows the one copy.
+ */
+export function staffSignInLink(wire: WireSignInLink): StaffSignInLink {
+  return {
+    staffMemberId: wire.staffMemberId,
+    email: wire.email,
+    resetLink: wire.resetLink,
+    expiresAtUtc: wire.expiresAtUtc,
+    replacedExistingSignIn: wire.replacedExistingSignIn,
+  };
 }

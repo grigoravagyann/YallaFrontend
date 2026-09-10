@@ -756,14 +756,18 @@
     },
     "status": {
       "inactive": "Deactivated",
-      "pinLocked": "PIN locked"
+      "pinLocked": "PIN locked",
+      "noSignIn": "No sign-in",
+      "awaitingPassword": "Awaiting password"
     },
     "action": {
       "unlock": "Unlock PIN",
       "resetPin": "New PIN",
       "deactivate": "Deactivate",
       "reactivate": "Reactivate",
-      "notYours": "Above your role"
+      "notYours": "Above your role",
+      "issueSignIn": "Issue sign-in",
+      "sendNewLink": "Send new link"
     },
     "empty": {
       "title": "Nobody here yet",
@@ -777,7 +781,9 @@
       "role": "Role",
       "branch": "Branch",
       "branchFixed": "Works at {{name}}.",
-      "pin": "PIN (4 digits)"
+      "pin": "PIN (4 digits)",
+      "email": "Email",
+      "emailHelp": "They open a link and choose their own password. Nobody types one for them."
     },
     "form": {
       "title": "New staff member",
@@ -791,6 +797,25 @@
       "shownOnceBody": "Shown now and never again. After this it can only be replaced, not looked up.",
       "neverShared": "Everyone has their own. Do not write it on the till.",
       "written": "Written down"
+    },
+    "signIn": {
+      "emailRequired": "Enter the address they will sign in with.",
+      "send": "Send link",
+      "confirmSend": "Yes, send it",
+      "previousStops": "The previous link stops working.",
+      "addressChanges": "Their sign-in email changes to {{email}} as soon as you send this.",
+      "dialogTitle": "Sign-in for {{name}}",
+      "pinLabel": "PIN",
+      "linkLabel": "Sign-in link",
+      "linkBody": "Paste it to them in a chat. They open it and choose their own password — nobody types one for them.",
+      "expires": "Good until {{when}}. Send it now.",
+      "onceOnly": "Shown now and never again. If it is lost, send a new one — the old one stops working.",
+      "keepsPassword": "Their current password keeps working until they open this.",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "selectAndCopy": "Select and copy",
+      "notIssued": "Added, but without a sign-in link:",
+      "done": "Done"
     }
   },
   "devices": {

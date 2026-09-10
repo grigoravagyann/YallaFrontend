@@ -23,10 +23,10 @@ import {
   UnsupportedImageError,
   VenueHasOpenTabsError,
 } from '../contracts/errors';
-import { NotFoundError, ValidationError } from '../errors';
+import { ConcurrencyConflictError, NotFoundError, ValidationError } from '../errors';
 import { StaffPermissionError } from '../contracts/errors';
-import { assignableRoles, canEditStaff } from '../contracts/staff';
-import type { StaffDevice, StaffMember } from '../contracts/staff';
+import { assignableRoles, canEditStaff, isAdminRole } from '../contracts/staff';
+import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
 import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
 import type {
@@ -347,6 +347,28 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
    */
   const staffByVenue = new Map<string, StaffMember[]>();
   const devicesByBranch = new Map<string, StaffDevice[]>();
+
+  /**
+   * A 409 whose `message` is the server's sentence.
+   *
+   * The staff routes answer a fact about the target — signs in with a PIN,
+   * deactivated, address taken — as `conflicting-state`, which the client
+   * already maps to {@link ConcurrencyConflictError}. The detail is the thing a
+   * screen shows, so the mock has to carry one the way the wire does.
+   */
+  function conflict(detail: string): ConcurrencyConflictError {
+    return new ConcurrencyConflictError({
+      url: URL_TAG,
+      problem: {
+        type: 'about:blank',
+        title: 'Conflicting state',
+        status: 409,
+        detail,
+        code: 'conflicting-state',
+        traceId: 'mock',
+      },
+    });
+  }
 
   function venueOfBranch(branchId: string): string | null {
     for (const record of venues.values()) {
@@ -1265,6 +1287,28 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         });
       }
 
+      /*
+       * Email without a password is a 400 on the server, with no field named.
+       * This mock used to accept it and mark the person sign-in-less, which
+       * would have let a screen forward the address on the create call and
+       * pass every test while the real backend refused every hire. A manager
+       * gets their sign-in through `issueStaffSignIn`, after they exist.
+       */
+      if (staff.email && !staff.password) {
+        throw new ValidationError({
+          url: URL_TAG,
+          status: 400,
+          problem: {
+            type: 'about:blank',
+            title: 'Invalid request',
+            status: 400,
+            detail: 'An admin-panel sign-in needs both an email address and a password.',
+            code: 'invalid-request',
+            traceId: 'mock',
+          },
+        });
+      }
+
       const created: StaffMember = {
         id: nextId('staff'),
         venueId,
@@ -1355,6 +1399,110 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const updated = { ...list[index]!, isPinLocked: false };
       list[index] = updated;
       return updated;
+    },
+
+    async issueStaffSignIn({ venueId, staffMemberId, email }) {
+      await wait();
+      const list = staffFor(venueId);
+      const index = list.findIndex((member) => member.id === staffMemberId);
+      if (index < 0) throw new NotFoundError({ url: URL_TAG });
+
+      const subject = list[index]!;
+      const actor = actingStaff(venueId);
+
+      /*
+       * The server's refusals, in the server's order, because the screen shows
+       * the sentence it gets and a mock that refused in a different order would
+       * let the wrong sentence pass every test. Self and rank are the role
+       * guard (403); a PIN-only role, a deactivated person and a taken address
+       * are facts about the target (409); a bad address is a 422 naming `email`.
+       */
+      if (actor.id === subject.id) {
+        throw new StaffPermissionError({
+          url: URL_TAG,
+          detail: `Issuing your own sign-in requires the platformAdmin role; the caller is a ${actor.role}.`,
+        });
+      }
+
+      if (!isAdminRole(subject.role)) {
+        throw conflict(
+          `A ${subject.role} signs in by tapping a PIN on a tablet a manager enrolled, so they cannot ` +
+            'have an email and password. Only an owner or a manager uses the admin panel. ' +
+            'Create them without credentials, or give them the Manager role.',
+        );
+      }
+
+      // Strictly above: an owner cannot issue for another owner, and a manager
+      // reaches no admin role at all. `assignableRoles` is the same list the
+      // pickers are built from, so the two cannot disagree.
+      if (!assignableRoles(actor.role).includes(subject.role)) {
+        throw new StaffPermissionError({
+          url: URL_TAG,
+          detail: `Issuing a sign-in for a ${subject.role} requires the platformAdmin role; the caller is a ${actor.role}.`,
+        });
+      }
+
+      if (!subject.isActive) {
+        throw conflict(
+          `${subject.fullName} is deactivated. Reactivate them first, then send a sign-in link.`,
+        );
+      }
+
+      const address = email.trim().toLocaleLowerCase();
+      if (!/^[^\s@]+@[^\s@]+$/u.test(address)) {
+        throw new ValidationError({
+          url: URL_TAG,
+          status: 422,
+          problem: {
+            type: 'about:blank',
+            title: 'Validation failed',
+            status: 422,
+            detail: 'The email field is not a valid e-mail address.',
+            code: 'validation-failed',
+            traceId: 'mock',
+            context: { field: 'email', fields: [{ field: 'email', message: 'Not an address.' }] },
+          },
+        });
+      }
+
+      // One account per address, across the venue as across the server's
+      // whole table. The person's own address is fine: re-issuing is the
+      // normal way to replace a lost link.
+      const taken = list.some((member) => member.id !== subject.id && member.email === address);
+      if (taken) {
+        throw conflict(
+          'That email address already has an account. Every address signs in to one account, ' +
+            'so use a different one - or edit the existing account instead.',
+        );
+      }
+
+      // The address changes now; the password, if any, only when the link is
+      // used. `hasPasswordSignIn` is therefore left exactly as it was, which
+      // is what makes "Awaiting password" true for a first issue and absent
+      // for a re-issue to somebody who already signs in.
+      list[index] = { ...subject, email: address };
+
+      /*
+       * An opaque token from the same generator the enrolment code uses, and
+       * only the *link* is handed back: nothing here keeps it, so this mock
+       * could not return it a second time if asked — the same promise the
+       * server makes with its hash. The fragment, not the query, because that
+       * is where the real template puts it and the reset page reads it from.
+       */
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      const token = Array.from({ length: 32 }, () => {
+        sequence = (sequence * 1103515245 + 12345) % 2147483648;
+        return alphabet[sequence % alphabet.length];
+      }).join('');
+
+      const link: StaffSignInLink = {
+        staffMemberId: subject.id,
+        email: address,
+        resetLink: `${URL_TAG}/reset-password#token=${token}`,
+        expiresAtUtc: new Date(now().getTime() + 24 * 60 * 60_000).toISOString(),
+        replacedExistingSignIn: subject.hasPasswordSignIn,
+      };
+      return link;
     },
 
     async clearPinLockout({ branchId, staffMemberId }) {

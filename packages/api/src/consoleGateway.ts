@@ -23,6 +23,7 @@ import type {
   EnrolmentCode,
   StaffDevice,
   StaffMember,
+  StaffSignInLink,
   UpdateStaffInput,
 } from './contracts/staff';
 import type {
@@ -301,6 +302,33 @@ export interface ConsoleGateway {
    * the till.
    */
   setStaffPin(input: { venueId: string; staffMemberId: string; pin: string }): Promise<StaffMember>;
+
+  /**
+   * Give a manager or owner their admin-panel sign-in.
+   *
+   * Stores the address and returns a link the person opens to choose their own
+   * password — the reset endpoint that consumes it is the only thing that ever
+   * sets one. The link is returned **once**: the server keeps the token's hash
+   * and never logs it, so a lost link is replaced by issuing another, which
+   * retires the earlier unused one. Good for 24 hours and exactly one use.
+   *
+   * Somebody who already has a password keeps it, and their open sessions,
+   * until the link is used. Their sign-in *address* changes the moment this
+   * answers, which is why the screen confirms a changed address first.
+   *
+   * @throws {StaffPermissionError} issuing for yourself, a peer, or somebody
+   * above you — an owner issues for managers, a platform admin for owners.
+   * @throws {NotFoundError} no such staff member in this venue.
+   * @throws {ConcurrencyConflictError} a waiter or kitchen hand (they sign in
+   * with a PIN), a deactivated person, or an address that already has an
+   * account. `message` carries the server's sentence.
+   * @throws {ValidationError} `email` missing or not an address; `field` names it.
+   */
+  issueStaffSignIn(input: {
+    venueId: string;
+    staffMemberId: string;
+    email: string;
+  }): Promise<StaffSignInLink>;
 
   /**
    * Unlock somebody who mistyped their PIN too many times.
