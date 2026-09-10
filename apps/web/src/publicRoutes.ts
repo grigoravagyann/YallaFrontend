@@ -27,12 +27,18 @@
  * `assets` and `fonts` are here because the dev server and the built site both
  * serve files from them, and a venue slug that shadowed one would break its own
  * page's stylesheet.
+ *
+ * `reset-password` is where a sign-in link lands. The link is the only way a
+ * manager or owner ever gets a password, so a venue that claimed the word would
+ * silently turn every link an owner sends into a "we could not find that place"
+ * page — and nobody would know which side to blame.
  */
 export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
   'assets',
   'dev',
   'fonts',
   'platform',
+  'reset-password',
   'sign-in',
   'staff',
   'venue',

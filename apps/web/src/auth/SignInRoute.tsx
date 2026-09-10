@@ -11,6 +11,20 @@ interface SignInLocationState {
 }
 
 /**
+ * Where signing in lands, given where the person was.
+ *
+ * Two places are never returned to. The sign-in form itself, obviously. And
+ * the password page a sign-in link opens: it belongs to whoever holds the link,
+ * not to whoever has just signed in, and a signed-in person arriving there is
+ * shown a notice rather than a form. Sending them back to it after sign-in
+ * would be offering them somebody else's credential.
+ */
+function landingAfterSignIn(returnTo: string | undefined): string {
+  if (!returnTo || returnTo === '/sign-in' || returnTo.startsWith('/reset-password')) return '/';
+  return returnTo;
+}
+
+/**
  * Venue-user sign-in.
  *
  * Reached two ways: by opening the console with no session, and by being sent
@@ -39,9 +53,7 @@ export function SignInRoute() {
       await signIn(email.trim(), password);
       // The router is built from who is signed in; drop the anonymous answer.
       await queryClient.resetQueries({ queryKey: ['currentUser'] });
-      navigate(state.returnTo && state.returnTo !== '/sign-in' ? state.returnTo : '/', {
-        replace: true,
-      });
+      navigate(landingAfterSignIn(state.returnTo), { replace: true });
     } catch (error) {
       const kind = describeFailure(error);
       setFailure(

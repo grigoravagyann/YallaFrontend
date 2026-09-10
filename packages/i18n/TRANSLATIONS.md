@@ -28,8 +28,8 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   permission rule, and a translation that blurs "the table total" into "your
   total" would tell a guest the opposite of what the feature does.
 - `admin` — the whole web console: the platform venues list and venue detail,
-  the create-venue flow, the four role names, the branch switcher and the
-  refusal page. **Not** reviewed.
+  the create-venue flow, the four role names, the branch switcher, the refusal
+  page and the password page a sign-in link opens. **Not** reviewed.
 - `staff` — the floor screen: connection and sync states, the order and seating
   panel frames, and the install prompt. **Not** reviewed, and this set matters
   most of all: it is read by a waiter at arm's length during a rush, in Armenian

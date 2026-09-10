@@ -160,6 +160,22 @@
     "failed": "That email and password do not match an account.",
     "expired": "Your session ended. Sign in again to continue where you were."
   },
+  "resetPassword": {
+    "title": "Choose a password",
+    "body": "This is the password you will sign in to the venue console with.",
+    "password": "New password",
+    "confirm": "Repeat the password",
+    "tooShort": "At least {{min}} characters.",
+    "mismatch": "The two passwords do not match.",
+    "submit": "Save password",
+    "doneTitle": "Password set",
+    "doneBody": "Sign in with your email and the password you just chose.",
+    "goToSignIn": "Sign in",
+    "invalidTitle": "This link is no longer valid",
+    "invalidBody": "Ask the person who sent it for a new one.",
+    "signedInTitle": "You are signed in as {{name}}",
+    "signedInBody": "This link is for someone else. Opening it here would use it up. Send it on."
+  },
   "floorPlan": {
     "noBranch": "This account has no branch to draw a plan for.",
     "summary": "{{tables}} tables across {{areas}} areas",

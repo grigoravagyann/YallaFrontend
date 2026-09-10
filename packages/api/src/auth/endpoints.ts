@@ -133,6 +133,38 @@ export function createVenueUserAuth(client: ApiClient) {
     async signOut(refreshToken: string): Promise<void> {
       await client.post(`${VENUE}/sign-out`, { refreshToken }, { skipAuth: true });
     },
+
+    /**
+     * Ask for a reset link by email. The backend answers 202 whether or not the
+     * address has an account, so nothing about the answer says which addresses
+     * are real. `localeCode` picks the language of the message.
+     */
+    async requestPasswordReset(email: string, localeCode?: string): Promise<void> {
+      await client.post(
+        `${VENUE}/request-password-reset`,
+        {
+          email,
+          localeCode: localeCode ?? null,
+        } satisfies Schemas['Yalla.Api.Endpoints.RequestPasswordResetRequest'],
+        { skipAuth: true },
+      );
+    },
+
+    /**
+     * Spend a reset link on a new password.
+     *
+     * The link is the whole credential, so this goes out with no bearer and no
+     * refresh on 401 — a 401 here means the link is unknown, spent or expired,
+     * not that anybody's session ended. A 400 is the password under the
+     * server's minimum, with the minimum in `detail`.
+     */
+    async resetPassword(resetToken: string, newPassword: string): Promise<void> {
+      await client.post(
+        `${VENUE}/reset-password`,
+        { resetToken, newPassword } satisfies Schemas['Yalla.Api.Endpoints.ResetPasswordRequest'],
+        { skipAuth: true },
+      );
+    },
   };
 }
 

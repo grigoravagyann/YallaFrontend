@@ -66,3 +66,15 @@ export async function signIn(email: string, password: string): Promise<void> {
 export function signOut(): Promise<void> {
   return authSession.signOut();
 }
+
+/**
+ * Spend a sign-in link on a password.
+ *
+ * Nothing is signed in afterwards, deliberately: the person sets a password
+ * and then signs in with it like everyone else, so the link never becomes a
+ * second way of holding a session. Through the bare client, as sign-in is.
+ */
+export async function resetPassword(resetToken: string, newPassword: string): Promise<void> {
+  if (!venueAuth) throw new Error('A password reset is only available against a real backend.');
+  await venueAuth.resetPassword(resetToken, newPassword);
+}
