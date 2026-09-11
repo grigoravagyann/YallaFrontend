@@ -278,14 +278,13 @@ export function createTabWorld(options: TabWorldOptions) {
   }
 
   /**
-   * Find, or create, the tab a table code points at.
+   * Find, or create, the tab on one table.
    *
-   * Throws the three scan failures, so `scan` reads as one straight line.
+   * Throws the table's own refusals, so its two callers — the scan and a
+   * booking — read as one straight line and cannot answer differently about a
+   * table that is out of service.
    */
-  function resolveByTableCode(code: string): TabRecord {
-    const tableId = findTableIdByCode(code);
-    if (!tableId) throw new UnknownTableCodeError({ url: URL_TAG });
-
+  function recordForTable(tableId: string): TabRecord {
     const location = locate(tableId);
     if (!location) throw new UnknownTableCodeError({ url: URL_TAG });
 
@@ -295,8 +294,33 @@ export function createTabWorld(options: TabWorldOptions) {
 
     const existingId = tabByTable.get(tableId);
     const existing = existingId ? tabs.get(existingId) : undefined;
-    // No tab on this table yet: whoever scanned first opens one and hosts it.
+    // No tab on this table yet: whoever arrives first opens one and hosts it.
     return existing ?? openEmptyRecord(location);
+  }
+
+  /** The same, reached by the code printed under the table's QR. */
+  function resolveByTableCode(code: string): TabRecord {
+    const tableId = findTableIdByCode(code);
+    if (!tableId) throw new UnknownTableCodeError({ url: URL_TAG });
+    return recordForTable(tableId);
+  }
+
+  /**
+   * The tab a command id already opened, as it stands now.
+   *
+   * What makes a double tap — or a retry on flaky wifi — land back on one tab
+   * instead of opening a second.
+   */
+  function replayOf(commandId: string): WorldScan | null {
+    const replayed = commandLog.get(commandId);
+    const record = replayed ? tabs.get(replayed) : undefined;
+    if (!record) return null;
+
+    const you = record.participants.find((p) => p.id === DEVICE_PARTICIPANT_ID);
+    return {
+      kind: you?.status === 'pending' ? 'joinPending' : 'alreadyOn',
+      tab: project(record),
+    };
   }
 
   /** This device arriving on a tab — by scanning its table or by invitation. */
@@ -343,20 +367,33 @@ export function createTabWorld(options: TabWorldOptions) {
     scan(command: ScanTableCommand): WorldScan {
       seed();
 
-      const replayed = commandLog.get(command.commandId);
-      if (replayed) {
-        const record = tabs.get(replayed);
-        if (record) {
-          const you = record.participants.find((p) => p.id === DEVICE_PARTICIPANT_ID);
-          return {
-            kind: you?.status === 'pending' ? 'joinPending' : 'alreadyOn',
-            tab: project(record),
-          };
-        }
-      }
+      return (
+        replayOf(command.commandId) ??
+        enter(resolveByTableCode(command.tableCode), command.displayName ?? null, command.commandId)
+      );
+    },
 
-      const record = resolveByTableCode(command.tableCode);
-      return enter(record, command.displayName ?? null, command.commandId);
+    /**
+     * One named table — what a booking resolves to, for
+     * `POST /api/tabs/open-by-booking`.
+     *
+     * Deliberately the *same* path the scan takes once it knows which table it
+     * is looking at: the same host-or-pending rule, the same out-of-service
+     * refusal, the same replay. Whose booking it is, and whether it is being
+     * held yet, are decided before this is reached — they are the booking's
+     * business, not the table's.
+     */
+    openAtTable(input: {
+      tableId: string;
+      commandId: string;
+      displayName?: string | undefined;
+    }): WorldScan {
+      seed();
+
+      return (
+        replayOf(input.commandId) ??
+        enter(recordForTable(input.tableId), input.displayName ?? null, input.commandId)
+      );
     },
 
     /** A host's invitation — `POST /api/tabs/join`. Unknown or expired is refused. */

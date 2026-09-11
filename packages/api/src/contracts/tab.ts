@@ -144,6 +144,31 @@ export interface ScanTableCommand {
 }
 
 /**
+ * "I'm at my table" — `POST /api/tabs/open-by-booking`.
+ *
+ * The scan's command with the diner's booking code where the table's token
+ * goes. The server finds *their own* booking by that code, and from there it is
+ * the scan: the same table, the same host and pending guests, the same
+ * {@link ScanResult}. A screen cannot tell which door a tab came through, and
+ * must not try.
+ *
+ * The one thing that differs is who may call it. The scan is anonymous by
+ * design; this needs the diner's session, because a booking is the one thing
+ * here that has an account behind it.
+ */
+export interface OpenTabByBookingCommand {
+  /**
+   * As it is printed on the booking. Case, spaces and dashes do not matter —
+   * the server normalises exactly as {@link parseScannedCode} does.
+   */
+  readonly bookingCode: string;
+  /** Client-generated and stable across retries, as on a scan. */
+  readonly commandId: string;
+  /** Optional display name. Absent is normal and must stay normal. */
+  readonly displayName?: string | undefined;
+}
+
+/**
  * Joining with a host's invitation — `POST /api/tabs/join`.
  *
  * Its own command, not a table scan: the invitation token and a table's QR

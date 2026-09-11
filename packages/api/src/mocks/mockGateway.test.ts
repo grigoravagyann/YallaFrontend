@@ -196,7 +196,8 @@ describe('createBooking', () => {
     });
 
     expect(booking.status).toBe('confirmed');
-    expect(booking.code).toMatch(/^\d{6}$/u);
+    // The server's alphabet: six characters with no 0, 1, I, L or O in them.
+    expect(booking.code).toMatch(/^[2-9A-HJKMNP-Z]{6}$/u);
     expect(booking.timeZoneId).toBe('Asia/Yerevan');
     expect(booking.cancelledAtUtc).toBeNull();
   });

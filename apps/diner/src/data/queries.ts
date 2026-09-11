@@ -3,6 +3,7 @@ import {
   type Booking,
   type CreateBookingCommand,
   type JoinTabCommand,
+  type OpenTabByBookingCommand,
   type ScanTableCommand,
   type TabParticipantChange,
   type TabPermissions,
@@ -176,6 +177,19 @@ export function useScanTableCode() {
   const gateway = useGateway();
   return useMutation({
     mutationFn: (command: ScanTableCommand) => gateway.scanTableCode(command),
+  });
+}
+
+/**
+ * "I'm at my table", to `/api/tabs/open-by-booking`.
+ *
+ * The one way onto a tab that carries the diner's session: the booking has an
+ * account behind it, and only the account that made it may open its table.
+ */
+export function useOpenTabByBooking() {
+  const gateway = useGateway();
+  return useMutation({
+    mutationFn: (command: OpenTabByBookingCommand) => gateway.openTabByBooking(command),
   });
 }
 

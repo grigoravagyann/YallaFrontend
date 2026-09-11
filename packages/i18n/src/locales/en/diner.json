@@ -66,7 +66,12 @@
       "title": "We could not find that booking",
       "body": "It may have been made with another number, or on another phone."
     },
-    "noTimesLeft": "No times left to book on this day. Pick another day."
+    "noTimesLeft": "No times left to book on this day. Pick another day.",
+    "atTable": {
+      "action": "I’m at my table",
+      "hint": "At the venue? Open your tab on the table you booked.",
+      "working": "Opening your tab…"
+    }
   },
   "floorPlan": {
     "title": "Pick a table",
@@ -220,7 +225,8 @@
     "share": "Share",
     "shareMessage": "I booked table {{table}} at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
     "viewBookings": "See my bookings",
-    "done": "Done"
+    "done": "Done",
+    "atTableHint": "When you arrive, tap “I’m at my table” on your booking — or scan the QR on the table."
   },
   "net": {
     "offline": "You are offline.",
@@ -247,8 +253,8 @@
     "aiming": "Point the camera at the code on your table",
     "manualToggle": "Type the code instead",
     "manualTitle": "Type the code",
-    "manualBody": "The code printed under the QR on your table, or the link the host sent you.",
-    "manualPlaceholder": "ABC-DEF or a link",
+    "manualBody": "The long code printed under the QR on your table, your booking code, or a link from the host.",
+    "manualPlaceholder": "Table code, booking code or link",
     "manualSubmit": "Join this table",
     "working": "Opening your tab…",
     "scanAgain": "Scan again",
@@ -266,7 +272,13 @@
       "empty": "Type the code printed under the QR.",
       "notEnabled": "Ordering from your phone is not switched on here. A waiter will take your order.",
       "branchUnavailable": "This place is not opening tabs right now. Ask a waiter.",
-      "uncertain": "We did not hear back. Scan again — it will not open a second tab."
+      "uncertain": "We did not hear back. Scan again — it will not open a second tab.",
+      "bookingNotFound": "No booking of yours has that code. Check it, or ask a member of staff.",
+      "bookingTooEarly": "Your table is not being held yet. You can open your tab from {{time}}.",
+      "bookingTooEarlyNoTime": "Your table is not being held yet. Try again closer to your booking.",
+      "bookingEnded": "That booking is over. Scan the code on your table, or ask a waiter.",
+      "bookingNotActive": "That booking is not one you can open a tab on. Ask a member of staff.",
+      "signInNeeded": "Confirm your number to use a booking code. The code on the table needs no account."
     },
     "dev": {
       "title": "Dev only — demo codes",

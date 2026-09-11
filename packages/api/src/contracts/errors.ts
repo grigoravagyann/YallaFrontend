@@ -1,6 +1,7 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
 import { ApiError } from '../errors';
 import type { TableAvailability, TableUnavailableReason } from './booking';
+import type { ReservationStatusCode } from './push';
 
 /**
  * Someone else took the table in the seconds you were confirming.
@@ -255,6 +256,122 @@ export class TabClosedError extends ApiError {
     super('That tab has been closed.', { status: 409, url: options.url });
     this.name = 'TabClosedError';
     this.tabId = options.tabId;
+  }
+}
+
+/**
+ * The four refusals of "I'm at my table" — `POST /api/tabs/open-by-booking`.
+ *
+ * Each is its own class because each has its own next step, and the one thing
+ * the screens must never do with a booking code is what they used to do: answer
+ * it with "that code does not match a table". It did not, and never could.
+ */
+
+/** Facts the server sends with a refused booking, for the copy to use. */
+interface BookingRefusal {
+  readonly url: string;
+  readonly reservationId?: string | undefined;
+  readonly startUtc?: string | undefined;
+  readonly endUtc?: string | undefined;
+  readonly requestId?: string | undefined;
+}
+
+/**
+ * No booking of this diner's has that code.
+ *
+ * A stranger's code answers with this too, word for word. That is deliberate on
+ * the server and must stay deliberate here: a booking code is six characters
+ * read out at a door, so an "exists, but not yours" would tell anybody with an
+ * account which codes are live tonight.
+ */
+export class BookingNotFoundError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('We could not find that booking.', {
+      status: 404,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingNotFoundError';
+  }
+}
+
+/**
+ * The booking is real and theirs, but the table is not being held for it yet.
+ *
+ * `earliestUtc` is the instant it starts being held — the branch's own walk-in
+ * holdback, which the client has no way to compute and must not guess. Render
+ * it in the **branch's** zone: a diner who landed this morning is not on it.
+ */
+export class BookingTooEarlyError extends ApiError {
+  readonly reservationId: string | null;
+  readonly startUtc: string | null;
+  readonly endUtc: string | null;
+  readonly earliestUtc: string | null;
+
+  constructor(options: BookingRefusal & { earliestUtc?: string | undefined }) {
+    super('That table is not being held for your booking yet.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingTooEarlyError';
+    this.reservationId = options.reservationId ?? null;
+    this.startUtc = options.startUtc ?? null;
+    this.endUtc = options.endUtc ?? null;
+    this.earliestUtc = options.earliestUtc ?? null;
+  }
+}
+
+/**
+ * The sitting is over, or the booking is already completed.
+ *
+ * Being *late* is not this: until a waiter releases the table it is still the
+ * party's, and the server says so by letting them in.
+ */
+export class BookingEndedError extends ApiError {
+  readonly reservationId: string | null;
+  readonly startUtc: string | null;
+  readonly endUtc: string | null;
+
+  constructor(options: BookingRefusal) {
+    super('That booking is over.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingEndedError';
+    this.reservationId = options.reservationId ?? null;
+    this.startUtc = options.startUtc ?? null;
+    this.endUtc = options.endUtc ?? null;
+  }
+}
+
+/**
+ * The booking is not one a party is expected on: still awaiting the venue,
+ * cancelled by either side, or marked a no-show.
+ *
+ * The state arrives as `bookingStatus` rather than `status`, which on every
+ * `ApiError` is the HTTP status. Which of the states it is decides the
+ * sentence — "the venue has not confirmed yet" and "you cancelled this" are not
+ * the same news.
+ */
+export class BookingNotActiveError extends ApiError {
+  readonly reservationId: string | null;
+  readonly startUtc: string | null;
+  readonly endUtc: string | null;
+  readonly bookingStatus: ReservationStatusCode | null;
+
+  constructor(options: BookingRefusal & { status?: ReservationStatusCode | undefined }) {
+    super('That booking is not open for a tab.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingNotActiveError';
+    this.reservationId = options.reservationId ?? null;
+    this.startUtc = options.startUtc ?? null;
+    this.endUtc = options.endUtc ?? null;
+    this.bookingStatus = options.status ?? null;
   }
 }
 

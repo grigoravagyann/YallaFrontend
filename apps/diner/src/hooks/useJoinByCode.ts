@@ -1,35 +1,64 @@
 import { parseScannedCode, type ScanResult, type ScannedCode } from '@yalla/api';
 import { useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { useJoinTab, useScanTableCode } from '../data/queries';
+import { useJoinTab, useOpenTabByBooking, useScanTableCode } from '../data/queries';
 import { newCommandId } from '../lib/commandId';
-import { scanFailureFor, scanWasRefused, type ScanFailure } from '../lib/scanOutcome';
+import {
+  scanFailureFor,
+  scanWasRefused,
+  type BranchClock,
+  type ScanFailure,
+} from '../lib/scanOutcome';
+import { useSession } from '../stores/session';
 import { useActiveTab } from '../stores/tab';
 
 /**
  * Turning a code — scanned, typed or arrived via a link — into a tab, and
  * getting the diner to the right screen afterwards.
  *
- * Two doors, two endpoints. A table's QR opens or joins that table's tab
+ * Three doors, three endpoints. A table's QR opens or joins that table's tab
  * (`/api/tabs/open`); a host's invitation joins the tab it was made for
- * (`/api/tabs/join`). They used to share the table scan, which answered every
- * invitation with "that code does not match a table".
+ * (`/api/tabs/join`); the diner's own booking code opens the tab on the table
+ * they booked (`/api/tabs/open-by-booking`). The first two used to share the
+ * table scan, which answered every invitation with "that code does not match a
+ * table" — and the third had nowhere to go at all, so a diner holding a booking
+ * for table 5 typed its code into the scanner and got that same answer about a
+ * table they were sitting at.
  *
- * The command id for a table scan is kept per *code*, not per attempt: retrying
- * the same code replays one command and the backend hands back the tab it
- * already opened, which is what stops one table ending up with two tabs. It is
- * dropped only when the server definitely refused — after a timeout the scan
- * may have opened a tab, and the same id is what gets that tab back.
+ * The command id for a table or booking code is kept per *code*, not per
+ * attempt: retrying the same code replays one command and the backend hands
+ * back the tab it already opened, which is what stops one table ending up with
+ * two tabs. It is dropped only when the server definitely refused — after a
+ * timeout the attempt may have opened a tab, and the same id is what gets that
+ * tab back.
  */
-export function useJoinByCode() {
+export interface JoinByCodeOptions {
+  /**
+   * The branch whose clock a refusal's times are read in, when the screen knows
+   * it — the booking screen does, the scan screen does not. Without it a
+   * refusal drops the time rather than guessing a zone.
+   */
+  readonly at?: BranchClock | undefined;
+}
+
+export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
   const router = useRouter();
   const scan = useScanTableCode();
   const joinByInvite = useJoinTab();
+  const openByBooking = useOpenTabByBooking();
+  const signedIn = useSession((s) => s.signedIn);
   const join = useActiveTab((s) => s.join);
 
   const [failure, setFailure] = useState<ScanFailure | null>(null);
-  /** table code -> command id, so a retry of the same code is the same command. */
+  /** code -> command id, so a retry of the same code is the same command. */
   const commandIds = useRef(new Map<string, string>());
+  /** A booking code that arrived with no session, kept for the way back. */
+  const afterSignIn = useRef<ScannedCode | null>(null);
+
+  // Depended on by their parts, not as an object: a screen passing this inline
+  // would otherwise rebuild `enter` on every render.
+  const zone = at?.timeZoneId;
+  const locale = at?.locale;
 
   const enter = useCallback(
     async (code: ScannedCode): Promise<ScanResult | null> => {
@@ -38,24 +67,42 @@ export function useJoinByCode() {
         return null;
       }
 
+      /*
+       * Scanning needs no account and never will — that is the whole flow. A
+       * booking is the one thing here with an account behind it, and only the
+       * account that made it may open its table, so this is the single door
+       * that asks who you are. It asks by sending them through the verification
+       * they already know, and holds the code so they do not have to find it
+       * again on the way back.
+       */
+      if (code.kind === 'booking' && !signedIn) {
+        afterSignIn.current = code;
+        setFailure({ key: 'scan.error.signInNeeded' });
+        router.push('/verify');
+        return null;
+      }
+
       setFailure(null);
 
       try {
         let result: ScanResult;
-        if (code.kind === 'table') {
+        if (code.kind === 'invite') {
+          result = await joinByInvite.mutateAsync({ joinToken: code.token });
+        } else {
           let commandId = commandIds.current.get(code.code);
           if (!commandId) {
             commandId = newCommandId();
             commandIds.current.set(code.code, commandId);
           }
           try {
-            result = await scan.mutateAsync({ tableCode: code.code, commandId });
+            result =
+              code.kind === 'table'
+                ? await scan.mutateAsync({ tableCode: code.code, commandId })
+                : await openByBooking.mutateAsync({ bookingCode: code.code, commandId });
           } catch (error) {
             if (scanWasRefused(error)) commandIds.current.delete(code.code);
             throw error;
           }
-        } else {
-          result = await joinByInvite.mutateAsync({ joinToken: code.token });
         }
 
         join(result.tab.tabId);
@@ -70,21 +117,38 @@ export function useJoinByCode() {
         );
         return result;
       } catch (error) {
-        setFailure(scanFailureFor(error));
+        setFailure(
+          scanFailureFor(error, zone && locale ? { timeZoneId: zone, locale } : undefined),
+        );
         return null;
       }
     },
-    [scan, joinByInvite, join, router],
+    [scan, joinByInvite, openByBooking, join, router, signedIn, zone, locale],
   );
 
-  /** Whatever the camera read or the diner typed: a table code or an invite link. */
+  /** Whatever the camera read or the diner typed: a table code, a booking code or an invite link. */
   const submit = useCallback((raw: string) => enter(parseScannedCode(raw)), [enter]);
+
+  /**
+   * Finish the booking code that was waiting on a session.
+   *
+   * Called when the screen comes back into focus after verification. Without
+   * it, a diner who was sent to confirm their number returns to a screen that
+   * has forgotten why they left.
+   */
+  const resumeAfterSignIn = useCallback(() => {
+    const pending = afterSignIn.current;
+    if (!pending || !signedIn) return;
+    afterSignIn.current = null;
+    void enter(pending);
+  }, [enter, signedIn]);
 
   return {
     submit,
     enter,
+    resumeAfterSignIn,
     failure,
     clearFailure: useCallback(() => setFailure(null), []),
-    isWorking: scan.isPending || joinByInvite.isPending,
+    isWorking: scan.isPending || joinByInvite.isPending || openByBooking.isPending,
   };
 }

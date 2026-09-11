@@ -41,7 +41,7 @@ function cameraIsPossible(): boolean {
 export default function ScanScreen() {
   const { t } = useTranslation('diner');
   const [permission, requestPermission] = useCameraPermissions();
-  const { submit, failure, clearFailure, isWorking } = useJoinByCode();
+  const { submit, resumeAfterSignIn, failure, clearFailure, isWorking } = useJoinByCode();
 
   const [manualOpen, setManualOpen] = useState(false);
   const [typed, setTyped] = useState('');
@@ -56,8 +56,11 @@ export default function ScanScreen() {
     useCallback(() => {
       setFocused(true);
       handled.current = false;
+      // Back from verifying a number: finish the booking code that needed it,
+      // rather than making them find and retype it.
+      resumeAfterSignIn();
       return () => setFocused(false);
-    }, []),
+    }, [resumeAfterSignIn]),
   );
 
   const possible = cameraIsPossible();

@@ -1,4 +1,8 @@
 import {
+  BookingEndedError,
+  BookingNotActiveError,
+  BookingNotFoundError,
+  BookingTooEarlyError,
   BranchUnavailableError,
   InviteExpiredError,
   NetworkError,
@@ -8,6 +12,7 @@ import {
   TimeoutError,
   UnknownTableCodeError,
 } from '@yalla/api';
+import { formatTime } from '@yalla/format';
 
 /**
  * Turn a failed scan into the one thing the screen needs: a translation key and
@@ -23,7 +28,46 @@ export interface ScanFailure {
   readonly params?: Record<string, string>;
 }
 
-export function scanFailureFor(error: unknown): ScanFailure {
+/**
+ * Where, and in whose language, a refusal's times are read.
+ *
+ * The types come from `formatTime` itself rather than being re-declared, so a
+ * change to what it accepts is a compile error here rather than a wrong time on
+ * a screen.
+ *
+ * Optional throughout, because the two screens differ: the booking screen has
+ * the branch in hand, and the scan screen — where somebody types a code with no
+ * booking loaded — has nothing. A time is never rendered in the phone's own
+ * zone as a fallback; the sentence drops it instead. A diner who flew in this
+ * morning must not be told the wrong hour for their own table.
+ */
+export interface BranchClock {
+  readonly timeZoneId: Parameters<typeof formatTime>[1];
+  readonly locale: Parameters<typeof formatTime>[2];
+}
+
+export function scanFailureFor(error: unknown, at?: BranchClock): ScanFailure {
+  // A booking code is not a table code, and none of these may ever come back
+  // as "that code does not match a table" — the answer that sent a diner
+  // holding a booking for table 5 round in circles.
+  if (error instanceof BookingNotFoundError) {
+    return { key: 'scan.error.bookingNotFound' };
+  }
+  if (error instanceof BookingTooEarlyError) {
+    if (at && error.earliestUtc) {
+      return {
+        key: 'scan.error.bookingTooEarly',
+        params: { time: formatTime(error.earliestUtc, at.timeZoneId, at.locale) },
+      };
+    }
+    return { key: 'scan.error.bookingTooEarlyNoTime' };
+  }
+  if (error instanceof BookingEndedError) {
+    return { key: 'scan.error.bookingEnded' };
+  }
+  if (error instanceof BookingNotActiveError) {
+    return { key: 'scan.error.bookingNotActive' };
+  }
   if (error instanceof TableOutOfServiceError) {
     return { key: 'scan.error.outOfService', params: { label: error.tableLabel } };
   }

@@ -135,6 +135,152 @@ async function caught(promise: Promise<unknown>): Promise<Error & Record<string,
   throw new Error('expected a rejection');
 }
 
+/**
+ * The booking route needs an account behind it, which the scan deliberately
+ * does not — so its gateway must send the diner's own session, and a test that
+ * never signs one in cannot tell that it does.
+ */
+async function signedInGatewayOver(routes: Readonly<Record<string, FakeRoute>>) {
+  const backend = fakeBackend(routes);
+  const refreshTokens = vi.fn(() => Promise.reject(new Error('the diner refresh must not run')));
+  const auth = createAuthSession({
+    storage: createMemoryTokenStorage('diner-refresh'),
+    refreshTokens,
+  });
+  await auth.signIn({
+    accessToken: 'diner-token',
+    refreshToken: 'diner-refresh-token',
+    expiresInSeconds: 900,
+  });
+  const gateway = createHttpGateway(backend.client({ auth }), {
+    audience: 'diner',
+    auth,
+    deviceId: () => Promise.resolve('device-1'),
+  });
+  return { gateway, backend };
+}
+
+describe('opening the tab from a booking', () => {
+  it('sends the booking code and this device, under the diner’s own session', async () => {
+    const { gateway, backend } = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': { body: access(1) },
+    });
+
+    const result = await gateway.openTabByBooking({
+      bookingCode: 'DFJFQY',
+      commandId: 'cmd-booking',
+    });
+
+    expect(backend.requests[0]?.path).toBe('/api/tabs/open-by-booking');
+    expect(backend.requests[0]?.body).toEqual({
+      bookingCode: 'DFJFQY',
+      deviceId: 'device-1',
+      clientCommandId: 'cmd-booking',
+    });
+    // Unlike the scan, which is anonymous: only the account that made the
+    // booking may open its table, so the session has to travel.
+    expect(backend.requests[0]?.headers.get('authorization')).toBe('Bearer diner-token');
+    expect(result.kind).toBe('tabOpened');
+    expect(result.tab.tabId).toBe(TAB);
+  });
+
+  it('answers exactly as the scan does, participant token and all', async () => {
+    const { gateway, backend } = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': { body: access(3, 1) },
+      [`GET /api/tabs/${TAB}`]: { body: tabView() },
+    });
+
+    const result = await gateway.openTabByBooking({ bookingCode: 'DFJFQY', commandId: 'c1' });
+
+    // The same three outcomes off the same fields, so a screen cannot tell
+    // which door the tab came through.
+    expect(result.kind).toBe('joinPending');
+
+    await gateway.getDinerTab(TAB);
+    // And the tab's token was kept, exactly as the scan keeps it.
+    expect(backend.requests[1]?.headers.get('authorization')).toBe('Bearer participant-token');
+  });
+
+  it('says a code that is not one of yours is no booking at all', async () => {
+    const { gateway } = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': problemReply(404, 'booking-not-found'),
+    });
+
+    const error = await caught(gateway.openTabByBooking({ bookingCode: 'DFJFQY', commandId: 'c' }));
+
+    // Never "that code does not match a table": it is not a table code, and
+    // saying so is the bug this route exists to end.
+    expect(error.name).toBe('BookingNotFoundError');
+  });
+
+  it('carries the instant the table opens out of a too-early refusal', async () => {
+    const { gateway } = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': problemReply(409, 'booking-too-early', {
+        reservationId: 'r1',
+        status: 2,
+        startUtc: '2026-09-20T15:30:00Z',
+        endUtc: '2026-09-20T17:00:00Z',
+        earliestUtc: '2026-09-20T15:10:00Z',
+      }),
+    });
+
+    const error = await caught(gateway.openTabByBooking({ bookingCode: 'DFJFQY', commandId: 'c' }));
+
+    expect(error.name).toBe('BookingTooEarlyError');
+    expect(error['earliestUtc']).toBe('2026-09-20T15:10:00Z');
+    expect(error['startUtc']).toBe('2026-09-20T15:30:00Z');
+  });
+
+  it('keeps an ended booking apart from one that was never live', async () => {
+    const ended = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': problemReply(409, 'booking-ended', {
+        reservationId: 'r1',
+        status: 5,
+        startUtc: '2026-09-20T15:30:00Z',
+        endUtc: '2026-09-20T17:00:00Z',
+        earliestUtc: '2026-09-20T15:10:00Z',
+      }),
+    });
+    const notActive = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': problemReply(409, 'booking-not-active', {
+        reservationId: 'r1',
+        status: 7,
+        startUtc: '2026-09-20T15:30:00Z',
+        endUtc: '2026-09-20T17:00:00Z',
+        earliestUtc: '2026-09-20T15:10:00Z',
+      }),
+    });
+
+    expect(
+      (await caught(ended.gateway.openTabByBooking({ bookingCode: 'D', commandId: 'c' }))).name,
+    ).toBe('BookingEndedError');
+
+    const refused = await caught(
+      notActive.gateway.openTabByBooking({ bookingCode: 'D', commandId: 'c' }),
+    );
+    expect(refused.name).toBe('BookingNotActiveError');
+    // 7 is CancelledByVenue: the screen says who cancelled, so it must arrive
+    // as the status rather than as a number nobody can read.
+    expect(refused['bookingStatus']).toBe('cancelledByVenue');
+  });
+
+  it('still names the refusals it shares with the scan', async () => {
+    const { gateway } = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': problemReply(
+        409,
+        'conflicting-state',
+        undefined,
+        'Table 5 is out of service.',
+      ),
+    });
+
+    const error = await caught(gateway.openTabByBooking({ bookingCode: 'DFJFQY', commandId: 'c' }));
+
+    expect(error.name).toBe('TableOutOfServiceError');
+    expect(error['tableLabel']).toBe('5');
+  });
+});
+
 describe('scanning a table', () => {
   it('opens the tab with this device, and uses the participant token it gets back', async () => {
     const { gateway, backend } = gatewayOver({

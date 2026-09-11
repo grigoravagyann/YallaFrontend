@@ -105,6 +105,12 @@ export default function SuccessScreen() {
           <Text style={styles.codeHint}>{t('success.codeHint')}</Text>
         </View>
 
+        {/* What the code is actually for once they are standing there. Without
+            this, the only thing the screen ever said about it was "show this at
+            the door" — and a diner who typed it into the scanner was told it
+            matched no table. */}
+        <Text style={styles.detail}>{t('success.atTableHint')}</Text>
+
         <View style={styles.details}>
           <Text style={styles.venue}>{where}</Text>
           {booking.venueName ? <Text style={styles.detail}>{booking.branchName}</Text> : null}

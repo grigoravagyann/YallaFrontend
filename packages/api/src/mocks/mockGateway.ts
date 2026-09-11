@@ -15,7 +15,11 @@ import type {
 } from '../contracts/booking';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
+  BookingEndedError,
+  BookingNotActiveError,
+  BookingNotFoundError,
   BookingRejectedError,
+  BookingTooEarlyError,
   TabAccessEndedError,
   ExpiredCodeError,
   HoldAlreadyExtendedError,
@@ -27,6 +31,7 @@ import {
   WrongCodeError,
 } from '../contracts/errors';
 import type {
+  OpenTabByBookingCommand,
   ScanResult,
   ScanTableCommand,
   TabInvite,
@@ -104,10 +109,41 @@ function minutesBetween(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 60_000);
 }
 
-/** Six digits, no leading-zero loss. */
+/**
+ * The alphabet the server generates a booking code from — `ReservationCode`.
+ *
+ * No `0`, `1`, `I`, `L` or `O`: the code gets read aloud at a door. The mock
+ * used to mint six *digits*, which contain two characters the server's alphabet
+ * excludes — so a mock booking code was a shape no real booking could have, and
+ * anything that told a booking code from another kind of code by its shape was
+ * untestable here.
+ */
+const BOOKING_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const BOOKING_CODE_LENGTH = 6;
+
 function reservationCode(seed: number): string {
-  return String(100000 + ((seed * 7919) % 900000));
+  let h = Math.imul(seed + 1, 0x9e3779b1) >>> 0;
+  let out = '';
+  for (let i = 0; i < BOOKING_CODE_LENGTH; i += 1) {
+    out += BOOKING_ALPHABET[h % BOOKING_ALPHABET.length] ?? BOOKING_ALPHABET[0];
+    h = Math.imul(h ^ (h >>> 7), 0x01000193) >>> 0;
+  }
+  return out;
 }
+
+/** A code as somebody typed it, in the form it is stored — the server's rule. */
+function normaliseBookingCode(input: string): string {
+  return input.replace(/[\s\p{Pd}]+/gu, '').toUpperCase();
+}
+
+/**
+ * How long before a booking the branch starts holding its table back.
+ *
+ * The real number is the branch's own walk-in holdback and the server sends the
+ * exact instant it produces, in `context.earliestUtc`. This is the mock having
+ * to pick one, not the client knowing it — no screen computes this.
+ */
+const WALK_IN_HOLDBACK_MINUTES = 30;
 
 export function createMockGateway(options: MockGatewayOptions = {}): YallaGateway {
   const now = options.now ?? (() => new Date());
@@ -849,6 +885,71 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
       await wait();
       const result = world.scan(command);
+      return { kind: result.kind, tab: dinerViewOf(result.tab) };
+    },
+
+    /**
+     * "I'm at my table" — the booking code where the table's token goes.
+     *
+     * The rules are the server's, in the server's order: whose booking it is,
+     * what state it is in, whether the table is being held for it yet. Only
+     * then is it the scan, on the table the booking names.
+     */
+    async openTabByBooking(command: OpenTabByBookingCommand): Promise<ScanResult> {
+      await wait();
+
+      const url = `${URL_TAG}/api/tabs/open-by-booking`;
+      const wanted = normaliseBookingCode(command.bookingCode);
+      /*
+       * Over this diner's own bookings — which *is* the ownership rule, not an
+       * approximation of it. Everything in here was made by this device, so a
+       * stranger's code is simply absent and gets the answer a code nobody
+       * holds gets. That sameness is the point: six characters read out at a
+       * door must never confirm that somebody else's booking exists.
+       */
+      const booking = [...bookings.values()].find((b) => b.code === wanted);
+      if (!booking) throw new BookingNotFoundError({ url });
+
+      const facts = {
+        url,
+        reservationId: booking.id,
+        startUtc: booking.slotUtc,
+        endUtc: booking.endUtc,
+      };
+
+      if (booking.status === 'completed') throw new BookingEndedError(facts);
+      if (booking.status !== 'confirmed' && booking.status !== 'seated') {
+        throw new BookingNotActiveError({ ...facts, status: booking.status });
+      }
+
+      // A seated party is not clock-checked: the venue already put them at the
+      // table, and the sitting holds it until staff free it.
+      if (booking.status === 'confirmed') {
+        const t = now().getTime();
+        const earliest = Date.parse(booking.slotUtc) - WALK_IN_HOLDBACK_MINUTES * 60_000;
+        if (t < earliest) {
+          throw new BookingTooEarlyError({
+            ...facts,
+            earliestUtc: new Date(earliest).toISOString(),
+          });
+        }
+        // Late is not ended: until the sitting is over the table is theirs.
+        if (t >= Date.parse(booking.endUtc)) throw new BookingEndedError(facts);
+      }
+
+      const result = world.openAtTable({
+        tableId: booking.tableId,
+        commandId: command.commandId,
+        ...(command.displayName ? { displayName: command.displayName } : {}),
+      });
+
+      /*
+       * Seated *as the booking*, which is the difference between a floor that
+       * knows the party arrived and one that goes on treating a table of people
+       * eating as a no-show waiting to happen.
+       */
+      bookings.set(booking.id, { ...booking, status: 'seated' });
+
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 

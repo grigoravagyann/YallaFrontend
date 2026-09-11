@@ -5,7 +5,12 @@ import {
   type BookingStatus,
 } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { canCancel, canKeepTable, keepTableFailureKey } from './bookingActions';
+import {
+  canCancel,
+  canKeepTable,
+  canOpenTabForBooking,
+  keepTableFailureKey,
+} from './bookingActions';
 
 describe('cancel', () => {
   it('is offered only while the booking still holds a table', () => {
@@ -52,5 +57,52 @@ describe('keep my table', () => {
     expect(keepTableFailureKey(new HoldAlreadyExtendedError({ url, reservationId: 'r' }))).toBe(
       'push.actions.alreadyExtended',
     );
+  });
+});
+
+describe('“I’m at my table”', () => {
+  const booking = {
+    status: 'confirmed' as BookingStatus,
+    endUtc: '2026-09-20T17:00:00Z',
+  };
+
+  it('is offered on a confirmed booking whose sitting has not ended', () => {
+    // Including before the start: the branch holds the table from some minutes
+    // before, and only the server knows how many — it answers with the exact
+    // instant, so the button is offered and the refusal says "from 19:10".
+    expect(canOpenTabForBooking(booking, new Date('2026-09-20T15:00:00Z'))).toBe(true);
+    expect(canOpenTabForBooking(booking, new Date('2026-09-20T16:30:00Z'))).toBe(true);
+  });
+
+  it('is gone once the sitting is over', () => {
+    expect(canOpenTabForBooking(booking, new Date('2026-09-20T17:00:00Z'))).toBe(false);
+  });
+
+  it('is offered to a party the venue has already seated, whatever the clock says', () => {
+    // The venue put them at the table; the sitting holds it until staff free it.
+    expect(
+      canOpenTabForBooking({ ...booking, status: 'seated' }, new Date('2026-09-20T18:30:00Z')),
+    ).toBe(true);
+  });
+
+  it('is never offered where the server would refuse it', () => {
+    const refused: readonly BookingStatus[] = [
+      'pendingApproval',
+      'completed',
+      'noShow',
+      'cancelledByDiner',
+      'cancelledByVenue',
+      'unknown',
+    ];
+    const at = new Date('2026-09-20T16:00:00Z');
+
+    expect(refused.map((status) => canOpenTabForBooking({ ...booking, status }, at))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 });

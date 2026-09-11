@@ -89,8 +89,10 @@ describe('mock gateway — scanning in', () => {
   });
 
   it('accepts the code however it was scanned, typed or shared', async () => {
+    // The printed token is lower-case hex, so upper-casing is what a phone
+    // keyboard — or a diner reading it off the sticker — actually does to it.
     const typed = await gateway.scanTableCode({
-      tableCode: FREE_TABLE.toLowerCase(),
+      tableCode: FREE_TABLE.toUpperCase(),
       commandId: cmd(),
     });
     expect(typed.tab.tableLabel).toBe('1');

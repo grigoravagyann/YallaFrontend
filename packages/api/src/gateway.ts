@@ -29,6 +29,7 @@ import type {
 } from './contracts/ordering';
 import type {
   JoinTabCommand,
+  OpenTabByBookingCommand,
   ScanResult,
   ScanTableCommand,
   TabInvite,
@@ -234,6 +235,26 @@ export interface YallaGateway {
    * @throws {TabClosedError} the tab on that table was already closed and paid.
    */
   scanTableCode(command: ScanTableCommand): Promise<ScanResult>;
+
+  /**
+   * "I'm at my table": open (or join) the tab on the table this diner booked,
+   * from the code on their own booking.
+   *
+   * The one door into a tab that needs the diner's session, because a booking
+   * is the one thing here with an account behind it. Everything after the code
+   * is resolved is the scan — the same table, the same host, the same
+   * {@link ScanResult}, idempotent on the same `commandId`.
+   *
+   * @throws {BookingNotFoundError} no booking of theirs has that code. A
+   * stranger's code answers identically, on purpose.
+   * @throws {BookingTooEarlyError} the table is not being held for it yet;
+   * `earliestUtc` says from when.
+   * @throws {BookingEndedError} the sitting is over.
+   * @throws {BookingNotActiveError} awaiting the venue, cancelled or a no-show.
+   * @throws {TableOutOfServiceError} the booked table is out of service.
+   * @throws {TabClosedError} the tab on that table is settling or closed.
+   */
+  openTabByBooking(command: OpenTabByBookingCommand): Promise<ScanResult>;
 
   /**
    * Join with a host's invitation — the QR on their screen or the shared link.

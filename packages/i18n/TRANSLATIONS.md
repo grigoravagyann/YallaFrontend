@@ -69,6 +69,23 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `scan.manualPlaceholder`. Removed with the surfaces that only the mock ever
   answered: every `*.notWired`, `pending.rejected*`, `pending.removed*`,
   `people.defaultsTitle`, `people.defaultsBody`.
+- `diner` — opening the tab from a booking (2026-09-12), all provisional and
+  **not** reviewed. Rewritten: `scan.manualBody` and `scan.manualPlaceholder`,
+  which now name the three things that can be typed — the long code printed
+  under the QR, a booking code, a link from the host — and no longer show
+  "ABC-DEF", a shape neither code has ever had. New, and each needing care:
+  `scan.error.bookingNotFound` (it must never drift back into "that is not a
+  table", which is the answer this whole flow exists to stop giving somebody
+  sitting at the table they booked); `scan.error.bookingTooEarly` and its
+  timeless twin `scan.error.bookingTooEarlyNoTime` — the scan screen has no
+  branch in hand to read a time in, and translating the second as though it had
+  one would put the phone's own zone in front of a diner who has just flown in;
+  `scan.error.bookingEnded`; `scan.error.bookingNotActive`; and
+  `scan.error.signInNeeded`, which has to keep saying that the code _on the
+  table_ still needs no account, because that is the flow the product lives on.
+  The action itself: `booking.atTable.action`, `.hint`, `.working`, and
+  `success.atTableHint` on the confirmation screen, which tells a diner what
+  their booking code is for once they are standing in the venue.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in
