@@ -65,9 +65,17 @@ export interface UserScope {
   /** `null` only for a platform admin, who is scoped to every venue. */
   readonly venueId: string | null;
   /**
-   * Branches this person may act on. Empty *and* `venueId === null` means the
-   * whole platform; empty with a venue id means a venue-wide role with no
-   * branches yet, which is a real state during onboarding.
+   * The token's **home-branch claim**, and nothing more: one id for a manager,
+   * waiter or kitchen account created at a branch, none for an owner or for a
+   * manager created with no branch.
+   *
+   * Empty does not mean "no access". An owner's token carries no branch at all
+   * and they reach every branch of their venue; the console used to intersect
+   * a venue's branches with this list and showed every owner "no branch" on
+   * every tab. Which branches a person may work on comes from
+   * {@link ConsoleGateway.getManagedVenue}, where the server decides it from
+   * their staff row. This list is only the *default* the venue section opens
+   * on, when the server's answer includes it.
    */
   readonly branchIds: readonly string[];
 }
@@ -127,6 +135,37 @@ export interface ConsoleStaffMember {
   readonly role: StaffRole;
   /** `null` for a venue-wide role such as an owner. */
   readonly branchId: string | null;
+}
+
+/**
+ * A branch as `GET /api/venues/{venueId}/manage` lists it.
+ *
+ * `isActive` is on the wire because the server does not hide inactive
+ * branches from an owner: `BranchBelongsToVenueAsync` never checks the flag,
+ * so an owner can still work on one. It is listed, flagged, and sorted last.
+ */
+export interface ManagedBranch extends ConsoleBranch {
+  readonly slug: string;
+  readonly isActive: boolean;
+}
+
+/**
+ * A venue as the person managing it sees it, with the branches **their staff
+ * row covers**: every branch for an owner, for a manager with no branch and
+ * for the platform admin; the home branch alone for a manager who has one.
+ *
+ * Separate from {@link ConsoleVenueDetail}, which is the platform tier's view
+ * and carries billing rollups a manager has no business seeing. The branches
+ * arrive sorted active first, then by name, so the first one is the right
+ * default.
+ */
+export interface ManagedVenue {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly type: VenueType;
+  readonly status: VenueStatus;
+  readonly branches: readonly ManagedBranch[];
 }
 
 export interface ConsoleVenueDetail extends ConsoleVenue {

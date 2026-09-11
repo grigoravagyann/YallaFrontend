@@ -43,12 +43,14 @@ import {
  * branch list here would put two branch pickers on one screen that could
  * disagree with each other. What reports add instead is the thing the layout's
  * switcher cannot express: **All branches**, the owner's rollup, offered only
- * when there is more than one branch to roll up.
+ * when the layout says this person may roll up — an owner with more than one
+ * branch. A manager who sees several branches is not offered it, because the
+ * server refuses them the query.
  */
 export function ReportsScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
-  const { branchId, timeZoneId, branchCount } = useVenueOutlet();
+  const { branchId, timeZoneId, canRollUpVenue } = useVenueOutlet();
 
   const today = useMemo(() => branchToday(timeZoneId), [timeZoneId]);
 
@@ -175,10 +177,10 @@ export function ReportsScreen() {
           />
         </label>
 
-        {/* Only where there is something to roll up. A manager holds one branch
-            and never sees this; an owner with one branch would be choosing
-            between a thing and itself. */}
-        {branchCount > 1 ? (
+        {/* Only where there is something to roll up, and only for somebody the
+            server lets roll it up. An owner with one branch would be choosing
+            between a thing and itself; a manager would be offered a 403. */}
+        {canRollUpVenue ? (
           <label className="labelled inline">
             <span>{t('reports.scope.label')}</span>
             <select

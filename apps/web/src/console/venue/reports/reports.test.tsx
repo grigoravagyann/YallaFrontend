@@ -76,6 +76,7 @@ function renderReports(
   options: {
     readonly harness?: ReturnType<typeof createConsoleHarness>;
     readonly branchCount?: number;
+    readonly canRollUpVenue?: boolean;
   } = {},
 ) {
   const harness = options.harness ?? createConsoleHarness();
@@ -83,6 +84,9 @@ function renderReports(
     branchId: BRANCH,
     timeZoneId: 'Asia/Yerevan',
     branchCount: options.branchCount ?? 1,
+    // Off unless a test says otherwise: the rollup is the owner's and the
+    // layout decides, so a screen test has to opt in the way the layout would.
+    canRollUpVenue: options.canRollUpVenue ?? false,
   };
 
   render(
@@ -271,6 +275,20 @@ describe('scope', () => {
     expect(screen.queryByLabelText('Covering')).toBeNull();
   });
 
+  it('offers no rollup to a manager who sees several branches', async () => {
+    /*
+     * A manager created with no branch sees every branch of the venue, but the
+     * server allows the venue-wide rollup to an owner or the platform admin
+     * only (`ReportQuery.cs`). A selector here would offer a query the server
+     * answers 403 to, so the count alone is not enough: the layout says
+     * whether this person may roll up, and the screen believes it.
+     */
+    renderReports({ branchCount: 3, canRollUpVenue: false });
+    await waitForSummary();
+
+    expect(screen.queryByLabelText('Covering')).toBeNull();
+  });
+
   it('asks for the rollup when an owner picks all branches', async () => {
     const seen: { section: string; query: ReportQuery }[] = [];
     const harness = createConsoleHarness({
@@ -278,7 +296,7 @@ describe('scope', () => {
     });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
-    renderReports({ harness, branchCount: 3 });
+    renderReports({ harness, branchCount: 3, canRollUpVenue: true });
     await waitForSummary();
 
     await user.selectOptions(screen.getByLabelText('Covering'), 'venue');

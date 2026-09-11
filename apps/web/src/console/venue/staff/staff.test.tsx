@@ -42,10 +42,12 @@ function renderStaff(
     gateway: options.gateway ?? createConsoleMockGateway({ latencyMs: 0, role }),
   });
 
+  const branchCount = options.branchCount ?? (role === 'owner' ? 3 : 1);
   const context = {
     branchId: 'b-lumen-north',
     timeZoneId: 'Asia/Yerevan',
-    branchCount: options.branchCount ?? (role === 'owner' ? 3 : 1),
+    branchCount,
+    canRollUpVenue: role === 'owner' && branchCount > 1,
   };
 
   render(

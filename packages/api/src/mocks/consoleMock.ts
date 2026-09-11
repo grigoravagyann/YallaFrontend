@@ -8,6 +8,8 @@ import type {
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
+  ManagedBranch,
+  ManagedVenue,
   Page,
   SubscriptionTier,
   UserRole,
@@ -23,7 +25,12 @@ import {
   UnsupportedImageError,
   VenueHasOpenTabsError,
 } from '../contracts/errors';
-import { ConcurrencyConflictError, NotFoundError, ValidationError } from '../errors';
+import {
+  ConcurrencyConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '../errors';
 import { StaffPermissionError } from '../contracts/errors';
 import { assignableRoles, canEditStaff, isAdminRole } from '../contracts/staff';
 import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
@@ -176,6 +183,14 @@ export interface ConsoleMockOptions {
    * walked without four accounts.
    */
   readonly role?: UserRole;
+  /**
+   * For `role: 'manager'`: whether the signed-in manager was created at a
+   * branch (`home`, the default — the first branch of the first venue) or
+   * with none (`none`, a venue-wide manager who runs every branch). The two
+   * are different people on the server and see different consoles, and the
+   * second could not be represented at all before this option.
+   */
+  readonly managerBranch?: 'home' | 'none';
 }
 
 /** Both tiers across the fixture so the list column is not one repeated value. */
@@ -194,6 +209,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const now = options.now ?? (() => new Date());
   const latency = options.latencyMs ?? 0;
   const role: UserRole = options.role ?? 'platformAdmin';
+  const managerBranch = options.managerBranch ?? 'home';
 
   /**
    * `multiplier` exists for the reports.
@@ -458,10 +474,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const list = staffFor(venueId);
     // The seeded person this console role corresponds to, so "you cannot edit
     // yourself" has a real row to point at rather than an id nothing matches.
+    // A manager is the branch one or the venue-wide one, by the option.
     const self =
       role === 'owner'
         ? list.find((member) => member.role === 'owner')
-        : list.find((member) => member.role === 'manager');
+        : role === 'manager' && managerBranch === 'none'
+          ? list.find((member) => member.role === 'manager' && member.branchId === null)
+          : list.find((member) => member.role === 'manager' && member.branchId !== null);
 
     return self ? { id: self.id, role: self.role } : { id: `u-${role}`, role: 'owner' };
   }
@@ -547,6 +566,20 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           isPinLocked: false,
         },
       ]),
+      {
+        id: `${venueId}-manager`,
+        venueId,
+        // A manager created with no branch: they run every branch, the way an
+        // owner does, and the console must show them every branch.
+        branchId: null,
+        fullName: 'Hasmik Karapetyan',
+        phone: '+37477209090',
+        role: 'manager',
+        isActive: true,
+        email: null,
+        hasPasswordSignIn: false,
+        isPinLocked: false,
+      },
     ];
 
     staffByVenue.set(venueId, seeded);
@@ -696,10 +729,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     return record;
   }
 
-  /** The scope a token of this role would carry. */
+  /**
+   * The scope a token of this role would carry — the **claims**, not the
+   * coverage. An owner's token names the venue and no branch (live probe,
+   * 2026-09-10), and so does a manager created with no branch; the branches
+   * they may work on are `getManagedVenue`'s answer, as on the server.
+   */
   function currentUser(): ConsoleUser {
     const firstVenue = [...venues.values()][0];
-    const branchIds = firstVenue?.branches.map((b) => b.id) ?? [];
+    const homeBranch = firstVenue?.branches[0]?.id;
 
     switch (role) {
       case 'platformAdmin':
@@ -714,21 +752,115 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           id: 'u-owner',
           displayName: 'Aram Sargsyan',
           role,
-          scope: { venueId: firstVenue?.id ?? null, branchIds },
+          scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
         };
-      default:
-        // Manager, waiter and kitchen are all one branch and no more.
+      case 'manager':
         return {
-          id: `u-${role}`,
-          displayName:
-            role === 'manager' ? 'Nare Petrosyan' : role === 'waiter' ? 'Gor Hakobyan' : 'Kitchen',
+          id: 'u-manager',
+          displayName: managerBranch === 'none' ? 'Hasmik Karapetyan' : 'Nare Petrosyan',
           role,
           scope: {
             venueId: firstVenue?.id ?? null,
-            branchIds: branchIds.slice(0, 1),
+            branchIds: managerBranch === 'none' || !homeBranch ? [] : [homeBranch],
+          },
+        };
+      default:
+        // A waiter or a kitchen account is one branch and no more.
+        return {
+          id: `u-${role}`,
+          displayName: role === 'waiter' ? 'Gor Hakobyan' : 'Kitchen',
+          role,
+          scope: {
+            venueId: firstVenue?.id ?? null,
+            branchIds: homeBranch ? [homeBranch] : [],
           },
         };
     }
+  }
+
+  /**
+   * The server's scope rule, as `BranchScoped` and `StaffBranchGuard` apply
+   * it: a branch read must name a branch of the token's venue. Not the
+   * console's narrower view — a manager with a home branch is *not* confined
+   * to it here, because the server does not confine them either.
+   */
+  function requireBranchInVenue(branchId: string): void {
+    if (role === 'platformAdmin') return;
+    const venueId = currentUser().scope.venueId;
+    if (venueId === null || venueOfBranch(branchId) !== venueId) {
+      throw new ForbiddenError({ url: `${URL_TAG}/branches/${branchId}` });
+    }
+  }
+
+  /** `VenueScoped`: the venue in the route must be the token's. */
+  function requireVenueInScope(venueId: string): void {
+    if (role === 'platformAdmin') return;
+    if (currentUser().scope.venueId !== venueId) {
+      throw new ForbiddenError({ url: `${URL_TAG}/venues/${venueId}` });
+    }
+  }
+
+  /**
+   * `GET /api/venues/{venueId}/manage`: coverage from the caller's own staff
+   * row, which must be active, in this venue, and an owner or a manager.
+   */
+  function managedVenueFor(venueId: string): ManagedVenue {
+    const record = venues.get(venueId);
+
+    const toManaged = (branch: ConsoleBranch): ManagedBranch => ({
+      ...branch,
+      slug: slugify(branch.name),
+      // The fixture has no inactive branch; the field is on the wire so the
+      // screens are exercised against the real shape.
+      isActive: true,
+    });
+    // The server sorts active first, then by name, then by id. With every
+    // fixture branch active the first term would never decide, so it is not
+    // written: a comparator no test can turn red is a claim, not a rule.
+    const sorted = (branches: readonly ConsoleBranch[]) =>
+      branches
+        .map(toManaged)
+        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+
+    if (role === 'platformAdmin') {
+      if (!record) throw new NotFoundError({ url: `${URL_TAG}/venues/${venueId}/manage` });
+      return {
+        id: record.id,
+        name: record.name,
+        slug: record.slug,
+        type: record.type,
+        status: record.status,
+        branches: sorted(record.branches),
+      };
+    }
+
+    // ManagerOrAbove, then VenueScoped. A venue user never learns whether a
+    // venue that is not theirs exists.
+    if (role !== 'owner' && role !== 'manager') {
+      throw new ForbiddenError({ url: `${URL_TAG}/venues/${venueId}/manage` });
+    }
+    requireVenueInScope(venueId);
+    if (!record) throw new ForbiddenError({ url: `${URL_TAG}/venues/${venueId}/manage` });
+
+    const actor = actingStaff(venueId);
+    const row = staffFor(venueId).find((member) => member.id === actor.id);
+    if (!row || !row.isActive || (row.role !== 'owner' && row.role !== 'manager')) {
+      throw new ForbiddenError({ url: `${URL_TAG}/venues/${venueId}/manage` });
+    }
+
+    const covered =
+      row.role === 'manager' && row.branchId !== null
+        ? record.branches.filter((branch) => branch.id === row.branchId)
+        : record.branches;
+
+    return {
+      id: record.id,
+      name: record.name,
+      slug: record.slug,
+      type: record.type,
+      status: record.status,
+      branches: sorted(covered),
+    };
   }
 
   // --- The floor plan the editor works on ------------------------------------
@@ -850,8 +982,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async getVenue(venueId) {
       await wait();
+      // `PlatformAdminOnly`: the real route answers every venue user 403, and
+      // a mock that answered them is how the console shipped reading its
+      // branches from a route its users cannot call.
+      if (role !== 'platformAdmin') {
+        throw new ForbiddenError({ url: `${URL_TAG}/platform/venues/${venueId}` });
+      }
       const record = venues.get(venueId);
       return record ? toDetail(record) : null;
+    },
+
+    async getManagedVenue(venueId) {
+      await wait();
+      return managedVenueFor(venueId);
     },
 
     async createVenue(command: CreateVenueCommand) {
@@ -942,6 +1085,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async getFloorPlan(branchId) {
       await wait();
+      requireBranchInVenue(branchId);
       return floorPlanFor(branchId);
     },
 
@@ -1135,6 +1279,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async getAdminMenu(branchId): Promise<readonly AdminMenuCategory[]> {
       await wait();
+      requireBranchInVenue(branchId);
       return sortedMenu(menuFor(branchId));
     },
 
@@ -1295,6 +1440,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async getOpeningHours(branchId): Promise<WeeklyHours> {
       await wait();
+      requireBranchInVenue(branchId);
       return hoursFor(branchId);
     },
 
@@ -1324,6 +1470,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async getReservationPolicy(branchId): Promise<ReservationPolicy> {
       await wait();
+      requireBranchInVenue(branchId);
       return policyFor(branchId);
     },
 
@@ -1331,6 +1478,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async listStaff(venueId) {
       await wait();
+      requireVenueInScope(venueId);
       return [...staffFor(venueId)];
     },
 
@@ -1592,6 +1740,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async listDevices(branchId) {
       await wait();
+      requireBranchInVenue(branchId);
       return [...devicesFor(branchId)];
     },
 
@@ -1635,16 +1784,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async getOccupancyReport(query) {
       await wait();
+      requireBranchInVenue(query.branchId);
       return reports.occupancy(query);
     },
 
     async getReservationReport(query) {
       await wait();
+      requireBranchInVenue(query.branchId);
       return reports.reservations(query);
     },
 
     async getRevenueReport(query) {
       await wait();
+      requireBranchInVenue(query.branchId);
       return reports.revenue(query);
     },
 
@@ -1654,11 +1806,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // that always answers instantly is a section whose loading state nobody
       // ever sees, and this is the one that needs a real one.
       await wait(3);
+      requireBranchInVenue(query.branchId);
       return reports.menu(query);
     },
 
     async getStaffReport(query) {
       await wait();
+      requireBranchInVenue(query.branchId);
       return reports.staff(query);
     },
 

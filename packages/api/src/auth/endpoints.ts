@@ -65,18 +65,22 @@ export interface VenueUserIdentity {
 }
 
 /**
- * `Yalla.Domain.Enums.StaffRole` is an integer on the wire (0 PlatformAdmin,
- * 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen) and a name in the JWT; both land on
- * the console's role vocabulary here and nowhere else.
+ * `Yalla.Domain.Enums.StaffRole` is an integer on the wire (0 Unknown, 1 Owner,
+ * 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin — `StaffEnums.cs`) and a
+ * name in the JWT; both land on the console's role vocabulary here and nowhere
+ * else.
  *
  * The fallback is `waiter` on purpose: it is the least-privileged role in the
  * console's own routing, so an unrecognised value shows the smallest app
- * rather than the largest. The server decides what is actually permitted
+ * rather than the largest. `Unknown` (0) takes that fallback too: it is the
+ * enum's unset guard, and this function once read it as the platform admin,
+ * which is the "a default that grants everything" the backend's comment on
+ * the value warns about. The server decides what is actually permitted
  * regardless of what this returns.
  */
 export function staffRoleToUserRole(role: number | string): UserRole {
   switch (typeof role === 'string' ? role.toLowerCase() : role) {
-    case 0:
+    case 5:
     case 'platformadmin':
       return 'platformAdmin';
     case 1:

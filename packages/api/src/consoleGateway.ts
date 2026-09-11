@@ -42,6 +42,7 @@ import type {
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
+  ManagedVenue,
   Page,
   SubscriptionTier,
 } from './contracts/console';
@@ -72,7 +73,33 @@ export interface ConsoleGateway {
   /** Paged, searchable. Suspended venues are included; the team needs to see them. */
   listVenues(query: ListVenuesQuery): Promise<Page<ConsoleVenue>>;
 
+  /**
+   * The platform tier's view of one venue: `GET /api/platform/venues/{id}`,
+   * **platform admin only**. Every owner and manager is answered 403, which is
+   * why no venue screen may read its branches from here — see
+   * {@link getManagedVenue}.
+   *
+   * @throws {ForbiddenError} the caller is not a platform admin.
+   */
   getVenue(venueId: string): Promise<ConsoleVenueDetail | null>;
+
+  // --- The venue, for the people who run it ------------------------------------
+
+  /**
+   * The venue the caller manages, with the branches their staff row covers.
+   *
+   * `GET /api/venues/{venueId}/manage`, `ManagerOrAbove` and `VenueScoped`. The
+   * server reads coverage from the caller's own stored row — active, in this
+   * venue, owner or manager — and never from the token's branch claim: an
+   * owner's token carries none, and a manager created with no branch runs the
+   * whole venue. This is the one read the venue section learns its branches
+   * from; the client never widens or narrows the answer.
+   *
+   * @throws {ForbiddenError} a waiter or kitchen account, another venue's
+   * staff, or a caller whose row no longer qualifies.
+   * @throws {NotFoundError} no such venue — reachable by the platform admin only.
+   */
+  getManagedVenue(venueId: string): Promise<ManagedVenue>;
 
   /**
    * @throws {SlugTakenError} the web address is already in use.

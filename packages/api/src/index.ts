@@ -255,6 +255,8 @@ export type {
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
+  ManagedBranch,
+  ManagedVenue,
   Page,
   StaffRole,
   SubscriptionTier,

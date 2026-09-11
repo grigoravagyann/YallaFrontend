@@ -146,7 +146,13 @@ function useSignedOutRedirect() {
   useEffect(
     () =>
       onSignedOut((reason) => {
+        // The identity, and everything the console read on its behalf. The
+        // client is a singleton that outlives the session (`bootstrap.tsx`),
+        // and the console's keys name a venue, not a caller: kept, the branch
+        // manager who signs in next on this tab would be shown the owner's
+        // branch list until `staleTime.reference` ran out.
         queryClient.removeQueries({ queryKey: ['currentUser'] });
+        queryClient.removeQueries({ queryKey: ['console'] });
         navigate('/sign-in', {
           replace: true,
           state: {

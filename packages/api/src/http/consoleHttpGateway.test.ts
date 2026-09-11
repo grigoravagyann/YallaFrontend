@@ -3,7 +3,7 @@ import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
 import { StaffPermissionError } from '../contracts/errors';
-import { ConcurrencyConflictError, ValidationError } from '../errors';
+import { ConcurrencyConflictError, ForbiddenError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 
 const BASE = 'https://api.test.yalla.am';
@@ -122,5 +122,111 @@ describe('issuing a sign-in over HTTP', () => {
       .catch((error: unknown) => error);
     expect(invalid).toBeInstanceOf(ValidationError);
     expect((invalid as ValidationError).field).toBe('email');
+  });
+});
+
+/**
+ * The venue read a venue user is allowed to make.
+ *
+ * `GET /api/venues/{venueId}/manage`, not the platform route: that one is
+ * PlatformAdminOnly and answered 403 to every owner, which is how the console
+ * came to show "no branch" on every tab. The server decides coverage from the
+ * caller's staff row; this only maps what it says.
+ */
+describe('reading the managed venue over HTTP', () => {
+  const managed = {
+    venueId: 'v-1',
+    name: 'Probe Cafe',
+    type: 2,
+    slug: 'probe-cafe',
+    isSuspended: false,
+    isDeleted: false,
+    branches: [
+      {
+        branchId: 'b-1',
+        venueId: 'v-1',
+        name: 'Northern Avenue',
+        slug: 'northern-avenue',
+        timeZoneId: 'Asia/Yerevan',
+        isActive: true,
+        subscriptionTier: 2,
+        tableCount: 12,
+      },
+      {
+        branchId: 'b-2',
+        venueId: 'v-1',
+        name: 'Cascade',
+        slug: 'cascade',
+        timeZoneId: 'Europe/Moscow',
+        isActive: false,
+        subscriptionTier: 1,
+        tableCount: 0,
+      },
+    ],
+  };
+
+  it('gets the manage route and maps the venue and its branches', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, managed));
+
+    const venue = await gatewayOver(fetchImpl).getManagedVenue('v-1');
+
+    // Not `sent()`: it parses a body, and a GET has none.
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${BASE}/api/venues/v-1/manage`);
+    expect(init.method ?? 'GET').toBe('GET');
+
+    expect(venue).toEqual({
+      id: 'v-1',
+      name: 'Probe Cafe',
+      slug: 'probe-cafe',
+      type: 'restaurant',
+      status: 'active',
+      branches: [
+        {
+          id: 'b-1',
+          venueId: 'v-1',
+          name: 'Northern Avenue',
+          slug: 'northern-avenue',
+          timeZoneId: 'Asia/Yerevan',
+          isActive: true,
+          subscriptionTier: 'paid',
+          tableCount: 12,
+          openTabCount: null,
+        },
+        {
+          id: 'b-2',
+          venueId: 'v-1',
+          name: 'Cascade',
+          slug: 'cascade',
+          timeZoneId: 'Europe/Moscow',
+          isActive: false,
+          subscriptionTier: 'free',
+          tableCount: 0,
+          openTabCount: null,
+        },
+      ],
+    });
+  });
+
+  it('maps a suspended venue to its status rather than dropping the flag', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, { ...managed, isSuspended: true }));
+    const venue = await gatewayOver(fetchImpl).getManagedVenue('v-1');
+    expect(venue.status).toBe('suspended');
+  });
+
+  it('rejects a 403 as the forbidden error the notice classifies', async () => {
+    // Another venue's staff, or a waiter: the policy's refusal has an empty
+    // body and no problem code, which is what the live probe recorded.
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 403, headers: { 'content-length': '0' } }));
+
+    const caught = await gatewayOver(fetchImpl)
+      .getManagedVenue('v-1')
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(ForbiddenError);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

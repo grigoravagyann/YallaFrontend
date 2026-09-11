@@ -1,5 +1,5 @@
 import type { ReservationPolicy } from '@yalla/api';
-import { useConsoleVenue, useReservationPolicy, useSaveReservationPolicy } from '@yalla/api/react';
+import { useManagedVenue, useReservationPolicy, useSaveReservationPolicy } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
@@ -44,7 +44,9 @@ export function ReservationPolicyScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const { branchId } = useVenueOutlet();
   const { user } = useCurrentUser();
-  const venue = useConsoleVenue(user?.scope.venueId ?? undefined);
+  // The venue read a venue user may make. The platform one answered every
+  // owner 403, and this fell through to 'cafe' for every restaurant.
+  const venue = useManagedVenue(user?.scope.venueId ?? undefined);
   const venueType = venue.data?.type === 'restaurant' ? 'restaurant' : 'cafe';
 
   const policyQuery = useReservationPolicy(branchId ?? undefined);

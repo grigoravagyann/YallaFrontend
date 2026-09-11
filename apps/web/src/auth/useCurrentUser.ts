@@ -1,7 +1,6 @@
 import { describeFailure, type ConsoleUser, type FailureKind, type UserRole } from '@yalla/api';
 import { useConsoleGateway } from '@yalla/api/react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
 import { useDevRole } from './session';
 
 export interface CurrentUserResult {
@@ -23,7 +22,9 @@ export interface CurrentUserResult {
  * Note what is *not* here: no setter, and no way for a component to widen its
  * own scope. Scope arrives from the server and travels one way. Against the
  * real backend it is read from the access token's claims; against the mock
- * from the dev role switcher.
+ * from the dev role switcher. And the claims are not the coverage: which
+ * branches a venue user may work on is `useManagedVenue`'s answer, decided by
+ * the server from their staff row — an owner's token names no branch at all.
  */
 export function useCurrentUser(): CurrentUserResult {
   const gateway = useConsoleGateway();
@@ -43,24 +44,6 @@ export function useCurrentUser(): CurrentUserResult {
     isError: query.isError,
     failure: query.error ? describeFailure(query.error) : null,
   };
-}
-
-/**
- * The branches this person may act on, resolved against a venue they can see.
- *
- * A platform admin has an empty `branchIds` meaning "all", which is why this
- * cannot be a plain array read: the empty case means the opposite thing for
- * them than it does for a manager.
- */
-export function useScopedBranchIds(
-  user: ConsoleUser | undefined,
-  allBranchIds: readonly string[],
-): readonly string[] {
-  return useMemo(() => {
-    if (!user) return [];
-    if (user.role === 'platformAdmin') return allBranchIds;
-    return allBranchIds.filter((id) => user.scope.branchIds.includes(id));
-  }, [user, allBranchIds]);
 }
 
 /** Roles that reach the console's venue section. */

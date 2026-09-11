@@ -655,6 +655,99 @@
         }
       }
     },
+    "/api/venues/{venueId}/manage": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The venue you work in, with the branches your account covers",
+        "description": "The read the console opens a venue with. **Which branches come back is decided from the caller's own staff record, not from the token**: an owner covers every branch of the venue, whether or not their record names a home branch; a manager whose record names no branch covers every branch; a manager whose record names a branch is given that branch only; a platform admin is given everything.\n\nBranches are listed active first, then by name. An inactive branch is listed and flagged rather than hidden.\n\nThis is not `GET /api/platform/venues/{id}`, which is the platform tier's and refuses every venue user. Nothing here is platform-only: no tier rollup, no paid-branch count, no suspension timestamps.",
+        "operationId": "getManagedVenue",
+        "parameters": [
+          {
+            "name": "venueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Venues.ManagedVenueView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Another venue's staff, a waiter or kitchen hand, or an account that has been deactivated.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such venue. Only a platform admin can reach this.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/public-profile": {
       "get": {
         "tags": [
@@ -19685,6 +19778,114 @@
         },
         "additionalProperties": false,
         "description": "A tab as one participant is allowed to see it."
+      },
+      "Yalla.Application.Venues.ManagedBranchView": {
+        "required": [
+          "branchId",
+          "isActive",
+          "name",
+          "slug",
+          "subscriptionTier",
+          "tableCount",
+          "timeZoneId",
+          "venueId"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch; what every `/api/branches/{branchId}` route is addressed by.",
+            "format": "uuid"
+          },
+          "venueId": {
+            "type": "string",
+            "description": "Its venue. Always the venue this view is of.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its display name."
+          },
+          "slug": {
+            "type": "string",
+            "description": "Its URL-safe handle."
+          },
+          "timeZoneId": {
+            "type": "string",
+            "description": "IANA time zone, so the console can show the branch's own clock."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "False for a branch the platform has switched off. It is listed so the switcher can say so."
+          },
+          "subscriptionTier": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
+              }
+            ],
+            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\r\nis four paying customers. The venue-level view is a rollup."
+          },
+          "tableCount": {
+            "type": "integer",
+            "description": "How many tables it has, active or not.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One branch of the venue as the console lists it: enough to pick it and address it."
+      },
+      "Yalla.Application.Venues.ManagedVenueView": {
+        "required": [
+          "branches",
+          "isDeleted",
+          "isSuspended",
+          "name",
+          "slug",
+          "type",
+          "venueId"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "description": "The venue.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its display name."
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.VenueType"
+              }
+            ],
+            "description": "What kind of place a venue is. Drives the shipped reservation-policy defaults."
+          },
+          "slug": {
+            "type": "string",
+            "description": "The URL-safe handle its public page lives under."
+          },
+          "isSuspended": {
+            "type": "boolean",
+            "description": "The platform has suspended it for non-payment; diners cannot book, staff can still configure."
+          },
+          "isDeleted": {
+            "type": "boolean",
+            "description": "Soft-deleted by the platform; nothing can be changed."
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Venues.ManagedBranchView"
+            },
+            "description": "Every branch the caller covers, active ones first, then by name. Inactive branches are listed\r\nand flagged rather than hidden, because an owner may still open one."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The venue an owner or manager signs in to, with the branches their own staff row covers."
       },
       "Yalla.Domain.Enums.ActorType": {
         "enum": [

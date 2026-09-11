@@ -9,9 +9,9 @@ import {
 } from '@yalla/api';
 import {
   useClearPinLockout,
-  useConsoleVenue,
   useCreateStaff,
   useIssueStaffSignIn,
+  useManagedVenue,
   useSetStaffPin,
   useStaff,
   useUpdateStaff,
@@ -77,7 +77,9 @@ export function StaffScreen() {
   const { user } = useCurrentUser();
 
   const venueId = user?.scope.venueId ?? undefined;
-  const venue = useConsoleVenue(venueId);
+  // The read a venue user may make. The platform one answers them 403, which
+  // left every branch name in the column below as a dash.
+  const venue = useManagedVenue(venueId);
   const staff = useStaff(venueId);
 
   const createStaff = useCreateStaff(venueId);

@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createApiClient } from '../client';
 import { UnauthorizedError } from '../errors';
-import { createVenueUserAuth } from './endpoints';
+import type { UserRole } from '../contracts/console';
+import type { components } from '../generated/schema';
+import { createVenueUserAuth, staffRoleToUserRole } from './endpoints';
 import { createAuthSession } from './session';
 import { createMemoryTokenStorage } from './storage';
 
@@ -91,5 +93,53 @@ describe('resetting a venue-user password', () => {
     expect(request.url).toBe(`${BASE}/api/auth/venue/request-password-reset`);
     expect(request.body).toEqual({ email: 'owner@lumen.am', localeCode: 'hy' });
     expect(request.headers.has('authorization')).toBe(false);
+  });
+});
+
+/**
+ * `Yalla.Domain.Enums.StaffRole` is `0 Unknown, 1 Owner, 2 Manager, 3 Waiter,
+ * 4 Kitchen, 5 PlatformAdmin` (`StaffEnums.cs`). The table is keyed by the
+ * generated union so a value the backend adds fails to compile here rather
+ * than falling through to the default in silence.
+ */
+describe('staffRoleToUserRole', () => {
+  const BY_NUMBER: Readonly<
+    Record<components['schemas']['Yalla.Domain.Enums.StaffRole'], UserRole>
+  > = {
+    // Unknown is the enum's "unset" guard, and a default that grants the
+    // whole platform is the hazard the backend's own comment on it warns of.
+    0: 'waiter',
+    1: 'owner',
+    2: 'manager',
+    3: 'waiter',
+    4: 'kitchen',
+    5: 'platformAdmin',
+  };
+
+  const BY_NAME: Readonly<Record<string, UserRole>> = {
+    Unknown: 'waiter',
+    Owner: 'owner',
+    Manager: 'manager',
+    Waiter: 'waiter',
+    Kitchen: 'kitchen',
+    PlatformAdmin: 'platformAdmin',
+  };
+
+  it('maps every wire integer to its console role', () => {
+    for (const [value, role] of Object.entries(BY_NUMBER)) {
+      expect(staffRoleToUserRole(Number(value)), `StaffRole ${value}`).toBe(role);
+    }
+  });
+
+  it('maps every JWT role name to the same console role, whatever the case', () => {
+    for (const [name, role] of Object.entries(BY_NAME)) {
+      expect(staffRoleToUserRole(name), name).toBe(role);
+      expect(staffRoleToUserRole(name.toUpperCase()), name.toUpperCase()).toBe(role);
+    }
+  });
+
+  it('shows the smallest app for a value it has never seen', () => {
+    expect(staffRoleToUserRole(99)).toBe('waiter');
+    expect(staffRoleToUserRole('Intern')).toBe('waiter');
   });
 });

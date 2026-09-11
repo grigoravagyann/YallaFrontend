@@ -179,6 +179,11 @@ export const queryKeys = {
     ['availability', branchId, 'slotFloor', slotUtc, partySize, timeZoneId] as const,
   consoleVenues: (query: ListVenuesQuery) => ['console', 'venues', query] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
+  // Its own key, not `consoleVenue`'s: the two reads answer different shapes
+  // for different callers, and `useVenueCommand` writes a `ConsoleVenueDetail`
+  // into `consoleVenue` on every platform command — a shared key would hand
+  // the venue section a platform body the next time the admin suspended one.
+  managedVenue: (venueId: string) => ['console', 'managedVenue', venueId] as const,
   editorFloorPlan: (branchId: string) => ['console', 'floorPlan', branchId] as const,
   staffFloor: (branchId: string) => ['staff', 'floor', branchId] as const,
   staffTab: (tabId: string) => ['staff', 'tab', tabId] as const,
@@ -398,6 +403,22 @@ export function useConsoleVenue(venueId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.consoleVenue(venueId ?? ''),
     queryFn: () => gateway.getVenue(venueId!),
+    enabled: Boolean(venueId),
+    staleTime: staleTime.reference,
+  });
+}
+
+/**
+ * The venue the signed-in person manages, with the branches their staff row
+ * covers. The one read the venue section learns its branches from; the
+ * platform admin's `useConsoleVenue` is a different route with a different
+ * guard, and a venue user calling it gets a 403.
+ */
+export function useManagedVenue(venueId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.managedVenue(venueId ?? ''),
+    queryFn: () => gateway.getManagedVenue(venueId!),
     enabled: Boolean(venueId),
     staleTime: staleTime.reference,
   });

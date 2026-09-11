@@ -2,6 +2,8 @@ import type {
   ConsoleBranch,
   ConsoleVenue,
   ConsoleVenueDetail,
+  ManagedBranch,
+  ManagedVenue,
   Page,
   SubscriptionTier,
   VenueStatus,
@@ -91,6 +93,36 @@ export function venueDetailFromWire(detail: WireDetail): ConsoleVenueDetail {
     // Staff come from a separate venue-scoped endpoint. `null` is "not loaded";
     // an empty array here would render as "nobody has been added yet".
     staff: null,
+  };
+}
+
+/** `GET /api/venues/{venueId}/manage`: the venue as its own owners and managers may read it. */
+export type WireManagedBranch = Schemas['Yalla.Application.Venues.ManagedBranchView'];
+export type WireManagedVenue = Schemas['Yalla.Application.Venues.ManagedVenueView'];
+
+export function managedBranchFromWire(branch: WireManagedBranch): ManagedBranch {
+  return {
+    id: branch.branchId,
+    venueId: branch.venueId,
+    name: branch.name,
+    slug: branch.slug,
+    timeZoneId: branch.timeZoneId,
+    isActive: branch.isActive,
+    tableCount: branch.tableCount,
+    subscriptionTier: subscriptionTier(branch.subscriptionTier),
+    openTabCount: null,
+  };
+}
+
+/** The order is the server's: active first, then by name. It is kept, not re-sorted. */
+export function managedVenueFromWire(venue: WireManagedVenue): ManagedVenue {
+  return {
+    id: venue.venueId,
+    name: venue.name,
+    slug: venue.slug,
+    type: venueType(venue.type),
+    status: venueStatus(venue),
+    branches: venue.branches.map(managedBranchFromWire),
   };
 }
 
