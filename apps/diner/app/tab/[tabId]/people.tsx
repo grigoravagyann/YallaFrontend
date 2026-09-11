@@ -134,7 +134,7 @@ export default function PeopleScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
+          <ActivityIndicator color={color.primaryInk} />
           <Text style={styles.muted}>{t('tab.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -305,7 +305,7 @@ function PermissionToggles({
             value={permissions[key]}
             onValueChange={(value) => onToggle(key, value)}
             trackColor={{ true: color.greenTint, false: color.greenTint }}
-            thumbColor={permissions[key] ? color.primaryPressed : color.border}
+            thumbColor={permissions[key] ? color.primaryInk : color.border}
             accessibilityLabel={t(`people.${key}`)}
           />
         </View>

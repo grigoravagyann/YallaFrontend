@@ -117,7 +117,7 @@ export function ReservationActions({ reservationId }: ReservationActionsProps) {
   if (isLoading) {
     return (
       <View style={styles.card}>
-        <ActivityIndicator color={color.primary} />
+        <ActivityIndicator color={color.primaryInk} />
       </View>
     );
   }

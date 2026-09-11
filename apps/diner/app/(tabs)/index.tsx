@@ -187,12 +187,12 @@ const styles = StyleSheet.create({
   resumeTitle: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: color.primaryPressed,
+    color: color.primaryInk,
   },
   resumeAction: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: color.primaryPressed,
+    color: color.primaryInk,
   },
   searchWrap: { paddingHorizontal: space.lg, paddingBottom: space.sm },
   search: {
@@ -221,11 +221,11 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
   },
   chipActive: {
-    borderColor: color.primaryPressed,
+    borderColor: color.primaryInk,
     backgroundColor: color.greenTint,
   },
   chipText: { fontSize: fontSize.sm, color: color.foreground },
-  chipTextActive: { color: color.primaryPressed, fontWeight: fontWeight.medium },
+  chipTextActive: { color: color.primaryInk, fontWeight: fontWeight.medium },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   centered: { alignItems: 'center', paddingTop: space.xxl, gap: space.sm },
   emptyTitle: {

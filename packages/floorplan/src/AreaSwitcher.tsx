@@ -101,10 +101,10 @@ const styles = StyleSheet.create({
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  // The plan is on screen, so the active tab is ink rather than brand green:
-  // a green chip beside green free tables makes green mean nothing.
+  // The plan is on screen, so the beige fill carries an ink edge: the fill
+  // alone is 1.03:1 from an out-of-service table, the edge 3.13:1.
   tabActive: {
-    borderColor: color.primaryOnFloorPlan,
+    borderColor: color.primaryInk,
     backgroundColor: color.primaryOnFloorPlan,
   },
   pressed: { transform: [{ scale: 0.97 }] },

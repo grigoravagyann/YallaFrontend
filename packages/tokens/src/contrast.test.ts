@@ -32,7 +32,8 @@ describe('text contrast', () => {
   const foregrounds = [
     ['foreground', color.foreground],
     ['mutedForeground', color.mutedForeground],
-    ['primary', color.primary],
+    // The accent as text is `primaryInk`. `primary` is a fill and is never text.
+    ['primaryInk', color.primaryInk],
   ] as const;
 
   for (const [bgName, bg] of backgrounds) {
@@ -49,7 +50,7 @@ describe('text contrast', () => {
     // Documented rule, not an accident: if this ever passes, the darkening that
     // made it pass has compressed muted and subtle into one weight, and the
     // rule can be dropped along with this test. The accent tint is held to the
-    // same standard as the neutral one — a violet ground does not buy an
+    // same standard as the neutral one — a beige ground does not buy an
     // exception.
     for (const tint of tintedFills) {
       expect(subtleTextBackgrounds).not.toContain(tint);
@@ -74,7 +75,7 @@ describe('text contrast', () => {
 });
 
 describe('brand and feedback fills', () => {
-  it('white on primary and on primaryPressed clears AA', () => {
+  it('the ink label on primary and on primaryPressed clears AA', () => {
     passesBody(color.primaryForeground, color.primary);
     passesBody(color.primaryForeground, color.primaryPressed);
   });
@@ -86,12 +87,12 @@ describe('brand and feedback fills', () => {
 
   it('a pressed ghost button keeps its label legible on either tint', () => {
     for (const tint of tintedFills) {
-      passesBody(color.primary, tint);
+      passesBody(color.primaryInk, tint);
       passesBody(color.danger, tint);
     }
   });
 
-  it('the accent used beside a floor plan is legible with white on it', () => {
+  it('the accent used beside a floor plan is legible with its ink label on it', () => {
     passesBody(color.primaryForeground, color.primaryOnFloorPlan);
     passesBody(color.primaryForeground, color.primaryOnFloorPlanPressed);
   });
@@ -108,6 +109,53 @@ describe('brand and feedback fills', () => {
   it('the card edge is softer than the divider hairline', () => {
     expect(contrastRatio(color.borderSoft, color.surface)).toBeLessThan(
       contrastRatio(color.border, color.surface),
+    );
+  });
+});
+
+describe('the beige accent: a fill with an ink label, and an ink for every line', () => {
+  /*
+   * `#C3B59F` is 2.01:1 on white. It cannot be text (4.5), a border or a focus
+   * edge (3), and it cannot carry a white label (2.01). So the accent is two
+   * tokens: `primary` fills, `primaryInk` draws. These are the minimums each
+   * pair owes; the numbers in the comments are what the chosen values measure.
+   */
+  it('the fill value is the brand beige, and its label is ink', () => {
+    expect(color.primary).toBe('#C3B59F');
+    expect(color.primaryForeground).toBe(color.foreground);
+  });
+
+  it('fill and label: ink on primary (8.70) and on primaryPressed (6.54) clear 4.5', () => {
+    for (const fill of [color.primary, color.primaryPressed]) {
+      expect(round(contrastRatio(color.primaryForeground, fill))).toBeGreaterThanOrEqual(AA_BODY);
+    }
+  });
+
+  it('white is never the label on the beige — it measures 2.01', () => {
+    expect(color.primaryForeground).not.toBe('#FFFFFF');
+    expect(round(contrastRatio('#FFFFFF', color.primary))).toBeLessThan(AA_BODY);
+  });
+
+  it('primaryInk as text clears 4.5 on white (6.48) and on paper (5.99)', () => {
+    for (const ground of [color.surface, color.paper]) {
+      expect(round(contrastRatio(color.primaryInk, ground))).toBeGreaterThanOrEqual(AA_BODY);
+    }
+  });
+
+  it('primaryInk as a border or focus edge clears 3 on every ground a control sits on', () => {
+    for (const ground of [color.surface, color.paper, color.accentTint, color.greenTint]) {
+      expect(round(contrastRatio(color.primaryInk, ground))).toBeGreaterThanOrEqual(AA_LARGE);
+    }
+  });
+
+  it('the fill itself does not clear 3 on white — which is why it is never a line', () => {
+    expect(round(contrastRatio(color.primary, color.surface))).toBeLessThan(AA_LARGE);
+  });
+
+  it('primaryInk is the same hue as the fill, only darker', () => {
+    expect(hueDistance(color.primaryInk, color.primary)).toBeLessThanOrEqual(5);
+    expect(contrastRatio(color.primaryInk, color.surface)).toBeGreaterThan(
+      contrastRatio(color.primary, color.surface),
     );
   });
 });
@@ -142,19 +190,17 @@ const hueDistance = (a: string, b: string) => {
 
 /** Above this a colour has a hue worth comparing; below it, it is a grey. */
 const NEUTRAL_CHROMA = 0.15;
-/** Degrees of separation the accent owes the nearest state hue. */
-const MIN_HUE_SEPARATION = 40;
+/** How much less saturated the accent must be than the dullest table state. */
+const MIN_CHROMA_SEPARATION = 0.25;
 
 describe('the rule that keeps colour meaning one thing', () => {
   /*
-   * The rule this palette exists to enforce: chroma means a table's state or
-   * the one element you are meant to act on, and nothing else is coloured.
-   *
-   * The previous version of this block asserted the accent was *achromatic* —
-   * ink was the accent, so separation from the six states was free. Moving to
-   * violet gives that guarantee back its teeth: it now has to be measured, not
-   * assumed, and it is measured against every one of the six states rather
-   * than the four that happen to carry a hue.
+   * The rule this palette exists to enforce: saturated colour means a table's
+   * state, and the one element you are meant to act on is marked by the beige
+   * fill. The beige is a warm neutral — 0.14 chroma, under the line this file
+   * calls grey — so it is separated from the four chromatic states by
+   * saturation, not by hue angle. Its hue (37) is 3 degrees from amber, and a
+   * test that measured angles would be measuring nothing a person can see.
    */
   const chromaticStates = ['free', 'reservedSoon', 'held', 'occupied'] as const;
   const neutralStates = ['outOfService', 'yourPick'] as const;
@@ -171,48 +217,37 @@ describe('the rule that keeps colour meaning one thing', () => {
     }
   });
 
-  it('the accent carries a hue of its own, and it is not the loud one', () => {
+  it('the accent is a warm neutral, not a hue that competes with the room', () => {
     /*
-     * A ceiling, not a floor. `#7C3AED` — the violet every tool reaches for
-     * first — measures 0.70 chroma and 5.70:1 with white on it. This one is
-     * 0.56 and 6.99:1. The ceiling is what stops the accent being nudged back
-     * toward the default: past it the button starts shouting over the room it
-     * sits beside, and white stops clearing AA on it comfortably.
+     * A ceiling. Push the beige past 0.15 chroma and it becomes a tan, then an
+     * amber — the reserved-soon colour, 3 degrees away. Below the ceiling it
+     * reads as a material, not a signal.
      */
-    expect(chroma(color.primary)).toBeGreaterThan(0.4);
-    expect(chroma(color.primary)).toBeLessThan(0.6);
-    expect(round(contrastRatio(color.primaryForeground, color.primary))).toBeGreaterThanOrEqual(
-      AA_BODY,
-    );
+    expect(chroma(color.primary)).toBeLessThan(NEUTRAL_CHROMA);
+    // The ink is the same hue darkened, so it sits right on the line (0.15).
+    expect(chroma(color.primaryInk)).toBeLessThanOrEqual(NEUTRAL_CHROMA);
   });
 
-  it('the accent is 40+ degrees from every state that carries a hue', () => {
-    /*
-     * The guarantee that lets the primary button sit on a floor screen without
-     * an exception. `held` blue at hue 220 is the near miss: the accent is at
-     * 261, which is 41 degrees away. That single degree of headroom is not
-     * slack, it is the constraint — the blue is the reason this violet is not
-     * bluer.
-     */
+  it('every state that carries a hue is far more saturated than the accent', () => {
     for (const state of chromaticStates) {
-      expect(hueDistance(color.primary, tableStatusStyle[state].fill)).toBeGreaterThanOrEqual(
-        MIN_HUE_SEPARATION,
+      expect(chroma(tableStatusStyle[state].fill) - chroma(color.primary)).toBeGreaterThan(
+        MIN_CHROMA_SEPARATION,
       );
     }
   });
 
-  it('the accent is separated from the two hueless states by chroma, not by angle', () => {
+  it('the accent is separated from the two hueless states by value, not by chroma', () => {
     /*
-     * `outOfService` and `yourPick` both sit near hue 213 on paper, which is 48
-     * degrees from the accent — but their chroma is 0.09 and 0.06, so that
-     * angle describes nothing a person can see. Chroma is the real separation
-     * and it is enormous: a saturated violet against a dead grey and a
-     * near-black.
+     * `outOfService` and `yourPick` are greys too (0.09 and 0.06), so chroma
+     * separates nothing here. Value does: yourPick is ink, 8.70:1 from the
+     * beige; outOfService is handled by the ink edge in the next test.
      */
     for (const state of neutralStates) {
       expect(chroma(tableStatusStyle[state].fill)).toBeLessThan(NEUTRAL_CHROMA);
     }
-    expect(chroma(color.primary)).toBeGreaterThan(NEUTRAL_CHROMA * 2);
+    expect(
+      round(contrastRatio(tableStatusStyle.yourPick.fill, color.primary)),
+    ).toBeGreaterThanOrEqual(AA_BODY);
   });
 
   it('the accent is not any state fill or stroke, on any surface', () => {
@@ -223,38 +258,31 @@ describe('the rule that keeps colour meaning one thing', () => {
     }
   });
 
-  it('outOfService recedes from the accent at the opacity it is actually drawn at', () => {
+  it('outOfService is separated from an accent control by its ink edge, not its fill', () => {
     /*
      * Against the composited fill, not the raw hex — a dead table is never
      * painted at full strength. `#8B95A1` at 0.7 over the canvas resolves to
-     * `#AEB5BD`, which is 3.38:1 from the accent. The raw grey is 2.30:1 and
-     * comparing against it would be measuring a colour nobody ever sees.
+     * `#AEB5BD`. The beige fill is 1.03:1 from that — the same grey to a
+     * colour-deficient eye — so every accent control beside a plan draws a
+     * `primaryInk` edge, which is 3.13:1 from it. Both halves are pinned.
      */
+    expect(round(contrastRatio(compositedFill('outOfService'), color.primary))).toBeLessThan(1.5);
     expect(
-      round(contrastRatio(compositedFill('outOfService'), color.primary)),
+      round(contrastRatio(compositedFill('outOfService'), color.primaryInk)),
     ).toBeGreaterThanOrEqual(AA_LARGE);
   });
 
-  it('the accent trades value separation for hue separation, and the trade is deliberate', () => {
+  it('the accent trades value separation for saturation and shape, and the trade is deliberate', () => {
     /*
-     * The guarantee that did NOT survive the move off ink, pinned here so
-     * nobody re-derives it later.
-     *
-     * Ink was 17.52:1 on white, so every state fill was separated from the
-     * accent by lightness alone and the palette got that for free. Violet is
-     * not: `occupied` red is 1.25:1 from it, the same value in greyscale, and
-     * `held` blue is 1.47:1. What replaces lightness is 40+ degrees of hue —
-     * asserted above — plus a shape rule the floor plan already enforces: a
-     * button is a pill, a table is rectilinear, and no amount of colour
-     * confusion turns one into the other.
+     * Pinned so nobody re-derives it later: the beige is not separated from
+     * the state fills by lightness. `free` green is 1.32:1 from it. What
+     * separates them is saturation — asserted above — plus a shape rule the
+     * floor plan already enforces: a button is a pill, a table is rectilinear.
      */
     const values = chromaticStates.map((s) =>
       contrastRatio(color.primary, tableStatusStyle[s].fill),
     );
     expect(round(Math.min(...values))).toBeLessThan(AA_LARGE);
-
-    const angles = chromaticStates.map((s) => hueDistance(color.primary, tableStatusStyle[s].fill));
-    expect(Math.min(...angles)).toBeGreaterThanOrEqual(MIN_HUE_SEPARATION);
 
     expect(radius.table).toBeLessThanOrEqual(2);
     expect(radius.pill).toBeGreaterThan(100);
@@ -278,7 +306,7 @@ describe('the accent has exactly one job', () => {
     );
   });
 
-  it('the floor-plan swap is gone — the accent needs no exception', () => {
+  it('there is no floor-plan swap — beside a plan the accent is the same fill', () => {
     expect(color.primaryOnFloorPlan).toBe(color.primary);
     expect(color.primaryOnFloorPlanPressed).toBe(color.primaryPressed);
   });
@@ -299,7 +327,7 @@ describe('the accent has exactly one job', () => {
   it('shadows are ink-tinted and light — a card is separated by elevation, not a line', () => {
     for (const shadow of Object.values(elevation)) {
       expect(shadow.web).toContain('rgba(19, 26, 34');
-      // Ink, not the accent. A violet shadow under a white card is a glow.
+      // Ink, not the accent. A beige shadow under a white card is a glow.
       expect(shadow.native.shadowColor).toBe(color.foreground);
       expect(shadow.native.shadowColor).not.toBe(color.primary);
       // Low alpha on a near-white ground. A heavier shadow turns a grid of
@@ -332,11 +360,11 @@ describe('charts are neutral, and the accent marks what is current', () => {
     }
   });
 
-  it('the chart fill is a lighter step than ink, than the accent, and than muted text', () => {
-    // The whole point: a bar recedes, a button does not.
+  it('the chart fill is a lighter step than ink, than the accent ink, and than muted text', () => {
+    // The whole point: a bar recedes, a label does not.
     const onSurface = (hex: string) => contrastRatio(hex, color.surface);
     expect(onSurface(color.dataFill)).toBeLessThan(onSurface(color.foreground));
-    expect(onSurface(color.dataFill)).toBeLessThan(onSurface(color.primary));
+    expect(onSurface(color.dataFill)).toBeLessThan(onSurface(color.primaryInk));
     expect(onSurface(color.dataFill)).toBeLessThan(onSurface(color.mutedForeground));
   });
 

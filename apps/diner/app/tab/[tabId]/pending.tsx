@@ -76,7 +76,7 @@ export default function PendingScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         {isLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={color.primary} />
+            <ActivityIndicator color={color.primaryInk} />
             <Text style={styles.muted}>{t('tab.loading')}</Text>
           </View>
         ) : rejected || removed ? (
@@ -101,7 +101,7 @@ export default function PendingScreen() {
         ) : (
           <>
             <View style={styles.spinnerRow}>
-              <ActivityIndicator color={color.primary} />
+              <ActivityIndicator color={color.primaryInk} />
               <Text style={styles.title}>{t('pending.title')}</Text>
             </View>
 

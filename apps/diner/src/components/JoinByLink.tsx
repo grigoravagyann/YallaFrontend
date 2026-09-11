@@ -42,7 +42,7 @@ export function JoinByLink({ code }: JoinByLinkProps) {
       <View style={styles.centered}>
         {isWorking || !failure ? (
           <>
-            <ActivityIndicator color={color.primary} />
+            <ActivityIndicator color={color.primaryInk} />
             <Text style={styles.muted}>{t('join.working')}</Text>
           </>
         ) : (

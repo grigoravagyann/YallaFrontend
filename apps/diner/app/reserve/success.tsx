@@ -19,7 +19,7 @@ export default function SuccessScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
+          <ActivityIndicator color={color.primaryInk} />
         </View>
       </SafeAreaView>
     );
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryText: { fontSize: fontSize.md, color: color.primaryPressed },
+  secondaryText: { fontSize: fontSize.md, color: color.primaryInk },
   primary: {
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',

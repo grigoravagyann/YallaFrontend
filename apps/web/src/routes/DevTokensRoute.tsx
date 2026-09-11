@@ -110,7 +110,7 @@ function contrastPairs(): ContrastPair[] {
   const pairs: ContrastPair[] = [];
 
   for (const bg of grounds) {
-    for (const fg of ['foreground', 'mutedForeground', 'primary'] as const) {
+    for (const fg of ['foreground', 'mutedForeground', 'primaryInk'] as const) {
       pairs.push(pair(fg, bg));
     }
   }
@@ -283,7 +283,7 @@ export function DevTokensRoute() {
             Reserve table 7
           </button>
           <span className="muted small">
-            primaryOnFloorPlan — what the primary button becomes beside a plan
+            primaryOnFloorPlan — the same beige fill, with an ink edge beside a plan
           </span>
         </div>
       </div>

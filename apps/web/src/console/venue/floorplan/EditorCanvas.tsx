@@ -358,7 +358,7 @@ export function EditorCanvas({
                 height={box.height}
                 fill={color.greenTint}
                 fillOpacity={0.35}
-                stroke={color.primary}
+                stroke={color.primaryInk}
                 strokeDasharray="4,3"
                 pointerEvents="none"
               />

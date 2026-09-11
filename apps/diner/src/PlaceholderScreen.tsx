@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.surface,
   },
   languageButtonActive: {
-    borderColor: color.primaryPressed,
+    borderColor: color.primaryInk,
     backgroundColor: color.greenTint,
   },
   languageText: {
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     color: color.foreground,
   },
   languageTextActive: {
-    color: color.primaryPressed,
+    color: color.primaryInk,
     fontWeight: '600',
   },
 });

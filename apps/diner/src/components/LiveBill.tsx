@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   grandRow: { paddingTop: space.xs },
   grandLabel: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
   grandValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  yourShareLabel: { color: color.primary, fontSize: fontSize.md, fontWeight: fontWeight.medium },
-  yourShareValue: { color: color.primary, fontSize: fontSize.md, fontWeight: fontWeight.bold },
+  yourShareLabel: { color: color.primaryInk, fontSize: fontSize.md, fontWeight: fontWeight.medium },
+  yourShareValue: { color: color.primaryInk, fontSize: fontSize.md, fontWeight: fontWeight.bold },
   hidden: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
 });

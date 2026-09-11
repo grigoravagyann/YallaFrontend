@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.pill },
   badgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.medium },
   youBadge: { backgroundColor: color.greenTint },
-  youBadgeText: { color: color.primaryPressed },
+  youBadgeText: { color: color.primaryInk },
   hostBadge: { backgroundColor: color.greenTint },
   hostBadgeText: { color: color.foreground },
   waitingBadge: { backgroundColor: color.greenTint },
