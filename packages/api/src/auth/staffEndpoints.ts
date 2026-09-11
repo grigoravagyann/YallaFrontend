@@ -19,18 +19,8 @@ import { staffRoleToUserRole } from './endpoints';
 
 type Schemas = components['schemas'];
 
-/**
- * One row of `GET /api/auth/staff/roster`, declared by hand.
- *
- * TODO: swap for the generated `Schemas[...]` type once the schema is
- * regenerated against the backend that ships the route.
- */
-interface StaffRosterEntryWire {
-  readonly staffMemberId: string;
-  readonly fullName: string;
-  /** StaffRole: 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin. */
-  readonly role: number;
-}
+/** One row of `GET /api/auth/staff/roster`. */
+type StaffRosterEntryWire = components['schemas']['Yalla.Application.Auth.StaffRosterEntry'];
 
 const STAFF = '/api/auth/staff';
 
