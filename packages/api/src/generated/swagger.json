@@ -7758,7 +7758,7 @@
           "diner"
         ],
         "summary": "Every venue on Yalla, for the browse case",
-        "description": "Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, its IANA `timeZoneId`, whether it is open now, and a **live free-table count** of its bookable tables.\n\nThe estate is cached for minutes; the table counts, open-now and which branches are still published for fifteen seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening. A suspended venue leaves the list within that window.\n\n**Rate limited on budgets of its own**, per caller and city-wide, not the page budget: this is the diner app's Explore screen, and a phone network puts thousands of phones behind one address.",
+        "description": "Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, its IANA `timeZoneId`, whether it is open now, and a **live free-table count**: every table nobody is sitting at, walk-in-only stools included, the same tables the branch page's `tableCount` counts.\n\nThe estate is cached for minutes; the table counts, open-now and which branches are still published for fifteen seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening. A suspended venue leaves the list within that window.\n\n**Rate limited on budgets of its own**, per caller and city-wide, not the page budget: this is the diner app's Explore screen, and a phone network puts thousands of phones behind one address.",
         "operationId": "getPublicVenues",
         "responses": {
           "200": {
@@ -17585,7 +17585,7 @@
           },
           "freeTableCount": {
             "type": "integer",
-            "description": "How many bookable tables have nobody sitting at them right now - the same tables the branch\r\npage's `tableCount` counts, so the two can never read \"3 of 2 free\". The one volatile\r\nnumber here, and the reason the browse list is cached for seconds rather than minutes.",
+            "description": "How many tables have nobody sitting at them right now, walk-in-only stools included - the same\r\ntables the branch page's `tableCount` counts and its plan draws, so the two can never read\r\n\"3 of 2 free\" and zero means every seat is taken. The one volatile number here, and the reason\r\nthe browse list is cached for seconds rather than minutes.",
             "format": "int32"
           },
           "isOpenNow": {
@@ -17718,12 +17718,12 @@
           },
           "freeTableCount": {
             "type": "integer",
-            "description": "Bookable tables with nobody at them right now, so it is always out of TableCount.\r\nA walk-in-only stool somebody is sitting at is still drawn taken on the plan: that is each\r\ntable's own `isFree`, which every active table has, bookable or not.",
+            "description": "Tables with nobody at them right now, bookable or walk-in only, so it is always out of\r\nTableCount and always the number of tables the plan draws with\r\n`isFree` true.",
             "format": "int32"
           },
           "tableCount": {
             "type": "integer",
-            "description": "How many bookable tables there are, so the count has a denominator.",
+            "description": "How many tables there are - every table on the plan, bookable or not - so the count has a\r\ndenominator.",
             "format": "int32"
           },
           "floorPlan": {

@@ -1511,7 +1511,7 @@ export interface paths {
         };
         /**
          * Every venue on Yalla, for the browse case
-         * @description Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, its IANA `timeZoneId`, whether it is open now, and a **live free-table count** of its bookable tables.
+         * @description Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, its IANA `timeZoneId`, whether it is open now, and a **live free-table count**: every table nobody is sitting at, walk-in-only stools included, the same tables the branch page's `tableCount` counts.
          *
          *     The estate is cached for minutes; the table counts, open-now and which branches are still published for fifteen seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening. A suspended venue leaves the list within that window.
          *
@@ -4920,9 +4920,10 @@ export interface components {
             branchSlug: string;
             /**
              * Format: int32
-             * @description How many bookable tables have nobody sitting at them right now - the same tables the branch
-             *     page's `tableCount` counts, so the two can never read "3 of 2 free". The one volatile
-             *     number here, and the reason the browse list is cached for seconds rather than minutes.
+             * @description How many tables have nobody sitting at them right now, walk-in-only stools included - the same
+             *     tables the branch page's `tableCount` counts and its plan draws, so the two can never read
+             *     "3 of 2 free" and zero means every seat is taken. The one volatile number here, and the reason
+             *     the browse list is cached for seconds rather than minutes.
              */
             freeTableCount: number;
             /** @description Whether it is inside an opening block at this moment, in its own zone. */
@@ -4989,9 +4990,9 @@ export interface components {
             floorPlan: components["schemas"]["Yalla.Application.Public.PublicFloorPlan"];
             /**
              * Format: int32
-             * @description Bookable tables with nobody at them right now, so it is always out of TableCount.
-             *     A walk-in-only stool somebody is sitting at is still drawn taken on the plan: that is each
-             *     table's own `isFree`, which every active table has, bookable or not.
+             * @description Tables with nobody at them right now, bookable or walk-in only, so it is always out of
+             *     TableCount and always the number of tables the plan draws with
+             *     `isFree` true.
              */
             freeTableCount: number;
             /**
@@ -5029,7 +5030,8 @@ export interface components {
             policy: components["schemas"]["Yalla.Application.Public.PublicReservationPolicy"];
             /**
              * Format: int32
-             * @description How many bookable tables there are, so the count has a denominator.
+             * @description How many tables there are - every table on the plan, bookable or not - so the count has a
+             *     denominator.
              */
             tableCount: number;
             /**
