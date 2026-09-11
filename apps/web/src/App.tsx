@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { onSignedOut } from './auth/authSession';
 import { Forbidden, LoadingScreen, RequireRole } from './auth/RequireRole';
 import { ResetPasswordRoute } from './auth/ResetPasswordRoute';
+import { forgetSessionQueries } from './auth/sessionQueries';
 import { SignInRoute } from './auth/SignInRoute';
 import { PLATFORM_ROLES, VENUE_ROLES, landingPathFor, useCurrentUser } from './auth/useCurrentUser';
 import { QueryFailureNotice } from './components/QueryFailureNotice';
@@ -146,13 +147,10 @@ function useSignedOutRedirect() {
   useEffect(
     () =>
       onSignedOut((reason) => {
-        // The identity, and everything the console read on its behalf. The
-        // client is a singleton that outlives the session (`bootstrap.tsx`),
-        // and the console's keys name a venue, not a caller: kept, the branch
-        // manager who signs in next on this tab would be shown the owner's
-        // branch list until `staleTime.reference` ran out.
-        queryClient.removeQueries({ queryKey: ['currentUser'] });
-        queryClient.removeQueries({ queryKey: ['console'] });
+        // The identity, and everything the console read on its behalf — see
+        // `forgetSessionQueries` for why, and for the other two places it
+        // has to happen because this listener is not always mounted.
+        void forgetSessionQueries(queryClient);
         navigate('/sign-in', {
           replace: true,
           state: {

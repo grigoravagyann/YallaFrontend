@@ -1,7 +1,7 @@
 import {
   StaffPermissionError,
   VenueHasOpenTabsError,
-  canEditStaff,
+  canIssueSignIn,
   isAdminRole,
   type BlockingTab,
   type StaffMember,
@@ -37,10 +37,10 @@ const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
  * covers every venue, which is why this route only exists in their router; the
  * server checks anyway and a 403 renders the plain refusal page.
  *
- * **This is the venue bootstrap path.** A new venue has nobody in it, an owner
- * cannot create another owner, and the only actor above an owner is the
- * platform admin — so the first owner is made here, and here is the only place
- * an owner's sign-in can be issued or repaired. A hire from this card that did
+ * **This is the venue bootstrap path.** A new venue has nobody in it, so there
+ * is no owner yet to add a co-owner, and the only actor strictly above an
+ * owner is the platform admin — so the first owner is made here, and here is
+ * the only place an owner's sign-in can be issued or repaired. A hire from this card that did
  * not also issue a sign-in produced an owner nobody could ever sign in as.
  */
 export function VenueDetailRoute() {
@@ -320,10 +320,10 @@ export function VenueDetailRoute() {
           <ul className="rows">
             {staff.data?.map((member) => {
               const signsIn = isAdminRole(member.role);
-              // The same three-part gate as the venue staff screen: below the
+              // The same gate as the venue staff screen: strictly below the
               // actor, an admin-panel role, and active — the server refuses
-              // the other two and a refused action is not offered.
-              const canIssue = signsIn && member.isActive && canEditStaff(actor, member);
+              // the rest and a refused action is not offered.
+              const canIssue = canIssueSignIn(actor, member);
               return (
                 <Fragment key={member.id}>
                   <li className={member.isActive ? 'row' : 'row is-inactive'}>

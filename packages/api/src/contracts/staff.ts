@@ -137,36 +137,33 @@ export function isAdminRole(role: StaffRole): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * The roles an actor may assign, **strictly below their own**.
+ * The roles an actor may assign — the server's `StaffRoleRules.MayAssign`,
+ * case for case, in rank order.
  *
  * The server enforces this from the acting staff member's *stored* role, and
  * the UI has to match rather than approximate. Building the picker from this
  * means a manager never sees Manager or Owner as options at all — which is the
  * requirement. Rendering everything and validating on submit offers an action
  * the server will refuse, and being refused something you were offered reads as
- * a broken product rather than as a rule.
+ * a broken product rather than as a rule. The reverse is as bad: this list was
+ * once stricter than the server's and an owner could not add a co-owner, an
+ * action the product means to allow.
  *
  * `platformAdmin` is absent from every list on purpose — as a role that can be
  * *assigned*. A platform admin has no venue and no branch, so creating one from
  * inside a venue's staff screen is a category error; if they are creatable at
  * all it belongs under `/platform`. That is separate from what a platform admin
- * may assign to others, which is everything below them, owner included.
+ * may assign to others, which is every venue role, owner included.
  */
 export function assignableRoles(actor: StaffRole | 'platformAdmin'): readonly StaffRole[] {
   switch (actor) {
-    /*
-     * Owner included, and only here. The rule is "nobody creates at or above
-     * their own rank", and a platform admin outranks an owner — they run the
-     * platform and belong to no venue. They are also the only actor who *can*
-     * give a venue its first owner: an owner cannot create another owner, and
-     * a brand new venue has nobody in it, so leaving this list at `manager`
-     * meant a venue could be created and then never handed to anybody. The
-     * server already allows it; this list was the stricter of the two.
-     */
+    // Every venue role; the only actor who can give a new venue its first owner.
     case 'platformAdmin':
       return ['owner', 'manager', 'waiter', 'kitchen'];
+    // Owner included: a co-owner is a normal thing for a family business.
     case 'owner':
-      return ['manager', 'waiter', 'kitchen'];
+      return ['owner', 'manager', 'waiter', 'kitchen'];
+    // Floor staff only, and nobody at or above them: a manager cannot mint a peer.
     case 'manager':
       return ['waiter', 'kitchen'];
     // A waiter or kitchen hand reaches no part of this screen. Listed so the
@@ -180,10 +177,14 @@ export function assignableRoles(actor: StaffRole | 'platformAdmin'): readonly St
 /**
  * Whether `actor` may edit `subject` at all.
  *
- * Two rules, both the server's. Nobody edits somebody at or above their own
- * rank — a manager cannot demote another manager — and **nobody edits
- * themselves**, which is what stops an owner removing their own last
- * owner-level account and locking the venue out of its own console.
+ * Two rules, both the server's. `MayManage` is the `MayAssign` table — you may
+ * touch the people you could have created, so an owner edits a co-owner and a
+ * manager cannot touch another manager. And **nobody edits themselves through
+ * this form**: the server lets a person change their own name and phone but
+ * refuses their own role, branch and deactivation, and this form carries all
+ * of those, so offering it to oneself would offer a save the server refuses.
+ * That is also what keeps a venue out of its own lockout — an owner cannot
+ * demote or deactivate the last owner-level account, themselves.
  */
 export function canEditStaff(
   actor: { readonly id: string; readonly role: StaffRole | 'platformAdmin' },
@@ -191,6 +192,45 @@ export function canEditStaff(
 ): boolean {
   if (actor.id === subject.id) return false;
   return assignableRoles(actor.role).includes(subject.role);
+}
+
+/**
+ * Seniority, most senior first — the server's `StaffRoleRules.Seniority`, not
+ * anything derived from the order of a union or a list.
+ */
+const SENIORITY: Readonly<Record<StaffRole | 'platformAdmin', number>> = {
+  platformAdmin: 0,
+  owner: 1,
+  manager: 2,
+  waiter: 3,
+  kitchen: 4,
+};
+
+/** Strictly higher in the hierarchy: the server's `StaffRoleRules.Outranks`. */
+export function outranks(
+  actor: StaffRole | 'platformAdmin',
+  other: StaffRole | 'platformAdmin',
+): boolean {
+  return SENIORITY[actor] < SENIORITY[other];
+}
+
+/**
+ * Whether `actor` may issue an admin-panel sign-in for `subject`.
+ *
+ * Stricter than editing, as the server has it: a sign-in is the whole account,
+ * so it needs the actor to strictly *outrank* the subject. An owner may edit a
+ * co-owner but may not take over their sign-in; only a platform admin repairs
+ * an owner. Never for oneself, never for a PIN-only role, and never for a
+ * deactivated person — the server refuses all three, and a refused action is
+ * not offered.
+ */
+export function canIssueSignIn(
+  actor: { readonly id: string; readonly role: StaffRole | 'platformAdmin' },
+  subject: StaffMember,
+): boolean {
+  if (actor.id === subject.id) return false;
+  if (!isAdminRole(subject.role) || !subject.isActive) return false;
+  return outranks(actor.role, subject.role);
 }
 
 /**
