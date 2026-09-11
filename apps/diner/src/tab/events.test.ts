@@ -87,30 +87,29 @@ describe('applying a page of events', () => {
     const menu = await gateway.getBranchMenuDetail(tab.branchId);
     const item = (menu?.categories ?? []).flatMap((category) => category.items)[0]!;
 
-    // The cursor comes from the event stream, not the tab: `TabView` carries no
-    // high-water mark and never did.
-    const before = await gateway.getTabEvents({ tabId: tab.id, afterSequence: 0 });
-    let cursor = before.lastSequence;
+    // The cursor comes from the tab read's own `maxSequence`: where the stream
+    // stands, so the first page continues rather than replaying history.
+    let cursor = tab.maxSequence;
 
     await gateway.placeOrder({
-      tabId: tab.id,
+      tabId: tab.tabId,
       clientCommandId: '66666666-6666-4666-8666-666666666666',
       lines: [
-        { menuItemId: item.id, quantity: 2, isShared: false, participantId: tab.yourParticipantId },
+        { menuItemId: item.id, quantity: 2, isShared: false, participantId: tab.me.participantId },
       ],
     });
 
     // The incremental path: read the page, decide, refetch.
-    const page = await gateway.getTabEvents({ tabId: tab.id, afterSequence: cursor });
+    const page = await gateway.getTabEvents({ tabId: tab.tabId, afterSequence: cursor });
     const update = applyTabEvents(cursor, page.events);
     expect(update.kind).toBe('refetch');
     if (update.kind !== 'refetch') return;
     cursor = update.lastSequence;
 
-    const incremental = await gateway.getDinerTab(tab.id);
+    const incremental = await gateway.getDinerTab(tab.tabId);
 
     // The full-refetch path: throw the cursor away and read everything.
-    const full = await gateway.getDinerTab(tab.id);
+    const full = await gateway.getDinerTab(tab.tabId);
 
     expect(incremental?.myLines.map((line) => line.id)).toEqual(
       full?.myLines.map((line) => line.id),
@@ -118,7 +117,7 @@ describe('applying a page of events', () => {
     expect(incremental?.money).toEqual(full?.money);
     // And the cursor the incremental path kept matches what a cold read of the
     // stream reports, so the next page continues rather than replaying.
-    const cold = await gateway.getTabEvents({ tabId: tab.id, afterSequence: 0 });
+    const cold = await gateway.getTabEvents({ tabId: tab.tabId, afterSequence: 0 });
     expect(cursor).toBe(cold.lastSequence);
   });
 });
@@ -150,8 +149,8 @@ describe('a gap in the sequence', () => {
 
 describe('what the diner is told', () => {
   it('carries the voided line name from the snapshot held before the refetch', () => {
-    // The line will not be in the next tab read: `TabProjection` filters voided
-    // lines out of the diner's view. The name is resolvable only now.
+    // The marker is announced before the refetch lands, so the name comes
+    // from the snapshot this phone already holds.
     const update = applyTabEvents(
       1,
       [event(2, { type: 'lineVoided', data: { lineId: 'l-7' } })],
@@ -206,11 +205,27 @@ describe('what the diner is told', () => {
         lineId: 'l7',
         lineName: 'Khorovats',
         sequence: 5,
+        arrivedAtMs: at,
       },
     ];
 
     expect(liveMarkers(markers, at + 1_000)).toHaveLength(1);
     expect(liveMarkers(markers, at + MARKER_LIFETIME_MS - 1)).toHaveLength(1);
     expect(liveMarkers(markers, at + MARKER_LIFETIME_MS + 1)).toHaveLength(0);
+  });
+
+  it('ages a marker by when it arrived here, not by a server clock this phone disagrees with', () => {
+    // The phone's clock is a minute ahead of the server. By `atUtc` the marker
+    // is already a minute old and would never be shown at all.
+    const arrived = Date.parse('2026-09-06T10:01:00Z');
+    const update = applyTabEvents(
+      4,
+      [event(5, { type: 'lineVoided', atUtc: '2026-09-06T10:00:00Z', data: { lineId: 'l7' } })],
+      () => 'Khorovats',
+      arrived,
+    );
+    if (update.kind !== 'refetch') throw new Error('expected a refetch');
+
+    expect(liveMarkers(update.markers, arrived + 1_000)).toHaveLength(1);
   });
 });

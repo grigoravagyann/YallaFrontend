@@ -16,6 +16,7 @@ import type {
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
   BookingRejectedError,
+  TabAccessEndedError,
   ExpiredCodeError,
   HoldAlreadyExtendedError,
   HoldNotActiveError,
@@ -25,11 +26,11 @@ import {
   TooManyAttemptsError,
   WrongCodeError,
 } from '../contracts/errors';
-import type { Menu } from '../contracts/menu';
 import type {
   ScanResult,
   ScanTableCommand,
   TabInvite,
+  TabParticipantChange,
   TabPermissions,
   TableTab,
   WaiterCall,
@@ -43,10 +44,9 @@ import type {
   TabShares,
 } from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
-import { ConcurrencyConflictError, NotFoundError } from '../errors';
+import { ConcurrencyConflictError, ForbiddenError, NotFoundError } from '../errors';
 import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
-import { mockMenuFor } from './menu';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
@@ -213,6 +213,47 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return null;
     },
   });
+
+  /** The tab as this device reads it — what `GET /api/tabs/{id}` answers. */
+  function dinerViewOf(tab: TableTab): DinerTabView {
+    orders.ensure(tab.id, tab.branchId);
+    return orders.dinerView(tab, tab.yourParticipantId);
+  }
+
+  /** One participant, as a host action left them — `TabParticipantView`. */
+  function changeOf(tab: TableTab, participantId: string): TabParticipantChange {
+    const person = tab.participants.find((entry) => entry.id === participantId);
+    if (!person) throw new NotFoundError({ url: `${URL_TAG}/api/tabs/${tab.id}` });
+    return {
+      participantId: person.id,
+      displayName: person.displayName ?? '',
+      role: person.role,
+      status:
+        person.status === 'active'
+          ? 'approved'
+          : person.status === 'pending'
+            ? 'pendingApproval'
+            : 'removed',
+      permissions: person.permissions,
+    };
+  }
+
+  /**
+   * A tab this device can still read, or the refusal the server gives a token
+   * that is no longer good for it: taken off, turned away, or left.
+   */
+  function readableTab(tabId: string): TableTab | null {
+    const tab = world.get(tabId);
+    if (!tab) return null;
+    if (
+      tab.yourStatus === 'removed' ||
+      tab.yourStatus === 'rejected' ||
+      tab.yourStatus === 'left'
+    ) {
+      throw new TabAccessEndedError({ url: `${URL_TAG}/api/tabs/${tabId}`, tabId, status: 403 });
+    }
+    return tab;
+  }
 
   function findBranch(branchId: string): { venue: MockVenue; branch: MockBranch } | null {
     for (const venue of mockVenues) {
@@ -807,12 +848,14 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
       await wait();
-      return world.scan(command);
+      const result = world.scan(command);
+      return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 
-    async getTab(tabId): Promise<TableTab | null> {
+    async joinTab(command): Promise<ScanResult> {
       await wait();
-      return world.get(tabId);
+      const result = world.join(command);
+      return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 
     async leaveTab({ tabId }) {
@@ -820,30 +863,24 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       world.leave(tabId);
     },
 
-    async getBranchMenu(branchId): Promise<Menu | null> {
-      await wait();
-      const venue = mockVenues.find((v) => v.branches.some((b) => b.id === branchId));
-      return venue ? mockMenuFor(branchId, venue.type) : null;
-    },
-
     async createTabInvite(input): Promise<TabInvite> {
       await wait();
       return world.invite(input);
     },
 
-    async approveJoin(input): Promise<TableTab> {
+    async approveJoin(input): Promise<TabParticipantChange> {
       await wait();
-      return world.approve(input);
+      return changeOf(world.approve(input), input.participantId);
     },
 
-    async rejectJoin(input): Promise<TableTab> {
+    async rejectJoin(input): Promise<TabParticipantChange> {
       await wait();
-      return world.reject(input);
+      return changeOf(world.reject(input), input.participantId);
     },
 
-    async removeParticipant(input): Promise<TableTab> {
+    async removeParticipant(input): Promise<TabParticipantChange> {
       await wait();
-      return world.remove(input);
+      return changeOf(world.remove(input), input.participantId);
     },
 
     async setParticipantPermissions(input: {
@@ -851,18 +888,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       participantId: string;
       permissions: TabPermissions;
       commandId: string;
-    }): Promise<TableTab> {
+    }): Promise<TabParticipantChange> {
       await wait();
-      return world.setPermissions(input);
-    },
-
-    async setTabDefaultPermissions(input: {
-      tabId: string;
-      permissions: TabPermissions;
-      commandId: string;
-    }): Promise<TableTab> {
-      await wait();
-      return world.setDefaults(input);
+      return changeOf(world.setPermissions(input), input.participantId);
     },
 
     async callWaiter(input: {
@@ -887,10 +915,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async getDinerTab(tabId): Promise<DinerTabView | null> {
       await wait();
-      const tab = world.get(tabId);
-      if (!tab) return null;
-      orders.ensure(tab.id, tab.branchId);
-      return orders.dinerView(tab, tab.yourParticipantId);
+      const tab = readableTab(tabId);
+      return tab ? dinerViewOf(tab) : null;
     },
 
     async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
@@ -902,8 +928,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async placeOrder(command): Promise<PlaceOrderResult> {
       await wait();
-      const tab = world.get(command.tabId);
+      const tab = readableTab(command.tabId);
       if (!tab) throw new NotFoundError({ url: `/api/tabs/${command.tabId}/orders` });
+      // The ordering policy, as the server applies it: a bare 403 for anybody
+      // not approved, not allowed to order, or on a tab no longer open.
+      if (!dinerViewOf(tab).me.canOrderNow) {
+        throw new ForbiddenError({ url: `${URL_TAG}/api/tabs/${command.tabId}/orders` });
+      }
       return orders.place(tab, command);
     },
 

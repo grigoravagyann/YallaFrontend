@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CreateBookingCommand } from '../contracts/booking';
-import type { YallaGateway } from '../gateway';
 import type { components } from '../generated/schema';
-import { createMockGateway } from '../mocks/mockGateway';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 
@@ -58,26 +56,10 @@ const COMMAND: CreateBookingCommand = {
   channel: 'app',
 };
 
-/** A fallback that fails loudly, so a method still served by it cannot pass. */
-function failingFallback(): YallaGateway {
-  const mock = createMockGateway();
-  const refuse = (name: string) => () => {
-    throw new Error(`${name} was answered by the mock fallback`);
-  };
-  return {
-    ...mock,
-    createBooking: refuse('createBooking'),
-    listBookings: refuse('listBookings'),
-    getBooking: refuse('getBooking'),
-    cancelBooking: refuse('cancelBooking'),
-  };
-}
-
 function gatewayOver(routes: Readonly<Record<string, FakeRoute>>) {
   const backend = fakeBackend(routes);
   const gateway = createHttpGateway(backend.client({ getToken: () => 'diner-token' }), {
     audience: 'diner',
-    fallback: failingFallback(),
   });
   return { gateway, backend };
 }

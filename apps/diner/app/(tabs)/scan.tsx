@@ -159,9 +159,12 @@ export default function ScanScreen() {
               }}
               placeholder={t('scan.manualPlaceholder')}
               placeholderTextColor={color.mutedForeground}
-              autoCapitalize="characters"
+              // Not "characters": an invite token is case-sensitive, and a
+              // table code is uppercased by the gateway whatever is typed.
+              autoCapitalize="none"
               autoCorrect={false}
-              maxLength={16}
+              // Room for a pasted invite link, not only a six-character code.
+              maxLength={128}
               returnKeyType="go"
               onSubmitEditing={submitTyped}
               accessibilityLabel={t('scan.manualTitle')}

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { createMockGateway } from '../mocks/mockGateway';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 
@@ -16,7 +15,6 @@ function gatewayOver(routes: Readonly<Record<string, FakeRoute>>) {
   const backend = fakeBackend(routes);
   const gateway = createHttpGateway(backend.client(), {
     audience: 'diner',
-    fallback: createMockGateway(),
   });
   return { gateway, backend };
 }

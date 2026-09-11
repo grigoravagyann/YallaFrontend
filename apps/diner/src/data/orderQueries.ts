@@ -1,16 +1,17 @@
 import {
   isEndpointNotWired,
+  isTabAccessEnded,
   staleTime,
   type DinerTabView,
   type PlaceOrderCommand,
   type SettlementMode,
 } from '@yalla/api';
 import { useGateway } from '@yalla/api/react';
-import { createSequenceStream, type LiveStream } from '@yalla/realtime';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { applyTabEvents, liveMarkers, type ChangeMarker } from '../tab/events';
+import { liveMarkers, type ChangeMarker } from '../tab/events';
 import { createRefetchCoalescer } from '../tab/refetchQueue';
+import { createTabFeed, type TabFeed } from '../tab/tabFeed';
 
 /**
  * Ordering and the bill, as query hooks.
@@ -32,12 +33,18 @@ export const orderKeys = {
 };
 
 /**
- * The branch's zone.
- *
- * Its own query because no tab endpoint carries one — see
- * `YallaGateway.getBranchTimeZone`. Cached as static: a branch does not move,
- * and a second read of it on every tab render would be a request per screen for
- * a string that never changes.
+ * A tab read that says this phone is no longer on the tab is final: retrying
+ * it cannot help, and three retries with backoff is how a removed guest stared
+ * at a spinner.
+ */
+function retryUnlessEnded(failureCount: number, error: unknown): boolean {
+  return !isTabAccessEnded(error) && failureCount < 2;
+}
+
+/**
+ * The branch's zone, for a branch reached with no browse card and no tab — a
+ * bare deep link to its floor. The card and the tab carry the zone themselves.
+ * Cached as static: a branch does not move.
  */
 export function useBranchTimeZone(branchId: string | undefined) {
   const gateway = useGateway();
@@ -68,13 +75,21 @@ export function useMenuDetail(branchId: string | undefined) {
   });
 }
 
-export function useDinerTab(tabId: string | undefined) {
+/**
+ * The tab as this phone may see it — the one read every tab screen draws from.
+ *
+ * `pollMs` while there is a reason to watch without an event stream: a pending
+ * joiner waiting to be let on, a host waiting for somebody to ask.
+ */
+export function useDinerTab(tabId: string | undefined, options: { pollMs?: number } = {}) {
   const gateway = useGateway();
   return useQuery({
     queryKey: orderKeys.dinerTab(tabId ?? ''),
     queryFn: () => gateway.getDinerTab(tabId!),
     enabled: Boolean(tabId),
     staleTime: staleTime.live,
+    retry: retryUnlessEnded,
+    ...(options.pollMs ? { refetchInterval: options.pollMs } : {}),
   });
 }
 
@@ -85,6 +100,7 @@ export function useTabShares(tabId: string | undefined) {
     queryFn: () => gateway.getTabShares(tabId!),
     enabled: Boolean(tabId),
     staleTime: staleTime.live,
+    retry: retryUnlessEnded,
   });
 }
 
@@ -123,13 +139,18 @@ export function useSetSettlementMode() {
       queryClient.setQueryData(orderKeys.dinerTab(tab.tabId), tab);
       void queryClient.invalidateQueries({ queryKey: orderKeys.shares(tab.tabId) });
     },
+    // A refused change reads the tab again: the lock is stamped on the server
+    // by the very attempt that was refused, and the screen should show it.
+    onError: (_error, input) => {
+      void queryClient.invalidateQueries({ queryKey: orderKeys.dinerTab(input.tabId) });
+    },
   });
 }
 
 export interface TabLiveState {
   /** Markers for changes staff made, still fresh enough to be worth showing. */
   readonly markers: readonly ChangeMarker[];
-  /** False when the stream has never managed a round trip. */
+  /** True only once a page of events has actually come back. */
   readonly connected: boolean;
   /** True when the backend has no event stream, so this is polling blind. */
   readonly unavailable: boolean;
@@ -140,40 +161,33 @@ export interface TabLiveState {
  *
  * Through `@yalla/realtime`, the same transport the staff tablet uses for the
  * floor — one implementation, so a waiter's screen and a diner's phone cannot
- * disagree about a bill. When the hub lands it replaces that implementation and
- * nothing here changes.
+ * disagree about a bill. The events decide *whether* to refetch; the money
+ * always comes from the server.
  *
- * The events decide *whether* to refetch; the money always comes from the
- * server. Reconstructing a bill from event payloads would be a second
- * implementation of the billing arithmetic.
- *
- * **The cursor starts at zero and the first page carries it forward.** It used
- * to be seeded from the tab read's own `lastSequence`; `TabView` has no such
- * field and never did. `GET /events?afterSequence=0` answers with the tab's
- * history and its `maxSequence`, which is where the position actually comes
- * from — one extra page on open, and no invented high-water mark.
+ * **Seeded from the tab read.** `maxSequence` from every successful read moves
+ * the stream to where the tab stands, so it reads events from there. It used
+ * to start at zero and never move, so it never read an event at all — every
+ * tick was a blind refetch and the header said "Up to date" regardless.
  */
-export function useTabStream(tabId: string | undefined, enabled: boolean): TabLiveState {
+export function useTabStream(
+  tabId: string | undefined,
+  enabled: boolean,
+  maxSequence: number | undefined,
+): TabLiveState {
   const gateway = useGateway();
   const queryClient = useQueryClient();
 
   const [markers, setMarkers] = useState<readonly ChangeMarker[]>([]);
   const [connected, setConnected] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
-
-  const cursor = useRef(0);
-  const streamRef = useRef<LiveStream | null>(null);
+  const feedRef = useRef<TabFeed | null>(null);
 
   useEffect(() => {
     if (!tabId || !enabled) return;
 
     /**
-     * One refetch in flight, one queued.
-     *
-     * Both queries are invalidated together and awaited together, so "the
-     * refetch has landed" means the bill *and* the shares agree — a marker that
-     * appeared between the two would point at a total that was about to move
-     * again.
+     * One refetch in flight, one queued. Both queries are invalidated together,
+     * so "the refetch has landed" means the bill *and* the shares agree.
      */
     const refetch = createRefetchCoalescer(() =>
       Promise.all([
@@ -181,8 +195,9 @@ export function useTabStream(tabId: string | undefined, enabled: boolean): TabLi
         queryClient.invalidateQueries({ queryKey: orderKeys.shares(tabId) }),
       ]),
     );
+    const landed = () => queryClient.getQueryState(orderKeys.dinerTab(tabId))?.status !== 'error';
 
-    /** The name this device currently shows for a line, before it is refetched away. */
+    /** The name this device currently shows for a line, before it is refetched. */
     const nameLine = (lineId: string): string | null => {
       const tab = queryClient.getQueryData<DinerTabView | null>(orderKeys.dinerTab(tabId));
       const line =
@@ -191,57 +206,38 @@ export function useTabStream(tabId: string | undefined, enabled: boolean): TabLi
       return line?.name ?? null;
     };
 
-    const stream = createSequenceStream({
-      fetchPage: async (afterSequence) => {
-        const page = await gateway.getTabEvents({ tabId, afterSequence });
-        return { lastSequence: page.lastSequence, items: page.events };
-      },
-      handlers: {
-        onItems: (events) => {
-          setConnected(true);
-          // Names are resolved here, against the snapshot that still holds the
-          // line. After the refetch below, a voided line is gone.
-          const update = applyTabEvents(cursor.current, events, nameLine);
-          cursor.current = update.lastSequence;
-          if (update.kind !== 'refetch') return;
-
-          // The announcement waits for the data.
-          //
-          // This used to `setMarkers` and *then* invalidate, which meant "the
-          // waiter removed your Khorovats" rendered against a bill that still
-          // showed it — and, for a moment, against a total that had not moved.
-          // A marker that describes a change the screen has not made yet reads
-          // as a bug in the bill rather than as an explanation of it.
-          void refetch.request().then(() => {
-            if (update.markers.length > 0) {
-              setMarkers((current) => [...current, ...update.markers]);
-            }
-          });
-        },
-        onResync: (reason) => {
-          if (reason === 'notWired') {
-            setUnavailable(true);
-            return;
-          }
-          setConnected(true);
-          void refetch.request();
-        },
-        onError: () => setConnected(false),
-      },
+    const feed = createTabFeed({
+      tabId,
+      getTabEvents: (input) => gateway.getTabEvents(input),
+      refetch: () => refetch.request().then(landed),
+      nameLine,
+      onMarkers: (next) => setMarkers((current) => [...current, ...next]),
+      onConnected: setConnected,
+      onUnavailable: () => setUnavailable(true),
       isUnavailable: isEndpointNotWired,
-      foregroundMs: 3_000,
     });
 
-    streamRef.current = stream;
-    stream.start();
+    // Seed before the first poll from the read already in the cache, so the
+    // first page continues from where the tab stands instead of replaying
+    // its history — which used to flash old staff voids on every open.
+    const cached = queryClient.getQueryData<DinerTabView | null>(orderKeys.dinerTab(tabId));
+    if (cached) feed.seed(cached.maxSequence);
+
+    feedRef.current = feed;
+    feed.start();
     return () => {
-      stream.stop();
-      streamRef.current = null;
+      feed.stop();
+      feedRef.current = null;
     };
   }, [tabId, enabled, gateway, queryClient]);
 
-  // Markers age out rather than piling up. A change nobody read within a few
-  // seconds is not worth keeping on a bill somebody is trying to check.
+  // Every successful tab read — including the one after a gap — moves the
+  // stream to where the tab now stands.
+  useEffect(() => {
+    if (maxSequence !== undefined) feedRef.current?.seed(maxSequence);
+  }, [maxSequence]);
+
+  // Markers age out by when they arrived here, rather than piling up.
   useEffect(() => {
     if (markers.length === 0) return;
     const timer = setInterval(() => {

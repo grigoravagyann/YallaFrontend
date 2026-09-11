@@ -1,7 +1,7 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
 import { createDinerAuth, type DinerAuth } from '../auth/endpoints';
 import type { AuthSession } from '../auth/session';
-import type { ApiClient } from '../client';
+import type { ApiClient, RequestOptions } from '../client';
 import type {
   Booking,
   CreateBookingCommand,
@@ -11,7 +11,13 @@ import type {
   VenueSummary,
   VerifiedPhone,
 } from '../contracts/booking';
-import type { WaiterCall, WaiterCallReason } from '../contracts/tab';
+import type {
+  ScanResult,
+  TabInvite,
+  TabParticipantChange,
+  WaiterCall,
+  WaiterCallReason,
+} from '../contracts/tab';
 import {
   BookingBusyError,
   BookingCommandInUseError,
@@ -25,12 +31,26 @@ import {
   MenuItemUnavailableError,
   NotTabHostError,
   RateLimitedError,
+  HostCannotLeaveError,
+  InviteExpiredError,
+  ServiceRequestRateLimitedError,
+  TabAccessEndedError,
+  TabClosedError,
   TabNotAcceptingOrdersError,
+  TableOutOfServiceError,
   TableTakenError,
+  TabsNotEnabledError,
   TooManyAttemptsError,
+  UnknownTableCodeError,
   WrongCodeError,
 } from '../contracts/errors';
-import { ApiError, NotFoundError, TooManyRequestsError, UnauthorizedError } from '../errors';
+import {
+  ApiError,
+  ForbiddenError,
+  NotFoundError,
+  TooManyRequestsError,
+  UnauthorizedError,
+} from '../errors';
 import type { YallaGateway } from '../gateway';
 import type {
   BranchMenu,
@@ -48,7 +68,13 @@ import {
   localDateTime,
 } from './mapping';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
-import { booking, dinerTab, reservationState, settlementModeCode } from './dinerMapping';
+import {
+  booking,
+  dinerTab,
+  participantChange,
+  reservationState,
+  settlementModeCode,
+} from './dinerMapping';
 import { venueSummariesFromCards } from './publicMapping';
 import { branchMenu, placeOrderResult, tabEventPage, tabShares } from './staffMapping';
 
@@ -68,15 +94,12 @@ export interface HttpGatewayOptions {
   /** The diner session; phone verification signs it in. */
   readonly auth?: AuthSession | undefined;
   /**
-   * Where the methods this task has not wired yet still come from.
+   * This install's device id, which `POST /api/tabs/open` and `/join` require.
    *
-   * Bookings and the tab roster stay on the mock: `TableTab` carries the venue
-   * name, branch name, floor area and time zone, and `TabView` carries none of
-   * them. See the list at the bottom of this file.
-   * Passing the mock explicitly keeps that decision visible at the call site
-   * rather than buried in a default.
+   * A promise because it is read from storage once. Absent on a surface that
+   * never scans a table — the web booking page — where a scan says so.
    */
-  readonly fallback: YallaGateway;
+  readonly deviceId?: (() => Promise<string>) | undefined;
   /** The zone to convert slots in when the caller did not pass one. */
   readonly defaultTimeZoneId?: string | undefined;
   readonly dinerAuth?: DinerAuth | undefined;
@@ -119,9 +142,150 @@ const SERVICE_PRESET_CODE: Readonly<Record<WaiterCallReason, 1 | 2 | 3 | 4>> = {
  * data layer must not do is show a success that did not happen.
  */
 export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions): YallaGateway {
-  const { audience, auth, fallback } = options;
+  const { audience, auth } = options;
   const dinerAuth = options.dinerAuth ?? createDinerAuth(client);
   const defaultZone = options.defaultTimeZoneId ?? 'Asia/Yerevan';
+  const deviceId =
+    options.deviceId ??
+    (() => Promise.reject(new Error('This surface has no device id, so it cannot open a tab.')));
+
+  /**
+   * tabId → the participant token that tab issued this device.
+   *
+   * Kept apart from the diner's `AuthSession` on purpose. Every call on a tab
+   * carries this token and `skipAuth`, so the client's refresh-on-401 — which
+   * spends the diner's rotating refresh token — can never fire for a tab whose
+   * participant token was refused. In memory only, like the active tab itself:
+   * a tab is a table somebody is sitting at, and it does not outlive the app.
+   */
+  const tabTokens = new Map<string, string>();
+
+  function tabAuth(tabId: string): Omit<RequestOptions, 'method' | 'body'> {
+    const token = tabTokens.get(tabId);
+    if (!token) throw new TabAccessEndedError({ url: `/api/tabs/${tabId}`, tabId });
+    return { skipAuth: true, headers: { authorization: `Bearer ${token}` } };
+  }
+
+  /**
+   * A refused participant token, said as what it means.
+   *
+   * The server answers a token for a closed tab, or for somebody taken off it,
+   * with a bare 401 or 403 and nothing to tell the cases apart — so this does
+   * not try. Reads treat both as "this tab is over for you"; changes treat only
+   * 401 that way, because a 403 there is a rule (not the host, bill asked for).
+   */
+  function ended(error: unknown, tabId: string, statuses: readonly number[] = [401]): unknown {
+    if (error instanceof ApiError && statuses.includes(error.status) && !error.problem?.code) {
+      return new TabAccessEndedError({ url: error.url, tabId, status: error.status });
+    }
+    if (error instanceof UnauthorizedError) {
+      return new TabAccessEndedError({ url: error.url, tabId, status: 401 });
+    }
+    return error;
+  }
+
+  /** A host action refused because the caller is not the host. */
+  function hostError(error: unknown, tabId: string): unknown {
+    if (error instanceof ForbiddenError && error.problem?.code === 'forbidden') {
+      return new NotTabHostError({ url: error.url });
+    }
+    return ended(error, tabId);
+  }
+
+  /**
+   * Admitted to a tab: keep its token, and say which of the three it was.
+   *
+   * `outcome` 1 and 2 opened a tab; 3 put this device on an existing one. A
+   * device that scans a tab it is already approved on comes back as 3 with
+   * itself approved, and a replay of the same scan says `wasReplay` — both are
+   * "already on", not a pending joiner.
+   */
+  function admitted(result: Schemas['Yalla.Application.Tabs.TabAccessResult']): ScanResult {
+    tabTokens.set(result.token.tabId, result.token.accessToken);
+    const tab = dinerTab(result.tab, new Date().toISOString());
+    if (tab.me.status === 'pendingApproval') return { kind: 'joinPending', tab };
+    if ((result.outcome === 1 || result.outcome === 2) && !result.wasReplay) {
+      return { kind: 'tabOpened', tab };
+    }
+    return { kind: 'alreadyOn', tab };
+  }
+
+  /**
+   * A refused scan, as the error the scan screen says something specific about.
+   *
+   * The out-of-service and settling refusals share the generic
+   * `conflicting-state` code, so the table label is read from the server's own
+   * sentence — the only place it is. Anything unrecognised is a closed tab,
+   * which carries the right next step: ask a member of staff.
+   */
+  function rethrowScan(error: unknown): never {
+    if (error instanceof NotFoundError) {
+      throw new UnknownTableCodeError({ url: error.url });
+    }
+    if (error instanceof ApiError) {
+      const code = error.problem?.code;
+      if (code === 'feature-not-enabled') {
+        throw new TabsNotEnabledError({ url: error.url, requestId: error.requestId });
+      }
+      if (code === 'branch-unavailable') {
+        throw new BranchUnavailableError({ url: error.url, requestId: error.requestId });
+      }
+      if (error.status === 409) {
+        const label = /Table (.+?) is out of service/u.exec(error.problem?.detail ?? '')?.[1];
+        if (label) throw new TableOutOfServiceError({ url: error.url, tableLabel: label });
+        throw new TabClosedError({ url: error.url, tabId: '' });
+      }
+    }
+    throw error;
+  }
+
+  /** A server-relative photo url, made absolute so a phone can load it. */
+  function absolute(url: string): string {
+    if (!url.startsWith('/')) return url;
+    try {
+      return new URL(
+        url,
+        client.baseUrl.endsWith('/') ? client.baseUrl : `${client.baseUrl}/`,
+      ).toString();
+    } catch {
+      return url;
+    }
+  }
+
+  function withAbsolutePhotos(menu: BranchMenu): BranchMenu {
+    return {
+      ...menu,
+      categories: menu.categories.map((category) => ({
+        ...category,
+        items: category.items.map((item) => ({
+          ...item,
+          photo: {
+            ...item.photo,
+            thumbnailUrl: absolute(item.photo.thumbnailUrl),
+            cardUrl: absolute(item.photo.cardUrl),
+            fullUrl: absolute(item.photo.fullUrl),
+          },
+        })),
+      })),
+    };
+  }
+
+  async function participantAction(
+    tabId: string,
+    participantId: string,
+    action: 'approve' | 'reject' | 'remove',
+  ): Promise<TabParticipantChange> {
+    try {
+      const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabParticipantView']>(
+        `/api/tabs/${tabId}/participants/${participantId}/${action}`,
+        undefined,
+        tabAuth(tabId),
+      );
+      return participantChange(data);
+    } catch (error) {
+      throw hostError(error, tabId);
+    }
+  }
 
   /**
    * The browse list: `GET /api/public/venues`, anonymous.
@@ -459,31 +623,121 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       }
     },
 
-    // --- Still on the mock ------------------------------------------------------
+    // --- The shared tab ---------------------------------------------------------
     //
-    // Everything below is answered by `fallback`, and the reason is now one
-    // reason rather than "not done yet".
-    //
-    // `TableTab` — the roster contract every tab screen is built on — carries
-    // `venueName`, `branchName`, `floorAreaName` and `timeZoneId`. `TabView`
-    // carries none of the four, and no diner-reachable endpoint composes them:
-    // there is no venue catalogue, and `BranchAvailability` (the one anonymous
-    // read that knows a zone) knows nothing about a tab. Wiring `getTab` today
-    // would mean inventing a venue name on a screen that shows it in the header.
-    // `getBranchTimeZone` above is the one piece that could be extracted
-    // honestly, and it is.
-    //
+    // Real, all of it. The table scan and the invitation are anonymous and hand
+    // back a participant token scoped to that one tab; every call on the tab
+    // after that carries that token, never the phone's diner session. These
+    // were all answered by the mock, which is why no real tab was ever reached.
 
-    scanTableCode: (command) => fallback.scanTableCode(command),
-    getTab: (tabId) => fallback.getTab(tabId),
-    leaveTab: (input) => fallback.leaveTab(input),
-    getBranchMenu: (branchId) => fallback.getBranchMenu(branchId),
-    createTabInvite: (input) => fallback.createTabInvite(input),
-    approveJoin: (input) => fallback.approveJoin(input),
-    rejectJoin: (input) => fallback.rejectJoin(input),
-    removeParticipant: (input) => fallback.removeParticipant(input),
-    setParticipantPermissions: (input) => fallback.setParticipantPermissions(input),
-    setTabDefaultPermissions: (input) => fallback.setTabDefaultPermissions(input),
+    /** `POST /api/tabs/open`: the table's QR, this device, and the scan's command id. */
+    async scanTableCode(command): Promise<ScanResult> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabAccessResult']>(
+          '/api/tabs/open',
+          {
+            qrToken: command.tableCode,
+            deviceId: await deviceId(),
+            clientCommandId: command.commandId,
+            ...(command.displayName ? { displayName: command.displayName } : {}),
+          } satisfies Schemas['Yalla.Api.Endpoints.OpenTabRequest'],
+          { skipAuth: true },
+        );
+        return admitted(data);
+      } catch (error) {
+        rethrowScan(error);
+      }
+    },
+
+    /** `POST /api/tabs/join`: a host's invitation — never the table scan. */
+    async joinTab(command): Promise<ScanResult> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabAccessResult']>(
+          '/api/tabs/join',
+          {
+            joinToken: command.joinToken,
+            deviceId: await deviceId(),
+            ...(command.displayName ? { displayName: command.displayName } : {}),
+          } satisfies Schemas['Yalla.Api.Endpoints.JoinTabRequest'],
+          { skipAuth: true },
+        );
+        return admitted(data);
+      } catch (error) {
+        // Unknown, revoked or older than thirty minutes all answer 401.
+        if (error instanceof UnauthorizedError || error instanceof NotFoundError) {
+          throw new InviteExpiredError({ url: error.url, requestId: error.requestId });
+        }
+        if (error instanceof ApiError && error.status === 409) {
+          throw new TabClosedError({ url: error.url, tabId: '' });
+        }
+        throw error;
+      }
+    },
+
+    /**
+     * `POST /api/tabs/{tabId}/leave`. A guest comes off the tab; a host hands it
+     * to the approved guest who has been on it longest, and with nobody to hand
+     * it to the server refuses with 409.
+     */
+    async leaveTab({ tabId }): Promise<void> {
+      try {
+        await client.post(`/api/tabs/${tabId}/leave`, undefined, tabAuth(tabId));
+        tabTokens.delete(tabId);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          throw new HostCannotLeaveError({ url: error.url, tabId, requestId: error.requestId });
+        }
+        throw ended(error, tabId);
+      }
+    },
+
+    /**
+     * `POST /api/tabs/{tabId}/join-tokens`. Each call issues a fresh invitation
+     * and revokes the last, which is what "new link" is.
+     */
+    async createTabInvite({ tabId }): Promise<TabInvite> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabJoinTokenResult']>(
+          `/api/tabs/${tabId}/join-tokens`,
+          undefined,
+          tabAuth(tabId),
+        );
+        return {
+          tabId: data.tabId,
+          token: data.token,
+          url: data.shareUrl,
+          expiresAtUtc: data.expiresAtUtc,
+        };
+      } catch (error) {
+        throw hostError(error, tabId);
+      }
+    },
+
+    approveJoin: ({ tabId, participantId }) => participantAction(tabId, participantId, 'approve'),
+    rejectJoin: ({ tabId, participantId }) => participantAction(tabId, participantId, 'reject'),
+    removeParticipant: ({ tabId, participantId }) =>
+      participantAction(tabId, participantId, 'remove'),
+
+    async setParticipantPermissions({
+      tabId,
+      participantId,
+      permissions,
+    }): Promise<TabParticipantChange> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabParticipantView']>(
+          `/api/tabs/${tabId}/participants/${participantId}/permissions`,
+          {
+            canOrder: permissions.canOrder,
+            canSeeTableTotal: permissions.canSeeTableTotal,
+            canPay: permissions.canPay,
+          } satisfies Schemas['Yalla.Api.Endpoints.SetParticipantPermissionsRequest'],
+          tabAuth(tabId),
+        );
+        return participantChange(data);
+      } catch (error) {
+        throw hostError(error, tabId);
+      }
+    },
 
     /**
      * Raising a hand, for real.
@@ -495,10 +749,26 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      * fields `WaiterCall` names are read.
      */
     async callWaiter({ tabId, reason }): Promise<WaiterCall> {
-      const { data } = await client.post<Schemas['Yalla.Application.Ordering.ServiceRequestView']>(
-        `/api/tabs/${tabId}/service-requests`,
-        { preset: SERVICE_PRESET_CODE[reason] },
-      );
+      let data: Schemas['Yalla.Application.Ordering.ServiceRequestView'];
+      try {
+        ({ data } = await client.post<Schemas['Yalla.Application.Ordering.ServiceRequestView']>(
+          `/api/tabs/${tabId}/service-requests`,
+          { preset: SERVICE_PRESET_CODE[reason] },
+          tabAuth(tabId),
+        ));
+      } catch (error) {
+        // Not a failure to report: the table has asked several times in a short
+        // window, and a waiter already knows.
+        if (error instanceof ApiError && error.problem?.code === 'service-request-rate-limited') {
+          const window = error.problem.context?.['windowMinutes'];
+          throw new ServiceRequestRateLimitedError({
+            url: error.url,
+            windowMinutes: typeof window === 'number' ? window : null,
+            requestId: error.requestId,
+          });
+        }
+        throw ended(error, tabId);
+      }
       return {
         id: data.serviceRequestId,
         tabId: data.tabId,
@@ -622,8 +892,9 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         );
         // The client's own clock, and labelled as such: `BranchMenuView` carries
         // no timestamp, so a cached-menu banner can only honestly say when this
-        // device read it.
-        return branchMenu(data, new Date().toISOString());
+        // device read it. Photo urls come back server-relative, and a phone has
+        // no page origin to resolve them against.
+        return withAbsolutePhotos(branchMenu(data, new Date().toISOString()));
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -634,20 +905,25 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       try {
         const { data } = await client.get<Schemas['Yalla.Application.Tabs.TabView']>(
           `/api/tabs/${tabId}`,
+          tabAuth(tabId),
         );
         return dinerTab(data, new Date().toISOString());
       } catch (error) {
         if (error instanceof NotFoundError) return null;
-        throw error;
+        throw ended(error, tabId, [401, 403]);
       }
     },
 
     async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
-      const { data } = await client.get<Schemas['Yalla.Application.Ordering.TabEventPage']>(
-        `/api/tabs/${tabId}/events`,
-        { query: { afterSequence } },
-      );
-      return tabEventPage(data);
+      try {
+        const { data } = await client.get<Schemas['Yalla.Application.Ordering.TabEventPage']>(
+          `/api/tabs/${tabId}/events`,
+          { ...tabAuth(tabId), query: { afterSequence } },
+        );
+        return tabEventPage(data);
+      } catch (error) {
+        throw ended(error, tabId, [401, 403]);
+      }
     },
 
     /**
@@ -670,10 +946,13 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
               ...(line.note ? { note: line.note } : {}),
             })),
           } satisfies Schemas['Yalla.Api.Endpoints.PlaceOrderRequest'],
+          tabAuth(command.tabId),
         );
         return placeOrderResult(data);
       } catch (error) {
-        rethrowOrdering(error);
+        // A 403 stays a 403: it is the ordering policy (pending, not allowed,
+        // bill asked for), and the tray refetches the tab to say which.
+        rethrowOrdering(ended(error, command.tabId));
       }
     },
 
@@ -681,13 +960,14 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       try {
         const { data } = await client.get<Schemas['Yalla.Application.Ordering.TabSharesView']>(
           `/api/tabs/${tabId}/shares`,
+          tabAuth(tabId),
         );
         // No `hostParticipantId` on this response, so `isHost` is reported false
-        // rather than guessed. The tab read is where a screen learns who hosts.
+        // rather than guessed. The screen marks the host from the tab read.
         return tabShares(data);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
-        throw error;
+        throw ended(error, tabId, [401, 403]);
       }
     },
 
@@ -703,13 +983,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
            * required field. Found by check-gateway-schema.
            */
           { settlementMode: settlementModeCode(command.mode) },
+          tabAuth(command.tabId),
         );
         return dinerTab(data, new Date().toISOString());
       } catch (error) {
-        if (error instanceof ApiError && error.problem?.code === 'forbidden') {
-          throw new NotTabHostError({ url: error.url });
-        }
-        throw error;
+        throw hostError(error, command.tabId);
       }
     },
   };

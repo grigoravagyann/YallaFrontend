@@ -41,6 +41,14 @@ export interface ChangeMarker {
    */
   readonly lineName: string | null;
   readonly sequence: number;
+  /**
+   * When this device received it, by its own clock.
+   *
+   * What a marker ages by. It used to age by the server's `atUtc` against the
+   * device clock, so a phone a few seconds out hid every marker the moment it
+   * arrived.
+   */
+  readonly arrivedAtMs: number;
 }
 
 /**
@@ -104,6 +112,8 @@ export function applyTabEvents(
    * line that the next tab read will not contain.
    */
   nameLine?: (lineId: string) => string | null,
+  /** This device's clock when the page arrived. */
+  arrivedAtMs: number = Date.now(),
 ): TabStreamUpdate {
   if (events.length === 0) return { kind: 'unchanged', lastSequence };
 
@@ -143,6 +153,7 @@ export function applyTabEvents(
         // read here so this stays a pure fold over the page.
         lineName: lineId ? (nameLine?.(lineId) ?? null) : null,
         sequence: event.sequence,
+        arrivedAtMs,
       };
     });
 
@@ -156,5 +167,5 @@ export function liveMarkers(
   markers: readonly ChangeMarker[],
   nowMs: number,
 ): readonly ChangeMarker[] {
-  return markers.filter((marker) => nowMs - Date.parse(marker.atUtc) < MARKER_LIFETIME_MS);
+  return markers.filter((marker) => nowMs - marker.arrivedAtMs < MARKER_LIFETIME_MS);
 }

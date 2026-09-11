@@ -1,3 +1,5 @@
+import type { DinerTabView, TabParticipantStatusCode } from './ordering';
+
 /**
  * Domain contracts for the shared tab — scanning in, the people on it, and who
  * is allowed to do what.
@@ -120,10 +122,10 @@ export interface TableTab {
  * tab and the caller cannot proceed. See `contracts/errors`.
  */
 export type ScanResult =
-  | { readonly kind: 'tabOpened'; readonly tab: TableTab }
-  | { readonly kind: 'joinPending'; readonly tab: TableTab }
+  | { readonly kind: 'tabOpened'; readonly tab: DinerTabView }
+  | { readonly kind: 'joinPending'; readonly tab: DinerTabView }
   /** Already on this tab — a second scan of the same code, or a re-open. */
-  | { readonly kind: 'alreadyOn'; readonly tab: TableTab };
+  | { readonly kind: 'alreadyOn'; readonly tab: DinerTabView };
 
 export interface ScanTableCommand {
   /**
@@ -139,6 +141,33 @@ export interface ScanTableCommand {
   readonly commandId: string;
   /** Optional display name. Absent is normal and must stay normal. */
   readonly displayName?: string | undefined;
+}
+
+/**
+ * Joining with a host's invitation — `POST /api/tabs/join`.
+ *
+ * Its own command, not a table scan: the invitation token and a table's QR
+ * token go to different endpoints with different bodies, and sending one to
+ * the other can only ever answer "no such table".
+ */
+export interface JoinTabCommand {
+  readonly joinToken: string;
+  readonly displayName?: string | undefined;
+}
+
+/**
+ * One participant, as a host action left them — `TabParticipantView`.
+ *
+ * The host screens refetch the tab for the roster; this is what the action
+ * itself answers with, and the only place a host sees another person's three
+ * flags, because the roster on the tab read carries no flags at all.
+ */
+export interface TabParticipantChange {
+  readonly participantId: string;
+  readonly displayName: string;
+  readonly role: TabParticipantRole;
+  readonly status: TabParticipantStatusCode;
+  readonly permissions: TabPermissions;
 }
 
 // ---------------------------------------------------------------------------

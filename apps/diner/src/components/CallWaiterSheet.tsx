@@ -1,4 +1,9 @@
-import { WAITER_CALL_REASONS, isEndpointNotWired, type WaiterCallReason } from '@yalla/api';
+import {
+  ServiceRequestRateLimitedError,
+  WAITER_CALL_REASONS,
+  isTabAccessEnded,
+  type WaiterCallReason,
+} from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import {
   color,
@@ -38,10 +43,11 @@ export interface CallWaiterSheetProps {
  * expectation of an answer, and during the Friday rush nobody answers — which
  * leaves the diner more annoyed than if they had simply raised a hand.
  *
- * The endpoint does not exist on the backend yet. Rather than fake a
- * confirmation, the HTTP gateway throws `EndpointNotWiredError` and this sheet
- * says so plainly. Telling someone a waiter is coming when nobody was told is
- * strictly worse than telling them to catch an eye.
+ * A table that has already asked several times in a few minutes is told a
+ * waiter is on the way — that is what the server's rate limit means, and it is
+ * not a failure to apologise for. Anything else that did not go through says so
+ * plainly: telling someone a waiter is coming when nobody was told is strictly
+ * worse than telling them to catch an eye.
  */
 export function CallWaiterSheet({
   tabId,
@@ -55,16 +61,29 @@ export function CallWaiterSheet({
 
   const [sent, setSent] = useState<WaiterCallReason | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The rate limit's answer: not an error, the floor already knows. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   const raise = useCallback(
     async (reason: WaiterCallReason) => {
       setError(null);
+      setNotice(null);
       try {
         await call.mutateAsync({ tabId, reason, commandId: newCommandId() });
         setSent(reason);
       } catch (caught) {
         // The one branch that must never be silent.
-        setError(isEndpointNotWired(caught) ? t('waiter.notWired') : t('waiter.failed'));
+        if (caught instanceof ServiceRequestRateLimitedError) {
+          setNotice(
+            caught.windowMinutes
+              ? t('waiter.rateLimited', { count: caught.windowMinutes })
+              : t('waiter.rateLimitedNoWindow'),
+          );
+        } else if (isTabAccessEnded(caught)) {
+          setError(t('tab.accessEnded.body'));
+        } else {
+          setError(t('waiter.failed'));
+        }
       }
     },
     [call, tabId, t],
@@ -73,6 +92,7 @@ export function CallWaiterSheet({
   const close = useCallback(() => {
     setSent(null);
     setError(null);
+    setNotice(null);
     onClose();
   }, [onClose]);
 
@@ -119,6 +139,7 @@ export function CallWaiterSheet({
           </View>
         ) : null}
 
+        {notice ? <Text style={styles.sent}>{notice}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Pressable

@@ -140,6 +140,12 @@ export {
   ExpiredCodeError,
   ExtensionsNotOfferedError,
   HoldNotActiveError,
+  HostCannotLeaveError,
+  InviteExpiredError,
+  ServiceRequestRateLimitedError,
+  TabAccessEndedError,
+  TabsNotEnabledError,
+  isTabAccessEnded,
   LeadTimeExceededError,
   NotTabHostError,
   RateLimitedError,
@@ -193,9 +199,11 @@ export type {
 
 // --- Scanning in and the shared tab -----------------------------------------
 export type {
+  JoinTabCommand,
   ScanResult,
   ScanTableCommand,
   TabInvite,
+  TabParticipantChange,
   TabParticipant,
   TabParticipantRole,
   TabParticipantStatus,
@@ -217,7 +225,8 @@ export {
 } from './contracts/permissions';
 export type { TabPermissionKey } from './contracts/permissions';
 
-export { extractScannedCode } from './contracts/scanCode';
+export { extractScannedCode, parseScannedCode } from './contracts/scanCode';
+export type { ScannedCode } from './contracts/scanCode';
 
 // --- Notifications -----------------------------------------------------------
 export { actionIsLive, canExtendHold } from './contracts/push';
@@ -460,6 +469,7 @@ export type {
   BranchMenu,
   CallWaiterCommand,
   CompCommand,
+  DinerTabAdjustment,
   DinerTabLine,
   DinerTabMe,
   DinerTabView,

@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
+import { useMemo } from 'react';
 import { JoinByLink } from '../../src/components/JoinByLink';
 
 /**
@@ -10,5 +11,6 @@ import { JoinByLink } from '../../src/components/JoinByLink';
  */
 export default function JoinByTableCodeRoute() {
   const { code } = useLocalSearchParams<{ code: string }>();
-  return <JoinByLink code={code} />;
+  const scanned = useMemo(() => (code ? ({ kind: 'table', code } as const) : null), [code]);
+  return <JoinByLink code={scanned} />;
 }

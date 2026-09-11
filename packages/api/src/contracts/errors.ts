@@ -266,6 +266,110 @@ export class NotTabHostError extends ApiError {
   }
 }
 
+/**
+ * The branch has not paid for tabs and ordering — `feature-not-enabled`.
+ *
+ * Not the diner's problem and not a broken sticker: the next step is to order
+ * from a waiter, and the copy says so.
+ */
+export class TabsNotEnabledError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('Ordering from the table is not switched on here.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'TabsNotEnabledError';
+  }
+}
+
+/**
+ * The invitation is unknown, revoked or older than its thirty minutes.
+ *
+ * The host can make a new one in a tap, which is the only useful next step.
+ */
+export class InviteExpiredError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('That invitation no longer works.', {
+      status: 401,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'InviteExpiredError';
+  }
+}
+
+/**
+ * The host tried to leave with nobody approved to hand the tab to.
+ *
+ * The server refuses rather than stranding the tab. A waiter can take it over
+ * or close it, and the copy says exactly that.
+ */
+export class HostCannotLeaveError extends ApiError {
+  readonly tabId: string;
+
+  constructor(options: { url: string; tabId: string; requestId?: string | undefined }) {
+    super('The host cannot leave with nobody to hand the tab to.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'HostCannotLeaveError';
+    this.tabId = options.tabId;
+  }
+}
+
+/**
+ * This phone's hold on the tab is over: the tab closed, or the participant was
+ * taken off it, or left.
+ *
+ * The server answers a participant token in those states with a bare 401 or
+ * 403 and no body to tell them apart, so this does not pretend to. It is its
+ * own type so a screen says "this tab is over for you" instead of "sign in
+ * again" — and so the diner's own session is never asked to refresh for it.
+ */
+export class TabAccessEndedError extends ApiError {
+  readonly tabId: string;
+
+  constructor(options: { url: string; tabId: string; status?: number | undefined }) {
+    super('This tab is closed, or you are no longer on it.', {
+      status: options.status ?? 401,
+      url: options.url,
+    });
+    this.name = 'TabAccessEndedError';
+    this.tabId = options.tabId;
+  }
+}
+
+export function isTabAccessEnded(error: unknown): error is TabAccessEndedError {
+  return error instanceof TabAccessEndedError;
+}
+
+/**
+ * The table has asked for staff too many times in a short window —
+ * `service-request-rate-limited`.
+ *
+ * Not a failure to report: a waiter already knows. The copy says the table has
+ * asked several times and somebody is on the way.
+ */
+export class ServiceRequestRateLimitedError extends ApiError {
+  readonly windowMinutes: number | null;
+
+  constructor(options: {
+    url: string;
+    windowMinutes: number | null;
+    requestId?: string | undefined;
+  }) {
+    super('This table has asked several times already.', {
+      status: 429,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ServiceRequestRateLimitedError';
+    this.windowMinutes = options.windowMinutes;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The counter screen
 // ---------------------------------------------------------------------------

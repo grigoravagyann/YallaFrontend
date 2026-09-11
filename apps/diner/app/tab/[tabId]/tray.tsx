@@ -1,21 +1,50 @@
-import {
-  isEndpointNotWired,
-  isOffline,
-  MenuItemUnavailableError,
-  TabNotAcceptingOrdersError,
-} from '@yalla/api';
+import { MenuItemUnavailableError } from '@yalla/api';
 import { formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
+import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Text } from '../../../src/components/Text';
-import { usePlaceOrder } from '../../../src/data/orderQueries';
-import { useTab } from '../../../src/data/queries';
+import { orderKeys, useDinerTab, usePlaceOrder } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { useTray } from '../../../src/order/TrayProvider';
-import { trayItemCount, traySubtotalDram, trayToOrderLines } from '../../../src/order/tray';
+import {
+  commandFor,
+  trayItemCount,
+  trayLocked,
+  traySubtotalDram,
+  trayToOrderLines,
+} from '../../../src/order/tray';
+import {
+  orderFailureKind,
+  orderingBlock,
+  orderingBlockKey,
+  type OrderFailure,
+  type OrderingBlock,
+} from '../../../src/tab/ordering';
+
+/**
+ * Why the order did not go — or that nobody can tell.
+ *
+ * - `soldOut` — `menu-item-unavailable`, 409, with the dish's name. The
+ *   **whole** order is refused on purpose: a partial order is a decision made on
+ *   somebody's behalf that they discover when the food arrives.
+ * - `closing` — `tab-not-accepting-orders`, 409. A waiter marked the tab
+ *   closing mid-tray; this one offers the bill.
+ * - `blocked` — the server's bare 403, explained by reading the tab again:
+ *   still pending, not allowed to order, or the bill asked for.
+ * - `uncertain` — a timeout, a 5xx, or a connection that dropped while online.
+ *   The order may have reached the kitchen. It used to say "not placed"; now it
+ *   says it cannot tell, keeps the tray as sent, and "Check again" resends it
+ *   with the same command id, which the server answers with the first order
+ *   rather than a second one.
+ */
+type Failure =
+  | { readonly kind: Exclude<OrderFailure, 'soldOut'> }
+  | { readonly kind: 'soldOut'; readonly itemName: string }
+  | { readonly kind: 'blocked'; readonly block: OrderingBlock };
 
 /**
  * The tray, reviewed and sent.
@@ -23,9 +52,13 @@ import { trayItemCount, traySubtotalDram, trayToOrderLines } from '../../../src/
  * One order for everything in it. Sending is the only thing on this screen that
  * touches the server, and it is deliberately unforgiving about what it claims:
  * the button is disabled while the request is in flight, there is **no
- * optimistic success**, and a failure says the order was not placed. A diner who
- * believes food is coming and finds out in twenty minutes that it never was is
- * far worse off than one told immediately.
+ * optimistic success**, and a failure says what is known about it.
+ *
+ * The command id lives with the tray (`pendingSend`), not in this screen, and it
+ * is bound to the tray's contents: leaving the screen and coming back keeps it,
+ * and changing what is in the tray after a definite refusal gets a new one.
+ * After an uncertain failure the tray is locked until it is checked, so a retry
+ * can never replay one order id with different items.
  */
 export default function TrayScreen() {
   const { t } = useTranslation('diner');
@@ -33,55 +66,45 @@ export default function TrayScreen() {
   const router = useRouter();
   const { tabId } = useLocalSearchParams<{ tabId: string }>();
 
-  const { data: tab } = useTab(tabId);
+  const queryClient = useQueryClient();
+  const { data: view, refetch: refetchTab } = useDinerTab(tabId);
   const { state: tray, dispatch } = useTray();
   const placeOrder = usePlaceOrder();
 
   const [noteFor, setNoteFor] = useState<string | null>(null);
-  const [sent, setSent] = useState<{ readonly estimatedReadyAtUtc: string | null } | null>(null);
-  /**
-   * Why the order did not go.
-   *
-   * Two of these are real outcomes rather than failures, and both were
-   * unreachable until the endpoints were wired:
-   *
-   * - `soldOut` — `menu-item-unavailable`, 409, with `context.itemName`. The
-   *   **whole** order is refused, by the server, on purpose: a partial order is
-   *   a decision made on somebody's behalf that they discover when the food
-   *   arrives. So the copy names the dish and says nothing was sent.
-   * - `closing` — `tab-not-accepting-orders`, 409. A waiter marked the tab
-   *   closing while this person was mid-tray. They need to understand what
-   *   happened, not see a generic failure, so this one offers the bill.
-   */
-  const [failure, setFailure] = useState<
-    | { readonly kind: 'offline' | 'notWired' | 'error' | 'closing' }
-    | { readonly kind: 'soldOut'; readonly itemName: string }
-    | null
-  >(null);
-
-  /**
-   * One id per tap on send, reused if that same send is retried.
-   *
-   * Regenerating it on retry is how a lost response becomes a second round of
-   * drinks; it is cleared only once the server has accepted the order.
-   */
-  const commandId = useRef<string | null>(null);
+  const [sent, setSent] = useState<{
+    readonly estimatedReadyAtUtc: string | null;
+    readonly wasReplay: boolean;
+  } | null>(null);
+  const [failure, setFailure] = useState<Failure | null>(null);
 
   const count = trayItemCount(tray);
   const subtotal = traySubtotalDram(tray);
+  const locked = trayLocked(tray);
+  // Nothing changes while a send is in flight or unresolved, so what is sent
+  // again is exactly what the command id was issued for.
+  const frozen = locked || placeOrder.isPending;
+  const block = view ? orderingBlock(view) : null;
 
   async function send(): Promise<void> {
-    if (!tab || count === 0 || placeOrder.isPending) return;
+    if (!view || count === 0 || placeOrder.isPending) return;
+    const refused = orderingBlock(view);
+    if (refused) {
+      setFailure({ kind: 'blocked', block: refused });
+      return;
+    }
     setFailure(null);
-    commandId.current ??= newCommandId();
+
+    // The same id for the same contents, so a resend cannot place it twice.
+    const { commandId, fingerprint } = commandFor(tray, newCommandId);
+    dispatch({ type: 'sending', commandId, fingerprint });
 
     try {
       const result = await placeOrder.mutateAsync({
-        tabId: tab.id,
-        clientCommandId: commandId.current,
-        lines: trayToOrderLines(tray, tab.yourParticipantId),
+        tabId: view.tabId,
+        clientCommandId: commandId,
+        lines: trayToOrderLines(tray, view.me.participantId),
       });
-      commandId.current = null;
       // The confirmation carries the server's own order id and estimate, and it
       // is what the bar on the menu reads. Set only from a `PlaceOrderResult` —
       // never optimistically, and never assembled from the tray.
@@ -93,24 +116,30 @@ export default function TrayScreen() {
           atMs: Date.now(),
         },
       });
-      setSent({ estimatedReadyAtUtc: result.estimatedReadyAtUtc });
+      setSent({ estimatedReadyAtUtc: result.estimatedReadyAtUtc, wasReplay: result.wasReplay });
     } catch (error) {
-      // Not queued, and said plainly. This is the opposite of the staff app's
-      // rule and for a stated reason: a waiter is standing in the room and can
-      // reconcile a late order, a diner on a phone cannot.
-      //
       // **The tray is not cleared on any of these paths.** Nothing was placed,
-      // so the items are still what this person wants; throwing them away would
-      // make them rebuild an order the server merely declined to take yet.
+      // or nobody can tell yet; either way the items are still what this
+      // person wants.
+      const kind = orderFailureKind(error, onlineManager.isOnline());
+      dispatch({ type: 'sendFailed', uncertain: kind === 'uncertain' });
+
       if (error instanceof MenuItemUnavailableError) {
+        // The menu is cached hard; the dish that just sold out must say so.
+        void queryClient.invalidateQueries({ queryKey: orderKeys.menuDetail(view.branchId) });
         setFailure({ kind: 'soldOut', itemName: error.itemName });
-      } else if (error instanceof TabNotAcceptingOrdersError) {
-        setFailure({ kind: 'closing' });
-      } else {
-        setFailure({
-          kind: isOffline(error) ? 'offline' : isEndpointNotWired(error) ? 'notWired' : 'error',
-        });
+        return;
       }
+      if (kind === 'forbidden' || kind === 'closing') {
+        // No body on the 403: the tab read says why.
+        const next = await refetchTab();
+        const why = next.data ? orderingBlock(next.data) : null;
+        if (why && kind === 'forbidden') {
+          setFailure({ kind: 'blocked', block: why });
+          return;
+        }
+      }
+      setFailure({ kind: kind === 'soldOut' ? 'error' : kind });
     }
   }
 
@@ -123,12 +152,15 @@ export default function TrayScreen() {
           {/* Stated once, at order time. Worth more than a progress bar that
               creeps for twenty minutes and is wrong at the end of it. */}
           <Text style={styles.sentBody}>
-            {sent.estimatedReadyAtUtc && tab
+            {sent.estimatedReadyAtUtc && view
               ? t('tray.sent.ready', {
-                  time: formatTime(sent.estimatedReadyAtUtc, tab.timeZoneId, locale),
+                  time: formatTime(sent.estimatedReadyAtUtc, view.timeZoneId, locale),
                 })
               : t('tray.sent.noEstimate')}
           </Text>
+          {/* The resend after an unclear failure found the first one: say that
+              it went once, so nobody asks a waiter to cancel a duplicate. */}
+          {sent.wasReplay ? <Text style={styles.sentBody}>{t('tray.sent.replayed')}</Text> : null}
           <Pressable
             accessibilityRole="button"
             onPress={() => router.replace({ pathname: '/tab/[tabId]', params: { tabId } })}
@@ -148,6 +180,9 @@ export default function TrayScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>{t('tray.title')}</Text>
 
+        {block ? <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text> : null}
+        {locked ? <Text style={styles.blocked}>{t('tray.lockedHint')}</Text> : null}
+
         {count === 0 ? (
           <Text style={styles.muted}>{t('tray.empty')}</Text>
         ) : (
@@ -160,13 +195,14 @@ export default function TrayScreen() {
                 </Text>
               </View>
 
-              <View style={styles.controls}>
+              <View style={[styles.controls, frozen && styles.controlsLocked]}>
                 {/* A stepper on the line already added, never a dialog before
                     adding: two coffees is two taps, not a decision. */}
                 <View style={styles.stepper}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('tray.fewer')}
+                    disabled={frozen}
                     onPress={() => dispatch({ type: 'decrement', key: line.key })}
                     style={styles.stepButton}
                   >
@@ -176,6 +212,7 @@ export default function TrayScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={t('tray.more')}
+                    disabled={frozen}
                     onPress={() => dispatch({ type: 'increment', key: line.key })}
                     style={styles.stepButton}
                   >
@@ -185,7 +222,8 @@ export default function TrayScreen() {
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{ selected: line.isShared }}
+                  accessibilityState={{ selected: line.isShared, disabled: frozen }}
+                  disabled={frozen}
                   onPress={() => dispatch({ type: 'toggleShared', key: line.key })}
                   style={[styles.tag, line.isShared && styles.tagOn]}
                 >
@@ -196,6 +234,7 @@ export default function TrayScreen() {
 
                 <Pressable
                   accessibilityRole="button"
+                  disabled={frozen}
                   onPress={() => setNoteFor(noteFor === line.key ? null : line.key)}
                   style={[styles.tag, Boolean(line.note) && styles.tagOn]}
                 >
@@ -212,7 +251,7 @@ export default function TrayScreen() {
                 <Text style={styles.hint}>{t('tray.sharedExplained')}</Text>
               ) : null}
 
-              {noteFor === line.key ? (
+              {noteFor === line.key && !frozen ? (
                 <TextInput
                   style={styles.noteInput}
                   value={line.note}
@@ -240,27 +279,15 @@ export default function TrayScreen() {
         ) : null}
 
         {failure ? (
-          <View style={styles.failure}>
-            <Text style={styles.failureText}>
+          <View style={[styles.failure, failure.kind === 'uncertain' && styles.failureUnsure]}>
+            <Text style={failure.kind === 'uncertain' ? styles.unsureText : styles.failureText}>
               {failure.kind === 'soldOut'
                 ? // Named. "Something on your order has sold out" makes a person
                   // re-read six lines to work out which; the server told us.
                   t('tray.failed.soldOut', { item: failure.itemName })
-                : failure.kind === 'closing'
-                  ? t('tray.failed.closing')
-                  : failure.kind === 'offline'
-                    ? t('tray.failed.offline')
-                    : failure.kind === 'notWired'
-                      ? t('tray.failed.notWired')
-                      : t('tray.failed.error')}
+                : t(failureKey(failure))}
             </Text>
-            <Text style={styles.failureHint}>
-              {failure.kind === 'soldOut'
-                ? t('tray.failed.soldOutHint')
-                : failure.kind === 'closing'
-                  ? t('tray.failed.closingHint')
-                  : t('tray.failed.askWaiter')}
-            </Text>
+            <Text style={styles.failureHint}>{t(failureHintKey(failure))}</Text>
             {failure.kind === 'closing' ? (
               <Pressable
                 accessibilityRole="button"
@@ -278,19 +305,64 @@ export default function TrayScreen() {
         <View style={styles.footer}>
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: placeOrder.isPending }}
-            disabled={placeOrder.isPending}
+            accessibilityState={{ disabled: placeOrder.isPending || block !== null || !view }}
+            disabled={placeOrder.isPending || block !== null || !view}
             onPress={() => void send()}
-            style={[styles.primary, placeOrder.isPending && styles.primaryBusy]}
+            style={[
+              styles.primary,
+              (placeOrder.isPending || block !== null || !view) && styles.primaryBusy,
+            ]}
           >
             <Text style={styles.primaryText}>
-              {placeOrder.isPending ? t('tray.sending') : t('tray.send', { count })}
+              {placeOrder.isPending
+                ? t('tray.sending')
+                : locked
+                  ? t('tray.failed.checkAgain')
+                  : t('tray.send', { count })}
             </Text>
           </Pressable>
         </View>
       ) : null}
     </SafeAreaView>
   );
+}
+
+/** The sentence for a failure other than a sold-out dish, which names the dish. */
+function failureKey(failure: Exclude<Failure, { kind: 'soldOut' }>): string {
+  switch (failure.kind) {
+    case 'blocked':
+      return orderingBlockKey(failure.block);
+    case 'closing':
+      return 'tray.failed.closing';
+    case 'ended':
+      return 'tab.accessEnded.body';
+    case 'forbidden':
+      return 'tray.failed.forbidden';
+    case 'offline':
+      return 'tray.failed.offline';
+    case 'uncertain':
+      return 'tray.failed.uncertain';
+    case 'error':
+      return 'tray.failed.error';
+  }
+}
+
+function failureHintKey(failure: Failure): string {
+  switch (failure.kind) {
+    case 'soldOut':
+      return 'tray.failed.soldOutHint';
+    case 'closing':
+      return 'tray.failed.closingHint';
+    case 'uncertain':
+      return 'tray.failed.uncertainHint';
+    case 'blocked':
+    case 'ended':
+    case 'forbidden':
+      return 'tray.failed.notSent';
+    case 'offline':
+    case 'error':
+      return 'tray.failed.askWaiter';
+  }
 }
 
 const styles = StyleSheet.create({
@@ -305,6 +377,15 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: fontSize.xl, lineHeight: lineHeight.xl, fontWeight: fontWeight.bold },
   muted: { color: color.mutedForeground, fontSize: fontSize.md, lineHeight: lineHeight.md },
+  blocked: {
+    padding: space.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: color.borderStrong,
+    color: color.foreground,
+    fontSize: fontSize.sm,
+    lineHeight: lineHeight.sm,
+  },
 
   line: {
     gap: space.sm,
@@ -318,6 +399,7 @@ const styles = StyleSheet.create({
   lineName: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.medium },
   lineTotal: { fontSize: fontSize.md, fontWeight: fontWeight.bold },
   controls: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
+  controlsLocked: { opacity: 0.5 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   stepButton: {
     width: touchTarget.regular,
@@ -374,7 +456,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: color.danger,
   },
+  failureUnsure: { borderColor: color.warning },
   failureText: { color: color.danger, fontWeight: fontWeight.bold, lineHeight: lineHeight.md },
+  unsureText: { color: color.foreground, fontWeight: fontWeight.bold, lineHeight: lineHeight.md },
   failureHint: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
   failureAction: {
     marginTop: space.sm,

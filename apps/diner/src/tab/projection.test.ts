@@ -24,6 +24,14 @@ function line(id: string, overrides: Partial<DinerTabLine> = {}): DinerTabLine {
     isShared: false,
     participantId: ME,
     orderedByName: 'AM',
+    orderId: 'o1',
+    menuItemId: 'm1',
+    note: null,
+    orderStatus: 'inKitchen',
+    sharedWithCount: 0,
+    isVoided: false,
+    voidReason: null,
+    voidedAtUtc: null,
     ...overrides,
   };
 }
@@ -32,6 +40,9 @@ function tab(overrides: Partial<DinerTabView> = {}): DinerTabView {
   return {
     tabId: 'tab-1',
     branchId: 'b1',
+    venueName: 'Lumen Coffee',
+    branchName: 'Northern Avenue',
+    timeZoneId: ZONE,
     tableLabel: '7',
     status: 'open',
     settlementMode: 'everyonePaysOwnItems',
@@ -65,6 +76,9 @@ function tab(overrides: Partial<DinerTabView> = {}): DinerTabView {
         remainingDram: 1320,
       },
     },
+    serviceChargePercent: 10,
+    adjustments: [],
+    maxSequence: 3,
     openedAtUtc: '2026-09-06T09:00:00Z',
     closedAtUtc: null,
     fetchedAtUtc: '2026-09-06T10:01:00Z',
@@ -87,11 +101,11 @@ describe('a participant who may see the table total', () => {
     expect(rendered.money.totalDram).toBe(1320);
   });
 
-  it('states no service-charge percentage, because no diner endpoint carries one', () => {
+  it('carries the venue rate on the tab, not inside the aggregate', () => {
     const rendered = projectTab(tab(), ZONE);
-    // `ReservationPolicyView` is the only view with a percentage and it is
-    // `ManagerOrAbove`. A screen that had one here would be showing a number
-    // nothing sent it.
+    // The tab read carries the rate for everyone; it is a fact about the
+    // venue, so it is not on the money union a hidden total takes away.
+    expect(rendered.serviceChargePercent).toBe(10);
     expect(rendered.money).not.toHaveProperty('serviceChargePercent');
   });
 
@@ -160,8 +174,8 @@ describe('a participant whose host has hidden the total', () => {
 
 // --- Test 2, against the real response shape --------------------------------
 
-describe('the hidden-total branch against the wire', () => {
-  it('narrows on tableTotalVisible and the aggregate is absent from the body', async () => {
+describe('the shares read against the wire', () => {
+  it('gives the host the table branch', async () => {
     // Through the mock gateway, which applies the same permission rule the
     // server does and produces the same union.
     const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
@@ -170,14 +184,7 @@ describe('the hidden-total branch against the wire', () => {
       commandId: '77777777-7777-4777-8777-777777777777',
     });
 
-    // Hide the total from everybody who joins from here on.
-    await gateway.setTabDefaultPermissions({
-      tabId: host.tab.id,
-      permissions: { canOrder: true, canSeeTableTotal: false, canPay: false },
-      commandId: '78777777-7777-4777-8777-777777777777',
-    });
-
-    const shares = await gateway.getTabShares(host.tab.id);
+    const shares = await gateway.getTabShares(host.tab.tabId);
     // The host still sees everything.
     expect(shares?.kind).toBe('table');
   });
@@ -186,18 +193,24 @@ describe('the hidden-total branch against the wire', () => {
 // --- voided lines -----------------------------------------------------------
 
 describe('a line a waiter voided', () => {
-  it('does not reach the diner at all, so nothing renders it', () => {
-    // `TabProjection` filters `IsVoided` out of both `myLines` and
-    // `tableLines`. This is the assertion that the client stopped modelling a
-    // strike-through it can never be sent: `RenderedLine` has no `isVoided`,
-    // no `voidReason` and no `voidedByName`, so a screen cannot reach for one.
-    const rendered = projectTab(tab(), ZONE);
-    const [first] = rendered.myLines;
+  it('arrives marked, with the reason, and is never drawn as a live free item', () => {
+    // The server keeps a voided line in both arrays with `isVoided` and the
+    // reason, worth zero. This used to assert the opposite — that it never
+    // arrived — which pinned the bill drawing it as "1× Khorovats … 0 ֏".
+    const rendered = projectTab(
+      tab({
+        myLines: [
+          line('l1'),
+          line('l2', { isVoided: true, lineTotalDram: 0, voidReason: 'Wrong item' }),
+        ],
+      }),
+      ZONE,
+    );
 
-    expect(first).toBeDefined();
-    expect(first).not.toHaveProperty('isVoided');
-    expect(first).not.toHaveProperty('voidReason');
-    expect(first).not.toHaveProperty('voidedByName');
+    expect(rendered.myLines.map((l) => l.isVoided)).toEqual([false, true]);
+    expect(rendered.myLines[1]?.voidReason).toBe('Wrong item');
+    // And it counts toward nothing this person owes.
+    expect(ownItemsSubtotalDram(rendered.myLines)).toBe(1200);
   });
 });
 
@@ -226,7 +239,7 @@ describe('the participant own subtotal', () => {
 
 describe('times', () => {
   it('carries the branch zone through, never the device one', () => {
-    // Not on `TabView`: passed in from the anonymous availability endpoint.
+    // Passed in from the tab read's own zone, never the device's.
     expect(projectTab(tab(), 'Asia/Yerevan').timeZoneId).toBe('Asia/Yerevan');
     expect(projectTab(tab(), 'Europe/Moscow').timeZoneId).toBe('Europe/Moscow');
   });

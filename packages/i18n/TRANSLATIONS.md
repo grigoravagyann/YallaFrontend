@@ -49,6 +49,24 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   (`push.actions.holdNotActive`, `.extensionsNotOffered`, `.keepTableHint`).
   Removed: `confirm.error.network` (it promised "nothing was held" after a
   dropped connection that may have booked) and `bookings.status.cancelled`.
+  The shared tab: `tab.accessEnded.*` (the server cannot say whether the tab
+  closed or the person was taken off, so the copy must keep covering both),
+  `tab.hostCannotLeave`, `tab.loadError`, `tab.closingBanner`,
+  `order.blocked.*`, `pending.endedTitle`, `pending.endedBody`,
+  `people.permissionsUnknown`, `people.savePermissions`,
+  `scan.error.notEnabled`, `.branchUnavailable`, `.uncertain`,
+  `join.error.expired`, `tray.lockedHint`, `tray.failed.uncertain`,
+  `.uncertainHint`, `.checkAgain`, `.forbidden`, `.notSent` (the uncertain copy
+  must keep saying the outcome is _not known_), `tray.sent.replayed`,
+  `bill.paid`, `bill.remaining`, `bill.removedBy`, `bill.removedNoReason`,
+  `bill.serviceChargeRate`, `bill.serviceChargeApplies`, `bill.sharedWays_*`,
+  `bill.adjustment.*`, `settle.mode.notHost`, `.closing`, `.failed`,
+  `settle.shares.paid`, `waiter.rateLimited_*`, `waiter.rateLimitedNoWindow`.
+  Rewritten: `tab.leaveHostBody`, `settle.shares.hidden` (it pointed at items
+  "above" that are not on that screen), `scan.manualBody`,
+  `scan.manualPlaceholder`. Removed with the surfaces that only the mock ever
+  answered: every `*.notWired`, `pending.rejected*`, `pending.removed*`,
+  `people.defaultsTitle`, `people.defaultsBody`.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in

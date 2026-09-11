@@ -46,6 +46,8 @@ export const MOCK_SERVICE_CHARGE_PERCENT = 10;
 function dinerLine(line: TabLine): DinerTabLine {
   return {
     id: line.id,
+    orderId: line.orderId,
+    menuItemId: line.menuItemId,
     name: line.name,
     quantity: line.quantity,
     unitPriceDram: line.unitPriceDram,
@@ -53,6 +55,12 @@ function dinerLine(line: TabLine): DinerTabLine {
     isShared: line.isShared || line.isTableAttributed,
     participantId: line.participantId,
     orderedByName: line.orderedByName,
+    note: line.note,
+    orderStatus: line.orderStatus,
+    sharedWithCount: line.sharedWithCount,
+    isVoided: line.status === 'voided',
+    voidReason: line.voidReason,
+    voidedAtUtc: null,
   };
 }
 
@@ -453,19 +461,17 @@ export function createTabOrders(options: TabOrdersOptions) {
       const canSeeTableTotal = me?.permissions.canSeeTableTotal ?? false;
 
       /**
-       * Voided lines are gone, not struck through.
+       * Voided lines stay, marked, as the server now keeps them.
        *
-       * `TabProjection` builds both of its line arrays from
-       * `tab.Lines.Where(l => !l.IsVoided)`, so a diner never receives a voided
-       * line in any form. The mock filters identically on purpose: a mock that
-       * kept them would let this screen be built against a strike-through the
-       * server will never send, and the disagreement would surface at a table.
+       * `TabProjection` keeps a voided line in both arrays with `isVoided` and
+       * the reason, worth zero. A mock that dropped them — which this used to —
+       * let the bill be built against a line that silently vanishes.
        */
-      const liveLines = record.lines.filter((line) => line.status !== 'voided');
+      const allLines = record.lines;
 
       const visibleLines = canSeeTableTotal
-        ? liveLines
-        : liveLines.filter(
+        ? allLines
+        : allLines.filter(
             (line) =>
               line.participantId === participantId || line.isShared || line.isTableAttributed,
           );
@@ -506,10 +512,20 @@ export function createTabOrders(options: TabOrdersOptions) {
       }
 
       const host = tab.participants.find((person) => person.role === 'host') ?? null;
+      const statusOf = (status: TabParticipant['status']) =>
+        status === 'active'
+          ? ('approved' as const)
+          : status === 'pending'
+            ? ('pendingApproval' as const)
+            : ('removed' as const);
+      const mePending = me?.status === 'pending';
 
       return {
         tabId: tab.id,
         branchId: tab.branchId,
+        venueName: tab.venueName,
+        branchName: tab.branchName,
+        timeZoneId: tab.timeZoneId,
         tableLabel: tab.tableLabel,
         status: tab.status === 'closed' ? 'closed' : 'open',
         settlementMode: record.settlementMode,
@@ -520,7 +536,7 @@ export function createTabOrders(options: TabOrdersOptions) {
           participantId: participantId,
           displayName: me?.displayName ?? '',
           role: me?.role ?? 'guest',
-          status: me?.status === 'pending' ? 'pendingApproval' : 'approved',
+          status: me ? statusOf(me.status) : 'removed',
           canOrder: me?.permissions.canOrder ?? false,
           // The same three-way rule the ordering endpoint enforces, in one
           // place. A screen must never assemble this itself.
@@ -530,12 +546,16 @@ export function createTabOrders(options: TabOrdersOptions) {
           canSeeTableTotal,
           joinedAtUtc: me?.joinedAtUtc ?? tab.openedAtUtc,
         },
-        participants: tab.participants.map((person) => ({
-          participantId: person.id,
-          displayName: person.displayName ?? '',
-          role: person.role,
-          status: person.status === 'pending' ? 'pendingApproval' : 'approved',
-        })),
+        // The whole table for an approved participant; only themself while
+        // pending — which is what the server sends.
+        participants: tab.participants
+          .filter((person) => !mePending || person.id === participantId)
+          .map((person) => ({
+            participantId: person.id,
+            displayName: person.displayName ?? '',
+            role: person.role,
+            status: statusOf(person.status),
+          })),
         myLines: visibleLines
           .filter((line) => line.participantId === participantId || line.isShared)
           .map(dinerLine),
@@ -543,6 +563,19 @@ export function createTabOrders(options: TabOrdersOptions) {
         // has ordered nothing" must not be the same value.
         tableLines: canSeeTableTotal ? visibleLines.map(dinerLine) : null,
         money,
+        serviceChargePercent: MOCK_SERVICE_CHARGE_PERCENT,
+        adjustments: record.adjustments.map((adjustment) => ({
+          id: adjustment.id,
+          kind: adjustment.kind,
+          lineId: adjustment.lineId,
+          percent: adjustment.percent,
+          amountDram: adjustment.amountDram,
+          reductionDram: adjustment.reductionDram,
+          reason: adjustment.reason,
+          isVoided: adjustment.isVoided,
+          atUtc: adjustment.atUtc,
+        })),
+        maxSequence: record.sequence,
         openedAtUtc: tab.openedAtUtc,
         closedAtUtc: tab.closedAtUtc,
         fetchedAtUtc: iso(now()),

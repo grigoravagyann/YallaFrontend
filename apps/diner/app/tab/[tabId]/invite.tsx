@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { Text } from '../../../src/components/Text';
 import QRCode from 'react-native-qrcode-svg';
-import { useTab, useTabInvite } from '../../../src/data/queries';
+import { useDinerTab } from '../../../src/data/orderQueries';
+import { useTabInvite } from '../../../src/data/queries';
 import { useNow } from '../../../src/hooks/useNow';
 
 /** The QR is read across a table, in a dim room, off a phone held at an angle. */
@@ -38,7 +39,7 @@ export default function InviteScreen() {
   const [nonce, setNonce] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const { data: tab } = useTab(tabId);
+  const { data: tab } = useDinerTab(tabId);
   const { data: invite, isLoading, isError, refetch, isFetching } = useTabInvite(tabId, nonce);
 
   // A clock as subscribed state rather than `Date.now()` in render, so the

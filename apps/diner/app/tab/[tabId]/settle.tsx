@@ -1,5 +1,10 @@
-import { isEndpointNotWired, SETTLEMENT_MODES, type SettlementMode } from '@yalla/api';
-import { formatDram } from '@yalla/format';
+import {
+  isTabAccessEnded,
+  SETTLEMENT_MODES,
+  type ParticipantShare,
+  type SettlementMode,
+} from '@yalla/api';
+import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,8 +20,8 @@ import {
 import { Text } from '../../../src/components/Text';
 import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
 import { useDinerTab, useSetSettlementMode, useTabShares } from '../../../src/data/orderQueries';
-import { useTab } from '../../../src/data/queries';
 import { newCommandId } from '../../../src/lib/commandId';
+import { settlementModeFailureKey, withHost } from '../../../src/tab/settle';
 
 /**
  * Settling up, as far as it goes today.
@@ -27,7 +32,8 @@ import { newCommandId } from '../../../src/lib/commandId';
  * working out who hands over what needs the numbers far more than it needs a
  * card form.
  *
- * So the settle path is: see what you owe, then ask for the waiter.
+ * So the settle path is: see what you owe — and what has already been paid —
+ * then ask for the waiter.
  */
 export default function SettleScreen() {
   const { t } = useTranslation('diner');
@@ -35,16 +41,16 @@ export default function SettleScreen() {
   const router = useRouter();
   const { tabId } = useLocalSearchParams<{ tabId: string }>();
 
-  const { data: tab } = useTab(tabId);
   const { data: view } = useDinerTab(tabId);
-  const { data: shares, isLoading, isError, error } = useTabShares(tabId);
+  const { data: rawShares, isLoading, isError, error } = useTabShares(tabId);
   const setMode = useSetSettlementMode();
 
   const [waiterOpen, setWaiterOpen] = useState(false);
 
-  const isHost = tab?.yourRole === 'host' && tab.yourStatus === 'active';
-  const locked = view?.settlementModeLocked ?? false;
-  const mode = view?.settlementMode ?? 'everyonePaysOwnItems';
+  // The role from the tab the server described. `/shares` cannot say who
+  // hosts, so the host is marked from the tab's own `hostParticipantId`.
+  const isHost = view?.me.role === 'host' && view.me.status === 'approved';
+  const shares = rawShares && view ? withHost(rawShares, view.hostParticipantId) : rawShares;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -54,14 +60,19 @@ export default function SettleScreen() {
         <Text style={styles.title}>{t('settle.title')}</Text>
 
         {/* The host picks how the bill splits, in the words a person would use
-            rather than the enum names. Changeable until the first payment
-            lands — after that, re-apportioning what somebody already paid is
-            not something a tap should be able to do. */}
-        {isHost ? (
+            rather than the enum names. Nothing is shown selected until the tab
+            has been read: a default drawn while loading named a mode this tab
+            may not use. */}
+        {!view ? (
+          <View style={styles.card}>
+            <ActivityIndicator color={color.primaryInk} />
+          </View>
+        ) : isHost ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{t('settle.mode.title')}</Text>
             {SETTLEMENT_MODES.map((option: SettlementMode) => {
-              const selected = option === mode;
+              const selected = option === view.settlementMode;
+              const locked = view.settlementModeLocked;
               return (
                 <Pressable
                   key={option}
@@ -69,7 +80,11 @@ export default function SettleScreen() {
                   accessibilityState={{ selected, disabled: locked }}
                   disabled={locked || setMode.isPending}
                   onPress={() =>
-                    setMode.mutate({ tabId, mode: option, clientCommandId: newCommandId() })
+                    setMode.mutate({
+                      tabId: view.tabId,
+                      mode: option,
+                      clientCommandId: newCommandId(),
+                    })
                   }
                   style={[
                     styles.option,
@@ -86,7 +101,14 @@ export default function SettleScreen() {
                 </Pressable>
               );
             })}
-            {locked ? <Text style={styles.muted}>{t('settle.mode.locked')}</Text> : null}
+            {view.settlementModeLocked ? (
+              <Text style={styles.muted}>{t('settle.mode.locked')}</Text>
+            ) : null}
+            {/* A refused change is said. It used to vanish: no handler, nothing
+                rendered, and the host tapped again and again. */}
+            {setMode.error ? (
+              <Text style={styles.error}>{t(settlementModeFailureKey(setMode.error))}</Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -98,43 +120,20 @@ export default function SettleScreen() {
             <ActivityIndicator color={color.primaryInk} />
           ) : isError || !shares ? (
             <Text style={styles.muted}>
-              {isEndpointNotWired(error) ? t('settle.notWired') : t('settle.error')}
+              {isTabAccessEnded(error) ? t('tab.accessEnded.body') : t('settle.error')}
             </Text>
           ) : shares.kind !== 'table' ? (
-            // The host has hidden the table total, so the server sent no
-            // aggregate at all — the members are absent from the body, not
-            // zeroed. Narrowing is the only way to reach them, which is what
-            // stops a hidden total being drawn as a settled bill.
-            <Text style={styles.muted}>{t('settle.shares.hidden')}</Text>
+            // The host has hidden the table total: no aggregate and nobody
+            // else's share is in the body. This person's own share still is,
+            // and on the screen for "what do I owe" it is the thing to show.
+            <View style={styles.shares}>
+              {shares.yourShare ? <ShareRow share={shares.yourShare} locale={locale} /> : null}
+              <Text style={styles.muted}>{t('settle.shares.hidden')}</Text>
+            </View>
           ) : (
             <View style={styles.shares}>
               {shares.shares.map((share) => (
-                <View key={share.participantId} style={styles.shareRow}>
-                  <View style={styles.shareWho}>
-                    <Text style={styles.shareName}>
-                      {share.displayName ?? t('settle.unnamed')}
-                      {share.isHost ? ` · ${t('settle.host')}` : ''}
-                    </Text>
-                    {/* Shared items and the service charge are already in the
-                        number; saying so is what stops the table adding it up
-                        again by hand and getting a different answer. */}
-                    <Text style={styles.shareBreakdown}>
-                      {t('settle.shares.breakdown', {
-                        own: formatDram(share.ownItemsDram, locale),
-                        shared: formatDram(share.sharedItemsDram, locale),
-                        service: formatDram(share.serviceChargeDram, locale),
-                      })}
-                    </Text>
-                    {share.absorbedFromRemovedDram > 0 ? (
-                      <Text style={styles.shareBreakdown}>
-                        {t('settle.shares.absorbed', {
-                          amount: formatDram(share.absorbedFromRemovedDram, locale),
-                        })}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.shareAmount}>{formatDram(share.shareDram, locale)}</Text>
-                </View>
+                <ShareRow key={share.participantId} share={share} locale={locale} />
               ))}
               <View style={styles.shareTotal}>
                 <Text style={styles.shareTotalLabel}>{t('settle.shares.total')}</Text>
@@ -142,6 +141,24 @@ export default function SettleScreen() {
                   {formatDram(shares.totals.totalDram, locale)}
                 </Text>
               </View>
+              {/* Once money has changed hands the table needs what is left,
+                  not the whole bill stated again as owed. */}
+              {shares.totals.paidDram > 0 ? (
+                <>
+                  <View style={styles.shareTotalRow}>
+                    <Text style={styles.shareTotalLabel}>{t('bill.paid')}</Text>
+                    <Text style={styles.shareTotalLabel}>
+                      {formatDram(shares.totals.paidDram, locale)}
+                    </Text>
+                  </View>
+                  <View style={styles.shareTotalRow}>
+                    <Text style={styles.remainingLabel}>{t('bill.remaining')}</Text>
+                    <Text style={styles.remainingValue}>
+                      {formatDram(shares.totals.remainingDram, locale)}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
             </View>
           )}
         </View>
@@ -176,9 +193,48 @@ export default function SettleScreen() {
         visible={waiterOpen}
         onClose={() => setWaiterOpen(false)}
         initialReason="bill"
-        tableLabel={tab?.tableLabel}
+        tableLabel={view?.tableLabel}
       />
     </SafeAreaView>
+  );
+}
+
+/** One person's share: what it is made of, and what they have already paid. */
+function ShareRow({ share, locale }: { share: ParticipantShare; locale: Locale }) {
+  const { t } = useTranslation('diner');
+  return (
+    <View style={styles.shareRow}>
+      <View style={styles.shareWho}>
+        <Text style={styles.shareName}>
+          {share.displayName || t('settle.unnamed')}
+          {share.isHost ? ` · ${t('settle.host')}` : ''}
+        </Text>
+        {/* Shared items and the service charge are already in the number;
+            saying so is what stops the table adding it up again by hand and
+            getting a different answer. */}
+        <Text style={styles.shareBreakdown}>
+          {t('settle.shares.breakdown', {
+            own: formatDram(share.ownItemsDram, locale),
+            shared: formatDram(share.sharedItemsDram, locale),
+            service: formatDram(share.serviceChargeDram, locale),
+          })}
+        </Text>
+        {share.absorbedFromRemovedDram > 0 ? (
+          <Text style={styles.shareBreakdown}>
+            {t('settle.shares.absorbed', {
+              amount: formatDram(share.absorbedFromRemovedDram, locale),
+            })}
+          </Text>
+        ) : null}
+        {/* Reported beside the share, never netted off it — as the server does. */}
+        {share.paidDram > 0 ? (
+          <Text style={styles.sharePaid}>
+            {t('settle.shares.paid', { amount: formatDram(share.paidDram, locale) })}
+          </Text>
+        ) : null}
+      </View>
+      <Text style={styles.shareAmount}>{formatDram(share.shareDram, locale)}</Text>
+    </View>
   );
 }
 
@@ -196,6 +252,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: fontSize.lg, lineHeight: lineHeight.lg, fontWeight: fontWeight.bold },
   muted: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
+  error: { color: color.danger, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
 
   option: {
     gap: 2,
@@ -220,6 +277,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     lineHeight: lineHeight.xs,
   },
+  sharePaid: { color: color.success, fontSize: fontSize.xs, lineHeight: lineHeight.xs },
   shareAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
   shareTotal: {
     flexDirection: 'row',
@@ -228,8 +286,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: color.borderStrong,
   },
+  shareTotalRow: { flexDirection: 'row', justifyContent: 'space-between' },
   shareTotalLabel: { fontSize: fontSize.md, fontWeight: fontWeight.medium },
   shareTotalValue: { fontSize: fontSize.md, fontWeight: fontWeight.bold },
+  remainingLabel: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
+  remainingValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
 
   payBody: { color: color.foreground, fontSize: fontSize.md, lineHeight: lineHeight.md },
   primary: {

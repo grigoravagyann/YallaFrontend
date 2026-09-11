@@ -357,20 +357,21 @@ export interface TabBill {
  * were `null` forever on the diner path and a `status` that could never be
  * `voided`.
  *
- * **There is no `status` here, and that is the finding rather than an
- * omission.** `TabProjection` filters `IsVoided` out of both `myLines` and
- * `tableLines`, so a voided line does not arrive at a diner in any form: not
- * struck through, not zeroed, not at all. The `lineVoided` event is the only
- * signal, and what it says is that a line the phone *used to* hold is gone.
- * See `useTabStream` for how that is announced by name.
+ * **A voided line arrives, marked.** The server keeps it in both arrays with
+ * `isVoided`, the reason staff gave and when, worth zero and counted toward no
+ * total — so the bill draws it struck through with the reason, rather than as
+ * a live item at `0 ֏` or as a row that silently disappears.
  */
 export interface DinerTabLine {
   readonly id: string;
+  /** The order it came in on — what a retried send is reconciled against. */
+  readonly orderId: string;
+  readonly menuItemId: string;
   /** The name as it was when ordered. A renamed dish does not rewrite history. */
   readonly name: string;
   readonly quantity: number;
   readonly unitPriceDram: number;
-  /** `unitPriceDram × quantity`, from the server. */
+  /** `unitPriceDram × quantity`, from the server. Zero once voided. */
   readonly lineTotalDram: number;
   /** True when the item belongs to the table and splits across those present. */
   readonly isShared: boolean;
@@ -378,6 +379,36 @@ export interface DinerTabLine {
   readonly participantId: string | null;
   /** Their name at the time of reading. `null` for a table-attributed line. */
   readonly orderedByName: string | null;
+  /** The note sent with it — "no sugar". */
+  readonly note: string | null;
+  /** Where the kitchen is with it. */
+  readonly orderStatus: OrderStatus;
+  /** How many ways a shared line splits, snapshotted when it was ordered. */
+  readonly sharedWithCount: number;
+  readonly isVoided: boolean;
+  /** What staff said when they removed it. */
+  readonly voidReason: string | null;
+  readonly voidedAtUtc: string | null;
+}
+
+/**
+ * A comp or discount on the tab, with the reason the manager typed.
+ *
+ * `TabView.adjustments`. A total that drops with no row and no reason is the
+ * fastest way to make somebody distrust the bill.
+ */
+export interface DinerTabAdjustment {
+  readonly id: string;
+  readonly kind: AdjustmentKind;
+  /** `null` when it applies to the whole tab. */
+  readonly lineId: string | null;
+  readonly percent: number | null;
+  readonly amountDram: number | null;
+  /** What it actually took off, from the server. */
+  readonly reductionDram: number;
+  readonly reason: string;
+  readonly isVoided: boolean;
+  readonly atUtc: string;
 }
 
 /** One other person at the table, as the roster lists them. */
@@ -428,12 +459,9 @@ export interface DinerTabMe {
  * prices, and never your own lines: a guest always knows what their own coffee
  * costs.
  *
- * **There is no `serviceChargePercent` on either branch.** It was here, and it
- * was a guess. The only endpoint that carries a branch's percentage is
- * `GET /api/branches/{id}/reservation-policy`, which is `ManagerOrAbove`; no
- * diner token can read it. The `ownItemsOnly` branch was designed around
- * stating the percentage without stating the total, and that copy cannot be
- * written honestly today — see the README.
+ * The service-charge **percentage** is on neither branch: it is on the tab
+ * itself (`DinerTabView.serviceChargePercent`), for everyone, because a rate
+ * is a fact about the venue rather than an aggregate of the table.
  */
 export type TabMoney =
   | {
@@ -465,6 +493,14 @@ export type TabMoney =
 export interface DinerTabView {
   readonly tabId: string;
   readonly branchId: string;
+  /** Where the table is, for the header. `TabView` carries both names. */
+  readonly venueName: string;
+  readonly branchName: string;
+  /**
+   * The branch's IANA zone. Every instant on the tab — a kitchen estimate, a
+   * last-updated stamp — renders in it, never in the device's.
+   */
+  readonly timeZoneId: string;
   readonly tableLabel: string;
   readonly status: 'open' | 'closing' | 'closed' | 'abandoned';
   readonly settlementMode: SettlementMode;
@@ -483,16 +519,24 @@ export interface DinerTabView {
   /** Every live line on the tab. `null` when the total is hidden. */
   readonly tableLines: readonly DinerTabLine[] | null;
   readonly money: TabMoney;
+  /** The venue's service-charge rate, for everyone — hidden total or not. */
+  readonly serviceChargePercent: number;
+  /** Comps and discounts, with their reasons, including voided ones. */
+  readonly adjustments: readonly DinerTabAdjustment[];
+  /**
+   * Where the tab's event stream stands. The live bill starts reading events
+   * from here; without it the stream never started at all.
+   */
+  readonly maxSequence: number;
   readonly openedAtUtc: string;
   readonly closedAtUtc: string | null;
   /**
    * When this copy was read, from the client's own clock.
    *
-   * `TabView` carries no `asOfUtc` and no sequence high-water mark. This is not
-   * the server's opinion of when the tab last changed — it is when this device
-   * fetched it, which is the only honest thing a stale-bill banner can say. The
-   * event cursor is seeded from `GET /events`'s `maxSequence` instead; see
-   * `useTabStream`.
+   * `TabView` carries no `asOfUtc`. This is not the server's opinion of when
+   * the tab last changed — it is when this device fetched it, which is the only
+   * honest thing a stale-bill banner can say. The event cursor is seeded from
+   * {@link maxSequence}; see `useTabStream`.
    */
   readonly fetchedAtUtc: string;
 }

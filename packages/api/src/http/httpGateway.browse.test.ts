@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
-import { createMockGateway } from '../mocks/mockGateway';
 import { fakeBackend } from './fakeBackend.testkit';
 import { createHttpGateway } from './httpGateway';
 
@@ -63,7 +62,6 @@ function gatewayOver(cards: readonly Card[]) {
   const backend = fakeBackend({ 'GET /api/public/venues': { body: cards } });
   const gateway = createHttpGateway(backend.client(), {
     audience: 'diner',
-    fallback: createMockGateway(),
   });
   return { gateway, backend };
 }
@@ -157,7 +155,6 @@ describe('browse over /api/public/venues', () => {
     });
     const gateway = createHttpGateway(backend.client(), {
       audience: 'diner',
-      fallback: createMockGateway(),
     });
 
     await expect(
