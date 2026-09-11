@@ -25,11 +25,16 @@ import { useBranchFormat } from './useBranchFormat';
 
 export interface OrderQueuePanelProps {
   readonly orders: readonly OrderQueueEntry[];
-  readonly requests: readonly ServiceRequest[];
+  /**
+   * Null on a screen that does not handle waiter calls — the kitchen's. The
+   * section is left out rather than shown empty: "nobody is waving" is a claim
+   * that screen has no way to know.
+   */
+  readonly requests: readonly ServiceRequest[] | null;
   readonly timeZoneId: string;
   readonly role: UserRole;
   readonly onAdvance: (order: OrderQueueEntry, next: OrderStatus) => void;
-  readonly onAcknowledge: (request: ServiceRequest) => void;
+  readonly onAcknowledge?: ((request: ServiceRequest) => void) | undefined;
   readonly loading: boolean;
   /** The queue could not be read at all — offline, or the branch is unreachable. */
   readonly failed: boolean;
@@ -52,7 +57,10 @@ export function ageBand(minutes: number): AgeBand {
  *
  * A kitchen screen showing `Ready → Served` invites the kitchen to mark food
  * served that is still sitting on the pass, which is how a table waits twenty
- * minutes for something the system says they already have.
+ * minutes for something the system says they already have. It still *sees* new
+ * orders — that is what is coming — but only a waiter sends one to the
+ * kitchen; the server lets the kitchen move `InKitchen` to `Ready` and nothing
+ * else.
  */
 function visibleTo(role: UserRole, order: OrderQueueEntry): boolean {
   if (role !== 'kitchen') return true;
@@ -61,7 +69,7 @@ function visibleTo(role: UserRole, order: OrderQueueEntry): boolean {
 
 function advanceableBy(role: UserRole, status: OrderStatus): boolean {
   if (role !== 'kitchen') return true;
-  return status === 'new' || status === 'inKitchen';
+  return status === 'inKitchen';
 }
 
 export function OrderQueuePanel(props: OrderQueuePanelProps) {
@@ -148,40 +156,42 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
 
       {/* Service requests share the panel but are visibly a different thing:
           nobody is cooking, somebody is waving. */}
-      <section className="queue-block">
-        <h2>{t('panel.calls.title')}</h2>
+      {requests === null ? null : (
+        <section className="queue-block">
+          <h2>{t('panel.calls.title')}</h2>
 
-        {failed ? (
-          <p className="table-warn">{t('panel.calls.unreachable')}</p>
-        ) : requests.length === 0 ? (
-          <p className="floor-todo">{t('panel.calls.empty')}</p>
-        ) : (
-          <ul className="queue-list">
-            {requests.map((request) => {
-              const minutes = request.waitingMinutes;
-              return (
-                <li key={request.id} className={`call-card age-${ageBand(minutes)}`}>
-                  <p className="call-line">
-                    {t('panel.calls.line', {
-                      label: request.tableLabel,
-                      reason: t(`panel.calls.reason.${request.reason}`),
-                      count: minutes,
-                    })}
-                  </p>
-                  {request.note ? <p className="order-line-note">{request.note}</p> : null}
-                  <button
-                    type="button"
-                    className="floor-button big full"
-                    onClick={() => props.onAcknowledge(request)}
-                  >
-                    {t('panel.calls.acknowledge')}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+          {failed ? (
+            <p className="table-warn">{t('panel.calls.unreachable')}</p>
+          ) : requests.length === 0 ? (
+            <p className="floor-todo">{t('panel.calls.empty')}</p>
+          ) : (
+            <ul className="queue-list">
+              {requests.map((request) => {
+                const minutes = request.waitingMinutes;
+                return (
+                  <li key={request.id} className={`call-card age-${ageBand(minutes)}`}>
+                    <p className="call-line">
+                      {t('panel.calls.line', {
+                        label: request.tableLabel,
+                        reason: t(`panel.calls.reason.${request.reason}`),
+                        count: minutes,
+                      })}
+                    </p>
+                    {request.note ? <p className="order-line-note">{request.note}</p> : null}
+                    <button
+                      type="button"
+                      className="floor-button big full"
+                      onClick={() => props.onAcknowledge?.(request)}
+                    >
+                      {t('panel.calls.acknowledge')}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
     </aside>
   );
 }
