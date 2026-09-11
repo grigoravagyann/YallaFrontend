@@ -26,7 +26,7 @@ describe('a diner ordering from their own phone', () => {
     const tab = scan.tab;
 
     // Nothing ordered: the bill exists and is honestly empty rather than absent.
-    const empty = await gateway.getDinerTab(tab.id);
+    const empty = await gateway.getDinerTab(tab.tabId);
     expect(empty?.myLines).toEqual([]);
     expect(empty?.tableLines).toEqual([]);
     expect(empty?.money.kind).toBe('table');
@@ -47,14 +47,14 @@ describe('a diner ordering from their own phone', () => {
     expect(soldOut).toBeDefined();
 
     const result = await gateway.placeOrder({
-      tabId: tab.id,
+      tabId: tab.tabId,
       clientCommandId: COMMAND(2),
       lines: [
         {
           menuItemId: coffee.id,
           quantity: 2,
           isShared: false,
-          participantId: tab.yourParticipantId,
+          participantId: tab.me.participantId,
         },
       ],
     });
@@ -62,7 +62,7 @@ describe('a diner ordering from their own phone', () => {
     // Stated at order time rather than shown as a bar that creeps.
     expect(result.estimatedReadyAtUtc).not.toBeNull();
 
-    const view = await gateway.getDinerTab(tab.id);
+    const view = await gateway.getDinerTab(tab.tabId);
     expect(view?.money.kind).toBe('table');
     if (view?.money.kind !== 'table') return;
 
@@ -75,7 +75,7 @@ describe('a diner ordering from their own phone', () => {
     // The percentage itself is not on this view and is not on any diner
     // endpoint: `ReservationPolicyView` is `ManagerOrAbove`. What a share comes
     // to is read from the shares endpoint, which is where the server puts it.
-    const shares = await gateway.getTabShares(tab.id);
+    const shares = await gateway.getTabShares(tab.tabId);
     expect(shares?.kind).toBe('table');
     if (shares?.kind !== 'table') return;
     expect(shares.yourShare?.shareDram).toBe(view.money.bill.totalDram);
@@ -91,14 +91,14 @@ describe('a diner ordering from their own phone', () => {
     const item = (menu?.categories ?? []).flatMap((c) => c.items)[0]!;
 
     const command = {
-      tabId: scan.tab.id,
+      tabId: scan.tab.tabId,
       clientCommandId: COMMAND(4),
       lines: [
         {
           menuItemId: item.id,
           quantity: 1,
           isShared: false,
-          participantId: scan.tab.yourParticipantId,
+          participantId: scan.tab.me.participantId,
         },
       ],
     };
@@ -112,7 +112,7 @@ describe('a diner ordering from their own phone', () => {
     expect(second.wasReplay).toBe(true);
     expect(second.orderId).toBe(first.orderId);
 
-    const view = await gateway.getDinerTab(scan.tab.id);
+    const view = await gateway.getDinerTab(scan.tab.tabId);
     expect(view?.myLines).toHaveLength(1);
   });
 
@@ -126,25 +126,25 @@ describe('a diner ordering from their own phone', () => {
     const items = (menu?.categories ?? []).flatMap((c) => c.items);
 
     await gateway.placeOrder({
-      tabId: scan.tab.id,
+      tabId: scan.tab.tabId,
       clientCommandId: COMMAND(6),
       lines: [
         {
           menuItemId: items[0]!.id,
           quantity: 1,
           isShared: false,
-          participantId: scan.tab.yourParticipantId,
+          participantId: scan.tab.me.participantId,
         },
         {
           menuItemId: items[1]!.id,
           quantity: 3,
           isShared: true,
-          participantId: scan.tab.yourParticipantId,
+          participantId: scan.tab.me.participantId,
         },
       ],
     });
 
-    const shares = await gateway.getTabShares(scan.tab.id);
+    const shares = await gateway.getTabShares(scan.tab.tabId);
     expect(shares?.kind).toBe('table');
     // Narrowed, not optional-chained: the aggregate is absent from the payload
     // when it is hidden, and a test that reached for it through `?.` would pass
@@ -162,7 +162,7 @@ describe('a diner ordering from their own phone', () => {
     });
 
     const updated = await gateway.setSettlementMode({
-      tabId: scan.tab.id,
+      tabId: scan.tab.tabId,
       mode: 'hostPaysEverything',
       clientCommandId: COMMAND(8),
     });
@@ -179,12 +179,12 @@ describe('a diner ordering from their own phone', () => {
     });
 
     const call = await gateway.callWaiter({
-      tabId: scan.tab.id,
+      tabId: scan.tab.tabId,
       reason: 'bill',
       commandId: COMMAND(1).replace('1', 'a'),
     });
 
     expect(call.reason).toBe('bill');
-    expect(call.tabId).toBe(scan.tab.id);
+    expect(call.tabId).toBe(scan.tab.tabId);
   });
 });

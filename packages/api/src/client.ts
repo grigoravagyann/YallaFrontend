@@ -88,6 +88,18 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
+/**
+ * `Retry-After`, as seconds. Either form the header allows: a number of
+ * seconds, or an HTTP date. Anything unreadable is `null` rather than a guess.
+ */
+function retryAfterSeconds(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number(value.trim());
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds);
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? null : Math.max(0, Math.round((at - Date.now()) / 1000));
+}
+
 function stringField(body: unknown, field: string): string | undefined {
   if (typeof body !== 'object' || body === null) return undefined;
   const value = (body as Record<string, unknown>)[field];
@@ -135,7 +147,10 @@ function toError(response: Response, url: string, body: unknown): ApiError {
     case 400:
       return new ValidationError({ ...base, status: 400 });
     case 429:
-      return new TooManyRequestsError(base);
+      return new TooManyRequestsError({
+        ...base,
+        retryAfterSeconds: retryAfterSeconds(response.headers.get('retry-after')),
+      });
     default:
       if (response.status >= 500) return new ServerError({ ...base, status: response.status });
       return new ApiError(`Request failed with status ${response.status}.`, {

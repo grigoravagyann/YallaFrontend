@@ -63,6 +63,22 @@ export interface TrayState {
    * lets the bar show a confirmed state that a tray cannot be mistaken for.
    */
   readonly lastSent: SentOrder | null;
+  /**
+   * The send in flight, or the last one whose outcome is not known.
+   *
+   * Held here, in the reducer above the tab's screens, so it survives the tray
+   * screen remounting — a fresh id after backing out and returning is how an
+   * order went to the kitchen twice. And bound to a fingerprint of the tray, so
+   * a retry reuses the id only for the same items.
+   */
+  readonly pendingSend: PendingSend | null;
+}
+
+export interface PendingSend {
+  readonly commandId: string;
+  readonly fingerprint: string;
+  /** The last attempt may have reached the kitchen. The tray is locked until it is checked. */
+  readonly uncertain: boolean;
 }
 
 export const emptyTray: TrayState = {
@@ -71,6 +87,7 @@ export const emptyTray: TrayState = {
   sharedExplained: false,
   startedAtMs: null,
   lastSent: null,
+  pendingSend: null,
 };
 
 export type TrayAction =
@@ -83,10 +100,48 @@ export type TrayAction =
   | { readonly type: 'sent'; readonly order: SentOrder }
   /** Abandoning a tray without sending it, and dismissing a confirmation. */
   | { readonly type: 'clear' }
-  | { readonly type: 'dismissSent' };
+  | { readonly type: 'dismissSent' }
+  /** A send is leaving, under this command. */
+  | { readonly type: 'sending'; readonly commandId: string; readonly fingerprint: string }
+  /**
+   * It did not come back with an order. `uncertain` when it may still have been
+   * placed (timeout, server error); false for a definite refusal (sold out,
+   * bill asked for, offline), after which the tray can be edited and a new
+   * command is used.
+   */
+  | { readonly type: 'sendFailed'; readonly uncertain: boolean };
+
+/** Editing is refused while the last send's outcome is unknown. */
+const EDITS: ReadonlySet<TrayAction['type']> = new Set<TrayAction['type']>([
+  'add',
+  'increment',
+  'decrement',
+  'setNote',
+  'toggleShared',
+  'clear',
+]);
 
 export function trayReducer(state: TrayState, action: TrayAction): TrayState {
+  if (state.pendingSend?.uncertain && EDITS.has(action.type)) return state;
+
   switch (action.type) {
+    case 'sending':
+      return {
+        ...state,
+        pendingSend: {
+          commandId: action.commandId,
+          fingerprint: action.fingerprint,
+          uncertain: false,
+        },
+      };
+
+    case 'sendFailed':
+      return {
+        ...state,
+        pendingSend:
+          action.uncertain && state.pendingSend ? { ...state.pendingSend, uncertain: true } : null,
+      };
+
     case 'add': {
       // A second tap on the same item bumps the quantity rather than adding a
       // second line — that is what a diner means, and it keeps a round of four
@@ -293,4 +348,36 @@ export function trayBarState(state: TrayState, nowMs: number): TrayBarState {
   }
 
   return { kind: 'empty' };
+}
+
+/**
+ * What identifies the tray's contents, for binding a command id to them.
+ *
+ * The server answers a known command id with the original order whatever the
+ * items are, so an id reused for different items silently drops the change.
+ */
+export function trayFingerprint(state: TrayState): string {
+  return JSON.stringify(
+    state.lines.map((line) => [line.item.id, line.quantity, line.isShared, line.note.trim()]),
+  );
+}
+
+/**
+ * The command id for sending the tray as it is now: the pending one for the
+ * same contents, a fresh one otherwise.
+ */
+export function commandFor(
+  state: TrayState,
+  fresh: () => string,
+): { readonly commandId: string; readonly fingerprint: string } {
+  const fingerprint = trayFingerprint(state);
+  if (state.pendingSend && state.pendingSend.fingerprint === fingerprint) {
+    return { commandId: state.pendingSend.commandId, fingerprint };
+  }
+  return { commandId: fresh(), fingerprint };
+}
+
+/** True while the last send's outcome is unknown: check it before changing anything. */
+export function trayLocked(state: TrayState): boolean {
+  return state.pendingSend?.uncertain === true;
 }

@@ -14,21 +14,14 @@ import type { DinerTabLine, DinerTabView } from '@yalla/api';
  * "nothing to pay", and a dash reads as "we could not load it"; both are worse
  * than the truth, which is that this person is not shown the table's total.
  *
- * ## Three things this used to render that the server does not send
+ * ## Three things the server now sends, and this now carries
  *
- * All three were written against the domain entities before the endpoints
- * existed, and all three are gone rather than defaulted:
- *
- * 1. **Voided lines.** `TabProjection` builds both of its line arrays from
- *    `tab.Lines.Where(l => !l.IsVoided)`. A voided line does not reach a diner
- *    at all — not struck through, not zeroed. There is no `isVoided` here
- *    because there is nothing that could ever set it. What a diner sees is the
- *    line **disappearing**, which `useTabStream` announces by name from the
- *    snapshot it held before the refetch.
- * 2. **Adjustments.** `TabView` carries none. A comp moves the total and the
- *    diner is told nothing about why by any GET.
- * 3. **The service-charge percentage.** Only `ReservationPolicyView` carries
- *    it, and that is `ManagerOrAbove`.
+ * 1. **Voided lines**, kept in both arrays with `isVoided` and the reason staff
+ *    gave, worth zero. Drawn struck through with "removed by staff: <reason>",
+ *    never as a live item at `0 ֏` and never as a row that vanishes.
+ * 2. **Adjustments**, with the reason the manager typed, so a total that moves
+ *    has a row that says why.
+ * 3. **The service-charge percentage**, for everyone, hidden total or not.
  */
 
 export interface RenderedLine {
@@ -41,6 +34,20 @@ export interface RenderedLine {
   readonly isMine: boolean;
   /** True for a line split across the table. */
   readonly isShared: boolean;
+  /** How many ways it splits, snapshotted when it was ordered. */
+  readonly sharedWithCount: number;
+  readonly note: string | null;
+  /** Removed by staff. Drawn struck through, with the reason. */
+  readonly isVoided: boolean;
+  readonly voidReason: string | null;
+}
+
+/** A comp or discount, as the bill shows it: what it took off, and why. */
+export interface RenderedAdjustment {
+  readonly id: string;
+  readonly kind: 'discount' | 'comp';
+  readonly reductionDram: number;
+  readonly reason: string;
 }
 
 /**
@@ -69,10 +76,7 @@ export interface RenderedTab {
   readonly tabId: string;
   readonly tableLabel: string;
   /**
-   * The branch's zone, passed in.
-   *
-   * **Not on `TabView`.** A diner reads it from
-   * `GET /api/branches/{id}/availability`, which is anonymous and carries it.
+   * The branch's zone, passed in — the tab read carries it (`timeZoneId`).
    * Threading it through rather than defaulting is what stops a tourist's phone
    * on Moscow time from rendering an Armenian kitchen's estimate three hours out.
    */
@@ -80,9 +84,13 @@ export interface RenderedTab {
   readonly status: DinerTabView['status'];
   /** This participant's own items — placed by them, or shared with them. */
   readonly myLines: readonly RenderedLine[];
-  /** Every live line on the tab, or `null` when the total is hidden. */
+  /** Every line on the tab, voided ones marked, or `null` when the total is hidden. */
   readonly tableLines: readonly RenderedLine[] | null;
   readonly money: RenderedMoney;
+  /** Live comps and discounts. A reversed one no longer takes anything off. */
+  readonly adjustments: readonly RenderedAdjustment[];
+  /** The venue's rate, for everyone — the percentage beside the service-charge row. */
+  readonly serviceChargePercent: number;
   /** True when this participant is shown the table's aggregate. */
   readonly showsTableTotal: boolean;
   /** True once the bill has been asked for: no more items go on. */
@@ -100,6 +108,10 @@ export function projectTab(tab: DinerTabView, timeZoneId: string): RenderedTab {
     orderedByName: line.orderedByName,
     isMine: line.participantId === participantId,
     isShared: line.isShared,
+    sharedWithCount: line.sharedWithCount,
+    note: line.note,
+    isVoided: line.isVoided,
+    voidReason: line.voidReason,
   });
 
   return {
@@ -122,6 +134,15 @@ export function projectTab(tab: DinerTabView, timeZoneId: string): RenderedTab {
             remainingDram: tab.money.bill.remainingDram,
           }
         : { kind: 'ownItemsOnly', yourItemsSubtotalDram: tab.money.yourItemsSubtotalDram },
+    adjustments: tab.adjustments
+      .filter((adjustment) => !adjustment.isVoided)
+      .map((adjustment) => ({
+        id: adjustment.id,
+        kind: adjustment.kind,
+        reductionDram: adjustment.reductionDram,
+        reason: adjustment.reason,
+      })),
+    serviceChargePercent: tab.serviceChargePercent,
     showsTableTotal: tab.money.kind === 'table',
     // The server's own flag, computed by the rule the ordering endpoint
     // enforces. Never reassembled here from status and tab state.
@@ -140,6 +161,20 @@ export function projectTab(tab: DinerTabView, timeZoneId: string): RenderedTab {
  */
 export function ownItemsSubtotalDram(lines: readonly RenderedLine[]): number {
   return lines
-    .filter((line) => line.isMine && !line.isShared)
+    .filter((line) => line.isMine && !line.isShared && !line.isVoided)
     .reduce((sum, line) => sum + line.lineTotalDram, 0);
+}
+
+/**
+ * Paid and still to pay, once money has changed hands.
+ *
+ * `null` until then, and for a participant not shown the table total. After a
+ * guest pays cash the bill used to go on stating the whole total as owed, on
+ * every phone at the table; with a payment in, the remaining amount leads.
+ */
+export function paymentRows(
+  money: RenderedMoney,
+): { readonly paidDram: number; readonly remainingDram: number } | null {
+  if (money.kind !== 'table' || money.paidDram <= 0) return null;
+  return { paidDram: money.paidDram, remainingDram: money.remainingDram };
 }

@@ -20,6 +20,8 @@ export interface ResolveGatewayOptions {
    * without a second device. Mock only; ignored against a real backend.
    */
   readonly simulateTableTaken?: boolean | undefined;
+  /** This install's device id, for opening and joining tabs. Real only. */
+  readonly deviceId?: (() => Promise<string>) | undefined;
 }
 
 /**
@@ -35,21 +37,23 @@ export interface ResolveGatewayOptions {
  * UI or the API.
  */
 export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
-  const mock = createMockGateway({
-    latencyMs: options.mockLatencyMs ?? 250,
-    simulateTableTaken: options.simulateTableTaken ?? false,
-  });
-
-  if (options.dataSource === 'mock') return mock;
+  if (options.dataSource === 'mock') {
+    return createMockGateway({
+      latencyMs: options.mockLatencyMs ?? 250,
+      simulateTableTaken: options.simulateTableTaken ?? false,
+    });
+  }
 
   if (!options.baseUrl) {
     throw new Error('resolveGateway: a baseUrl is required for the real data source.');
   }
 
+  // Every method is real. There is no mock fallback any more: a real data
+  // source that quietly answered bookings and tabs from memory is how no
+  // reservation and no tab ever reached the backend.
   return createHttpGateway(createApiClient({ baseUrl: options.baseUrl, auth: options.auth }), {
     audience: options.audience ?? 'diner',
     auth: options.auth,
-    // The methods not yet wired to the backend are answered by the mock.
-    fallback: mock,
+    deviceId: options.deviceId,
   });
 }

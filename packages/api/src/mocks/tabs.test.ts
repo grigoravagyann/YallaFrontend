@@ -32,11 +32,11 @@ describe('mock gateway — scanning in', () => {
     const result = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId: cmd() });
 
     expect(result.kind).toBe('tabOpened');
-    expect(result.tab.yourRole).toBe('host');
-    expect(result.tab.yourStatus).toBe('active');
+    expect(result.tab.me.role).toBe('host');
+    expect(result.tab.me.status).toBe('approved');
     // Nothing about an account, a phone or a name is required to get here.
     expect(result.tab.participants).toHaveLength(1);
-    expect(result.tab.participants[0]?.displayName).toBeNull();
+    expect(result.tab.participants[0]?.displayName).toBe('');
   });
 
   it('replaying one command id cannot open two tabs on the same table', async () => {
@@ -44,23 +44,23 @@ describe('mock gateway — scanning in', () => {
     const first = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId });
     const second = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId });
 
-    expect(second.tab.id).toBe(first.tab.id);
+    expect(second.tab.tabId).toBe(first.tab.tabId);
     expect(second.kind).toBe('alreadyOn');
   });
 
-  it('joining a tab somebody else hosts leaves you pending, not active', async () => {
+  it('joining a tab somebody else hosts leaves you pending, seeing only yourself', async () => {
     const result = await gateway.scanTableCode({
       tableCode: HOSTED_BY_SOMEONE_ELSE,
       commandId: cmd(),
     });
 
     expect(result.kind).toBe('joinPending');
-    expect(result.tab.yourStatus).toBe('pending');
-    expect(result.tab.yourRole).toBe('guest');
-    // The whole party is visible to a pending joiner, unnamed guest included.
-    const names = result.tab.participants.map((p) => p.displayName);
-    expect(names).toContain('Aram');
-    expect(names).toContain(null);
+    expect(result.tab.me.status).toBe('pendingApproval');
+    expect(result.tab.me.role).toBe('guest');
+    // As the server sends it: a pending joiner's roster is their own row.
+    expect(result.tab.participants.map((p) => p.participantId)).toEqual([
+      result.tab.me.participantId,
+    ]);
   });
 
   it('distinguishes out of service, unknown code and a closed tab', async () => {
@@ -118,7 +118,7 @@ describe('mock gateway — the tab and its people', () => {
     id = 0;
     gateway = createMockGateway({ simulateJoiners: false });
     const opened = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId: cmd() });
-    tabId = opened.tab.id;
+    tabId = opened.tab.tabId;
   });
 
   it('the invite carries one token behind both the QR and the share link', async () => {
@@ -129,14 +129,18 @@ describe('mock gateway — the tab and its people', () => {
     expect(new Date(invite.expiresAtUtc).getTime()).toBeGreaterThan(Date.now());
   });
 
-  it('a guest arriving through the invite link lands pending, same as a scan', async () => {
+  it('an invitation goes through join, not the table scan', async () => {
     const invite = await gateway.createTabInvite({ tabId, commandId: cmd() });
 
-    // A second device, sharing this mock's world.
-    const result = await gateway.scanTableCode({ tableCode: invite.token, commandId: cmd() });
     // This device is already the host, so it is told so rather than duplicated.
+    const result = await gateway.joinTab({ joinToken: invite.token });
     expect(result.kind).toBe('alreadyOn');
-    expect(result.tab.id).toBe(tabId);
+    expect(result.tab.tabId).toBe(tabId);
+
+    // And the table scan does not know what an invitation token is.
+    await expect(
+      gateway.scanTableCode({ tableCode: invite.token, commandId: cmd() }),
+    ).rejects.toBeInstanceOf(UnknownTableCodeError);
   });
 
   it('menu prices are readable while still waiting to be approved', async () => {
@@ -145,25 +149,11 @@ describe('mock gateway — the tab and its people', () => {
       tableCode: HOSTED_BY_SOMEONE_ELSE,
       commandId: cmd(),
     });
-    expect(joined.tab.yourStatus).toBe('pending');
+    expect(joined.tab.me.status).toBe('pendingApproval');
 
-    const menu = await pending.getBranchMenu(joined.tab.branchId);
-    expect(menu?.sections.length).toBeGreaterThan(0);
-    expect(menu?.sections[0]?.items[0]?.priceDram).toBeGreaterThan(0);
-  });
-
-  it('leaving hands the host role on rather than stranding the tab', async () => {
-    const other = await gateway.scanTableCode({
-      tableCode: HOSTED_BY_SOMEONE_ELSE,
-      commandId: cmd(),
-    });
-    expect(other.tab.yourStatus).toBe('pending');
-
-    await gateway.leaveTab({ tabId, commandId: cmd() });
-    const after = await gateway.getTab(tabId);
-    expect(after?.yourStatus).toBe('left');
-    // Nobody else was active on that tab, so it closed rather than going hostless.
-    expect(after?.status).toBe('closed');
+    const menu = await pending.getBranchMenuDetail(joined.tab.branchId);
+    expect(menu?.categories.length).toBeGreaterThan(0);
+    expect(menu?.categories[0]?.items[0]?.priceDram).toBeGreaterThan(0);
   });
 
   it('a waiter call is presets only and idempotent on its command id', async () => {
@@ -188,21 +178,24 @@ describe('mock gateway — host controls', () => {
     gateway = createMockGateway({ now: () => clock });
 
     const opened = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId: cmd() });
-    tabId = opened.tab.id;
+    tabId = opened.tab.tabId;
 
     clock = new Date('2026-09-04T12:00:30Z');
-    const withGuest = await gateway.getTab(tabId);
-    pendingId = withGuest?.participants.find((p) => p.status === 'pending')?.id ?? '';
+    const withGuest = await gateway.getDinerTab(tabId);
+    pendingId =
+      withGuest?.participants.find((p) => p.status === 'pendingApproval')?.participantId ?? '';
     expect(pendingId).not.toBe('');
   });
 
   it('approving grants the table default, not the host permissions', async () => {
-    const tab = await gateway.approveJoin({ tabId, participantId: pendingId, commandId: cmd() });
-    const guest = tab.participants.find((p) => p.id === pendingId);
+    const change = await gateway.approveJoin({
+      tabId,
+      participantId: pendingId,
+      commandId: cmd(),
+    });
 
-    expect(guest?.status).toBe('active');
-    expect(guest?.permissions).toEqual(tab.defaultPermissions);
-    expect(guest?.permissions.canPay).toBe(false);
+    expect(change.status).toBe('approved');
+    expect(change.permissions.canPay).toBe(false);
   });
 
   it('replaying approve does not un-reject somebody', async () => {
@@ -210,31 +203,29 @@ describe('mock gateway — host controls', () => {
     await gateway.approveJoin({ tabId, participantId: pendingId, commandId });
     const again = await gateway.rejectJoin({ tabId, participantId: pendingId, commandId });
 
-    expect(again.participants.find((p) => p.id === pendingId)?.status).toBe('active');
+    expect(again.status).toBe('approved');
   });
 
   it('the server repairs pay-without-total rather than honouring it', async () => {
     await gateway.approveJoin({ tabId, participantId: pendingId, commandId: cmd() });
-    const tab = await gateway.setParticipantPermissions({
+    const change = await gateway.setParticipantPermissions({
       tabId,
       participantId: pendingId,
       permissions: { canOrder: true, canSeeTableTotal: false, canPay: true },
       commandId: cmd(),
     });
 
-    const guest = tab.participants.find((p) => p.id === pendingId);
-    expect(guest?.permissions).toEqual({ canOrder: true, canSeeTableTotal: true, canPay: true });
+    expect(change.permissions).toEqual({ canOrder: true, canSeeTableTotal: true, canPay: true });
   });
 
-  it('a table default applies to whoever is approved next', async () => {
-    await gateway.setTabDefaultPermissions({
-      tabId,
-      permissions: { canOrder: false, canSeeTableTotal: false, canPay: false },
-      commandId: cmd(),
-    });
-    const tab = await gateway.approveJoin({ tabId, participantId: pendingId, commandId: cmd() });
+  it('leaving hands the host role to the approved guest, and the tab is over for this phone', async () => {
+    await gateway.approveJoin({ tabId, participantId: pendingId, commandId: cmd() });
 
-    expect(tab.participants.find((p) => p.id === pendingId)?.permissions.canOrder).toBe(false);
+    await gateway.leaveTab({ tabId });
+
+    await expect(gateway.getDinerTab(tabId)).rejects.toMatchObject({
+      name: 'TabAccessEndedError',
+    });
   });
 
   it('a guest cannot run host actions', async () => {
@@ -246,10 +237,25 @@ describe('mock gateway — host controls', () => {
 
     await expect(
       guestDevice.removeParticipant({
-        tabId: joined.tab.id,
+        tabId: joined.tab.tabId,
         participantId: 'p-nare',
         commandId: cmd(),
       }),
+    ).rejects.toBeInstanceOf(NotTabHostError);
+  });
+
+  it('a guest cannot make an invitation, because the server refuses one', async () => {
+    // TabService.CreateJoinTokenAsync: RequireHost(tab, actingParticipantId,
+    // "Inviting others"). The mock used to mint the link for anybody, so mock
+    // mode showed a guest a working Invite that the server answers with 403.
+    const guestDevice = createMockGateway({ simulateJoiners: false });
+    const joined = await guestDevice.scanTableCode({
+      tableCode: HOSTED_BY_SOMEONE_ELSE,
+      commandId: cmd(),
+    });
+
+    await expect(
+      guestDevice.createTabInvite({ tabId: joined.tab.tabId, commandId: cmd() }),
     ).rejects.toBeInstanceOf(NotTabHostError);
   });
 });

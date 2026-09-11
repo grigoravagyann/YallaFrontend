@@ -1,3 +1,4 @@
+import { HostCannotLeaveError, isTabAccessEnded } from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -13,16 +14,14 @@ import {
 import { Text } from '../../../src/components/Text';
 import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
-import {
-  ParticipantsList,
-  onTab,
-  useParticipantSummary,
-} from '../../../src/components/Participants';
+import { ParticipantsList, useParticipantSummary } from '../../../src/components/Participants';
 import { LiveBill } from '../../../src/components/LiveBill';
-import { useBranchTimeZone } from '../../../src/data/orderQueries';
-import { useLeaveTab, useTab } from '../../../src/data/queries';
-import { newCommandId } from '../../../src/lib/commandId';
+import { useDinerTab } from '../../../src/data/orderQueries';
+import { useLeaveTab } from '../../../src/data/queries';
 import { useActiveTab } from '../../../src/stores/tab';
+import { canInvite } from '../../../src/tab/invite';
+import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
+import { onTab, roster } from '../../../src/tab/roster';
 
 /** Slow enough not to be a battery problem, quick enough to feel current. */
 const POLL_MS = 8_000;
@@ -30,10 +29,10 @@ const POLL_MS = 8_000;
 /**
  * The tab — the main screen for anyone sitting at the table.
  *
- * Ordering arrives next, so what exists here is the frame and the people: who
- * is on the tab, who is waiting, how to invite the rest of the party, and how
- * to get a waiter's attention. Everything about money is deliberately absent
- * rather than stubbed with zeroes.
+ * Everything here is read from the diner's own tab read (`GET /api/tabs/{id}`
+ * with this phone's participant token): who is on the tab, the bill, and
+ * whether this person can order right now. It used to read the roster from the
+ * mock, so against the server the screen showed a tab the backend never had.
  */
 export default function TabScreen() {
   const { t } = useTranslation('diner');
@@ -45,50 +44,58 @@ export default function TabScreen() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
-  // Polling stands in for the socket that arrives later. Someone else may
-  // approve a joiner, or the table may be closed by staff, while this screen is
-  // open — and a stale participants list is the thing this screen exists to
-  // avoid showing.
-  const { data: tab, isLoading, isError, refetch, isFetching } = useTab(tabId, { pollMs: POLL_MS });
-  const { data: branchZone } = useBranchTimeZone(tab?.branchId);
+  // Polling alongside the event stream: the roster is not in the events, and
+  // someone else may approve a joiner or staff may close the table while this
+  // screen is open.
+  const {
+    data: view,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useDinerTab(tabId, { pollMs: POLL_MS });
   const leaveTab = useLeaveTab();
   const clearActive = useActiveTab((s) => s.clear);
 
-  const summary = useParticipantSummary(tab?.participants ?? [], locale);
-  const people = onTab(tab?.participants ?? []).length;
-  const isHost = tab?.yourRole === 'host' && tab.yourStatus === 'active';
+  const people = view ? roster(view) : [];
+  const summary = useParticipantSummary(people, locale);
+  const count = onTab(people).length;
+  const isHost = view?.me.role === 'host' && view.me.status === 'approved';
 
-  // Someone else removed you, or the host never approved you: the tab screen is
-  // no longer the truth and the pending screen says what actually happened.
+  // Still waiting for the host: the pending screen says so, and polls faster.
   useEffect(() => {
-    if (!tab || !tabId) return;
-    if (
-      tab.yourStatus === 'pending' ||
-      tab.yourStatus === 'rejected' ||
-      tab.yourStatus === 'removed'
-    ) {
+    if (view?.me.status === 'pendingApproval' && tabId) {
       router.replace({ pathname: '/tab/[tabId]/pending', params: { tabId } });
     }
-  }, [tab, tabId, router]);
+  }, [view?.me.status, tabId, router]);
+
+  const scanAgain = useCallback(() => {
+    clearActive();
+    router.replace('/(tabs)/scan');
+  }, [clearActive, router]);
 
   const confirmLeave = useCallback(async () => {
     if (!tabId) return;
     setLeaveError(null);
     try {
-      await leaveTab.mutateAsync({ tabId, commandId: newCommandId() });
+      await leaveTab.mutateAsync({ tabId });
       clearActive();
       setLeaveOpen(false);
       router.replace('/(tabs)/scan');
-    } catch {
-      // The sheet stays open. Leaving is retryable and the screen must not
-      // claim you are off a tab the server still has you on.
-      setLeaveError(t('tab.leaveFailed'));
+    } catch (caught) {
+      // The sheet stays open. The screen must not claim you are off a tab the
+      // server still has you on — and a host with nobody to hand it to is told
+      // who can close it instead.
+      setLeaveError(
+        caught instanceof HostCannotLeaveError ? t('tab.hostCannotLeave') : t('tab.leaveFailed'),
+      );
     }
   }, [tabId, leaveTab, clearActive, router, t]);
 
   if (isLoading) {
     return (
-      <Shell title="">
+      <Shell>
         <View style={styles.centered}>
           <ActivityIndicator color={color.primaryInk} />
           <Text style={styles.muted}>{t('tab.loading')}</Text>
@@ -97,15 +104,17 @@ export default function TabScreen() {
     );
   }
 
-  if (isError || !tab) {
+  // Taken off, turned away, or the tab closed under this phone. The server
+  // answers all three with the same bare 401/403, so this does not guess which.
+  if (isTabAccessEnded(error) || view?.me.status === 'removed') {
     return (
-      <Shell title="">
+      <Shell>
         <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>{t('tab.notFoundTitle')}</Text>
-          <Text style={styles.muted}>{t('tab.notFoundBody')}</Text>
+          <Text style={styles.emptyTitle}>{t('tab.accessEnded.title')}</Text>
+          <Text style={styles.muted}>{t('tab.accessEnded.body')}</Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.replace('/(tabs)/scan')}
+            onPress={scanAgain}
             style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
           >
             <Text style={styles.primaryText}>{t('scan.scanAgain')}</Text>
@@ -115,18 +124,35 @@ export default function TabScreen() {
     );
   }
 
-  if (tab.status === 'closed') {
+  if (!view) {
     return (
-      <Shell title="">
+      <Shell>
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>
+            {isError ? t('tab.loadError') : t('tab.notFoundTitle')}
+          </Text>
+          {isError ? null : <Text style={styles.muted}>{t('tab.notFoundBody')}</Text>}
+          <Pressable
+            accessibilityRole="button"
+            onPress={isError ? () => void refetch() : scanAgain}
+            style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
+          >
+            <Text style={styles.primaryText}>{isError ? t('net.retry') : t('scan.scanAgain')}</Text>
+          </Pressable>
+        </View>
+      </Shell>
+    );
+  }
+
+  if (view.status === 'closed' || view.status === 'abandoned') {
+    return (
+      <Shell>
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>{t('tab.closedTitle')}</Text>
           <Text style={styles.muted}>{t('tab.closedBody')}</Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => {
-              clearActive();
-              router.replace('/(tabs)/scan');
-            }}
+            onPress={scanAgain}
             style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
           >
             <Text style={styles.primaryText}>{t('scan.scanAgain')}</Text>
@@ -136,21 +162,27 @@ export default function TabScreen() {
     );
   }
 
+  const block = orderingBlock(view);
+
   return (
-    <Shell title="">
+    <Shell>
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.header}>
-          <Text style={styles.table}>{t('tab.title', { label: tab.tableLabel })}</Text>
+          <Text style={styles.table}>{t('tab.title', { label: view.tableLabel })}</Text>
           <Text style={styles.where}>
-            {t('tab.where', { venue: tab.venueName, branch: tab.branchName })}
+            {t('tab.where', { venue: view.venueName, branch: view.branchName })}
           </Text>
-          <Text style={styles.count}>{t('tab.peopleCount', { count: people })}</Text>
+          <Text style={styles.count}>{t('tab.peopleCount', { count })}</Text>
           {summary ? <Text style={styles.summary}>{summary}</Text> : null}
         </View>
 
         {/* A stale list that looks live is the failure mode here, so say when
             the last refresh did not land rather than showing nothing. */}
         {isError ? <Text style={styles.offline}>{t('tab.offline')}</Text> : null}
+
+        {view.status === 'closing' ? (
+          <Text style={styles.closing}>{t('tab.closingBanner')}</Text>
+        ) : null}
 
         <View style={styles.card}>
           <View style={styles.cardHead}>
@@ -166,23 +198,27 @@ export default function TabScreen() {
             </Pressable>
           </View>
 
-          <ParticipantsList tab={tab} />
+          <ParticipantsList view={view} />
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              router.push({ pathname: '/tab/[tabId]/invite', params: { tabId: tab.id } })
-            }
-            style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-          >
-            <Text style={styles.primaryText}>{t('tab.invite')}</Text>
-          </Pressable>
+          {/* Host-only, because the server's invitation route is: offered to a
+              guest, it was a button whose every tap ended in a refusal. */}
+          {canInvite(view) ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                router.push({ pathname: '/tab/[tabId]/invite', params: { tabId: view.tabId } })
+              }
+              style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
+            >
+              <Text style={styles.primaryText}>{t('tab.invite')}</Text>
+            </Pressable>
+          ) : null}
 
           {isHost ? (
             <Pressable
               accessibilityRole="button"
               onPress={() =>
-                router.push({ pathname: '/tab/[tabId]/people', params: { tabId: tab.id } })
+                router.push({ pathname: '/tab/[tabId]/people', params: { tabId: view.tabId } })
               }
               style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
             >
@@ -195,27 +231,29 @@ export default function TabScreen() {
             waiter adding a spoken order on the tablet appears here without
             anybody refreshing anything. */}
         <LiveBill
-          tabId={tab.id}
-          // The branch's own zone, read from the anonymous availability
-          // endpoint. `tab.timeZoneId` is the roster contract's, which is still
-          // mock-backed; falling back to it keeps the screen rendering while the
-          // zone loads rather than blanking every time on it.
-          timeZoneId={branchZone ?? tab.timeZoneId}
-          active={tab.yourStatus === 'active'}
+          tabId={view.tabId}
+          timeZoneId={view.timeZoneId}
+          active={view.me.status === 'approved'}
         />
 
+        {/* The menu is readable by everyone at the table. Ordering is not, and
+            when this person cannot order the reason is said here rather than
+            discovered as a refusal after building a tray. */}
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/tab/[tabId]/menu', params: { tabId: tab.id } })}
+          onPress={() =>
+            router.push({ pathname: '/tab/[tabId]/menu', params: { tabId: view.tabId } })
+          }
           style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
         >
-          <Text style={styles.primaryText}>{t('tab.order')}</Text>
+          <Text style={styles.primaryText}>{block ? t('tab.menu') : t('tab.order')}</Text>
         </Pressable>
+        {block ? <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text> : null}
 
         <Pressable
           accessibilityRole="button"
           onPress={() =>
-            router.push({ pathname: '/tab/[tabId]/settle', params: { tabId: tab.id } })
+            router.push({ pathname: '/tab/[tabId]/settle', params: { tabId: view.tabId } })
           }
           style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
         >
@@ -242,7 +280,12 @@ export default function TabScreen() {
         </Pressable>
       </View>
 
-      <CallWaiterSheet tabId={tab.id} visible={waiterOpen} onClose={() => setWaiterOpen(false)} />
+      <CallWaiterSheet
+        tabId={view.tabId}
+        visible={waiterOpen}
+        onClose={() => setWaiterOpen(false)}
+        tableLabel={view.tableLabel}
+      />
 
       <ConfirmSheet
         visible={leaveOpen}
@@ -263,10 +306,10 @@ export default function TabScreen() {
   );
 }
 
-function Shell({ title, children }: { title: string; children: React.ReactNode }) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: true, title }} />
+      <Stack.Screen options={{ headerShown: true, title: '' }} />
       {children}
     </SafeAreaView>
   );
@@ -297,6 +340,21 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: color.mutedForeground,
   },
+  closing: {
+    padding: space.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: color.warning,
+    fontSize: fontSize.sm,
+    lineHeight: lineHeight.sm,
+    color: color.foreground,
+  },
+  blocked: {
+    fontSize: fontSize.sm,
+    lineHeight: lineHeight.sm,
+    color: color.mutedForeground,
+    textAlign: 'center',
+  },
   card: {
     padding: space.lg,
     borderRadius: radius.card,
@@ -305,12 +363,6 @@ const styles = StyleSheet.create({
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
-  placeholder: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
-    fontStyle: 'italic',
-  },
   textAction: { minHeight: touchTarget.minimum - 12, justifyContent: 'center' },
   textActionLabel: {
     fontSize: fontSize.sm,
@@ -371,7 +423,12 @@ const styles = StyleSheet.create({
     gap: space.sm,
     padding: space.xl,
   },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  emptyTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+    textAlign: 'center',
+  },
   muted: {
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,

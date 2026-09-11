@@ -22,7 +22,7 @@ export function describeReservationContract(subject: ContractSubject): void {
   suite(`reservations — ${subject.name}${reason ? ` (skipped: ${reason})` : ''}`, () => {
     const { gateway, fixtures } = subject;
 
-    async function verifiedToken(phone: string): Promise<string> {
+    async function verifiedPhone(phone: string): Promise<string> {
       const challenge = await gateway.requestPhoneCode(phone);
       const verified = await gateway.verifyPhoneCode({
         challengeId: challenge.challengeId,
@@ -30,7 +30,7 @@ export function describeReservationContract(subject: ContractSubject): void {
         // is exercisable without an SMS provider.
         code: challenge.devCode ?? '123456',
       });
-      return verified.verificationToken;
+      return verified.phoneE164;
     }
 
     async function firstBookable() {
@@ -72,7 +72,7 @@ export function describeReservationContract(subject: ContractSubject): void {
       // booking is a deadline nobody agreed to.
       const table = await firstBookable();
       expect(table.freeCancellationUntilUtc).toBeTruthy();
-      expect(Number.isNaN(Date.parse(table.freeCancellationUntilUtc))).toBe(false);
+      expect(Number.isNaN(Date.parse(table.freeCancellationUntilUtc ?? ''))).toBe(false);
     });
 
     it('refuses a slot inside the lead time as its own named outcome', async () => {
@@ -90,7 +90,10 @@ export function describeReservationContract(subject: ContractSubject): void {
         tableId: table.tableId,
         slotUtc: tooSoon,
         partySize: 2,
-        verificationToken: await verifiedToken('+37411000001'),
+        guestPhone: await verifiedPhone('+37411000001'),
+        timeZoneId: 'Asia/Yerevan',
+        guestName: 'Ani',
+        channel: 'app' as const,
       });
 
       await expect(attempt).rejects.toBeInstanceOf(LeadTimeExceededError);
@@ -112,7 +115,7 @@ export function describeReservationContract(subject: ContractSubject): void {
        * same race twice.
        */
       const table = await firstBookable();
-      const token = await verifiedToken('+37411000002');
+      const token = await verifiedPhone('+37411000002');
 
       await gateway.createBooking({
         commandId: `contract-race-first-${table.tableId}`,
@@ -120,7 +123,10 @@ export function describeReservationContract(subject: ContractSubject): void {
         tableId: table.tableId,
         slotUtc: fixtures.tomorrowEveningUtc,
         partySize: 2,
-        verificationToken: token,
+        guestPhone: token,
+        timeZoneId: 'Asia/Yerevan',
+        guestName: 'Ani',
+        channel: 'app' as const,
       });
 
       const second = gateway.createBooking({
@@ -129,7 +135,10 @@ export function describeReservationContract(subject: ContractSubject): void {
         tableId: table.tableId,
         slotUtc: fixtures.tomorrowEveningUtc,
         partySize: 2,
-        verificationToken: token,
+        guestPhone: token,
+        timeZoneId: 'Asia/Yerevan',
+        guestName: 'Ani',
+        channel: 'app' as const,
       });
 
       await expect(second).rejects.toBeInstanceOf(TableTakenError);
@@ -139,8 +148,8 @@ export function describeReservationContract(subject: ContractSubject): void {
       const taken = caught as TableTakenError;
       expect(taken.tableId).toBe(table.tableId);
       expect(taken.tableLabel).toBeTruthy();
-      expect(taken.floor, 'the 409 arrived with no room to pick from').toBeDefined();
-      expect(taken.floor.tables.length).toBeGreaterThan(0);
+      expect(taken.floor, 'the 409 arrived with no room to pick from').not.toBeNull();
+      expect(taken.floor?.tables.length).toBeGreaterThan(0);
     });
 
     it('replays an identical booking rather than making a second one', async () => {
@@ -152,7 +161,10 @@ export function describeReservationContract(subject: ContractSubject): void {
         tableId: table.tableId,
         slotUtc: fixtures.tomorrowEveningUtc,
         partySize: 2,
-        verificationToken: await verifiedToken('+37411000003'),
+        guestPhone: await verifiedPhone('+37411000003'),
+        timeZoneId: 'Asia/Yerevan',
+        guestName: 'Ani',
+        channel: 'app' as const,
       };
 
       const first = await gateway.createBooking(command);

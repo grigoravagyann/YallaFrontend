@@ -1,4 +1,4 @@
-import { isBranchOpenNow, isVenueOpenNow, type BranchSummary } from '@yalla/api';
+import { branchAvailability, isVenueOpenNow, type BranchSummary } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -9,6 +9,7 @@ import { FlatList, Pressable, SafeAreaView, StyleSheet, View } from 'react-nativ
 import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { Text } from '../../src/components/Text';
 import { useVenue } from '../../src/data/queries';
+import { venueScreenState } from '../../src/lib/browse';
 
 /**
  * Branches for one venue.
@@ -25,7 +26,12 @@ export default function BranchesScreen() {
 
   const venueQuery = useVenue(venueId);
   const { data: venue, isLoading, isError, error, refetch } = venueQuery;
-  const offline = isOfflinePaused(venueQuery);
+  const state = venueScreenState({
+    offline: isOfflinePaused(venueQuery),
+    isLoading,
+    isError,
+    venue,
+  });
 
   const openBranch = useCallback(
     (branchId: string) => {
@@ -34,27 +40,29 @@ export default function BranchesScreen() {
     [router, venueId],
   );
 
-  if (isLoading || isError || !venue) {
+  if (state !== 'ready' || !venue) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
-        {offline ? (
+        {state === 'offline' ? (
           <QueryFailure offline onRetry={() => void refetch()} />
-        ) : isLoading ? (
+        ) : state === 'loading' ? (
           <QueryLoading label={t('branches.loading')} />
-        ) : isError ? (
+        ) : state === 'error' ? (
           <QueryFailure error={error} onRetry={() => void refetch()} />
         ) : (
+          // Gone, not empty: an old link, or a venue suspended since the list
+          // was read. "No locations listed yet" would describe a real venue.
           <View style={styles.centered}>
-            <Text style={styles.emptyTitle}>{t('branches.empty.title')}</Text>
-            <Text style={styles.emptyBody}>{t('branches.empty.body')}</Text>
+            <Text style={styles.emptyTitle}>{t('venue.notFound.title')}</Text>
+            <Text style={styles.emptyBody}>{t('venue.notFound.body')}</Text>
           </View>
         )}
       </SafeAreaView>
     );
   }
 
-  const open = isVenueOpenNow(venue, new Date());
+  const open = isVenueOpenNow(venue);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -106,13 +114,14 @@ function BranchRow({
   onPress: (branchId: string) => void;
 }) {
   const { t } = useTranslation('diner');
-  const open = isBranchOpenNow(branch, new Date());
+  const availability = branchAvailability(branch);
 
   // Closing time in the BRANCH's timezone, never the device's. A tourist's
-  // phone is on Moscow time and this cafe is not.
-  const closesAt = formatTime(branch.closesAtUtc, branch.timeZoneId, locale);
-  const distance = t('branches.distanceKm', { km: branch.distanceKm.toFixed(1) });
-  const hours = open ? t('branches.openUntil', { time: closesAt }) : t('branches.closed');
+  // phone is on Moscow time and this cafe is not. Only when there is a time to
+  // show: the public card says open or shut and nothing more.
+  const closesAt = branch.openState.closesAtUtc
+    ? formatTime(branch.openState.closesAtUtc, branch.timeZoneId, locale)
+    : null;
 
   return (
     <Pressable
@@ -126,24 +135,30 @@ function BranchRow({
           {branch.name}
         </Text>
 
-        {/*
-          Distance leads, closing time second. At 20:00 on a Friday how far away
-          a place is beats how good it is; rating, if it ever appears, is
-          secondary and smaller.
-        */}
-        <Text style={styles.distanceLine} numberOfLines={1}>
-          {t('branches.distanceAndHours', { distance, hours })}
+        <Text style={styles.addressLine} numberOfLines={1}>
+          {branch.addressLine}
         </Text>
 
-        {branch.freeTables === 0 ? (
-          <Text style={styles.noneFree}>{t('branches.noneFree')}</Text>
+        {/*
+          A shut branch says so in place of the count. Every table is "free" at
+          a closed venue, and a green number over it would send somebody across
+          town to a locked door.
+        */}
+        {availability.kind === 'closed' ? (
+          <Text style={styles.noneFree}>{t('branches.closed')}</Text>
         ) : (
-          <Text style={styles.availability}>
-            {t('branches.availability', {
-              free: branch.freeTables,
-              total: branch.totalTables,
-            })}
-          </Text>
+          <>
+            <Text style={styles.hours} numberOfLines={1}>
+              {closesAt ? t('branches.openUntil', { time: closesAt }) : t('branches.openNow')}
+            </Text>
+            {availability.kind === 'freeNow' ? (
+              <Text style={styles.availability}>
+                {t('branches.freeNow', { count: availability.count })}
+              </Text>
+            ) : (
+              <Text style={styles.noneFree}>{t('branches.noneFree')}</Text>
+            )}
+          </>
         )}
       </View>
 
@@ -194,11 +209,12 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: color.foreground,
   },
-  distanceLine: {
+  addressLine: {
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
     color: color.foreground,
   },
+  hours: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
   availability: {
     marginTop: space.xs,
     fontSize: fontSize.sm,
@@ -211,11 +227,17 @@ const styles = StyleSheet.create({
     color: color.mutedForeground,
   },
   chevron: { fontSize: fontSize.xl, color: color.mutedForeground },
-  centered: { alignItems: 'center', paddingTop: space.xxl, gap: space.sm },
+  centered: {
+    alignItems: 'center',
+    paddingTop: space.xxl,
+    paddingHorizontal: space.xl,
+    gap: space.sm,
+  },
   emptyTitle: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.bold,
     color: color.foreground,
+    textAlign: 'center',
   },
   emptyBody: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
 });

@@ -1,5 +1,7 @@
 import type { FloorTable } from '@yalla/floorplan/types';
 import {
+  HostCannotLeaveError,
+  InviteExpiredError,
   NotTabHostError,
   TabClosedError,
   TableOutOfServiceError,
@@ -13,6 +15,7 @@ import {
 import type {
   ScanResult,
   ScanTableCommand,
+  JoinTabCommand,
   TabInvite,
   TabParticipant,
   TabPermissions,
@@ -75,6 +78,12 @@ interface TabRecord {
   defaultPermissions: TabPermissions;
   /** Guard so the simulated joiner turns up exactly once. */
   simulatedGuestArrived: boolean;
+}
+
+/** A scan, in the world's own terms: the tab the mock holds, not the diner's view of it. */
+export interface WorldScan {
+  readonly kind: ScanResult['kind'];
+  readonly tab: TableTab;
 }
 
 export interface TabWorldOptions {
@@ -290,8 +299,48 @@ export function createTabWorld(options: TabWorldOptions) {
     return existing ?? openEmptyRecord(location);
   }
 
+  /** This device arriving on a tab — by scanning its table or by invitation. */
+  function enter(
+    record: TabRecord,
+    displayName: string | null,
+    commandId: string | null,
+  ): WorldScan {
+    if (record.status === 'closed') {
+      throw new TabClosedError({ url: URL_TAG, tabId: record.id });
+    }
+
+    if (commandId) commandLog.set(commandId, record.id);
+
+    const existing = record.participants.find((p) => p.id === DEVICE_PARTICIPANT_ID);
+    if (existing && (existing.status === 'active' || existing.status === 'pending')) {
+      return {
+        kind: existing.status === 'pending' ? 'joinPending' : 'alreadyOn',
+        tab: project(record),
+      };
+    }
+
+    const isFirst = record.participants.every((p) => p.status !== 'active');
+    const you = participant(
+      DEVICE_PARTICIPANT_ID,
+      displayName,
+      isFirst ? 'host' : 'guest',
+      isFirst ? 'active' : 'pending',
+      isFirst ? HOST_TAB_PERMISSIONS : record.defaultPermissions,
+    );
+
+    if (existing) {
+      // Rejoining after leaving or being removed: the same seat, reset.
+      Object.assign(existing, you);
+    } else {
+      record.participants.push(you);
+    }
+
+    return { kind: isFirst ? 'tabOpened' : 'joinPending', tab: project(record) };
+  }
+
   return {
-    scan(command: ScanTableCommand): ScanResult {
+    /** The table's code — `POST /api/tabs/open`. An invitation is not a table code. */
+    scan(command: ScanTableCommand): WorldScan {
       seed();
 
       const replayed = commandLog.get(command.commandId);
@@ -306,42 +355,19 @@ export function createTabWorld(options: TabWorldOptions) {
         }
       }
 
-      // An invite token and a table code arrive through the same door: the
-      // client does not know which it is holding, and must not have to.
-      const record =
-        findTabByInviteToken(command.tableCode) ?? resolveByTableCode(command.tableCode);
+      const record = resolveByTableCode(command.tableCode);
+      return enter(record, command.displayName ?? null, command.commandId);
+    },
 
-      if (record.status === 'closed') {
-        throw new TabClosedError({ url: URL_TAG, tabId: record.id });
+    /** A host's invitation — `POST /api/tabs/join`. Unknown or expired is refused. */
+    join(command: JoinTabCommand): WorldScan {
+      seed();
+      const record = findTabByInviteToken(command.joinToken);
+      const invite = record ? invites.get(record.id) : undefined;
+      if (!record || !invite || Date.parse(invite.expiresAtUtc) <= now().getTime()) {
+        throw new InviteExpiredError({ url: URL_TAG });
       }
-
-      commandLog.set(command.commandId, record.id);
-
-      const existing = record.participants.find((p) => p.id === DEVICE_PARTICIPANT_ID);
-      if (existing && (existing.status === 'active' || existing.status === 'pending')) {
-        return {
-          kind: existing.status === 'pending' ? 'joinPending' : 'alreadyOn',
-          tab: project(record),
-        };
-      }
-
-      const isFirst = record.participants.every((p) => p.status !== 'active');
-      const you = participant(
-        DEVICE_PARTICIPANT_ID,
-        command.displayName ?? null,
-        isFirst ? 'host' : 'guest',
-        isFirst ? 'active' : 'pending',
-        isFirst ? HOST_TAB_PERMISSIONS : record.defaultPermissions,
-      );
-
-      if (existing) {
-        // Rejoining after leaving or being removed: the same seat, reset.
-        Object.assign(existing, you);
-      } else {
-        record.participants.push(you);
-      }
-
-      return { kind: isFirst ? 'tabOpened' : 'joinPending', tab: project(record) };
+      return enter(record, command.displayName ?? null, null);
     },
 
     get(tabId: string): TableTab | null {
@@ -358,25 +384,25 @@ export function createTabWorld(options: TabWorldOptions) {
       const you = record.participants.find((p) => p.id === DEVICE_PARTICIPANT_ID);
       if (!you) return;
 
-      const wasHost = you.role === 'host';
-      you.status = 'left';
-      you.role = 'guest';
-      if (!wasHost) return;
-
-      // Somebody has to be able to approve joiners. The earliest-joined active
-      // participant inherits, and a tab with nobody left simply closes.
-      const heir = record.participants.find((p) => p.status === 'active');
-      if (heir) {
+      if (you.role === 'host') {
+        // As the server does: somebody has to be able to approve joiners, so
+        // the approved guest who has been on the tab longest takes it over —
+        // and with nobody approved to take it, the host cannot leave.
+        const heir = record.participants.find((p) => p.id !== you.id && p.status === 'active');
+        if (!heir) throw new HostCannotLeaveError({ url: URL_TAG, tabId });
         heir.role = 'host';
         heir.permissions = HOST_TAB_PERMISSIONS;
-      } else {
-        record.status = 'closed';
-        record.closedAtUtc = now().toISOString();
+        you.role = 'guest';
       }
+      you.status = 'left';
     },
 
     invite(input: { tabId: string; commandId: string }): TabInvite {
       const record = requireTab(input.tabId);
+      // Host-only, as the server is (`RequireHost(..., "Inviting others")`).
+      // Minting one for anybody is how a guest's Invite looked fine here and
+      // got a 403 from the real route.
+      requireHost(record);
 
       const replayedToken = inviteCommandLog.get(input.commandId);
       const current = invites.get(record.id);

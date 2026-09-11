@@ -1,4 +1,6 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { OpenState } from './publicBranch';
+import type { ReservationStatusCode } from './push';
 
 /**
  * Domain contracts for the reservation flow.
@@ -26,20 +28,50 @@ export interface BranchPolicy {
   readonly freeCancellationMinutes: number;
 }
 
+/**
+ * One branch as the browse list publishes it — `PublicBranchCard`, and nothing
+ * the card does not carry.
+ *
+ * This used to promise a distance, today's opening and closing instants, a
+ * table total and a booking policy. None of the four is on the one venue read
+ * the backend publishes, and a screen that called `branch.distanceKm.toFixed(1)`
+ * on a real card would have crashed. What a diner genuinely gets is below.
+ */
 export interface BranchSummary {
+  /** The branch id — a guid on the wire, and what every branch route takes. */
   readonly id: string;
+  readonly slug: string;
+  /** The venue's slug, which is the venue's id on this surface. */
   readonly venueId: string;
   readonly venueName: string;
   readonly name: string;
-  readonly distanceKm: number;
+  readonly addressLine: string;
+  /** IANA zone. Every time rendered for this branch uses it, never the device's. */
   readonly timeZoneId: string;
-  readonly opensAtUtc: string;
-  readonly closesAtUtc: string;
-  readonly totalTables: number;
+  /**
+   * Open or shut, as the server judged it against the branch's own clock.
+   *
+   * The public card sends only the boolean, so both instants are `null` against
+   * the real backend; the mock, which derives them from a fixture week, fills
+   * them. A screen shows "open until" only when it has a time to show.
+   */
+  readonly openState: OpenState;
+  /**
+   * Tables nobody is sitting at **right now**, among the bookable ones.
+   *
+   * Not "free tonight", and meaningless at a branch that is shut — every table
+   * is free at 03:00. Read it through `branchAvailability`, which says so.
+   */
   readonly freeTables: number;
-  readonly policy: BranchPolicy;
 }
 
+/**
+ * A venue as the browse list publishes it.
+ *
+ * `id` is the venue's slug: the public card carries no venue id, the slug is
+ * unique, and nothing links a booking or a tab back to this route, so the slug
+ * is the honest key. The web page already keys its chooser the same way.
+ */
 export interface VenueSummary {
   readonly id: string;
   readonly name: string;
@@ -156,8 +188,15 @@ export interface TableAvailability {
   readonly unavailableReason: TableUnavailableReason | null;
   /** Present whenever the table is bookable. */
   readonly window: AvailabilityWindowDto | null;
-  /** Free cancellation deadline for a booking made now, ISO-8601 UTC. */
-  readonly freeCancellationUntilUtc: string;
+  /**
+   * Free cancellation deadline for a booking at this slot, ISO-8601 UTC — the
+   * server's `cancellationDeadlineUtc`, computed by the same rule that marks a
+   * cancellation late. `null` when the server could not compute one, and then
+   * nothing is promised: this used to be the slot start, which told a diner
+   * cancelling at 19:00 for a 19:30 table they were free to, and the server
+   * recorded it as late.
+   */
+  readonly freeCancellationUntilUtc: string | null;
   /** True when this party size exceeds the instant-confirmation limit. */
   readonly requiresApproval: boolean;
 }
@@ -204,20 +243,32 @@ export interface SlotFloor {
 // ---------------------------------------------------------------------------
 
 /**
- * `pendingApproval` is not a lesser `confirmed`. A large party has a request in
- * with the venue and no table yet; it must look visibly different everywhere it
- * appears or someone turns up to a table that was never theirs.
+ * The server's `ReservationStatus`, every member kept apart.
+ *
+ * `pendingApproval` is not a lesser `confirmed`: a large party has a request in
+ * with the venue and no table yet. `seated` is not past. And the two
+ * cancellations are separate, because whether the diner or the venue cancelled
+ * is the one thing somebody reading the list wants to know.
  */
-export type BookingStatus = 'confirmed' | 'pendingApproval' | 'cancelled' | 'completed' | 'noShow';
+export type BookingStatus = ReservationStatusCode;
 
+/**
+ * A booking, as `ReservationView` describes one — and nothing it does not.
+ *
+ * This used to carry a venue id, a floor area, the availability window and a
+ * created-at that no reservation read has, which is why the bookings screens
+ * stayed on the mock. Now every field is one the server sends, except
+ * `venueName`, which the view lacks and the gateway fills from the browse list
+ * when it has read it.
+ */
 export interface Booking {
   readonly id: string;
   /** Short human code. Staff ask for it and it gets read aloud over the phone. */
   readonly code: string;
   readonly status: BookingStatus;
 
-  readonly venueId: string;
-  readonly venueName: string;
+  /** `null` when this device has not read the venue list; the branch name is always there. */
+  readonly venueName: string | null;
   readonly branchId: string;
   readonly branchName: string;
   /** IANA zone of the branch. Every time on this booking renders in it. */
@@ -225,15 +276,17 @@ export interface Booking {
 
   readonly tableId: string;
   readonly tableLabel: string;
-  readonly floorAreaName: string | null;
 
   readonly partySize: number;
+  /** When the table is theirs from — the server's `startUtc`. */
   readonly slotUtc: string;
-  readonly window: AvailabilityWindowDto;
+  /** When the sitting is booked to end. */
+  readonly endUtc: string;
+  /** The server's `cancellationDeadlineUtc`: after this, a cancellation counts as late. */
   readonly freeCancellationUntilUtc: string;
 
-  readonly createdAtUtc: string;
   readonly cancelledAtUtc: string | null;
+  readonly cancelledAfterDeadline: boolean;
 
   /**
    * An opaque token granting sight of, and the power to cancel, **this booking
@@ -253,6 +306,34 @@ export interface Booking {
   readonly manageToken: string | null;
 }
 
+/**
+ * Upcoming and past, **as the server split them**.
+ *
+ * The server's rule is "the sitting has not ended and the status still holds a
+ * table". A client re-splitting on `slotUtc < now` put a diner five minutes late
+ * — the very moment the nudge offers to keep the table — and a seated party
+ * into Past.
+ */
+export interface MyBookings {
+  readonly upcoming: readonly Booking[];
+  readonly past: readonly Booking[];
+}
+
+/**
+ * How far ahead and how soon a branch takes bookings, from its public page.
+ *
+ * `BranchAvailability` carries neither, so the date and time pickers read them
+ * here and offer only what the branch will take, instead of offering a day the
+ * server then refuses.
+ */
+export interface BookingRules {
+  readonly bookingWindowDays: number;
+  readonly minLeadMinutes: number;
+}
+
+/** Where a booking was made. The server pushes reminders only to the app. */
+export type BookingChannel = 'app' | 'web';
+
 export interface CreateBookingCommand {
   /**
    * Client-generated, stable across retries. This is what makes a flaky
@@ -263,8 +344,17 @@ export interface CreateBookingCommand {
   readonly branchId: string;
   readonly tableId: string;
   readonly slotUtc: string;
+  /**
+   * The branch's zone. The server takes the booking in **wall-clock** date and
+   * time, so the instant is converted in this zone — never the device's.
+   */
+  readonly timeZoneId: string;
   readonly partySize: number;
-  readonly verificationToken: string;
+  /** Who the venue asks for at the door. Required by the server. */
+  readonly guestName: string;
+  /** The verified number, so the venue can reach them. Required by the server. */
+  readonly guestPhone: string;
+  readonly channel: BookingChannel;
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +366,8 @@ export interface PhoneChallenge {
   readonly phoneE164: string;
   readonly expiresAtUtc: string;
   readonly resendAvailableAtUtc: string;
+  /** How many tries this code allows, from the server. */
+  readonly maxAttempts: number;
   /**
    * Development only. The real backend returns this only outside production so
    * the flow is testable without an SMS provider. The UI must additionally gate

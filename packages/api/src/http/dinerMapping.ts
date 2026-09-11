@@ -1,6 +1,7 @@
 import type { components } from '../generated/schema';
 import type { SettlementMode } from '../contracts/service';
 import type {
+  DinerTabAdjustment,
   DinerTabLine,
   DinerTabMe,
   DinerTabView,
@@ -8,15 +9,17 @@ import type {
   TabParticipantStatusCode,
   TabRosterEntry,
 } from '../contracts/ordering';
-import type { TabParticipantRole } from '../contracts/tab';
+import type { TabParticipantChange, TabParticipantRole } from '../contracts/tab';
+import type { Booking } from '../contracts/booking';
 import type { ReservationState, ReservationStatusCode } from '../contracts/push';
-import { totals } from './staffMapping';
+import { orderStatus, totals } from './staffMapping';
 
 type Schemas = components['schemas'];
 type TabView = Schemas['Yalla.Application.Tabs.TabView'];
 type LineView = Schemas['Yalla.Application.Tabs.TabLineView'];
 type ParticipantView = Schemas['Yalla.Application.Tabs.TabParticipantView'];
 type ParticipantSummary = Schemas['Yalla.Application.Tabs.TabParticipantSummary'];
+type AdjustmentView = Schemas['Yalla.Application.Tabs.TabAdjustmentView'];
 
 /**
  * The diner's tab, from the wire.
@@ -82,15 +85,18 @@ export function settlementModeCode(mode: SettlementMode): 1 | 2 | 3 {
 // --- Lines ------------------------------------------------------------------
 
 /**
- * One line, with nothing invented.
+ * One line, everything the wire carries.
  *
- * Eight wire fields become eight client fields. There is no `status`, no
- * `voidReason`, no `orderId`, no `menuItemId`, no `note` and no `orderStatus`,
- * because `TabLineView` carries none of them — see {@link DinerTabLine}.
+ * A voided line **arrives** — the server keeps it in both arrays with
+ * `isVoided`, its reason and when, worth zero — so it is carried, marked, and
+ * the bill draws it struck through with the reason. It used to be dropped here
+ * and drawn as a live `0 ֏` item, exactly like something free.
  */
 export function dinerTabLine(view: LineView): DinerTabLine {
   return {
     id: view.lineId,
+    orderId: view.orderId,
+    menuItemId: view.menuItemId,
     name: view.name,
     quantity: view.quantity,
     unitPriceDram: view.unitPriceAmd,
@@ -98,6 +104,42 @@ export function dinerTabLine(view: LineView): DinerTabLine {
     isShared: view.isShared,
     participantId: view.placedByParticipantId ?? null,
     orderedByName: view.placedByDisplayName ?? null,
+    note: view.note ?? null,
+    orderStatus: orderStatus(view.orderStatus),
+    sharedWithCount: view.sharedWithCount,
+    isVoided: view.isVoided,
+    voidReason: view.voidReason ?? null,
+    voidedAtUtc: view.voidedAtUtc ?? null,
+  };
+}
+
+/** A comp or discount, with the reason the manager typed. `AdjustmentKind`: 1 Discount, 2 Comp. */
+export function dinerAdjustment(view: AdjustmentView): DinerTabAdjustment {
+  return {
+    id: view.adjustmentId,
+    kind: view.kind === 2 ? 'comp' : 'discount',
+    lineId: view.lineId ?? null,
+    percent: view.percent ?? null,
+    amountDram: view.amountAmd ?? null,
+    reductionDram: view.reductionAmd,
+    reason: view.reason,
+    isVoided: view.isVoided,
+    atUtc: view.appliedAtUtc,
+  };
+}
+
+/** What a host action left one participant as. */
+export function participantChange(view: ParticipantView): TabParticipantChange {
+  return {
+    participantId: view.participantId,
+    displayName: view.displayName,
+    role: ROLE[view.role] ?? 'guest',
+    status: STATUS[view.status] ?? 'pendingApproval',
+    permissions: {
+      canOrder: view.canOrder,
+      canSeeTableTotal: view.canSeeTableTotal,
+      canPay: view.canPay,
+    },
   };
 }
 
@@ -156,6 +198,9 @@ export function dinerTab(view: TabView, fetchedAtUtc: string): DinerTabView {
   return {
     tabId: view.tabId,
     branchId: view.branchId,
+    venueName: view.venueName,
+    branchName: view.branchName,
+    timeZoneId: view.timeZoneId,
     tableLabel: view.tableLabel,
     status: TAB_STATUS[view.status] ?? 'open',
     settlementMode: SETTLEMENT_MODE[view.settlementMode] ?? 'hostPaysEverything',
@@ -171,6 +216,13 @@ export function dinerTab(view: TabView, fetchedAtUtc: string): DinerTabView {
     tableLines:
       view.tableTotalVisible && view.tableLines ? view.tableLines.map(dinerTabLine) : null,
     money: tabMoney(view),
+    // For everyone, hidden total or not: the rate is a fact about the venue,
+    // not an aggregate of the table.
+    serviceChargePercent: view.serviceChargePercent,
+    adjustments: view.adjustments.map(dinerAdjustment),
+    // Where the event stream stands, so the live bill can start reading from
+    // here instead of never starting at all.
+    maxSequence: view.maxSequence,
     openedAtUtc: view.openedAtUtc,
     closedAtUtc: view.closedAtUtc ?? null,
     fetchedAtUtc,
@@ -201,11 +253,43 @@ const RESERVATION_STATUS: Readonly<Record<number, ReservationStatusCode>> = {
   8: 'noShow',
 };
 
+export function reservationStatus(value: number): ReservationStatusCode {
+  return RESERVATION_STATUS[value] ?? 'unknown';
+}
+
+/**
+ * A booking, from the one reservation shape the wire has.
+ *
+ * `venueName` is passed in because `ReservationView` does not carry it; the
+ * gateway supplies it from the browse list when it has one, and `null` when it
+ * does not — the branch name is always there to say where.
+ */
+export function booking(view: ReservationViewWire, venueName: string | null): Booking {
+  return {
+    id: view.id,
+    code: view.code,
+    status: reservationStatus(view.status),
+    venueName,
+    branchId: view.branchId,
+    branchName: view.branchName,
+    timeZoneId: view.timeZoneId,
+    tableId: view.tableId,
+    tableLabel: view.tableLabel,
+    partySize: view.partySize,
+    slotUtc: view.startUtc,
+    endUtc: view.endUtc,
+    freeCancellationUntilUtc: view.cancellationDeadlineUtc,
+    cancelledAtUtc: view.cancelledAtUtc ?? null,
+    cancelledAfterDeadline: view.cancelledAfterDeadline,
+    manageToken: view.manageToken ?? null,
+  };
+}
+
 export function reservationState(view: ReservationViewWire): ReservationState {
   return {
     reservationId: view.id,
     code: view.code,
-    status: RESERVATION_STATUS[view.status] ?? 'unknown',
+    status: reservationStatus(view.status),
     branchId: view.branchId,
     branchName: view.branchName,
     tableLabel: view.tableLabel,

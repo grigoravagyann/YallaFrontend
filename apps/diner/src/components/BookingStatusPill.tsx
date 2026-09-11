@@ -15,9 +15,13 @@ import { Text } from './Text';
 const TREATMENT: Readonly<Record<BookingStatus, { fg: string; bg: string; dashed: boolean }>> = {
   confirmed: { fg: color.success, bg: color.surface, dashed: false },
   pendingApproval: { fg: color.info, bg: color.surface, dashed: true },
-  cancelled: { fg: color.mutedForeground, bg: color.greenTint, dashed: false },
+  seated: { fg: color.success, bg: color.greenTint, dashed: false },
   completed: { fg: color.mutedForeground, bg: color.greenTint, dashed: false },
+  // Which side cancelled is the one thing somebody reading the list wants to know.
+  cancelledByDiner: { fg: color.mutedForeground, bg: color.greenTint, dashed: false },
+  cancelledByVenue: { fg: color.danger, bg: color.greenTint, dashed: false },
   noShow: { fg: color.danger, bg: color.greenTint, dashed: false },
+  unknown: { fg: color.mutedForeground, bg: color.greenTint, dashed: false },
 };
 
 export function BookingStatusPill({ status }: { status: BookingStatus }) {

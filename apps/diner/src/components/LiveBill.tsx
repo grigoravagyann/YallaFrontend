@@ -1,4 +1,4 @@
-import { isEndpointNotWired } from '@yalla/api';
+import { isTabAccessEnded } from '@yalla/api';
 import { formatDram, formatRelativeMinutes, minutesBetween } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
@@ -6,40 +6,35 @@ import { StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { useDinerTab, useTabShares, useTabStream } from '../data/orderQueries';
 import { useNow } from '../hooks/useNow';
-import { projectTab, type RenderedLine } from '../tab/projection';
+import {
+  paymentRows,
+  projectTab,
+  type RenderedAdjustment,
+  type RenderedLine,
+} from '../tab/projection';
 
 /**
  * The bill, as it grows.
  *
  * The screen the product is judged on after the floor plan, and the one where a
- * single careless render does real damage. Three rules run through it:
+ * single careless render does real damage. Four rules run through it:
  *
- * 1. **Nothing changes without being said.** This was "nothing disappears",
- *    and the server does not allow it: `TabProjection` filters voided lines
- *    out of the diner's view, so a void really is a row vanishing and a total
- *    moving. What survives of the rule is the part that matters — the change is
- *    named, by dish, from the snapshot held before the refetch.
- * 2. **The service charge is its own line from the very first item.** Not
- *    revealed at the end and not folded into a total. Without the percentage
- *    beside it: no diner endpoint carries one.
- * 3. **Changes made by staff are announced, after the data they describe.**
- *    A total that moves with no explanation is the fastest way to lose
- *    somebody's trust; an explanation that arrives before the bill agrees with
- *    it is worse.
- *
- * What no longer renders, because no diner endpoint carries it: adjustment
- * rows with the manager's reason, void reasons, actor names, kitchen notes, and
- * how many ways a shared line splits.
+ * 1. **Nothing disappears without being said.** The server keeps a voided line
+ *    on the bill, marked, with the reason staff gave; it is drawn struck
+ *    through with "removed by staff: <reason>", never as a live item at `0 ֏`.
+ *    A void that just happened is also announced by name, from the snapshot
+ *    held before the refetch.
+ * 2. **The service charge is its own line from the very first item**, with the
+ *    venue's rate beside it — on the hidden-total branch too.
+ * 3. **A total that moves has a row that says why.** Comps and discounts are
+ *    listed under the lines with the reason the manager typed.
+ * 4. **Once money has changed hands, what is left leads.** Paid and remaining
+ *    rows, so a table that has handed over cash is not told it owes it all.
  */
 
 export interface LiveBillProps {
   readonly tabId: string;
-  /**
-   * The branch's zone, passed explicitly.
-   *
-   * Not on `TabView`, and never the device's: a tourist's phone on Moscow time
-   * would render the kitchen's estimate three hours out.
-   */
+  /** The branch's zone, from the tab. Never the device's. */
   readonly timeZoneId: string;
   /** False while pending approval, so the stream is not started needlessly. */
   readonly active: boolean;
@@ -54,7 +49,9 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
   // attributes a share to the caller. The tab read carries the table aggregate
   // and nothing per-person.
   const { data: shares } = useTabShares(tabId);
-  const live = useTabStream(tabId, active);
+  // Seeded from the tab read's own `maxSequence`, so the stream reads events
+  // from where the tab stands instead of never reading any at all.
+  const live = useTabStream(tabId, active, tab?.maxSequence);
   // The clock as something this subscribes to rather than reads during render,
   // so "last updated four minutes ago" actually keeps counting while a stale
   // bill sits on screen.
@@ -74,8 +71,8 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
       <View style={styles.card}>
         <Text style={styles.title}>{t('bill.title')}</Text>
         <Text style={styles.muted}>
-          {isEndpointNotWired(error)
-            ? t('bill.notWired')
+          {isTabAccessEnded(error)
+            ? t('tab.accessEnded.body')
             : isError
               ? t('bill.error')
               : t('bill.empty')}
@@ -86,11 +83,13 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
 
   const rendered = projectTab(tab, timeZoneId);
   const staleMinutes = Math.max(0, minutesBetween(dataUpdatedAt, now));
+  const payments = paymentRows(rendered.money);
 
   // Everyone's lines when the host allows it, otherwise the caller's own. The
   // `null` is what says which case this is; `myLines` is never empty-by-policy.
   const lines = rendered.tableLines ?? rendered.myLines;
   const yourShareDram = shares?.yourShare?.shareDram ?? null;
+  const rate = rendered.serviceChargePercent;
 
   const removals = live.markers.filter((marker) => marker.type === 'lineVoided');
   const additions = live.markers.filter((marker) => marker.type !== 'lineVoided');
@@ -99,8 +98,8 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
     <View style={styles.card}>
       <View style={styles.head}>
         <Text style={styles.title}>{t('bill.title')}</Text>
-        {/* Honest about whether this is live. A bill that looks current and is
-            forty seconds behind is worse than one that says it is catching up. */}
+        {/* Honest about whether this is live: "Up to date" only once a page of
+            events has actually come back. */}
         <Text style={[styles.status, isPaused && styles.statusStale]}>
           {isPaused
             ? t('bill.stale', { ago: formatRelativeMinutes(-staleMinutes, locale) })
@@ -122,17 +121,16 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
         </View>
       )}
 
-      {/*
-        Removals are announced here rather than on a line, because there is no
-        line left to announce them on.
+      {rendered.adjustments.length > 0 ? (
+        <View style={styles.lines}>
+          {rendered.adjustments.map((adjustment) => (
+            <Adjustment key={adjustment.id} adjustment={adjustment} />
+          ))}
+        </View>
+      ) : null}
 
-        `TabProjection` filters voided lines out of the diner's view, so a void
-        arrives as a row that is simply gone and a total that has moved. The
-        marker carries the name the phone held before the refetch, which is the
-        only place that name still exists. It is deliberately not a strike-
-        through: pretending the line is still on the bill would be inventing a
-        row the server does not send.
-      */}
+      {/* A change staff just made, announced once by name. The voided line
+          itself stays on the bill above, struck through. */}
       {removals.length > 0 ? (
         <View style={styles.removals}>
           {removals.map((marker) => (
@@ -164,25 +162,34 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
             <Text style={styles.totalLabel}>{t('bill.subtotal')}</Text>
             <Text style={styles.totalValue}>{formatDram(rendered.money.subtotalDram, locale)}</Text>
           </View>
-          {/*
-            Its own line, always — from the first item, not at checkout.
-
-            The percentage is *not* stated beside it. It was, and it was a
-            guess: the only view carrying a branch's service-charge percentage
-            is `ReservationPolicyView`, which is `ManagerOrAbove`. A diner token
-            cannot read it, so the label says what the charge is and not what
-            rate produced it.
-          */}
+          {/* Its own line, always — from the first item, not at checkout — and
+              with the venue's rate, which the tab now carries for everyone. */}
           <View style={styles.row}>
-            <Text style={styles.totalLabel}>{t('bill.serviceCharge')}</Text>
+            <Text style={styles.totalLabel}>
+              {rate > 0 ? t('bill.serviceChargeRate', { percent: rate }) : t('bill.serviceCharge')}
+            </Text>
             <Text style={styles.totalValue}>
               {formatDram(rendered.money.serviceChargeDram, locale)}
             </Text>
           </View>
-          <View style={[styles.row, styles.grandRow]}>
-            <Text style={styles.grandLabel}>{t('bill.total')}</Text>
-            <Text style={styles.grandValue}>{formatDram(rendered.money.totalDram, locale)}</Text>
+          <View style={[styles.row, payments ? null : styles.grandRow]}>
+            <Text style={payments ? styles.totalLabel : styles.grandLabel}>{t('bill.total')}</Text>
+            <Text style={payments ? styles.totalValue : styles.grandValue}>
+              {formatDram(rendered.money.totalDram, locale)}
+            </Text>
           </View>
+          {payments ? (
+            <>
+              <View style={styles.row}>
+                <Text style={styles.totalLabel}>{t('bill.paid')}</Text>
+                <Text style={styles.paidValue}>{formatDram(payments.paidDram, locale)}</Text>
+              </View>
+              <View style={[styles.row, styles.grandRow]}>
+                <Text style={styles.grandLabel}>{t('bill.remaining')}</Text>
+                <Text style={styles.grandValue}>{formatDram(payments.remainingDram, locale)}</Text>
+              </View>
+            </>
+          ) : null}
           {/* From the shares endpoint, which is where the server attributes it.
               `TabView` carries no per-participant share. */}
           {yourShareDram !== null ? (
@@ -206,14 +213,14 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
               <Text style={styles.yourShareValue}>{formatDram(yourShareDram, locale)}</Text>
             </View>
           ) : null}
+          {rate > 0 ? (
+            <Text style={styles.hidden}>{t('bill.serviceChargeApplies', { percent: rate })}</Text>
+          ) : null}
           {/*
             No table total here, and deliberately not a zero or a dash either.
             The host has chosen to keep the table's total to themselves; a `0 ֏`
             would read as a free meal and a dash as a failure to load. Saying
             plainly what is and is not shown is the only honest option.
-
-            This used to add "a N% service charge applies". It cannot: see the
-            service-charge note above.
           */}
           <Text style={styles.hidden}>{t('bill.hiddenTotal')}</Text>
         </View>
@@ -225,6 +232,24 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
 function Line({ line }: { readonly line: RenderedLine }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
+
+  if (line.isVoided) {
+    return (
+      <View style={styles.line}>
+        <View style={styles.row}>
+          <Text style={[styles.lineName, styles.struck]}>
+            {line.quantity}× {line.name}
+          </Text>
+          <Text style={[styles.lineAmount, styles.struck]}>{formatDram(0, locale)}</Text>
+        </View>
+        <Text style={styles.voided}>
+          {line.voidReason
+            ? t('bill.removedBy', { reason: line.voidReason })
+            : t('bill.removedNoReason')}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.line}>
@@ -242,12 +267,31 @@ function Line({ line }: { readonly line: RenderedLine }) {
             : line.orderedByName
               ? t('bill.orderedBy', { name: line.orderedByName })
               : t('bill.forTheTable'),
-          // How many ways it splits is not on `TabLineView`; only that it does.
-          line.isShared ? t('bill.shared') : null,
+          // How many ways it splits, from the snapshot taken when it was ordered.
+          line.isShared
+            ? line.sharedWithCount > 1
+              ? t('bill.sharedWays', { count: line.sharedWithCount })
+              : t('bill.shared')
+            : null,
         ]
           .filter(Boolean)
           .join(' · ')}
       </Text>
+      {line.note ? <Text style={styles.lineNote}>{line.note}</Text> : null}
+    </View>
+  );
+}
+
+function Adjustment({ adjustment }: { readonly adjustment: RenderedAdjustment }) {
+  const { t } = useTranslation('diner');
+  const { locale } = useLocale();
+  return (
+    <View style={styles.adjustment}>
+      <View style={styles.row}>
+        <Text style={styles.adjustmentName}>{t(`bill.adjustment.${adjustment.kind}`)}</Text>
+        <Text style={styles.adjustmentAmount}>−{formatDram(adjustment.reductionDram, locale)}</Text>
+      </View>
+      {adjustment.reason ? <Text style={styles.reason}>{adjustment.reason}</Text> : null}
     </View>
   );
 }
@@ -308,6 +352,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: { color: color.mutedForeground, fontSize: fontSize.md },
   totalValue: { fontSize: fontSize.md },
+  paidValue: { fontSize: fontSize.md, color: color.success },
   grandRow: { paddingTop: space.xs },
   grandLabel: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
   grandValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },

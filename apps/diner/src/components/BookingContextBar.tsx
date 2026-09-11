@@ -1,9 +1,16 @@
 import { nextHalfHour } from '@yalla/api';
-import { formatDate, formatTime, type Locale } from '@yalla/format';
+import { branchDayKey, formatDate, formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { color, elevation, fontSize, fontWeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useNow } from '../hooks/useNow';
+import {
+  DEFAULT_BOOKING_WINDOW_DAYS,
+  PARTY_SIZES,
+  dayOptions,
+  timeOptions,
+} from '../lib/bookingSlots';
 import { Text } from './Text';
 
 /** The three values the floor plan filters and annotates on. */
@@ -16,13 +23,14 @@ export interface BookingContext {
 export interface BookingContextBarProps {
   readonly value: BookingContext;
   readonly onChange: (next: BookingContext) => void;
-  /** Branch IANA zone — every label here is rendered in it, never the device's. */
+  /** Branch IANA zone — every label and every slot here is in it, never the device's. */
   readonly timeZoneId: string;
   readonly locale: Locale;
+  /** How far ahead the branch takes bookings; the default when unknown. */
+  readonly windowDays?: number | undefined;
+  /** The branch's lead time; slots inside it are not offered. */
+  readonly leadMinutes?: number | undefined;
 }
-
-const PARTY_SIZES = [1, 2, 3, 4, 5, 6, 8] as const;
-const DAY_OFFSETS = [0, 1, 2, 3, 4, 5, 6] as const;
 
 /**
  * Re-exported, not defined here.
@@ -33,13 +41,6 @@ const DAY_OFFSETS = [0, 1, 2, 3, 4, 5, 6] as const;
  */
 export { nextHalfHour };
 
-/** Half-hourly slots for the day containing `around`, in UTC. */
-function slotsForDay(around: Date): Date[] {
-  const start = new Date(around);
-  start.setUTCHours(0, 0, 0, 0);
-  return Array.from({ length: 48 }, (_, i) => new Date(start.getTime() + i * 30 * 60_000));
-}
-
 /**
  * Date / time / party size, held above the floor plan.
  *
@@ -47,20 +48,54 @@ function slotsForDay(around: Date): Date[] {
  * selectable, and the slot decides which tables count as `reservedSoon` — so
  * they live in screen state and are passed down rather than being picked
  * inside the plan.
+ *
+ * The choices come from `lib/bookingSlots`, in the branch's own day: dates
+ * from branch-local today to the end of the booking window, times from that
+ * day's midnight with anything already past or inside the lead time left out.
  */
-export function BookingContextBar({ value, onChange, timeZoneId, locale }: BookingContextBarProps) {
+export function BookingContextBar({
+  value,
+  onChange,
+  timeZoneId,
+  locale,
+  windowDays,
+  leadMinutes,
+}: BookingContextBarProps) {
   const { t } = useTranslation('diner');
   const [open, setOpen] = useState<'date' | 'time' | 'party' | null>(null);
+  // A clock that ticks, so "Today" and the list of times left do not freeze at
+  // whenever the screen was opened.
+  const now = useNow(60_000);
 
-  const today = new Date();
-  const isToday =
-    formatDate(value.slotUtc, timeZoneId, locale) === formatDate(today, timeZoneId, locale);
+  const days = dayOptions({
+    now,
+    selected: value.slotUtc,
+    timeZoneId,
+    windowDays: windowDays ?? DEFAULT_BOOKING_WINDOW_DAYS,
+    leadMinutes,
+  });
+  const selectedDay = days.find((day) => day.isSelected) ?? null;
+  const times = timeOptions({
+    dateKey: branchDayKey(value.slotUtc, timeZoneId),
+    now,
+    timeZoneId,
+    leadMinutes: leadMinutes ?? 0,
+  });
+
+  const dayLabel = (day: { isToday: boolean; isTomorrow: boolean; slotUtc: Date }): string =>
+    day.isToday
+      ? t('booking.today')
+      : day.isTomorrow
+        ? t('booking.tomorrow')
+        : formatDate(day.slotUtc, timeZoneId, locale);
+
+  const selectedTime = value.slotUtc.getTime();
 
   return (
     <View style={styles.bar}>
       <Field
         label={t('booking.date')}
-        value={isToday ? t('booking.today') : formatDate(value.slotUtc, timeZoneId, locale)}
+        value={selectedDay ? dayLabel(selectedDay) : formatDate(value.slotUtc, timeZoneId, locale)}
         onPress={() => setOpen('date')}
       />
       <Field
@@ -78,26 +113,23 @@ export function BookingContextBar({ value, onChange, timeZoneId, locale }: Booki
         visible={open === 'date'}
         title={t('booking.pickDate')}
         onClose={() => setOpen(null)}
-        options={DAY_OFFSETS.map((offset) => {
-          const day = new Date(value.slotUtc.getTime() + offset * 86_400_000);
-          return {
-            key: String(offset),
-            label: offset === 0 ? t('booking.today') : formatDate(day, timeZoneId, locale),
-            onSelect: () => {
-              const next = new Date(value.slotUtc.getTime() + offset * 86_400_000);
-              onChange({ ...value, slotUtc: next });
-            },
-          };
-        })}
+        options={days.map((day) => ({
+          key: day.dateKey,
+          label: dayLabel(day),
+          selected: day.isSelected,
+          onSelect: () => onChange({ ...value, slotUtc: day.slotUtc }),
+        }))}
       />
 
       <PickerSheet
         visible={open === 'time'}
         title={t('booking.pickTime')}
         onClose={() => setOpen(null)}
-        options={slotsForDay(value.slotUtc).map((slot) => ({
+        empty={t('booking.noTimesLeft')}
+        options={times.map((slot) => ({
           key: slot.toISOString(),
           label: formatTime(slot, timeZoneId, locale),
+          selected: slot.getTime() === selectedTime,
           onSelect: () => onChange({ ...value, slotUtc: slot }),
         }))}
       />
@@ -109,6 +141,7 @@ export function BookingContextBar({ value, onChange, timeZoneId, locale }: Booki
         options={PARTY_SIZES.map((size) => ({
           key: String(size),
           label: t('booking.guests', { count: size }),
+          selected: size === value.partySize,
           onSelect: () => onChange({ ...value, partySize: size }),
         }))}
       />
@@ -135,6 +168,7 @@ function Field({ label, value, onPress }: { label: string; value: string; onPres
 interface Option {
   readonly key: string;
   readonly label: string;
+  readonly selected: boolean;
   readonly onSelect: () => void;
 }
 
@@ -143,11 +177,14 @@ function PickerSheet({
   title,
   options,
   onClose,
+  empty,
 }: {
   visible: boolean;
   title: string;
   options: readonly Option[];
   onClose: () => void;
+  /** Said when there is nothing left to pick, rather than an empty sheet. */
+  empty?: string;
 }) {
   const { t } = useTranslation('diner');
 
@@ -162,17 +199,25 @@ function PickerSheet({
       <View style={styles.sheet}>
         <Text style={styles.sheetTitle}>{title}</Text>
         <ScrollView style={styles.sheetScroll}>
+          {options.length === 0 && empty ? <Text style={styles.empty}>{empty}</Text> : null}
           {options.map((option) => (
             <Pressable
               key={option.key}
               accessibilityRole="button"
+              accessibilityState={{ selected: option.selected }}
               onPress={() => {
                 option.onSelect();
                 onClose();
               }}
-              style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
+              style={({ pressed }) => [
+                styles.option,
+                option.selected && styles.optionSelected,
+                pressed && styles.optionPressed,
+              ]}
             >
-              <Text style={styles.optionText}>{option.label}</Text>
+              <Text style={[styles.optionText, option.selected && styles.optionTextSelected]}>
+                {option.label}
+              </Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -227,14 +272,21 @@ const styles = StyleSheet.create({
     marginBottom: space.md,
   },
   sheetScroll: { flexGrow: 0 },
+  empty: {
+    paddingVertical: space.md,
+    fontSize: fontSize.md,
+    color: color.mutedForeground,
+  },
   option: {
     minHeight: touchTarget.minimum,
     justifyContent: 'center',
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
   },
+  optionSelected: { backgroundColor: color.greenTint },
   optionPressed: { backgroundColor: color.paper },
   optionText: { fontSize: fontSize.md, color: color.foreground },
+  optionTextSelected: { fontWeight: fontWeight.bold, color: color.primaryInk },
   close: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',

@@ -15,8 +15,10 @@ import {
 } from 'react-native';
 import { Text } from '../../../src/components/Text';
 import QRCode from 'react-native-qrcode-svg';
-import { useTab, useTabInvite } from '../../../src/data/queries';
+import { useDinerTab } from '../../../src/data/orderQueries';
+import { useTabInvite } from '../../../src/data/queries';
 import { useNow } from '../../../src/hooks/useNow';
+import { inviteFailure } from '../../../src/tab/invite';
 
 /** The QR is read across a table, in a dim room, off a phone held at an angle. */
 const QR_SIZE = 220;
@@ -38,8 +40,18 @@ export default function InviteScreen() {
   const [nonce, setNonce] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const { data: tab } = useTab(tabId);
-  const { data: invite, isLoading, isError, refetch, isFetching } = useTabInvite(tabId, nonce);
+  const { data: tab } = useDinerTab(tabId);
+  const {
+    data: invite,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useTabInvite(tabId, nonce);
+  // Only the host can make an invitation. That refusal is said as what it is,
+  // with no retry, because trying again cannot change who opened the tab.
+  const failure = inviteFailure(error);
 
   // A clock as subscribed state rather than `Date.now()` in render, so the
   // countdown is honest instead of frozen at whenever the screen last painted.
@@ -89,14 +101,16 @@ export default function InviteScreen() {
           </View>
         ) : isError || !invite ? (
           <View style={styles.centered}>
-            <Text style={styles.error}>{t('invite.error')}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void refetch()}
-              style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-            >
-              <Text style={styles.secondaryText}>{t('net.retry')}</Text>
-            </Pressable>
+            <Text style={failure.retry ? styles.error : styles.refusal}>{t(failure.key)}</Text>
+            {failure.retry ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void refetch()}
+                style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
+              >
+                <Text style={styles.secondaryText}>{t('net.retry')}</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           <>
@@ -214,6 +228,12 @@ const styles = StyleSheet.create({
   linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryInk },
   notice: { fontSize: fontSize.sm, color: color.success, textAlign: 'center' },
   error: { fontSize: fontSize.sm, color: color.danger, textAlign: 'center' },
+  refusal: {
+    fontSize: fontSize.md,
+    lineHeight: lineHeight.md,
+    color: color.foreground,
+    textAlign: 'center',
+  },
   centered: { alignItems: 'center', gap: space.md, paddingTop: space.xxl },
   muted: { fontSize: fontSize.sm, color: color.mutedForeground },
   pressed: { opacity: 0.75 },

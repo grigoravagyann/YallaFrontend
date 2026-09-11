@@ -1,3 +1,4 @@
+import { isTabAccessEnded } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -12,8 +13,8 @@ import {
 } from 'react-native';
 import { Text } from '../../../src/components/Text';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
-import { useLeaveTab, useTab } from '../../../src/data/queries';
-import { newCommandId } from '../../../src/lib/commandId';
+import { useDinerTab } from '../../../src/data/orderQueries';
+import { useLeaveTab } from '../../../src/data/queries';
 import { useActiveTab } from '../../../src/stores/tab';
 
 /**
@@ -40,23 +41,31 @@ export default function PendingScreen() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
-  const { data: tab, isLoading, isFetching, refetch } = useTab(tabId, { pollMs: POLL_MS });
+  const {
+    data: tab,
+    isLoading,
+    isFetching,
+    refetch,
+    error,
+  } = useDinerTab(tabId, {
+    pollMs: POLL_MS,
+  });
   const leaveTab = useLeaveTab();
   const clearActive = useActiveTab((s) => s.clear);
 
   // Approved: go straight through. `replace`, so hardware back from the tab
   // does not land the diner back on a waiting screen for a tab they are on.
   useEffect(() => {
-    if (tab?.yourStatus === 'active' && tabId) {
+    if (tab?.me.status === 'approved' && tabId) {
       router.replace({ pathname: '/tab/[tabId]', params: { tabId } });
     }
-  }, [tab?.yourStatus, tabId, router]);
+  }, [tab?.me.status, tabId, router]);
 
   const confirmLeave = useCallback(async () => {
     if (!tabId) return;
     setLeaveError(null);
     try {
-      await leaveTab.mutateAsync({ tabId, commandId: newCommandId() });
+      await leaveTab.mutateAsync({ tabId });
       clearActive();
       setLeaveOpen(false);
       router.replace('/(tabs)/scan');
@@ -65,9 +74,12 @@ export default function PendingScreen() {
     }
   }, [tabId, leaveTab, clearActive, router, t]);
 
-  const hostName = tab?.participants.find((p) => p.role === 'host')?.displayName ?? null;
-  const rejected = tab?.yourStatus === 'rejected';
-  const removed = tab?.yourStatus === 'removed';
+  // While pending the roster holds only this person, so the host's name is
+  // usually not known here; the copy has a version without it.
+  const hostName = tab?.participants.find((p) => p.role === 'host')?.displayName || null;
+  // Turned away, taken off, or the tab closed: the server answers a pending
+  // joiner's token with the same bare 403 for all of them.
+  const ended = isTabAccessEnded(error) || tab?.me.status === 'removed';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -79,14 +91,10 @@ export default function PendingScreen() {
             <ActivityIndicator color={color.primaryInk} />
             <Text style={styles.muted}>{t('tab.loading')}</Text>
           </View>
-        ) : rejected || removed ? (
+        ) : ended ? (
           <>
-            <Text style={styles.title}>
-              {rejected ? t('pending.rejectedTitle') : t('pending.removedTitle')}
-            </Text>
-            <Text style={styles.bodyText}>
-              {rejected ? t('pending.rejectedBody') : t('pending.removedBody')}
-            </Text>
+            <Text style={styles.title}>{t('pending.endedTitle')}</Text>
+            <Text style={styles.bodyText}>{t('pending.endedBody')}</Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => {
@@ -127,7 +135,8 @@ export default function PendingScreen() {
                 accessibilityRole="button"
                 disabled={!tab}
                 onPress={() =>
-                  tab && router.push({ pathname: '/tab/[tabId]/menu', params: { tabId: tab.id } })
+                  tab &&
+                  router.push({ pathname: '/tab/[tabId]/menu', params: { tabId: tab.tabId } })
                 }
                 style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
               >

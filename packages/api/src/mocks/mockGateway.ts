@@ -5,6 +5,7 @@ import type {
   BookingStatus,
   BranchPolicy,
   CreateBookingCommand,
+  MyBookings,
   PhoneChallenge,
   SlotFloor,
   TableAvailability,
@@ -14,19 +15,22 @@ import type {
 } from '../contracts/booking';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
+  BookingRejectedError,
+  TabAccessEndedError,
   ExpiredCodeError,
   HoldAlreadyExtendedError,
+  HoldNotActiveError,
   LeadTimeExceededError,
   RateLimitedError,
   TableTakenError,
   TooManyAttemptsError,
   WrongCodeError,
 } from '../contracts/errors';
-import type { Menu } from '../contracts/menu';
 import type {
   ScanResult,
   ScanTableCommand,
   TabInvite,
+  TabParticipantChange,
   TabPermissions,
   TableTab,
   WaiterCall,
@@ -40,14 +44,16 @@ import type {
   TabShares,
 } from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
-import { NotFoundError } from '../errors';
+import { ConcurrencyConflictError, ForbiddenError, NotFoundError } from '../errors';
+import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
-import { mockMenuFor } from './menu';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
+import { openStateFrom } from './openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
-import { mockVenues, type Branch as MockBranch } from './venues';
+import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
+import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from './venues';
 
 const URL_TAG = 'mock://yalla';
 
@@ -58,7 +64,8 @@ const DEFAULT_POLICY: BranchPolicy = {
   freeCancellationMinutes: 120,
 };
 
-const MAX_CODE_ATTEMPTS = 3;
+/** The server's `MaxAttempts`. Three here let a flow burn a code two tries early. */
+const MAX_CODE_ATTEMPTS = 5;
 const CODE_TTL_MS = 10 * 60_000;
 const RESEND_AFTER_MS = 30_000;
 const MAX_CODES_PER_NUMBER = 5;
@@ -125,36 +132,22 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
    * thing keeps the mock honest about what a real notification landing can read.
    */
   function toReservationState(booking: Booking): ReservationState {
-    const status: ReservationState['status'] =
-      booking.status === 'cancelled'
-        ? 'cancelledByDiner'
-        : booking.status === 'pendingApproval'
-          ? 'pendingApproval'
-          : booking.status === 'confirmed'
-            ? 'confirmed'
-            : 'unknown';
-
+    const local = localDateTime(booking.slotUtc, booking.timeZoneId);
     return {
       reservationId: booking.id,
       code: booking.code,
-      status,
+      status: booking.status,
       branchId: booking.branchId,
       branchName: booking.branchName,
       tableLabel: booking.tableLabel,
       partySize: booking.partySize,
       startUtc: booking.slotUtc,
-      // `AvailabilityWindowDto.untilUtc` is nullable — the window is unbounded
-      // when nothing is booked after. The wire's `endUtc` is always set (start
-      // plus the branch's turn time), so fall back to the slot itself rather
-      // than emitting an empty string.
-      endUtc: booking.window.untilUtc ?? booking.slotUtc,
-      localDate: booking.slotUtc.slice(0, 10),
-      localStartTime: booking.slotUtc.slice(11, 16),
+      endUtc: booking.endUtc,
+      localDate: local.date,
+      localStartTime: local.time,
       timeZoneId: booking.timeZoneId,
       cancelledAtUtc: booking.cancelledAtUtc,
-      cancelledAfterDeadline:
-        booking.cancelledAtUtc !== null &&
-        Date.parse(booking.cancelledAtUtc) > Date.parse(booking.freeCancellationUntilUtc),
+      cancelledAfterDeadline: booking.cancelledAfterDeadline,
     };
   }
   const challenges = new Map<string, Challenge>();
@@ -221,34 +214,101 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     },
   });
 
-  function findBranch(branchId: string): { venue: VenueSummary; branch: MockBranch } | null {
+  /** The tab as this device reads it — what `GET /api/tabs/{id}` answers. */
+  function dinerViewOf(tab: TableTab): DinerTabView {
+    orders.ensure(tab.id, tab.branchId);
+    return orders.dinerView(tab, tab.yourParticipantId);
+  }
+
+  /** One participant, as a host action left them — `TabParticipantView`. */
+  function changeOf(tab: TableTab, participantId: string): TabParticipantChange {
+    const person = tab.participants.find((entry) => entry.id === participantId);
+    if (!person) throw new NotFoundError({ url: `${URL_TAG}/api/tabs/${tab.id}` });
+    return {
+      participantId: person.id,
+      displayName: person.displayName ?? '',
+      role: person.role,
+      status:
+        person.status === 'active'
+          ? 'approved'
+          : person.status === 'pending'
+            ? 'pendingApproval'
+            : 'removed',
+      permissions: person.permissions,
+    };
+  }
+
+  /**
+   * A tab this device can still read, or the refusal the server gives a token
+   * that is no longer good for it: taken off, turned away, or left.
+   */
+  function readableTab(tabId: string): TableTab | null {
+    const tab = world.get(tabId);
+    if (!tab) return null;
+    if (
+      tab.yourStatus === 'removed' ||
+      tab.yourStatus === 'rejected' ||
+      tab.yourStatus === 'left'
+    ) {
+      throw new TabAccessEndedError({ url: `${URL_TAG}/api/tabs/${tabId}`, tabId, status: 403 });
+    }
+    return tab;
+  }
+
+  function findBranch(branchId: string): { venue: MockVenue; branch: MockBranch } | null {
     for (const venue of mockVenues) {
       const branch = venue.branches.find((b) => b.id === branchId);
-      if (branch) return { venue: toVenueSummary(venue), branch };
+      if (branch) return { venue, branch };
     }
     return null;
   }
 
-  function toVenueSummary(venue: (typeof mockVenues)[number]): VenueSummary {
-    return {
-      id: venue.id,
-      name: venue.name,
-      type: venue.type,
-      branches: venue.branches.map((b) => ({
-        id: b.id,
-        venueId: venue.id,
-        venueName: venue.name,
-        name: b.name,
-        distanceKm: b.distanceKm,
-        timeZoneId: b.timeZoneId,
-        opensAtUtc: b.opensAtUtc,
-        closesAtUtc: b.closesAtUtc,
-        totalTables: b.totalTables,
-        freeTables:
-          floors.get(b.id)?.tables.filter((t) => t.state === 'free').length ?? b.freeTables,
-        policy: DEFAULT_POLICY,
-      })),
-    };
+  /**
+   * A venue as `/api/public/venues` would publish it, or `null` when it would
+   * not appear at all.
+   *
+   * Four rules, each the server's:
+   * - keyed by the venue's **slug** — the card carries no venue id;
+   * - a branch that is not live (suspended) is **left out**, and a venue with
+   *   nothing left is left out with it;
+   * - open-now comes from the branch's **week of hours at this gateway's
+   *   clock**, not from instants frozen on the day the fixtures were written —
+   *   on every other day those read every venue as closed;
+   * - the free count is **bookable** tables nobody is at, the same set the
+   *   server counts, so a bar stool out of the booking pool is not "free".
+   */
+  function toVenueSummary(venue: MockVenue): VenueSummary | null {
+    const venueId = publicVenueFixtures[venue.id]?.slug ?? venue.id;
+    const branches = venue.branches.flatMap((b) => {
+      const fixture = publicBranchFixtures[b.id];
+      if (!fixture || fixture.status !== 'live') return [];
+      const floor = floors.get(b.id);
+      return [
+        {
+          id: b.id,
+          slug: fixture.slug,
+          venueId,
+          venueName: venue.name,
+          name: b.name,
+          addressLine: fixture.addressLine,
+          timeZoneId: b.timeZoneId,
+          openState: openStateFrom(fixture.weeklyHours, now(), b.timeZoneId),
+          freeTables: floor
+            ? floor.tables.filter((t) => t.state === 'free' && t.isBookable).length
+            : b.freeTables,
+        },
+      ];
+    });
+    return branches.length > 0
+      ? { id: venueId, name: venue.name, type: venue.type, branches }
+      : null;
+  }
+
+  function publishedVenues(): readonly VenueSummary[] {
+    return mockVenues.flatMap((venue) => {
+      const summary = toVenueSummary(venue);
+      return summary ? [summary] : [];
+    });
   }
 
   /** Derive the window for one table at a slot. */
@@ -427,13 +487,21 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   return {
     async listVenues() {
       await wait();
-      return mockVenues.map(toVenueSummary);
+      return publishedVenues();
     },
 
     async getVenue(venueId) {
       await wait();
-      const venue = mockVenues.find((v) => v.id === venueId);
-      return venue ? toVenueSummary(venue) : null;
+      return publishedVenues().find((venue) => venue.id === venueId) ?? null;
+    },
+
+    async getBookingRules({ venueSlug, branchSlug }) {
+      await wait();
+      const venue = mockVenues.find((v) => publicVenueFixtures[v.id]?.slug === venueSlug);
+      const branch = venue?.branches.find((b) => publicBranchFixtures[b.id]?.slug === branchSlug);
+      return branch
+        ? { bookingWindowDays: BOOKING_WINDOW_DAYS, minLeadMinutes: DEFAULT_POLICY.leadTimeMinutes }
+        : null;
     },
 
     async getFloorPlan(branchId) {
@@ -456,7 +524,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return slotFloorFor(branchId, slotUtc, partySize);
     },
 
-    async requestPhoneCode(phoneE164) {
+    async requestPhoneCode(phoneE164, _options) {
       await wait();
       const stamps = (codesPerNumber.get(phoneE164) ?? []).filter(
         (t) => now().getTime() - t < 60 * 60_000,
@@ -487,6 +555,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         phoneE164,
         expiresAtUtc: new Date(challenge.expiresAt).toISOString(),
         resendAvailableAtUtc: new Date(challenge.resendAt).toISOString(),
+        maxAttempts: MAX_CODE_ATTEMPTS,
         // Mirrors the real backend outside production. The UI additionally
         // gates rendering on __DEV__.
         devCode: MOCK_CODE,
@@ -502,14 +571,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
       if (code !== challenge.code) {
         challenge.attempts += 1;
-        if (challenge.attempts >= MAX_CODE_ATTEMPTS) {
-          challenge.burned = true;
-          throw new TooManyAttemptsError({ url: URL_TAG });
-        }
-        throw new WrongCodeError({
-          url: URL_TAG,
-          attemptsRemaining: MAX_CODE_ATTEMPTS - challenge.attempts,
-        });
+        // As the server does: the count goes down on each wrong try, the last
+        // one reports zero, and after that the code answers "too many".
+        const remaining = Math.max(0, MAX_CODE_ATTEMPTS - challenge.attempts);
+        if (remaining === 0) challenge.burned = true;
+        throw new WrongCodeError({ url: URL_TAG, attemptsRemaining: remaining });
       }
 
       challenges.delete(challengeId);
@@ -531,15 +597,19 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
       const found = findBranch(command.branchId);
       const floor = floors.get(command.branchId);
-      if (!found || !floor) throw new Error(`Unknown branch ${command.branchId}`);
+      // A 404, as the server answers an unknown branch or table.
+      if (!found || !floor) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
       const policy = DEFAULT_POLICY;
 
       const table = floor.tables.find((t) => t.id === command.tableId);
-      if (!table) throw new Error(`Unknown table ${command.tableId}`);
+      if (!table) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
 
-      // Lead time: the slot may have become too soon while they were deciding.
-      const minutesUntilSlot = minutesBetween(now(), new Date(command.slotUtc));
-      if (minutesUntilSlot < policy.leadTimeMinutes) {
+      const slot = new Date(command.slotUtc);
+
+      // The branch-wide rules first, as the server applies them. Lead time:
+      // the slot may have become too soon while they were deciding.
+      const rejection = branchRejection(slot, policy);
+      if (rejection === 'pastLeadTime') {
         throw new LeadTimeExceededError({
           url: URL_TAG,
           leadTimeMinutes: policy.leadTimeMinutes,
@@ -548,32 +618,56 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
           ).toISOString(),
         });
       }
+      if (rejection) {
+        throw new BookingRejectedError({
+          url: URL_TAG,
+          reason: rejection,
+          partySize: command.partySize,
+        });
+      }
 
       // Judged at the slot being booked, not at now — the same projection the
       // availability answer used. Judging it at now would refuse a Saturday
       // booking because somebody is sitting there this evening.
-      const refusal = reasonFor(
-        table,
-        stateAt(table, new Date(command.slotUtc), policy),
-        command.partySize,
-      );
+      const refusal = reasonFor(table, stateAt(table, slot, policy), command.partySize);
 
-      const lost = simulateTakenOnce || refusal !== null;
-      if (lost) {
+      // Lost to somebody else — the two 409s. Every other refusal is a rule,
+      // a 422, and says which rule; it is not "taken".
+      const taken =
+        simulateTakenOnce ||
+        refusal === 'occupied' ||
+        refusal === 'alreadyBooked' ||
+        refusal === 'held';
+      if (taken) {
+        const simulated = simulateTakenOnce && refusal === null;
         simulateTakenOnce = false;
-        // Mark it taken in the mock's world so the refreshed floor is honest.
-        const takenState: DerivedTableState = refusal === null ? 'occupied' : table.state;
-        const refreshed: FloorPlanData = {
-          ...floor,
-          tables: floor.tables.map((t) => (t.id === table.id ? { ...t, state: takenState } : t)),
-        };
-        floors.set(command.branchId, refreshed);
+        if (simulated) {
+          // Somebody else booked it for this slot, in the mock's world, so the
+          // refreshed room and the next availability read are honest.
+          floors.set(command.branchId, {
+            ...floor,
+            tables: floor.tables.map((t) =>
+              t.id === table.id
+                ? { ...t, state: 'reservedSoon', nextReservationStartUtc: command.slotUtc }
+                : t,
+            ),
+          });
+        }
 
         throw new TableTakenError({
           url: URL_TAG,
           tableId: table.id,
           tableLabel: table.label,
-          floor: refreshed,
+          reason: refusal === 'occupied' ? 'occupied' : 'alreadyBooked',
+          // The room at this slot, as the server's 409 carries it.
+          floor: slotFloorFor(command.branchId, command.slotUtc, command.partySize)?.plan ?? null,
+        });
+      }
+      if (refusal) {
+        throw new BookingRejectedError({
+          url: URL_TAG,
+          reason: refusal,
+          partySize: command.partySize,
         });
       }
 
@@ -587,22 +681,20 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         id,
         code: reservationCode(sequence++),
         status,
-        venueId: found.venue.id,
         venueName: found.venue.name,
         branchId: found.branch.id,
         branchName: found.branch.name,
         timeZoneId: found.branch.timeZoneId,
         tableId: table.id,
         tableLabel: table.label,
-        floorAreaName: table.floorAreaName,
         partySize: command.partySize,
         slotUtc: command.slotUtc,
-        window: windowFor(table, command.slotUtc, policy),
+        endUtc: new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
         freeCancellationUntilUtc: new Date(
-          new Date(command.slotUtc).getTime() - policy.freeCancellationMinutes * 60_000,
+          slot.getTime() - policy.freeCancellationMinutes * 60_000,
         ).toISOString(),
-        createdAtUtc: now().toISOString(),
         cancelledAtUtc: null,
+        cancelledAfterDeadline: false,
         // The mock issues one for every booking, so the manage-booking page is
         // walkable from the app's own flow too. See `publicMock.ts` for what
         // the token is and, more importantly, what it is not.
@@ -625,11 +717,23 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return booking;
     },
 
-    async listBookings() {
+    /**
+     * Split by the server's rule, not by the clock against the start: upcoming
+     * is a booking whose sitting has not ended and which still holds a table.
+     */
+    async listBookings(): Promise<MyBookings> {
       await wait();
-      return [...bookings.values()].sort(
-        (a, b) => new Date(a.slotUtc).getTime() - new Date(b.slotUtc).getTime(),
-      );
+      const t = now().getTime();
+      const holdsTable = (b: Booking) =>
+        b.status === 'confirmed' || b.status === 'pendingApproval' || b.status === 'seated';
+      const all = [...bookings.values()];
+      const upcoming = all
+        .filter((b) => holdsTable(b) && Date.parse(b.endUtc) > t)
+        .sort((a, b) => Date.parse(a.slotUtc) - Date.parse(b.slotUtc));
+      const past = all
+        .filter((b) => !upcoming.includes(b))
+        .sort((a, b) => Date.parse(b.slotUtc) - Date.parse(a.slotUtc));
+      return { upcoming, past };
     },
 
     async getBooking(bookingId) {
@@ -671,7 +775,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async extendReservationHold({ reservationId, clientCommandId }) {
       await wait();
       const booking = bookings.get(reservationId);
-      if (!booking) throw new Error(`Unknown booking ${reservationId}`);
+      if (!booking) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
+      // As the server now refuses it: nothing is held before the start, and
+      // only a confirmed booking holds a table. Nothing is spent.
+      if (booking.status !== 'confirmed' || now().getTime() < Date.parse(booking.slotUtc)) {
+        throw new HoldNotActiveError({ url: URL_TAG, reservationId });
+      }
 
       const previous = holdExtensions.get(reservationId);
       if (previous) {
@@ -699,14 +808,26 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async cancelBooking(bookingId) {
       await wait();
       const booking = bookings.get(bookingId);
-      if (!booking) throw new Error(`Unknown booking ${bookingId}`);
+      if (!booking) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
 
-      // Never refuses, even past the deadline: a late cancellation is far
-      // better for the venue than a no-show.
+      // Already cancelled is the outcome asked for, as the real gateway reads
+      // it back. Anything else that no longer holds a table is refused, as the
+      // server refuses it.
+      if (booking.status === 'cancelledByDiner' || booking.status === 'cancelledByVenue') {
+        return booking;
+      }
+      if (booking.status !== 'confirmed' && booking.status !== 'pendingApproval') {
+        throw new ConcurrencyConflictError({ url: `${URL_TAG}/api/reservations` });
+      }
+
+      // Never refuses for lateness: a late cancellation is far better for the
+      // venue than a no-show. It is only recorded as late.
+      const at = now();
       const cancelled: Booking = {
         ...booking,
-        status: 'cancelled',
-        cancelledAtUtc: now().toISOString(),
+        status: 'cancelledByDiner',
+        cancelledAtUtc: at.toISOString(),
+        cancelledAfterDeadline: at.getTime() > Date.parse(booking.freeCancellationUntilUtc),
       };
       bookings.set(bookingId, cancelled);
 
@@ -727,12 +848,14 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
       await wait();
-      return world.scan(command);
+      const result = world.scan(command);
+      return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 
-    async getTab(tabId): Promise<TableTab | null> {
+    async joinTab(command): Promise<ScanResult> {
       await wait();
-      return world.get(tabId);
+      const result = world.join(command);
+      return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 
     async leaveTab({ tabId }) {
@@ -740,30 +863,24 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       world.leave(tabId);
     },
 
-    async getBranchMenu(branchId): Promise<Menu | null> {
-      await wait();
-      const venue = mockVenues.find((v) => v.branches.some((b) => b.id === branchId));
-      return venue ? mockMenuFor(branchId, venue.type) : null;
-    },
-
     async createTabInvite(input): Promise<TabInvite> {
       await wait();
       return world.invite(input);
     },
 
-    async approveJoin(input): Promise<TableTab> {
+    async approveJoin(input): Promise<TabParticipantChange> {
       await wait();
-      return world.approve(input);
+      return changeOf(world.approve(input), input.participantId);
     },
 
-    async rejectJoin(input): Promise<TableTab> {
+    async rejectJoin(input): Promise<TabParticipantChange> {
       await wait();
-      return world.reject(input);
+      return changeOf(world.reject(input), input.participantId);
     },
 
-    async removeParticipant(input): Promise<TableTab> {
+    async removeParticipant(input): Promise<TabParticipantChange> {
       await wait();
-      return world.remove(input);
+      return changeOf(world.remove(input), input.participantId);
     },
 
     async setParticipantPermissions(input: {
@@ -771,18 +888,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       participantId: string;
       permissions: TabPermissions;
       commandId: string;
-    }): Promise<TableTab> {
+    }): Promise<TabParticipantChange> {
       await wait();
-      return world.setPermissions(input);
-    },
-
-    async setTabDefaultPermissions(input: {
-      tabId: string;
-      permissions: TabPermissions;
-      commandId: string;
-    }): Promise<TableTab> {
-      await wait();
-      return world.setDefaults(input);
+      return changeOf(world.setPermissions(input), input.participantId);
     },
 
     async callWaiter(input: {
@@ -807,10 +915,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async getDinerTab(tabId): Promise<DinerTabView | null> {
       await wait();
-      const tab = world.get(tabId);
-      if (!tab) return null;
-      orders.ensure(tab.id, tab.branchId);
-      return orders.dinerView(tab, tab.yourParticipantId);
+      const tab = readableTab(tabId);
+      return tab ? dinerViewOf(tab) : null;
     },
 
     async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
@@ -822,8 +928,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async placeOrder(command): Promise<PlaceOrderResult> {
       await wait();
-      const tab = world.get(command.tabId);
+      const tab = readableTab(command.tabId);
       if (!tab) throw new NotFoundError({ url: `/api/tabs/${command.tabId}/orders` });
+      // The ordering policy, as the server applies it: a bare 403 for anybody
+      // not approved, not allowed to order, or on a tab no longer open.
+      if (!dinerViewOf(tab).me.canOrderNow) {
+        throw new ForbiddenError({ url: `${URL_TAG}/api/tabs/${command.tabId}/orders` });
+      }
       return orders.place(tab, command);
     },
 

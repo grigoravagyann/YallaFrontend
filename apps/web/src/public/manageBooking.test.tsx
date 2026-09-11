@@ -62,8 +62,11 @@ async function bookedLink(harness: Harness): Promise<{ url: string; code: string
     branchId: branch.id,
     tableId: table.tableId,
     slotUtc,
+    timeZoneId: branch.timeZoneId,
     partySize: selection.partySize,
-    verificationToken: 'vt-test',
+    guestName: 'Ani',
+    guestPhone: '+37477123456',
+    channel: 'web',
   });
 
   expect(booking.manageToken, 'a web booking must be issued a manage token').toBeTruthy();
@@ -107,8 +110,10 @@ describe('the manage-booking link', () => {
 
     // Cancelled in the world, not only on screen — the table really did go
     // back to the venue.
-    const stored = await harness.gateway.listBookings();
-    expect(stored.find((booking) => booking.code === code)?.status).toBe('cancelled');
+    const { upcoming, past } = await harness.gateway.listBookings();
+    expect([...upcoming, ...past].find((booking) => booking.code === code)?.status).toBe(
+      'cancelledByDiner',
+    );
   });
 
   it('says one thing for every kind of dead token', async () => {

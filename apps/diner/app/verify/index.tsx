@@ -70,7 +70,8 @@ export default function VerifyScreen() {
   const send = useCallback(async () => {
     setErrorText(null);
     try {
-      const issued = await requestCode.mutateAsync(phoneE164);
+      // The diner's language, so the SMS arrives in it.
+      const issued = await requestCode.mutateAsync({ phoneE164, localeCode: locale });
       setChallenge(issued);
       setStep('code');
       setCode('');
@@ -84,7 +85,7 @@ export default function VerifyScreen() {
     } catch (error) {
       setErrorText(describe(error));
     }
-  }, [phoneE164, requestCode, describe]);
+  }, [phoneE164, requestCode, describe, locale]);
 
   const submitCode = useCallback(
     async (value: string) => {
@@ -94,18 +95,26 @@ export default function VerifyScreen() {
         const verified = await verifyCode.mutateAsync({
           challengeId: challenge.challengeId,
           code: value,
+          localeCode: locale,
         });
-        setVerified(verified);
+        // The number is what the booking is made under, and the token does not
+        // carry it, so it is remembered here.
+        setVerified({ phoneE164: verified.phoneE164 });
 
         // Replace, not push: the verification steps must not sit in the back
-        // stack between the table and its confirmation.
-        router.replace({ pathname: '/reserve/confirm', params: forward });
+        // stack between the table and its confirmation. Reached with no table
+        // in hand — from "My bookings" — it goes back to where it came from.
+        if (forward.tableId) {
+          router.replace({ pathname: '/reserve/confirm', params: forward });
+        } else {
+          router.back();
+        }
       } catch (error) {
         setCode('');
         setErrorText(describe(error));
       }
     },
-    [challenge, verifyCode, setVerified, router, forward, describe],
+    [challenge, verifyCode, setVerified, router, forward, describe, locale],
   );
 
   const onCodeChange = useCallback(

@@ -4205,7 +4205,7 @@
           "auth"
         ],
         "summary": "Exchange a one-time code for tokens",
-        "description": "Checks the newest live code for the number. On success the account is created if this is the first time - there is no separate registration step, because a separate registration step is a step people abandon.\n\nA wrong code spends one of five attempts. The sixth attempt is refused outright with 429: the code is dead and a new one is needed.",
+        "description": "Checks the newest live code for the number. On success the account is created if this is the first time - there is no separate registration step, because a separate registration step is a step people abandon.\n\nA wrong code spends one of five attempts and says how many are left. The sixth attempt is refused outright with 429: the code is dead and a new one is needed.",
         "operationId": "verifyDinerCode",
         "requestBody": {
           "content": {
@@ -4244,11 +4244,11 @@
             }
           },
           "401": {
-            "description": "The code was wrong or has expired. Codes last five minutes.",
+            "description": "`verification-code-invalid`: the code was wrong, with `context.attemptsRemaining` - zero when nothing is live for the number, which means ask for a new code rather than try again. `verification-code-expired`, with no context: codes last five minutes.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.VerificationCodeInvalidProblem"
                 }
               }
             }
@@ -6080,7 +6080,7 @@
           "diner"
         ],
         "summary": "Host: take someone off the tab",
-        "description": "A status change, never a delete. Their items and any payment they made are financial records and survive them leaving. The host cannot remove themself; staff reassign the host first.",
+        "description": "A status change, never a delete. Their items and any payment they made are financial records and survive them leaving. The host cannot remove themself: they leave, which hands the tab on, or staff reassign the host.",
         "operationId": "removeTabParticipant",
         "parameters": [
           {
@@ -6155,6 +6155,99 @@
           },
           "409": {
             "description": "The participant is not in a state that permits this - approving someone removed, rejecting someone already approved, removing the host.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tabs/{tabId}/leave": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Take yourself off the tab",
+        "description": "The same status change a host's remove makes, never a delete: everything you ordered and anything you paid stays on the bill. Your token stops working on this tab, and you are on no shared line ordered after you leave.\n\n**A host** hands the tab to the approved guest who has been on it longest, who gains sight of the total and the right to pay. With nobody approved to take it the host cannot leave - **409** - and a waiter takes the tab over or closes it.\n\nRefused once the bill has been asked for, like every other change to the tab.",
+        "operationId": "leaveTab",
+        "parameters": [
+          {
+            "name": "tabId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Tabs.TabParticipantView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The caller hosts the tab and nobody approved is left to hand it to.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7131,7 +7224,7 @@
           "diner"
         ],
         "summary": "Keep the table a little longer - the late nudge's action",
-        "description": "What the **late nudge** notification's action button calls. The diner taps it from the lock screen; they never open a screen and hunt for it.\n\n**Once.** `graceExtensionsUsed` enforces it, and a second attempt is refused with a reason a diner can read. Repeated requests for five more minutes are how a table stays held all evening for somebody who is not coming.\n\nThe extension goes onto the branch change sequence, so the waiter watching that table sees it immediately rather than in a column nothing reads.",
+        "description": "What the **late nudge** notification's action button calls. The diner taps it from the lock screen; they never open a screen and hunt for it.\n\n**Once.** `graceExtensionsUsed` enforces it, and a second attempt is refused with a reason a diner can read. Repeated requests for five more minutes are how a table stays held all evening for somebody who is not coming.\n\nThe extension goes onto the branch change sequence, so the waiter watching that table sees it immediately rather than in a column nothing reads.\n\n**Not before the booking starts.** Nothing is held until then, so there is nothing to keep: offer the button from the late nudge, or once `startUtc` has passed. A tap days early used to spend the one extension and ping the floor about a table nobody was holding.",
         "operationId": "extendReservationHold",
         "parameters": [
           {
@@ -7211,11 +7304,11 @@
             }
           },
           "409": {
-            "description": "The one extension is already used, or the booking is not one that holds a table.",
+            "description": "Refused, with one of three codes - branch on it. `hold-not-active`: the booking has not started, so nothing is held yet, or it is not confirmed. `hold-already-extended`: the one extension is used. `extensions-not-offered`: the branch offers none - not the diner's doing, so never tell them they already let the venue know.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.HoldExtensionRefusedProblem"
                 }
               }
             }
@@ -7665,7 +7758,7 @@
           "diner"
         ],
         "summary": "Every venue on Yalla, for the browse case",
-        "description": "Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, and a **live free-table count**.\n\nThe estate is cached for minutes and the table counts for seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening.",
+        "description": "Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, its IANA `timeZoneId`, whether it is open now, and a **live free-table count**: every table nobody is sitting at, walk-in-only stools included, the same tables the branch page's `tableCount` counts.\n\nThe estate is cached for minutes; the table counts, open-now and which branches are still published for fifteen seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening. A suspended venue leaves the list within that window.\n\n**Rate limited on budgets of its own**, per caller and city-wide, not the page budget: this is the diner app's Explore screen, and a phone network puts thousands of phones behind one address.",
         "operationId": "getPublicVenues",
         "responses": {
           "200": {
@@ -11023,7 +11116,7 @@
             }
           },
           "403": {
-            "description": "Not staff at this branch.",
+            "description": "Not kitchen or floor staff at this branch.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11121,7 +11214,7 @@
             }
           },
           "403": {
-            "description": "This role may not make that move.",
+            "description": "Not kitchen or floor staff at the order's branch, or this role may not make that move.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12466,10 +12559,12 @@
           "branchId",
           "channel",
           "clientCommandId",
+          "date",
           "guestName",
           "guestPhone",
           "partySize",
-          "tableId"
+          "tableId",
+          "time"
         ],
         "type": "object",
         "properties": {
@@ -12486,14 +12581,12 @@
           "date": {
             "type": "string",
             "description": "Local calendar date at the branch, e.g. `2026-09-12`.",
-            "format": "date",
-            "nullable": true
+            "format": "date"
           },
           "time": {
             "type": "string",
             "description": "Local wall-clock start at the branch, e.g. `19:30`.",
-            "format": "time",
-            "nullable": true
+            "format": "time"
           },
           "partySize": {
             "type": "integer",
@@ -12720,7 +12813,7 @@
           },
           "clientCommandId": {
             "type": "string",
-            "description": "The caller's own id. A double-tap over flaky wifi returns the first order rather than sending\r\nthe kitchen two.",
+            "description": "The caller's own id. A double-tap over flaky wifi returns the first order rather than sending\r\nthe kitchen two. <b>Required</b>: left out, it bound `Guid.Empty` and replayed whichever order\r\nfirst used that, on any tab; now it is refused with 400. A replay is matched on this tab and this\r\ncaller only.",
             "format": "uuid"
           },
           "onBehalfOfParticipantId": {
@@ -12872,7 +12965,8 @@
       },
       "Yalla.Api.Endpoints.ReleaseReservationRequest": {
         "required": [
-          "clientCommandId"
+          "clientCommandId",
+          "outcome"
         ],
         "type": "object",
         "properties": {
@@ -12882,8 +12976,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reservations.ReleaseOutcome"
               }
             ],
-            "description": "<b>1 NoShow</b> - nobody came and nobody called; counts toward the diner's rolling no-show\r\n             threshold. <b>2 CancelledByVenue</b> - they phoned, or the table went out of service; does\r\n             <b>not</b> count.\r\n            \r\n             Two buttons on the tablet, never one. A single \"release\" gets tapped for both cases by a busy\r\n             waiter, and the threshold then punishes the diners who bothered to ring ahead.",
-            "nullable": true
+            "description": "<b>1 NoShow</b> - nobody came and nobody called; counts toward the diner's rolling no-show\r\n             threshold. <b>2 CancelledByVenue</b> - they phoned, or the table went out of service; does\r\n             <b>not</b> count.\r\n            \r\n             Two buttons on the tablet, never one. A single \"release\" gets tapped for both cases by a busy\r\n             waiter, and the threshold then punishes the diners who bothered to ring ahead."
           },
           "clientCommandId": {
             "type": "string",
@@ -13456,6 +13549,92 @@
         },
         "additionalProperties": false,
         "description": "One field of the request that was refused."
+      },
+      "Yalla.Api.Errors.HoldExtensionRefusedContext": {
+        "required": [
+          "reservationId",
+          "startUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "description": "The booking.",
+            "format": "uuid"
+          },
+          "startUtc": {
+            "type": "string",
+            "description": "When it starts - so a refusal before then can say when to ask again.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "\"Keep my table\" was refused."
+      },
+      "Yalla.Api.Errors.HoldExtensionRefusedProblem": {
+        "required": [
+          "code",
+          "context",
+          "detail",
+          "status",
+          "title",
+          "traceId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, stable summary of the kind of problem."
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong this time, in words."
+          },
+          "instance": {
+            "type": "string",
+            "description": "The request path this happened on.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "The stable kebab-case slug. <b>This is what a client branches on.</b>"
+          },
+          "traceId": {
+            "type": "string",
+            "description": "Correlates this response with the one log entry written for it."
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Field-level complaints, when the failure was about the payload.",
+            "nullable": true
+          },
+          "context": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Errors.HoldExtensionRefusedContext"
+              }
+            ],
+            "description": "\"Keep my table\" was refused."
+          }
+        },
+        "additionalProperties": false,
+        "description": "`hold-not-active`, `hold-already-extended` or `extensions-not-offered`, 409. Branch\r\n            on the code: the three need three different sentences."
       },
       "Yalla.Api.Errors.LineAlreadyPaidContext": {
         "required": [
@@ -14147,6 +14326,86 @@
         },
         "additionalProperties": false,
         "description": "`validation-failed`, 422. The reservation policy and opening-hours refusals, and every\r\n            other field-level refusal that used to carry prose and nothing else."
+      },
+      "Yalla.Api.Errors.VerificationCodeInvalidContext": {
+        "required": [
+          "attemptsRemaining"
+        ],
+        "type": "object",
+        "properties": {
+          "attemptsRemaining": {
+            "type": "integer",
+            "description": "Tries left on the number's live code. <b>Zero</b> when there is no live code, or the last try was\r\njust spent: say \"ask for a new code\", not \"try again\".",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A one-time code that was not accepted, and what is left on it."
+      },
+      "Yalla.Api.Errors.VerificationCodeInvalidProblem": {
+        "required": [
+          "code",
+          "detail",
+          "status",
+          "title",
+          "traceId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, stable summary of the kind of problem."
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong this time, in words."
+          },
+          "instance": {
+            "type": "string",
+            "description": "The request path this happened on.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "The stable kebab-case slug. <b>This is what a client branches on.</b>"
+          },
+          "traceId": {
+            "type": "string",
+            "description": "Correlates this response with the one log entry written for it."
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Field-level complaints, when the failure was about the payload.",
+            "nullable": true
+          },
+          "context": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Errors.VerificationCodeInvalidContext"
+              }
+            ],
+            "description": "A one-time code that was not accepted, and what is left on it.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "`verification-code-invalid`, 401, with the count. `verification-code-expired` arrives on\r\n            the same status with no `context`."
       },
       "Yalla.Application.Auth.DeviceEnrolmentCodeResult": {
         "required": [
@@ -17302,7 +17561,8 @@
           "branchSlug",
           "freeTableCount",
           "isOpenNow",
-          "name"
+          "name",
+          "timeZoneId"
         ],
         "type": "object",
         "properties": {
@@ -17325,12 +17585,16 @@
           },
           "freeTableCount": {
             "type": "integer",
-            "description": "How many tables have nobody sitting at them right now. The one volatile number here, and the\r\nreason the browse list is cached for seconds rather than minutes.",
+            "description": "How many tables have nobody sitting at them right now, walk-in-only stools included - the same\r\ntables the branch page's `tableCount` counts and its plan draws, so the two can never read\r\n\"3 of 2 free\" and zero means every seat is taken. The one volatile number here, and the reason\r\nthe browse list is cached for seconds rather than minutes.",
             "format": "int32"
           },
           "isOpenNow": {
             "type": "boolean",
             "description": "Whether it is inside an opening block at this moment, in its own zone."
+          },
+          "timeZoneId": {
+            "type": "string",
+            "description": "The branch's IANA zone, e.g. `Asia/Yerevan`. A slot a diner picks after browsing is a\r\nwall-clock time at the branch, and a phone set to another zone has to render it in this one\r\nrather than guess - the diner app guessed `Asia/Yerevan`, because this list is the only\r\npublic read in front of its venue and booking screens and it did not say."
           }
         },
         "additionalProperties": false,
@@ -17454,12 +17718,12 @@
           },
           "freeTableCount": {
             "type": "integer",
-            "description": "Tables with nobody at them right now.",
+            "description": "Tables with nobody at them right now, bookable or walk-in only, so it is always out of\r\nTableCount and always the number of tables the plan draws with\r\n`isFree` true.",
             "format": "int32"
           },
           "tableCount": {
             "type": "integer",
-            "description": "How many bookable tables there are, so the count has a denominator.",
+            "description": "How many tables there are - every table on the plan, bookable or not - so the count has a\r\ndenominator.",
             "format": "int32"
           },
           "floorPlan": {
@@ -18443,6 +18707,7 @@
           "branchId",
           "branchName",
           "bufferMinutes",
+          "cancellationDeadlineMinutes",
           "floorHeight",
           "floorWidth",
           "localDate",
@@ -18508,6 +18773,17 @@
             "type": "integer",
             "description": "The branch's clearing time between sittings.",
             "format": "int32"
+          },
+          "cancellationDeadlineMinutes": {
+            "type": "integer",
+            "description": "How long before the start a diner may still cancel freely - the branch's setting as it stands\r\nnow, which is what a cancellation is judged against.",
+            "format": "int32"
+          },
+          "cancellationDeadlineUtc": {
+            "type": "string",
+            "description": "The instant past which cancelling the slot asked about is recorded as late: the requested\r\nstart less Yalla.Application.Reservations.BranchAvailability.CancellationDeadlineMinutes.",
+            "format": "date-time",
+            "nullable": true
           },
           "unavailableReason": {
             "allOf": [
@@ -18675,6 +18951,7 @@
         "required": [
           "branchId",
           "branchName",
+          "cancellationDeadlineUtc",
           "cancelledAfterDeadline",
           "clientCommandId",
           "code",
@@ -18777,6 +19054,11 @@
           "cancelledAfterDeadline": {
             "type": "boolean",
             "description": "Whether the cancellation came in past the branch's free-cancellation deadline. Recorded,\r\nnever punished here."
+          },
+          "cancellationDeadlineUtc": {
+            "type": "string",
+            "description": "The instant past which cancelling is recorded as late: the start less the branch's\r\ncancellation deadline as it stands, which is what a cancellation made now is judged against.\r\nCancelling after it is still allowed - recorded in Yalla.Application.Reservations.ReservationView.CancelledAfterDeadline, never\r\nrefused.",
+            "format": "date-time"
           },
           "clientCommandId": {
             "type": "string",
@@ -18910,7 +19192,7 @@
           },
           "requiresApproval": {
             "type": "boolean",
-            "description": "True when booking this table will land as `PendingApproval` rather than confirmed -\r\na party over the branch's threshold. Not a refusal, and worth saying before the diner\r\ncommits."
+            "description": "True when booking this table will land as `PendingApproval` rather than confirmed: the\r\nbranch approves every booking by hand, or the party is over its threshold. Not a refusal,\r\nand worth saying before the diner commits."
           },
           "window": {
             "allOf": [
@@ -19854,6 +20136,7 @@
         "required": [
           "adjustments",
           "branchId",
+          "branchName",
           "hideTotalFromGuests",
           "maxSequence",
           "me",
@@ -19868,7 +20151,8 @@
           "tabId",
           "tableLabel",
           "tableTotalVisible",
-          "timeZoneId"
+          "timeZoneId",
+          "venueName"
         ],
         "type": "object",
         "properties": {
@@ -19881,6 +20165,14 @@
             "type": "string",
             "description": "The branch.",
             "format": "uuid"
+          },
+          "venueName": {
+            "type": "string",
+            "description": "The venue's name, for the top of the bill. On the tab so a phone that has only scanned a code\r\nneed not make a second, public read to say where it is."
+          },
+          "branchName": {
+            "type": "string",
+            "description": "The branch's name, for the same reason."
           },
           "tableLabel": {
             "type": "string",

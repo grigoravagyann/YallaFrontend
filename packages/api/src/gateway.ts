@@ -1,14 +1,16 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
 import type {
   Booking,
+  BookingRules,
   CreateBookingCommand,
+  MyBookings,
   PhoneChallenge,
   SlotFloor,
   TableAvailability,
   VenueSummary,
   VerifiedPhone,
 } from './contracts/booking';
-import type { Menu } from './contracts/menu';
+
 import type {
   CancelReservationCommand,
   ExtendHoldCommand,
@@ -26,11 +28,12 @@ import type {
   TabShares,
 } from './contracts/ordering';
 import type {
+  JoinTabCommand,
   ScanResult,
   ScanTableCommand,
   TabInvite,
+  TabParticipantChange,
   TabPermissions,
-  TableTab,
   WaiterCall,
   WaiterCallReason,
 } from './contracts/tab';
@@ -48,12 +51,21 @@ import type {
 export interface YallaGateway {
   // --- Browse -------------------------------------------------------------
   /**
-   * @throws {EndpointNotWiredError} from the HTTP gateway while the backend has
-   * no venue catalogue endpoint. The screen shows "not available yet", not a
-   * generic error, because the fix is on a different team.
+   * Every published venue, from `GET /api/public/venues`.
+   *
+   * Keyed by slug; see {@link VenueSummary}. A suspended venue or an inactive
+   * branch is simply absent, exactly as it is from the public list.
    */
   listVenues(): Promise<readonly VenueSummary[]>;
+  /** One venue by the id the list gave it, or `null` when it is no longer listed. */
   getVenue(venueId: string): Promise<VenueSummary | null>;
+
+  /**
+   * How far ahead and how soon a branch takes bookings.
+   *
+   * @returns `null` when no published branch has those slugs.
+   */
+  getBookingRules(input: { venueSlug: string; branchSlug: string }): Promise<BookingRules | null>;
 
   /** Current floor state for a branch. */
   getFloorPlan(branchId: string): Promise<FloorPlanData | null>;
@@ -61,13 +73,11 @@ export interface YallaGateway {
   /**
    * The branch's IANA zone.
    *
-   * Its own method because **no tab endpoint carries it**. `TabView` has no
-   * `timeZoneId`; the only diner-reachable source is
-   * `GET /api/branches/{id}/availability`, which is anonymous and returns it
-   * alongside the floor. Every time a tab screen renders — a kitchen estimate,
-   * a last-updated stamp — goes through this, never through the device's zone:
-   * a tourist's phone on Moscow time would put an Armenian kitchen three hours
-   * out.
+   * For a branch reached with neither its browse card nor a tab in hand — a
+   * bare deep link to its floor. The browse card and the tab each carry the
+   * zone themselves; this reads it from the anonymous availability endpoint
+   * rather than guessing one, because a guessed zone turns a slot into the
+   * wrong wall-clock time.
    *
    * Cached hard by the caller. A branch does not move.
    */
@@ -119,9 +129,14 @@ export interface YallaGateway {
   /**
    * Send a 6-digit code.
    *
+   * `localeCode` is the diner's language, so the SMS arrives in it.
+   *
    * @throws {RateLimitedError} when too many codes were requested for a number.
    */
-  requestPhoneCode(phoneE164: string): Promise<PhoneChallenge>;
+  requestPhoneCode(
+    phoneE164: string,
+    options?: { readonly localeCode?: string | undefined },
+  ): Promise<PhoneChallenge>;
 
   /**
    * Exchange a code for a verification token. Against the real backend this
@@ -131,7 +146,11 @@ export interface YallaGateway {
    * @throws {ExpiredCodeError} the challenge aged out.
    * @throws {TooManyAttemptsError} the challenge is burned.
    */
-  verifyPhoneCode(input: { challengeId: string; code: string }): Promise<VerifiedPhone>;
+  verifyPhoneCode(input: {
+    challengeId: string;
+    code: string;
+    localeCode?: string | undefined;
+  }): Promise<VerifiedPhone>;
 
   // --- Booking ------------------------------------------------------------
   /**
@@ -141,18 +160,23 @@ export interface YallaGateway {
    * A party over the branch's instant-confirmation limit yields a booking with
    * status `pendingApproval` — a normal result, not an error.
    *
-   * @throws {TableTakenError} someone else got there first; carries the
-   * refreshed floor so the UI can re-render immediately.
+   * @throws {TableTakenError} someone else got there first — or somebody sat
+   * down there — with the room from the 409 when it came.
    * @throws {LeadTimeExceededError} the slot became too soon while deciding.
+   * @throws {BookingRejectedError} a rule refused it; carries the reason.
+   * @throws {BookingBusyError} the table was locked; tap again, same command.
    */
   createBooking(command: CreateBookingCommand): Promise<Booking>;
 
-  listBookings(): Promise<readonly Booking[]>;
+  /** The caller's bookings, split upcoming and past by the server's own rule. */
+  listBookings(): Promise<MyBookings>;
   getBooking(bookingId: string): Promise<Booking | null>;
 
   /**
-   * Cancel a booking. Never refuses: cancelling late is far better for the
-   * venue than a no-show, so lateness is a message, not a block.
+   * Cancel a booking. Lateness is a message, not a block: cancelling late is
+   * far better for the venue than a no-show. Only a booking that no longer
+   * holds a table — seated, finished, already cancelled — has nothing to
+   * cancel, and an already-cancelled one is reported as the success it is.
    */
   cancelBooking(bookingId: string): Promise<Booking>;
 
@@ -187,9 +211,10 @@ export interface YallaGateway {
   /**
    * Keep the table a little longer, from the late nudge's action button.
    *
-   * @throws {HoldAlreadyExtendedError} the one extension is spent. A refusal to
-   * say plainly, not a generic conflict: the diner has already done this and
-   * needs telling so, not an error dialog.
+   * @throws {HoldAlreadyExtendedError} the one extension is spent.
+   * @throws {HoldNotActiveError} the booking has not started, so there is no
+   * held table to keep yet. Nothing was spent.
+   * @throws {ExtensionsNotOfferedError} the branch does not hold tables late.
    */
   extendReservationHold(command: ExtendHoldCommand): Promise<ExtendHoldOutcome>;
 
@@ -210,36 +235,40 @@ export interface YallaGateway {
    */
   scanTableCode(command: ScanTableCommand): Promise<ScanResult>;
 
-  /** The tab as this device sees it, including who is pending. */
-  getTab(tabId: string): Promise<TableTab | null>;
-
-  /** Leave voluntarily. Always available, including while still pending. */
-  leaveTab(input: { tabId: string; commandId: string }): Promise<void>;
-
   /**
-   * The branch's menu with prices.
+   * Join with a host's invitation — the QR on their screen or the shared link.
    *
-   * Readable by anyone at the table, pending joiners included: prices are how
-   * someone works out what their own order would cost, and hiding them from a
-   * person who has not been approved yet serves nobody.
+   * @throws {InviteExpiredError} the invitation is unknown, revoked or old.
+   * @throws {TabClosedError} the tab is being settled or closed.
    */
-  getBranchMenu(branchId: string): Promise<Menu | null>;
+  joinTab(command: JoinTabCommand): Promise<ScanResult>;
 
   /**
-   * Mint (or re-mint) the invite for a tab.
+   * Leave. A guest comes off the tab; a host hands it to the approved guest
+   * who has been on it longest.
    *
-   * The QR and the share link carry the same token, so calling this again is a
-   * refresh rather than a second invite. Idempotent on `commandId` so a double
-   * tap does not churn the token out from under a guest mid-scan.
+   * @throws {HostCannotLeaveError} the host has nobody approved to hand it to.
+   */
+  leaveTab(input: { tabId: string }): Promise<void>;
+
+  /**
+   * Mint a fresh invite for a tab, revoking the last one.
+   *
+   * The QR and the share link carry the same token. `commandId` keys the
+   * caller's cache so a refetch reuses the invite; the server has no command
+   * id here, and each call to it issues a new token.
    */
   createTabInvite(input: { tabId: string; commandId: string }): Promise<TabInvite>;
 
   // --- Host controls ------------------------------------------------------
   /**
-   * All four host actions return the whole refreshed tab rather than a partial
-   * update. The participants list is small, and a screen that re-renders from
-   * one authoritative object cannot drift from the server the way a locally
-   * patched list can.
+   * Each host action answers with the one participant it changed. The screens
+   * refetch the tab for the roster; the flags on this answer are the only
+   * place a host sees another person's permissions, because the roster on the
+   * tab carries none.
+   *
+   * There is no "table default" action: the only table-level default the
+   * server has is hiding the total, and that is chosen when the tab is opened.
    *
    * @throws {NotTabHostError} the caller is not the host.
    */
@@ -247,16 +276,20 @@ export interface YallaGateway {
     tabId: string;
     participantId: string;
     commandId: string;
-  }): Promise<TableTab>;
-  rejectJoin(input: { tabId: string; participantId: string; commandId: string }): Promise<TableTab>;
+  }): Promise<TabParticipantChange>;
+  rejectJoin(input: {
+    tabId: string;
+    participantId: string;
+    commandId: string;
+  }): Promise<TabParticipantChange>;
   removeParticipant(input: {
     tabId: string;
     participantId: string;
     commandId: string;
-  }): Promise<TableTab>;
+  }): Promise<TabParticipantChange>;
 
   /**
-   * Set one participant's permissions.
+   * Set one participant's three flags together.
    *
    * The server rejects `canPay` without `canSeeTableTotal`; the client must
    * never send that pair. See `normalizeTabPermissions`.
@@ -266,14 +299,7 @@ export interface YallaGateway {
     participantId: string;
     permissions: TabPermissions;
     commandId: string;
-  }): Promise<TableTab>;
-
-  /** The table default applied to everyone approved from now on. */
-  setTabDefaultPermissions(input: {
-    tabId: string;
-    permissions: TabPermissions;
-    commandId: string;
-  }): Promise<TableTab>;
+  }): Promise<TabParticipantChange>;
 
   /**
    * Raise a hand, in software. Presets only, no free text, no reply expected.
@@ -299,7 +325,7 @@ export interface YallaGateway {
    * the ingredients, allergens, portion size, spice level and prep time that the
    * backend made required fields precisely so nobody has to ask a waiter.
    *
-   * @throws {EndpointNotWiredError} until the backend ships it.
+   * @throws {TabAccessEndedError} the tab closed, or this phone is no longer on it.
    */
   getBranchMenuDetail(branchId: string): Promise<BranchMenu | null>;
 
@@ -310,7 +336,7 @@ export interface YallaGateway {
    * whose host has hidden the total gets their own lines and no aggregate at
    * all, which {@link TabMoney} makes unrepresentable as a zero.
    *
-   * @throws {EndpointNotWiredError} until the backend ships it.
+   * @throws {TabAccessEndedError} the tab closed, or this phone is no longer on it.
    */
   getDinerTab(tabId: string): Promise<DinerTabView | null>;
 
@@ -321,7 +347,7 @@ export interface YallaGateway {
    * says *that* something changed; the money is refetched, never reconstructed
    * from payloads, because the arithmetic on the server is the one that is right.
    *
-   * @throws {EndpointNotWiredError} until the backend ships it.
+   * @throws {TabAccessEndedError} the tab closed, or this phone is no longer on it.
    */
   getTabEvents(input: { tabId: string; afterSequence: number }): Promise<TabEventPage>;
 
@@ -332,14 +358,14 @@ export interface YallaGateway {
    * the kitchen and unreadable on the counter panel. Idempotent on
    * `clientCommandId`, so a retry after a lost response cannot double the round.
    *
-   * @throws {EndpointNotWiredError} until the backend ships it.
+   * @throws {TabAccessEndedError} the tab closed, or this phone is no longer on it.
    */
   placeOrder(command: PlaceOrderCommand): Promise<PlaceOrderResult>;
 
   /**
    * Who owes what, with shared items and the service charge apportioned.
    *
-   * @throws {EndpointNotWiredError} until the backend ships it.
+   * @throws {TabAccessEndedError} the tab closed, or this phone is no longer on it.
    */
   getTabShares(tabId: string): Promise<TabShares | null>;
 
@@ -348,7 +374,7 @@ export interface YallaGateway {
    * payment lands, which the server enforces.
    *
    * @throws {NotTabHostError} the caller is not the host.
-   * @throws {EndpointNotWiredError} until the backend ships it.
+   * @throws {TabAccessEndedError} the tab closed, or this phone is no longer on it.
    */
   setSettlementMode(command: SetSettlementModeCommand): Promise<DinerTabView>;
 }

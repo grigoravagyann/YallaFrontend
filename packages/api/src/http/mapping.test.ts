@@ -43,6 +43,7 @@ const availability = (
   branchId: 'b1',
   branchName: 'Yerevan Centre',
   bufferMinutes: 15,
+  cancellationDeadlineMinutes: 120,
   floorWidth: 1000,
   floorHeight: 700,
   localDate: '2026-09-05',
@@ -54,6 +55,27 @@ const availability = (
   timeZoneId: 'Asia/Yerevan',
   turnTimeMinutes: 90,
   ...over,
+});
+
+describe('the two refusals nobody could read', () => {
+  it('reads reason 10 as somebody sitting there now, not "unknown:10"', () => {
+    // `TableCurrentlyOccupied`: an open sitting, projected forward by turn time,
+    // overlaps the slot. The most common refusal in a cafe.
+    expect(unavailableReason(10, 'occupied')).toBe('occupied');
+    expect(unavailableReason(10, 'free')).toBe('occupied');
+  });
+
+  it("promises the server's free-cancellation deadline, not the slot start", () => {
+    const [entry] = availabilityFromResponse(
+      availability([table()], { cancellationDeadlineUtc: '2026-09-05T13:30:00Z' }),
+    );
+    expect(entry?.freeCancellationUntilUtc).toBe('2026-09-05T13:30:00Z');
+  });
+
+  it('promises nothing when the server could not compute a deadline', () => {
+    const [entry] = availabilityFromResponse(availability([table()]));
+    expect(entry?.freeCancellationUntilUtc).toBeNull();
+  });
 });
 
 describe('enums', () => {

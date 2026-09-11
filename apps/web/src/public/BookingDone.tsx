@@ -42,6 +42,8 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
   const installUrl = appUrl();
 
   const pending = booking.status === 'pendingApproval';
+  // The booking view names the branch, not the venue; this page knows the venue.
+  const venueName = booking.venueName ?? branch.venue.name;
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
     booking.slotUtc,
     booking.timeZoneId,
@@ -72,10 +74,11 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
     downloadIcs(
       bookingIcs({
         booking,
+        venueName,
         addressLine: branch.addressLine,
         manageUrl: manageUrl ?? '',
         locale,
-        summary: `${summary} · ${booking.venueName}`,
+        summary: `${summary} · ${venueName}`,
         descriptionLines: icsDescription({
           booking,
           locale,
@@ -85,7 +88,7 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
           manageUrl: manageUrl ?? '',
         }),
       }),
-      booking.venueName,
+      venueName,
       locale,
     );
   };
@@ -125,7 +128,7 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
       <dl className="pub-summary">
         <div>
           <dt>{td('confirm.venue')}</dt>
-          <dd>{`${booking.venueName} · ${booking.branchName}`}</dd>
+          <dd>{`${venueName} · ${booking.branchName}`}</dd>
         </div>
         <div>
           <dt>{td('confirm.when')}</dt>

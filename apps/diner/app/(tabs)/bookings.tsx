@@ -1,9 +1,10 @@
 import type { Booking } from '@yalla/api';
+import { isOfflinePaused } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,56 +13,35 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { Text } from '../../src/components/Text';
 import { BookingStatusPill } from '../../src/components/BookingStatusPill';
-import { useNow } from '../../src/hooks/useNow';
+import { Text } from '../../src/components/Text';
 import { useBookings } from '../../src/data/queries';
+import { bookingsFailureCopy } from '../../src/lib/bookingsList';
+import { useSession } from '../../src/stores/session';
 
 type Tab = 'upcoming' | 'past';
-
-const PAST_STATUSES = new Set(['cancelled', 'completed', 'noShow']);
 
 export default function BookingsScreen() {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('upcoming');
-  const { data, isLoading, isError, refetch, isRefetching } = useBookings();
-  // Ticks, so a booking moves from Upcoming to Past while the screen is open.
-  const nowDate = useNow();
 
-  const { upcoming, past } = useMemo(() => {
-    const now = nowDate.getTime();
-    const all = data ?? [];
-    return {
-      // Soonest first — the next thing you have to be somewhere for.
-      upcoming: all
-        .filter((b) => !PAST_STATUSES.has(b.status) && new Date(b.slotUtc).getTime() >= now)
-        .sort((a, b) => new Date(a.slotUtc).getTime() - new Date(b.slotUtc).getTime()),
-      // Most recent first — history reads backwards.
-      past: all
-        .filter((b) => PAST_STATUSES.has(b.status) || new Date(b.slotUtc).getTime() < now)
-        .sort((a, b) => new Date(b.slotUtc).getTime() - new Date(a.slotUtc).getTime()),
-    };
-  }, [data, nowDate]);
+  // `/mine` is the signed-in number's bookings; with no session there is
+  // nothing to ask for, and a sign-in prompt instead of an error.
+  const signedIn = useSession((s) => s.signedIn);
+  const bookingsQuery = useBookings(signedIn);
+  const { data, isLoading, isError, error, refetch, isRefetching } = bookingsQuery;
+  const offline = isOfflinePaused(bookingsQuery) && !data;
 
-  const list = tab === 'upcoming' ? upcoming : past;
+  // Upcoming and past exactly as the server split them: a sitting that has not
+  // ended and still holds a table is upcoming, which keeps a diner running five
+  // minutes late — and a seated party — out of "Past".
+  const list: readonly Booking[] = tab === 'upcoming' ? (data?.upcoming ?? []) : (data?.past ?? []);
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centered}>
-          <ActivityIndicator color={color.primaryInk} />
-          <Text style={styles.muted}>{t('bookings.loading')}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
+  const header = (
+    <>
       <Text style={styles.title}>{t('bookings.title')}</Text>
-
       <View style={styles.tabs}>
         {(['upcoming', 'past'] as const).map((key) => (
           <Pressable
@@ -77,51 +57,101 @@ export default function BookingsScreen() {
           </Pressable>
         ))}
       </View>
+    </>
+  );
 
-      {isError ? (
+  if (!signedIn) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        {header}
         <View style={styles.centered}>
-          <Text style={styles.muted}>{t('net.offline')}</Text>
-          <Pressable accessibilityRole="button" onPress={() => void refetch()} style={styles.retry}>
-            <Text style={styles.retryText}>{t('net.retry')}</Text>
+          <Text style={styles.emptyTitle}>{t('bookings.signedOut.title')}</Text>
+          <Text style={styles.muted}>{t('bookings.signedOut.body')}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/verify')}
+            style={styles.retry}
+          >
+            <Text style={styles.retryText}>{t('bookings.signedOut.action')}</Text>
           </Pressable>
         </View>
-      ) : (
-        <FlatList
-          data={list}
-          keyExtractor={(booking) => booking.id}
-          contentContainerStyle={styles.list}
-          refreshing={isRefetching}
-          onRefresh={() => void refetch()}
-          renderItem={({ item }) => (
-            <BookingRow
-              booking={item}
-              locale={locale}
-              onPress={() =>
-                router.push({ pathname: '/booking/[bookingId]', params: { bookingId: item.id } })
-              }
-            />
-          )}
-          ListEmptyComponent={
-            <View style={styles.centered}>
-              <Text style={styles.emptyTitle}>
-                {tab === 'upcoming' ? t('bookings.empty.title') : t('bookings.emptyPast.title')}
-              </Text>
-              <Text style={styles.muted}>
-                {tab === 'upcoming' ? t('bookings.empty.body') : t('bookings.emptyPast.body')}
-              </Text>
-              {tab === 'upcoming' ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => router.replace('/(tabs)')}
-                  style={styles.retry}
-                >
-                  <Text style={styles.retryText}>{t('bookings.empty.action')}</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          }
-        />
-      )}
+      </SafeAreaView>
+    );
+  }
+
+  if (isLoading && !offline) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        {header}
+        <View style={styles.centered}>
+          <ActivityIndicator color={color.primaryInk} />
+          <Text style={styles.muted}>{t('bookings.loading')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if ((isError && !data) || offline) {
+    // Said by what went wrong: offline, signed out, or the server.
+    const copy = bookingsFailureCopy(error, offline);
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        {header}
+        <View style={styles.centered} accessibilityRole="alert">
+          <Text style={styles.emptyTitle}>{t(copy.titleKey)}</Text>
+          {copy.bodyKey ? <Text style={styles.muted}>{t(copy.bodyKey)}</Text> : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => (copy.action === 'verify' ? router.push('/verify') : void refetch())}
+            style={styles.retry}
+          >
+            <Text style={styles.retryText}>
+              {copy.action === 'verify' ? t('bookings.signedOut.action') : t('net.retry')}
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      {header}
+      <FlatList
+        data={list}
+        keyExtractor={(booking) => booking.id}
+        contentContainerStyle={styles.list}
+        refreshing={isRefetching}
+        onRefresh={() => void refetch()}
+        renderItem={({ item }) => (
+          <BookingRow
+            booking={item}
+            locale={locale}
+            onPress={() =>
+              router.push({ pathname: '/booking/[bookingId]', params: { bookingId: item.id } })
+            }
+          />
+        )}
+        ListEmptyComponent={
+          <View style={styles.centered}>
+            <Text style={styles.emptyTitle}>
+              {tab === 'upcoming' ? t('bookings.empty.title') : t('bookings.emptyPast.title')}
+            </Text>
+            <Text style={styles.muted}>
+              {tab === 'upcoming' ? t('bookings.empty.body') : t('bookings.emptyPast.body')}
+            </Text>
+            {tab === 'upcoming' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.replace('/(tabs)')}
+                style={styles.retry}
+              >
+                <Text style={styles.retryText}>{t('bookings.empty.action')}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -136,17 +166,18 @@ function BookingRow({
   onPress: () => void;
 }) {
   const { t } = useTranslation('diner');
+  const where = booking.venueName ?? booking.branchName;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${booking.venueName} ${booking.code}`}
+      accessibilityLabel={`${where} ${booking.code}`}
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
       <View style={styles.rowBody}>
         <Text style={styles.venue} numberOfLines={1}>
-          {booking.venueName}
+          {where}
         </Text>
         <Text style={styles.detail} numberOfLines={1}>
           {t('bookings.tableAt', { table: booking.tableLabel, branch: booking.branchName })}
@@ -218,8 +249,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   chevron: { fontSize: fontSize.xl, color: color.mutedForeground },
-  centered: { alignItems: 'center', paddingTop: space.xxl, gap: space.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  centered: {
+    alignItems: 'center',
+    paddingTop: space.xxl,
+    paddingHorizontal: space.xl,
+    gap: space.sm,
+  },
+  emptyTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+    textAlign: 'center',
+  },
   muted: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
   retry: {
     marginTop: space.md,

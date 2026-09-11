@@ -121,7 +121,9 @@ describe('the booking flow', () => {
     ).toBeTruthy();
 
     // And the deadline, from the same shared rule.
-    const deadline = freeCancellationCopy(table.freeCancellationUntilUtc, branch.timeZoneId, 'en');
+    // The server's own deadline, carried on the offer.
+    expect(table.freeCancellationUntilUtc).not.toBeNull();
+    const deadline = freeCancellationCopy(table.freeCancellationUntilUtc!, branch.timeZoneId, 'en');
     expect(
       screen.getByText(`Free cancellation until ${String(deadline.params['time'])}`),
     ).toBeDefined();
@@ -158,14 +160,17 @@ describe('the booking flow', () => {
     const code = await screen.findByLabelText('Enter the code');
     await user.type(code, '123456');
 
-    // Confirm step: the window again, at the moment of commitment.
+    // Confirm step: the window again, at the moment of commitment — and the
+    // name the venue will ask for at the door, which the server requires.
     const confirm = await screen.findByRole('button', { name: 'Confirm booking' });
+    expect((confirm as HTMLButtonElement).disabled, 'no name, no booking').toBe(true);
+    await user.type(screen.getByLabelText('Name for the booking'), 'Ani');
     await user.click(confirm);
 
     expect(await screen.findByText('Table booked')).toBeDefined();
 
     // A real reservation, with a code staff can be asked for at the door.
-    const stored = await harness.gateway.listBookings();
+    const { upcoming: stored } = await harness.gateway.listBookings();
     expect(stored).toHaveLength(1);
     expect(stored[0]?.status).toBe('confirmed');
     expect(screen.getByText(stored[0]!.code)).toBeDefined();
@@ -192,6 +197,7 @@ describe('the booking flow', () => {
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
     await user.click(await screen.findByRole('button', { name: 'Confirm booking' }));
     await screen.findByText('Table booked');
 
@@ -218,12 +224,16 @@ describe('the calendar file the confirmation hands over', () => {
       branchId: branch.id,
       tableId: table.tableId,
       slotUtc,
+      timeZoneId: branch.timeZoneId,
       partySize: selection.partySize,
-      verificationToken: 'vt-test',
+      guestName: 'Ani',
+      guestPhone: '+37477123456',
+      channel: 'web',
     })) as Booking;
 
     const ics = bookingIcs({
       booking,
+      venueName: branch.venue.name,
       addressLine: branch.addressLine,
       manageUrl: `https://yalla.am/${VENUE}/${BRANCH}/booking/${booking.manageToken}`,
       locale: 'en',
@@ -276,9 +286,16 @@ describe('losing the table while confirming', () => {
     const onTableTaken = vi.fn();
     const onClose = vi.fn();
 
-    // Seed the cache with the room as it stood, so the refresh is observable.
-    const before = await harness.gateway.getFloorPlan(branch.id);
-    harness.queryClient.setQueryData(queryKeys.floor(branch.id), before);
+    // Seed the cache with the room the page draws — the slot floor — as it
+    // stood, so the refresh is observable.
+    const lookup = {
+      branchId: branch.id,
+      slotUtc,
+      partySize: selection.partySize,
+      timeZoneId: branch.timeZoneId,
+    };
+    const roomKey = queryKeys.slotFloor(branch.id, slotUtc, selection.partySize, branch.timeZoneId);
+    harness.queryClient.setQueryData(roomKey, await harness.gateway.getSlotFloor(lookup));
 
     render(
       harness.wrap(
@@ -297,6 +314,7 @@ describe('losing the table while confirming', () => {
     await user.type(await screen.findByLabelText('Phone number'), '77123456');
     await user.click(screen.getByRole('button', { name: 'Send code' }));
     await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.type(await screen.findByLabelText('Name for the booking'), 'Ani');
     await user.click(await screen.findByRole('button', { name: 'Confirm booking' }));
 
     // The panel hands the visitor back to the room, naming the table, because
@@ -304,15 +322,16 @@ describe('losing the table while confirming', () => {
     await waitFor(() => expect(onTableTaken).toHaveBeenCalledWith(table.tableLabel));
     expect(onClose).toHaveBeenCalled();
 
-    // The refreshed floor came straight out of the 409 payload and went into
-    // the cache, so the plan repaints without a round trip.
-    const refreshed = harness.queryClient.getQueryData(queryKeys.floor(branch.id)) as
-      Awaited<ReturnType<typeof harness.gateway.getFloorPlan>> | undefined;
-    expect(refreshed).toBeDefined();
-    expect(refreshed?.tables.find((entry) => entry.id === table.tableId)?.state).not.toBe('free');
+    // The room the page is drawing was told to refetch — not a floor key no
+    // surface reads — and the refetch finds the table gone.
+    expect(harness.queryClient.getQueryState(roomKey)?.isInvalidated).toBe(true);
+    const refreshed = await harness.gateway.getSlotFloor(lookup);
+    expect(refreshed?.tables.find((entry) => entry.tableId === table.tableId)?.isBookable).toBe(
+      false,
+    );
 
     // Nothing was booked, and nothing was retried.
-    await expect(harness.gateway.listBookings()).resolves.toHaveLength(0);
+    expect((await harness.gateway.listBookings()).upcoming).toHaveLength(0);
   });
 
   it('shows the taken-table message above the room', async () => {

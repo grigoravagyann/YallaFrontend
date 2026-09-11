@@ -73,8 +73,11 @@ export type {
   BookingStatus,
   BranchPolicy,
   BranchSummary,
+  BookingChannel,
+  BookingRules,
   CreateBookingCommand,
   KnownTableUnavailableReason,
+  MyBookings,
   PhoneChallenge,
   SlotFloor,
   TableAvailability,
@@ -129,8 +132,20 @@ export type {
 } from './contracts/reports';
 
 export {
+  BookingBusyError,
+  BookingCommandInUseError,
+  BookingRejectedError,
+  BranchUnavailableError,
   EndpointNotWiredError,
   ExpiredCodeError,
+  ExtensionsNotOfferedError,
+  HoldNotActiveError,
+  HostCannotLeaveError,
+  InviteExpiredError,
+  ServiceRequestRateLimitedError,
+  TabAccessEndedError,
+  TabsNotEnabledError,
+  isTabAccessEnded,
   LeadTimeExceededError,
   NotTabHostError,
   RateLimitedError,
@@ -184,9 +199,11 @@ export type {
 
 // --- Scanning in and the shared tab -----------------------------------------
 export type {
+  JoinTabCommand,
   ScanResult,
   ScanTableCommand,
   TabInvite,
+  TabParticipantChange,
   TabParticipant,
   TabParticipantRole,
   TabParticipantStatus,
@@ -208,7 +225,8 @@ export {
 } from './contracts/permissions';
 export type { TabPermissionKey } from './contracts/permissions';
 
-export { extractScannedCode } from './contracts/scanCode';
+export { extractScannedCode, parseScannedCode } from './contracts/scanCode';
+export type { ScannedCode } from './contracts/scanCode';
 
 // --- Notifications -----------------------------------------------------------
 export { actionIsLive, canExtendHold } from './contracts/push';
@@ -238,13 +256,13 @@ export type { MockDemoTable } from './mocks/demoTables';
 
 export {
   venueFreeTables,
-  venueTotalTables,
-  isVenueFullyBooked,
-  nearestBranch,
+  venueAvailability,
+  branchAvailability,
   isBranchOpenNow,
   isVenueOpenNow,
   findBranchIn,
 } from './contracts/helpers';
+export type { Availability } from './contracts/helpers';
 
 // --- The web console --------------------------------------------------------
 export type { ConsoleGateway } from './consoleGateway';
@@ -451,6 +469,7 @@ export type {
   BranchMenu,
   CallWaiterCommand,
   CompCommand,
+  DinerTabAdjustment,
   DinerTabLine,
   DinerTabMe,
   DinerTabView,

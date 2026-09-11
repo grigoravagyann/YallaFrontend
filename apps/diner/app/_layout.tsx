@@ -6,13 +6,17 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
+import { createSecureProfileStorage } from '../src/auth/profileStorage';
+import { restoreDinerSession } from '../src/auth/restore';
 import { authSession } from '../src/auth/session';
 import { projectId } from '../src/config';
 import { gateway } from '../src/data/gateway';
 import { bootstrapI18n } from '../src/i18n';
-import { useSession } from '../src/stores/session';
+import { wireQueryManagers } from '../src/lib/queryManagers';
+import { configureProfileStorage, useSession } from '../src/stores/session';
 import { usePushNotifications } from '../src/push/usePushNotifications';
 
 /**
@@ -27,6 +31,19 @@ import { usePushNotifications } from '../src/push/usePushNotifications';
  * `createQueryClient`.
  */
 const queryClient = createQueryClient({ mutationNetworkMode: 'always' });
+
+/**
+ * Coming back to the app and losing signal, told to TanStack Query.
+ *
+ * Module scope, once: TanStack's own React Native setup. Without it the phone
+ * never refetched on return from the background and no query ever paused, so
+ * every offline branch on every screen was unreachable.
+ */
+wireQueryManagers({ appState: AppState, netInfo: NetInfo });
+
+/** The number and name the diner books under, remembered between launches. */
+const profileStorage = createSecureProfileStorage();
+configureProfileStorage(profileStorage);
 
 /**
  * Two families for Armenian, Cyrillic and Latin — Yalla Sans for body, Yalla
@@ -57,15 +74,16 @@ const FONTS = {
 function PushNotifications() {
   // Subscribed rather than read once: a diner who verifies their phone mid-
   // session becomes registerable at that moment, and a value read at mount
-  // would leave them unreachable until the next launch.
-  const verified = useSession((state) => state.verificationToken !== null);
+  // would leave them unreachable until the next launch. Restored from the
+  // keychain on launch too, so a rotated token is re-registered every time.
+  const signedIn = useSession((state) => state.signedIn);
 
   usePushNotifications({
     projectId,
     // `POST /api/diner/devices` is `VerifiedDiner`-scoped, so there is nothing
     // to register before then. A walk-in who scanned a QR holds a tab-
     // participant token and no account; the server has nobody to address.
-    signedIn: verified,
+    signedIn,
   });
   return null;
 }
@@ -80,7 +98,10 @@ export default function RootLayout() {
   // returning diner to verify a number the keychain still vouches for.
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([bootstrapI18n(), authSession.restore()]).then(() => {
+    void Promise.all([
+      bootstrapI18n(),
+      restoreDinerSession({ auth: authSession, profile: profileStorage }),
+    ]).then(() => {
       if (!cancelled) setReady(true);
     });
     return () => {

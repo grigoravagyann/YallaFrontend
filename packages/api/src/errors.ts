@@ -179,9 +179,18 @@ export class NotFoundError extends ApiError {
 
 /** 429. The backend's fixed-window limiter said wait. */
 export class TooManyRequestsError extends ApiError {
-  constructor(options: Omit<ErrorOptions, 'status'>) {
-    super('Too many requests. Wait a moment.', { ...options, status: 429 });
+  /**
+   * How long the server asked the caller to wait, from `Retry-After`, in
+   * seconds. `null` when it said nothing — which is not "try again now", and a
+   * screen must not turn it into a made-up time.
+   */
+  readonly retryAfterSeconds: number | null;
+
+  constructor(options: Omit<ErrorOptions, 'status'> & { retryAfterSeconds?: number | null }) {
+    const { retryAfterSeconds, ...rest } = options;
+    super('Too many requests. Wait a moment.', { ...rest, status: 429 });
     this.name = 'TooManyRequestsError';
+    this.retryAfterSeconds = retryAfterSeconds ?? null;
   }
 }
 

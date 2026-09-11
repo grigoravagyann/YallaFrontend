@@ -166,12 +166,12 @@ describe('the tray subtotal', () => {
     const previewed = traySubtotalDram(state);
 
     await gateway.placeOrder({
-      tabId: tab.id,
+      tabId: tab.tabId,
       clientCommandId: '22222222-2222-4222-8222-222222222222',
-      lines: trayToOrderLines(state, tab.yourParticipantId),
+      lines: trayToOrderLines(state, tab.me.participantId),
     });
 
-    const view = await gateway.getDinerTab(tab.id);
+    const view = await gateway.getDinerTab(tab.tabId);
     const charged = (view?.myLines ?? []).reduce((sum, line) => sum + line.lineTotalDram, 0);
 
     // The tray's arithmetic is the one place this app multiplies money, and it
@@ -205,26 +205,24 @@ describe('a shared line', () => {
     let state = run([{ type: 'add', item, atMs: 0 }]);
     state = trayReducer(state, { type: 'toggleShared', key: state.lines[0]!.key });
 
-    const lines = trayToOrderLines(state, tab.yourParticipantId);
+    const lines = trayToOrderLines(state, tab.me.participantId);
     expect(lines[0]?.isShared).toBe(true);
     // Attributed even though it is shared: the server splits it across the
     // snapshot, and knowing who tapped it is what lets the tab say who added it.
-    expect(lines[0]?.participantId).toBe(tab.yourParticipantId);
+    expect(lines[0]?.participantId).toBe(tab.me.participantId);
 
     await gateway.placeOrder({
-      tabId: tab.id,
+      tabId: tab.tabId,
       clientCommandId: '44444444-4444-4444-8444-444444444444',
       lines,
     });
 
-    const view = await gateway.getDinerTab(tab.id);
+    const view = await gateway.getDinerTab(tab.tabId);
     const placed = view?.myLines[0];
     expect(placed?.isShared).toBe(true);
-    // How many ways it splits is *not* on `TabLineView` — only that it does.
-    // The count was a guess written against `TabOrderLineShare`, which is a
-    // server-side table with no projection. What splits it is settled by
-    // `/shares`, which apportions the amount rather than reporting a divisor.
-    expect(placed).not.toHaveProperty('sharedWithCount');
+    // How many ways it splits, from the snapshot taken when it was ordered —
+    // `TabLineView.sharedWithCount`. Only the host was at the table.
+    expect(placed?.sharedWithCount).toBe(1);
   });
 });
 

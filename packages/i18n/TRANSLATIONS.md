@@ -27,6 +27,48 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   reviewed, and this set needs it most: the host-controls copy explains a
   permission rule, and a translation that blurs "the table total" into "your
   total" would tell a guest the opposite of what the feature does.
+- `diner` — the diner-flow fixes (2026-09-11), all provisional and **not**
+  reviewed. Browse: `venue.noneFreeNow` (present tense on purpose — "none free
+  right now", never "fully booked tonight"), `venue.notFound.*`,
+  `branches.openNow`, `branches.freeNow_*`. Removed with the distance and
+  table-total they described: `venue.fullyBooked`, `branches.distanceKm`,
+  `branches.distanceAndHours`, `branches.availability`. Reservations: the
+  booking name field and the confirm states (`confirm.nameLabel`,
+  `confirm.namePlaceholder`, `confirm.loading`, `confirm.tableError`,
+  `confirm.tableMissing`, `confirm.phoneMissing`, `confirm.verifyNumber`,
+  `confirm.checkAgain`), the refusals the server now names
+  (`confirm.error.tableOccupied`, `.busy`, `.commandInUse`,
+  `.branchUnavailable`, `.unknownOutcome` — which must keep saying the outcome
+  is _not known_, never "nothing was booked"), the dated deadline
+  (`table.freeCancellationOn`, `table.freeCancellationPassed`), the code copy
+  (`verify.error.wrongCodeNoCount`, `.codeSpent`, `.rateLimitedNoTime`),
+  `booking.tomorrow`, `booking.noTimesLeft`, `booking.notFound.*`, the
+  statuses the server keeps apart (`bookings.status.seated`,
+  `.cancelledByDiner`, `.cancelledByVenue`, `.unknown`), `bookings.signedOut.*`,
+  `bookings.detail.until`, and the keep-my-table refusals
+  (`push.actions.holdNotActive`, `.extensionsNotOffered`, `.keepTableHint`).
+  Removed: `confirm.error.network` (it promised "nothing was held" after a
+  dropped connection that may have booked) and `bookings.status.cancelled`.
+  The shared tab: `tab.accessEnded.*` (the server cannot say whether the tab
+  closed or the person was taken off, so the copy must keep covering both),
+  `tab.hostCannotLeave`, `invite.notHost` (the server lets only the host make
+  an invitation, so it must never read as "try again"), `tab.loadError`,
+  `tab.closingBanner`,
+  `order.blocked.*`, `pending.endedTitle`, `pending.endedBody`,
+  `people.permissionsUnknown`, `people.savePermissions`,
+  `scan.error.notEnabled`, `.branchUnavailable`, `.uncertain`,
+  `join.error.expired`, `tray.lockedHint`, `tray.failed.uncertain`,
+  `.uncertainHint`, `.checkAgain`, `.forbidden`, `.notSent` (the uncertain copy
+  must keep saying the outcome is _not known_), `tray.sent.replayed`,
+  `bill.paid`, `bill.remaining`, `bill.removedBy`, `bill.removedNoReason`,
+  `bill.serviceChargeRate`, `bill.serviceChargeApplies`, `bill.sharedWays_*`,
+  `bill.adjustment.*`, `settle.mode.notHost`, `.closing`, `.failed`,
+  `settle.shares.paid`, `waiter.rateLimited_*`, `waiter.rateLimitedNoWindow`.
+  Rewritten: `tab.leaveHostBody`, `settle.shares.hidden` (it pointed at items
+  "above" that are not on that screen), `scan.manualBody`,
+  `scan.manualPlaceholder`. Removed with the surfaces that only the mock ever
+  answered: every `*.notWired`, `pending.rejected*`, `pending.removed*`,
+  `people.defaultsTitle`, `people.defaultsBody`.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in

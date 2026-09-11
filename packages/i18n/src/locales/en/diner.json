@@ -27,23 +27,27 @@
     "typeAndBranches": "{{type}} · {{branches}}",
     "freeNow_one": "{{count}} table free now",
     "freeNow_other": "{{count}} tables free now",
-    "fullyBooked": "Fully booked tonight",
     "openNow": "Open now",
-    "closedNow": "Closed"
+    "closedNow": "Closed",
+    "noneFreeNow": "No tables free right now",
+    "notFound": {
+      "title": "This place is not on Yalla any more",
+      "body": "It may have closed or stopped taking bookings. Go back and pick another."
+    }
   },
   "branches": {
     "title": "Choose a branch",
-    "distanceKm": "{{km}} km",
     "openUntil": "open until {{time}}",
     "closed": "closed",
-    "distanceAndHours": "{{distance}} · {{hours}}",
-    "availability": "{{free}} of {{total}} tables free",
     "noneFree": "No tables free",
     "empty": {
       "title": "No branches",
       "body": "This venue has no locations listed yet."
     },
-    "loading": "Loading branches…"
+    "loading": "Loading branches…",
+    "openNow": "open now",
+    "freeNow_one": "{{count}} table free now",
+    "freeNow_other": "{{count}} tables free now"
   },
   "booking": {
     "date": "Date",
@@ -56,7 +60,13 @@
     "cancel": "Cancel",
     "pickDate": "Pick a date",
     "pickTime": "Pick a time",
-    "pickPartySize": "How many guests?"
+    "pickPartySize": "How many guests?",
+    "tomorrow": "Tomorrow",
+    "notFound": {
+      "title": "We could not find that booking",
+      "body": "It may have been made with another number, or on another phone."
+    },
+    "noTimesLeft": "No times left to book on this day. Pick another day."
   },
   "floorPlan": {
     "title": "Pick a table",
@@ -76,9 +86,12 @@
     "status": {
       "confirmed": "Confirmed",
       "pendingApproval": "Awaiting venue",
-      "cancelled": "Cancelled",
       "completed": "Completed",
-      "noShow": "Missed"
+      "noShow": "Missed",
+      "seated": "Seated",
+      "cancelledByDiner": "Cancelled",
+      "cancelledByVenue": "Cancelled by the venue",
+      "unknown": "Changed"
     },
     "tableAt": "Table {{table}} · {{branch}}",
     "empty": {
@@ -101,7 +114,13 @@
       "cancelKeep": "Keep it",
       "cancelling": "Cancelling…",
       "cancelFailed": "We could not cancel that. Try again.",
-      "cancelledOn": "Cancelled {{date}}"
+      "cancelledOn": "Cancelled {{date}}",
+      "until": "Until {{time}}"
+    },
+    "signedOut": {
+      "title": "Your bookings are kept under your number",
+      "body": "Confirm your number to see them.",
+      "action": "Confirm my number"
     }
   },
   "profile": {
@@ -133,7 +152,9 @@
       "invalidTime": "That time does not exist on this date — the clocks change.",
       "other": "Not available at that time: {{reason}}."
     },
-    "close": "Close"
+    "close": "Close",
+    "freeCancellationOn": "Free cancellation until {{time}} on {{date}}",
+    "freeCancellationPassed": "The free-cancellation time has passed. Cancelling still helps the venue."
   },
   "verify": {
     "phoneTitle": "Your phone number",
@@ -153,7 +174,10 @@
       "tooManyAttempts": "Too many tries. Ask for a new code.",
       "rateLimited": "Too many codes requested. Try again after {{time}}.",
       "network": "No connection. Check your signal and try again.",
-      "generic": "Something went wrong. Try again."
+      "generic": "Something went wrong. Try again.",
+      "wrongCodeNoCount": "That code is not right. Check it and try again.",
+      "codeSpent": "That code has had too many tries. Ask for a new one.",
+      "rateLimitedNoTime": "Too many codes asked for. Try again a little later."
     },
     "changeNumber": "Use a different number"
   },
@@ -171,9 +195,21 @@
     "error": {
       "tableTaken": "Table {{label}} was just taken. Here is what is free now.",
       "leadTime": "That time is too soon now. The earliest we can book is {{time}}.",
-      "network": "No connection. Your booking was not made — nothing was held.",
-      "generic": "We could not complete that. Nothing was booked."
-    }
+      "generic": "We could not complete that. Nothing was booked.",
+      "tableOccupied": "Someone has just sat down at table {{label}}. Here is what is free now.",
+      "busy": "Someone else is booking that table this second. Tap confirm again.",
+      "commandInUse": "That attempt could not be used. Tap confirm to try again.",
+      "branchUnavailable": "This venue is not taking bookings right now.",
+      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice."
+    },
+    "checkAgain": "Check again",
+    "nameLabel": "Name for the booking",
+    "namePlaceholder": "The name the venue asks for at the door",
+    "loading": "Checking the table…",
+    "tableError": "We could not check this table. Try again.",
+    "tableMissing": "That table is not on the plan any more. Go back and pick another.",
+    "phoneMissing": "We need to confirm your number before booking.",
+    "verifyNumber": "Confirm my number"
   },
   "success": {
     "confirmedTitle": "Table booked",
@@ -211,8 +247,8 @@
     "aiming": "Point the camera at the code on your table",
     "manualToggle": "Type the code instead",
     "manualTitle": "Type the code",
-    "manualBody": "Six characters, printed under the QR on your table.",
-    "manualPlaceholder": "ABC-DEF",
+    "manualBody": "The code printed under the QR on your table, or the link the host sent you.",
+    "manualPlaceholder": "ABC-DEF or a link",
     "manualSubmit": "Join this table",
     "working": "Opening your tab…",
     "scanAgain": "Scan again",
@@ -227,7 +263,10 @@
       "tabClosed": "That tab has already been closed and paid. A waiter can open a new one.",
       "network": "No connection. Nothing was opened — try again.",
       "generic": "That did not work. Try again.",
-      "empty": "Type the code printed under the QR."
+      "empty": "Type the code printed under the QR.",
+      "notEnabled": "Ordering from your phone is not switched on here. A waiter will take your order.",
+      "branchUnavailable": "This place is not opening tabs right now. Ask a waiter.",
+      "uncertain": "We did not hear back. Scan again — it will not open a second tab."
     },
     "dev": {
       "title": "Dev only — demo codes",
@@ -261,7 +300,7 @@
     "leave": "Leave this tab",
     "leaveTitle": "Leave this tab?",
     "leaveBody": "You can scan the code again to come back.",
-    "leaveHostBody": "You are the host. Whoever is on the tab longest takes over.",
+    "leaveHostBody": "You opened this tab. Whoever has been on it longest takes it over. If nobody else is on it, a waiter can close it.",
     "leaveConfirm": "Yes, leave",
     "leaveKeep": "Stay",
     "leaveFailed": "We could not leave the tab. Try again.",
@@ -277,7 +316,14 @@
     "offline": "No connection. This is the last state we saw.",
     "refresh": "Refresh",
     "order": "Order something",
-    "settle": "Settling up"
+    "settle": "Settling up",
+    "accessEnded": {
+      "title": "You are not on this tab any more",
+      "body": "The tab has closed, or you were taken off it. Scan the code on your table to join again."
+    },
+    "hostCannotLeave": "Nobody else is on the tab to take it over, so you cannot leave it yet. A waiter can close it for you.",
+    "loadError": "We could not load your tab.",
+    "closingBanner": "The bill has been asked for, so nothing more can be ordered on this tab."
   },
   "pending": {
     "title": "Waiting for the host",
@@ -289,11 +335,9 @@
     "refresh": "Check again",
     "checking": "Checking…",
     "approvedTitle": "You are on the tab",
-    "rejectedTitle": "The host did not add you",
-    "rejectedBody": "If you are at this table, ask them to try again, or scan once more.",
-    "removedTitle": "You have been taken off this tab",
-    "removedBody": "Scan the code again if that was a mistake.",
-    "leave": "Leave"
+    "leave": "Leave",
+    "endedTitle": "You are not on this tab",
+    "endedBody": "The host did not add you, or the tab has closed. If you are at this table, ask them, or scan once more."
   },
   "invite": {
     "title": "Invite to this tab",
@@ -308,7 +352,8 @@
     "expired": "This link has expired. Make a new one.",
     "refresh": "New link",
     "loading": "Making a link…",
-    "error": "We could not make a link. Try again."
+    "error": "We could not make a link. Try again.",
+    "notHost": "Only whoever opened the tab can invite people. Ask them to show the code on their phone."
   },
   "people": {
     "title": "People on this tab",
@@ -331,8 +376,8 @@
     "totalOffTurnsOffPay": "With the total hidden there is nothing to pay against, so paying went off.",
     "alwaysOwnItems": "Everyone always sees menu prices and their own items. Hiding the total hides the table total and other people's items — never someone's own order.",
     "whyHide": "Hiding the total is for when you are treating everyone. That is why paying starts off.",
-    "defaultsTitle": "New people get",
-    "defaultsBody": "Applies to whoever joins from now on."
+    "permissionsUnknown": "What this person can do is not shown until you set it. These start from the table's setting, and nothing changes until you save.",
+    "savePermissions": "Save for this person"
   },
   "menu": {
     "title": "Menu",
@@ -345,7 +390,6 @@
     "search": "Search dishes or ingredients",
     "noMatches": "Nothing matches that.",
     "error": "We could not load the menu.",
-    "notWired": "The menu is not switched on for this place yet.",
     "offlineNoCache": "The menu has not been loaded on this phone yet, and there is no signal to fetch it.",
     "add": "Add",
     "ingredients": "What is in it",
@@ -369,16 +413,21 @@
     "other": "Something else",
     "sending": "Telling the floor…",
     "sent": "Asked for: {{what}}. Someone will come over.",
-    "notWired": "Calling a waiter is not switched on here yet. Catch someone's eye for now.",
     "failed": "That did not go through. Try again, or catch someone's eye.",
     "close": "Close",
-    "sentAtTable": "We have told the counter — {{what}}, table {{label}}."
+    "sentAtTable": "We have told the counter — {{what}}, table {{label}}.",
+    "rateLimited_one": "Your table has asked several times in the last minute. A waiter is on the way.",
+    "rateLimited_other": "Your table has asked several times in the last {{count}} minutes. A waiter is on the way.",
+    "rateLimitedNoWindow": "Your table has asked several times already. A waiter is on the way."
   },
   "join": {
     "title": "Joining a tab",
     "working": "Opening the link…",
     "failedTitle": "That link did not work",
-    "failedBody": "Ask for a new one, or scan the code on your table."
+    "failedBody": "Ask for a new one, or scan the code on your table.",
+    "error": {
+      "expired": "That invitation has expired or been replaced. Ask the host for a new link."
+    }
   },
   "common": {
     "retry": "Try again"
@@ -411,26 +460,31 @@
       "title": "Sent to the kitchen",
       "ready": "Ready around {{time}}.",
       "noEstimate": "The kitchen has it.",
-      "toTab": "Back to the bill"
+      "toTab": "Back to the bill",
+      "replayed": "It had already reached the kitchen, and it went only once."
     },
     "failed": {
       "offline": "No signal, so this order has not been placed.",
-      "notWired": "Ordering is not switched on for this place yet, so nothing was sent.",
       "error": "This order has not been placed.",
       "askWaiter": "Nothing was sent to the kitchen. Try again in a moment, or ask a waiter and they will take it.",
       "soldOut": "{{item}} has just sold out, so nothing was sent.",
       "soldOutHint": "Take it out of your order and send the rest, or ask a waiter what else there is.",
       "closing": "The bill has been asked for on this table, so nothing more can go on it.",
       "closingHint": "Nothing was sent to the kitchen. If you still want this, a waiter can add it.",
-      "toBill": "Look at the bill"
-    }
+      "toBill": "Look at the bill",
+      "uncertain": "We could not tell whether this order reached the kitchen.",
+      "uncertainHint": "Check again sends the same order once more. If it already arrived, it is not placed twice.",
+      "checkAgain": "Check again",
+      "forbidden": "You cannot order on this tab right now.",
+      "notSent": "Nothing was sent to the kitchen."
+    },
+    "lockedHint": "We could not tell whether your last send reached the kitchen. Check before changing anything."
   },
   "bill": {
     "title": "The bill so far",
     "loading": "Loading the bill…",
     "empty": "Nothing ordered yet.",
     "error": "We could not load the bill.",
-    "notWired": "The bill is not switched on for this place yet.",
     "live": "Up to date",
     "connecting": "Catching up…",
     "notLive": "Refreshed when you open this",
@@ -450,14 +504,25 @@
     "yourShare": "Your share",
     "yourItems": "Your items",
     "hiddenTotal": "The table total is kept to whoever opened the tab. You are still shown every price and everything you ordered.",
-    "shared": "Shared with the table"
+    "shared": "Shared with the table",
+    "paid": "Paid",
+    "remaining": "Still to pay",
+    "removedBy": "Removed by staff: {{reason}}",
+    "removedNoReason": "Removed by staff",
+    "serviceChargeRate": "Service charge ({{percent}}%)",
+    "serviceChargeApplies": "A {{percent}}% service charge applies.",
+    "sharedWays_one": "Shared {{count}} way",
+    "sharedWays_other": "Shared {{count}} ways",
+    "adjustment": {
+      "discount": "Discount",
+      "comp": "On the house"
+    }
   },
   "settle": {
     "title": "Settling up",
     "unnamed": "Someone at the table",
     "host": "opened the tab",
     "error": "We could not work out the shares.",
-    "notWired": "Shares are not switched on for this place yet.",
     "people": "Manage who is on the tab",
     "mode": {
       "title": "How you are splitting it",
@@ -473,7 +538,10 @@
       "anyonePaysAnyAmount": {
         "title": "Sort it out between you",
         "body": "Anyone can hand over any amount until the bill is covered."
-      }
+      },
+      "notHost": "Only whoever opened the tab can change this.",
+      "closing": "The bill has been asked for, so the split cannot change now.",
+      "failed": "That did not change. Try again."
     },
     "shares": {
       "title": "Who owes what",
@@ -481,7 +549,8 @@
       "breakdown": "Own {{own}} · shared {{shared}} · service {{service}}",
       "absorbed": "Includes {{amount}} for someone who left the tab.",
       "total": "Table total",
-      "hidden": "The table total is hidden, so the split is not shown. Your own items are above."
+      "hidden": "The table total is kept to whoever opened the tab, so only your share is shown.",
+      "paid": "Paid {{amount}}"
     },
     "pay": {
       "title": "Paying",
@@ -516,7 +585,19 @@
         "cancelledByVenue": "The restaurant cancelled this booking.",
         "noShow": "This booking was marked as a no-show.",
         "unknown": "This booking is no longer one you can change here."
-      }
+      },
+      "holdNotActive": "Your table is held from the booking time. You can ask to keep it once it starts.",
+      "extensionsNotOffered": "This venue does not hold tables for late arrivals. Call them if you are running late.",
+      "keepTableHint": "Running late? Let them know once, and the table is held a little longer."
+    }
+  },
+  "order": {
+    "blocked": {
+      "pending": "You can order once the host lets you on the tab.",
+      "notAllowed": "The host has not turned on ordering for you. Ask them, or a waiter.",
+      "closing": "The bill has been asked for, so nothing more can go on this tab.",
+      "closed": "This tab is closed.",
+      "removed": "You are no longer on this tab."
     }
   }
 }

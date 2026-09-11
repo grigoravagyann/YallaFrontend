@@ -1,5 +1,5 @@
 import type { MenuItemDetail } from '@yalla/api';
-import { isEndpointNotWired, isOffline } from '@yalla/api';
+import { isOffline } from '@yalla/api';
 import { formatDram } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
@@ -7,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -15,12 +16,15 @@ import {
   View,
 } from 'react-native';
 import { Text } from '../../../src/components/Text';
-import { useMenuDetail } from '../../../src/data/orderQueries';
-import { useTab } from '../../../src/data/queries';
-import { useTray } from '../../../src/order/TrayProvider';
-
+import { useDinerTab, useMenuDetail } from '../../../src/data/orderQueries';
 import { TrayBar } from '../../../src/order/TrayBar';
-import { useBranchTimeZone } from '../../../src/data/orderQueries';
+import { useTray } from '../../../src/order/TrayProvider';
+import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
+
+/** A photo this phone can load: the gateway resolves the server's relative paths. */
+function loadablePhoto(url: string): string | null {
+  return /^https?:\/\//i.test(url) ? url : null;
+}
 
 /**
  * The menu, and the way an order is built.
@@ -31,7 +35,9 @@ import { useBranchTimeZone } from '../../../src/data/orderQueries';
  * other people's items, never what your own coffee costs.
  *
  * Tapping an item adds it to a tray. It does not send anything — see
- * `src/order/tray.ts` for why one order beats five tickets.
+ * `src/order/tray.ts` for why one order beats five tickets. **Add is offered only
+ * to someone the server says can order now** (`me.canOrderNow`); anyone else
+ * reads the menu with the reason they cannot order said once, above it.
  */
 export default function MenuScreen() {
   const { t } = useTranslation('diner');
@@ -39,9 +45,20 @@ export default function MenuScreen() {
   const router = useRouter();
   const { tabId } = useLocalSearchParams<{ tabId: string }>();
 
-  const { data: tab } = useTab(tabId);
-  const { data: menu, isLoading, isError, error, refetch, isPaused } = useMenuDetail(tab?.branchId);
+  const { data: tab } = useDinerTab(tabId);
+  const {
+    data: menu,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isPaused,
+    isSuccess,
+  } = useMenuDetail(tab?.branchId);
   const { dispatch } = useTray();
+  // Until the tab has been read nobody is offered Add: the answer is not known.
+  const block = tab ? orderingBlock(tab) : null;
+  const canAdd = Boolean(tab) && block === null;
 
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -70,10 +87,6 @@ export default function MenuScreen() {
     return categories.find((category) => category.id === activeCategory)?.items ?? [];
   }, [categories, activeCategory, search, locale]);
 
-  // The branch's own zone, for the kitchen estimate on the sent bar. Never the
-  // device's: a tourist's phone on Moscow time would put it three hours out.
-  const { data: branchZone } = useBranchTimeZone(tab?.branchId);
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: true, title: '' }} />
@@ -95,15 +108,17 @@ export default function MenuScreen() {
       ) : isError ? (
         <View style={styles.centered}>
           <Text style={styles.muted}>
-            {isEndpointNotWired(error)
-              ? t('menu.notWired')
-              : isOffline(error)
-                ? t('menu.offlineNoCache')
-                : t('menu.error')}
+            {isOffline(error) ? t('menu.offlineNoCache') : t('menu.error')}
           </Text>
           <Pressable accessibilityRole="button" onPress={() => void refetch()} style={styles.retry}>
             <Text style={styles.retryText}>{t('common.retry')}</Text>
           </Pressable>
+        </View>
+      ) : isSuccess && menu === null ? (
+        // The branch has no published menu: the server's 404, said as such.
+        <View style={styles.centered}>
+          <Text style={styles.emptyTitle}>{t('menu.emptyTitle')}</Text>
+          <Text style={styles.muted}>{t('menu.emptyBody')}</Text>
         </View>
       ) : (
         <>
@@ -145,6 +160,7 @@ export default function MenuScreen() {
           </View>
 
           <ScrollView contentContainerStyle={styles.body}>
+            {block ? <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text> : null}
             {items.length === 0 ? (
               <Text style={styles.muted}>{t('menu.noMatches')}</Text>
             ) : (
@@ -154,6 +170,7 @@ export default function MenuScreen() {
                   item={item}
                   locale={locale}
                   expanded={openItemId === item.id}
+                  canAdd={canAdd}
                   onToggle={() => setOpenItemId(openItemId === item.id ? null : item.id)}
                   onAdd={() => dispatch({ type: 'add', item, atMs: Date.now() })}
                 />
@@ -167,14 +184,18 @@ export default function MenuScreen() {
             green pill reading "Review" and a diner could read that as an order
             that had been placed.
           */}
-          <View style={styles.barSlot}>
-            <TrayBar
-              tabId={tabId}
-              timeZoneId={branchZone ?? 'Asia/Yerevan'}
-              onReview={() => router.push({ pathname: '/tab/[tabId]/tray', params: { tabId } })}
-              onSeeBill={() => router.push({ pathname: '/tab/[tabId]', params: { tabId } })}
-            />
-          </View>
+          {tab ? (
+            <View style={styles.barSlot}>
+              <TrayBar
+                tabId={tab.tabId}
+                // The branch's own zone, from the tab. Never the device's: a
+                // tourist's phone on Moscow time would put it three hours out.
+                timeZoneId={tab.timeZoneId}
+                onReview={() => router.push({ pathname: '/tab/[tabId]/tray', params: { tabId } })}
+                onSeeBill={() => router.push({ pathname: '/tab/[tabId]', params: { tabId } })}
+              />
+            </View>
+          ) : null}
         </>
       )}
     </SafeAreaView>
@@ -185,6 +206,8 @@ interface ItemCardProps {
   readonly item: MenuItemDetail;
   readonly locale: Parameters<typeof formatDram>[1];
   readonly expanded: boolean;
+  /** False for anyone the server says cannot order now. The menu stays readable. */
+  readonly canAdd: boolean;
   readonly onToggle: () => void;
   readonly onAdd: () => void;
 }
@@ -198,11 +221,21 @@ interface ItemCardProps {
  * wastes that. The card shows a summary line always and the full detail on tap,
  * which keeps a forty-item menu scannable without hiding anything.
  */
-function ItemCard({ item, locale, expanded, onToggle, onAdd }: ItemCardProps) {
+function ItemCard({ item, locale, expanded, canAdd, onToggle, onAdd }: ItemCardProps) {
   const { t } = useTranslation('diner');
+  const photo = loadablePhoto(item.photo.cardUrl);
 
   return (
     <View style={[styles.card, !item.isAvailable && styles.cardOut]}>
+      {/* The card-size variant: what a diner looks at, never the full one. */}
+      {photo ? (
+        <Image
+          source={{ uri: photo }}
+          style={styles.photo}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
+      ) : null}
       <Pressable accessibilityRole="button" onPress={onToggle} style={styles.cardMain}>
         <View style={styles.cardHead}>
           <Text style={styles.itemName}>{item.name}</Text>
@@ -245,9 +278,11 @@ function ItemCard({ item, locale, expanded, onToggle, onAdd }: ItemCardProps) {
           a broken menu and the diner asks a waiter — the exact question this
           screen exists to remove. */}
       {item.isAvailable ? (
-        <Pressable accessibilityRole="button" onPress={onAdd} style={styles.add}>
-          <Text style={styles.addText}>{t('menu.add')}</Text>
-        </Pressable>
+        canAdd ? (
+          <Pressable accessibilityRole="button" onPress={onAdd} style={styles.add}>
+            <Text style={styles.addText}>{t('menu.add')}</Text>
+          </Pressable>
+        ) : null
       ) : (
         <View style={styles.outBadge}>
           <Text style={styles.outText}>{t('menu.unavailable')}</Text>
@@ -281,6 +316,17 @@ const styles = StyleSheet.create({
     backgroundColor: color.primary,
   },
   retryText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  blocked: {
+    padding: space.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: color.borderStrong,
+    color: color.foreground,
+    fontSize: fontSize.sm,
+    lineHeight: lineHeight.sm,
+  },
+  photo: { width: '100%', aspectRatio: 16 / 9, backgroundColor: color.greenTint },
 
   strip: {
     paddingVertical: space.sm,

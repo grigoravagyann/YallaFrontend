@@ -1,3 +1,4 @@
+import type { ScannedCode } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useRouter } from 'expo-router';
@@ -7,8 +8,8 @@ import { Text } from './Text';
 import { useJoinByCode } from '../hooks/useJoinByCode';
 
 export interface JoinByLinkProps {
-  /** The token or table code lifted out of the link. */
-  readonly code: string | undefined;
+  /** What the route lifted out of the link: an invitation or a table code. */
+  readonly code: ScannedCode | null;
 }
 
 /**
@@ -16,24 +17,27 @@ export interface JoinByLinkProps {
  *
  * Two routes render it — `/join/<invite token>` and `/t/<table code>` — because
  * a QR on a table and a link in a group chat are the same journey from the
- * diner's point of view, and the backend resolves both through one endpoint.
- * Keeping one component means a link and a scan cannot drift apart in what they
- * say when they fail.
+ * diner's point of view. They are not the same request: the route says which
+ * one it is, an invitation goes to `/api/tabs/join` and a table code to the
+ * table scan. Keeping one component means a link and a scan cannot drift apart
+ * in what they say when they fail.
  */
 export function JoinByLink({ code }: JoinByLinkProps) {
   const { t } = useTranslation('diner');
   const router = useRouter();
-  const { submit, failure, isWorking } = useJoinByCode();
+  const { enter, failure, isWorking } = useJoinByCode();
 
   // One attempt per code. Without the guard a re-render — or the router
   // re-reading params — fires a second join while the first is still in flight.
   const attempted = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!code || attempted.current === code) return;
-    attempted.current = code;
-    void submit(code);
-  }, [code, submit]);
+    if (!code) return;
+    const key = JSON.stringify(code);
+    if (attempted.current === key) return;
+    attempted.current = key;
+    void enter(code);
+  }, [code, enter]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

@@ -51,7 +51,7 @@ export function tableShape(value: number): TableShape {
  * vocabulary. Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow,
  * 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded,
  * 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked,
- * 9 LocalTimeDoesNotExist.
+ * 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied.
  */
 export function unavailableReason(
   reason: number | null | undefined,
@@ -94,6 +94,15 @@ export function unavailableReason(
       }
     case 9:
       return 'invalidTime';
+    /*
+     * `TableCurrentlyOccupied`: an open sitting, projected forward by the turn
+     * time, overlaps the slot. Its own member on the server so the diner can be
+     * told somebody is sitting there now — and that the table may free up
+     * early. It was unmapped, so every table with a walk-in read
+     * "Not available at that time: unknown:10."
+     */
+    case 10:
+      return 'occupied';
     default:
       /*
        * A rule this build has no word for. Carried rather than dropped: a
@@ -230,11 +239,9 @@ export function availabilityFromResponse(response: Availability): readonly Table
        */
       unavailableReason: available ? null : (reason ?? fallbackReason(state)),
       window,
-      // The backend does not report a free-cancellation deadline on the
-      // availability view; the slot start is the honest floor for it until the
-      // reservation policy lands in the contract. See the README's "what the
-      // generated types disagreed with" note.
-      freeCancellationUntilUtc: response.requestedStartUtc,
+      // The server's deadline, by the rule that marks a cancellation late.
+      // Absent when no slot could be computed, and then nothing is promised.
+      freeCancellationUntilUtc: response.cancellationDeadlineUtc ?? null,
       requiresApproval: table.requiresApproval,
     };
   });

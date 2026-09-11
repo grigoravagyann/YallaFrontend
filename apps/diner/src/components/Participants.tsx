@@ -1,18 +1,10 @@
-import type { TabParticipant, TableTab } from '@yalla/api';
+import type { DinerTabView } from '@yalla/api';
 import { formatNameList, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { StyleSheet, View } from 'react-native';
 import { Text } from './Text';
-
-/** Only these two are on the tab in any meaningful sense. */
-export function onTab(participants: readonly TabParticipant[]): readonly TabParticipant[] {
-  return participants.filter((p) => p.status === 'active');
-}
-
-export function waitingToJoin(participants: readonly TabParticipant[]): readonly TabParticipant[] {
-  return participants.filter((p) => p.status === 'pending');
-}
+import { onTab, roster, waitingToJoin, type RosterPerson } from '../tab/roster';
 
 /**
  * "Aram, Nare and 1 guest" — the whole party in one line.
@@ -22,19 +14,14 @@ export function waitingToJoin(participants: readonly TabParticipant[]): readonly
  * person at the table who does not appear anywhere is how a party of five ends
  * up arguing over a bill.
  */
-export function useParticipantSummary(
-  participants: readonly TabParticipant[],
-  locale: Locale,
-): string {
+export function useParticipantSummary(people: readonly RosterPerson[], locale: Locale): string {
   const { t } = useTranslation('diner');
-
-  const active = onTab(participants);
 
   // You are never "+1 guest". Counting yourself among the anonymous is
   // technically correct and reads as though the app does not know you are here.
   const named: string[] = [];
   let unnamed = 0;
-  for (const person of active) {
+  for (const person of onTab(people)) {
     if (person.displayName) named.push(person.displayName);
     else if (person.isYou) named.push(t('tab.youName'));
     else unnamed += 1;
@@ -47,7 +34,7 @@ export function useParticipantSummary(
 }
 
 export interface ParticipantRowProps {
-  readonly participant: TabParticipant;
+  readonly person: RosterPerson;
   /** Host controls render their buttons here; the read-only list passes none. */
   readonly children?: React.ReactNode;
 }
@@ -59,9 +46,9 @@ export interface ParticipantRowProps {
  * privileged information — it is the single most useful thing on the screen
  * when a sixth person sits down and nobody is sure whether they scanned.
  */
-export function ParticipantRow({ participant, children }: ParticipantRowProps) {
+export function ParticipantRow({ person, children }: ParticipantRowProps) {
   const { t } = useTranslation('diner');
-  const name = participant.displayName ?? (participant.isYou ? t('tab.youName') : t('tab.guest'));
+  const name = person.displayName || (person.isYou ? t('tab.youName') : t('tab.guest'));
 
   return (
     <View style={styles.row}>
@@ -74,11 +61,9 @@ export function ParticipantRow({ participant, children }: ParticipantRowProps) {
           {name}
         </Text>
         <View style={styles.badges}>
-          {participant.isYou && participant.displayName ? (
-            <Badge label={t('tab.you')} tone="you" />
-          ) : null}
-          {participant.role === 'host' ? <Badge label={t('tab.host')} tone="host" /> : null}
-          {participant.status === 'pending' ? (
+          {person.isYou && person.displayName ? <Badge label={t('tab.you')} tone="you" /> : null}
+          {person.role === 'host' ? <Badge label={t('tab.host')} tone="host" /> : null}
+          {person.status === 'pendingApproval' ? (
             <Badge label={t('tab.waiting')} tone="waiting" />
           ) : null}
         </View>
@@ -98,26 +83,27 @@ function Badge({ label, tone }: { label: string; tone: 'you' | 'host' | 'waiting
 }
 
 export interface ParticipantsListProps {
-  readonly tab: TableTab;
+  readonly view: Pick<DinerTabView, 'participants' | 'me'>;
 }
 
 /** The read-only list, as shown on the tab screen itself. */
-export function ParticipantsList({ tab }: ParticipantsListProps) {
+export function ParticipantsList({ view }: ParticipantsListProps) {
   const { t } = useTranslation('diner');
-  const active = onTab(tab.participants);
-  const pending = waitingToJoin(tab.participants);
+  const people = roster(view);
+  const active = onTab(people);
+  const pending = waitingToJoin(people);
 
   return (
     <View style={styles.list}>
-      {active.map((participant) => (
-        <ParticipantRow key={participant.id} participant={participant} />
+      {active.map((person) => (
+        <ParticipantRow key={person.participantId} person={person} />
       ))}
 
       {pending.length > 0 ? (
         <>
           <Text style={styles.sectionLabel}>{t('people.pendingSection')}</Text>
-          {pending.map((participant) => (
-            <ParticipantRow key={participant.id} participant={participant} />
+          {pending.map((person) => (
+            <ParticipantRow key={person.participantId} person={person} />
           ))}
         </>
       ) : null}

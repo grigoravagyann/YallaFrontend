@@ -57,6 +57,30 @@ function jwt(expSeconds: number, tag: string): string {
   return `${encode({ alg: 'none' })}.${encode({ exp: expSeconds, tag })}.sig`;
 }
 
+describe('a 429', () => {
+  it("carries the server's Retry-After, in seconds", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: 'rate-limited', status: 429, title: 'x', detail: 'x' }), {
+        status: 429,
+        headers: { 'content-type': 'application/problem+json', 'retry-after': '120' },
+      }),
+    );
+    const error = await clientWith(fetchImpl)
+      .get('/x')
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TooManyRequestsError);
+    expect((error as TooManyRequestsError).retryAfterSeconds).toBe(120);
+  });
+
+  it('carries null when there is no Retry-After', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(problem(429, 'too-many-attempts'));
+    const error = await clientWith(fetchImpl)
+      .get('/x')
+      .catch((caught: unknown) => caught);
+    expect((error as TooManyRequestsError).retryAfterSeconds).toBeNull();
+  });
+});
+
 describe('url building', () => {
   it('joins the base url and path', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));

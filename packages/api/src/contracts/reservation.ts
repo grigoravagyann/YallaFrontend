@@ -1,7 +1,11 @@
-import { formatTime, type Locale, type TimeZone } from '@yalla/format';
+import { branchDayKey, formatDate, formatTime, type Locale, type TimeZone } from '@yalla/format';
 import { isKnownUnavailableReason } from './booking';
 import type { AvailabilityWindowDto, TableAvailability, TableUnavailableReason } from './booking';
 import {
+  BookingBusyError,
+  BookingCommandInUseError,
+  BookingRejectedError,
+  BranchUnavailableError,
   ExpiredCodeError,
   LeadTimeExceededError,
   RateLimitedError,
@@ -9,7 +13,7 @@ import {
   TooManyAttemptsError,
   WrongCodeError,
 } from './errors';
-import { NetworkError } from '../errors';
+import { NetworkError, ServerError, TimeoutError } from '../errors';
 
 /**
  * The reservation flow's rules, in one place, for both surfaces that run it.
@@ -149,14 +153,28 @@ export function availabilityWindowCopy(
  * not turning up. Same key on the sheet, the confirm screen, the confirmation
  * and the manage-booking page, so the deadline a person was quoted is the
  * deadline they are held to.
+ *
+ * The **server's** deadline — `cancellationDeadlineUtc` — and with the date
+ * whenever it is not today in the branch's zone: "until 17:30" for a booking
+ * nine days out reads as this afternoon. Once it has passed the line says so,
+ * rather than quoting a time that is already behind them.
  */
 export function freeCancellationCopy(
   freeCancellationUntilUtc: string,
   timeZoneId: TimeZone,
   locale: Locale,
+  now: Date = new Date(),
 ): CopyLine {
-  return line('table.freeCancellation', {
-    time: formatTime(freeCancellationUntilUtc, timeZoneId, locale),
+  const deadline = new Date(freeCancellationUntilUtc);
+  if (deadline.getTime() <= now.getTime()) return line('table.freeCancellationPassed');
+
+  const time = formatTime(deadline, timeZoneId, locale);
+  if (branchDayKey(deadline, timeZoneId) === branchDayKey(now, timeZoneId)) {
+    return line('table.freeCancellation', { time });
+  }
+  return line('table.freeCancellationOn', {
+    date: formatDate(deadline, timeZoneId, locale),
+    time,
   });
 }
 
@@ -215,7 +233,12 @@ export interface TableCopy {
 
 export function tableCopy(
   availability: TableAvailability,
-  input: { readonly partySize: number; readonly timeZoneId: TimeZone; readonly locale: Locale },
+  input: {
+    readonly partySize: number;
+    readonly timeZoneId: TimeZone;
+    readonly locale: Locale;
+    readonly now?: Date | undefined;
+  },
 ): TableCopy {
   const { partySize, timeZoneId, locale } = input;
 
@@ -246,11 +269,10 @@ export function tableCopy(
     seats,
     reserve,
     window: availabilityWindowCopy(availability.window, timeZoneId, locale),
-    freeCancellation: freeCancellationCopy(
-      availability.freeCancellationUntilUtc,
-      timeZoneId,
-      locale,
-    ),
+    // Nothing is promised when the server stated no deadline.
+    freeCancellation: availability.freeCancellationUntilUtc
+      ? freeCancellationCopy(availability.freeCancellationUntilUtc, timeZoneId, locale, input.now)
+      : null,
     approval: approvalCopy(availability.requiresApproval),
     unavailable: null,
   };
@@ -274,14 +296,22 @@ export function tableCopy(
  */
 export function verificationFailureCopy(error: unknown, locale: Locale): CopyLine {
   if (error instanceof WrongCodeError) {
+    // No number the server did not send, and no "0 attempts left": zero means
+    // the code is spent and the next step is a new one.
+    if (error.attemptsRemaining === null) return line('verify.error.wrongCodeNoCount');
+    if (error.attemptsRemaining <= 0) return line('verify.error.codeSpent');
     return line('verify.error.wrongCode', { count: error.attemptsRemaining });
   }
   if (error instanceof ExpiredCodeError) return line('verify.error.expired');
   if (error instanceof TooManyAttemptsError) return line('verify.error.tooManyAttempts');
   if (error instanceof RateLimitedError) {
-    return line('verify.error.rateLimited', {
-      time: formatTime(error.retryAtUtc, 'Asia/Yerevan', locale),
-    });
+    // Only a time the server gave. The per-number window is an hour; naming
+    // "one minute from now" sent people back into the same refusal.
+    return error.retryAtUtc
+      ? line('verify.error.rateLimited', {
+          time: formatTime(error.retryAtUtc, 'Asia/Yerevan', locale),
+        })
+      : line('verify.error.rateLimitedNoTime');
   }
   if (error instanceof NetworkError) return line('verify.error.network');
   return line('verify.error.generic');
@@ -298,13 +328,23 @@ export function verificationFailureCopy(error: unknown, locale: Locale): CopyLin
  *   will not change.
  * - `leadTime` means nothing they chose was wrong — time simply passed — and
  *   the message names the earliest slot that still works.
- * - `network` is the one where it matters most to say that **nothing was
- *   held**, so nobody turns up to a table they do not have.
+ * - `rejected` is a rule — shut then, too many people for the table — and says
+ *   the table sheet's own sentence for it.
+ * - `busy` is the one refusal a retry is for: the table was locked by another
+ *   booking in flight. Same command id, tap again.
+ * - `unknown` is the one where it matters most **not** to say "nothing was
+ *   booked". A timeout, a dropped connection or a server error may have come
+ *   after the booking committed; the honest answer is that we cannot tell, and
+ *   the next step — checking again with the same command id — cannot book twice.
  */
 export type BookingFailure =
   | { readonly kind: 'tableTaken'; readonly line: CopyLine; readonly error: TableTakenError }
   | { readonly kind: 'leadTime'; readonly line: CopyLine }
-  | { readonly kind: 'network'; readonly line: CopyLine }
+  | { readonly kind: 'rejected'; readonly line: CopyLine }
+  | { readonly kind: 'busy'; readonly line: CopyLine }
+  | { readonly kind: 'commandInUse'; readonly line: CopyLine }
+  | { readonly kind: 'branchUnavailable'; readonly line: CopyLine }
+  | { readonly kind: 'unknown'; readonly line: CopyLine }
   | { readonly kind: 'generic'; readonly line: CopyLine };
 
 export function bookingFailure(
@@ -315,20 +355,41 @@ export function bookingFailure(
   if (error instanceof TableTakenError) {
     return {
       kind: 'tableTaken',
-      line: line('confirm.error.tableTaken', { label: error.tableLabel }),
+      line: line(
+        error.reason === 'occupied' ? 'confirm.error.tableOccupied' : 'confirm.error.tableTaken',
+        { label: error.tableLabel },
+      ),
       error,
     };
   }
   if (error instanceof LeadTimeExceededError) {
     return {
       kind: 'leadTime',
-      line: line('confirm.error.leadTime', {
-        time: formatTime(error.earliestSlotUtc, timeZoneId, locale),
-      }),
+      line: error.earliestSlotUtc
+        ? line('confirm.error.leadTime', {
+            time: formatTime(error.earliestSlotUtc, timeZoneId, locale),
+          })
+        : line('table.unavailable.pastLeadTime'),
     };
   }
-  if (error instanceof NetworkError) {
-    return { kind: 'network', line: line('confirm.error.network') };
+  if (error instanceof BookingRejectedError) {
+    return { kind: 'rejected', line: unavailableCopy(error.reason, error.partySize) };
+  }
+  if (error instanceof BookingBusyError) {
+    return { kind: 'busy', line: line('confirm.error.busy') };
+  }
+  if (error instanceof BookingCommandInUseError) {
+    return { kind: 'commandInUse', line: line('confirm.error.commandInUse') };
+  }
+  if (error instanceof BranchUnavailableError) {
+    return { kind: 'branchUnavailable', line: line('confirm.error.branchUnavailable') };
+  }
+  if (
+    error instanceof NetworkError ||
+    error instanceof TimeoutError ||
+    error instanceof ServerError
+  ) {
+    return { kind: 'unknown', line: line('confirm.error.unknownOutcome') };
   }
   return { kind: 'generic', line: line('confirm.error.generic') };
 }

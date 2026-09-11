@@ -1,8 +1,10 @@
+import { isOfflinePaused } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, SafeAreaView, Share, StyleSheet, View } from 'react-native';
+import { Pressable, SafeAreaView, Share, StyleSheet, View } from 'react-native';
+import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { Text } from '../../src/components/Text';
 import { useBooking } from '../../src/data/queries';
 import { ReminderOptIn } from '../../src/push/ReminderOptIn';
@@ -12,15 +14,40 @@ export default function SuccessScreen() {
   const { locale } = useLocale();
   const router = useRouter();
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
-  const { data: booking, isLoading } = useBooking(bookingId);
+  const bookingQuery = useBooking(bookingId);
+  const { data: booking, isLoading, isError, error, refetch } = bookingQuery;
 
-  if (isLoading || !booking) {
+  /*
+   * Every state said, never a spinner that waits for ever.
+   *
+   * The booking arrives in the cache with the confirmation, so this is normally
+   * instant. Opened any other way — a restored screen, a stale id — it reads
+   * the diner's own bookings, and a booking that is not among them is "not
+   * found", not an endless load.
+   */
+  if (!booking) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.centered}>
-          <ActivityIndicator color={color.primaryInk} />
-        </View>
+        {isOfflinePaused(bookingQuery) ? (
+          <QueryFailure offline onRetry={() => void refetch()} />
+        ) : isLoading ? (
+          <QueryLoading label={t('net.loading')} />
+        ) : isError ? (
+          <QueryFailure error={error} onRetry={() => void refetch()} />
+        ) : (
+          <View style={styles.centered}>
+            <Text style={styles.title}>{t('booking.notFound.title')}</Text>
+            <Text style={styles.detail}>{t('booking.notFound.body')}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.replace('/(tabs)/bookings')}
+              style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
+            >
+              <Text style={styles.primaryText}>{t('success.viewBookings')}</Text>
+            </Pressable>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -31,12 +58,14 @@ export default function SuccessScreen() {
     booking.timeZoneId,
     locale,
   )}`;
+  // The venue when this phone has read it; the branch always.
+  const where = booking.venueName ?? booking.branchName;
 
   const share = () => {
     void Share.share({
       message: t('success.shareMessage', {
         table: booking.tableLabel,
-        venue: booking.venueName,
+        venue: where,
         branch: booking.branchName,
         time: when,
         code: booking.code,
@@ -77,8 +106,8 @@ export default function SuccessScreen() {
         </View>
 
         <View style={styles.details}>
-          <Text style={styles.venue}>{booking.venueName}</Text>
-          <Text style={styles.detail}>{booking.branchName}</Text>
+          <Text style={styles.venue}>{where}</Text>
+          {booking.venueName ? <Text style={styles.detail}>{booking.branchName}</Text> : null}
           <Text style={styles.detail}>
             {t('bookings.tableAt', { table: booking.tableLabel, branch: booking.branchName })}
           </Text>
@@ -103,7 +132,13 @@ export default function SuccessScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: color.paper },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.md,
+    padding: space.xl,
+  },
   body: { flex: 1, padding: space.xl, gap: space.md },
   title: {
     fontSize: fontSize.xxl,
@@ -134,7 +169,7 @@ const styles = StyleSheet.create({
   codeHint: { fontSize: fontSize.sm, color: color.mutedForeground },
   details: { marginTop: space.lg, gap: 2 },
   venue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
-  detail: { fontSize: fontSize.md, color: color.mutedForeground },
+  detail: { fontSize: fontSize.md, color: color.mutedForeground, textAlign: 'center' },
   secondary: {
     marginTop: 'auto',
     minHeight: touchTarget.minimum,
@@ -146,6 +181,7 @@ const styles = StyleSheet.create({
     minHeight: touchTarget.minimum + 6,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: space.xl,
     borderRadius: radius.pill,
     backgroundColor: color.primary,
   },

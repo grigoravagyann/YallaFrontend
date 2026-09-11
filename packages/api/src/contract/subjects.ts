@@ -7,7 +7,7 @@ import { createStaffHttpGateway } from '../http/staffHttpGateway';
 import { createStaffMockGateway } from '../mocks/staffMock';
 import { createMemoryIdentityStore } from '../http/consoleHttpGateway';
 import type { AuthSession } from '../auth/session';
-import type { YallaGateway } from '../gateway';
+
 import type { ContractCapability, ContractSubject } from './subject';
 import { tomorrowEvening } from './subject';
 
@@ -37,33 +37,6 @@ function staticSession(token: string | null): AuthSession {
     getState: () => (token ? 'signedIn' : 'signedOut'),
     subscribe: () => () => {},
   };
-}
-
-/**
- * A gateway that refuses everything, used as the HTTP gateway's `fallback`.
- *
- * `createHttpGateway` takes a fallback for the methods not yet wired to HTTP,
- * and in the app that fallback is the mock. For a contract run that would be a
- * quiet disaster: a contract could exercise the fallback, pass against the mock
- * a second time, and report the two implementations as agreeing — which is the
- * exact failure this whole suite exists to make impossible.
- *
- * So the live run's fallback throws. A contract that reaches it fails loudly
- * and names the method, and the honest fix is to wire that method to HTTP or to
- * declare the capability unsupported.
- */
-function refusingFallback(): YallaGateway {
-  return new Proxy({} as YallaGateway, {
-    get(_target, property) {
-      return () => {
-        throw new Error(
-          `The contract suite reached the HTTP gateway's mock fallback for "${String(property)}". ` +
-            'That would test the mock twice and report the two implementations as agreeing. ' +
-            'Wire the method to HTTP, or declare its capability unsupported on the subject.',
-        );
-      };
-    },
-  });
 }
 
 const MOCK_BRANCH = 'b-lumen-north';
@@ -142,7 +115,9 @@ export function httpSubject(options: HttpSubjectOptions): ContractSubject {
     name: 'HTTP client',
     // Availability and the diner menu are anonymous — browsing needs no
     // account — which is why the flagship contract runs live with no setup.
-    gateway: createHttpGateway(anonymous, { audience: 'diner', fallback: refusingFallback() }),
+    // Every method is real now, so there is no mock fallback for a contract to
+    // reach and report the mock as agreeing with itself.
+    gateway: createHttpGateway(anonymous, { audience: 'diner' }),
     staff: createStaffHttpGateway(authorised),
     console: createConsoleHttpGateway(authorised, {
       auth: staticSession(options.venueToken),

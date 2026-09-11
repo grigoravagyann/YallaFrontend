@@ -98,9 +98,10 @@ describe('the swap to generated types', () => {
       expect(gateway, `expected the gateway to call ${path}`).toContain(path);
     }
 
-    // The one endpoint the diner genuinely does not have. It is allowed to
-    // remain, and nothing else is.
+    // Nothing is left unwired. Browse was the last holdout, pinned here as
+    // "allowed to remain" while it called two routes the backend never had —
+    // which is how a known-bad state stayed green. It reads the public list now.
     const notWired = [...gateway.matchAll(/notWired\('(\w+)'/gu)].map((match) => match[1]);
-    expect(new Set(notWired)).toEqual(new Set(['listVenues', 'getVenue']));
+    expect(new Set(notWired)).toEqual(new Set());
   });
 });
