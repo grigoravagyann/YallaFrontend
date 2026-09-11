@@ -21,7 +21,11 @@ import type {
 import {
   BookingBusyError,
   BookingCommandInUseError,
+  BookingEndedError,
+  BookingNotActiveError,
+  BookingNotFoundError,
   BookingRejectedError,
+  BookingTooEarlyError,
   BranchUnavailableError,
   ExpiredCodeError,
   ExtensionsNotOfferedError,
@@ -73,6 +77,7 @@ import {
   dinerTab,
   participantChange,
   reservationState,
+  reservationStatus,
   settlementModeCode,
 } from './dinerMapping';
 import { venueSummariesFromCards } from './publicMapping';
@@ -218,6 +223,58 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
    * sentence — the only place it is. Anything unrecognised is a closed tab,
    * which carries the right next step: ask a member of staff.
    */
+  /**
+   * A refused "I'm at my table", as the error a screen can explain.
+   *
+   * Every 404 on this route is about the *booking*, never about a table: what
+   * was sent was a booking code, and answering it with "that code does not
+   * match a table" is the exact dead end this route was added to end. The 409s
+   * it shares with the scan — the table out of service, a tab being settled —
+   * fall through to the scan's own reading, so one sentence covers both doors.
+   */
+  function rethrowBookingTab(error: unknown): never {
+    if (error instanceof ApiError) {
+      const context = error.problem?.context ?? {};
+      const text = (value: unknown): string | undefined =>
+        typeof value === 'string' ? value : undefined;
+      const facts = {
+        url: error.url,
+        requestId: error.requestId,
+        reservationId: text(context['reservationId']),
+        startUtc: text(context['startUtc']),
+        endUtc: text(context['endUtc']),
+      };
+
+      switch (error.problem?.code) {
+        case 'booking-not-found':
+          throw new BookingNotFoundError({ url: error.url, requestId: error.requestId });
+        case 'booking-too-early':
+          throw new BookingTooEarlyError({ ...facts, earliestUtc: text(context['earliestUtc']) });
+        case 'booking-ended':
+          throw new BookingEndedError(facts);
+        case 'booking-not-active':
+          throw new BookingNotActiveError({
+            ...facts,
+            // The wire sends the number; the copy needs to know *which*
+            // cancellation, because "you cancelled" and "the venue cancelled"
+            // are not the same news to the person reading it.
+            status:
+              typeof context['status'] === 'number'
+                ? reservationStatus(context['status'])
+                : undefined,
+          });
+        default:
+          break;
+      }
+
+      if (error instanceof NotFoundError) {
+        throw new BookingNotFoundError({ url: error.url, requestId: error.requestId });
+      }
+    }
+
+    rethrowScan(error);
+  }
+
   function rethrowScan(error: unknown): never {
     if (error instanceof NotFoundError) {
       throw new UnknownTableCodeError({ url: error.url });
@@ -646,6 +703,32 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         return admitted(data);
       } catch (error) {
         rethrowScan(error);
+      }
+    },
+
+    /**
+     * `POST /api/tabs/open-by-booking`: the diner's booking code, this device,
+     * and the same command id semantics as the scan.
+     *
+     * The one opening that is **not** anonymous. The scan deliberately carries
+     * no session; this route answers only to the account that made the booking,
+     * so it goes out under the diner's own token — and must never be given
+     * `skipAuth`, which would turn every attempt into a 401.
+     */
+    async openTabByBooking(command): Promise<ScanResult> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabAccessResult']>(
+          '/api/tabs/open-by-booking',
+          {
+            bookingCode: command.bookingCode,
+            deviceId: await deviceId(),
+            clientCommandId: command.commandId,
+            ...(command.displayName ? { displayName: command.displayName } : {}),
+          } satisfies Schemas['Yalla.Api.Endpoints.OpenTabByBookingRequest'],
+        );
+        return admitted(data);
+      } catch (error) {
+        rethrowBookingTab(error);
       }
     },
 

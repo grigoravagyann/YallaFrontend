@@ -68,3 +68,56 @@ describe('parseScannedCode', () => {
     expect(parseScannedCode('  ')).toEqual({ kind: 'none' });
   });
 });
+
+describe('a booking code typed where the table code goes', () => {
+  /*
+   * The bug this is for: a diner who booked table 5 read "DFJFQY" off their
+   * booking and typed it here, and was told it belonged to no table. It never
+   * could — this field takes the 32-character token printed under the QR, and a
+   * booking code is a different thing for a different route.
+   */
+
+  it('reads the code on a booking as a booking', () => {
+    expect(parseScannedCode('DFJFQY')).toEqual({ kind: 'booking', code: 'DFJFQY' });
+  });
+
+  it('forgives the case, spaces and dashes it gets read back with', () => {
+    // Upper-cased to the form the server stores and compares, exactly as its
+    // own `ReservationCode.Normalise` does.
+    expect(parseScannedCode('dfj-fqy')).toEqual({ kind: 'booking', code: 'DFJFQY' });
+    expect(parseScannedCode('  DFJ FQY ')).toEqual({ kind: 'booking', code: 'DFJFQY' });
+  });
+
+  it("leaves the table's own token a table code, in the case it was printed in", () => {
+    expect(parseScannedCode('a3f09c1e5b7d42e8a0c6f1b29d4e8c7a')).toEqual({
+      kind: 'table',
+      code: 'a3f09c1e5b7d42e8a0c6f1b29d4e8c7a',
+    });
+  });
+
+  it('leaves both kinds of link exactly as they were', () => {
+    expect(parseScannedCode('https://yalla.am/join/Zx9_Ab-12')).toEqual({
+      kind: 'invite',
+      token: 'Zx9_Ab-12',
+    });
+    expect(parseScannedCode('https://yalla.am/t/K7M2QP')).toEqual({
+      kind: 'table',
+      code: 'K7M2QP',
+    });
+  });
+
+  it('does not call six characters a booking when the code alphabet has no such code', () => {
+    // 0, 1, I, L and O are not in the generator's alphabet, so a code cannot
+    // contain them. Anything else stays a table code and the server, which owns
+    // the token format, is left to say what it is.
+    expect(parseScannedCode('A1B2C0')).toEqual({ kind: 'table', code: 'A1B2C0' });
+    expect(parseScannedCode('ABCDEL')).toEqual({ kind: 'table', code: 'ABCDEL' });
+    // Five characters and seven are not booking codes either.
+    expect(parseScannedCode('DFJFQ')).toEqual({ kind: 'table', code: 'DFJFQ' });
+    expect(parseScannedCode('DFJFQYZ')).toEqual({ kind: 'table', code: 'DFJFQYZ' });
+  });
+
+  it('hands the code back through extractScannedCode too', () => {
+    expect(extractScannedCode('dfj-fqy')).toBe('DFJFQY');
+  });
+});

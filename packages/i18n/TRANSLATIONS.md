@@ -69,6 +69,37 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `scan.manualPlaceholder`. Removed with the surfaces that only the mock ever
   answered: every `*.notWired`, `pending.rejected*`, `pending.removed*`,
   `people.defaultsTitle`, `people.defaultsBody`.
+- `diner` — opening the tab from a booking (2026-09-12), all provisional and
+  **not** reviewed. Rewritten: `scan.manualBody` and `scan.manualPlaceholder`,
+  which now name the three things that can be typed — the long code printed
+  under the QR, a booking code, a link from the host — and no longer show
+  "ABC-DEF", a shape neither code has ever had. New, and each needing care:
+  `scan.error.bookingNotFound` (it must never drift back into "that is not a
+  table", which is the answer this whole flow exists to stop giving somebody
+  sitting at the table they booked); `scan.error.bookingTooEarly` and its
+  timeless twin `scan.error.bookingTooEarlyNoTime` — the scan screen has no
+  branch in hand to read a time in, and translating the second as though it had
+  one would put the phone's own zone in front of a diner who has just flown in;
+  `scan.error.bookingEnded`; `scan.error.bookingNotActive`; and
+  `scan.error.signInNeeded`, which has to keep saying that the code _on the
+  table_ still needs no account, because that is the flow the product lives on.
+  The action itself: `booking.atTable.action`, `.hint`, `.working`, and
+  `success.atTableHint` on the confirmation screen, which tells a diner what
+  their booking code is for once they are standing in the venue.
+- `diner` — the same flow, second pass (2026-09-12), also provisional.
+  `scan.error.bookingTooEarlyOnDay` is `bookingTooEarly` with the date as well,
+  for a booking that is not today: the button is offered days ahead, and a bare
+  "from 19:10" there reads as tonight. `scan.error.bookingNotActive` kept its
+  general wording but now only catches the states this build does not know;
+  `scan.error.bookingPending`, `.bookingCancelledByYou`, `.bookingCancelledByVenue`
+  and `.bookingNoShow` say the rest, and the two cancellations must not collapse
+  into one — who cancelled is the whole of what the reader wants to know.
+  `scan.confirmNumber` is the button that takes a diner to verification, which
+  used to happen to them without a tap. Reworded: `scan.error.bookingEnded` no
+  longer says "scan the code on your table", because in that window the scan
+  cannot work either and the answer really is a member of staff; and
+  `scan.error.empty`, `scan.deniedBody` and `scan.unavailableBody` stop calling
+  the field the code under the QR, which it has not been since the first pass.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in

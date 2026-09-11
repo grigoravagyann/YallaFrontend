@@ -36,7 +36,7 @@ describe('the mock tab', () => {
   it('keeps the typed code case-insensitive, as the server does', async () => {
     const gateway = createMockGateway({ now: () => NOW, simulateJoiners: false });
     await expect(
-      gateway.scanTableCode({ tableCode: FREE_TABLE.toLowerCase(), commandId: 'c1' }),
+      gateway.scanTableCode({ tableCode: FREE_TABLE.toUpperCase(), commandId: 'c1' }),
     ).resolves.toMatchObject({ kind: 'tabOpened' });
   });
 

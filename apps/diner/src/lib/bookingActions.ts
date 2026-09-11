@@ -40,6 +40,28 @@ export function canKeepTable(
   );
 }
 
+/**
+ * "I'm at my table" — opening the tab on the table this booking holds.
+ *
+ * Offered on a confirmed booking until its sitting ends, and on a seated one
+ * whatever the clock says, because the venue has already put that party at the
+ * table and the sitting holds it until staff free it.
+ *
+ * Deliberately *not* narrowed to a window before the start, the way "keep my
+ * table" is. The instant the table starts being held is the branch's own
+ * walk-in holdback, which is not on the wire and which the client must not
+ * guess: a number invented here would hide the button from a diner the server
+ * would have let in. So the button is offered, and a diner who is early is told
+ * the time it opens — the server's own instant, in the branch's zone.
+ */
+export function canOpenTabForBooking(
+  booking: Pick<Booking, 'status' | 'endUtc'>,
+  now: Date,
+): boolean {
+  if (booking.status === 'seated') return true;
+  return booking.status === 'confirmed' && now.getTime() < Date.parse(booking.endUtc);
+}
+
 /** Each refusal of "keep my table", as its own sentence. */
 export function keepTableFailureKey(error: unknown): string {
   if (error instanceof HoldAlreadyExtendedError) return 'push.actions.alreadyExtended';

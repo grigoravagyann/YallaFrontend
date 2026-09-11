@@ -5568,6 +5568,113 @@
         }
       }
     },
+    "/api/tabs/open-by-booking": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "\"I'm at my table\": open the tab on your booked table with your booking code",
+        "description": "For a diner who booked through the app and is at their table: the booking code in place of the table's QR token. The code finds **the caller's own** booking, the booking names the table, and from there it is exactly `POST /api/tabs/open` - the same four cases, the same host and pending guests, the same `outcome`, the same response body.\n\n**Whose.** Only a booking this diner account made opens anything. Somebody else's code answers `404 booking-not-found`, word for word what a code nobody holds gets: a code is read out at the door and proves nothing.\n\n**When.** A `Confirmed` booking opens from the branch's walk-in holdback before its start - the moment the branch starts keeping the table back from walk-ins for it - until its end. Earlier is `409 booking-too-early` with `context.earliestUtc`; from `endUtc` on, `409 booking-ended`. Late is fine: until a waiter releases the table it is still theirs. A `Seated` booking opens whatever the time - the venue already put the party there. Pending-approval, cancelled and no-show bookings answer `409 booking-not-active`, with `context.status` saying which; a completed one, `booking-ended`.\n\n**Seating.** A free table is seated *as the booking*: the sitting names it and the booking becomes `Seated`, so the floor does not go on treating a party that is eating as one that has not arrived.\n\nCase, spaces and dashes in the code do not matter. A double tap with the same `clientCommandId` returns the same tab with `wasReplay` set.",
+        "operationId": "openTabByBooking",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.OpenTabByBookingRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/tabs/open-by-booking`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Tabs.TabAccessResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing device id or clientCommandId.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`booking-not-found`: none of the caller's bookings has that code. Somebody else's booking answers exactly the same.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`booking-too-early` (`context.earliestUtc` says when), `booking-ended`, or `booking-not-active` (`context.status` says why) - branch on the code. And, as on the scan, the table out of service, the tab there being settled, or this `clientCommandId` used by another device - those with no `context`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.BookingTabRefusedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tabs/{tabId}": {
       "get": {
         "tags": [
@@ -12716,6 +12823,56 @@
         "additionalProperties": false,
         "description": "Moving an order along the kitchen rail."
       },
+      "Yalla.Api.Endpoints.OpenTabByBookingRequest": {
+        "required": [
+          "bookingCode",
+          "clientCommandId",
+          "deviceId"
+        ],
+        "type": "object",
+        "properties": {
+          "bookingCode": {
+            "type": "string",
+            "description": "The code on the diner's booking - \"DFJFQY\" - typed however they typed it. Case, spaces and dashes\r\ndo not matter."
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "See Yalla.Api.Endpoints.OpenTabRequest.DeviceId."
+          },
+          "clientCommandId": {
+            "type": "string",
+            "description": "The caller's own id for this attempt. <b>Required.</b> A retry with the same id returns the same\r\ntab instead of opening a second one.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Optional. What the host sees; defaults to a numbered guest.",
+            "nullable": true
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "Optional. How many sat down. Only used when this seats the table; defaults to the booked party size.",
+            "format": "int32",
+            "nullable": true
+          },
+          "settlementMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.SettlementMode"
+              }
+            ],
+            "description": "Optional. As on `/api/tabs/open`. Only used when this opens the tab.",
+            "nullable": true
+          },
+          "hideTotalFromGuests": {
+            "type": "boolean",
+            "description": "Optional. As on `/api/tabs/open`. Only used when this opens the tab.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/tabs/open-by-booking`."
+      },
       "Yalla.Api.Endpoints.OpenTabRequest": {
         "required": [
           "clientCommandId",
@@ -13427,6 +13584,113 @@
         },
         "additionalProperties": false,
         "description": "Taking a line off the bill. It stays visible to the diner, labelled."
+      },
+      "Yalla.Api.Errors.BookingTabRefusedContext": {
+        "required": [
+          "earliestUtc",
+          "endUtc",
+          "reservationId",
+          "startUtc",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string",
+            "description": "The booking.",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.ReservationStatus"
+              }
+            ],
+            "description": "Lifecycle of a booking. Every member is the result of somebody doing something."
+          },
+          "startUtc": {
+            "type": "string",
+            "description": "When the booking starts.",
+            "format": "date-time"
+          },
+          "endUtc": {
+            "type": "string",
+            "description": "When it ends. From this instant on, `booking-ended`.",
+            "format": "date-time"
+          },
+          "earliestUtc": {
+            "type": "string",
+            "description": "When the branch starts holding the table for the party - the earliest the code opens the tab.\r\nBefore it, `booking-too-early`: render it in the branch's time zone, \"from 19:10\".",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "\"I'm at my table\" was refused, and the facts a sentence about it needs."
+      },
+      "Yalla.Api.Errors.BookingTabRefusedProblem": {
+        "required": [
+          "code",
+          "detail",
+          "status",
+          "title",
+          "traceId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, stable summary of the kind of problem."
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong this time, in words."
+          },
+          "instance": {
+            "type": "string",
+            "description": "The request path this happened on.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "The stable kebab-case slug. <b>This is what a client branches on.</b>"
+          },
+          "traceId": {
+            "type": "string",
+            "description": "Correlates this response with the one log entry written for it."
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Field-level complaints, when the failure was about the payload.",
+            "nullable": true
+          },
+          "context": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Errors.BookingTabRefusedContext"
+              }
+            ],
+            "description": "\"I'm at my table\" was refused, and the facts a sentence about it needs.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "`booking-too-early`, `booking-ended` or `booking-not-active`, 409, with the\r\n            booking's facts. Branch on the code. The other 409s the route shares with the scan - the table out\r\n            of service, the tab being settled, the command id taken by another device - arrive on the same\r\n            status with no `context`."
       },
       "Yalla.Api.Errors.BranchNotReadyContext": {
         "required": [

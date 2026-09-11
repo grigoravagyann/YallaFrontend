@@ -66,7 +66,12 @@
       "title": "We could not find that booking",
       "body": "It may have been made with another number, or on another phone."
     },
-    "noTimesLeft": "No times left to book on this day. Pick another day."
+    "noTimesLeft": "No times left to book on this day. Pick another day.",
+    "atTable": {
+      "action": "I’m at my table",
+      "hint": "At the venue? Open your tab on the table you booked.",
+      "working": "Opening your tab…"
+    }
   },
   "floorPlan": {
     "title": "Pick a table",
@@ -220,7 +225,8 @@
     "share": "Share",
     "shareMessage": "I booked table {{table}} at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
     "viewBookings": "See my bookings",
-    "done": "Done"
+    "done": "Done",
+    "atTableHint": "When you arrive, tap “I’m at my table” on your booking — or scan the QR on the table."
   },
   "net": {
     "offline": "You are offline.",
@@ -240,18 +246,19 @@
     "why": "The camera is used for one thing: reading the code on your table.",
     "allow": "Turn on the camera",
     "deniedTitle": "The camera is off",
-    "deniedBody": "No problem — type the code printed under the QR instead.",
+    "deniedBody": "No problem — type your table code or booking code instead.",
     "openSettings": "Open settings",
     "unavailableTitle": "No camera here",
-    "unavailableBody": "This device cannot scan, so type the code printed under the QR.",
+    "unavailableBody": "This device cannot scan, so type your table code or booking code.",
     "aiming": "Point the camera at the code on your table",
     "manualToggle": "Type the code instead",
     "manualTitle": "Type the code",
-    "manualBody": "The code printed under the QR on your table, or the link the host sent you.",
-    "manualPlaceholder": "ABC-DEF or a link",
+    "manualBody": "The long code printed under the QR on your table, your booking code, or a link from the host.",
+    "manualPlaceholder": "Table code, booking code or link",
     "manualSubmit": "Join this table",
     "working": "Opening your tab…",
     "scanAgain": "Scan again",
+    "confirmNumber": "Confirm my number",
     "result": {
       "opened": "Your tab is open and you are the host.",
       "pending": "You have asked to join. The host taps approve and you are in.",
@@ -263,10 +270,21 @@
       "tabClosed": "That tab has already been closed and paid. A waiter can open a new one.",
       "network": "No connection. Nothing was opened — try again.",
       "generic": "That did not work. Try again.",
-      "empty": "Type the code printed under the QR.",
+      "empty": "Type your table code, booking code or link.",
       "notEnabled": "Ordering from your phone is not switched on here. A waiter will take your order.",
       "branchUnavailable": "This place is not opening tabs right now. Ask a waiter.",
-      "uncertain": "We did not hear back. Scan again — it will not open a second tab."
+      "uncertain": "We did not hear back. Scan again — it will not open a second tab.",
+      "bookingNotFound": "No booking of yours has that code. Check it, or ask a member of staff.",
+      "bookingTooEarly": "Your table is not being held yet. You can open your tab from {{time}}.",
+      "bookingTooEarlyOnDay": "Your table is not being held yet. You can open your tab on {{date}} from {{time}}.",
+      "bookingTooEarlyNoTime": "Your table is not being held yet. Try again closer to your booking.",
+      "bookingEnded": "That booking is over. Ask a member of staff to open a tab for you.",
+      "bookingNotActive": "That booking is not one you can open a tab on. Ask a member of staff.",
+      "bookingPending": "The venue has not confirmed this booking yet. Ask a member of staff.",
+      "bookingCancelledByYou": "This booking was cancelled. Ask a member of staff to open a tab for you.",
+      "bookingCancelledByVenue": "The venue cancelled this booking. Ask a member of staff.",
+      "bookingNoShow": "This booking is marked as a no-show. Ask a member of staff to open a tab for you.",
+      "signInNeeded": "Confirm your number to use a booking code. The code on the table needs no account."
     },
     "dev": {
       "title": "Dev only — demo codes",

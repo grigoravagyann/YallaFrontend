@@ -6,6 +6,7 @@ import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } f
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingStatusPill } from '../../src/components/BookingStatusPill';
 import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { Text } from '../../src/components/Text';
@@ -94,6 +95,13 @@ export default function BookingDetailScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.title}>{t('bookings.detail.title')}</Text>
         <BookingStatusPill status={booking.status} />
+
+        {/*
+          The way onto the tab at the table they booked. Offered while the
+          booking could still open one; the server owns the exact instant the
+          table starts being held, and says it when a diner is early.
+        */}
+        <AtMyTableAction booking={booking} />
 
         {/*
           "Keep my table", decided from this booking's state now: only once its

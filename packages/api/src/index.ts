@@ -145,6 +145,10 @@ export {
   ServiceRequestRateLimitedError,
   TabAccessEndedError,
   TabsNotEnabledError,
+  BookingEndedError,
+  BookingNotActiveError,
+  BookingNotFoundError,
+  BookingTooEarlyError,
   isTabAccessEnded,
   LeadTimeExceededError,
   NotTabHostError,
@@ -200,6 +204,7 @@ export type {
 // --- Scanning in and the shared tab -----------------------------------------
 export type {
   JoinTabCommand,
+  OpenTabByBookingCommand,
   ScanResult,
   ScanTableCommand,
   TabInvite,

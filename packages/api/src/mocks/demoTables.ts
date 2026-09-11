@@ -42,8 +42,9 @@ export const MOCK_DEMO_TABLES: readonly MockDemoTable[] = [
     where: 'Green Bean · Mashtots Avenue · table 16 (already paid)',
   },
   {
-    // Deliberately not a code any table hashes to.
-    code: 'ZZZZZZ',
+    // A well-formed token no table hashes to. Not a booking code either: those
+    // are six characters and go to a different route entirely.
+    code: 'ffffffffffffffffffffffffffffffff',
     outcome: 'unknownCode',
     where: 'Nothing — a sticker from somewhere else',
   },
