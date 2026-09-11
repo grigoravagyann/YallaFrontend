@@ -12,3 +12,6 @@ apps/web/src/tokens.generated.css
 # Gitignored, so CI never sees it — without this, `pnpm format:check` fails
 # locally for anyone with gstack installed while passing in CI.
 .gstack
+
+# Agent worktrees and local launch config, never part of the build
+.claude/
