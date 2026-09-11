@@ -15,3 +15,7 @@ apps/web/src/tokens.generated.css
 
 # Agent worktrees and local launch config, never part of the build
 .claude/
+
+# Superdesign drafts: excluded locally via .git/info/exclude, so CI never sees
+# them, but prettier does not read that file and fails format:check without this.
+.superdesign/

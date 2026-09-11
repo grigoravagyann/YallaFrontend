@@ -3556,12 +3556,495 @@ kbd {
    The screen that makes a venue staffable. Two scopes on one page: people
    belong to a venue, tablets belong to a branch. */
 
+/* Search, the role chips and the switch, wrapping rather than squeezing: hy
+   and ru labels run up to twice the English. */
 .staff-filters {
   display: flex;
-  align-items: flex-end;
-  gap: var(--space-lg);
   flex-wrap: wrap;
-  margin: var(--space-lg) 0;
+  align-items: flex-end;
+  gap: var(--space-lg) var(--space-xl);
+  margin: var(--space-lg) 0 var(--space-xl);
+}
+
+.search-field {
+  flex: 1 1 16rem;
+  max-width: 20rem;
+}
+
+.search-field-control {
+  position: relative;
+  display: block;
+}
+
+.search-field-icon {
+  position: absolute;
+  inset-inline-start: var(--space-lg);
+  top: 50%;
+  translate: 0 -50%;
+  inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  stroke-width: var(--icon-stroke-width);
+  color: var(--color-muted-foreground);
+  pointer-events: none;
+}
+
+.search-field .field {
+  width: 100%;
+  padding-inline-start: calc(var(--space-lg) + var(--icon-size) + var(--space-sm));
+}
+
+/* Role chips: a radio group drawn as one pill. The chosen one is bold with an
+   ink ring on the accent tint — the tint alone is too close to the neutral
+   one to carry the state. */
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: var(--space-xs);
+  border: 1px solid var(--color-border-interactive);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+}
+
+.segmented-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-pill);
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.segmented-option:has(:checked) {
+  background: var(--color-accent-tint);
+  box-shadow: inset 0 0 0 2px var(--color-foreground);
+  font-weight: var(--font-weight-bold);
+}
+
+.segmented-option:has(:focus-visible) {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.segmented-count {
+  color: var(--color-muted-foreground);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* A switch, not a checkbox: ink when on, because it is not the primary
+   action. The track clears 3:1 against the surface. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-minimum);
+  margin-inline-start: auto;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.toggle-input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  inline-size: var(--touch-minimum);
+  block-size: var(--space-xl);
+  margin: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-interactive);
+  cursor: pointer;
+}
+
+.toggle-input::before {
+  content: '';
+  position: absolute;
+  inset-block-start: var(--space-xs);
+  inset-inline-start: var(--space-xs);
+  inline-size: calc(var(--space-xl) - 2 * var(--space-xs));
+  block-size: calc(var(--space-xl) - 2 * var(--space-xs));
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  transition: inset-inline-start var(--duration-control) var(--easing-standard);
+}
+
+.toggle-input:checked {
+  background: var(--color-foreground);
+}
+
+.toggle-input:checked::before {
+  inset-inline-start: calc(var(--touch-minimum) - var(--space-xl) + var(--space-xs));
+}
+
+.toggle-input:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* People as cards, grouped by role. 18rem, not fixed columns: hy and ru. */
+.roster-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxl);
+}
+
+.roster-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-lg);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.badge-count {
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.roster-grid,
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.device-grid {
+  margin-top: var(--space-lg);
+}
+
+/* Room for the address prompt, which is one field and a sentence. */
+.roster-item.is-expanded {
+  grid-column: 1 / -1;
+}
+
+.roster-card {
+  position: relative;
+  height: 100%;
+}
+
+.roster-card-head,
+.device-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+}
+
+.roster-card-who {
+  flex: 1;
+  min-width: 0;
+}
+
+.roster-card-who > p {
+  margin: 0;
+}
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-regular);
+  block-size: var(--touch-regular);
+  border-radius: var(--radius-pill);
+  background: var(--color-green-tint);
+  color: var(--color-foreground);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+/* No truncation: an Armenian surname cut to "Հակոբյ…" is a different person. */
+.roster-card-name {
+  margin: 0;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.roster-card-email {
+  overflow-wrap: anywhere;
+}
+
+.roster-card-tags,
+.roster-card-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.roster-card-tags {
+  margin-top: var(--space-sm) !important;
+}
+
+.roster-card-status {
+  margin: 0;
+}
+
+.badge-self {
+  border-color: var(--color-foreground);
+  font-weight: var(--font-weight-bold);
+}
+
+.roster-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-top: auto;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.roster-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-inline-start: auto;
+}
+
+.roster-card-foot .button-small,
+.device-card .button-small {
+  min-height: var(--touch-minimum);
+}
+
+/* Held back, never hidden, and never by colour alone: the badge says why.
+   The head only, so an open menu in the foot is not faded with it. */
+.roster-card.is-deactivated .roster-card-head,
+.device-card.is-deactivated .device-card-head > :not(.button) {
+  opacity: 0.62;
+}
+
+/* The overflow menu: a popover, so it floats. Below the scrim. */
+.overflow-menu-anchor {
+  position: relative;
+}
+
+.overflow-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + var(--space-xs));
+  z-index: 30;
+  min-inline-size: 12rem;
+  margin: 0;
+  padding: var(--space-xs);
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-soft);
+  box-shadow: var(--shadow-float);
+}
+
+.overflow-menu-item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--radius-soft);
+  background: none;
+  color: var(--color-foreground);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.overflow-menu-item:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+  background: var(--color-green-tint);
+}
+
+@media (hover: hover) {
+  .overflow-menu-item:hover {
+    background: var(--color-green-tint);
+  }
+}
+
+.overflow-menu-item.is-danger {
+  color: var(--color-danger);
+}
+
+/* Tablets: the same card shape, with an icon tile where a person has a face. */
+.device-card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-small);
+  block-size: var(--touch-small);
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+  color: var(--color-foreground);
+}
+
+.device-card-icon svg {
+  inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  stroke-width: var(--icon-stroke-width);
+}
+
+.device-card-foot {
+  margin: 0;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+/* The add and edit dialogs: a card with a fixed head and foot and a body that
+   scrolls, so a long step never pushes the buttons off a tablet screen. */
+.scrim > .card.wizard {
+  max-width: 37.5rem;
+  max-height: calc(100dvh - 2 * var(--space-lg));
+  padding: 0;
+  gap: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-head,
+.wizard-body,
+.wizard-foot {
+  padding: var(--space-xl);
+}
+
+.wizard-head {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.wizard h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.wizard-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wizard-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  overflow-y: auto;
+}
+
+.wizard-step-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.wizard-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.wizard-foot-end {
+  display: flex;
+  gap: var(--space-sm);
+  margin-inline-start: auto;
+}
+
+/* Progress: the current step is taller as well as darker, so which one it is
+   is not said by colour alone. */
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wizard-progress-step {
+  flex: 1;
+  block-size: var(--space-xs);
+  border-radius: var(--radius-pill);
+  background: var(--color-data-track);
+}
+
+.wizard-progress-step.is-done {
+  background: var(--color-data-fill);
+}
+
+.wizard-progress-step[aria-current='step'] {
+  block-size: var(--space-sm);
+  background: var(--color-data-fill-active);
+}
+
+.wizard-progress-label {
+  margin: var(--space-sm) 0 0;
+}
+
+/* Role cards: a native radio group, the radio left visible as the checked
+   signal that does not depend on colour. */
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice-list > p {
+  margin: 0;
+}
+
+.choice-legend {
+  padding: 0;
+  margin-bottom: var(--space-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.choice-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-xs) var(--space-md);
+  min-height: var(--touch-regular);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-interactive);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.choice-card input {
+  grid-row: span 2;
+  margin: var(--space-xs) 0 0;
+}
+
+.choice-card:has(:checked) {
+  border-color: var(--color-foreground);
+  box-shadow: inset 0 0 0 1px var(--color-foreground);
+  background: var(--color-accent-tint);
+}
+
+.choice-card:has(:focus-visible) {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.choice-title {
+  font-weight: var(--font-weight-bold);
 }
 
 .section-head {
@@ -3576,12 +4059,6 @@ kbd {
   margin-top: var(--space-xxl);
   padding-top: var(--space-lg);
   border-top: 1px solid var(--color-border);
-}
-
-.staff-actions {
-  display: flex;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
 }
 
 /* Deactivated people and revoked tablets stay listed — the list is a history,
@@ -3599,7 +4076,7 @@ kbd {
    somebody rereading four fields to find which one it meant. */
 .field-error {
   display: block;
-  margin-top: var(--space-xxs);
+  margin-top: var(--space-xs);
   color: var(--color-danger);
   font-size: var(--font-size-sm);
 }
@@ -3711,9 +4188,27 @@ kbd {
   text-align: center;
 }
 
+/* An info callout: the icon sits beside the words, never alone. */
 .device-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
   margin-top: var(--space-lg);
-  padding: var(--space-sm) var(--space-md);
-  border-inline-start: 3px solid var(--color-primary);
+  padding: var(--space-md);
+  border-inline-start: 3px solid var(--color-info);
+  border-radius: var(--radius-soft);
   background: var(--color-paper);
+  color: var(--color-foreground);
+}
+
+.device-note p {
+  margin: 0;
+}
+
+.device-note-icon {
+  flex: none;
+  inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  stroke-width: var(--icon-stroke-width);
+  color: var(--color-info);
 }

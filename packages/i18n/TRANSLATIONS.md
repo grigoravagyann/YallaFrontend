@@ -36,6 +36,14 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   policy tab's "awaiting approval" panel (`admin.approvals.*`: the reasons a
   booking waits, the decline prompt and its reason field) is in the same
   state: written to get the panel rendering, **not** reviewed.
+- `admin` — the staff screen redesign (2026-09-11): the role chips and
+  groups (`staff.filter.all`, `staff.filter.searchPlaceholder`, `staff.group.*`),
+  the card's "You" and "More" (`staff.card.you`, `staff.action.more`,
+  `staff.action.moreFor`), the add dialog's steps, role descriptions and notes
+  (`staff.wizard.*`, `staff.roleInfo.*`), and the tablet cards (`devices.seen`,
+  `devices.enrolledOn`, and `devices.title`, now "Tablets" / "Պլանշետներ" /
+  "Планшеты"). Provisional, **not** reviewed. The Russian role question is
+  worded around "сотрудник" to stay ungendered, like the badges.
 - `staff` — the floor screen: connection and sync states, the order and seating
   panel frames, and the install prompt. **Not** reviewed, and this set matters
   most of all: it is read by a waiter at arm's length during a rush, in Armenian

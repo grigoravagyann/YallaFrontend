@@ -43,7 +43,7 @@ export interface StaffFormProps {
 }
 
 /** The sentinel the branch `<select>` uses for "every branch of the venue". */
-const ALL_BRANCHES = '__all__';
+export const ALL_BRANCHES = '__all__';
 
 /**
  * Something with one `@` and no whitespace — the server's own `[EmailAddress]`
