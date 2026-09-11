@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
-import { StaffPermissionError, isEndpointNotWired } from '../contracts/errors';
+import { StaffPermissionError } from '../contracts/errors';
 import { ConcurrencyConflictError, ForbiddenError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 
@@ -325,14 +325,44 @@ describe('deciding a pending booking over HTTP', () => {
     expect((caught as Error).message).toBe(detail);
   });
 
-  it('reports the pending list as not wired rather than inventing one', async () => {
-    const fetchImpl = vi.fn();
-    const caught = await gatewayOver(fetchImpl)
-      .listPendingReservations('b-1')
-      .then(() => null)
-      .catch((error: unknown) => error);
+  it('lists the pending bookings of a branch from its reservations route', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      json(200, [
+        {
+          id: 'r-1',
+          code: 'K7M2',
+          branchId: 'b-1',
+          guestName: 'Ani Petrosyan',
+          guestPhone: '+37491000001',
+          partySize: 10,
+          tableLabel: 'T4',
+          localDate: '2026-09-18',
+          localStartTime: '19:30:00',
+          status: 1,
+          awaitingApprovalBecause: 2,
+        },
+      ]),
+    );
 
-    expect(isEndpointNotWired(caught)).toBe(true);
-    expect(fetchImpl).not.toHaveBeenCalled();
+    const bookings = await gatewayOver(fetchImpl).listPendingReservations('b-1');
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(init.method ?? 'GET').toBe('GET');
+    expect(url).toBe(`${BASE}/api/branches/b-1/reservations?status=1`);
+    expect(bookings).toEqual([
+      {
+        id: 'r-1',
+        code: 'K7M2',
+        branchId: 'b-1',
+        guestName: 'Ani Petrosyan',
+        guestPhone: '+37491000001',
+        partySize: 10,
+        tableLabel: 'T4',
+        localDate: '2026-09-18',
+        localStartTime: '19:30:00',
+        status: 'pendingApproval',
+        awaitingApprovalBecause: 'largeParty',
+      },
+    ]);
   });
 });

@@ -30,7 +30,6 @@ import { REPORT_MAX_DAYS } from '../contracts/reports';
 import type { ReportExport, ReportQuery } from '../contracts/reports';
 import {
   CategoryInUseError,
-  EndpointNotWiredError,
   ReportRangeTooLongError,
   StaffPermissionError,
   FloorPlanInvalidError,
@@ -719,14 +718,13 @@ export function createConsoleHttpGateway(
     // --- Bookings waiting for approval ------------------------------------------
 
     async listPendingReservations(branchId: string) {
-      // The only reservation reads the server has are the diner's own
-      // (`/api/reservations/mine`) and the availability grid. Neither lists a
-      // branch's pending bookings, so nothing is requested: an empty list here
-      // would read as "nothing is waiting", which is the one thing it is not.
-      throw new EndpointNotWiredError({
-        url: `${BRANCHES}/${branchId}/reservations?status=pendingApproval`,
-        endpoint: 'the pending bookings of a branch',
+      // `status` is the server's `ReservationStatus` number: 1 is
+      // PendingApproval. The server caps the list at 200 and sorts it by the
+      // branch's own day and start time; the order is kept, not re-sorted.
+      const { data } = await client.get<WireReservation[]>(`${BRANCHES}/${branchId}/reservations`, {
+        query: { status: 1 },
       });
+      return data.map(consoleBookingFromWire);
     },
 
     async approveReservation({ reservationId }) {
