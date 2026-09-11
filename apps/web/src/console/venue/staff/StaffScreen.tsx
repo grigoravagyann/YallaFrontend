@@ -2,6 +2,7 @@ import {
   StaffPermissionError,
   canChooseBranch,
   canEditStaff,
+  canIssueSignIn,
   isAdminRole,
   type StaffMember,
   type StaffRole,
@@ -363,8 +364,12 @@ export function StaffScreen() {
           </thead>
           <tbody>
             {visible.map((member) => {
-              const editable = canEditStaff({ id: actorId, role: actorRole }, member);
+              const actor = { id: actorId, role: actorRole };
+              const editable = canEditStaff(actor, member);
               const signsIn = isAdminRole(member.role);
+              // Stricter than editing: an owner may edit a co-owner but not
+              // take over their sign-in. The server's Outranks, mirrored.
+              const issuable = canIssueSignIn(actor, member);
               return (
                 <Fragment key={member.id}>
                   <tr className={member.isActive ? '' : 'is-inactive'}>
@@ -447,11 +452,12 @@ export function StaffScreen() {
                             {t('staff.action.resetPin')}
                           </button>
 
-                          {/* Only for somebody who signs in to the admin panel
-                            and is active: the server refuses both a PIN-only
-                            role and a deactivated person, and an action that
-                            will be refused is not offered. */}
-                          {signsIn && member.isActive ? (
+                          {/* Only for somebody the actor outranks, who signs
+                            in to the admin panel and is active: the server
+                            refuses a peer, a PIN-only role and a deactivated
+                            person, and an action that will be refused is not
+                            offered. */}
+                          {issuable ? (
                             <button
                               type="button"
                               className="button button-small button-ghost"

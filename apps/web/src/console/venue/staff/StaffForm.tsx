@@ -2,6 +2,7 @@ import {
   assignableRoles,
   canChooseBranch,
   isAdminRole,
+  outranks,
   type StaffPermissionError,
   type ConsoleBranch,
   type CreateStaffInput,
@@ -100,7 +101,11 @@ export function StaffForm({
 
   const [fullName, setFullName] = useState(editing?.fullName ?? '');
   const [phone, setPhone] = useState(editing?.phone ?? '');
-  const [role, setRole] = useState<StaffRole>(editing?.role ?? roles[0] ?? 'waiter');
+  // The default is the first role *below* the actor, never their own: an
+  // owner may hire a co-owner, but a form that opens on "Owner" makes a
+  // partner out of a careless waiter hire. Somebody minting an owner picks it.
+  const defaultRole = roles.find((option) => option !== actorRole) ?? roles[0] ?? 'waiter';
+  const [role, setRole] = useState<StaffRole>(editing?.role ?? defaultRole);
   const [branchChoice, setBranchChoice] = useState<string>(
     editing ? (editing.branchId ?? ALL_BRANCHES) : (fixedBranchId ?? ALL_BRANCHES),
   );
@@ -110,10 +115,15 @@ export function StaffForm({
   const [emailError, setEmailError] = useState<string | null>(null);
 
   const branchId = branchChoice === ALL_BRANCHES ? null : branchChoice;
-  // Only when hiring. Editing has no email: the address is changed from the
-  // row's "Send new link", because changing it re-points a working sign-in
-  // and deserves its own confirmation rather than a field among five.
-  const needsSignIn = !editing && isAdminRole(role);
+  // Only when hiring, and only for somebody the actor outranks. Editing has
+  // no email: the address is changed from the row's "Send new link", because
+  // changing it re-points a working sign-in and deserves its own confirmation
+  // rather than a field among five. A co-owner gets none here either: the
+  // server refuses a sign-in for a peer (its `Outranks`), so an owner hires
+  // the partner PIN-only and a platform admin issues the sign-in from the
+  // venue page — asking for an address the hire would then be refused over
+  // offers a step the server will not take.
+  const needsSignIn = !editing && isAdminRole(role) && outranks(actorRole, role);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

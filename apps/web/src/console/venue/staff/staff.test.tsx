@@ -90,7 +90,7 @@ describe('the role picker', () => {
     expect(offered).not.toContain('owner');
   });
 
-  it('offers an owner manager as well, and never their own role', async () => {
+  it('offers an owner a co-owner as well as everyone below', async () => {
     const user = userEvent.setup();
     renderStaff({ role: 'owner' });
     await waitForList();
@@ -101,11 +101,57 @@ describe('the role picker', () => {
     const select = within(form).getByLabelText(/^role$/i) as HTMLSelectElement;
     const offered = [...select.options].map((option) => option.value);
 
-    expect(offered).toEqual(['manager', 'waiter', 'kitchen']);
-    expect(offered).not.toContain('owner');
+    // The server's rule: a co-owner is a normal thing for a family business.
+    expect(offered).toEqual(['owner', 'manager', 'waiter', 'kitchen']);
+    // Offered, not defaulted: the form opens on Manager, so a careless hire
+    // does not mint a partner.
+    expect(select.value).toBe('manager');
     // And platform admin never, from inside a venue: they have no venue and no
     // branch, so creating one here is a category error.
     expect(offered).not.toContain('platformAdmin');
+  });
+});
+
+describe('a co-owner', () => {
+  it('can be hired and then edited by an owner', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const update = vi.spyOn(gateway, 'updateStaff');
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    await user.click(screen.getByRole('button', { name: /add someone/i }));
+    const form = screen.getByRole('form');
+    await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
+    await user.type(within(form).getByLabelText(/phone/i), '+37477555555');
+    await user.selectOptions(within(form).getByLabelText(/^role$/i), 'owner');
+    // No address asked for: the server refuses an owner a sign-in for a peer,
+    // so the partner is hired PIN-only and a platform admin issues theirs.
+    expect(within(form).queryByLabelText(/^email$/i)).toBeNull();
+    await user.type(within(form).getByLabelText(/pin/i), '4821');
+    await user.click(within(form).getByRole('button', { name: /^add$/i }));
+
+    // The PIN dialog, then the list.
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    // Hired, and listed as an owner with the actions an owner may take on a
+    // co-owner — edit, but never a sign-in, which is the server's Outranks.
+    const row = (await screen.findByText('Hasmik Sargsyan')).closest('tr')!;
+    expect(within(row).getByText(/^owner$/i)).toBeTruthy();
+    expect(within(row).queryByRole('button', { name: /issue sign-in/i })).toBeNull();
+
+    await user.click(within(row).getByRole('button', { name: /^edit$/i }));
+    const edit = screen.getByRole('form');
+    const roleSelect = within(edit).getByLabelText(/^role$/i) as HTMLSelectElement;
+    expect(roleSelect.value).toBe('owner');
+    await user.clear(within(edit).getByLabelText(/full name/i));
+    await user.type(within(edit).getByLabelText(/full name/i), 'Hasmik Sargsyan-Avagyan');
+    await user.click(within(edit).getByRole('button', { name: /save/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalled());
+    expect(await screen.findByText('Hasmik Sargsyan-Avagyan')).toBeTruthy();
   });
 });
 
@@ -1075,7 +1121,9 @@ describe('what a manager sees', () => {
     const otherOwner = screen.getByText('Hasmik Sargsyan').closest('tr')!;
     expect(within(otherOwner).getByText(/no sign-in/i)).toBeTruthy();
     expect(within(otherOwner).queryByRole('button', { name: /issue sign-in/i })).toBeNull();
-    expect(within(otherOwner).getByText(/above your role/i)).toBeTruthy();
+    // Editable all the same: a co-owner is a peer for the sign-in rule only.
+    expect(within(otherOwner).getByRole('button', { name: /^edit$/i })).toBeTruthy();
+    expect(within(otherOwner).queryByText(/above your role/i)).toBeNull();
 
     await user.click(screen.getByLabelText(/show deactivated/i));
     const deactivated = (await screen.findByText('Nare Petrosyan')).closest('tr')!;

@@ -275,6 +275,68 @@ describe('console mock — creating a venue', () => {
   });
 });
 
+describe('console mock — who may create and edit whom, as the server rules it', () => {
+  const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
+  const person = {
+    fullName: 'Hasmik Sargsyan',
+    phone: '+37477555555',
+    pin: '4821',
+    branchId: null,
+  };
+
+  it('lets an owner hire a co-owner and edit one, as StaffRoleRules.MayAssign does', async () => {
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    const coOwner = await owner.createStaff({
+      venueId: 'v-lumen',
+      staff: { ...person, role: 'owner' },
+    });
+    expect(coOwner.role).toBe('owner');
+
+    const renamed = await owner.updateStaff({
+      venueId: 'v-lumen',
+      staffMemberId: coOwner.id,
+      patch: { fullName: 'Hasmik Sargsyan-Avagyan', role: 'owner' },
+    });
+    expect(renamed.fullName).toBe('Hasmik Sargsyan-Avagyan');
+  });
+
+  it('refuses a manager a peer, on create and on edit', async () => {
+    const { StaffPermissionError } = await import('../contracts/errors');
+    const manager = createConsoleMockGateway({ role: 'manager' });
+    const created = await failing(
+      manager.createStaff({ venueId: 'v-lumen', staff: { ...person, role: 'manager' } }),
+    );
+    expect(created).toBeInstanceOf(StaffPermissionError);
+
+    const edited = await failing(
+      manager.updateStaff({
+        venueId: 'v-lumen',
+        staffMemberId: 'b-lumen-cascade-manager',
+        patch: { fullName: 'Someone Else' },
+      }),
+    );
+    expect(edited).toBeInstanceOf(StaffPermissionError);
+  });
+
+  it('still refuses an owner a sign-in for a co-owner: Outranks, not MayManage', async () => {
+    const { StaffPermissionError } = await import('../contracts/errors');
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    const coOwner = await owner.createStaff({
+      venueId: 'v-lumen',
+      staff: { ...person, role: 'owner' },
+    });
+    const refused = await failing(
+      owner.issueStaffSignIn({
+        venueId: 'v-lumen',
+        staffMemberId: coOwner.id,
+        email: 'h@lumen.am',
+      }),
+    );
+    expect(refused).toBeInstanceOf(StaffPermissionError);
+    expect((refused as Error).message).toContain('requires the PlatformAdmin role');
+  });
+});
+
 describe('console mock — a sign-in for a manager or owner', () => {
   const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
 

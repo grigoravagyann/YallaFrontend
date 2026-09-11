@@ -88,7 +88,14 @@ export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts
 
 export { REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
 
-export { assignableRoles, canChooseBranch, canEditStaff, isAdminRole } from './contracts/staff';
+export {
+  assignableRoles,
+  canChooseBranch,
+  canEditStaff,
+  canIssueSignIn,
+  isAdminRole,
+  outranks,
+} from './contracts/staff';
 export type {
   CreateStaffInput,
   EnrolmentCode,
