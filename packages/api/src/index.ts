@@ -389,11 +389,14 @@ export type {
   EnrolledDevice,
   PinSignInCommand,
   StaffCredentialStorage,
+  StaffRosterEntry,
   StaffSessionIdentity,
   StaffSessionTokens,
   StaffSignInResult,
   StaffSignOutReason,
 } from './contracts/staffAuth';
+export { createStaffRosterMock, mockStaffRoster } from './mocks/staffRosterMock';
+export type { MockRosterDevice, StaffRosterMockOptions } from './mocks/staffRosterMock';
 export {
   DeviceRevokedError,
   EnrolmentCodeSpentError,

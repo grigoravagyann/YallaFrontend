@@ -10,6 +10,7 @@ import type {
   EnrolDeviceCommand,
   EnrolledDevice,
   PinSignInCommand,
+  StaffRosterEntry,
   StaffSignInResult,
 } from '../contracts/staffAuth';
 import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
@@ -17,6 +18,19 @@ import type { components } from '../generated/schema';
 import { staffRoleToUserRole } from './endpoints';
 
 type Schemas = components['schemas'];
+
+/**
+ * One row of `GET /api/auth/staff/roster`, declared by hand.
+ *
+ * TODO: swap for the generated `Schemas[...]` type once the schema is
+ * regenerated against the backend that ships the route.
+ */
+interface StaffRosterEntryWire {
+  readonly staffMemberId: string;
+  readonly fullName: string;
+  /** StaffRole: 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin. */
+  readonly role: number;
+}
 
 const STAFF = '/api/auth/staff';
 
@@ -95,6 +109,28 @@ export function createStaffAuth(client: ApiClient) {
           enrolledAtUtc: data.enrolledAtUtc,
           lastSeenAtUtc: data.lastSeenAtUtc ?? null,
         };
+      } catch (error) {
+        throw asDeviceFailure(error);
+      }
+    },
+
+    /**
+     * The branch's people, for the PIN screen's name tiles.
+     *
+     * Same credential and same refusals as {@link getDevice}: a 401 means the
+     * tablet is revoked or was never enrolled.
+     */
+    async getRoster(deviceToken: string): Promise<readonly StaffRosterEntry[]> {
+      try {
+        const { data } = await client.get<readonly StaffRosterEntryWire[]>(`${STAFF}/roster`, {
+          skipAuth: true,
+          headers: bearer(deviceToken),
+        });
+        return data.map((entry) => ({
+          staffMemberId: entry.staffMemberId,
+          fullName: entry.fullName,
+          role: staffRoleToUserRole(entry.role),
+        }));
       } catch (error) {
         throw asDeviceFailure(error);
       }

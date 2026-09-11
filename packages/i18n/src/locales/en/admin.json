@@ -852,6 +852,11 @@
       "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the Yalla team.",
       "pinShownAgain": "You'll see it once more after adding, to read out to them.",
       "signInAfter": "After you press Add, the link appears once, for you to paste to them."
+    },
+    "staffId": {
+      "label": "Staff ID",
+      "help": "Needed only to sign in on a tablet that cannot load the staff list. Copy it and send it to them.",
+      "copy": "Copy staff ID"
     }
   },
   "devices": {

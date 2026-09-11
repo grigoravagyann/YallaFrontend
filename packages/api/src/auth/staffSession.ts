@@ -3,6 +3,7 @@ import type {
   EnrolledDevice,
   PinSignInCommand,
   StaffCredentialStorage,
+  StaffRosterEntry,
   StaffSessionIdentity,
   StaffSignOutReason,
 } from '../contracts/staffAuth';
@@ -96,6 +97,12 @@ export interface StaffSession extends AuthSession {
   /** Re-read `GET /api/auth/staff/device`. Also how a revocation is noticed. */
   refreshDevice(): Promise<EnrolledDevice | null>;
   signInWithPin(command: PinSignInCommand): Promise<StaffSessionIdentity>;
+  /**
+   * `GET /api/auth/staff/roster`: who can sign in on this branch. A revoked
+   * device unenrols, as `refreshDevice` does; anything else is thrown for the
+   * screen to fall back on the names it remembers.
+   */
+  roster(): Promise<readonly StaffRosterEntry[]>;
   /** Lock the tablet. The device stays enrolled. */
   lock(reason: StaffSignOutReason): Promise<void>;
   /** A tap happened. Pushes the idle deadline out. */
@@ -327,6 +334,20 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
           expiresInSeconds: result.tokens.expiresInSeconds,
         });
         return result.identity;
+      } catch (error) {
+        if (error instanceof DeviceRevokedError) await unenrol();
+        throw error;
+      }
+    },
+
+    async roster() {
+      const deviceToken = await storage.readDeviceToken();
+      if (!deviceToken) {
+        await unenrol();
+        throw new DeviceRevokedError({ url: '' });
+      }
+      try {
+        return await auth.getRoster(deviceToken);
       } catch (error) {
         if (error instanceof DeviceRevokedError) await unenrol();
         throw error;

@@ -27,12 +27,12 @@ const KNOWN_STAFF = 'knownStaff';
 /**
  * Somebody who has signed in on this tablet before.
  *
- * The PIN screen needs a name and a staff id to send, and **there is no
- * endpoint that lists a branch's staff to a device token** — `GET
- * /api/venues/{venueId}/staff` is `ManagerOrAbove` and venue-scoped, which a
- * tablet is not. So the tablet remembers who it has seen. A person who has
- * never used this tablet enters their id once, from the manager's console, and
- * is a tile from then on.
+ * The PIN screen needs a name and a staff id to send. Online, the names come
+ * from `GET /api/auth/staff/roster`; this list is what keeps the tiles working
+ * when that call cannot be made — offline, or the roster failed. A person the
+ * tablet has never seen, on a tablet that cannot load the roster, types their
+ * id once (a manager copies it from the console's edit dialog) and is a tile
+ * from then on.
  */
 export interface KnownStaffMember {
   readonly staffMemberId: string;

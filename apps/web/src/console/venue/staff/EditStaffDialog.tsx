@@ -9,6 +9,58 @@ import {
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useId, useRef, useState, type FormEvent } from 'react';
+
+/**
+ * The person's staff id, read-only, with a Copy button.
+ *
+ * Here and not on the card: the id is needed rarely — a tablet that cannot
+ * load its roster — and the card is for the one thing that needs doing. The
+ * edit dialog is already "the whole record at once", so the id belongs with
+ * it. Copy and its status line are the sign-in link dialog's: the clipboard,
+ * or select the text and say so where the clipboard is out of reach.
+ */
+function StaffIdRow({ staffMemberId }: { readonly staffMemberId: string }) {
+  const { t } = useTranslation(['admin', 'common']);
+  const valueRef = useRef<HTMLElement>(null);
+  const [copied, setCopied] = useState<'idle' | 'copied' | 'select'>('idle');
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(staffMemberId);
+      setCopied('copied');
+    } catch {
+      const node = valueRef.current;
+      const selection = window.getSelection();
+      if (node && selection) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      setCopied('select');
+    }
+  }
+
+  return (
+    <div className="labelled">
+      <span>{t('staff.staffId.label')}</span>
+      <code ref={valueRef} className="sign-in-link-value">
+        {staffMemberId}
+      </code>
+      <div className="actions">
+        <button type="button" className="button button-small" onClick={() => void copy()}>
+          {t('staff.staffId.copy')}
+        </button>
+        {copied !== 'idle' ? (
+          <span className="muted small" role="status">
+            {copied === 'copied' ? t('staff.signIn.copied') : t('staff.signIn.selectAndCopy')}
+          </span>
+        ) : null}
+      </div>
+      <span className="muted small">{t('staff.staffId.help')}</span>
+    </div>
+  );
+}
 import { useDialogFocus } from '../../../components/useDialogFocus';
 import { BranchField, RoleChoices } from './StaffFields';
 import { ALL_BRANCHES } from './StaffForm';
@@ -129,6 +181,8 @@ export function EditStaffDialog({
               fixedBranchId={fixedBranchId}
               error={refusalFor('branchId')}
             />
+
+            <StaffIdRow staffMemberId={member.id} />
 
             {refusal && !refusal.field ? (
               <p className="field-error" role="alert">

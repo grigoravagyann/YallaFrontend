@@ -1126,13 +1126,12 @@ no `openTabForTable` at all — a method that could only ever fail is worse than
 its absence, which the screens can see at compile time — and order entry says
 so before the waiter builds an order rather than after they try to send it.
 
-There is a fifth, smaller one. **The PIN screen cannot list a branch's staff.**
-`POST /api/auth/staff/pin` takes a `staffMemberId`, and the only staff listing
-is `GET /api/venues/{id}/staff`, which is `ManagerOrAbove` and venue-scoped. So
-the tablet remembers everybody who has signed in on it and shows them as tiles,
-and somebody it has never seen types their id once. A device-token-readable
-roster — ids and names only — would remove the one genuinely bad moment in the
-flow.
+There used to be a fifth, smaller one: the PIN screen could not list a
+branch's staff. It now reads `GET /api/auth/staff/roster` with the device token
+(ids, names and roles only) and shows those names as tiles. When the roster
+cannot be had — offline, or it failed — the tablet falls back to everybody who
+has signed in on it before, and "Someone else" takes a typed id, which a
+manager copies from the console's edit dialog.
 
 ### What the diner's endpoints actually carry, and the eight places they did not agree
 
