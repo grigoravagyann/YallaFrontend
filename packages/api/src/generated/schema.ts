@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5086/swagger/v1/swagger.json
+ * Source: http://localhost:5088/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -86,7 +86,7 @@ export interface paths {
          * Exchange a one-time code for tokens
          * @description Checks the newest live code for the number. On success the account is created if this is the first time - there is no separate registration step, because a separate registration step is a step people abandon.
          *
-         *     A wrong code spends one of five attempts. The sixth attempt is refused outright with 429: the code is dead and a new one is needed.
+         *     A wrong code spends one of five attempts and says how many are left. The sixth attempt is refused outright with 429: the code is dead and a new one is needed.
          */
         post: operations["verifyDinerCode"];
         delete?: never;
@@ -1511,9 +1511,11 @@ export interface paths {
         };
         /**
          * Every venue on Yalla, for the browse case
-         * @description Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, and a **live free-table count**.
+         * @description Active, non-suspended venues with their active branches: name, type, the slug pair that addresses each branch, its IANA `timeZoneId`, whether it is open now, and a **live free-table count** of its bookable tables.
          *
-         *     The estate is cached for minutes and the table counts for seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening.
+         *     The estate is cached for minutes; the table counts, open-now and which branches are still published for fifteen seconds, because a stale menu is fine and a stale table count is the one thing here that can waste somebody's evening. A suspended venue leaves the list within that window.
+         *
+         *     **Rate limited on budgets of its own**, per caller and city-wide, not the page budget: this is the diner app's Explore screen, and a phone network puts thousands of phones behind one address.
          */
         get: operations["getPublicVenues"];
         put?: never;
@@ -1600,6 +1602,8 @@ export interface paths {
          *     **Once.** `graceExtensionsUsed` enforces it, and a second attempt is refused with a reason a diner can read. Repeated requests for five more minutes are how a table stays held all evening for somebody who is not coming.
          *
          *     The extension goes onto the branch change sequence, so the waiter watching that table sees it immediately rather than in a column nothing reads.
+         *
+         *     **Not before the booking starts.** Nothing is held until then, so there is nothing to keep: offer the button from the late nudge, or once `startUtc` has passed. A tap days early used to spend the one extension and ping the floor about a table nobody was holding.
          */
         post: operations["extendReservationHold"];
         delete?: never;
@@ -1919,6 +1923,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tabs/{tabId}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take yourself off the tab
+         * @description The same status change a host's remove makes, never a delete: everything you ordered and anything you paid stays on the bill. Your token stops working on this tab, and you are on no shared line ordered after you leave.
+         *
+         *     **A host** hands the tab to the approved guest who has been on it longest, who gains sight of the total and the right to pay. With nobody approved to take it the host cannot leave - **409** - and a waiter takes the tab over or closes it.
+         *
+         *     Refused once the bill has been asked for, like every other change to the tab.
+         */
+        post: operations["leaveTab"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tabs/{tabId}/lines/{lineId}/void": {
         parameters: {
             query?: never;
@@ -2052,7 +2080,7 @@ export interface paths {
         put?: never;
         /**
          * Host: take someone off the tab
-         * @description A status change, never a delete. Their items and any payment they made are financial records and survive them leaving. The host cannot remove themself; staff reassign the host first.
+         * @description A status change, never a delete. Their items and any payment they made are financial records and survive them leaving. The host cannot remove themself: they leave, which hands the tab on, or staff reassign the host.
          */
         post: operations["removeTabParticipant"];
         delete?: never;
@@ -2432,7 +2460,7 @@ export interface components {
              * Format: date
              * @description Local calendar date at the branch, e.g. `2026-09-12`.
              */
-            date?: string | null;
+            date: string;
             /** @description Who to ask for at the door. */
             guestName: string;
             /** @description How to reach them when they are late. */
@@ -2453,7 +2481,7 @@ export interface components {
              * Format: time
              * @description Local wall-clock start at the branch, e.g. `19:30`.
              */
-            time?: string | null;
+            time: string;
         };
         /** @description Body for staff accepting or declining a booking that is waiting for approval. */
         "Yalla.Api.Endpoints.DecideReservationRequest": {
@@ -2546,7 +2574,9 @@ export interface components {
             /**
              * Format: uuid
              * @description The caller's own id. A double-tap over flaky wifi returns the first order rather than sending
-             *     the kitchen two.
+             *     the kitchen two. <b>Required</b>: left out, it bound `Guid.Empty` and replayed whichever order
+             *     first used that, on any tab; now it is refused with 400. A replay is matched on this tab and this
+             *     caller only.
              */
             clientCommandId: string;
             /** @description What was ordered. At least one line. */
@@ -2648,7 +2678,7 @@ export interface components {
              *                  Two buttons on the tablet, never one. A single "release" gets tapped for both cases by a busy
              *                  waiter, and the threshold then punishes the diners who bothered to ring ahead.
              */
-            outcome?: components["schemas"]["Yalla.Application.Reservations.ReleaseOutcome"] | null;
+            outcome: components["schemas"]["Yalla.Application.Reservations.ReleaseOutcome"];
             /** @description Optional free text for the audit row. */
             reason?: string | null;
         };
@@ -2944,6 +2974,48 @@ export interface components {
             min?: unknown;
             /** @description What was supplied, so the message can quote it back. */
             value?: unknown;
+        };
+        /** @description "Keep my table" was refused. */
+        "Yalla.Api.Errors.HoldExtensionRefusedContext": {
+            /**
+             * Format: uuid
+             * @description The booking.
+             */
+            reservationId: string;
+            /**
+             * Format: date-time
+             * @description When it starts - so a refusal before then can say when to ask again.
+             */
+            startUtc: string;
+        };
+        /**
+         * @description `hold-not-active`, `hold-already-extended` or `extensions-not-offered`, 409. Branch
+         *                 on the code: the three need three different sentences.
+         */
+        "Yalla.Api.Errors.HoldExtensionRefusedProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description "Keep my table" was refused. */
+            context: components["schemas"]["Yalla.Api.Errors.HoldExtensionRefusedContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
         };
         /** @description Removing this line would reverse money already taken. */
         "Yalla.Api.Errors.LineAlreadyPaidContext": {
@@ -3250,6 +3322,44 @@ export interface components {
             code: string;
             /** @description Every field the request got wrong. */
             context: components["schemas"]["Yalla.Api.Errors.ValidationFailedContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
+        /** @description A one-time code that was not accepted, and what is left on it. */
+        "Yalla.Api.Errors.VerificationCodeInvalidContext": {
+            /**
+             * Format: int32
+             * @description Tries left on the number's live code. <b>Zero</b> when there is no live code, or the last try was
+             *     just spent: say "ask for a new code", not "try again".
+             */
+            attemptsRemaining: number;
+        };
+        /**
+         * @description `verification-code-invalid`, 401, with the count. `verification-code-expired` arrives on
+         *                 the same status with no `context`.
+         */
+        "Yalla.Api.Errors.VerificationCodeInvalidProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description A one-time code that was not accepted, and what is left on it. */
+            context?: components["schemas"]["Yalla.Api.Errors.VerificationCodeInvalidContext"] | null;
             /** @description What went wrong this time, in words. */
             detail: string;
             /** @description Field-level complaints, when the failure was about the payload. */
@@ -4810,14 +4920,22 @@ export interface components {
             branchSlug: string;
             /**
              * Format: int32
-             * @description How many tables have nobody sitting at them right now. The one volatile number here, and the
-             *     reason the browse list is cached for seconds rather than minutes.
+             * @description How many bookable tables have nobody sitting at them right now - the same tables the branch
+             *     page's `tableCount` counts, so the two can never read "3 of 2 free". The one volatile
+             *     number here, and the reason the browse list is cached for seconds rather than minutes.
              */
             freeTableCount: number;
             /** @description Whether it is inside an opening block at this moment, in its own zone. */
             isOpenNow: boolean;
             /** @description The branch's name. */
             name: string;
+            /**
+             * @description The branch's IANA zone, e.g. `Asia/Yerevan`. A slot a diner picks after browsing is a
+             *     wall-clock time at the branch, and a phone set to another zone has to render it in this one
+             *     rather than guess - the diner app guessed `Asia/Yerevan`, because this list is the only
+             *     public read in front of its venue and booking screens and it did not say.
+             */
+            timeZoneId: string;
         };
         /** @description What a link to this branch should look like when it is pasted into WhatsApp or Telegram. */
         "Yalla.Application.Public.PublicBranchMeta": {
@@ -4871,7 +4989,9 @@ export interface components {
             floorPlan: components["schemas"]["Yalla.Application.Public.PublicFloorPlan"];
             /**
              * Format: int32
-             * @description Tables with nobody at them right now.
+             * @description Bookable tables with nobody at them right now, so it is always out of TableCount.
+             *     A walk-in-only stool somebody is sitting at is still drawn taken on the plan: that is each
+             *     table's own `isFree`, which every active table has, bookable or not.
              */
             freeTableCount: number;
             /**
@@ -5349,6 +5469,18 @@ export interface components {
              * @description The branch's clearing time between sittings.
              */
             bufferMinutes: number;
+            /**
+             * Format: int32
+             * @description How long before the start a diner may still cancel freely - the branch's setting as it stands
+             *     now, which is what a cancellation is judged against.
+             */
+            cancellationDeadlineMinutes: number;
+            /**
+             * Format: date-time
+             * @description The instant past which cancelling the slot asked about is recorded as late: the requested
+             *     start less Yalla.Application.Reservations.BranchAvailability.CancellationDeadlineMinutes.
+             */
+            cancellationDeadlineUtc?: string | null;
             /** Format: int32 */
             floorHeight: number;
             /** Format: int32 */
@@ -5466,6 +5598,14 @@ export interface components {
             /** Format: uuid */
             branchId: string;
             branchName: string;
+            /**
+             * Format: date-time
+             * @description The instant past which cancelling is recorded as late: the start less the branch's
+             *     cancellation deadline as it stands, which is what a cancellation made now is judged against.
+             *     Cancelling after it is still allowed - recorded in Yalla.Application.Reservations.ReservationView.CancelledAfterDeadline, never
+             *     refused.
+             */
+            cancellationDeadlineUtc: string;
             cancellationReason?: string | null;
             /**
              * @description Whether the cancellation came in past the branch's free-cancellation deadline. Recorded,
@@ -5535,9 +5675,9 @@ export interface components {
             /** @description The <b>physical</b> state of a table: what somebody did to it. */
             physicalStatus: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
             /**
-             * @description True when booking this table will land as `PendingApproval` rather than confirmed -
-             *     a party over the branch's threshold. Not a refusal, and worth saying before the diner
-             *     commits.
+             * @description True when booking this table will land as `PendingApproval` rather than confirmed: the
+             *     branch approves every booking by hand, or the party is over its threshold. Not a refusal,
+             *     and worth saying before the diner commits.
              */
             requiresApproval: boolean;
             /** Format: double */
@@ -6017,6 +6157,8 @@ export interface components {
              * @description The branch.
              */
             branchId: string;
+            /** @description The branch's name, for the same reason. */
+            branchName: string;
             /**
              * Format: date-time
              * @description When it closed, if it has.
@@ -6090,6 +6232,11 @@ export interface components {
              *     client had to make a second call to a different endpoint to find out.
              */
             timeZoneId: string;
+            /**
+             * @description The venue's name, for the top of the bill. On the tab so a phone that has only scanned a code
+             *     need not make a second, public read to say where it is.
+             */
+            venueName: string;
         };
         /** @description One branch of the venue as the console lists it: enough to pick it and address it. */
         "Yalla.Application.Venues.ManagedBranchView": {
@@ -6577,13 +6724,13 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The code was wrong or has expired. Codes last five minutes. */
+            /** @description `verification-code-invalid`: the code was wrong, with `context.attemptsRemaining` - zero when nothing is live for the number, which means ask for a new code rather than try again. `verification-code-expired`, with no context: codes last five minutes. */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.VerificationCodeInvalidProblem"];
                 };
             };
             /** @description The caller is authenticated but not allowed to perform this action. */
@@ -8916,7 +9063,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Not staff at this branch. */
+            /** @description Not kitchen or floor staff at this branch. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11155,7 +11302,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description This role may not make that move. */
+            /** @description Not kitchen or floor staff at the order's branch, or this role may not make that move. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -12947,13 +13094,13 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The one extension is already used, or the booking is not one that holds a table. */
+            /** @description Refused, with one of three codes - branch on it. `hold-not-active`: the booking has not started, so nothing is held yet, or it is not confirmed. `hold-already-extended`: the one extension is used. `extensions-not-offered`: the branch offers none - not the diner's doing, so never tell them they already let the venue know. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.HoldExtensionRefusedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -14001,6 +14148,82 @@ export interface operations {
                 };
             };
             /** @description The tab is being settled; nobody new can join it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    leaveTab: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tabId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Tabs.TabParticipantView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller hosts the tab and nobody approved is left to hand it to. */
             409: {
                 headers: {
                     [name: string]: unknown;
