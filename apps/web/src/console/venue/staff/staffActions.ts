@@ -1,7 +1,20 @@
-import { canEditStaff, canIssueSignIn, type StaffMember, type StaffRole } from '@yalla/api';
+import {
+  canEditStaff,
+  canIssueSignIn,
+  canSetStaffPin,
+  type StaffMember,
+  type StaffRole,
+} from '@yalla/api';
 
 export type StaffAction =
-  'unlock' | 'reactivate' | 'issueSignIn' | 'edit' | 'resetPin' | 'sendNewLink' | 'deactivate';
+  | 'unlock'
+  | 'reactivate'
+  | 'issueSignIn'
+  | 'edit'
+  | 'resetPin'
+  | 'sendNewLink'
+  | 'deactivate'
+  | 'changeOwnPin';
 
 export interface StaffActor {
   readonly id: string;
@@ -16,6 +29,27 @@ export interface CardActions {
   /** The actor may not edit this person. */
   readonly notYours: boolean;
   readonly isSelf: boolean;
+}
+
+/**
+ * Whether this card is the actor's own and may offer "Change my PIN".
+ *
+ * The server's `SetPinAsync` refuses a PIN only for somebody else the actor
+ * may not manage, so your own is yours (`canSetStaffPin`) — while your own
+ * role, branch and deactivation stay refused, which is why this is the one
+ * action your own card gains. A deactivated account has nowhere to use one.
+ */
+export function canChangeOwnPin(member: StaffMember, actor: StaffActor): boolean {
+  return member.id === actor.id && member.isActive && canSetStaffPin(actor, member);
+}
+
+export type OwnPinProblem = 'fourDigits' | 'mismatch';
+
+/** What is wrong with a typed PIN and its confirmation, before any call. */
+export function ownPinProblem(pin: string, again: string): OwnPinProblem | null {
+  if (!/^\d{4}$/u.test(pin)) return 'fourDigits';
+  if (pin !== again) return 'mismatch';
+  return null;
 }
 
 /**
@@ -50,6 +84,8 @@ export function actionsFor(
   // an unlock included: a PIN does nothing for a person who cannot sign in.
   if (editable && !member.isActive) ranked.push('reactivate');
   if (member.isPinLocked && options.canUnlock) ranked.push('unlock');
+  // Your own card: your PIN and nothing else (see `canChangeOwnPin`).
+  if (canChangeOwnPin(member, actor)) ranked.push('changeOwnPin');
   if (editable) {
     if (issuable && !member.email) ranked.push('issueSignIn');
     ranked.push('edit', 'resetPin');

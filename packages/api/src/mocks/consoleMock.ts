@@ -33,7 +33,13 @@ import {
   ValidationError,
 } from '../errors';
 import { StaffPermissionError } from '../contracts/errors';
-import { assignableRoles, canEditStaff, isAdminRole, outranks } from '../contracts/staff';
+import {
+  assignableRoles,
+  canEditStaff,
+  canSetStaffPin,
+  isAdminRole,
+  outranks,
+} from '../contracts/staff';
 import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
 import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
@@ -1821,6 +1827,17 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             traceId: 'mock',
             errors: { pin: ['A PIN is 4 to 8 digits.'] },
           },
+        });
+      }
+
+      // SetPinAsync's one refusal: somebody else the actor may not manage.
+      // Your own PIN is always yours, though your own role is not.
+      const subject = list[index]!;
+      const actor = actingStaff(venueId);
+      if (!canSetStaffPin(actor, subject)) {
+        throw new StaffPermissionError({
+          url: URL_TAG,
+          detail: `A ${actor.role} cannot set a ${subject.role}'s PIN.`,
         });
       }
 

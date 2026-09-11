@@ -1280,14 +1280,16 @@ describe('the roster', () => {
     expect(within(waiters).getAllByRole('article')).toHaveLength(3);
   });
 
-  it('marks your own card, and offers no action on it', async () => {
+  it('marks your own card, and offers only a change of your own PIN on it', async () => {
     const user = userEvent.setup();
     renderStaff({ role: 'owner' });
     await waitForList();
 
     const own = cardOf('Aram Sargsyan');
     expect(within(own).getByText('You')).toBeTruthy();
-    expect(await actionsOf(user, own)).toEqual([]);
+    // No edit, role, branch, deactivate or sign-in: the server refuses those
+    // for yourself. Your own PIN it allows.
+    expect(await actionsOf(user, own)).toEqual(['Change my PIN']);
     // "Above your role" is about somebody else; on your own card it is wrong.
     expect(within(own).queryByText(/above your role/i)).toBeNull();
     expect(screen.getAllByText('You')).toHaveLength(1);
@@ -1349,6 +1351,103 @@ describe('the roster', () => {
     await user.keyboard(' ');
     expect(toggle.checked).toBe(false);
     expect(await screen.findByText('Aram Sargsyan')).toBeTruthy();
+  });
+});
+
+describe('changing your own PIN', () => {
+  async function openOwnPin(user: User) {
+    await chooseAction(user, cardOf('Aram Sargsyan'), /^change my pin$/i);
+    return screen.findByRole('dialog', { name: /change my pin/i });
+  }
+
+  it('is offered on your own card only, and other cards keep New PIN', async () => {
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner' });
+    await waitForList();
+
+    expect(screen.getAllByRole('button', { name: /^change my pin$/i })).toHaveLength(1);
+    const other = cardOf('Sona Vardanyan (Northern Avenue)');
+    expect(await actionsOf(user, other)).toEqual(['Edit', 'New PIN', 'Deactivate']);
+  });
+
+  it('refuses a PIN that is not 4 digits, or two that differ, without a call', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const setPin = vi.spyOn(gateway, 'setStaffPin');
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const dialog = await openOwnPin(user);
+    const first = within(dialog).getByLabelText(/^new pin$/i) as HTMLInputElement;
+    const again = within(dialog).getByLabelText(/^new pin again$/i) as HTMLInputElement;
+    // Masked, numeric, never offered to a password manager as the old one.
+    expect(first.type).toBe('password');
+    expect(first.inputMode).toBe('numeric');
+    expect(first.getAttribute('autocomplete')).toBe('new-password');
+
+    // Letters never land; only digits do.
+    await user.type(first, '12a');
+    expect(first.value).toBe('12');
+    await user.type(again, '12');
+    await user.click(within(dialog).getByRole('button', { name: /^change pin$/i }));
+    expect(within(dialog).getByRole('alert').textContent).toMatch(/exactly 4 digits/i);
+
+    await user.type(first, '34');
+    await user.type(again, '35');
+    await user.click(within(dialog).getByRole('button', { name: /^change pin$/i }));
+    expect(within(dialog).getByRole('alert').textContent).toMatch(/do not match/i);
+
+    expect(setPin).not.toHaveBeenCalled();
+  });
+
+  it('sets the typed PIN on your own id, says so, and never shows the digits', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const setPin = vi.spyOn(gateway, 'setStaffPin');
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const dialog = await openOwnPin(user);
+    await user.type(within(dialog).getByLabelText(/^new pin$/i), '5827');
+    await user.type(within(dialog).getByLabelText(/^new pin again$/i), '5827');
+    await user.click(within(dialog).getByRole('button', { name: /^change pin$/i }));
+
+    expect(await within(dialog).findByText('Your PIN is changed')).toBeTruthy();
+    expect(setPin).toHaveBeenCalledTimes(1);
+    expect(setPin.mock.calls[0]![0]).toEqual({
+      venueId: 'v-lumen',
+      staffMemberId: 'v-lumen-owner',
+      pin: '5827',
+    });
+    // Not in the text, and not left in a field either.
+    expect(document.body.textContent).not.toContain('5827');
+    expect(
+      [...document.querySelectorAll('input')].some((input) => input.value.includes('5827')),
+    ).toBe(false);
+
+    await user.click(within(dialog).getByRole('button', { name: /^done$/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.body.textContent).not.toContain('5827');
+  });
+
+  it('says what the server refused, and closes on Escape', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    vi.spyOn(gateway, 'setStaffPin').mockRejectedValue(
+      new StaffPermissionError({ url: '/x', detail: 'Not allowed for you.' }),
+    );
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner', gateway });
+    await waitForList();
+
+    const dialog = await openOwnPin(user);
+    await user.type(within(dialog).getByLabelText(/^new pin$/i), '5827');
+    await user.type(within(dialog).getByLabelText(/^new pin again$/i), '5827');
+    await user.click(within(dialog).getByRole('button', { name: /^change pin$/i }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('Not allowed for you.');
+    expect(within(dialog).queryByText('Your PIN is changed')).toBeNull();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });
 

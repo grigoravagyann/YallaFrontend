@@ -20,6 +20,7 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { useVenueOutlet } from '../VenueLayout';
 import { AddStaffDialog } from './AddStaffDialog';
+import { ChangeOwnPinDialog } from './ChangeOwnPinDialog';
 import { DevicesPanel } from './DevicesPanel';
 import { EditStaffDialog } from './EditStaffDialog';
 import { PinDialog } from './PinDialog';
@@ -107,6 +108,8 @@ export function StaffScreen() {
    */
   const [shown, setShown] = useState<ShownCredentials | null>(null);
   const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
+  /** Your own card, while you type yourself a new PIN. The PIN is never here. */
+  const [changingOwnPin, setChangingOwnPin] = useState<StaffMember | null>(null);
 
   const failureText = (error: unknown) =>
     issueFailureText(error, {
@@ -242,6 +245,9 @@ export function StaffScreen() {
         );
         return;
       }
+      case 'changeOwnPin':
+        setChangingOwnPin(member);
+        return;
       case 'issueSignIn':
       case 'sendNewLink':
         setPrompt({ staffMemberId: member.id, email: member.email ?? '', failure: null });
@@ -459,6 +465,19 @@ export function StaffScreen() {
               if (error instanceof StaffPermissionError) setRefusal(error);
               else throw error;
             }
+          }}
+        />
+      ) : null}
+
+      {changingOwnPin ? (
+        <ChangeOwnPinDialog
+          onSubmit={async (pin) => {
+            await setPin.mutateAsync({ staffMemberId: changingOwnPin.id, pin });
+          }}
+          onClose={() => {
+            // Drops the mutation's copy of the typed PIN along with the dialog.
+            setPin.reset();
+            setChangingOwnPin(null);
           }}
         />
       ) : null}

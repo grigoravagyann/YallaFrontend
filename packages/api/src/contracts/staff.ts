@@ -195,6 +195,21 @@ export function canEditStaff(
 }
 
 /**
+ * Whether `actor` may set `subject`'s PIN: the server's `SetPinAsync`.
+ *
+ * Wider than `canEditStaff` by exactly one case — yourself. The server refuses
+ * a PIN only for somebody else the actor may not manage, so your own PIN is
+ * yours to change even though your own role, branch and deactivation are not.
+ */
+export function canSetStaffPin(
+  actor: { readonly id: string; readonly role: StaffRole | 'platformAdmin' },
+  subject: StaffMember,
+): boolean {
+  if (actor.id === subject.id) return true;
+  return assignableRoles(actor.role).includes(subject.role);
+}
+
+/**
  * Seniority, most senior first — the server's `StaffRoleRules.Seniority`, not
  * anything derived from the order of a union or a list.
  */

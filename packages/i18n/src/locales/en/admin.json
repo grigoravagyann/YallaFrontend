@@ -756,6 +756,7 @@
     },
     "action": {
       "unlock": "Unlock PIN",
+      "changeOwnPin": "Change my PIN",
       "resetPin": "New PIN",
       "deactivate": "Deactivate",
       "reactivate": "Reactivate",
@@ -785,6 +786,17 @@
       "title": "New staff member",
       "editTitle": "Edit {{name}}",
       "create": "Add"
+    },
+    "ownPin": {
+      "title": "Change my PIN",
+      "help": "Type a new 4-digit PIN for the tablets, twice. It is not shown anywhere.",
+      "newPin": "New PIN",
+      "again": "New PIN again",
+      "mismatch": "The two PINs do not match.",
+      "submit": "Change PIN",
+      "changed": "Your PIN is changed",
+      "changedBody": "Use it the next time you sign in on a tablet.",
+      "done": "Done"
     },
     "pin": {
       "fourDigits": "A PIN is exactly 4 digits.",
