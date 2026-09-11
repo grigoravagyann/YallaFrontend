@@ -1,4 +1,5 @@
 import type { ConsoleGateway } from '../consoleGateway';
+import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
 import { slugify } from '../slug';
 import type {
   ConsoleBranch,
@@ -654,6 +655,174 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const seeded = defaultPolicyFor('cafe');
     policies.set(branchId, seeded);
     return seeded;
+  }
+
+  // --- Bookings waiting for approval ------------------------------------------
+
+  /**
+   * Every booking the mock knows about, by id, whatever its state.
+   *
+   * Kept after a decision rather than deleted, because the server keeps them
+   * too: a second approve of the same booking is a 409 naming it as already
+   * confirmed, not a 404, and the panel's "somebody else decided first" case
+   * depends on that difference.
+   */
+  const bookings = new Map<string, ConsoleBooking>();
+  let bookingsSeeded = false;
+
+  /** `Yalla.Domain.Enums.ReservationStatus` member names, as the 409 spells them. */
+  const SERVER_STATUS: Readonly<Record<ConsoleBooking['status'], string>> = {
+    pendingApproval: 'PendingApproval',
+    confirmed: 'Confirmed',
+    seated: 'Seated',
+    completed: 'Completed',
+    cancelledByDiner: 'CancelledByDiner',
+    cancelledByVenue: 'CancelledByVenue',
+    noShow: 'NoShow',
+    unknown: 'Unknown',
+  };
+
+  /**
+   * The fixture: the two busy Lumen branches and Tumanyan each have somebody
+   * waiting, the rest have nobody. Party sizes over the shipped threshold of
+   * eight are what the policy tab's rule stops; the two-top is a diner the
+   * rolling no-show threshold caught, which is the other way a booking waits.
+   */
+  function seedBookings(): void {
+    if (bookingsSeeded) return;
+    bookingsSeeded = true;
+
+    const tomorrow = new Date(now().getTime() + 24 * 60 * 60 * 1000);
+    const localDate = tomorrow.toISOString().slice(0, 10);
+    const seed = (
+      branchId: string,
+      suffix: string,
+      guest: { name: string; phone: string; party: number; table: string; time: string },
+      because: ConsoleBooking['awaitingApprovalBecause'],
+    ) => {
+      const id = `r-${branchId.replace(/^b-/u, '')}-${suffix}`;
+      bookings.set(id, {
+        id,
+        code: `${branchId.slice(2, 4).toUpperCase()}${suffix.toUpperCase()}${guest.party}`,
+        branchId,
+        guestName: guest.name,
+        guestPhone: guest.phone,
+        partySize: guest.party,
+        tableLabel: guest.table,
+        localDate,
+        localStartTime: guest.time,
+        status: 'pendingApproval',
+        awaitingApprovalBecause: because,
+      });
+    };
+
+    seed(
+      'b-lumen-north',
+      '1',
+      {
+        name: 'Ani Grigoryan',
+        phone: '+374 91 12 34 56',
+        party: 10,
+        table: 'W3',
+        time: '19:00:00',
+      },
+      'largeParty',
+    );
+    seed(
+      'b-lumen-north',
+      '2',
+      {
+        name: 'Davit Hovhannisyan',
+        phone: '+374 93 65 43 21',
+        party: 2,
+        table: 'B1',
+        time: '20:30:00',
+      },
+      'noShowHistory',
+    );
+    seed(
+      'b-lumen-cascade',
+      '1',
+      {
+        name: 'Lilit Sargsyan',
+        phone: '+374 99 11 22 33',
+        party: 12,
+        table: 'T2',
+        time: '18:30:00',
+      },
+      'largeParty',
+    );
+    seed(
+      'b-tumanyan-main',
+      '1',
+      {
+        name: 'Karen Petrosyan',
+        phone: '+374 94 77 88 99',
+        party: 9,
+        table: 'H4',
+        time: '21:00:00',
+      },
+      'largeParty',
+    );
+  }
+
+  /**
+   * `ReservationService.RequireManagerForBranchAsync`, as the server applies
+   * it: a manager or owner *with* a home branch may decide only at that
+   * branch; one with no branch anywhere in their own venue; a platform admin
+   * anywhere. Every refusal is the same 403, with `StaffPermissionException`'s
+   * sentence, because the server does not say which rule was hit either.
+   */
+  function requireManagerForBranch(branchId: string, operation: string): void {
+    if (role === 'platformAdmin') return;
+
+    const refusal = () =>
+      new ForbiddenError({
+        url: `${URL_TAG}/reservations`,
+        problem: {
+          type: 'about:blank',
+          title: 'Forbidden',
+          status: 403,
+          detail: `${operation} requires the Manager role; the caller is a ${SERVER_ROLE[role]}.`,
+          code: 'forbidden',
+          traceId: 'mock',
+        },
+      });
+
+    if (role !== 'owner' && role !== 'manager') throw refusal();
+
+    const venueId = venueOfBranch(branchId);
+    if (venueId === null || currentUser().scope.venueId !== venueId) throw refusal();
+
+    const actor = actingStaff(venueId);
+    const row = staffFor(venueId).find((member) => member.id === actor.id);
+    if (!row || !row.isActive) throw refusal();
+    if (row.branchId !== null && row.branchId !== branchId) throw refusal();
+  }
+
+  /** Load (404), then the branch rule (403), then the state (409): the server's order. */
+  function decideBooking(command: DecideReservationCommand, approve: boolean): ConsoleBooking {
+    seedBookings();
+    const booking = bookings.get(command.reservationId);
+    if (!booking) {
+      throw new NotFoundError({ url: `${URL_TAG}/reservations/${command.reservationId}` });
+    }
+
+    requireManagerForBranch(booking.branchId, approve ? 'Approve a booking' : 'Reject a booking');
+
+    if (booking.status !== 'pendingApproval') {
+      throw conflict(
+        `Only a pending reservation can be ${approve ? 'confirmed' : 'rejected'}; ${booking.code} is ${SERVER_STATUS[booking.status]}.`,
+      );
+    }
+
+    const decided: ConsoleBooking = {
+      ...booking,
+      status: approve ? 'confirmed' : 'cancelledByVenue',
+      awaitingApprovalBecause: null,
+    };
+    bookings.set(booking.id, decided);
+    return decided;
   }
 
   mockVenues.forEach((venue, venueIndex) => {
@@ -1472,6 +1641,34 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       await wait();
       requireBranchInVenue(branchId);
       return policyFor(branchId);
+    },
+
+    // --- Bookings waiting for approval ------------------------------------------
+
+    async listPendingReservations(branchId) {
+      await wait();
+      // A branch *read*, so the read guard: a manager with a home branch may
+      // look at a sibling branch's list, as they may its floor plan. It is the
+      // decision the server confines to their own branch, not the looking.
+      requireBranchInVenue(branchId);
+      seedBookings();
+      return [...bookings.values()]
+        .filter((booking) => booking.branchId === branchId && booking.status === 'pendingApproval')
+        .sort(
+          (a, b) =>
+            a.localDate.localeCompare(b.localDate) ||
+            a.localStartTime.localeCompare(b.localStartTime),
+        );
+    },
+
+    async approveReservation(command) {
+      await wait();
+      return decideBooking(command, true);
+    },
+
+    async rejectReservation(command) {
+      await wait();
+      return decideBooking(command, false);
     },
 
     // --- Staff ----------------------------------------------------------------

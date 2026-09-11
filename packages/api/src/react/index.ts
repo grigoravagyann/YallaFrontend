@@ -20,6 +20,7 @@ import type {
 import type { Menu } from '../contracts/menu';
 import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
+import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
@@ -199,6 +200,7 @@ export const queryKeys = {
   managedBooking: (token: string) => ['public', 'booking', token] as const,
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
+  pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
   devices: (branchId: string) => ['console', 'devices', branchId] as const,
   /*
@@ -1138,6 +1140,52 @@ export function useSaveReservationPolicy(branchId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: ['availability', branchId] });
     },
   });
+}
+
+// --- Bookings waiting for approval ------------------------------------------
+
+/**
+ * The branch's pending bookings. Short-lived: a booking waits for a person,
+ * and the person is usually looking at this list because somebody just booked.
+ */
+export function usePendingReservations(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.pendingReservations(branchId ?? ''),
+    queryFn: () => gateway.listPendingReservations(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.live,
+  });
+}
+
+/**
+ * Both decisions invalidate the list on *settle*, not only on success. A 409
+ * means somebody else decided first, and the list this person is looking at
+ * is what is stale — refreshing it is the useful half of the refusal.
+ */
+function useDecideReservation(
+  branchId: string | undefined,
+  decide: (gateway: ConsoleGateway, command: DecideReservationCommand) => Promise<ConsoleBooking>,
+) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: DecideReservationCommand) => decide(gateway, command),
+    retry: false,
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.pendingReservations(branchId ?? ''),
+      });
+    },
+  });
+}
+
+export function useApproveReservation(branchId: string | undefined) {
+  return useDecideReservation(branchId, (gateway, command) => gateway.approveReservation(command));
+}
+
+export function useRejectReservation(branchId: string | undefined) {
+  return useDecideReservation(branchId, (gateway, command) => gateway.rejectReservation(command));
 }
 
 // --- The public branch page ---------------------------------------------------

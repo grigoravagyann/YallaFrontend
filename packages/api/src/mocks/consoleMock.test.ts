@@ -638,3 +638,114 @@ describe('console mock — the sign-in route refuses what the server refuses', (
     );
   });
 });
+
+/**
+ * Deciding a pending booking: the mock refuses what the server refuses.
+ *
+ * `ReservationService.RequireManagerForBranchAsync`: a manager or owner with
+ * a home branch may decide only at that branch; one with no branch anywhere
+ * in their venue; a platform admin anywhere at all. And the domain's rule:
+ * only a pending booking can be confirmed or rejected, and the 409 names the
+ * code and the state it is in.
+ */
+describe('console mock — deciding a pending booking', () => {
+  const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
+
+  it('lists pending bookings for a branch, and none for one with nothing waiting', async () => {
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    const pending = await owner.listPendingReservations('b-lumen-north');
+    expect(pending.length).toBeGreaterThan(0);
+    expect(pending.every((booking) => booking.status === 'pendingApproval')).toBe(true);
+    expect(await owner.listPendingReservations('b-lumen-saryan')).toEqual([]);
+  });
+
+  it('lets an owner approve, and the booking leaves the pending list confirmed', async () => {
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    const [first] = await owner.listPendingReservations('b-lumen-north');
+
+    const decided = await owner.approveReservation({ reservationId: first!.id });
+    expect(decided.status).toBe('confirmed');
+
+    const after = await owner.listPendingReservations('b-lumen-north');
+    expect(after.map((booking) => booking.id)).not.toContain(first!.id);
+  });
+
+  it('rejects with the reason recorded, and the booking becomes cancelled by the venue', async () => {
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    const [first] = await owner.listPendingReservations('b-lumen-north');
+
+    const decided = await owner.rejectReservation({
+      reservationId: first!.id,
+      reason: 'Private event that evening',
+    });
+    expect(decided.status).toBe('cancelledByVenue');
+    expect((await owner.listPendingReservations('b-lumen-north')).map((b) => b.id)).not.toContain(
+      first!.id,
+    );
+  });
+
+  it('refuses a manager with a home branch at a sibling branch, with the server sentence', async () => {
+    const { ForbiddenError } = await import('../errors');
+    const manager = createConsoleMockGateway({ role: 'manager' });
+    const [elsewhere] = await manager.listPendingReservations('b-lumen-cascade');
+
+    const caught = await failing(manager.approveReservation({ reservationId: elsewhere!.id }));
+    expect(caught).toBeInstanceOf(ForbiddenError);
+    expect((caught as Error).message).toBe(
+      'Approve a booking requires the Manager role; the caller is a Manager.',
+    );
+
+    const rejected = await failing(manager.rejectReservation({ reservationId: elsewhere!.id }));
+    expect(rejected).toBeInstanceOf(ForbiddenError);
+    expect((rejected as Error).message).toBe(
+      'Reject a booking requires the Manager role; the caller is a Manager.',
+    );
+
+    // Their own branch answers.
+    const [home] = await manager.listPendingReservations('b-lumen-north');
+    await expect(manager.approveReservation({ reservationId: home!.id })).resolves.toBeTruthy();
+  });
+
+  it('lets a manager with no branch decide anywhere in the venue, and nowhere outside it', async () => {
+    const { ForbiddenError, NotFoundError } = await import('../errors');
+    const floating = createConsoleMockGateway({ role: 'manager', managerBranch: 'none' });
+    const [cascade] = await floating.listPendingReservations('b-lumen-cascade');
+    await expect(floating.approveReservation({ reservationId: cascade!.id })).resolves.toBeTruthy();
+
+    expect(await failing(floating.listPendingReservations('b-tumanyan-main'))).toBeInstanceOf(
+      ForbiddenError,
+    );
+    // A booking id nobody can see is 404, as on the server: the read happens
+    // before the branch check.
+    expect(
+      await failing(floating.approveReservation({ reservationId: 'r-nowhere' })),
+    ).toBeInstanceOf(NotFoundError);
+  });
+
+  it('refuses a waiter outright', async () => {
+    const { ForbiddenError } = await import('../errors');
+    const waiter = createConsoleMockGateway({ role: 'waiter' });
+    expect(
+      await failing(waiter.approveReservation({ reservationId: 'r-lumen-north-1' })),
+    ).toBeInstanceOf(ForbiddenError);
+  });
+
+  it('refuses to decide a booking twice, naming the code and the state', async () => {
+    const { ConcurrencyConflictError } = await import('../errors');
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    const [first] = await owner.listPendingReservations('b-lumen-north');
+    await owner.approveReservation({ reservationId: first!.id });
+
+    const again = await failing(owner.approveReservation({ reservationId: first!.id }));
+    expect(again).toBeInstanceOf(ConcurrencyConflictError);
+    expect((again as Error).message).toBe(
+      `Only a pending reservation can be confirmed; ${first!.code} is Confirmed.`,
+    );
+
+    const reject = await failing(owner.rejectReservation({ reservationId: first!.id }));
+    expect(reject).toBeInstanceOf(ConcurrencyConflictError);
+    expect((reject as Error).message).toBe(
+      `Only a pending reservation can be rejected; ${first!.code} is Confirmed.`,
+    );
+  });
+});

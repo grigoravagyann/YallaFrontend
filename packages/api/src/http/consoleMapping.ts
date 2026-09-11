@@ -9,9 +9,12 @@ import type {
   VenueStatus,
   VenueType,
 } from '../contracts/console';
+import type { ApprovalTrigger, ConsoleBooking } from '../contracts/approvals';
+import type { ReservationStatusCode } from '../contracts/push';
 import type { components } from '../generated/schema';
 
 type Schemas = components['schemas'];
+type WireReservation = Schemas['Yalla.Application.Reservations.ReservationView'];
 type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
 type WireBranch = Schemas['Yalla.Application.Platform.BranchSummary'];
 type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
@@ -132,5 +135,48 @@ export function venuePageFromWire(page: WirePage): Page<ConsoleVenue> {
     total: page.totalCount,
     page: page.page,
     pageSize: page.pageSize,
+  };
+}
+
+// --- Bookings waiting for approval ------------------------------------------
+
+/**
+ * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,
+ * 6 CancelledByDiner, 7 CancelledByVenue, 8 NoShow. There is no 3 — a retired
+ * member, and mapping it would resurrect a state the server removed.
+ */
+const RESERVATION_STATUS: Readonly<Record<number, ReservationStatusCode>> = {
+  1: 'pendingApproval',
+  2: 'confirmed',
+  4: 'seated',
+  5: 'completed',
+  6: 'cancelledByDiner',
+  7: 'cancelledByVenue',
+  8: 'noShow',
+};
+
+/** `ApprovalTrigger`: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory. */
+const APPROVAL_TRIGGER: Readonly<Record<number, ApprovalTrigger>> = {
+  1: 'branchApprovesEveryBooking',
+  2: 'largeParty',
+  3: 'noShowHistory',
+};
+
+export function consoleBookingFromWire(view: WireReservation): ConsoleBooking {
+  return {
+    id: view.id,
+    code: view.code,
+    branchId: view.branchId,
+    guestName: view.guestName,
+    guestPhone: view.guestPhone,
+    partySize: view.partySize,
+    tableLabel: view.tableLabel,
+    localDate: view.localDate,
+    localStartTime: view.localStartTime,
+    status: RESERVATION_STATUS[view.status] ?? 'unknown',
+    awaitingApprovalBecause:
+      view.awaitingApprovalBecause === null || view.awaitingApprovalBecause === undefined
+        ? null
+        : (APPROVAL_TRIGGER[view.awaitingApprovalBecause] ?? 'unknown'),
   };
 }

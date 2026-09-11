@@ -265,6 +265,11 @@ export type {
   VenueStatus,
 } from './contracts/console';
 export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+export type {
+  ApprovalTrigger,
+  ConsoleBooking,
+  DecideReservationCommand,
+} from './contracts/approvals';
 
 export {
   FloorPlanInvalidError,
