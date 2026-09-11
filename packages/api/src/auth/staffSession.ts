@@ -7,6 +7,7 @@ import type {
   StaffSignOutReason,
 } from '../contracts/staffAuth';
 import { DeviceRevokedError } from '../contracts/errors';
+import { newCommandId } from '../ids';
 import { jwtExpiresAtMs } from './jwt';
 import type { AuthSession, AuthState, TokenPair } from './session';
 import type { StaffAuth } from './staffEndpoints';
@@ -110,7 +111,9 @@ export function createStaffSession(config: StaffSessionConfig): StaffSession {
   const { auth, storage } = config;
   const now = config.now ?? (() => Date.now());
   const idleMs = config.idleMs ?? DEFAULT_IDLE_MS;
-  const newDeviceId = config.newDeviceId ?? (() => crypto.randomUUID());
+  // Not crypto.randomUUID: it exists only in a secure context, and a tablet on
+  // a plain-http LAN address has none. newCommandId falls back when it is missing.
+  const newDeviceId = config.newDeviceId ?? newCommandId;
   const schedule =
     config.scheduleIdleCheck ??
     ((callback, ms) => {
