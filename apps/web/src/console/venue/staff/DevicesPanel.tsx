@@ -2,7 +2,7 @@ import type { EnrolmentCode, StaffDevice } from '@yalla/api';
 import { useCreateEnrolmentCode, useDevices, useRevokeDevice } from '@yalla/api/react';
 import { formatDate, formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 
 export interface DevicesPanelProps {
@@ -21,6 +21,11 @@ export interface DevicesPanelProps {
  * The panel says plainly what a device grants, which is **nothing on its own**.
  * Every action still needs a PIN on top, so a stolen tablet is not a stolen
  * till — and an owner who does not know that will not revoke one calmly.
+ *
+ * Each tablet says when it enrolled and when it was last seen, and nothing
+ * about being online: the API has a last-seen time, set on sign-in and on a
+ * session renewal, and no presence. A green dot drawn from that would call an
+ * idle tablet on the counter offline and a closed one online.
  */
 export function DevicesPanel({ branchId, timeZoneId, locale }: DevicesPanelProps) {
   const { t } = useTranslation(['admin', 'common']);
@@ -83,51 +88,30 @@ export function DevicesPanel({ branchId, timeZoneId, locale }: DevicesPanelProps
       ) : (devices.data ?? []).length === 0 ? (
         <p className="muted">{t('devices.empty')}</p>
       ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th scope="col">{t('devices.column.name')}</th>
-              <th scope="col">{t('devices.column.enrolled')}</th>
-              <th scope="col">{t('devices.column.lastSeen')}</th>
-              <th scope="col">
-                <span className="visually-hidden">{t('devices.column.actions')}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {(devices.data ?? []).map((device) => (
-              <tr key={device.id} className={device.isRevoked ? 'is-inactive' : ''}>
-                <th scope="row">
-                  {device.name}
-                  {device.isRevoked ? (
-                    <span className="badge badge-warn">{t('devices.revoked')}</span>
-                  ) : null}
-                </th>
-                <td>{when(device.enrolledAtUtc)}</td>
-                <td>
-                  {device.lastSeenAtUtc ? when(device.lastSeenAtUtc) : t('devices.neverSeen')}
-                </td>
-                <td>
-                  {device.isRevoked ? null : (
-                    <button
-                      type="button"
-                      className="button button-small button-danger"
-                      onClick={() => setConfirming(device)}
-                    >
-                      {t('devices.revoke')}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        // Revoked tablets stay listed: the list is an audit trail, not a roster.
+        <ul className="device-grid">
+          {(devices.data ?? []).map((device) => (
+            <DeviceCard
+              key={device.id}
+              device={device}
+              enrolled={t('devices.enrolledOn', { when: when(device.enrolledAtUtc) })}
+              seen={
+                device.lastSeenAtUtc
+                  ? t('devices.seen', { when: when(device.lastSeenAtUtc) })
+                  : t('devices.neverSeen')
+              }
+              revokedLabel={t('devices.revoked')}
+              revokeLabel={t('devices.revoke')}
+              onRevoke={() => setConfirming(device)}
+            />
+          ))}
+        </ul>
       )}
 
       {/*
         Named in the confirmation, because revoking the wrong one takes a
-        venue's counter offline mid-service — and the two rows most likely to be
-        confused are "Counter tablet" and "Counter tablet (old)".
+        venue's counter offline mid-service — and the two cards most likely to
+        be confused are "Counter tablet" and "Counter tablet (old)".
       */}
       {confirming ? (
         <div className="scrim" role="presentation">
@@ -162,8 +146,83 @@ export function DevicesPanel({ branchId, timeZoneId, locale }: DevicesPanelProps
       ) : null}
 
       {/* The sentence an owner needs before they can reason about a lost
-          tablet at all. */}
-      <p className="muted small device-note">{t('devices.grantsNothing')}</p>
+          tablet at all. A note, so it is announced as one. */}
+      <div className="device-note" role="note">
+        <svg
+          className="device-note-icon"
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4" />
+          <path d="M12 8h.01" />
+        </svg>
+        <p className="small">{t('devices.grantsNothing')}</p>
+      </div>
     </section>
+  );
+}
+
+interface DeviceCardProps {
+  readonly device: StaffDevice;
+  readonly enrolled: string;
+  readonly seen: string;
+  readonly revokedLabel: string;
+  readonly revokeLabel: string;
+  readonly onRevoke: () => void;
+}
+
+function DeviceCard({
+  device,
+  enrolled,
+  seen,
+  revokedLabel,
+  revokeLabel,
+  onRevoke,
+}: DeviceCardProps) {
+  const nameId = useId();
+  return (
+    <li>
+      <article
+        className={`card device-card${device.isRevoked ? ' is-deactivated' : ''}`}
+        aria-labelledby={nameId}
+      >
+        <div className="device-card-head">
+          <span className="device-card-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect width="16" height="20" x="4" y="2" rx="2" />
+              <path d="M12 18h.01" />
+            </svg>
+          </span>
+          <div className="roster-card-who">
+            <h4 id={nameId} className="roster-card-name">
+              {device.name}
+            </h4>
+            <p className="muted small">{seen}</p>
+            {device.isRevoked ? (
+              <p className="roster-card-tags">
+                <span className="badge badge-warn">{revokedLabel}</span>
+              </p>
+            ) : null}
+          </div>
+          {device.isRevoked ? null : (
+            <button type="button" className="button button-small button-danger" onClick={onRevoke}>
+              {revokeLabel}
+            </button>
+          )}
+        </div>
+        <p className="muted small device-card-foot">{enrolled}</p>
+      </article>
+    </li>
   );
 }

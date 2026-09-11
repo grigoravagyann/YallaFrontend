@@ -741,18 +741,12 @@
     "add": "Add someone",
     "noVenue": "This account is not attached to a venue.",
     "allBranches": "All branches",
-    "column": {
-      "name": "Name",
-      "role": "Role",
-      "branch": "Branch",
-      "status": "Status",
-      "actions": "Actions"
-    },
     "filter": {
       "search": "Search",
       "role": "Role",
-      "allRoles": "All roles",
-      "inactive": "Show deactivated"
+      "inactive": "Show deactivated",
+      "all": "All",
+      "searchPlaceholder": "Name or phone"
     },
     "status": {
       "inactive": "Deactivated",
@@ -767,7 +761,9 @@
       "reactivate": "Reactivate",
       "notYours": "Above your role",
       "issueSignIn": "Issue sign-in",
-      "sendNewLink": "Send new link"
+      "sendNewLink": "Send new link",
+      "more": "More",
+      "moreFor": "More actions for {{name}}"
     },
     "empty": {
       "title": "Nobody here yet",
@@ -820,10 +816,46 @@
       "selectAndCopy": "Select and copy",
       "notIssued": "Added, but without a sign-in link:",
       "done": "Done"
+    },
+    "group": {
+      "owner": "Owners",
+      "manager": "Branch managers",
+      "waiter": "Waiters",
+      "kitchen": "Kitchen"
+    },
+    "card": {
+      "you": "You"
+    },
+    "roleInfo": {
+      "owner": "Runs the venue: every branch, the staff and the settings.",
+      "manager": "Runs the floor plan, menu and staff for their branch.",
+      "waiter": "Takes orders and seats tables on the counter tablet, with a PIN.",
+      "kitchen": "Sees and updates orders on the kitchen screen, with a PIN."
+    },
+    "wizard": {
+      "progress": "Progress",
+      "stepOf": "Step {{current}} of {{total}}: {{label}}",
+      "stepDone": "{{label}}, done",
+      "stepCurrent": "{{label}}, current step",
+      "step": {
+        "person": "Person",
+        "roleBranch": "Role and branch",
+        "pin": "Tablet PIN",
+        "signIn": "Console sign-in"
+      },
+      "next": "Next",
+      "back": "Back",
+      "personTitle": "Who are you adding?",
+      "roleLegend": "What is their role?",
+      "roleHelp": "This decides what they can see and do.",
+      "branchLabel": "Which branch?",
+      "coOwnerNote": "A co-owner is added with a PIN. Their console sign-in is issued by the Yalla team.",
+      "pinShownAgain": "You'll see it once more after adding, to read out to them.",
+      "signInAfter": "After you press Add, the link appears once, for you to paste to them."
     }
   },
   "devices": {
-    "title": "Devices",
+    "title": "Tablets",
     "blurb": "The tablets the counter screen runs on.",
     "generate": "Generate a code",
     "regenerate": "Generate a new one",
@@ -832,12 +864,6 @@
     "revoke": "Revoke",
     "neverSeen": "Never connected",
     "grantsNothing": "A device grants nothing on its own — every action still needs a PIN on top. A stolen tablet is not a stolen till.",
-    "column": {
-      "name": "Name",
-      "enrolled": "Enrolled",
-      "lastSeen": "Last seen",
-      "actions": "Actions"
-    },
     "code": {
       "instructions": "Type this code on the tablet to enrol it.",
       "expires": "Good until {{when}}.",
@@ -848,7 +874,9 @@
       "body": "{{name}} stops working immediately. If that is the tablet in service, the counter screen goes offline.",
       "permanent": "Permanent. A device that turns up again is enrolled afresh.",
       "revoke": "Yes, revoke it"
-    }
+    },
+    "seen": "Seen {{when}}",
+    "enrolledOn": "Enrolled {{when}}"
   },
   "approvals": {
     "title": "Awaiting approval",
