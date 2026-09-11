@@ -2198,6 +2198,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/venues/{venueId}/manage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The venue you work in, with the branches your account covers
+         * @description The read the console opens a venue with. **Which branches come back is decided from the caller's own staff record, not from the token**: an owner covers every branch of the venue, whether or not their record names a home branch; a manager whose record names no branch covers every branch; a manager whose record names a branch is given that branch only; a platform admin is given everything.
+         *
+         *     Branches are listed active first, then by name. An inactive branch is listed and flagged rather than hidden.
+         *
+         *     This is not `GET /api/platform/venues/{id}`, which is the platform tier's and refuses every venue user. Nothing here is platform-only: no tier rollup, no paid-branch count, no suspension timestamps.
+         */
+        get: operations["getManagedVenue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/venues/{venueId}/staff": {
         parameters: {
             query?: never;
@@ -6005,6 +6029,60 @@ export interface components {
              *     client had to make a second call to a different endpoint to find out.
              */
             timeZoneId: string;
+        };
+        /** @description One branch of the venue as the console lists it: enough to pick it and address it. */
+        "Yalla.Application.Venues.ManagedBranchView": {
+            /**
+             * Format: uuid
+             * @description The branch; what every `/api/branches/{branchId}` route is addressed by.
+             */
+            branchId: string;
+            /** @description False for a branch the platform has switched off. It is listed so the switcher can say so. */
+            isActive: boolean;
+            /** @description Its display name. */
+            name: string;
+            /** @description Its URL-safe handle. */
+            slug: string;
+            /**
+             * @description What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations
+             *     is four paying customers. The venue-level view is a rollup.
+             */
+            subscriptionTier: components["schemas"]["Yalla.Domain.Enums.SubscriptionTier"];
+            /**
+             * Format: int32
+             * @description How many tables it has, active or not.
+             */
+            tableCount: number;
+            /** @description IANA time zone, so the console can show the branch's own clock. */
+            timeZoneId: string;
+            /**
+             * Format: uuid
+             * @description Its venue. Always the venue this view is of.
+             */
+            venueId: string;
+        };
+        /** @description The venue an owner or manager signs in to, with the branches their own staff row covers. */
+        "Yalla.Application.Venues.ManagedVenueView": {
+            /**
+             * @description Every branch the caller covers, active ones first, then by name. Inactive branches are listed
+             *     and flagged rather than hidden, because an owner may still open one.
+             */
+            branches: components["schemas"]["Yalla.Application.Venues.ManagedBranchView"][];
+            /** @description Soft-deleted by the platform; nothing can be changed. */
+            isDeleted: boolean;
+            /** @description The platform has suspended it for non-payment; diners cannot book, staff can still configure. */
+            isSuspended: boolean;
+            /** @description Its display name. */
+            name: string;
+            /** @description The URL-safe handle its public page lives under. */
+            slug: string;
+            /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
+            type: components["schemas"]["Yalla.Domain.Enums.VenueType"];
+            /**
+             * Format: uuid
+             * @description The venue.
+             */
+            venueId: string;
         };
         /**
          * Format: int32
@@ -14937,6 +15015,82 @@ export interface operations {
             };
             /** @description The table is out of service, or the tab there is being settled and takes no new people. Also returned when this `clientCommandId` was used by a different device. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getManagedVenue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                venueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Venues.ManagedVenueView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Another venue's staff, a waiter or kitchen hand, or an account that has been deactivated. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such venue. Only a platform admin can reach this. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
