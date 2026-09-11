@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { signIn } from './authSession';
+import { forgetSessionQueries } from './sessionQueries';
 
 interface SignInLocationState {
   readonly returnTo?: string;
@@ -51,8 +52,12 @@ export function SignInRoute() {
     setFailure(null);
     try {
       await signIn(email.trim(), password);
-      // The router is built from who is signed in; drop the anonymous answer.
-      await queryClient.resetQueries({ queryKey: ['currentUser'] });
+      // The router is built from who is signed in; drop the anonymous answer,
+      // and with it whatever the last person on this tab read. The sign-out
+      // listener usually has, but not when their session ended somewhere it
+      // was not mounted, and this form is the one path every new session
+      // passes through.
+      await forgetSessionQueries(queryClient);
       navigate(landingAfterSignIn(state.returnTo), { replace: true });
     } catch (error) {
       const kind = describeFailure(error);

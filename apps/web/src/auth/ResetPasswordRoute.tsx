@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { usingMockData } from '../data/gateway';
 import { resetPassword, signOut } from './authSession';
 import { LoadingScreen } from './RequireRole';
+import { forgetSessionQueries } from './sessionQueries';
 import { useCurrentUser } from './useCurrentUser';
 
 /**
@@ -114,8 +115,11 @@ export function ResetPasswordRoute() {
 
   async function leave() {
     await signOut();
-    // The router is built from who is signed in; ask again now that nobody is.
-    await queryClient.resetQueries({ queryKey: ['currentUser'] });
+    // The router is built from who is signed in; ask again now that nobody
+    // is. And forget what they read: this page is outside the console's
+    // router, so its sign-out listener is not mounted to do it, and the
+    // link's recipient signs in next on this very tab.
+    await forgetSessionQueries(queryClient);
   }
 
   if (isLoading) return <LoadingScreen />;
