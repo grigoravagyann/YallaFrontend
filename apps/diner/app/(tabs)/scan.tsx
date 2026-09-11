@@ -41,7 +41,15 @@ function cameraIsPossible(): boolean {
 export default function ScanScreen() {
   const { t } = useTranslation('diner');
   const [permission, requestPermission] = useCameraPermissions();
-  const { submit, resumeAfterSignIn, failure, clearFailure, isWorking } = useJoinByCode();
+  const {
+    submit,
+    resumeAfterSignIn,
+    failure,
+    signInNeeded,
+    confirmNumber,
+    clearFailure,
+    isWorking,
+  } = useJoinByCode();
 
   const [manualOpen, setManualOpen] = useState(false);
   const [typed, setTyped] = useState('');
@@ -204,6 +212,20 @@ export default function ScanScreen() {
         ) : null}
 
         {failure ? <Text style={styles.error}>{t(failure.key, failure.params ?? {})}</Text> : null}
+
+        {/* A booking code is the one code with an account behind it. The way to
+            verification is offered here rather than taken automatically: what
+            was typed may just as easily have been a mistyped table code, and
+            this screen promises no sign-up and no phone number. */}
+        {signInNeeded ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={confirmNumber}
+            style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
+          >
+            <Text style={styles.primaryText}>{t('scan.confirmNumber')}</Text>
+          </Pressable>
+        ) : null}
 
         <DemoCodes onPick={(code) => setTyped(code)} />
       </ScrollView>

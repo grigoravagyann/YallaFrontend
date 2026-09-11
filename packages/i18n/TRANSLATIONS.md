@@ -86,6 +86,20 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   The action itself: `booking.atTable.action`, `.hint`, `.working`, and
   `success.atTableHint` on the confirmation screen, which tells a diner what
   their booking code is for once they are standing in the venue.
+- `diner` — the same flow, second pass (2026-09-12), also provisional.
+  `scan.error.bookingTooEarlyOnDay` is `bookingTooEarly` with the date as well,
+  for a booking that is not today: the button is offered days ahead, and a bare
+  "from 19:10" there reads as tonight. `scan.error.bookingNotActive` kept its
+  general wording but now only catches the states this build does not know;
+  `scan.error.bookingPending`, `.bookingCancelledByYou`, `.bookingCancelledByVenue`
+  and `.bookingNoShow` say the rest, and the two cancellations must not collapse
+  into one — who cancelled is the whole of what the reader wants to know.
+  `scan.confirmNumber` is the button that takes a diner to verification, which
+  used to happen to them without a tap. Reworded: `scan.error.bookingEnded` no
+  longer says "scan the code on your table", because in that window the scan
+  cannot work either and the answer really is a member of staff; and
+  `scan.error.empty`, `scan.deniedBody` and `scan.unavailableBody` stop calling
+  the field the code under the QR, which it has not been since the first pass.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in
