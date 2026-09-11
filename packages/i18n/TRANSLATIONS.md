@@ -50,6 +50,9 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   (`pin.rosterFailed`) and the reworded `pin.staffIdWhy`, which now points at
   Staff → Edit → Copy staff ID. Provisional, **not** reviewed; if the console's
   "Staff" or "Edit" labels are retranslated, `pin.staffIdWhy` must follow.
+- `admin` — changing your own PIN (2026-09-11): the own card's action and its
+  dialog (`staff.action.changeOwnPin`, `staff.ownPin.*`). Provisional, **not**
+  reviewed.
 - `staff` — the kitchen screen (2026-09-11): its header title `kitchen.title`
   ("Kitchen" / "Խոհանոց" / "Кухня"). Provisional, **not** reviewed.
 - `staff` — the floor screen: connection and sync states, the order and seating

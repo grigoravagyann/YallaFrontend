@@ -92,6 +92,7 @@ export {
   assignableRoles,
   canChooseBranch,
   canEditStaff,
+  canSetStaffPin,
   canIssueSignIn,
   isAdminRole,
   outranks,

@@ -54,6 +54,8 @@ export function useStaffLabels() {
         return member.email ? t('staff.action.sendNewLink') : t('staff.action.issueSignIn');
       case 'deactivate':
         return t('staff.action.deactivate');
+      case 'changeOwnPin':
+        return t('staff.action.changeOwnPin');
     }
   }
 

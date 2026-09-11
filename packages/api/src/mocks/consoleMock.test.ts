@@ -337,6 +337,40 @@ describe('console mock — who may create and edit whom, as the server rules it'
   });
 });
 
+describe('console mock — setting a PIN, as SetPinAsync rules it', () => {
+  const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
+
+  it('lets anybody set their own PIN, though they may not edit themselves', async () => {
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    const set = await owner.setStaffPin({
+      venueId: 'v-lumen',
+      staffMemberId: 'v-lumen-owner',
+      pin: '5827',
+    });
+    expect(set.id).toBe('v-lumen-owner');
+
+    const manager = createConsoleMockGateway({ role: 'manager' });
+    const self = (await manager.listStaff('v-lumen')).find(
+      (member) => member.role === 'manager' && member.branchId !== null,
+    )!;
+    const own = await manager.setStaffPin({
+      venueId: 'v-lumen',
+      staffMemberId: self.id,
+      pin: '5827',
+    });
+    expect(own.id).toBe(self.id);
+  });
+
+  it('still refuses a PIN for somebody the actor does not manage', async () => {
+    const { StaffPermissionError } = await import('../contracts/errors');
+    const manager = createConsoleMockGateway({ role: 'manager' });
+    const refused = await failing(
+      manager.setStaffPin({ venueId: 'v-lumen', staffMemberId: 'v-lumen-owner', pin: '5827' }),
+    );
+    expect(refused).toBeInstanceOf(StaffPermissionError);
+  });
+});
+
 describe('console mock — a sign-in for a manager or owner', () => {
   const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
 
