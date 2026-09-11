@@ -32,7 +32,7 @@ import {
   ValidationError,
 } from '../errors';
 import { StaffPermissionError } from '../contracts/errors';
-import { assignableRoles, canEditStaff, isAdminRole } from '../contracts/staff';
+import { assignableRoles, canEditStaff, isAdminRole, outranks } from '../contracts/staff';
 import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
 import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
@@ -1680,10 +1680,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
       if (!isAdminRole(subject.role)) throw conflict(pinOnly(subject.role));
 
-      // Strictly above: an owner cannot issue for another owner, and a manager
-      // reaches no admin role at all. `assignableRoles` is the same list the
-      // pickers are built from, so the two cannot disagree.
-      if (!assignableRoles(actor.role).includes(subject.role)) {
+      // Strictly above — the server's `Outranks`, not its `MayManage`: an
+      // owner may edit a co-owner but cannot issue their sign-in, and a
+      // manager reaches no admin role at all. `outranks` is what the screens'
+      // sign-in buttons are gated on, so the two cannot disagree.
+      if (!outranks(actor.role, subject.role)) {
         throw new StaffPermissionError({
           url: URL_TAG,
           detail: `Issuing a sign-in for a ${SERVER_ROLE[subject.role]} requires the PlatformAdmin role; the caller is a ${SERVER_ROLE[actor.role]}.`,

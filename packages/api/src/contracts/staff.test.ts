@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { assignableRoles, canChooseBranch, canEditStaff, type StaffMember } from './staff';
+import {
+  assignableRoles,
+  canChooseBranch,
+  canEditStaff,
+  canIssueSignIn,
+  outranks,
+  type StaffMember,
+} from './staff';
 
 /**
  * Who may create whom, derived rather than validated.
@@ -30,15 +37,31 @@ describe('the role picker', () => {
     expect(assignableRoles('manager')).toEqual(['waiter', 'kitchen']);
   });
 
-  it('offers an owner manager as well', () => {
-    expect(assignableRoles('owner')).toEqual(['manager', 'waiter', 'kitchen']);
+  it('offers an owner a co-owner as well as everyone below', () => {
+    // The server's MayAssign(Owner, Owner) is true: a co-owner is a normal
+    // thing for a family business. This list used to be the stricter of the
+    // two, and an owner could not hand the venue to a partner.
+    expect(assignableRoles('owner')).toEqual(['owner', 'manager', 'waiter', 'kitchen']);
   });
 
-  it('never offers anybody their own role', () => {
-    // The rule that stops a manager minting a peer, and an owner minting a
-    // second owner nobody agreed to.
+  it('mirrors the server table exactly, every actor against every role', () => {
+    // StaffRoleRules.MayAssign, case for case.
+    const table: Record<string, readonly string[]> = {
+      platformAdmin: ['owner', 'manager', 'waiter', 'kitchen'],
+      owner: ['owner', 'manager', 'waiter', 'kitchen'],
+      manager: ['waiter', 'kitchen'],
+      waiter: [],
+      kitchen: [],
+    };
+    for (const [actor, roles] of Object.entries(table)) {
+      expect(assignableRoles(actor as never)).toEqual(roles);
+    }
+  });
+
+  it('never offers a manager a peer', () => {
+    // The one rank that may not mint its own: MayAssign(Manager, Manager) is
+    // false, so a manager cannot promote a waiter to a peer.
     expect(assignableRoles('manager')).not.toContain('manager');
-    expect(assignableRoles('owner')).not.toContain('owner');
   });
 
   it('never offers platform admin from inside a venue', () => {
@@ -61,9 +84,16 @@ describe('editing somebody', () => {
     expect(canEditStaff({ id: 's-mgr', role: 'manager' }, someone({ role: 'waiter' }))).toBe(true);
   });
 
-  it('stops a manager touching another manager', () => {
+  it('stops a manager touching another manager, and lets an owner edit a co-owner', () => {
+    // MayManage is the MayAssign table: you may touch the people you could
+    // have created. An owner could create an owner, so an owner may edit one.
     expect(canEditStaff({ id: 's-mgr', role: 'manager' }, someone({ role: 'manager' }))).toBe(
       false,
+    );
+    expect(canEditStaff({ id: 's-mgr', role: 'manager' }, someone({ role: 'owner' }))).toBe(false);
+    expect(canEditStaff({ id: 's-owner', role: 'owner' }, someone({ role: 'owner' }))).toBe(true);
+    expect(canEditStaff({ id: 's-pa', role: 'platformAdmin' }, someone({ role: 'owner' }))).toBe(
+      true,
     );
   });
 
@@ -75,6 +105,40 @@ describe('editing somebody', () => {
      */
     const self = someone({ id: 's-owner', role: 'manager' });
     expect(canEditStaff({ id: 's-owner', role: 'owner' }, self)).toBe(false);
+    // Even now that an owner may edit an owner: self is refused by identity,
+    // not by rank.
+    expect(
+      canEditStaff({ id: 's-owner', role: 'owner' }, someone({ id: 's-owner', role: 'owner' })),
+    ).toBe(false);
+  });
+});
+
+describe('issuing a sign-in', () => {
+  it('needs the actor strictly above the subject, unlike editing', () => {
+    /*
+     * The server's Outranks, not MayManage: a sign-in is the whole account, so
+     * an owner may edit a co-owner but may not take over their sign-in. Only a
+     * platform admin repairs an owner.
+     */
+    expect(outranks('owner', 'owner')).toBe(false);
+    expect(outranks('owner', 'manager')).toBe(true);
+    expect(outranks('platformAdmin', 'owner')).toBe(true);
+    expect(outranks('manager', 'manager')).toBe(false);
+    expect(outranks('manager', 'waiter')).toBe(true);
+
+    const owner = { id: 's-owner', role: 'owner' } as const;
+    expect(canIssueSignIn(owner, someone({ role: 'owner' }))).toBe(false);
+    expect(canIssueSignIn(owner, someone({ role: 'manager' }))).toBe(true);
+    expect(canIssueSignIn({ id: 's-pa', role: 'platformAdmin' }, someone({ role: 'owner' }))).toBe(
+      true,
+    );
+  });
+
+  it('is never offered for oneself, a PIN-only role, or a deactivated person', () => {
+    const owner = { id: 's-owner', role: 'owner' } as const;
+    expect(canIssueSignIn(owner, someone({ id: 's-owner', role: 'manager' }))).toBe(false);
+    expect(canIssueSignIn(owner, someone({ role: 'waiter' }))).toBe(false);
+    expect(canIssueSignIn(owner, someone({ role: 'manager', isActive: false }))).toBe(false);
   });
 });
 
