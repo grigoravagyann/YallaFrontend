@@ -1,3 +1,4 @@
+import type { ConsoleBooking, DecideReservationCommand } from './contracts/approvals';
 import type {
   EditorFloorArea,
   EditorFloorPlan,
@@ -286,6 +287,40 @@ export interface ConsoleGateway {
     branchId: string;
     policy: ReservationPolicy;
   }): Promise<PolicyChangeResult>;
+
+  // --- Bookings waiting for approval ------------------------------------------
+
+  /**
+   * The branch's bookings in `PendingApproval`, soonest first.
+   *
+   * **The server has no route for this yet.** The two decisions below are
+   * real; the list a manager would decide *from* is not, so the HTTP gateway
+   * raises {@link EndpointNotWiredError} and the panel says so rather than
+   * showing an empty list as "nothing is waiting". The mock answers from its
+   * fixture so the panel can be built and tested against the decisions.
+   *
+   * @throws {EndpointNotWiredError} over HTTP, until the backend lists them.
+   */
+  listPendingReservations(branchId: string): Promise<readonly ConsoleBooking[]>;
+
+  /**
+   * `POST /api/reservations/{id}/approve`. Confirmed, and the diner is told.
+   *
+   * `ManagerOrAbove` at the route; the branch half is the service's: a manager
+   * or owner *with* a home branch may decide only at that branch, one with no
+   * branch anywhere in their venue. A 403 for the wrong branch and a 409 for a
+   * booking that is not pending both carry the server's sentence as `message`.
+   *
+   * @throws {ForbiddenError} not a manager of this booking's branch.
+   * @throws {ConcurrencyConflictError} the booking was not pending.
+   */
+  approveReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
+
+  /**
+   * `POST /api/reservations/{id}/reject`. Becomes `CancelledByVenue`, with
+   * the reason recorded, and the diner is told. Same guards as approve.
+   */
+  rejectReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
 
   // --- Staff ----------------------------------------------------------------
 

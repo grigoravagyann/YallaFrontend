@@ -42,6 +42,7 @@ import { ApiError, ForbiddenError, NetworkError, TimeoutError, UnauthorizedError
 import type { components } from '../generated/schema';
 import { parseProblem } from '../problem';
 import {
+  consoleBookingFromWire,
   managedVenueFromWire,
   venueDetailFromWire,
   venuePageFromWire,
@@ -129,6 +130,10 @@ const CLAIM = {
 const PLATFORM = '/api/platform';
 const BRANCHES = '/api/branches';
 const VENUES = '/api/venues';
+const RESERVATIONS = '/api/reservations';
+
+type WireReservation = components['schemas']['Yalla.Application.Reservations.ReservationView'];
+type WireDecision = components['schemas']['Yalla.Api.Endpoints.DecideReservationRequest'];
 
 // `WireStaff` is taken by the staff *report*; this is the staff *member*.
 type WireStaffMember = components['schemas']['Yalla.Application.Staff.StaffMemberView'];
@@ -708,6 +713,39 @@ export function createConsoleHttpGateway(
     async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {
       const { data } = await client.get<WirePolicy>(`${BRANCHES}/${branchId}/reservation-policy`);
       return reservationPolicy(data);
+    },
+
+    // --- Bookings waiting for approval ------------------------------------------
+
+    async listPendingReservations(branchId: string) {
+      // `status` is the server's `ReservationStatus` number: 1 is
+      // PendingApproval. The server caps the list at 200 and sorts it by the
+      // branch's own day and start time; the order is kept, not re-sorted.
+      const { data } = await client.get<WireReservation[]>(`${BRANCHES}/${branchId}/reservations`, {
+        query: { status: 1 },
+      });
+      return data.map(consoleBookingFromWire);
+    },
+
+    async approveReservation({ reservationId }) {
+      // The body is the decision request with nothing in it: `reason` is
+      // recorded on a rejection only. Sent rather than omitted so the route
+      // sees a JSON document, which is what its nullable parameter is bound
+      // from. The 403 and the 409 pass through as the client's own errors,
+      // carrying the server's sentence as `message`.
+      const { data } = await client.post<WireReservation>(
+        `${RESERVATIONS}/${reservationId}/approve`,
+        {} satisfies WireDecision,
+      );
+      return consoleBookingFromWire(data);
+    },
+
+    async rejectReservation({ reservationId, reason }) {
+      const { data } = await client.post<WireReservation>(
+        `${RESERVATIONS}/${reservationId}/reject`,
+        { reason: reason ?? null } satisfies WireDecision,
+      );
+      return consoleBookingFromWire(data);
     },
 
     // --- Staff ----------------------------------------------------------------

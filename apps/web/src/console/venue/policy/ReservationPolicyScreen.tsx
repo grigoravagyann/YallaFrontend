@@ -6,6 +6,7 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
+import { AwaitingApprovalPanel } from './AwaitingApprovalPanel';
 import {
   POLICY_GROUPS,
   defaultValue,
@@ -172,6 +173,10 @@ export function ReservationPolicyScreen() {
           {refusal.message}
         </p>
       ) : null}
+
+      {/* Where the approval rule's consequence lands: above the fields that
+          set it, so an owner sees what "waits for you" actually means. */}
+      <AwaitingApprovalPanel branchId={branchId} />
 
       {POLICY_GROUPS.map((group) => (
         <fieldset key={group} className="policy-group">

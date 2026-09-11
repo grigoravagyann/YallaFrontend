@@ -849,5 +849,29 @@
       "permanent": "Permanent. A device that turns up again is enrolled afresh.",
       "revoke": "Yes, revoke it"
     }
+  },
+  "approvals": {
+    "title": "Awaiting approval",
+    "body": "Bookings the policy stopped. Nothing is promised to the diner until somebody here decides.",
+    "empty": "Nothing is waiting.",
+    "count_one": "{{count}} waiting",
+    "count_other": "{{count}} waiting",
+    "party_one": "{{count}} person",
+    "party_other": "{{count}} people",
+    "table": "Table {{label}}",
+    "because": {
+      "largeParty": "Large party",
+      "branchApprovesEveryBooking": "Every booking is approved here",
+      "noShowHistory": "No-show history",
+      "unknown": "Needs a decision"
+    },
+    "approve": "Approve",
+    "decline": "Decline",
+    "reasonLabel": "Reason (optional)",
+    "reasonHint": "Recorded on the booking. The diner is told it was declined, not why.",
+    "confirmDecline": "Decline the booking",
+    "keep": "Keep it",
+    "failed": "Could not record the decision. Try again.",
+    "offline": "You are offline. The decision was not sent."
   }
 }

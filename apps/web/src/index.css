@@ -3180,6 +3180,67 @@ kbd {
   padding-inline-start: var(--space-lg);
 }
 
+/* The bookings waiting for a decision, on the policy tab. */
+.approvals-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+.approvals-list {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.approvals-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(14rem, 2fr) auto;
+  gap: var(--space-md);
+  align-items: start;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--color-line, rgb(0 0 0 / 10%));
+}
+
+.approvals-who,
+.approvals-what {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.approvals-what .badge {
+  align-self: flex-start;
+}
+
+.approvals-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: flex-end;
+}
+
+.approvals-decline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 16rem;
+}
+
+@media (max-width: 40rem) {
+  .approvals-row {
+    grid-template-columns: 1fr;
+  }
+
+  .approvals-actions {
+    align-items: stretch;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

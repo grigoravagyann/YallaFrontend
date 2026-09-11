@@ -230,3 +230,139 @@ describe('reading the managed venue over HTTP', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Deciding a booking that is waiting for approval.
+ *
+ * Two routes addressed by reservation id, not by branch: `ManagerOrAbove` at
+ * the route and the branch half in the service. A 403 and a 409 both arrive
+ * with the server's sentence as the message, and that sentence is what the
+ * panel shows — nothing here rewrites it.
+ */
+describe('deciding a pending booking over HTTP', () => {
+  const view = {
+    id: 'r-1',
+    code: 'LM7Q',
+    branchId: 'b-1',
+    branchName: 'Northern Avenue',
+    tableId: 't-1',
+    tableLabel: 'T4',
+    partySize: 10,
+    status: 2,
+    startUtc: '2026-09-12T15:00:00Z',
+    endUtc: '2026-09-12T16:45:00Z',
+    localDate: '2026-09-12',
+    localStartTime: '19:00:00',
+    localEndTime: '20:45:00',
+    timeZoneId: 'Asia/Yerevan',
+    guestName: 'Ani',
+    guestPhone: '+37491000000',
+    clientCommandId: 'c-1',
+    cancelledAfterDeadline: false,
+    wasReplay: false,
+    awaitingApprovalBecause: null,
+  };
+
+  it('approves by posting to the approve route with an empty decision', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, view));
+
+    const booking = await gatewayOver(fetchImpl).approveReservation({ reservationId: 'r-1' });
+
+    const request = sent(fetchImpl);
+    expect(request.url).toBe(`${BASE}/api/reservations/r-1/approve`);
+    expect(request.method).toBe('POST');
+    expect(request.body).toEqual({});
+    expect(booking.status).toBe('confirmed');
+    expect(booking.code).toBe('LM7Q');
+  });
+
+  it('rejects by posting the reason to the reject route', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, { ...view, status: 7 }));
+
+    const booking = await gatewayOver(fetchImpl).rejectReservation({
+      reservationId: 'r-1',
+      reason: 'No room for ten that night',
+    });
+
+    const request = sent(fetchImpl);
+    expect(request.url).toBe(`${BASE}/api/reservations/r-1/reject`);
+    expect(request.method).toBe('POST');
+    expect(request.body).toEqual({ reason: 'No room for ten that night' });
+    expect(booking.status).toBe('cancelledByVenue');
+  });
+
+  it('sends a null reason when none was typed, which the schema allows', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json(200, { ...view, status: 7 }));
+    await gatewayOver(fetchImpl).rejectReservation({ reservationId: 'r-1' });
+    expect(sent(fetchImpl).body).toEqual({ reason: null });
+  });
+
+  it('lets the branch refusal through as a 403 carrying the server sentence', async () => {
+    const detail = 'Approve a booking requires the Manager role; the caller is a Manager.';
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(problem(403, 'forbidden', detail, { operation: 'Approve a booking' }));
+
+    const caught = await gatewayOver(fetchImpl)
+      .approveReservation({ reservationId: 'r-1' })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(ForbiddenError);
+    expect((caught as Error).message).toBe(detail);
+  });
+
+  it('lets the not-pending refusal through as a conflict carrying the server sentence', async () => {
+    const detail = 'Only a pending reservation can be confirmed; LM7Q is Confirmed.';
+    const fetchImpl = vi.fn().mockResolvedValue(problem(409, 'conflicting-state', detail));
+
+    const caught = await gatewayOver(fetchImpl)
+      .approveReservation({ reservationId: 'r-1' })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(ConcurrencyConflictError);
+    expect((caught as Error).message).toBe(detail);
+  });
+
+  it('lists the pending bookings of a branch from its reservations route', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      json(200, [
+        {
+          id: 'r-1',
+          code: 'K7M2',
+          branchId: 'b-1',
+          guestName: 'Ani Petrosyan',
+          guestPhone: '+37491000001',
+          partySize: 10,
+          tableLabel: 'T4',
+          localDate: '2026-09-18',
+          localStartTime: '19:30:00',
+          status: 1,
+          awaitingApprovalBecause: 2,
+        },
+      ]),
+    );
+
+    const bookings = await gatewayOver(fetchImpl).listPendingReservations('b-1');
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(init.method ?? 'GET').toBe('GET');
+    expect(url).toBe(`${BASE}/api/branches/b-1/reservations?status=1`);
+    expect(bookings).toEqual([
+      {
+        id: 'r-1',
+        code: 'K7M2',
+        branchId: 'b-1',
+        guestName: 'Ani Petrosyan',
+        guestPhone: '+37491000001',
+        partySize: 10,
+        tableLabel: 'T4',
+        localDate: '2026-09-18',
+        localStartTime: '19:30:00',
+        status: 'pendingApproval',
+        awaitingApprovalBecause: 'largeParty',
+      },
+    ]);
+  });
+});
