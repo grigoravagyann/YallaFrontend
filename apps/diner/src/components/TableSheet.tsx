@@ -206,9 +206,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
-    // Ink, not brand green: this sheet sits over the floor plan, and a green
-    // "Reserve" beside green free tables would teach the eye that green means
-    // nothing in particular. See `color.primaryOnFloorPlan`.
+    // The beige fill with its ink label. See `color.primaryOnFloorPlan`.
     backgroundColor: color.primaryOnFloorPlan,
   },
   primaryPressed: { backgroundColor: color.primaryOnFloorPlanPressed },

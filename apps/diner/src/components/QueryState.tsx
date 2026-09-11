@@ -17,7 +17,7 @@ import { Text } from './Text';
 export function QueryLoading({ label }: { readonly label: string }) {
   return (
     <View style={styles.centered}>
-      <ActivityIndicator color={color.primary} />
+      <ActivityIndicator color={color.primaryInk} />
       <Text style={styles.body}>{label}</Text>
     </View>
   );
@@ -97,8 +97,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     borderRadius: radius.pill,
     borderWidth: 2,
-    borderColor: color.primary,
+    borderColor: color.primaryInk,
   },
   retryPressed: { backgroundColor: color.greenTint, transform: [{ scale: 0.97 }] },
-  retryText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: color.primary },
+  retryText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: color.primaryInk },
 });

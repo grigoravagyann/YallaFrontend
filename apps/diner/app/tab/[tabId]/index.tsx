@@ -90,7 +90,7 @@ export default function TabScreen() {
     return (
       <Shell title="">
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
+          <ActivityIndicator color={color.primaryInk} />
           <Text style={styles.muted}>{t('tab.loading')}</Text>
         </View>
       </Shell>
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   textActionLabel: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: color.primaryPressed,
+    color: color.primaryInk,
   },
   primary: {
     marginTop: space.sm,
@@ -360,10 +360,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
     borderWidth: 2,
-    borderColor: color.primaryPressed,
+    borderColor: color.primaryInk,
     backgroundColor: color.greenTint,
   },
-  waiterText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
+  waiterText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryInk },
   centered: {
     flex: 1,
     alignItems: 'center',

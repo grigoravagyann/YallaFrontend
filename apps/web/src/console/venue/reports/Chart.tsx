@@ -148,7 +148,7 @@ export function Bars({
         <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} />
         <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} allowDecimals={false} />
         <Tooltip cursor={{ fill: 'var(--color-green-tint)' }} />
-        <Bar dataKey="value" fill="var(--color-primary)" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="value" fill="var(--color-data-fill)" radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -183,7 +183,7 @@ export function Histogram({
         <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} />
         <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} allowDecimals={false} />
         <Tooltip cursor={{ fill: 'var(--color-green-tint)' }} />
-        <Bar dataKey="value" fill="var(--color-primary)" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="value" fill="var(--color-data-fill)" radius={[3, 3, 0, 0]} />
         {markerAt ? (
           <ReferenceLine
             x={markerAt}
@@ -221,7 +221,7 @@ export function TrendLine({
         <Line
           type="monotone"
           dataKey="value"
-          stroke="var(--color-primary)"
+          stroke="var(--color-data-fill)"
           strokeWidth={2}
           dot={false}
         />

@@ -89,7 +89,7 @@ export default function MenuScreen() {
         </View>
       ) : isLoading ? (
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
+          <ActivityIndicator color={color.primaryInk} />
           <Text style={styles.muted}>{t('menu.loading')}</Text>
         </View>
       ) : isError ? (

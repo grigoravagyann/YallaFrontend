@@ -34,7 +34,7 @@ export default function BookingDetailScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
+          <ActivityIndicator color={color.primaryInk} />
         </View>
       </SafeAreaView>
     );
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: space.md,
   },
-  secondaryText: { fontSize: fontSize.md, color: color.primaryPressed },
+  secondaryText: { fontSize: fontSize.md, color: color.primaryInk },
   danger: {
     marginTop: space.md,
     minHeight: touchTarget.minimum + 4,

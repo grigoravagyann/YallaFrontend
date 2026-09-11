@@ -114,7 +114,7 @@ export function CallWaiterSheet({
 
         {call.isPending ? (
           <View style={styles.busyRow}>
-            <ActivityIndicator color={color.primary} />
+            <ActivityIndicator color={color.primaryInk} />
             <Text style={styles.body}>{t('waiter.sending')}</Text>
           </View>
         ) : null}
@@ -134,7 +134,7 @@ export function CallWaiterSheet({
 }
 
 const styles = StyleSheet.create({
-  presetSuggested: { borderColor: color.primary, borderWidth: 2 },
+  presetSuggested: { borderColor: color.primaryInk, borderWidth: 2 },
   backdrop: { flex: 1, backgroundColor: 'rgba(18, 33, 26, 0.45)' },
   sheet: {
     position: 'absolute',

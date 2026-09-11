@@ -95,7 +95,7 @@ export default function SettleScreen() {
           <Text style={styles.muted}>{t('settle.shares.body')}</Text>
 
           {isLoading ? (
-            <ActivityIndicator color={color.primary} />
+            <ActivityIndicator color={color.primaryInk} />
           ) : isError || !shares ? (
             <Text style={styles.muted}>
               {isEndpointNotWired(error) ? t('settle.notWired') : t('settle.error')}
@@ -204,10 +204,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: color.borderStrong,
   },
-  optionOn: { borderColor: color.primary, backgroundColor: color.greenTint },
+  optionOn: { borderColor: color.primaryInk, backgroundColor: color.greenTint },
   optionLocked: { opacity: 0.6 },
   optionTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold },
-  optionTitleOn: { color: color.primary },
+  optionTitleOn: { color: color.primaryInk },
   optionBody: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
   optionBodyOn: { color: color.foreground },
 
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
     borderWidth: 2,
-    borderColor: color.primary,
+    borderColor: color.primaryInk,
   },
-  secondaryText: { color: color.primary, fontWeight: fontWeight.bold },
+  secondaryText: { color: color.primaryInk, fontWeight: fontWeight.bold },
 });

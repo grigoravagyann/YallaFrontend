@@ -22,7 +22,7 @@ import { color } from './color';
  * - `sheet` — `float` mirrored upward, because a bottom sheet rises from the
  *   bottom edge and a downward shadow under it would be invisible.
  */
-// Ink, never the accent. A violet shadow under a white card is a glow, and this
+// Ink, never the accent. A beige shadow under a white card is a glow, and this
 // system has no glows — an object casts the colour of the text beside it.
 const SHADOW_RGB = '19, 26, 34';
 

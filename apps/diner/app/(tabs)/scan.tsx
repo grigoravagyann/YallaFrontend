@@ -192,7 +192,7 @@ export default function ScanScreen() {
 
         {isWorking ? (
           <View style={styles.working}>
-            <ActivityIndicator color={color.primary} />
+            <ActivityIndicator color={color.primaryInk} />
             <Text style={styles.workingText}>{t('scan.working')}</Text>
           </View>
         ) : null}
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
     right: '14%',
     bottom: '18%',
     borderWidth: 3,
-    borderColor: color.primaryForeground,
+    borderColor: color.surface,
     borderRadius: radius.card,
   },
   aiming: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
     marginTop: space.sm,
   },
   linkRowPressed: { opacity: 0.6 },
-  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
+  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryInk },
   working: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm },
   workingText: { fontSize: fontSize.sm, color: color.mutedForeground },
   error: {
