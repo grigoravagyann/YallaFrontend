@@ -22,6 +22,15 @@ beforeEach(() => {
   gateway = createMockGateway({ now: () => NOW });
 });
 
+async function verifiedPhone(): Promise<string> {
+  const challenge = await gateway.requestPhoneCode('+37411223344');
+  const verified = await gateway.verifyPhoneCode({
+    challengeId: challenge.challengeId,
+    code: challenge.devCode ?? '123456',
+  });
+  return verified.phoneE164;
+}
+
 async function verifiedToken(): Promise<string> {
   const challenge = await gateway.requestPhoneCode('+37411223344');
   const verified = await gateway.verifyPhoneCode({
@@ -115,19 +124,19 @@ describe('phone verification', () => {
       expect.unreachable('should have thrown');
     } catch (error) {
       expect(error).toBeInstanceOf(WrongCodeError);
-      expect((error as WrongCodeError).attemptsRemaining).toBe(2);
+      // Five tries, as the server allows: one spent, four left.
+      expect((error as WrongCodeError).attemptsRemaining).toBe(4);
     }
   });
 
   it('burns the challenge after too many attempts, distinctly from a wrong code', async () => {
     const challenge = await gateway.requestPhoneCode('+37411223344');
-    await expect(
-      gateway.verifyPhoneCode({ challengeId: challenge.challengeId, code: '000000' }),
-    ).rejects.toBeInstanceOf(WrongCodeError);
-    await expect(
-      gateway.verifyPhoneCode({ challengeId: challenge.challengeId, code: '000000' }),
-    ).rejects.toBeInstanceOf(WrongCodeError);
-    // Third strike burns it.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(
+        gateway.verifyPhoneCode({ challengeId: challenge.challengeId, code: '000000' }),
+      ).rejects.toBeInstanceOf(WrongCodeError);
+    }
+    // Five wrong tries spend it: the next answer is "too many", not a count.
     await expect(
       gateway.verifyPhoneCode({ challengeId: challenge.challengeId, code: '000000' }),
     ).rejects.toBeInstanceOf(TooManyAttemptsError);
@@ -180,7 +189,10 @@ describe('createBooking', () => {
       tableId: await firstBookableTableId(),
       slotUtc: SLOT,
       partySize: 2,
-      verificationToken: await verifiedToken(),
+      guestPhone: await verifiedPhone(),
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     });
 
     expect(booking.status).toBe('confirmed');
@@ -196,7 +208,10 @@ describe('createBooking', () => {
       tableId: await firstBookableTableId(),
       slotUtc: SLOT,
       partySize: 2,
-      verificationToken: await verifiedToken(),
+      guestPhone: await verifiedPhone(),
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     };
 
     const first = await gateway.createBooking(command);
@@ -204,7 +219,7 @@ describe('createBooking', () => {
 
     expect(second.id).toBe(first.id);
     expect(second.code).toBe(first.code);
-    expect(await gateway.listBookings()).toHaveLength(1);
+    expect((await gateway.listBookings()).upcoming).toHaveLength(1);
   });
 
   it('returns pendingApproval for a party over the limit, not a confirmation', async () => {
@@ -215,7 +230,10 @@ describe('createBooking', () => {
       tableId,
       slotUtc: SLOT,
       partySize: 8,
-      verificationToken: await verifiedToken(),
+      guestPhone: await verifiedPhone(),
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     });
     expect(booking.status).toBe('pendingApproval');
   });
@@ -230,7 +248,7 @@ describe('createBooking', () => {
       });
       const target = availability.find((a) => a.isBookable)!;
       const challenge = await g.requestPhoneCode('+37411223344');
-      const { verificationToken } = await g.verifyPhoneCode({
+      const { phoneE164 } = await g.verifyPhoneCode({
         challengeId: challenge.challengeId,
         code: '123456',
       });
@@ -242,7 +260,10 @@ describe('createBooking', () => {
           tableId: target.tableId,
           slotUtc: SLOT,
           partySize: 2,
-          verificationToken,
+          guestPhone: phoneE164,
+          timeZoneId: 'Asia/Yerevan',
+          guestName: 'Ani',
+          channel: 'app' as const,
         });
         expect.unreachable('should have thrown');
       } catch (error) {
@@ -252,8 +273,8 @@ describe('createBooking', () => {
         expect(taken.tableId).toBe(target.tableId);
         expect(taken.tableLabel).toBe(target.tableLabel);
         // The refreshed floor travels with the error so the UI need not refetch.
-        expect(taken.floor.tables.length).toBeGreaterThan(0);
-        const nowTaken = taken.floor.tables.find((t) => t.id === target.tableId);
+        expect(taken.floor?.tables.length).toBeGreaterThan(0);
+        const nowTaken = taken.floor?.tables.find((t) => t.id === target.tableId);
         expect(nowTaken?.state).not.toBe('free');
       }
     });
@@ -261,7 +282,7 @@ describe('createBooking', () => {
     it('creates no booking when the race is lost', async () => {
       const g = createMockGateway({ now: () => NOW, simulateTableTaken: true });
       const challenge = await g.requestPhoneCode('+37411223344');
-      const { verificationToken } = await g.verifyPhoneCode({
+      const { phoneE164 } = await g.verifyPhoneCode({
         challengeId: challenge.challengeId,
         code: '123456',
       });
@@ -278,11 +299,14 @@ describe('createBooking', () => {
           tableId: availability.find((a) => a.isBookable)!.tableId,
           slotUtc: SLOT,
           partySize: 2,
-          verificationToken,
+          guestPhone: phoneE164,
+          timeZoneId: 'Asia/Yerevan',
+          guestName: 'Ani',
+          channel: 'app' as const,
         }),
       ).rejects.toBeInstanceOf(TableTakenError);
 
-      expect(await g.listBookings()).toHaveLength(0);
+      expect((await g.listBookings()).upcoming).toHaveLength(0);
     });
 
     it('rejects booking a table already booked for that slot', async () => {
@@ -303,7 +327,10 @@ describe('createBooking', () => {
         tableId: target,
         slotUtc: SLOT,
         partySize: 2,
-        verificationToken: await verifiedToken(),
+        guestPhone: await verifiedPhone(),
+        timeZoneId: 'Asia/Yerevan',
+        guestName: 'Ani',
+        channel: 'app' as const,
       });
 
       const availability = await gateway.getTableAvailability({
@@ -325,7 +352,10 @@ describe('createBooking', () => {
           tableId: target,
           slotUtc: SLOT,
           partySize: 2,
-          verificationToken: await verifiedToken(),
+          guestPhone: await verifiedPhone(),
+          timeZoneId: 'Asia/Yerevan',
+          guestName: 'Ani',
+          channel: 'app' as const,
         }),
       ).rejects.toBeInstanceOf(TableTakenError);
     });
@@ -340,7 +370,10 @@ describe('createBooking', () => {
         tableId: await firstBookableTableId(),
         slotUtc: soon,
         partySize: 2,
-        verificationToken: await verifiedToken(),
+        guestPhone: await verifiedPhone(),
+        timeZoneId: 'Asia/Yerevan',
+        guestName: 'Ani',
+        channel: 'app' as const,
       });
       expect.unreachable('should have thrown');
     } catch (error) {
@@ -360,7 +393,10 @@ describe('createBooking', () => {
       tableId,
       slotUtc: SLOT,
       partySize: 2,
-      verificationToken: await verifiedToken(),
+      guestPhone: await verifiedPhone(),
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     });
 
     const after = await gateway.getFloorPlan(BRANCH);
@@ -376,22 +412,26 @@ describe('bookings list and cancellation', () => {
       tableId: await firstBookableTableId(),
       slotUtc: SLOT,
       partySize: 2,
-      verificationToken: await verifiedToken(),
+      guestPhone: await verifiedPhone(),
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     });
   }
 
-  it('lists bookings soonest first', async () => {
+  it('lists an upcoming booking under upcoming, by the server rule', async () => {
     await makeBooking('c1');
-    const list = await gateway.listBookings();
-    expect(list).toHaveLength(1);
-    expect(list[0]?.slotUtc).toBe(SLOT);
+    const { upcoming, past } = await gateway.listBookings();
+    expect(upcoming).toHaveLength(1);
+    expect(past).toHaveLength(0);
+    expect(upcoming[0]?.slotUtc).toBe(SLOT);
   });
 
   it('cancels and frees the table again', async () => {
     const booking = await makeBooking('c2');
     const cancelled = await gateway.cancelBooking(booking.id);
 
-    expect(cancelled.status).toBe('cancelled');
+    expect(cancelled.status).toBe('cancelledByDiner');
     expect(cancelled.cancelledAtUtc).not.toBeNull();
 
     const floor = await gateway.getFloorPlan(BRANCH);
@@ -404,7 +444,7 @@ describe('bookings list and cancellation', () => {
     let clock = new Date(NOW);
     const g = createMockGateway({ now: () => clock });
     const challenge = await g.requestPhoneCode('+37411223344');
-    const { verificationToken } = await g.verifyPhoneCode({
+    const { phoneE164 } = await g.verifyPhoneCode({
       challengeId: challenge.challengeId,
       code: '123456',
     });
@@ -419,11 +459,17 @@ describe('bookings list and cancellation', () => {
       tableId: availability.find((a) => a.isBookable)!.tableId,
       slotUtc: SLOT,
       partySize: 2,
-      verificationToken,
+      guestPhone: phoneE164,
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     });
 
     clock = new Date(new Date(booking.freeCancellationUntilUtc).getTime() + 60_000);
-    await expect(g.cancelBooking(booking.id)).resolves.toMatchObject({ status: 'cancelled' });
+    await expect(g.cancelBooking(booking.id)).resolves.toMatchObject({
+      status: 'cancelledByDiner',
+      cancelledAfterDeadline: true,
+    });
   });
 
   it('sets a free-cancellation deadline before the slot', async () => {

@@ -1,41 +1,61 @@
+import { freeCancellationCopy } from '@yalla/api';
+import { isOfflinePaused } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  Share,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { Text } from '../../src/components/Text';
+import { Modal, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { BookingStatusPill } from '../../src/components/BookingStatusPill';
+import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
+import { Text } from '../../src/components/Text';
 import { useBooking, useCancelBooking } from '../../src/data/queries';
 import { useNow } from '../../src/hooks/useNow';
-import { ReservationActions } from '../../src/push/ReservationActions';
+import { canCancel } from '../../src/lib/bookingActions';
+import { KeepTableAction } from '../../src/push/ReservationActions';
 
+/**
+ * One booking, from the diner's own bookings on the server.
+ *
+ * Where every reservation notification lands. It used to read the in-memory
+ * mock even against a real backend, so a push for a real booking opened a
+ * spinner that never stopped, and the actions on it never rendered.
+ */
 export default function BookingDetailScreen() {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
+  const router = useRouter();
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
-  const { data: booking, isLoading } = useBooking(bookingId);
+  const bookingQuery = useBooking(bookingId);
+  const { data: booking, isLoading, isError, error, refetch } = bookingQuery;
   const cancel = useCancelBooking();
   const [confirming, setConfirming] = useState(false);
   const [failed, setFailed] = useState(false);
   const now = useNow();
 
-  if (isLoading || !booking) {
+  if (!booking) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
-        <View style={styles.centered}>
-          <ActivityIndicator color={color.primaryInk} />
-        </View>
+        {isOfflinePaused(bookingQuery) ? (
+          <QueryFailure offline onRetry={() => void refetch()} />
+        ) : isLoading ? (
+          <QueryLoading label={t('net.loading')} />
+        ) : isError ? (
+          <QueryFailure error={error} onRetry={() => void refetch()} />
+        ) : (
+          <View style={styles.centered}>
+            <Text style={styles.title}>{t('booking.notFound.title')}</Text>
+            <Text style={styles.centeredBody}>{t('booking.notFound.body')}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.replace('/(tabs)/bookings')}
+              style={styles.secondary}
+            >
+              <Text style={styles.secondaryText}>{t('success.viewBookings')}</Text>
+            </Pressable>
+          </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -45,9 +65,17 @@ export default function BookingDetailScreen() {
     booking.timeZoneId,
     locale,
   )}`;
-  const isCancelled = booking.status === 'cancelled';
-  // Past the free window the cancellation is late — but never blocked.
+  const where = booking.venueName ?? booking.branchName;
+  const isCancelled =
+    booking.status === 'cancelledByDiner' || booking.status === 'cancelledByVenue';
+  // The server's deadline. Past it the cancellation is late — but never blocked.
   const isLate = now.getTime() > new Date(booking.freeCancellationUntilUtc).getTime();
+  const cancellation = freeCancellationCopy(
+    booking.freeCancellationUntilUtc,
+    booking.timeZoneId,
+    locale,
+    now,
+  );
 
   const doCancel = async () => {
     setFailed(false);
@@ -68,14 +96,10 @@ export default function BookingDetailScreen() {
         <BookingStatusPill status={booking.status} />
 
         {/*
-          What a notification asked this person to do, decided from the
-          booking's state **now** rather than from the notification. A reminder
-          read the next morning must not offer to cancel a table somebody
-          already sat at. Reads the real reservation endpoint; the rest of this
-          screen is still on the mock because `Booking` carries six fields no
-          reservation view has.
+          "Keep my table", decided from this booking's state now: only once its
+          time has come and before it ends. Renders nothing otherwise.
         */}
-        <ReservationActions reservationId={booking.id} />
+        <KeepTableAction booking={booking} />
 
         <View
           style={[styles.codeCard, booking.status === 'pendingApproval' && styles.codeCardPending]}
@@ -87,28 +111,19 @@ export default function BookingDetailScreen() {
         </View>
 
         <View style={styles.details}>
-          <Text style={styles.venue}>{booking.venueName}</Text>
-          <Text style={styles.detail}>{booking.branchName}</Text>
+          <Text style={styles.venue}>{where}</Text>
+          {booking.venueName ? <Text style={styles.detail}>{booking.branchName}</Text> : null}
           <Text style={styles.detail}>
             {t('bookings.tableAt', { table: booking.tableLabel, branch: booking.branchName })}
           </Text>
           <Text style={styles.detail}>{when}</Text>
           <Text style={styles.detail}>{t('booking.guests', { count: booking.partySize })}</Text>
-        </View>
-
-        {booking.window.untilUtc ? (
-          <Text style={styles.window}>
-            {t('table.heldForYou', {
-              range: `${formatTime(booking.window.fromUtc, booking.timeZoneId, locale)} – ${formatTime(
-                booking.window.untilUtc,
-                booking.timeZoneId,
-                locale,
-              )}`,
+          <Text style={styles.detail}>
+            {t('bookings.detail.until', {
+              time: formatTime(booking.endUtc, booking.timeZoneId, locale),
             })}
           </Text>
-        ) : (
-          <Text style={styles.noLimit}>{t('table.noBookingAfter')}</Text>
-        )}
+        </View>
 
         {isCancelled ? (
           <Text style={styles.detail}>
@@ -120,13 +135,9 @@ export default function BookingDetailScreen() {
               ),
             })}
           </Text>
-        ) : (
-          <Text style={styles.detail}>
-            {t('table.freeCancellation', {
-              time: formatTime(booking.freeCancellationUntilUtc, booking.timeZoneId, locale),
-            })}
-          </Text>
-        )}
+        ) : canCancel(booking.status) ? (
+          <Text style={styles.detail}>{t(cancellation.key, cancellation.params)}</Text>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -134,7 +145,7 @@ export default function BookingDetailScreen() {
             void Share.share({
               message: t('success.shareMessage', {
                 table: booking.tableLabel,
-                venue: booking.venueName,
+                venue: where,
                 branch: booking.branchName,
                 time: when,
                 code: booking.code,
@@ -146,7 +157,9 @@ export default function BookingDetailScreen() {
           <Text style={styles.secondaryText}>{t('success.share')}</Text>
         </Pressable>
 
-        {!isCancelled ? (
+        {/* One cancel, and only while the booking still holds a table — what
+            the server will accept. */}
+        {canCancel(booking.status) ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => setConfirming(true)}
@@ -207,7 +220,19 @@ export default function BookingDetailScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: color.paper },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.md,
+    padding: space.xl,
+  },
+  centeredBody: {
+    fontSize: fontSize.md,
+    lineHeight: lineHeight.md,
+    color: color.mutedForeground,
+    textAlign: 'center',
+  },
   body: { padding: space.xl, gap: space.sm },
   title: {
     fontSize: fontSize.xxl,
@@ -236,8 +261,6 @@ const styles = StyleSheet.create({
   details: { marginTop: space.lg, gap: 2 },
   venue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
   detail: { fontSize: fontSize.md, color: color.mutedForeground },
-  window: { marginTop: space.md, fontSize: fontSize.md, color: color.foreground },
-  noLimit: { marginTop: space.md, fontSize: fontSize.md, color: color.success },
   secondary: {
     minHeight: touchTarget.minimum,
     alignItems: 'center',

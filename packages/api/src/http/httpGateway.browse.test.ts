@@ -149,6 +149,25 @@ describe('browse over /api/public/venues', () => {
     await expect(gateway.getVenue('closed-for-good')).resolves.toBeNull();
   });
 
+  it('reads how far ahead and how soon a branch books from its public page', async () => {
+    const backend = fakeBackend({
+      'GET /api/public/branches/lumen-coffee/northern-avenue': {
+        body: { bookingWindowDays: 30, policy: { minLeadMinutes: 45 } },
+      },
+    });
+    const gateway = createHttpGateway(backend.client(), {
+      audience: 'diner',
+      fallback: createMockGateway(),
+    });
+
+    await expect(
+      gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'northern-avenue' }),
+    ).resolves.toEqual({ bookingWindowDays: 30, minLeadMinutes: 45 });
+    await expect(
+      gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'gone' }),
+    ).resolves.toBeNull();
+  });
+
   it('keeps getVenue working when the method is called unbound', async () => {
     const { gateway } = gatewayOver(CARDS);
     const { getVenue } = gateway;

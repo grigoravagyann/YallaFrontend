@@ -15,7 +15,7 @@ import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { TableSheet } from '../../src/components/TableSheet';
 import { Text } from '../../src/components/Text';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
-import { useSlotFloor, useVenue } from '../../src/data/queries';
+import { useBookingRules, useSlotFloor, useVenue } from '../../src/data/queries';
 import { branchZoneSource } from '../../src/lib/browse';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
@@ -40,6 +40,7 @@ export default function BranchFloorPlanScreen() {
 
   // Set by the confirm screen when it pops back after a 409.
   const conflictLabel = useConflict((c) => c.takenTableLabel);
+  const conflictReason = useConflict((c) => c.takenReason);
   const clearConflict = useConflict((c) => c.clear);
 
   const [booking, setBooking] = useState<BookingContext>(() => ({
@@ -71,6 +72,11 @@ export default function BranchFloorPlanScreen() {
   });
   const zoneQuery = useBranchTimeZone(zoneSource.lookup ? branchId : undefined);
   const timeZoneId = zoneSource.zone ?? zoneQuery.data ?? null;
+
+  // How far ahead and how soon, so the pickers offer only what the branch takes.
+  const rulesQuery = useBookingRules(
+    branchSummary ? { venueSlug: branchSummary.venueId, branchSlug: branchSummary.slug } : null,
+  );
 
   /*
    * One question, one answer: the room **as it will be at the slot**, and every
@@ -122,7 +128,9 @@ export default function BranchFloorPlanScreen() {
   const handleReserve = useCallback(
     (tableId: string) => {
       setSheetTableId(null);
-      const verified = useSession.getState().verificationToken !== null;
+      // A restored session counts: a returning diner is not sent through an
+      // SMS code again for a number the keychain still vouches for.
+      const verified = useSession.getState().signedIn;
       const forward = {
         branchId: branchId ?? '',
         venueId: venueId ?? '',
@@ -216,6 +224,8 @@ export default function BranchFloorPlanScreen() {
         }}
         timeZoneId={zone}
         locale={locale}
+        windowDays={rulesQuery.data?.bookingWindowDays}
+        leadMinutes={rulesQuery.data?.minLeadMinutes}
       />
 
       <View style={styles.legendWrap}>
@@ -224,7 +234,12 @@ export default function BranchFloorPlanScreen() {
 
       {conflictLabel ? (
         <Text style={styles.conflict}>
-          {t('confirm.error.tableTaken', { label: conflictLabel })}
+          {t(
+            conflictReason === 'occupied'
+              ? 'confirm.error.tableOccupied'
+              : 'confirm.error.tableTaken',
+            { label: conflictLabel },
+          )}
         </Text>
       ) : rejection ? (
         <Text style={styles.conflict} accessibilityRole="alert">

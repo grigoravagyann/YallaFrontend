@@ -73,8 +73,11 @@ export type {
   BookingStatus,
   BranchPolicy,
   BranchSummary,
+  BookingChannel,
+  BookingRules,
   CreateBookingCommand,
   KnownTableUnavailableReason,
+  MyBookings,
   PhoneChallenge,
   SlotFloor,
   TableAvailability,
@@ -129,8 +132,14 @@ export type {
 } from './contracts/reports';
 
 export {
+  BookingBusyError,
+  BookingCommandInUseError,
+  BookingRejectedError,
+  BranchUnavailableError,
   EndpointNotWiredError,
   ExpiredCodeError,
+  ExtensionsNotOfferedError,
+  HoldNotActiveError,
   LeadTimeExceededError,
   NotTabHostError,
   RateLimitedError,

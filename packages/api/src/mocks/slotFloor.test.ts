@@ -87,7 +87,10 @@ describe('a table free now, booked at 20:00', () => {
       tableId: free!.id,
       slotUtc: TOMORROW_EVENING,
       partySize: 2,
-      verificationToken: verified.verificationToken,
+      guestPhone: verified.phoneE164,
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     });
 
     const slot = await gateway.getSlotFloor({
@@ -134,7 +137,10 @@ describe('a table free now, booked at 20:00', () => {
       tableId: free!.id,
       slotUtc: TOMORROW_EVENING,
       partySize: 2,
-      verificationToken: verified.verificationToken,
+      guestPhone: verified.phoneE164,
+      timeZoneId: 'Asia/Yerevan',
+      guestName: 'Ani',
+      channel: 'app' as const,
     });
 
     // Three hours earlier: a 90-minute sitting ends well before 20:00.

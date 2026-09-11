@@ -60,7 +60,13 @@
     "cancel": "Cancel",
     "pickDate": "Pick a date",
     "pickTime": "Pick a time",
-    "pickPartySize": "How many guests?"
+    "pickPartySize": "How many guests?",
+    "tomorrow": "Tomorrow",
+    "notFound": {
+      "title": "We could not find that booking",
+      "body": "It may have been made with another number, or on another phone."
+    },
+    "noTimesLeft": "No times left to book on this day. Pick another day."
   },
   "floorPlan": {
     "title": "Pick a table",
@@ -80,9 +86,12 @@
     "status": {
       "confirmed": "Confirmed",
       "pendingApproval": "Awaiting venue",
-      "cancelled": "Cancelled",
       "completed": "Completed",
-      "noShow": "Missed"
+      "noShow": "Missed",
+      "seated": "Seated",
+      "cancelledByDiner": "Cancelled",
+      "cancelledByVenue": "Cancelled by the venue",
+      "unknown": "Changed"
     },
     "tableAt": "Table {{table}} · {{branch}}",
     "empty": {
@@ -105,7 +114,13 @@
       "cancelKeep": "Keep it",
       "cancelling": "Cancelling…",
       "cancelFailed": "We could not cancel that. Try again.",
-      "cancelledOn": "Cancelled {{date}}"
+      "cancelledOn": "Cancelled {{date}}",
+      "until": "Until {{time}}"
+    },
+    "signedOut": {
+      "title": "Your bookings are kept under your number",
+      "body": "Confirm your number to see them.",
+      "action": "Confirm my number"
     }
   },
   "profile": {
@@ -137,7 +152,9 @@
       "invalidTime": "That time does not exist on this date — the clocks change.",
       "other": "Not available at that time: {{reason}}."
     },
-    "close": "Close"
+    "close": "Close",
+    "freeCancellationOn": "Free cancellation until {{time}} on {{date}}",
+    "freeCancellationPassed": "The free-cancellation time has passed. Cancelling still helps the venue."
   },
   "verify": {
     "phoneTitle": "Your phone number",
@@ -157,7 +174,10 @@
       "tooManyAttempts": "Too many tries. Ask for a new code.",
       "rateLimited": "Too many codes requested. Try again after {{time}}.",
       "network": "No connection. Check your signal and try again.",
-      "generic": "Something went wrong. Try again."
+      "generic": "Something went wrong. Try again.",
+      "wrongCodeNoCount": "That code is not right. Check it and try again.",
+      "codeSpent": "That code has had too many tries. Ask for a new one.",
+      "rateLimitedNoTime": "Too many codes asked for. Try again a little later."
     },
     "changeNumber": "Use a different number"
   },
@@ -175,9 +195,21 @@
     "error": {
       "tableTaken": "Table {{label}} was just taken. Here is what is free now.",
       "leadTime": "That time is too soon now. The earliest we can book is {{time}}.",
-      "network": "No connection. Your booking was not made — nothing was held.",
-      "generic": "We could not complete that. Nothing was booked."
-    }
+      "generic": "We could not complete that. Nothing was booked.",
+      "tableOccupied": "Someone has just sat down at table {{label}}. Here is what is free now.",
+      "busy": "Someone else is booking that table this second. Tap confirm again.",
+      "commandInUse": "That attempt could not be used. Tap confirm to try again.",
+      "branchUnavailable": "This venue is not taking bookings right now.",
+      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice."
+    },
+    "checkAgain": "Check again",
+    "nameLabel": "Name for the booking",
+    "namePlaceholder": "The name the venue asks for at the door",
+    "loading": "Checking the table…",
+    "tableError": "We could not check this table. Try again.",
+    "tableMissing": "That table is not on the plan any more. Go back and pick another.",
+    "phoneMissing": "We need to confirm your number before booking.",
+    "verifyNumber": "Confirm my number"
   },
   "success": {
     "confirmedTitle": "Table booked",
@@ -520,7 +552,10 @@
         "cancelledByVenue": "The restaurant cancelled this booking.",
         "noShow": "This booking was marked as a no-show.",
         "unknown": "This booking is no longer one you can change here."
-      }
+      },
+      "holdNotActive": "Your table is held from the booking time. You can ask to keep it once it starts.",
+      "extensionsNotOffered": "This venue does not hold tables for late arrivals. Call them if you are running late.",
+      "keepTableHint": "Running late? Let them know once, and the table is held a little longer."
     }
   }
 }

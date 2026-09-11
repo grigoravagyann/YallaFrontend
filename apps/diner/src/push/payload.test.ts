@@ -131,7 +131,8 @@ const BRANCH = 'b-lumen-north';
 const SLOT = new Date('2026-09-04T18:00:00Z').toISOString();
 
 async function aConfirmedBooking() {
-  const gateway = createMockGateway({ now: () => NOW, latencyMs: 0, simulateJoiners: false });
+  let clock = NOW;
+  const gateway = createMockGateway({ now: () => clock, latencyMs: 0, simulateJoiners: false });
 
   const challenge = await gateway.requestPhoneCode('+37411223344');
   const verified = await gateway.verifyPhoneCode({
@@ -153,11 +154,19 @@ async function aConfirmedBooking() {
     tableId: table!.tableId,
     slotUtc: SLOT,
     partySize: 2,
-    verificationToken: verified.verificationToken,
+    guestPhone: verified.phoneE164,
+    timeZoneId: 'Asia/Yerevan',
+    guestName: 'Ani',
+    channel: 'app',
   });
   expect(booking.status).toBe('confirmed');
 
-  return { gateway, booking };
+  /** Five minutes after the start: late, which is when a table is held longer. */
+  const arrive = () => {
+    clock = new Date(Date.parse(SLOT) + 5 * 60_000);
+  };
+
+  return { gateway, booking, arrive };
 }
 
 // --- Test 7, second half: a stale action --------------------------------------
@@ -202,8 +211,28 @@ describe('an action offered against a booking that has moved on', () => {
 // --- Test 6: extend-hold, refused the second time -----------------------------
 
 describe('extending a hold', () => {
+  it('is refused before the booking starts, and spends nothing', async () => {
+    const { gateway, booking, arrive } = await aConfirmedBooking();
+
+    // Three and a half hours early: there is no held table to keep yet.
+    const early = await gateway
+      .extendReservationHold({ reservationId: booking.id, clientCommandId: 'early-tap' })
+      .then(
+        () => null,
+        (error: unknown) => error as Error,
+      );
+    expect(early?.name).toBe('HoldNotActiveError');
+
+    // And the one extension is still there once they are actually late.
+    arrive();
+    await expect(
+      gateway.extendReservationHold({ reservationId: booking.id, clientCommandId: 'late-tap' }),
+    ).resolves.toMatchObject({ wasReplay: false });
+  });
+
   it('works once', async () => {
-    const { gateway, booking } = await aConfirmedBooking();
+    const { gateway, booking, arrive } = await aConfirmedBooking();
+    arrive();
 
     const outcome = await gateway.extendReservationHold({
       reservationId: booking.id,
@@ -221,7 +250,8 @@ describe('extending a hold', () => {
     // A notification is tappable twice, and the second tap on a bad connection
     // is a retry, not a second request. Reusing the command id is what keeps
     // those apart — the server answers with the original result.
-    const { gateway, booking } = await aConfirmedBooking();
+    const { gateway, booking, arrive } = await aConfirmedBooking();
+    arrive();
     const clientCommandId = '22222222-2222-4222-8222-222222222222';
 
     const first = await gateway.extendReservationHold({
@@ -239,7 +269,8 @@ describe('extending a hold', () => {
   });
 
   it('refuses a genuine second attempt with the specific error, not a generic one', async () => {
-    const { gateway, booking } = await aConfirmedBooking();
+    const { gateway, booking, arrive } = await aConfirmedBooking();
+    arrive();
 
     await gateway.extendReservationHold({
       reservationId: booking.id,

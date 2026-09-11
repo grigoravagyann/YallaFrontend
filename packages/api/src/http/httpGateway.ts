@@ -2,15 +2,31 @@ import type { FloorPlanData } from '@yalla/floorplan/types';
 import { createDinerAuth, type DinerAuth } from '../auth/endpoints';
 import type { AuthSession } from '../auth/session';
 import type { ApiClient } from '../client';
-import type { PhoneChallenge, VenueSummary, VerifiedPhone } from '../contracts/booking';
+import type {
+  Booking,
+  CreateBookingCommand,
+  MyBookings,
+  PhoneChallenge,
+  TableUnavailableReason,
+  VenueSummary,
+  VerifiedPhone,
+} from '../contracts/booking';
 import type { WaiterCall, WaiterCallReason } from '../contracts/tab';
 import {
+  BookingBusyError,
+  BookingCommandInUseError,
+  BookingRejectedError,
+  BranchUnavailableError,
   ExpiredCodeError,
+  ExtensionsNotOfferedError,
   HoldAlreadyExtendedError,
+  HoldNotActiveError,
+  LeadTimeExceededError,
   MenuItemUnavailableError,
   NotTabHostError,
   RateLimitedError,
   TabNotAcceptingOrdersError,
+  TableTakenError,
   TooManyAttemptsError,
   WrongCodeError,
 } from '../contracts/errors';
@@ -32,7 +48,7 @@ import {
   localDateTime,
 } from './mapping';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
-import { dinerTab, reservationState, settlementModeCode } from './dinerMapping';
+import { booking, dinerTab, reservationState, settlementModeCode } from './dinerMapping';
 import { venueSummariesFromCards } from './publicMapping';
 import { branchMenu, placeOrderResult, tabEventPage, tabShares } from './staffMapping';
 
@@ -69,6 +85,24 @@ export interface HttpGatewayOptions {
 /** Resend is allowed once the backend's code-request window has passed. */
 const RESEND_AFTER_MS = 60_000;
 
+/** `ReservationChannel`: 1 App, 2 Web. */
+const CHANNEL_CODE = { app: 1, web: 2 } as const;
+
+/**
+ * Every 422 `reservation-*` refusal, in the table sheet's vocabulary, so the
+ * confirm screen says the sentence the sheet would have said. The lead-time
+ * one is handled apart because it carries the earliest time that still works.
+ */
+const REJECTION_REASON: Readonly<Record<string, TableUnavailableReason>> = {
+  'reservation-outside-booking-window': 'tooFarAhead',
+  'reservation-outside-opening-hours': 'closed',
+  'reservation-party-exceeds-capacity': 'tooSmall',
+  'reservation-seat-overhang-exceeded': 'tooLarge',
+  'reservation-table-not-bookable': 'notBookable',
+  'reservation-table-out-of-service': 'outOfService',
+  'reservation-local-time-does-not-exist': 'invalidTime',
+};
+
 /** `ServiceRequestPreset`: 1 Napkins, 2 Water, 3 TheBill, 4 Other. */
 const SERVICE_PRESET_CODE: Readonly<Record<WaiterCallReason, 1 | 2 | 3 | 4>> = {
   napkins: 1,
@@ -101,7 +135,131 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       '/api/public/venues',
       { skipAuth: true },
     );
-    return venueSummariesFromCards(data ?? []);
+    const venues = venueSummariesFromCards(data ?? []);
+    for (const venue of venues) {
+      for (const branch of venue.branches) venueNames.set(branch.id, venue.name);
+    }
+    return venues;
+  }
+
+  /**
+   * Branch id to venue name, from the last browse read.
+   *
+   * `ReservationView` names the branch and not the venue. Rather than invent
+   * one, a booking carries the venue name this device has actually seen, and
+   * `null` until it has seen one.
+   */
+  const venueNames = new Map<string, string>();
+
+  function toBooking(view: Schemas['Yalla.Application.Reservations.ReservationView']): Booking {
+    return booking(view, venueNames.get(view.branchId) ?? null);
+  }
+
+  type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'];
+
+  /** `GET /api/reservations/mine`, as the wire has it. */
+  async function mineViews(): Promise<readonly ReservationViewWire[][]> {
+    const { data } =
+      await client.get<Schemas['Yalla.Application.Reservations.MyReservations']>(
+        '/api/reservations/mine',
+      );
+    return [data.upcoming ?? [], data.past ?? []];
+  }
+
+  /** The caller's bookings, split upcoming and past **by the server**. */
+  async function mine(): Promise<MyBookings> {
+    const [upcoming = [], past = []] = await mineViews();
+    return { upcoming: upcoming.map(toBooking), past: past.map(toBooking) };
+  }
+
+  async function findMineView(reservationId: string): Promise<ReservationViewWire | null> {
+    const [upcoming = [], past = []] = await mineViews();
+    return [...upcoming, ...past].find((entry) => entry.id === reservationId) ?? null;
+  }
+
+  async function findMine(reservationId: string): Promise<Booking | null> {
+    const view = await findMineView(reservationId);
+    return view ? toBooking(view) : null;
+  }
+
+  /**
+   * A refused booking, as the error the confirm screen branches on.
+   *
+   * Every code the create route answers with gets its own type, because each
+   * has a different next step: a taken table sends the diner back to the room
+   * (with the room from the 409, when it came), a lead-time refusal names the
+   * earliest time that works, a rule names itself, a lock timeout asks for
+   * another tap with the same command id. Anything else is rethrown as the
+   * client mapped it, and the screen treats it as an unknown outcome.
+   */
+  function rethrowBooking(error: unknown, command: CreateBookingCommand): never {
+    if (!(error instanceof ApiError) || !error.problem) throw error;
+    const context = error.problem.context ?? {};
+    const code = error.problem.code;
+    const base = { url: error.url, requestId: error.requestId };
+
+    switch (code) {
+      case 'table-currently-occupied':
+      case 'table-already-booked': {
+        const room = context['availability'] as
+          Schemas['Yalla.Application.Reservations.BranchAvailability'] | undefined;
+        throw new TableTakenError({
+          ...base,
+          tableId: String(context['tableId'] ?? command.tableId),
+          tableLabel: String(context['tableLabel'] ?? ''),
+          reason: code === 'table-currently-occupied' ? 'occupied' : 'alreadyBooked',
+          floor: room && Array.isArray(room.tables) ? floorFromAvailability(room) : null,
+        });
+      }
+      case 'reservation-lead-time-too-short':
+        throw new LeadTimeExceededError({
+          ...base,
+          leadTimeMinutes: Number(context['minLeadMinutes'] ?? 0),
+          earliestSlotUtc: String(context['earliestStartUtc'] ?? ''),
+        });
+      case 'reservation-lock-timeout':
+        throw new BookingBusyError(base);
+      case 'client-command-id-in-use':
+        throw new BookingCommandInUseError(base);
+      case 'branch-unavailable':
+        throw new BranchUnavailableError(base);
+      default:
+        if (code && error.status === 422 && code.startsWith('reservation-')) {
+          throw new BookingRejectedError({
+            ...base,
+            reason: REJECTION_REASON[code] ?? code,
+            partySize: command.partySize,
+          });
+        }
+        throw error;
+    }
+  }
+
+  /**
+   * `POST /api/reservations/{id}/cancel`, with the one retry rule it needs.
+   *
+   * Already cancelled is the outcome the diner asked for. This endpoint takes
+   * no `clientCommandId`, so a retry after a lost response is
+   * indistinguishable from a second tap, and both land as a 409. Reading the
+   * booking back and reporting success when it is genuinely cancelled is the
+   * honest resolution; reporting a conflict would tell somebody their
+   * cancellation failed when it did not.
+   */
+  async function cancelView(reservationId: string, reason?: string): Promise<ReservationViewWire> {
+    try {
+      const { data } = await client.post<ReservationViewWire>(
+        `/api/reservations/${reservationId}/cancel`,
+        reason ? { reason } : {},
+      );
+      return data;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        const current = await findMineView(reservationId);
+        // 6 CancelledByDiner, 7 CancelledByVenue.
+        if (current && (current.status === 6 || current.status === 7)) return current;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -165,6 +323,23 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       return venues.find((venue) => venue.id === venueId) ?? null;
     },
 
+    /** `GET /api/public/branches/{venueSlug}/{branchSlug}`: the window and the lead time. */
+    async getBookingRules({ venueSlug, branchSlug }) {
+      try {
+        const { data } = await client.get<Schemas['Yalla.Application.Public.PublicBranchPage']>(
+          `/api/public/branches/${venueSlug}/${branchSlug}`,
+          { skipAuth: true },
+        );
+        return {
+          bookingWindowDays: data.bookingWindowDays,
+          minLeadMinutes: data.policy.minLeadMinutes,
+        };
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
     // --- Floor ----------------------------------------------------------------
 
     async getFloorPlan(branchId): Promise<FloorPlanData | null> {
@@ -214,9 +389,14 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     // --- Phone verification: the diner sign-in ---------------------------------
 
-    async requestPhoneCode(phoneE164): Promise<PhoneChallenge> {
+    async requestPhoneCode(phoneE164, options): Promise<PhoneChallenge> {
       try {
-        const result = await dinerAuth.requestCode({ phoneE164 });
+        // The diner's language, so the SMS arrives in it rather than in the
+        // server's default.
+        const result = await dinerAuth.requestCode({
+          phoneE164,
+          ...(options?.localeCode ? { localeCode: options.localeCode } : {}),
+        });
         const now = Date.now();
         return {
           // The backend keys the challenge on the number itself.
@@ -224,22 +404,32 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           phoneE164,
           expiresAtUtc: new Date(now + result.expiresInSeconds * 1000).toISOString(),
           resendAvailableAtUtc: new Date(now + RESEND_AFTER_MS).toISOString(),
+          maxAttempts: result.maxAttempts,
           devCode: result.developmentCode ?? undefined,
         };
       } catch (error) {
         if (error instanceof TooManyRequestsError) {
+          // Only a time the server gave. The per-number window is an hour and
+          // sends no Retry-After; the per-address one sends it.
           throw new RateLimitedError({
             url: error.url,
-            retryAtUtc: new Date(Date.now() + RESEND_AFTER_MS).toISOString(),
+            retryAtUtc:
+              error.retryAfterSeconds !== null
+                ? new Date(Date.now() + error.retryAfterSeconds * 1000).toISOString()
+                : null,
           });
         }
         throw error;
       }
     },
 
-    async verifyPhoneCode({ challengeId, code }): Promise<VerifiedPhone> {
+    async verifyPhoneCode({ challengeId, code, localeCode }): Promise<VerifiedPhone> {
       try {
-        const result = await dinerAuth.verifyCode({ phoneE164: challengeId, code });
+        const result = await dinerAuth.verifyCode({
+          phoneE164: challengeId,
+          code,
+          ...(localeCode ? { localeCode } : {}),
+        });
         await auth?.signIn({
           accessToken: result.accessToken,
           refreshToken: result.refreshToken,
@@ -255,10 +445,12 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         // 401 covers both "wrong" and "expired"; the code slug tells them apart.
         if (error instanceof UnauthorizedError) {
           if (error.code?.includes('expired')) throw new ExpiredCodeError({ url: error.url });
+          // What the server said is left, and nothing when it said nothing:
+          // defaulting to 0 read "0 attempts left" after the first slip.
           const remaining = error.problem?.context?.['attemptsRemaining'];
           throw new WrongCodeError({
             url: error.url,
-            attemptsRemaining: typeof remaining === 'number' ? remaining : 0,
+            attemptsRemaining: typeof remaining === 'number' ? remaining : null,
           });
         }
         if (error instanceof TooManyRequestsError)
@@ -281,14 +473,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     // `getBranchTimeZone` above is the one piece that could be extracted
     // honestly, and it is.
     //
-    // Bookings are the same shape of gap in the other direction: the endpoints
-    // exist and are close, but reconciling `Booking` against `ReservationView`
-    // is a task of its own and not this one's.
 
-    createBooking: (command) => fallback.createBooking(command),
-    listBookings: () => fallback.listBookings(),
-    getBooking: (bookingId) => fallback.getBooking(bookingId),
-    cancelBooking: (bookingId) => fallback.cancelBooking(bookingId),
     scanTableCode: (command) => fallback.scanTableCode(command),
     getTab: (tabId) => fallback.getTab(tabId),
     leaveTab: (input) => fallback.leaveTab(input),
@@ -322,6 +507,48 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       };
     },
 
+    // --- Bookings ---------------------------------------------------------------
+    //
+    // Real, all four. They were answered by the mock even against a real
+    // backend, so no reservation ever reached it.
+
+    /**
+     * `POST /api/reservations`, in the branch's wall-clock date and time.
+     *
+     * The server answers 201 for a new booking and 200 for a replay of the same
+     * `clientCommandId`, with the same body; both are a booking.
+     */
+    async createBooking(command): Promise<Booking> {
+      const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
+      try {
+        const { data } = await client.post<
+          Schemas['Yalla.Application.Reservations.ReservationView']
+        >('/api/reservations', {
+          branchId: command.branchId,
+          tableId: command.tableId,
+          date,
+          time,
+          partySize: command.partySize,
+          guestName: command.guestName,
+          guestPhone: command.guestPhone,
+          clientCommandId: command.commandId,
+          channel: CHANNEL_CODE[command.channel],
+        } satisfies Schemas['Yalla.Api.Endpoints.CreateReservationRequest']);
+        return toBooking(data);
+      } catch (error) {
+        rethrowBooking(error, command);
+      }
+    },
+
+    listBookings: mine,
+
+    /** There is no `GET /api/reservations/{id}`; `/mine` is the read. */
+    getBooking: findMine,
+
+    async cancelBooking(bookingId): Promise<Booking> {
+      return toBooking(await cancelView(bookingId));
+    },
+
     // --- Notifications --------------------------------------------------------
 
     async registerPushDevice({ pushToken, platform, locale }): Promise<{ deviceId: string }> {
@@ -337,40 +564,13 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       // There is no `GET /api/reservations/{id}`. `/mine` is the only read, and
       // it is scoped to the caller — which is the right scope for this, since a
       // notification only ever lands on the diner's own booking.
-      const { data } =
-        await client.get<Schemas['Yalla.Application.Reservations.MyReservations']>(
-          '/api/reservations/mine',
-        );
-      const all = [...(data.upcoming ?? []), ...(data.past ?? [])];
-      const found = all.find((reservation) => reservation.id === reservationId);
+      const found = await findMineView(reservationId);
       return found ? reservationState(found) : null;
     },
 
+    /** The lock-screen cancel. Same route, same already-cancelled rule, as the screen's. */
     async cancelReservation({ reservationId, reason }): Promise<ReservationState> {
-      try {
-        const { data } = await client.post<
-          Schemas['Yalla.Application.Reservations.ReservationView']
-        >(`/api/reservations/${reservationId}/cancel`, reason ? { reason } : {});
-        return reservationState(data);
-      } catch (error) {
-        // Already cancelled is the outcome the diner asked for.
-        //
-        // This endpoint takes no `clientCommandId`, so a retry after a lost
-        // response is indistinguishable from a second tap, and both land as a
-        // 409. Reading the booking back and reporting success when it is
-        // genuinely cancelled is the honest resolution; reporting a conflict
-        // would tell somebody their cancellation failed when it did not.
-        if (error instanceof ApiError && error.status === 409) {
-          const current = await this.getReservationState(reservationId);
-          if (
-            current &&
-            (current.status === 'cancelledByDiner' || current.status === 'cancelledByVenue')
-          ) {
-            return current;
-          }
-        }
-        throw error;
-      }
+      return reservationState(await cancelView(reservationId, reason));
     },
 
     async extendReservationHold({ reservationId, clientCommandId }): Promise<ExtendHoldOutcome> {
@@ -388,17 +588,22 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           wasReplay: data.wasReplay,
         };
       } catch (error) {
-        // See `HoldAlreadyExtendedError`: the server gives prose and the generic
-        // `conflicting-state`, so this is an inference from the endpoint rather
-        // than a code. It is the right one on the nudge's path, and it is the
-        // difference between "you have already let them know" and "error".
+        // Each refusal by its own code. This used to read every 409 as "already
+        // extended", which told a diner at a branch that offers no extensions —
+        // or one tapping days early — that they had already let them know.
         if (error instanceof ApiError && error.status === 409) {
-          throw new HoldAlreadyExtendedError({
-            url: error.url,
-            reservationId,
-            serverDetail: error.problem?.detail ?? null,
-            requestId: error.requestId,
-          });
+          const base = { url: error.url, reservationId, requestId: error.requestId };
+          switch (error.problem?.code) {
+            case 'hold-already-extended':
+              throw new HoldAlreadyExtendedError({
+                ...base,
+                serverDetail: error.problem.detail ?? null,
+              });
+            case 'hold-not-active':
+              throw new HoldNotActiveError(base);
+            case 'extensions-not-offered':
+              throw new ExtensionsNotOfferedError(base);
+          }
         }
         throw error;
       }

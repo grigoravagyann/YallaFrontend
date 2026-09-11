@@ -5,6 +5,7 @@ import type {
   BookingStatus,
   BranchPolicy,
   CreateBookingCommand,
+  MyBookings,
   PhoneChallenge,
   SlotFloor,
   TableAvailability,
@@ -14,8 +15,10 @@ import type {
 } from '../contracts/booking';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
+  BookingRejectedError,
   ExpiredCodeError,
   HoldAlreadyExtendedError,
+  HoldNotActiveError,
   LeadTimeExceededError,
   RateLimitedError,
   TableTakenError,
@@ -40,7 +43,8 @@ import type {
   TabShares,
 } from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
-import { NotFoundError } from '../errors';
+import { ConcurrencyConflictError, NotFoundError } from '../errors';
+import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
 import { mockMenuFor } from './menu';
 import { createTabWorld, type TableLocation } from './tabs';
@@ -60,7 +64,8 @@ const DEFAULT_POLICY: BranchPolicy = {
   freeCancellationMinutes: 120,
 };
 
-const MAX_CODE_ATTEMPTS = 3;
+/** The server's `MaxAttempts`. Three here let a flow burn a code two tries early. */
+const MAX_CODE_ATTEMPTS = 5;
 const CODE_TTL_MS = 10 * 60_000;
 const RESEND_AFTER_MS = 30_000;
 const MAX_CODES_PER_NUMBER = 5;
@@ -127,36 +132,22 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
    * thing keeps the mock honest about what a real notification landing can read.
    */
   function toReservationState(booking: Booking): ReservationState {
-    const status: ReservationState['status'] =
-      booking.status === 'cancelled'
-        ? 'cancelledByDiner'
-        : booking.status === 'pendingApproval'
-          ? 'pendingApproval'
-          : booking.status === 'confirmed'
-            ? 'confirmed'
-            : 'unknown';
-
+    const local = localDateTime(booking.slotUtc, booking.timeZoneId);
     return {
       reservationId: booking.id,
       code: booking.code,
-      status,
+      status: booking.status,
       branchId: booking.branchId,
       branchName: booking.branchName,
       tableLabel: booking.tableLabel,
       partySize: booking.partySize,
       startUtc: booking.slotUtc,
-      // `AvailabilityWindowDto.untilUtc` is nullable — the window is unbounded
-      // when nothing is booked after. The wire's `endUtc` is always set (start
-      // plus the branch's turn time), so fall back to the slot itself rather
-      // than emitting an empty string.
-      endUtc: booking.window.untilUtc ?? booking.slotUtc,
-      localDate: booking.slotUtc.slice(0, 10),
-      localStartTime: booking.slotUtc.slice(11, 16),
+      endUtc: booking.endUtc,
+      localDate: local.date,
+      localStartTime: local.time,
       timeZoneId: booking.timeZoneId,
       cancelledAtUtc: booking.cancelledAtUtc,
-      cancelledAfterDeadline:
-        booking.cancelledAtUtc !== null &&
-        Date.parse(booking.cancelledAtUtc) > Date.parse(booking.freeCancellationUntilUtc),
+      cancelledAfterDeadline: booking.cancelledAfterDeadline,
     };
   }
   const challenges = new Map<string, Challenge>();
@@ -463,6 +454,15 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return publishedVenues().find((venue) => venue.id === venueId) ?? null;
     },
 
+    async getBookingRules({ venueSlug, branchSlug }) {
+      await wait();
+      const venue = mockVenues.find((v) => publicVenueFixtures[v.id]?.slug === venueSlug);
+      const branch = venue?.branches.find((b) => publicBranchFixtures[b.id]?.slug === branchSlug);
+      return branch
+        ? { bookingWindowDays: BOOKING_WINDOW_DAYS, minLeadMinutes: DEFAULT_POLICY.leadTimeMinutes }
+        : null;
+    },
+
     async getFloorPlan(branchId) {
       await wait();
       return floors.get(branchId) ?? null;
@@ -483,7 +483,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return slotFloorFor(branchId, slotUtc, partySize);
     },
 
-    async requestPhoneCode(phoneE164) {
+    async requestPhoneCode(phoneE164, _options) {
       await wait();
       const stamps = (codesPerNumber.get(phoneE164) ?? []).filter(
         (t) => now().getTime() - t < 60 * 60_000,
@@ -514,6 +514,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         phoneE164,
         expiresAtUtc: new Date(challenge.expiresAt).toISOString(),
         resendAvailableAtUtc: new Date(challenge.resendAt).toISOString(),
+        maxAttempts: MAX_CODE_ATTEMPTS,
         // Mirrors the real backend outside production. The UI additionally
         // gates rendering on __DEV__.
         devCode: MOCK_CODE,
@@ -529,14 +530,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
       if (code !== challenge.code) {
         challenge.attempts += 1;
-        if (challenge.attempts >= MAX_CODE_ATTEMPTS) {
-          challenge.burned = true;
-          throw new TooManyAttemptsError({ url: URL_TAG });
-        }
-        throw new WrongCodeError({
-          url: URL_TAG,
-          attemptsRemaining: MAX_CODE_ATTEMPTS - challenge.attempts,
-        });
+        // As the server does: the count goes down on each wrong try, the last
+        // one reports zero, and after that the code answers "too many".
+        const remaining = Math.max(0, MAX_CODE_ATTEMPTS - challenge.attempts);
+        if (remaining === 0) challenge.burned = true;
+        throw new WrongCodeError({ url: URL_TAG, attemptsRemaining: remaining });
       }
 
       challenges.delete(challengeId);
@@ -558,15 +556,19 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
       const found = findBranch(command.branchId);
       const floor = floors.get(command.branchId);
-      if (!found || !floor) throw new Error(`Unknown branch ${command.branchId}`);
+      // A 404, as the server answers an unknown branch or table.
+      if (!found || !floor) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
       const policy = DEFAULT_POLICY;
 
       const table = floor.tables.find((t) => t.id === command.tableId);
-      if (!table) throw new Error(`Unknown table ${command.tableId}`);
+      if (!table) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
 
-      // Lead time: the slot may have become too soon while they were deciding.
-      const minutesUntilSlot = minutesBetween(now(), new Date(command.slotUtc));
-      if (minutesUntilSlot < policy.leadTimeMinutes) {
+      const slot = new Date(command.slotUtc);
+
+      // The branch-wide rules first, as the server applies them. Lead time:
+      // the slot may have become too soon while they were deciding.
+      const rejection = branchRejection(slot, policy);
+      if (rejection === 'pastLeadTime') {
         throw new LeadTimeExceededError({
           url: URL_TAG,
           leadTimeMinutes: policy.leadTimeMinutes,
@@ -575,32 +577,56 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
           ).toISOString(),
         });
       }
+      if (rejection) {
+        throw new BookingRejectedError({
+          url: URL_TAG,
+          reason: rejection,
+          partySize: command.partySize,
+        });
+      }
 
       // Judged at the slot being booked, not at now — the same projection the
       // availability answer used. Judging it at now would refuse a Saturday
       // booking because somebody is sitting there this evening.
-      const refusal = reasonFor(
-        table,
-        stateAt(table, new Date(command.slotUtc), policy),
-        command.partySize,
-      );
+      const refusal = reasonFor(table, stateAt(table, slot, policy), command.partySize);
 
-      const lost = simulateTakenOnce || refusal !== null;
-      if (lost) {
+      // Lost to somebody else — the two 409s. Every other refusal is a rule,
+      // a 422, and says which rule; it is not "taken".
+      const taken =
+        simulateTakenOnce ||
+        refusal === 'occupied' ||
+        refusal === 'alreadyBooked' ||
+        refusal === 'held';
+      if (taken) {
+        const simulated = simulateTakenOnce && refusal === null;
         simulateTakenOnce = false;
-        // Mark it taken in the mock's world so the refreshed floor is honest.
-        const takenState: DerivedTableState = refusal === null ? 'occupied' : table.state;
-        const refreshed: FloorPlanData = {
-          ...floor,
-          tables: floor.tables.map((t) => (t.id === table.id ? { ...t, state: takenState } : t)),
-        };
-        floors.set(command.branchId, refreshed);
+        if (simulated) {
+          // Somebody else booked it for this slot, in the mock's world, so the
+          // refreshed room and the next availability read are honest.
+          floors.set(command.branchId, {
+            ...floor,
+            tables: floor.tables.map((t) =>
+              t.id === table.id
+                ? { ...t, state: 'reservedSoon', nextReservationStartUtc: command.slotUtc }
+                : t,
+            ),
+          });
+        }
 
         throw new TableTakenError({
           url: URL_TAG,
           tableId: table.id,
           tableLabel: table.label,
-          floor: refreshed,
+          reason: refusal === 'occupied' ? 'occupied' : 'alreadyBooked',
+          // The room at this slot, as the server's 409 carries it.
+          floor: slotFloorFor(command.branchId, command.slotUtc, command.partySize)?.plan ?? null,
+        });
+      }
+      if (refusal) {
+        throw new BookingRejectedError({
+          url: URL_TAG,
+          reason: refusal,
+          partySize: command.partySize,
         });
       }
 
@@ -614,22 +640,20 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         id,
         code: reservationCode(sequence++),
         status,
-        venueId: found.venue.id,
         venueName: found.venue.name,
         branchId: found.branch.id,
         branchName: found.branch.name,
         timeZoneId: found.branch.timeZoneId,
         tableId: table.id,
         tableLabel: table.label,
-        floorAreaName: table.floorAreaName,
         partySize: command.partySize,
         slotUtc: command.slotUtc,
-        window: windowFor(table, command.slotUtc, policy),
+        endUtc: new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
         freeCancellationUntilUtc: new Date(
-          new Date(command.slotUtc).getTime() - policy.freeCancellationMinutes * 60_000,
+          slot.getTime() - policy.freeCancellationMinutes * 60_000,
         ).toISOString(),
-        createdAtUtc: now().toISOString(),
         cancelledAtUtc: null,
+        cancelledAfterDeadline: false,
         // The mock issues one for every booking, so the manage-booking page is
         // walkable from the app's own flow too. See `publicMock.ts` for what
         // the token is and, more importantly, what it is not.
@@ -652,11 +676,23 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       return booking;
     },
 
-    async listBookings() {
+    /**
+     * Split by the server's rule, not by the clock against the start: upcoming
+     * is a booking whose sitting has not ended and which still holds a table.
+     */
+    async listBookings(): Promise<MyBookings> {
       await wait();
-      return [...bookings.values()].sort(
-        (a, b) => new Date(a.slotUtc).getTime() - new Date(b.slotUtc).getTime(),
-      );
+      const t = now().getTime();
+      const holdsTable = (b: Booking) =>
+        b.status === 'confirmed' || b.status === 'pendingApproval' || b.status === 'seated';
+      const all = [...bookings.values()];
+      const upcoming = all
+        .filter((b) => holdsTable(b) && Date.parse(b.endUtc) > t)
+        .sort((a, b) => Date.parse(a.slotUtc) - Date.parse(b.slotUtc));
+      const past = all
+        .filter((b) => !upcoming.includes(b))
+        .sort((a, b) => Date.parse(b.slotUtc) - Date.parse(a.slotUtc));
+      return { upcoming, past };
     },
 
     async getBooking(bookingId) {
@@ -698,7 +734,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async extendReservationHold({ reservationId, clientCommandId }) {
       await wait();
       const booking = bookings.get(reservationId);
-      if (!booking) throw new Error(`Unknown booking ${reservationId}`);
+      if (!booking) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
+      // As the server now refuses it: nothing is held before the start, and
+      // only a confirmed booking holds a table. Nothing is spent.
+      if (booking.status !== 'confirmed' || now().getTime() < Date.parse(booking.slotUtc)) {
+        throw new HoldNotActiveError({ url: URL_TAG, reservationId });
+      }
 
       const previous = holdExtensions.get(reservationId);
       if (previous) {
@@ -726,14 +767,26 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async cancelBooking(bookingId) {
       await wait();
       const booking = bookings.get(bookingId);
-      if (!booking) throw new Error(`Unknown booking ${bookingId}`);
+      if (!booking) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
 
-      // Never refuses, even past the deadline: a late cancellation is far
-      // better for the venue than a no-show.
+      // Already cancelled is the outcome asked for, as the real gateway reads
+      // it back. Anything else that no longer holds a table is refused, as the
+      // server refuses it.
+      if (booking.status === 'cancelledByDiner' || booking.status === 'cancelledByVenue') {
+        return booking;
+      }
+      if (booking.status !== 'confirmed' && booking.status !== 'pendingApproval') {
+        throw new ConcurrencyConflictError({ url: `${URL_TAG}/api/reservations` });
+      }
+
+      // Never refuses for lateness: a late cancellation is far better for the
+      // venue than a no-show. It is only recorded as late.
+      const at = now();
       const cancelled: Booking = {
         ...booking,
-        status: 'cancelled',
-        cancelledAtUtc: now().toISOString(),
+        status: 'cancelledByDiner',
+        cancelledAtUtc: at.toISOString(),
+        cancelledAfterDeadline: at.getTime() > Date.parse(booking.freeCancellationUntilUtc),
       };
       bookings.set(bookingId, cancelled);
 

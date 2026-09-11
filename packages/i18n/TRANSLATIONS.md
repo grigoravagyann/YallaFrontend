@@ -32,7 +32,23 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   right now", never "fully booked tonight"), `venue.notFound.*`,
   `branches.openNow`, `branches.freeNow_*`. Removed with the distance and
   table-total they described: `venue.fullyBooked`, `branches.distanceKm`,
-  `branches.distanceAndHours`, `branches.availability`.
+  `branches.distanceAndHours`, `branches.availability`. Reservations: the
+  booking name field and the confirm states (`confirm.nameLabel`,
+  `confirm.namePlaceholder`, `confirm.loading`, `confirm.tableError`,
+  `confirm.tableMissing`, `confirm.phoneMissing`, `confirm.verifyNumber`,
+  `confirm.checkAgain`), the refusals the server now names
+  (`confirm.error.tableOccupied`, `.busy`, `.commandInUse`,
+  `.branchUnavailable`, `.unknownOutcome` — which must keep saying the outcome
+  is _not known_, never "nothing was booked"), the dated deadline
+  (`table.freeCancellationOn`, `table.freeCancellationPassed`), the code copy
+  (`verify.error.wrongCodeNoCount`, `.codeSpent`, `.rateLimitedNoTime`),
+  `booking.tomorrow`, `booking.noTimesLeft`, `booking.notFound.*`, the
+  statuses the server keeps apart (`bookings.status.seated`,
+  `.cancelledByDiner`, `.cancelledByVenue`, `.unknown`), `bookings.signedOut.*`,
+  `bookings.detail.until`, and the keep-my-table refusals
+  (`push.actions.holdNotActive`, `.extensionsNotOffered`, `.keepTableHint`).
+  Removed: `confirm.error.network` (it promised "nothing was held" after a
+  dropped connection that may have booked) and `bookings.status.cancelled`.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in

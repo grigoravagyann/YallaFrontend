@@ -147,29 +147,43 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
     };
   }
 
+  /** The manage page's narrower status: one "cancelled", and seated reads as confirmed. */
+  function managedStatus(status: Booking['status']): ManagedBooking['status'] {
+    switch (status) {
+      case 'cancelledByDiner':
+      case 'cancelledByVenue':
+        return 'cancelled';
+      case 'completed':
+        return 'completed';
+      case 'noShow':
+        return 'noShow';
+      case 'pendingApproval':
+        return 'pendingApproval';
+      default:
+        return 'confirmed';
+    }
+  }
+
   async function managedFrom(booking: Booking): Promise<ManagedBooking> {
-    const venue = mockVenues.find((v) => v.id === booking.venueId);
+    const venue = mockVenues.find((v) => v.branches.some((b) => b.id === booking.branchId));
     const fixture = publicBranchFixtures[booking.branchId];
-    const endsAtUtc =
-      booking.window.untilUtc ??
-      new Date(
-        new Date(booking.slotUtc).getTime() + DEFAULT_POLICY.turnTimeMinutes * 60_000,
-      ).toISOString();
+    const floor = await gateway.getFloorPlan(booking.branchId);
 
     return {
       code: booking.code,
-      status: booking.status,
-      venueName: booking.venueName,
+      status: managedStatus(booking.status),
+      venueName: booking.venueName ?? venue?.name ?? '',
       venueSlug: venue ? (publicVenueFixtures[venue.id]?.slug ?? venue.id) : '',
       branchName: booking.branchName,
       branchSlug: fixture?.slug ?? '',
       addressLine: fixture?.addressLine ?? '',
       timeZoneId: booking.timeZoneId,
       tableLabel: booking.tableLabel,
-      floorAreaName: booking.floorAreaName,
+      floorAreaName:
+        floor?.tables.find((table) => table.id === booking.tableId)?.floorAreaName ?? null,
       partySize: booking.partySize,
       slotUtc: booking.slotUtc,
-      endsAtUtc,
+      endsAtUtc: booking.endUtc,
       freeCancellationUntilUtc: booking.freeCancellationUntilUtc,
       // Lateness is not a reason to refuse. Only a booking that is already over
       // or already cancelled has nothing left to cancel.
@@ -273,7 +287,9 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       if (!existing) throw new Error('Unknown manage-booking token.');
       // Already cancelled is a success, not a conflict: the person expressed
       // their intention twice on a bad connection, they did not make a mistake.
-      if (existing.status === 'cancelled') return managedFrom(existing);
+      if (existing.status === 'cancelledByDiner' || existing.status === 'cancelledByVenue') {
+        return managedFrom(existing);
+      }
 
       return managedFrom(await gateway.cancelBooking(bookingId));
     },

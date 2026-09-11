@@ -8,7 +8,7 @@ import {
   type TableAvailability,
   type VerifiedPhone,
 } from '@yalla/api';
-import { queryKeys, useGateway } from '@yalla/api/react';
+import { useGateway } from '@yalla/api/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -65,6 +65,10 @@ export default function BookingSheet({
   const [verified, setVerified] = useState<VerifiedPhone | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
+  /** The name the venue asks for at the door. Required by the server. */
+  const [guestName, setGuestName] = useState('');
+  /** The last attempt may have committed, so the button checks rather than books. */
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
 
   /*
@@ -89,28 +93,37 @@ export default function BookingSheet({
   }, []);
 
   const createBooking = useMutation({
-    mutationFn: (token: string) =>
+    mutationFn: (who: { readonly guestPhone: string; readonly guestName: string }) =>
       gateway.createBooking({
         commandId,
         branchId: branch.id,
         tableId: availability.tableId,
         slotUtc,
+        // The server takes the branch's wall-clock date and time.
+        timeZoneId: branch.timeZoneId,
         partySize,
-        verificationToken: token,
+        guestName: who.guestName,
+        guestPhone: who.guestPhone,
+        // No app, so no push channel: the server knows not to promise one.
+        channel: 'web',
       }),
     retry: false,
   });
 
   const submit = useCallback(
-    async (token: string) => {
+    async (phone: VerifiedPhone | null) => {
+      const name = guestName.trim();
+      if (!phone || !name) return;
       setErrorText(null);
       try {
-        const created = await createBooking.mutateAsync(token);
+        const created = await createBooking.mutateAsync({
+          guestPhone: phone.phoneE164,
+          guestName: name,
+        });
         setBooking(created);
         setStep('done');
         // The room has changed: this table is gone, and so is the free count
         // above it. Both are read from the server rather than patched here.
-        void queryClient.invalidateQueries({ queryKey: queryKeys.floor(branch.id) });
         void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
         void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
       } catch (error) {
@@ -118,13 +131,12 @@ export default function BookingSheet({
 
         /*
          * Losing the race is an expected Friday-night outcome, not a failure
-         * screen. The 409 carries the refreshed floor, so it goes straight into
-         * the cache — the plan repaints without a round trip — and the panel
+         * screen. The room is told to redraw — every slot-aware read of the
+         * branch sits under `['availability', branchId]` — and the panel
          * closes, because the next thing to do is pick another table and that
          * happens in the room. Never retried: this answer will not change.
          */
         if (failure.kind === 'tableTaken') {
-          queryClient.setQueryData(queryKeys.floor(branch.id), failure.error.floor);
           void queryClient.invalidateQueries({ queryKey: ['availability', branch.id] });
           void queryClient.invalidateQueries({ queryKey: ['public', 'branch'] });
           onTableTaken(failure.error.tableLabel);
@@ -132,10 +144,21 @@ export default function BookingSheet({
           return;
         }
 
+        setOutcomeUnknown(failure.kind === 'unknown');
         setErrorText(t(failure.line.key, failure.line.params));
       }
     },
-    [createBooking, branch.id, branch.timeZoneId, locale, queryClient, onTableTaken, onClose, t],
+    [
+      guestName,
+      createBooking,
+      branch.id,
+      branch.timeZoneId,
+      locale,
+      queryClient,
+      onTableTaken,
+      onClose,
+      t,
+    ],
   );
 
   const onVerified = useCallback((result: VerifiedPhone) => {
@@ -198,6 +221,20 @@ export default function BookingSheet({
               ) : null}
               {copy.approval ? <p className="pub-notice">{line(copy.approval)}</p> : null}
 
+              {step === 'confirm' ? (
+                <label className="pub-form">
+                  <span className="pub-muted">{t('confirm.nameLabel')}</span>
+                  <input
+                    className="pub-input"
+                    value={guestName}
+                    onChange={(event) => setGuestName(event.target.value)}
+                    placeholder={t('confirm.namePlaceholder')}
+                    maxLength={200}
+                    autoComplete="name"
+                  />
+                </label>
+              ) : null}
+
               {errorText ? <p className="pub-error">{errorText}</p> : null}
 
               {step === 'table' ? (
@@ -212,17 +249,19 @@ export default function BookingSheet({
                 <button
                   type="button"
                   className="pub-button pub-button-primary"
-                  disabled={createBooking.isPending}
-                  onClick={() => void submit(verified?.verificationToken ?? '')}
+                  disabled={createBooking.isPending || !guestName.trim()}
+                  onClick={() => void submit(verified)}
                 >
                   {/* No optimistic success: a booking either exists on the
                       server or it does not, and telling someone they have a
                       table when they might not is the worst lie available. */}
                   {createBooking.isPending
                     ? t('confirm.submitting')
-                    : copy.approval
-                      ? t('confirm.requiresApproval')
-                      : t('confirm.submit')}
+                    : outcomeUnknown
+                      ? t('confirm.checkAgain')
+                      : copy.approval
+                        ? t('confirm.requiresApproval')
+                        : t('confirm.submit')}
                 </button>
               )}
             </>

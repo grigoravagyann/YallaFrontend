@@ -18,6 +18,8 @@ import { formatTime, icsEvent, icsFileName, type Locale } from '@yalla/format';
 
 export interface CalendarInput {
   readonly booking: Booking;
+  /** The venue, which the booking view does not name; the page knows it. */
+  readonly venueName: string;
   readonly addressLine: string;
   /** The signed manage-booking URL, so the event carries its own way out. */
   readonly manageUrl: string;
@@ -28,18 +30,15 @@ export interface CalendarInput {
 }
 
 export function bookingIcs(input: CalendarInput): string {
-  const { booking, addressLine, manageUrl, summary, descriptionLines } = input;
+  const { booking, venueName, addressLine, manageUrl, summary, descriptionLines } = input;
 
   const start = new Date(booking.slotUtc);
   /*
-   * The end is the window the diner was actually promised, falling back to the
-   * branch's turn time. Not an arbitrary hour: a calendar entry that ends at
-   * 21:00 when the table is theirs until 21:45 quietly tells them to leave
-   * early, and one that runs to midnight blocks their evening.
+   * The end the server booked the sitting to, not an arbitrary hour: a
+   * calendar entry that ends early quietly tells them to leave early, and one
+   * that runs to midnight blocks their evening.
    */
-  const end = booking.window.untilUtc
-    ? new Date(booking.window.untilUtc)
-    : new Date(start.getTime() + 105 * 60_000);
+  const end = new Date(booking.endUtc);
 
   return icsEvent({
     // Stable per booking, so downloading twice replaces rather than duplicates.
@@ -48,7 +47,7 @@ export function bookingIcs(input: CalendarInput): string {
     endUtc: end,
     timeZoneId: booking.timeZoneId,
     summary,
-    location: `${booking.venueName}, ${addressLine}`,
+    location: `${venueName}, ${addressLine}`,
     description: descriptionLines.join('\n'),
     url: manageUrl,
   });

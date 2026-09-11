@@ -39,12 +39,14 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
 
   const phoneE164 = `${prefix}${localNumber.replace(/\D/gu, '')}`;
 
+  // The visitor's language, so the SMS arrives in it and the account keeps it.
   const requestCode = useMutation({
-    mutationFn: (value: string) => gateway.requestPhoneCode(value),
+    mutationFn: (value: string) => gateway.requestPhoneCode(value, { localeCode: locale }),
     retry: false,
   });
   const verifyCode = useMutation({
-    mutationFn: (input: { challengeId: string; code: string }) => gateway.verifyPhoneCode(input),
+    mutationFn: (input: { challengeId: string; code: string }) =>
+      gateway.verifyPhoneCode({ ...input, localeCode: locale }),
     retry: false,
   });
 

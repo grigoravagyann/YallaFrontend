@@ -1,7 +1,9 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
 import type {
   Booking,
+  BookingRules,
   CreateBookingCommand,
+  MyBookings,
   PhoneChallenge,
   SlotFloor,
   TableAvailability,
@@ -56,6 +58,13 @@ export interface YallaGateway {
   listVenues(): Promise<readonly VenueSummary[]>;
   /** One venue by the id the list gave it, or `null` when it is no longer listed. */
   getVenue(venueId: string): Promise<VenueSummary | null>;
+
+  /**
+   * How far ahead and how soon a branch takes bookings.
+   *
+   * @returns `null` when no published branch has those slugs.
+   */
+  getBookingRules(input: { venueSlug: string; branchSlug: string }): Promise<BookingRules | null>;
 
   /** Current floor state for a branch. */
   getFloorPlan(branchId: string): Promise<FloorPlanData | null>;
@@ -121,9 +130,14 @@ export interface YallaGateway {
   /**
    * Send a 6-digit code.
    *
+   * `localeCode` is the diner's language, so the SMS arrives in it.
+   *
    * @throws {RateLimitedError} when too many codes were requested for a number.
    */
-  requestPhoneCode(phoneE164: string): Promise<PhoneChallenge>;
+  requestPhoneCode(
+    phoneE164: string,
+    options?: { readonly localeCode?: string | undefined },
+  ): Promise<PhoneChallenge>;
 
   /**
    * Exchange a code for a verification token. Against the real backend this
@@ -133,7 +147,11 @@ export interface YallaGateway {
    * @throws {ExpiredCodeError} the challenge aged out.
    * @throws {TooManyAttemptsError} the challenge is burned.
    */
-  verifyPhoneCode(input: { challengeId: string; code: string }): Promise<VerifiedPhone>;
+  verifyPhoneCode(input: {
+    challengeId: string;
+    code: string;
+    localeCode?: string | undefined;
+  }): Promise<VerifiedPhone>;
 
   // --- Booking ------------------------------------------------------------
   /**
@@ -143,18 +161,23 @@ export interface YallaGateway {
    * A party over the branch's instant-confirmation limit yields a booking with
    * status `pendingApproval` — a normal result, not an error.
    *
-   * @throws {TableTakenError} someone else got there first; carries the
-   * refreshed floor so the UI can re-render immediately.
+   * @throws {TableTakenError} someone else got there first — or somebody sat
+   * down there — with the room from the 409 when it came.
    * @throws {LeadTimeExceededError} the slot became too soon while deciding.
+   * @throws {BookingRejectedError} a rule refused it; carries the reason.
+   * @throws {BookingBusyError} the table was locked; tap again, same command.
    */
   createBooking(command: CreateBookingCommand): Promise<Booking>;
 
-  listBookings(): Promise<readonly Booking[]>;
+  /** The caller's bookings, split upcoming and past by the server's own rule. */
+  listBookings(): Promise<MyBookings>;
   getBooking(bookingId: string): Promise<Booking | null>;
 
   /**
-   * Cancel a booking. Never refuses: cancelling late is far better for the
-   * venue than a no-show, so lateness is a message, not a block.
+   * Cancel a booking. Lateness is a message, not a block: cancelling late is
+   * far better for the venue than a no-show. Only a booking that no longer
+   * holds a table — seated, finished, already cancelled — has nothing to
+   * cancel, and an already-cancelled one is reported as the success it is.
    */
   cancelBooking(bookingId: string): Promise<Booking>;
 
@@ -189,9 +212,10 @@ export interface YallaGateway {
   /**
    * Keep the table a little longer, from the late nudge's action button.
    *
-   * @throws {HoldAlreadyExtendedError} the one extension is spent. A refusal to
-   * say plainly, not a generic conflict: the diner has already done this and
-   * needs telling so, not an error dialog.
+   * @throws {HoldAlreadyExtendedError} the one extension is spent.
+   * @throws {HoldNotActiveError} the booking has not started, so there is no
+   * held table to keep yet. Nothing was spent.
+   * @throws {ExtensionsNotOfferedError} the branch does not hold tables late.
    */
   extendReservationHold(command: ExtendHoldCommand): Promise<ExtendHoldOutcome>;
 

@@ -3,7 +3,12 @@ import { create } from 'zustand';
 interface ConflictState {
   /** Label of the table someone else took, or null. */
   takenTableLabel: string | null;
-  report: (tableLabel: string) => void;
+  /**
+   * Which kind of loss: somebody sat down there, or somebody booked it for the
+   * slot. Two different sentences — the first table may free up early.
+   */
+  takenReason: 'occupied' | 'alreadyBooked';
+  report: (tableLabel: string, reason?: 'occupied' | 'alreadyBooked') => void;
   clear: () => void;
 }
 
@@ -17,6 +22,8 @@ interface ConflictState {
  */
 export const useConflict = create<ConflictState>((set) => ({
   takenTableLabel: null,
-  report: (tableLabel) => set({ takenTableLabel: tableLabel }),
-  clear: () => set({ takenTableLabel: null }),
+  takenReason: 'alreadyBooked',
+  report: (tableLabel, reason = 'alreadyBooked') =>
+    set({ takenTableLabel: tableLabel, takenReason: reason }),
+  clear: () => set({ takenTableLabel: null, takenReason: 'alreadyBooked' }),
 }));

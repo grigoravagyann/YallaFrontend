@@ -23,6 +23,10 @@ export const keys = {
   ...queryKeys,
   bookings: ['bookings'] as const,
   booking: (bookingId: string) => ['booking', bookingId] as const,
+  /** What a notification screen read about one booking. Invalidated with it. */
+  reservationState: (reservationId: string) => ['reservationState', reservationId] as const,
+  bookingRules: (venueSlug: string, branchSlug: string) =>
+    ['bookingRules', venueSlug, branchSlug] as const,
   tab: (tabId: string) => ['tab', tabId] as const,
   menu: (branchId: string) => ['menu', branchId] as const,
   /**
@@ -33,12 +37,38 @@ export const keys = {
   invite: (tabId: string, nonce: number) => ['tabInvite', tabId, nonce] as const,
 };
 
-export function useBookings() {
+/**
+ * The diner's bookings, split by the server.
+ *
+ * `enabled` is false for a diner with no session: `/mine` is scoped to the
+ * signed-in number, and asking without one is a 401 dressed up as an error.
+ */
+export function useBookings(enabled = true) {
   const gateway = useGateway();
   return useQuery({
     queryKey: keys.bookings,
     queryFn: () => gateway.listBookings(),
     staleTime: staleTime.frequent,
+    enabled,
+  });
+}
+
+/**
+ * How far ahead and how soon a branch takes bookings, from its public page.
+ *
+ * Only reachable with the slugs the browse card carries; a branch reached by a
+ * bare deep link falls back to the defaults, and the server still refuses
+ * anything outside the real window with its own reason.
+ */
+export function useBookingRules(
+  branch: { readonly venueSlug: string; readonly branchSlug: string } | null,
+) {
+  const gateway = useGateway();
+  return useQuery({
+    queryKey: keys.bookingRules(branch?.venueSlug ?? '', branch?.branchSlug ?? ''),
+    queryFn: () => gateway.getBookingRules(branch!),
+    enabled: branch !== null,
+    staleTime: staleTime.reference,
   });
 }
 
@@ -70,7 +100,7 @@ export function useCreateBooking() {
     onSuccess: (booking: Booking) => {
       queryClient.setQueryData(keys.booking(booking.id), booking);
       void queryClient.invalidateQueries({ queryKey: keys.bookings });
-      void queryClient.invalidateQueries({ queryKey: keys.floor(booking.branchId) });
+      // The room: every slot-aware read of the branch sits under this prefix.
       void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
     },
   });
@@ -82,26 +112,32 @@ export function useCancelBooking() {
 
   return useMutation({
     mutationFn: (bookingId: string) => gateway.cancelBooking(bookingId),
+    retry: false,
     onSuccess: (booking: Booking) => {
+      // Every read of this booking, so no screen goes on offering an action
+      // on a booking that is already cancelled.
       queryClient.setQueryData(keys.booking(booking.id), booking);
       void queryClient.invalidateQueries({ queryKey: keys.bookings });
-      void queryClient.invalidateQueries({ queryKey: keys.floor(booking.branchId) });
+      void queryClient.invalidateQueries({ queryKey: keys.reservationState(booking.id) });
       void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
     },
   });
 }
 
+/** `localeCode` so the SMS arrives in the diner's language. */
 export function useRequestPhoneCode() {
   const gateway = useGateway();
   return useMutation({
-    mutationFn: (phoneE164: string) => gateway.requestPhoneCode(phoneE164),
+    mutationFn: (input: { phoneE164: string; localeCode: string }) =>
+      gateway.requestPhoneCode(input.phoneE164, { localeCode: input.localeCode }),
   });
 }
 
 export function useVerifyPhoneCode() {
   const gateway = useGateway();
   return useMutation({
-    mutationFn: (input: { challengeId: string; code: string }) => gateway.verifyPhoneCode(input),
+    mutationFn: (input: { challengeId: string; code: string; localeCode: string }) =>
+      gateway.verifyPhoneCode(input),
   });
 }
 

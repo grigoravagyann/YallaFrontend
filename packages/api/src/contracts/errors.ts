@@ -1,6 +1,6 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
 import { ApiError } from '../errors';
-import type { TableAvailability } from './booking';
+import type { TableAvailability, TableUnavailableReason } from './booking';
 
 /**
  * Someone else took the table in the seconds you were confirming.
@@ -13,14 +13,28 @@ import type { TableAvailability } from './booking';
 export class TableTakenError extends ApiError {
   readonly tableId: string;
   readonly tableLabel: string;
-  /** Current floor state, straight from the 409 payload. */
-  readonly floor: FloorPlanData;
+  /**
+   * Which of the two it was, because the next step differs.
+   *
+   * `occupied` — somebody sat down there, and the table may free up early.
+   * `alreadyBooked` — the slot collides with somebody else's booking. The
+   * server answers them with different codes (`table-currently-occupied`,
+   * `table-already-booked`), so this is read, not guessed.
+   */
+  readonly reason: 'occupied' | 'alreadyBooked';
+  /**
+   * The room as the server saw it when it refused, from the 409's
+   * `context.availability`. `null` when the refusal carried none — the caller
+   * refetches instead of drawing a room it does not have.
+   */
+  readonly floor: FloorPlanData | null;
 
   constructor(options: {
     url: string;
     tableId: string;
     tableLabel: string;
-    floor: FloorPlanData;
+    reason?: 'occupied' | 'alreadyBooked' | undefined;
+    floor: FloorPlanData | null;
     requestId?: string | undefined;
   }) {
     super('That table was taken while you were confirming.', {
@@ -31,7 +45,82 @@ export class TableTakenError extends ApiError {
     this.name = 'TableTakenError';
     this.tableId = options.tableId;
     this.tableLabel = options.tableLabel;
+    this.reason = options.reason ?? 'alreadyBooked';
     this.floor = options.floor;
+  }
+}
+
+/**
+ * A reservation rule refused the booking: the branch is shut then, the party
+ * is too big for the table, the slot is beyond the booking window.
+ *
+ * `reason` is the table sheet's own vocabulary, so the confirm screen says the
+ * same sentence the sheet would have said about that table.
+ */
+export class BookingRejectedError extends ApiError {
+  readonly reason: TableUnavailableReason;
+  readonly partySize: number;
+
+  constructor(options: {
+    url: string;
+    reason: TableUnavailableReason;
+    partySize: number;
+    requestId?: string | undefined;
+  }) {
+    super('That booking is not allowed.', {
+      status: 422,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingRejectedError';
+    this.reason = options.reason;
+    this.partySize = options.partySize;
+  }
+}
+
+/**
+ * The table was locked by another booking in flight and the server gave up
+ * waiting — `reservation-lock-timeout`, 503, retryable.
+ *
+ * Nothing was booked, and tapping again with the **same** command id is exactly
+ * right: it is the one refusal a retry is meant for.
+ */
+export class BookingBusyError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('That table is busy with another booking. Try again.', {
+      status: 503,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingBusyError';
+  }
+}
+
+/**
+ * The idempotency key was already spent by somebody else —
+ * `client-command-id-in-use`. Not a replay, so nothing about their booking
+ * comes back; this attempt has to start again with a fresh id.
+ */
+export class BookingCommandInUseError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('That booking attempt was already used.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingCommandInUseError';
+  }
+}
+
+/** The venue is not taking bookings or tabs right now — `branch-unavailable`. */
+export class BranchUnavailableError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('This venue is not taking bookings right now.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BranchUnavailableError';
   }
 }
 
@@ -65,9 +154,15 @@ export class LeadTimeExceededError extends ApiError {
 
 /** The six digits did not match. Attempts remaining is shown to the user. */
 export class WrongCodeError extends ApiError {
-  readonly attemptsRemaining: number;
+  /**
+   * What the server said is left on this code. `0` means ask for a new one.
+   * `null` means the server did not say — never defaulted to a number, because
+   * "0 attempts left" after the first slip sends a diner to burn their hourly
+   * code budget on a code that was still good.
+   */
+  readonly attemptsRemaining: number | null;
 
-  constructor(options: { url: string; attemptsRemaining: number }) {
+  constructor(options: { url: string; attemptsRemaining: number | null }) {
     super('That code is not right.', { status: 400, url: options.url });
     this.name = 'WrongCodeError';
     this.attemptsRemaining = options.attemptsRemaining;
@@ -92,10 +187,14 @@ export class TooManyAttemptsError extends ApiError {
 
 /** Too many codes requested for one number. Distinct from too many attempts. */
 export class RateLimitedError extends ApiError {
-  /** When another request will be accepted, ISO-8601 UTC. */
-  readonly retryAtUtc: string;
+  /**
+   * When another request will be accepted, ISO-8601 UTC — from the server's
+   * `Retry-After`. `null` when it did not say, which the copy renders without a
+   * time rather than naming one it made up.
+   */
+  readonly retryAtUtc: string | null;
 
-  constructor(options: { url: string; retryAtUtc: string }) {
+  constructor(options: { url: string; retryAtUtc: string | null }) {
     super('Too many code requests.', { status: 429, url: options.url });
     this.name = 'RateLimitedError';
     this.retryAtUtc = options.retryAtUtc;
@@ -598,23 +697,11 @@ export function isPolicyBounds(error: unknown): error is PolicyBoundsError {
 }
 
 /**
- * The one hold extension is already spent.
+ * The one hold extension is already spent — `hold-already-extended`.
  *
- * **Inferred from the endpoint, not from a code**, and that is worth stating.
- * `Reservation.ExtendHold` throws `DomainStateException`, which the API maps to
- * a 409 with the generic `conflicting-state` code and prose only — no field
- * name, no `graceExtensionsUsed` in the context. Three domain rules produce it:
- * the booking is not confirmed, the branch offers no extensions, or the one
- * extension is used.
- *
- * The late nudge is only sent for a confirmed booking at a branch whose policy
- * has a non-zero `GraceExtensionMinutes` — the notification payload carries the
- * number — so on that path the third is the only one left. The gateway raises
- * this instead of a generic conflict so the screen can say "you have already
- * let them know" rather than "something went wrong".
- *
- * A dedicated `hold-already-extended` code, or `graceExtensionsUsed` on
- * `ReservationView`, would remove the inference. Both are worth asking for.
+ * Read from the server's code. It used to be inferred from any 409 on the
+ * endpoint, which told a diner at a branch that offers no extensions at all
+ * that they had "already let them know".
  */
 export class HoldAlreadyExtendedError extends ApiError {
   readonly reservationId: string;
@@ -640,6 +727,40 @@ export class HoldAlreadyExtendedError extends ApiError {
 
 export function isHoldAlreadyExtended(error: unknown): error is HoldAlreadyExtendedError {
   return error instanceof HoldAlreadyExtendedError;
+}
+
+/**
+ * "Keep my table" before there is a held table to keep — `hold-not-active`.
+ *
+ * The booking has not started, or is not a confirmed one. Nothing was spent.
+ */
+export class HoldNotActiveError extends ApiError {
+  readonly reservationId: string;
+
+  constructor(options: { url: string; reservationId: string; requestId?: string | undefined }) {
+    super('There is no held table to keep yet.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'HoldNotActiveError';
+    this.reservationId = options.reservationId;
+  }
+}
+
+/** The branch does not hold tables past the start at all — `extensions-not-offered`. */
+export class ExtensionsNotOfferedError extends ApiError {
+  readonly reservationId: string;
+
+  constructor(options: { url: string; reservationId: string; requestId?: string | undefined }) {
+    super('This venue does not hold tables for late arrivals.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ExtensionsNotOfferedError';
+    this.reservationId = options.reservationId;
+  }
 }
 
 /**

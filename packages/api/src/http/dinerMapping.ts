@@ -9,6 +9,7 @@ import type {
   TabRosterEntry,
 } from '../contracts/ordering';
 import type { TabParticipantRole } from '../contracts/tab';
+import type { Booking } from '../contracts/booking';
 import type { ReservationState, ReservationStatusCode } from '../contracts/push';
 import { totals } from './staffMapping';
 
@@ -201,11 +202,43 @@ const RESERVATION_STATUS: Readonly<Record<number, ReservationStatusCode>> = {
   8: 'noShow',
 };
 
+export function reservationStatus(value: number): ReservationStatusCode {
+  return RESERVATION_STATUS[value] ?? 'unknown';
+}
+
+/**
+ * A booking, from the one reservation shape the wire has.
+ *
+ * `venueName` is passed in because `ReservationView` does not carry it; the
+ * gateway supplies it from the browse list when it has one, and `null` when it
+ * does not — the branch name is always there to say where.
+ */
+export function booking(view: ReservationViewWire, venueName: string | null): Booking {
+  return {
+    id: view.id,
+    code: view.code,
+    status: reservationStatus(view.status),
+    venueName,
+    branchId: view.branchId,
+    branchName: view.branchName,
+    timeZoneId: view.timeZoneId,
+    tableId: view.tableId,
+    tableLabel: view.tableLabel,
+    partySize: view.partySize,
+    slotUtc: view.startUtc,
+    endUtc: view.endUtc,
+    freeCancellationUntilUtc: view.cancellationDeadlineUtc,
+    cancelledAtUtc: view.cancelledAtUtc ?? null,
+    cancelledAfterDeadline: view.cancelledAfterDeadline,
+    manageToken: view.manageToken ?? null,
+  };
+}
+
 export function reservationState(view: ReservationViewWire): ReservationState {
   return {
     reservationId: view.id,
     code: view.code,
-    status: RESERVATION_STATUS[view.status] ?? 'unknown',
+    status: reservationStatus(view.status),
     branchId: view.branchId,
     branchName: view.branchName,
     tableLabel: view.tableLabel,
