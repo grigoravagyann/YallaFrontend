@@ -43,6 +43,7 @@ const availability = (
   branchId: 'b1',
   branchName: 'Yerevan Centre',
   bufferMinutes: 15,
+  cancellationDeadlineMinutes: 120,
   floorWidth: 1000,
   floorHeight: 700,
   localDate: '2026-09-05',

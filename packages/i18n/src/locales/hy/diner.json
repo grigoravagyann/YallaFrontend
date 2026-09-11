@@ -27,23 +27,27 @@
     "typeAndBranches": "{{type}} · {{branches}}",
     "freeNow_one": "{{count}} ազատ սեղան հիմա",
     "freeNow_other": "{{count}} ազատ սեղան հիմա",
-    "fullyBooked": "Այս երեկո ամբողջությամբ զբաղված է",
     "openNow": "Բաց է",
-    "closedNow": "Փակ է"
+    "closedNow": "Փակ է",
+    "noneFreeNow": "Հիմա ազատ սեղան չկա",
+    "notFound": {
+      "title": "Այս վայրն այլևս Yalla-ում չէ",
+      "body": "Հնարավոր է՝ փակվել է կամ այլևս ամրագրումներ չի ընդունում։ Վերադարձեք և ընտրեք մեկ ուրիշը։"
+    }
   },
   "branches": {
     "title": "Ընտրեք մասնաճյուղ",
-    "distanceKm": "{{km}} կմ",
     "openUntil": "բաց է մինչև {{time}}",
     "closed": "փակ է",
-    "distanceAndHours": "{{distance}} · {{hours}}",
-    "availability": "{{total}}-ից {{free}} սեղան ազատ է",
     "noneFree": "Ազատ սեղաններ չկան",
     "empty": {
       "title": "Մասնաճյուղեր չկան",
       "body": "Այս վայրը դեռ գրանցված հասցեներ չունի։"
     },
-    "loading": "Բեռնվում են մասնաճյուղերը…"
+    "loading": "Բեռնվում են մասնաճյուղերը…",
+    "openNow": "բաց է հիմա",
+    "freeNow_one": "{{count}} ազատ սեղան հիմա",
+    "freeNow_other": "{{count}} ազատ սեղան հիմա"
   },
   "booking": {
     "date": "Ամսաթիվ",

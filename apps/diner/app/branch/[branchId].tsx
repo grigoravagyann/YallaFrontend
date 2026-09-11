@@ -14,7 +14,9 @@ import {
 import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { TableSheet } from '../../src/components/TableSheet';
 import { Text } from '../../src/components/Text';
+import { useBranchTimeZone } from '../../src/data/orderQueries';
 import { useSlotFloor, useVenue } from '../../src/data/queries';
+import { branchZoneSource } from '../../src/lib/browse';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
 
@@ -51,9 +53,24 @@ export default function BranchFloorPlanScreen() {
   const slotIso = useMemo(() => booking.slotUtc.toISOString(), [booking.slotUtc]);
 
   const venueQuery = useVenue(venueId);
+  const branchSummary = venueQuery.data?.branches.find((b) => b.id === branchId) ?? null;
 
-  const branchSummary = venueQuery.data?.branches.find((b) => b.id === branchId);
-  const timeZoneId = branchSummary?.timeZoneId ?? 'Asia/Yerevan';
+  /*
+   * The branch's zone, and never a guess.
+   *
+   * From the browse card when this branch was reached from its venue. Reached
+   * any other way — a deep link with no `venueId`, or a venue that no longer
+   * lists it — the branch is asked directly. Every read below that turns the
+   * slot into wall-clock time waits until one of the two has answered.
+   */
+  const zoneSource = branchZoneSource({
+    venueId,
+    venueStatus: venueQuery.isSuccess ? 'success' : venueQuery.isError ? 'error' : 'pending',
+    zoneFromVenue: branchSummary?.timeZoneId ?? null,
+    zoneFromBranch: undefined,
+  });
+  const zoneQuery = useBranchTimeZone(zoneSource.lookup ? branchId : undefined);
+  const timeZoneId = zoneSource.zone ?? zoneQuery.data ?? null;
 
   /*
    * One question, one answer: the room **as it will be at the slot**, and every
@@ -67,11 +84,12 @@ export default function BranchFloorPlanScreen() {
    * the hook so 2 → 6 is one request.
    */
   const slotFloorQuery = useSlotFloor({
-    branchId,
+    branchId: timeZoneId ? branchId : undefined,
     slotUtc: slotIso,
     partySize: booking.partySize,
-    timeZoneId,
+    timeZoneId: timeZoneId ?? undefined,
   });
+  const waitingForZone = !timeZoneId && (venueQuery.isLoading || zoneQuery.isLoading);
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -132,10 +150,12 @@ export default function BranchFloorPlanScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
-        {isOfflinePaused(slotFloorQuery) ? (
+        {isOfflinePaused(slotFloorQuery) || isOfflinePaused(zoneQuery) ? (
           <QueryFailure offline onRetry={() => void slotFloorQuery.refetch()} />
-        ) : slotFloorQuery.isLoading ? (
+        ) : waitingForZone || slotFloorQuery.isLoading ? (
           <QueryLoading label={t('net.loading')} />
+        ) : zoneQuery.isError ? (
+          <QueryFailure error={zoneQuery.error} onRetry={() => void zoneQuery.refetch()} />
         ) : slotFloorQuery.isError ? (
           <QueryFailure
             error={slotFloorQuery.error}
@@ -151,6 +171,8 @@ export default function BranchFloorPlanScreen() {
   }
 
   const slotFloor = slotFloorQuery.data;
+  // The zone the answer was computed in, which is the one on screen.
+  const zone = timeZoneId ?? slotFloor.plan.timeZoneId;
 
   /*
    * A rule that refused the whole request — the slot has passed, it is further
@@ -177,10 +199,12 @@ export default function BranchFloorPlanScreen() {
         options={{ headerShown: true, title: '', headerBackTitle: t('floorPlan.back') }}
       />
 
+      {/* The branch name comes back with the room, so a deep link that never
+          read its venue still says where it is. */}
       <View style={styles.header}>
-        <Text style={styles.venue}>{venueQuery.data?.name ?? ''}</Text>
+        {venueQuery.data?.name ? <Text style={styles.venue}>{venueQuery.data.name}</Text> : null}
         <Text display style={styles.branch}>
-          {branchSummary?.name ?? ''}
+          {branchSummary?.name ?? slotFloor.plan.branchName ?? ''}
         </Text>
       </View>
 
@@ -190,7 +214,7 @@ export default function BranchFloorPlanScreen() {
           setBooking(next);
           setSelectedTableId(null);
         }}
-        timeZoneId={timeZoneId}
+        timeZoneId={zone}
         locale={locale}
       />
 
@@ -229,7 +253,7 @@ export default function BranchFloorPlanScreen() {
       <TableSheet
         availability={sheetAvailability}
         partySize={booking.partySize}
-        timeZoneId={timeZoneId}
+        timeZoneId={zone}
         locale={locale}
         onReserve={handleReserve}
         onClose={() => setSheetTableId(null)}

@@ -46,8 +46,10 @@ import { mockMenuFor } from './menu';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
+import { openStateFrom } from './openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
-import { mockVenues, type Branch as MockBranch } from './venues';
+import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
+import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from './venues';
 
 const URL_TAG = 'mock://yalla';
 
@@ -221,34 +223,60 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     },
   });
 
-  function findBranch(branchId: string): { venue: VenueSummary; branch: MockBranch } | null {
+  function findBranch(branchId: string): { venue: MockVenue; branch: MockBranch } | null {
     for (const venue of mockVenues) {
       const branch = venue.branches.find((b) => b.id === branchId);
-      if (branch) return { venue: toVenueSummary(venue), branch };
+      if (branch) return { venue, branch };
     }
     return null;
   }
 
-  function toVenueSummary(venue: (typeof mockVenues)[number]): VenueSummary {
-    return {
-      id: venue.id,
-      name: venue.name,
-      type: venue.type,
-      branches: venue.branches.map((b) => ({
-        id: b.id,
-        venueId: venue.id,
-        venueName: venue.name,
-        name: b.name,
-        distanceKm: b.distanceKm,
-        timeZoneId: b.timeZoneId,
-        opensAtUtc: b.opensAtUtc,
-        closesAtUtc: b.closesAtUtc,
-        totalTables: b.totalTables,
-        freeTables:
-          floors.get(b.id)?.tables.filter((t) => t.state === 'free').length ?? b.freeTables,
-        policy: DEFAULT_POLICY,
-      })),
-    };
+  /**
+   * A venue as `/api/public/venues` would publish it, or `null` when it would
+   * not appear at all.
+   *
+   * Four rules, each the server's:
+   * - keyed by the venue's **slug** — the card carries no venue id;
+   * - a branch that is not live (suspended) is **left out**, and a venue with
+   *   nothing left is left out with it;
+   * - open-now comes from the branch's **week of hours at this gateway's
+   *   clock**, not from instants frozen on the day the fixtures were written —
+   *   on every other day those read every venue as closed;
+   * - the free count is **bookable** tables nobody is at, the same set the
+   *   server counts, so a bar stool out of the booking pool is not "free".
+   */
+  function toVenueSummary(venue: MockVenue): VenueSummary | null {
+    const venueId = publicVenueFixtures[venue.id]?.slug ?? venue.id;
+    const branches = venue.branches.flatMap((b) => {
+      const fixture = publicBranchFixtures[b.id];
+      if (!fixture || fixture.status !== 'live') return [];
+      const floor = floors.get(b.id);
+      return [
+        {
+          id: b.id,
+          slug: fixture.slug,
+          venueId,
+          venueName: venue.name,
+          name: b.name,
+          addressLine: fixture.addressLine,
+          timeZoneId: b.timeZoneId,
+          openState: openStateFrom(fixture.weeklyHours, now(), b.timeZoneId),
+          freeTables: floor
+            ? floor.tables.filter((t) => t.state === 'free' && t.isBookable).length
+            : b.freeTables,
+        },
+      ];
+    });
+    return branches.length > 0
+      ? { id: venueId, name: venue.name, type: venue.type, branches }
+      : null;
+  }
+
+  function publishedVenues(): readonly VenueSummary[] {
+    return mockVenues.flatMap((venue) => {
+      const summary = toVenueSummary(venue);
+      return summary ? [summary] : [];
+    });
   }
 
   /** Derive the window for one table at a slot. */
@@ -427,13 +455,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   return {
     async listVenues() {
       await wait();
-      return mockVenues.map(toVenueSummary);
+      return publishedVenues();
     },
 
     async getVenue(venueId) {
       await wait();
-      const venue = mockVenues.find((v) => v.id === venueId);
-      return venue ? toVenueSummary(venue) : null;
+      return publishedVenues().find((venue) => venue.id === venueId) ?? null;
     },
 
     async getFloorPlan(branchId) {

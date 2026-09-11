@@ -48,11 +48,13 @@ import type {
 export interface YallaGateway {
   // --- Browse -------------------------------------------------------------
   /**
-   * @throws {EndpointNotWiredError} from the HTTP gateway while the backend has
-   * no venue catalogue endpoint. The screen shows "not available yet", not a
-   * generic error, because the fix is on a different team.
+   * Every published venue, from `GET /api/public/venues`.
+   *
+   * Keyed by slug; see {@link VenueSummary}. A suspended venue or an inactive
+   * branch is simply absent, exactly as it is from the public list.
    */
   listVenues(): Promise<readonly VenueSummary[]>;
+  /** One venue by the id the list gave it, or `null` when it is no longer listed. */
   getVenue(venueId: string): Promise<VenueSummary | null>;
 
   /** Current floor state for a branch. */

@@ -238,13 +238,13 @@ export type { MockDemoTable } from './mocks/demoTables';
 
 export {
   venueFreeTables,
-  venueTotalTables,
-  isVenueFullyBooked,
-  nearestBranch,
+  venueAvailability,
+  branchAvailability,
   isBranchOpenNow,
   isVenueOpenNow,
   findBranchIn,
 } from './contracts/helpers';
+export type { Availability } from './contracts/helpers';
 
 // --- The web console --------------------------------------------------------
 export type { ConsoleGateway } from './consoleGateway';

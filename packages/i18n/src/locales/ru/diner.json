@@ -33,23 +33,29 @@
     "freeNow_few": "{{count}} стола свободны сейчас",
     "freeNow_many": "{{count}} столов свободны сейчас",
     "freeNow_other": "{{count}} столов свободны сейчас",
-    "fullyBooked": "Всё занято на сегодня",
     "openNow": "Открыто",
-    "closedNow": "Закрыто"
+    "closedNow": "Закрыто",
+    "noneFreeNow": "Сейчас свободных столов нет",
+    "notFound": {
+      "title": "Этого места больше нет в Yalla",
+      "body": "Возможно, оно закрылось или больше не принимает бронирования. Вернитесь и выберите другое."
+    }
   },
   "branches": {
     "title": "Выберите филиал",
-    "distanceKm": "{{km}} км",
     "openUntil": "открыто до {{time}}",
     "closed": "закрыто",
-    "distanceAndHours": "{{distance}} · {{hours}}",
-    "availability": "{{free}} из {{total}} столов свободно",
     "noneFree": "Свободных столов нет",
     "empty": {
       "title": "Нет филиалов",
       "body": "У этого заведения пока нет адресов."
     },
-    "loading": "Загружаем филиалы…"
+    "loading": "Загружаем филиалы…",
+    "openNow": "открыто сейчас",
+    "freeNow_one": "{{count}} стол свободен сейчас",
+    "freeNow_few": "{{count}} стола свободны сейчас",
+    "freeNow_many": "{{count}} столов свободны сейчас",
+    "freeNow_other": "{{count}} столов свободны сейчас"
   },
   "booking": {
     "date": "Дата",

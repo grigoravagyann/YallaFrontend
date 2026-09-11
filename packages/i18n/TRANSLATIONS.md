@@ -27,6 +27,12 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   reviewed, and this set needs it most: the host-controls copy explains a
   permission rule, and a translation that blurs "the table total" into "your
   total" would tell a guest the opposite of what the feature does.
+- `diner` — the diner-flow fixes (2026-09-11), all provisional and **not**
+  reviewed. Browse: `venue.noneFreeNow` (present tense on purpose — "none free
+  right now", never "fully booked tonight"), `venue.notFound.*`,
+  `branches.openNow`, `branches.freeNow_*`. Removed with the distance and
+  table-total they described: `venue.fullyBooked`, `branches.distanceKm`,
+  `branches.distanceAndHours`, `branches.availability`.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in

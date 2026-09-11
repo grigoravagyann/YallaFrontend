@@ -1,4 +1,4 @@
-import { venueFreeTables, type VenueSummary } from '@yalla/api';
+import { venueAvailability, type VenueSummary } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -19,8 +19,7 @@ export interface VenueCardProps {
 export function VenueCard({ venue, onPress }: VenueCardProps) {
   const { t } = useTranslation('diner');
 
-  const freeTables = venueFreeTables(venue);
-  const fullyBooked = freeTables === 0;
+  const availability = venueAvailability(venue);
   const branchNames = venue.branches.map((b) => b.name).join(', ');
 
   return (
@@ -52,14 +51,22 @@ export function VenueCard({ venue, onPress }: VenueCardProps) {
         ) : null}
 
         {/*
-          A fully booked venue keeps its place in the list rather than being
-          hidden or filtered out. Hiding busy venues makes the app look empty;
-          showing them makes it look used.
+          A busy venue keeps its place in the list rather than being hidden.
+          Hiding busy venues makes the app look empty; showing them makes it
+          look used.
+
+          Three cases, and they are not interchangeable. The count is of tables
+          nobody is sitting at this second, summed over the branches that are
+          open: a shut venue says "Closed" instead, because every table is free
+          at 03:00. Zero at an open venue is "none free right now", not "fully
+          booked tonight" — the room may well empty in twenty minutes.
         */}
-        {fullyBooked ? (
-          <Text style={styles.fullyBooked}>{t('venue.fullyBooked')}</Text>
+        {availability.kind === 'freeNow' ? (
+          <Text style={styles.freeNow}>{t('venue.freeNow', { count: availability.count })}</Text>
+        ) : availability.kind === 'noneFreeNow' ? (
+          <Text style={styles.quiet}>{t('venue.noneFreeNow')}</Text>
         ) : (
-          <Text style={styles.freeNow}>{t('venue.freeNow', { count: freeTables })}</Text>
+          <Text style={styles.quiet}>{t('venue.closedNow')}</Text>
         )}
       </View>
     </Pressable>
@@ -115,7 +122,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: color.success,
   },
-  fullyBooked: {
+  quiet: {
     marginTop: space.xs,
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,

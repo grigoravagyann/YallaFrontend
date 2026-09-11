@@ -9,7 +9,7 @@ import type {
   PublicVenue,
   PublicVenueHeader,
 } from '../contracts/publicBranch';
-import type { VenueType } from '../contracts/booking';
+import type { BranchSummary, VenueSummary, VenueType } from '../contracts/booking';
 import type { components } from '../generated/schema';
 
 type Schemas = components['schemas'];
@@ -220,10 +220,43 @@ export function publicVenueFromCards(
       // Not on the card shape. Null, not zero: zero is a denominator and would
       // render as "7 of 0 tables free".
       totalTables: null,
-      // The card carries no zone. The branch page resolves the real one.
-      timeZoneId: '',
+      timeZoneId: branch.timeZoneId,
     })),
   };
+}
+
+/**
+ * The phone app's browse list, from the same route.
+ *
+ * `/api/public/venues` is the only venue read the backend publishes, and the
+ * one the phone used to call instead — `/api/venues` — never existed. The venue
+ * is keyed by its slug because the card carries no id; see {@link VenueSummary}.
+ *
+ * `isOpenNow` is taken as given and the two instants stay `null`, for the same
+ * reason as the branch page above: the server knows the venue's real clock.
+ */
+export function venueSummariesFromCards(
+  cards: readonly WirePublicVenueCard[],
+): readonly VenueSummary[] {
+  return cards.map((card) => {
+    const venueId = card.venueSlug;
+    return {
+      id: venueId,
+      name: card.name,
+      type: venueTypeFromWire(card.type),
+      branches: card.branches.map((branch): BranchSummary => ({
+        id: branch.branchId,
+        slug: branch.branchSlug,
+        venueId,
+        venueName: card.name,
+        name: branch.name,
+        addressLine: branch.address,
+        timeZoneId: branch.timeZoneId,
+        openState: { isOpen: branch.isOpenNow, closesAtUtc: null, opensAtUtc: null },
+        freeTables: branch.freeTableCount,
+      })),
+    };
+  });
 }
 
 /**

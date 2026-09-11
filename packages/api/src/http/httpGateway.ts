@@ -5,7 +5,6 @@ import type { ApiClient } from '../client';
 import type { PhoneChallenge, VenueSummary, VerifiedPhone } from '../contracts/booking';
 import type { WaiterCall, WaiterCallReason } from '../contracts/tab';
 import {
-  EndpointNotWiredError,
   ExpiredCodeError,
   HoldAlreadyExtendedError,
   MenuItemUnavailableError,
@@ -34,6 +33,7 @@ import {
 } from './mapping';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import { dinerTab, reservationState, settlementModeCode } from './dinerMapping';
+import { venueSummariesFromCards } from './publicMapping';
 import { branchMenu, placeOrderResult, tabEventPage, tabShares } from './staffMapping';
 
 type Schemas = components['schemas'];
@@ -90,15 +90,18 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
   const defaultZone = options.defaultTimeZoneId ?? 'Asia/Yerevan';
 
   /**
-   * A 404 on a *collection* route is the route missing, not the resource.
-   * The backend has no venue catalogue yet; say so in a way the screen can
-   * render as "not available" rather than as a bug.
+   * The browse list: `GET /api/public/venues`, anonymous.
+   *
+   * The only venue read the backend publishes. A local function rather than a
+   * method so `getVenue` can reuse it without `this`, which stays correct if a
+   * method is ever passed around unbound.
    */
-  function notWired(endpoint: string, error: unknown): never {
-    if (error instanceof NotFoundError) {
-      throw new EndpointNotWiredError({ url: error.url, endpoint });
-    }
-    throw error;
+  async function listVenues(): Promise<readonly VenueSummary[]> {
+    const { data } = await client.get<Schemas['Yalla.Application.Public.PublicVenueCard'][]>(
+      '/api/public/venues',
+      { skipAuth: true },
+    );
+    return venueSummariesFromCards(data ?? []);
   }
 
   /**
@@ -147,29 +150,19 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
   return {
     // --- Browse -------------------------------------------------------------
 
-    async listVenues(): Promise<readonly VenueSummary[]> {
-      try {
-        // gateway-schema: awaiting-route — browse has no backend route yet; this
-        // degrades through EndpointNotWiredError rather than pretending.
-        const { data } = await client.get<readonly VenueSummary[]>('/api/venues', {
-          skipAuth: true,
-        });
-        return data;
-      } catch (error) {
-        return notWired('listVenues', error);
-      }
-    },
+    listVenues,
 
+    /**
+     * One venue, from the list.
+     *
+     * There is no by-slug venue route, so this reads the list and picks. Honest
+     * at the size the list is, and the same thing the web chooser does. A venue
+     * that has dropped off the list — suspended, or never published — is
+     * `null`, which the screen renders as "not found" rather than as an error.
+     */
     async getVenue(venueId): Promise<VenueSummary | null> {
-      try {
-        // gateway-schema: awaiting-route — same feature, same absent route.
-        const { data } = await client.get<VenueSummary>(`/api/venues/${venueId}`, {
-          skipAuth: true,
-        });
-        return data;
-      } catch (error) {
-        return notWired('getVenue', error);
-      }
+      const venues = await listVenues();
+      return venues.find((venue) => venue.id === venueId) ?? null;
     },
 
     // --- Floor ----------------------------------------------------------------

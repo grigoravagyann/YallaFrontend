@@ -1,4 +1,5 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { OpenState } from './publicBranch';
 
 /**
  * Domain contracts for the reservation flow.
@@ -26,20 +27,50 @@ export interface BranchPolicy {
   readonly freeCancellationMinutes: number;
 }
 
+/**
+ * One branch as the browse list publishes it — `PublicBranchCard`, and nothing
+ * the card does not carry.
+ *
+ * This used to promise a distance, today's opening and closing instants, a
+ * table total and a booking policy. None of the four is on the one venue read
+ * the backend publishes, and a screen that called `branch.distanceKm.toFixed(1)`
+ * on a real card would have crashed. What a diner genuinely gets is below.
+ */
 export interface BranchSummary {
+  /** The branch id — a guid on the wire, and what every branch route takes. */
   readonly id: string;
+  readonly slug: string;
+  /** The venue's slug, which is the venue's id on this surface. */
   readonly venueId: string;
   readonly venueName: string;
   readonly name: string;
-  readonly distanceKm: number;
+  readonly addressLine: string;
+  /** IANA zone. Every time rendered for this branch uses it, never the device's. */
   readonly timeZoneId: string;
-  readonly opensAtUtc: string;
-  readonly closesAtUtc: string;
-  readonly totalTables: number;
+  /**
+   * Open or shut, as the server judged it against the branch's own clock.
+   *
+   * The public card sends only the boolean, so both instants are `null` against
+   * the real backend; the mock, which derives them from a fixture week, fills
+   * them. A screen shows "open until" only when it has a time to show.
+   */
+  readonly openState: OpenState;
+  /**
+   * Tables nobody is sitting at **right now**, among the bookable ones.
+   *
+   * Not "free tonight", and meaningless at a branch that is shut — every table
+   * is free at 03:00. Read it through `branchAvailability`, which says so.
+   */
   readonly freeTables: number;
-  readonly policy: BranchPolicy;
 }
 
+/**
+ * A venue as the browse list publishes it.
+ *
+ * `id` is the venue's slug: the public card carries no venue id, the slug is
+ * unique, and nothing links a booking or a tab back to this route, so the slug
+ * is the honest key. The web page already keys its chooser the same way.
+ */
 export interface VenueSummary {
   readonly id: string;
   readonly name: string;

@@ -27,23 +27,27 @@
     "typeAndBranches": "{{type}} · {{branches}}",
     "freeNow_one": "{{count}} table free now",
     "freeNow_other": "{{count}} tables free now",
-    "fullyBooked": "Fully booked tonight",
     "openNow": "Open now",
-    "closedNow": "Closed"
+    "closedNow": "Closed",
+    "noneFreeNow": "No tables free right now",
+    "notFound": {
+      "title": "This place is not on Yalla any more",
+      "body": "It may have closed or stopped taking bookings. Go back and pick another."
+    }
   },
   "branches": {
     "title": "Choose a branch",
-    "distanceKm": "{{km}} km",
     "openUntil": "open until {{time}}",
     "closed": "closed",
-    "distanceAndHours": "{{distance}} · {{hours}}",
-    "availability": "{{free}} of {{total}} tables free",
     "noneFree": "No tables free",
     "empty": {
       "title": "No branches",
       "body": "This venue has no locations listed yet."
     },
-    "loading": "Loading branches…"
+    "loading": "Loading branches…",
+    "openNow": "open now",
+    "freeNow_one": "{{count}} table free now",
+    "freeNow_other": "{{count}} tables free now"
   },
   "booking": {
     "date": "Date",
