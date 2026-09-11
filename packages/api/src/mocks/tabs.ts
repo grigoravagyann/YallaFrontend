@@ -399,6 +399,10 @@ export function createTabWorld(options: TabWorldOptions) {
 
     invite(input: { tabId: string; commandId: string }): TabInvite {
       const record = requireTab(input.tabId);
+      // Host-only, as the server is (`RequireHost(..., "Inviting others")`).
+      // Minting one for anybody is how a guest's Invite looked fine here and
+      // got a 403 from the real route.
+      requireHost(record);
 
       const replayedToken = inviteCommandLog.get(input.commandId);
       const current = invites.get(record.id);

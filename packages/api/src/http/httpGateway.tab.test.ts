@@ -282,6 +282,21 @@ describe('on the tab', () => {
     });
   });
 
+  it('reads a refused invitation as not being the host, not as a failure to retry', async () => {
+    const { gateway } = await onTheTab({
+      // TabService.CreateJoinTokenAsync: RequireHost(tab, actingParticipantId,
+      // "Inviting others"), mapped to 403 `forbidden`.
+      [`POST /api/tabs/${TAB}/join-tokens`]: problemReply(403, 'forbidden', {
+        operation: 'Inviting others',
+        requirement: 'the host of this tab',
+      }),
+    });
+
+    expect((await caught(gateway.createTabInvite({ tabId: TAB, commandId: 'c' }))).name).toBe(
+      'NotTabHostError',
+    );
+  });
+
   it('approves and sets permissions on the participant routes', async () => {
     const { gateway, backend } = await onTheTab({
       [`POST /api/tabs/${TAB}/participants/${GUEST}/approve`]: {

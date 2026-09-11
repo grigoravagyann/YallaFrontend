@@ -1,5 +1,6 @@
-import type { MenuItemDetail } from '@yalla/api';
+import { NetworkError, type MenuItemDetail } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
+import { sendTray } from './send';
 import { commandFor, emptyTray, trayLocked, trayReducer, type TrayState } from './tray';
 
 /**
@@ -103,5 +104,56 @@ describe('the command id for a send', () => {
 
     expect(state.pendingSend).toBeNull();
     expect(trayLocked(state)).toBe(false);
+  });
+});
+
+describe('a connection that drops while the order is on its way', () => {
+  const url = 'https://api.test/api/tabs/t1/orders';
+
+  it('keeps the command id when the phone was online as it sent, because the kitchen may have it', async () => {
+    let state = withCoffee();
+    let online = true;
+    const issued: string[] = [];
+
+    const outcome = await sendTray({
+      tray: state,
+      newCommandId: fresh,
+      dispatch: (action) => {
+        if (action.type === 'sending') issued.push(action.commandId);
+        state = trayReducer(state, action);
+      },
+      isOnline: () => online,
+      place: () => {
+        // The POST reached the server. The signal went (a lift, a step outside)
+        // before the answer came back, and NetInfo said so before fetch gave up.
+        online = false;
+        return Promise.reject(new NetworkError({ url }));
+      },
+      nowMs: () => 0,
+    });
+
+    expect(outcome.ok ? 'sent' : outcome.kind).toBe('uncertain');
+    expect(state.pendingSend).toMatchObject({ commandId: issued[0], uncertain: true });
+    // So "Check again" resends under the same id, and the server answers with
+    // the first order rather than placing a second.
+    expect(commandFor(state, fresh).commandId).toBe(issued[0]);
+  });
+
+  it('says nothing went only when the phone was already offline as it sent', async () => {
+    let state = withCoffee();
+
+    const outcome = await sendTray({
+      tray: state,
+      newCommandId: fresh,
+      dispatch: (action) => {
+        state = trayReducer(state, action);
+      },
+      isOnline: () => false,
+      place: () => Promise.reject(new NetworkError({ url })),
+      nowMs: () => 0,
+    });
+
+    expect(outcome.ok ? 'sent' : outcome.kind).toBe('offline');
+    expect(state.pendingSend).toBeNull();
   });
 });

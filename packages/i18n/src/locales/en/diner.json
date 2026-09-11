@@ -352,7 +352,8 @@
     "expired": "This link has expired. Make a new one.",
     "refresh": "New link",
     "loading": "Making a link…",
-    "error": "We could not make a link. Try again."
+    "error": "We could not make a link. Try again.",
+    "notHost": "Only whoever opened the tab can invite people. Ask them to show the code on their phone."
   },
   "people": {
     "title": "People on this tab",

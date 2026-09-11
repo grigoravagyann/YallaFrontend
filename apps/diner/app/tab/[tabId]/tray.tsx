@@ -10,15 +10,14 @@ import { Text } from '../../../src/components/Text';
 import { orderKeys, useDinerTab, usePlaceOrder } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { useTray } from '../../../src/order/TrayProvider';
+import { sendTray } from '../../../src/order/send';
 import {
-  commandFor,
   trayItemCount,
   trayLocked,
   traySubtotalDram,
   trayToOrderLines,
 } from '../../../src/order/tray';
 import {
-  orderFailureKind,
   orderingBlock,
   orderingBlockKey,
   type OrderFailure,
@@ -35,7 +34,8 @@ import {
  *   closing mid-tray; this one offers the bill.
  * - `blocked` — the server's bare 403, explained by reading the tab again:
  *   still pending, not allowed to order, or the bill asked for.
- * - `uncertain` — a timeout, a 5xx, or a connection that dropped while online.
+ * - `uncertain` — a timeout, a 5xx, or a connection that dropped after the
+ *   order left a phone that was online.
  *   The order may have reached the kitchen. It used to say "not placed"; now it
  *   says it cannot tell, keeps the tray as sent, and "Check again" resends it
  *   with the same command id, which the server answers with the first order
@@ -95,52 +95,50 @@ export default function TrayScreen() {
     }
     setFailure(null);
 
-    // The same id for the same contents, so a resend cannot place it twice.
-    const { commandId, fingerprint } = commandFor(tray, newCommandId);
-    dispatch({ type: 'sending', commandId, fingerprint });
+    const orderTabId = view.tabId;
+    const lines = trayToOrderLines(tray, view.me.participantId);
+    const outcome = await sendTray({
+      tray,
+      newCommandId,
+      dispatch,
+      isOnline: () => onlineManager.isOnline(),
+      place: (clientCommandId) =>
+        placeOrder.mutateAsync({ tabId: orderTabId, clientCommandId, lines }),
+      nowMs: () => Date.now(),
+    });
 
-    try {
-      const result = await placeOrder.mutateAsync({
-        tabId: view.tabId,
-        clientCommandId: commandId,
-        lines: trayToOrderLines(tray, view.me.participantId),
-      });
+    if (outcome.ok) {
       // The confirmation carries the server's own order id and estimate, and it
       // is what the bar on the menu reads. Set only from a `PlaceOrderResult` —
       // never optimistically, and never assembled from the tray.
-      dispatch({
-        type: 'sent',
-        order: {
-          orderId: result.orderId,
-          estimatedReadyAtUtc: result.estimatedReadyAtUtc,
-          atMs: Date.now(),
-        },
+      setSent({
+        estimatedReadyAtUtc: outcome.result.estimatedReadyAtUtc,
+        wasReplay: outcome.result.wasReplay,
       });
-      setSent({ estimatedReadyAtUtc: result.estimatedReadyAtUtc, wasReplay: result.wasReplay });
-    } catch (error) {
-      // **The tray is not cleared on any of these paths.** Nothing was placed,
-      // or nobody can tell yet; either way the items are still what this
-      // person wants.
-      const kind = orderFailureKind(error, onlineManager.isOnline());
-      dispatch({ type: 'sendFailed', uncertain: kind === 'uncertain' });
+      return;
+    }
 
-      if (error instanceof MenuItemUnavailableError) {
-        // The menu is cached hard; the dish that just sold out must say so.
-        void queryClient.invalidateQueries({ queryKey: orderKeys.menuDetail(view.branchId) });
-        setFailure({ kind: 'soldOut', itemName: error.itemName });
+    // **The tray is not cleared on any of these paths.** Nothing was placed,
+    // or nobody can tell yet; either way the items are still what this
+    // person wants.
+    const { error, kind } = outcome;
+
+    if (error instanceof MenuItemUnavailableError) {
+      // The menu is cached hard; the dish that just sold out must say so.
+      void queryClient.invalidateQueries({ queryKey: orderKeys.menuDetail(view.branchId) });
+      setFailure({ kind: 'soldOut', itemName: error.itemName });
+      return;
+    }
+    if (kind === 'forbidden' || kind === 'closing') {
+      // No body on the 403: the tab read says why.
+      const next = await refetchTab();
+      const why = next.data ? orderingBlock(next.data) : null;
+      if (why && kind === 'forbidden') {
+        setFailure({ kind: 'blocked', block: why });
         return;
       }
-      if (kind === 'forbidden' || kind === 'closing') {
-        // No body on the 403: the tab read says why.
-        const next = await refetchTab();
-        const why = next.data ? orderingBlock(next.data) : null;
-        if (why && kind === 'forbidden') {
-          setFailure({ kind: 'blocked', block: why });
-          return;
-        }
-      }
-      setFailure({ kind: kind === 'soldOut' ? 'error' : kind });
     }
+    setFailure({ kind: kind === 'soldOut' ? 'error' : kind });
   }
 
   if (sent) {

@@ -243,4 +243,19 @@ describe('mock gateway — host controls', () => {
       }),
     ).rejects.toBeInstanceOf(NotTabHostError);
   });
+
+  it('a guest cannot make an invitation, because the server refuses one', async () => {
+    // TabService.CreateJoinTokenAsync: RequireHost(tab, actingParticipantId,
+    // "Inviting others"). The mock used to mint the link for anybody, so mock
+    // mode showed a guest a working Invite that the server answers with 403.
+    const guestDevice = createMockGateway({ simulateJoiners: false });
+    const joined = await guestDevice.scanTableCode({
+      tableCode: HOSTED_BY_SOMEONE_ELSE,
+      commandId: cmd(),
+    });
+
+    await expect(
+      guestDevice.createTabInvite({ tabId: joined.tab.tabId, commandId: cmd() }),
+    ).rejects.toBeInstanceOf(NotTabHostError);
+  });
 });

@@ -51,7 +51,9 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   dropped connection that may have booked) and `bookings.status.cancelled`.
   The shared tab: `tab.accessEnded.*` (the server cannot say whether the tab
   closed or the person was taken off, so the copy must keep covering both),
-  `tab.hostCannotLeave`, `tab.loadError`, `tab.closingBanner`,
+  `tab.hostCannotLeave`, `invite.notHost` (the server lets only the host make
+  an invitation, so it must never read as "try again"), `tab.loadError`,
+  `tab.closingBanner`,
   `order.blocked.*`, `pending.endedTitle`, `pending.endedBody`,
   `people.permissionsUnknown`, `people.savePermissions`,
   `scan.error.notEnabled`, `.branchUnavailable`, `.uncertain`,

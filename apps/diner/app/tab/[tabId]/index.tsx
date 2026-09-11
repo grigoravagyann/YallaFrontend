@@ -19,6 +19,7 @@ import { LiveBill } from '../../../src/components/LiveBill';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useLeaveTab } from '../../../src/data/queries';
 import { useActiveTab } from '../../../src/stores/tab';
+import { canInvite } from '../../../src/tab/invite';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
 import { onTab, roster } from '../../../src/tab/roster';
 
@@ -199,15 +200,19 @@ export default function TabScreen() {
 
           <ParticipantsList view={view} />
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() =>
-              router.push({ pathname: '/tab/[tabId]/invite', params: { tabId: view.tabId } })
-            }
-            style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-          >
-            <Text style={styles.primaryText}>{t('tab.invite')}</Text>
-          </Pressable>
+          {/* Host-only, because the server's invitation route is: offered to a
+              guest, it was a button whose every tap ended in a refusal. */}
+          {canInvite(view) ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() =>
+                router.push({ pathname: '/tab/[tabId]/invite', params: { tabId: view.tabId } })
+              }
+              style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
+            >
+              <Text style={styles.primaryText}>{t('tab.invite')}</Text>
+            </Pressable>
+          ) : null}
 
           {isHost ? (
             <Pressable

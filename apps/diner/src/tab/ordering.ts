@@ -45,17 +45,21 @@ export function orderingBlockKey(block: OrderingBlock): string {
  * kitchen got the order. Saying "this order has not been placed" there was
  * sometimes false; the honest answer is "we could not tell", and the next step
  * — sending the same tray again with the same command id — cannot place it
- * twice. Only a phone that knew it was offline is told plainly nothing went.
+ * twice. Only a phone that was already offline as the order left is told
+ * plainly nothing went: one that lost its signal mid-request cannot know.
+ *
+ * `onlineAtSend` is the connection as the request left, never as it stood when
+ * the failure arrived — see `sendTray`.
  */
 export type OrderFailure =
   'soldOut' | 'closing' | 'forbidden' | 'ended' | 'offline' | 'uncertain' | 'error';
 
-export function orderFailureKind(error: unknown, online: boolean): OrderFailure {
+export function orderFailureKind(error: unknown, onlineAtSend: boolean): OrderFailure {
   if (error instanceof MenuItemUnavailableError) return 'soldOut';
   if (error instanceof TabNotAcceptingOrdersError) return 'closing';
   if (error instanceof TabAccessEndedError) return 'ended';
   if (error instanceof ForbiddenError) return 'forbidden';
-  if (error instanceof NetworkError && !online) return 'offline';
+  if (error instanceof NetworkError && !onlineAtSend) return 'offline';
   if (
     error instanceof TimeoutError ||
     error instanceof NetworkError ||
