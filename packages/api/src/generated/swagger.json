@@ -520,7 +520,7 @@
             }
           },
           "403": {
-            "description": "Requires the Manager role.",
+            "description": "Requires the Manager role, at a branch of the caller's own venue, on an account that is still active.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5145,6 +5145,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Application.Auth.EnrolledDeviceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No device token, or the device was revoked.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/staff/roster": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Who may sign in on this device. Reads the device claim exactly as\r\nM:Yalla.Api.Endpoints.AuthEndpoints.GetEnrolledDeviceAsync(Yalla.Application.Auth.IStaffAuthService,Microsoft.AspNetCore.Http.HttpContext,System.Threading.CancellationToken) does, so the two refuse the same callers the same way.",
+        "description": "For the PIN screen, so a first sign-in is a name to tap rather than a staff member id to type. Exactly the people `POST /api/auth/staff/pin` would accept here: active, of this device's venue, and either at this device's branch or at no particular branch. Sorted by name.\n\nThree fields per person and nothing else - no phone, email or PIN state - because whoever holds the tablet can read it.\n\nAuthenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.",
+        "operationId": "getStaffRoster",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Auth.StaffRosterEntry"
+                  }
                 }
               }
             }
@@ -14292,6 +14367,35 @@
         },
         "additionalProperties": false,
         "description": "One enrolled tablet, as the admin panel lists it."
+      },
+      "Yalla.Application.Auth.StaffRosterEntry": {
+        "required": [
+          "fullName",
+          "role",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "What `POST /api/auth/staff/pin` takes.",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "The name to tap."
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "What a staff member is allowed to do, coarsely. Authorisation itself is a later task."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One person who may tap a PIN on this tablet, as its PIN screen lists them."
       },
       "Yalla.Application.Auth.StaffSessionResult": {
         "required": [

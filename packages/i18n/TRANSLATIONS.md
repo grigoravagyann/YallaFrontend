@@ -44,6 +44,12 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `devices.enrolledOn`, and `devices.title`, now "Tablets" / "Պլանշետներ" /
   "Планшеты"). Provisional, **not** reviewed. The Russian role question is
   worded around "сотрудник" to stay ungendered, like the badges.
+- `admin` + `staff` — the staff id and the tablet roster (2026-09-11): the
+  edit dialog's ID row (`staff.staffId.label`, `staff.staffId.help`,
+  `staff.staffId.copy`), the PIN screen's roster fallback note
+  (`pin.rosterFailed`) and the reworded `pin.staffIdWhy`, which now points at
+  Staff → Edit → Copy staff ID. Provisional, **not** reviewed; if the console's
+  "Staff" or "Edit" labels are retranslated, `pin.staffIdWhy` must follow.
 - `staff` — the floor screen: connection and sync states, the order and seating
   panel frames, and the install prompt. **Not** reviewed, and this set matters
   most of all: it is read by a waiter at arm's length during a rush, in Armenian

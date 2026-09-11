@@ -3,10 +3,11 @@ import {
   PinRejectedError,
   describeFailure,
   type EnrolledDevice,
+  type StaffRosterEntry,
   type StaffSignOutReason,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { staffDeviceStore, type KnownStaffMember } from './deviceStore';
 import { staffSession } from './staffSession';
 
@@ -26,14 +27,14 @@ import { staffSession } from './staffSession';
  *   a manager can clear it. A waiter locked out mid-rush with no explanation
  *   goes back to paper that evening, and paper does not come back.
  *
- * ## Why there is a list of names and an id field
+ * ## Where the names come from
  *
- * `POST /api/auth/staff/pin` takes a `staffMemberId`, and **no endpoint lists a
- * branch's staff to a device token** — the staff list is `ManagerOrAbove` and
- * venue-scoped. So the tablet remembers everybody who has signed in on it and
- * shows them as tiles, and a person this tablet has never seen enters their id
- * once. That is not a good first-run experience and it is the only one the API
- * permits today; the fix is a device-readable roster, noted in the README.
+ * `POST /api/auth/staff/pin` takes a `staffMemberId`. Online, the tiles are the
+ * branch roster (`GET /api/auth/staff/roster`, read with the device token), so
+ * a person tapping their name for the first time needs nothing else. When the
+ * roster cannot be had — offline, or it failed — the tiles are everybody this
+ * tablet remembers, and "Someone else" takes a typed id, which a manager copies
+ * from the console's edit dialog.
  */
 
 export interface PinScreenProps {
@@ -63,7 +64,14 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
   const { t } = useTranslation(['staff', 'common']);
 
   const [known, setKnown] = useState<readonly KnownStaffMember[]>([]);
+  /** `null` until the roster answers, and for good if it fails. */
+  const [roster, setRoster] = useState<readonly StaffRosterEntry[] | null>(null);
+  const [rosterFailed, setRosterFailed] = useState(false);
   const [staffMemberId, setStaffMemberId] = useState<string | null>(null);
+  /** "Someone else" was tapped: the id field is showing. */
+  const [someoneElse, setSomeoneElse] = useState(false);
+  /** Somebody touched the choice, so a late preselect must not overrule them. */
+  const chose = useRef(false);
   const [typedId, setTypedId] = useState('');
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
@@ -75,19 +83,38 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
   useEffect(() => {
     let cancelled = false;
     void staffDeviceStore.readKnownStaff().then((people) => {
-      if (cancelled) return;
-      setKnown(people);
-      // One person on the tablet is the common case at a small cafe: preselect
-      // them so the shift starts with four taps and nothing else.
-      if (people.length === 1) setStaffMemberId(people[0]?.staffMemberId ?? null);
+      if (!cancelled) setKnown(people);
     });
+    // The roster is the better list whenever it can be had. A failure is not
+    // an error on this screen — the remembered names and the id field still
+    // work — so it becomes a quiet note, not an alert. A revoked device is the
+    // session's business: it unenrols, and the gate swaps this screen out.
+    staffSession
+      ?.roster()
+      .then((entries) => {
+        if (!cancelled) setRoster(entries);
+      })
+      .catch(() => {
+        if (!cancelled) setRosterFailed(true);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const chosenId = staffMemberId ?? (typedId.trim() || null);
-  const chosenName = known.find((person) => person.staffMemberId === staffMemberId)?.fullName;
+  const people: readonly { staffMemberId: string; fullName: string }[] = roster ?? known;
+
+  // One person on the tablet is the common case at a small cafe: preselect
+  // them so the shift starts with four taps and nothing else.
+  useEffect(() => {
+    if (!chose.current && people.length === 1) {
+      setStaffMemberId(people[0]?.staffMemberId ?? null);
+    }
+  }, [people]);
+
+  const typing = staffMemberId === null && (someoneElse || people.length === 0);
+  const chosenId = staffMemberId ?? (typing ? typedId.trim() || null : null);
+  const chosenName = people.find((person) => person.staffMemberId === staffMemberId)?.fullName;
 
   async function submit(digits: string): Promise<void> {
     if (!staffSession || !chosenId) return;
@@ -159,16 +186,21 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
           <p className="table-note">{t('pin.sessionEnded')}</p>
         ) : null}
 
-        {/* Who is signing in. Tiles for everybody this tablet has seen. */}
-        {known.length > 0 ? (
+        {rosterFailed ? <p className="table-note">{t('pin.rosterFailed')}</p> : null}
+
+        {/* Who is signing in: the branch roster, or everybody this tablet has
+            seen when the roster cannot be had. */}
+        {people.length > 0 ? (
           <div className="pin-people" role="group" aria-label={t('pin.whoTitle')}>
-            {known.map((person) => (
+            {people.map((person) => (
               <button
                 key={person.staffMemberId}
                 type="button"
                 className={`pin-person ${staffMemberId === person.staffMemberId ? 'is-on' : ''}`}
                 aria-pressed={staffMemberId === person.staffMemberId}
                 onClick={() => {
+                  chose.current = true;
+                  setSomeoneElse(false);
                   setStaffMemberId(person.staffMemberId);
                   setTypedId('');
                   setPin('');
@@ -182,9 +214,11 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
             ))}
             <button
               type="button"
-              className={`pin-person pin-person-other ${staffMemberId === null ? 'is-on' : ''}`}
-              aria-pressed={staffMemberId === null}
+              className={`pin-person pin-person-other ${typing ? 'is-on' : ''}`}
+              aria-pressed={typing}
               onClick={() => {
+                chose.current = true;
+                setSomeoneElse(true);
                 setStaffMemberId(null);
                 setPin('');
                 setAttempts(0);
@@ -196,7 +230,7 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
           </div>
         ) : null}
 
-        {staffMemberId === null ? (
+        {typing ? (
           <label className="labelled">
             {t('pin.staffId')}
             <input

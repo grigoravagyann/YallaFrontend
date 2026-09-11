@@ -185,6 +185,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/staff/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who may sign in on this device. Reads the device claim exactly as
+         *     M:Yalla.Api.Endpoints.AuthEndpoints.GetEnrolledDeviceAsync(Yalla.Application.Auth.IStaffAuthService,Microsoft.AspNetCore.Http.HttpContext,System.Threading.CancellationToken) does, so the two refuse the same callers the same way.
+         * @description For the PIN screen, so a first sign-in is a name to tap rather than a staff member id to type. Exactly the people `POST /api/auth/staff/pin` would accept here: active, of this device's venue, and either at this device's branch or at no particular branch. Sorted by name.
+         *
+         *     Three fields per person and nothing else - no phone, email or PIN state - because whoever holds the tablet can read it.
+         *
+         *     Authenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.
+         */
+        get: operations["getStaffRoster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/staff/sign-out": {
         parameters: {
             query?: never;
@@ -3370,6 +3395,18 @@ export interface components {
             lastSeenAtUtc?: string | null;
             /** @description What the manager called it. */
             name: string;
+        };
+        /** @description One person who may tap a PIN on this tablet, as its PIN screen lists them. */
+        "Yalla.Application.Auth.StaffRosterEntry": {
+            /** @description The name to tap. */
+            fullName: string;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+            /**
+             * Format: uuid
+             * @description What `POST /api/auth/staff/pin` takes.
+             */
+            staffMemberId: string;
         };
         /** @description A staff member's session on a tablet, opened by a PIN. */
         "Yalla.Application.Auth.StaffSessionResult": {
@@ -6859,6 +6896,71 @@ export interface operations {
             };
         };
     };
+    getStaffRoster: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.StaffRosterEntry"][];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No device token, or the device was revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     signOutStaffSession: {
         parameters: {
             query?: never;
@@ -8885,7 +8987,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Requires the Manager role. */
+            /** @description Requires the Manager role, at a branch of the caller's own venue, on an account that is still active. */
             403: {
                 headers: {
                     [name: string]: unknown;

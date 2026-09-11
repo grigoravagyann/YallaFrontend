@@ -10,6 +10,7 @@ import type {
   EnrolDeviceCommand,
   EnrolledDevice,
   PinSignInCommand,
+  StaffRosterEntry,
   StaffSignInResult,
 } from '../contracts/staffAuth';
 import { ApiError, ForbiddenError, UnauthorizedError } from '../errors';
@@ -17,6 +18,9 @@ import type { components } from '../generated/schema';
 import { staffRoleToUserRole } from './endpoints';
 
 type Schemas = components['schemas'];
+
+/** One row of `GET /api/auth/staff/roster`. */
+type StaffRosterEntryWire = components['schemas']['Yalla.Application.Auth.StaffRosterEntry'];
 
 const STAFF = '/api/auth/staff';
 
@@ -95,6 +99,28 @@ export function createStaffAuth(client: ApiClient) {
           enrolledAtUtc: data.enrolledAtUtc,
           lastSeenAtUtc: data.lastSeenAtUtc ?? null,
         };
+      } catch (error) {
+        throw asDeviceFailure(error);
+      }
+    },
+
+    /**
+     * The branch's people, for the PIN screen's name tiles.
+     *
+     * Same credential and same refusals as {@link getDevice}: a 401 means the
+     * tablet is revoked or was never enrolled.
+     */
+    async getRoster(deviceToken: string): Promise<readonly StaffRosterEntry[]> {
+      try {
+        const { data } = await client.get<readonly StaffRosterEntryWire[]>(`${STAFF}/roster`, {
+          skipAuth: true,
+          headers: bearer(deviceToken),
+        });
+        return data.map((entry) => ({
+          staffMemberId: entry.staffMemberId,
+          fullName: entry.fullName,
+          role: staffRoleToUserRole(entry.role),
+        }));
       } catch (error) {
         throw asDeviceFailure(error);
       }

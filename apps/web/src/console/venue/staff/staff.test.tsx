@@ -445,6 +445,22 @@ describe('the sign-in email', () => {
     expect(within(form).queryByLabelText(/^email$/i)).toBeNull();
   });
 
+  it('shows the staff id in the edit dialog, and Copy puts it on the clipboard', async () => {
+    const user = userEvent.setup();
+    renderStaff({ role: 'owner' });
+    await waitForList();
+
+    await chooseAction(user, cardOf('Nare Petrosyan'), /^edit$/i);
+    const form = screen.getByRole('form', { name: /edit nare petrosyan/i });
+    const id = within(form).getByText(/-manager$/);
+    const staffId = id.textContent!;
+
+    await user.click(within(form).getByRole('button', { name: /copy staff id/i }));
+
+    expect(await navigator.clipboard.readText()).toBe(staffId);
+    expect(within(form).getByRole('status').textContent).toMatch(/copied/i);
+  });
+
   it('refuses something that is not an address before anything is sent', async () => {
     // Same idiom as the PIN: the answer is known, so the server is not asked,
     // and the sentence is the app's own rather than the browser's.

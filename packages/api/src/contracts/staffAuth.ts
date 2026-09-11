@@ -84,6 +84,20 @@ export interface StaffSignInResult {
   readonly tokens: StaffSessionTokens;
 }
 
+/**
+ * One name on the PIN screen, from `GET /api/auth/staff/roster`.
+ *
+ * Active people of the device's venue whose branch is this one or every
+ * branch, sorted by name by the server. Nothing beyond what a tile needs: the
+ * tablet is a shared device, and a phone number on it is a phone number on a
+ * counter.
+ */
+export interface StaffRosterEntry {
+  readonly staffMemberId: string;
+  readonly fullName: string;
+  readonly role: UserRole;
+}
+
 export interface PinSignInCommand {
   /** Whose PIN is being tapped. */
   readonly staffMemberId: string;
