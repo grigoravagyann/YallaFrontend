@@ -6,6 +6,9 @@ import { createConsoleMockGateway } from './consoleMock';
 let n = 0;
 const cmd = () => `cmd_${(n += 1)}`;
 
+/** Lumen's three branches, all active, in name order. */
+const LUMEN_BRANCHES_BY_NAME = ['b-lumen-cascade', 'b-lumen-north', 'b-lumen-saryan'];
+
 describe('console mock — scope comes from the role, never from a url', () => {
   it('a platform admin is scoped to every venue', async () => {
     const user = await createConsoleMockGateway({ role: 'platformAdmin' }).getCurrentUser();
@@ -13,17 +16,128 @@ describe('console mock — scope comes from the role, never from a url', () => {
     expect(user.scope.branchIds).toEqual([]);
   });
 
-  it('an owner is scoped to their venue and all of its branches', async () => {
+  it('an owner is scoped to their venue and carries no branch claim', async () => {
+    // A real owner token has `venueId` and no `branchId` (live probe,
+    // 2026-09-10). Their branches come from `getManagedVenue`, never from here.
     const user = await createConsoleMockGateway({ role: 'owner' }).getCurrentUser();
     expect(user.scope.venueId).not.toBeNull();
-    expect(user.scope.branchIds.length).toBeGreaterThan(1);
+    expect(user.scope.branchIds).toEqual([]);
   });
 
-  it('a manager, a waiter and a kitchen account each get exactly one branch', async () => {
+  it('a manager, a waiter and a kitchen account each carry their home branch', async () => {
     for (const role of ['manager', 'waiter', 'kitchen'] as const) {
       const user = await createConsoleMockGateway({ role }).getCurrentUser();
       expect(user.scope.branchIds).toHaveLength(1);
     }
+  });
+
+  it('a manager created with no branch carries the venue and no branch claim', async () => {
+    const user = await createConsoleMockGateway({
+      role: 'manager',
+      managerBranch: 'none',
+    }).getCurrentUser();
+    expect(user.scope.venueId).toBe('v-lumen');
+    expect(user.scope.branchIds).toEqual([]);
+  });
+});
+
+describe('console mock — the venue reads refuse what the server refuses', () => {
+  const failing = (run: Promise<unknown>) => run.then(() => null).catch((error: unknown) => error);
+
+  it('answers the platform venue read to the platform admin only', async () => {
+    // `GET /api/platform/venues/{id}` is PlatformAdminOnly: 403 to every
+    // venue user, which is the read the console used to learn its branches from.
+    const { ForbiddenError } = await import('../errors');
+    await expect(
+      createConsoleMockGateway({ role: 'platformAdmin' }).getVenue('v-lumen'),
+    ).resolves.toMatchObject({ id: 'v-lumen' });
+    for (const role of ['owner', 'manager', 'waiter', 'kitchen'] as const) {
+      const caught = await failing(createConsoleMockGateway({ role }).getVenue('v-lumen'));
+      expect(caught, role).toBeInstanceOf(ForbiddenError);
+    }
+  });
+
+  it('gives an owner every branch of their venue, by name', async () => {
+    // The server's order is active first, then by name; the fixture has no
+    // inactive branch, so what can be proved here is the second half.
+    const venue = await createConsoleMockGateway({ role: 'owner' }).getManagedVenue('v-lumen');
+    expect(venue.id).toBe('v-lumen');
+    expect(venue.name).toBe('Lumen Coffee');
+    expect(venue.branches.map((branch) => branch.id)).toEqual(LUMEN_BRANCHES_BY_NAME);
+    expect(venue.branches.every((branch) => branch.isActive)).toBe(true);
+    expect(venue.branches[0]?.timeZoneId).toBe('Asia/Yerevan');
+  });
+
+  it('gives a manager with a home branch that branch only', async () => {
+    const venue = await createConsoleMockGateway({ role: 'manager' }).getManagedVenue('v-lumen');
+    expect(venue.branches.map((branch) => branch.id)).toEqual(['b-lumen-north']);
+  });
+
+  it('gives a manager with no branch every branch, like an owner', async () => {
+    const venue = await createConsoleMockGateway({
+      role: 'manager',
+      managerBranch: 'none',
+    }).getManagedVenue('v-lumen');
+    expect(venue.branches.map((branch) => branch.id)).toEqual(LUMEN_BRANCHES_BY_NAME);
+  });
+
+  it('gives the platform admin every branch, and 404 for a venue that does not exist', async () => {
+    const { NotFoundError } = await import('../errors');
+    const admin = createConsoleMockGateway({ role: 'platformAdmin' });
+    const venue = await admin.getManagedVenue('v-lumen');
+    expect(venue.branches.map((branch) => branch.id)).toEqual(LUMEN_BRANCHES_BY_NAME);
+    expect(await failing(admin.getManagedVenue('v-nowhere'))).toBeInstanceOf(NotFoundError);
+  });
+
+  it('refuses a waiter, a kitchen account and another venue with 403', async () => {
+    const { ForbiddenError } = await import('../errors');
+    for (const role of ['waiter', 'kitchen'] as const) {
+      const caught = await failing(createConsoleMockGateway({ role }).getManagedVenue('v-lumen'));
+      expect(caught, role).toBeInstanceOf(ForbiddenError);
+    }
+    // VenueScoped: a venue user asking about a venue that is not theirs, real
+    // or not, is told 403 either way — there is nothing to learn from a 404.
+    const owner = createConsoleMockGateway({ role: 'owner' });
+    expect(await failing(owner.getManagedVenue('v-tumanyan'))).toBeInstanceOf(ForbiddenError);
+    expect(await failing(owner.getManagedVenue('v-nowhere'))).toBeInstanceOf(ForbiddenError);
+  });
+
+  it('refuses a branch read outside the signed-in venue, and answers one inside it', async () => {
+    // The server's rule (`BranchScoped`, `StaffBranchGuard`): the branch must
+    // belong to the token's venue. A manager with a home branch is not confined
+    // to it on the server, so a sibling branch answers.
+    const { ForbiddenError } = await import('../errors');
+    const manager = createConsoleMockGateway({ role: 'manager' });
+    await expect(manager.getFloorPlan('b-lumen-cascade')).resolves.toBeTruthy();
+    await expect(manager.getAdminMenu('b-lumen-cascade')).resolves.toBeTruthy();
+
+    const reads = [
+      manager.getFloorPlan('b-tumanyan-main'),
+      manager.getAdminMenu('b-tumanyan-main'),
+      manager.getOpeningHours('b-tumanyan-main'),
+      manager.getReservationPolicy('b-tumanyan-main'),
+      manager.listDevices('b-tumanyan-main'),
+      manager.listStaff('v-tumanyan'),
+      // The reports too: `ReportQuery` names a branch, and the server's guard
+      // is the same one.
+      manager.getOccupancyReport({
+        branchId: 'b-tumanyan-main',
+        from: '2026-09-01',
+        to: '2026-09-07',
+      }),
+      manager.getRevenueReport({
+        branchId: 'b-tumanyan-main',
+        from: '2026-09-01',
+        to: '2026-09-07',
+      }),
+    ];
+    for (const read of reads) {
+      expect(await failing(read)).toBeInstanceOf(ForbiddenError);
+    }
+
+    // The platform admin belongs to no venue and reaches every branch.
+    const admin = createConsoleMockGateway({ role: 'platformAdmin' });
+    await expect(admin.getFloorPlan('b-tumanyan-main')).resolves.toBeTruthy();
   });
 });
 

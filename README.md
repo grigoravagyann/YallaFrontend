@@ -1061,27 +1061,28 @@ from `mocks/`; the switch is `resolveGateway` and `resolveConsoleGateway` in
 
 ### What is real, and what is still on the mock
 
-| Screen                                 | Source | Endpoint                                                                                            |
-| -------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| Console venue list                     | real   | `GET /api/platform/venues` (platform admin)                                                         |
-| Diner floor plan                       | real   | `GET /api/branches/{id}/availability`                                                               |
-| Staff device enrolment and PIN sign-in | real   | `POST /api/auth/staff/{enrol,pin,renew,sign-out}`                                                   |
-| Staff floor plan                       | real   | `GET /api/branches/{id}/tables/floor`                                                               |
-| Staff table actions                    | real   | the eight `POST /api/branches/{id}/tables/{id}/…`                                                   |
-| Floor change stream                    | real   | `GET /api/branches/{id}/tables/changes`                                                             |
-| Order entry and the kitchen rail       | real   | `POST /api/tabs/{id}/staff-orders`, `GET /api/branches/{id}/orders`, `POST /api/orders/{id}/status` |
-| Service requests                       | real   | `GET /api/branches/{id}/service-requests`, `POST /api/service-requests/{id}/acknowledge`            |
-| Tab totals and participants            | real   | `GET /api/tabs/{id}/participants`                                                                   |
-| Voids, comps and discounts             | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                            |
-| Cash, closing, abandon, reassign host  | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                 |
-| Releasing a late booking               | real   | `POST /api/reservations/{id}/release`                                                               |
-| Diner menu, tab, shares, events        | real   | `GET /api/branches/{id}/menu`, `/api/tabs/{id}`, `/shares`, `/events`                               |
-| Diner ordering                         | real   | `POST /api/tabs/{id}/orders` — wired, and **refused by the server**; see below                      |
-| Settlement mode, calling a waiter      | real   | `POST /api/tabs/{id}/settlement-mode`, `/service-requests`                                          |
-| Push registration and the two actions  | real   | `POST /api/diner/devices`, `/api/reservations/{id}/{cancel,extend-hold}`                            |
-| Branch time zone                       | real   | `GET /api/branches/{id}/availability` — the only diner-readable source                              |
-| Diner venue and branch lists           | —      | **no backend endpoint exists**                                                                      |
-| Bookings and the tab roster            | mock   | `TableTab`/`Booking` carry six fields no reservation or tab view has                                |
+| Screen                                      | Source | Endpoint                                                                                            |
+| ------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| Console venue list                          | real   | `GET /api/platform/venues` (platform admin)                                                         |
+| Console venue and branches (owner, manager) | real   | `GET /api/venues/{id}/manage` — the branches the caller's staff row covers                          |
+| Diner floor plan                            | real   | `GET /api/branches/{id}/availability`                                                               |
+| Staff device enrolment and PIN sign-in      | real   | `POST /api/auth/staff/{enrol,pin,renew,sign-out}`                                                   |
+| Staff floor plan                            | real   | `GET /api/branches/{id}/tables/floor`                                                               |
+| Staff table actions                         | real   | the eight `POST /api/branches/{id}/tables/{id}/…`                                                   |
+| Floor change stream                         | real   | `GET /api/branches/{id}/tables/changes`                                                             |
+| Order entry and the kitchen rail            | real   | `POST /api/tabs/{id}/staff-orders`, `GET /api/branches/{id}/orders`, `POST /api/orders/{id}/status` |
+| Service requests                            | real   | `GET /api/branches/{id}/service-requests`, `POST /api/service-requests/{id}/acknowledge`            |
+| Tab totals and participants                 | real   | `GET /api/tabs/{id}/participants`                                                                   |
+| Voids, comps and discounts                  | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                            |
+| Cash, closing, abandon, reassign host       | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                 |
+| Releasing a late booking                    | real   | `POST /api/reservations/{id}/release`                                                               |
+| Diner menu, tab, shares, events             | real   | `GET /api/branches/{id}/menu`, `/api/tabs/{id}`, `/shares`, `/events`                               |
+| Diner ordering                              | real   | `POST /api/tabs/{id}/orders` — wired, and **refused by the server**; see below                      |
+| Settlement mode, calling a waiter           | real   | `POST /api/tabs/{id}/settlement-mode`, `/service-requests`                                          |
+| Push registration and the two actions       | real   | `POST /api/diner/devices`, `/api/reservations/{id}/{cancel,extend-hold}`                            |
+| Branch time zone                            | real   | `GET /api/branches/{id}/availability` — the only diner-readable source                              |
+| Diner venue and branch lists                | —      | **no backend endpoint exists**                                                                      |
+| Bookings and the tab roster                 | mock   | `TableTab`/`Booking` carry six fields no reservation or tab view has                                |
 
 Nothing on the counter screen says "not available yet" any more.
 `EndpointNotWiredError` survives for the diner's venue catalogue and nothing

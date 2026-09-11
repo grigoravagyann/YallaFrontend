@@ -9,6 +9,7 @@ import type {
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
+  ManagedVenue,
   Page,
   SubscriptionTier,
 } from '../contracts/console';
@@ -40,7 +41,12 @@ import {
 import { ApiError, ForbiddenError, NetworkError, TimeoutError, UnauthorizedError } from '../errors';
 import type { components } from '../generated/schema';
 import { parseProblem } from '../problem';
-import { venueDetailFromWire, venuePageFromWire } from './consoleMapping';
+import {
+  managedVenueFromWire,
+  venueDetailFromWire,
+  venuePageFromWire,
+  type WireManagedVenue,
+} from './consoleMapping';
 import {
   createStaffBody,
   enrolmentCode,
@@ -196,10 +202,13 @@ const TIER_TO_WIRE: Readonly<Record<SubscriptionTier, number>> = { free: 1, paid
 /**
  * The console over HTTP.
  *
- * Venue management is the platform tier: `/api/platform/venues`, guarded by
- * `PlatformAdminOnly` server-side. Nothing here sends a role or a scope — the
- * token carries both, and a venue user calling these gets a 403 that surfaces
- * as a plain refusal rather than a retry loop.
+ * Two tiers of venue read. Venue *management* — listing, creating, suspending
+ * — is the platform tier: `/api/platform/venues`, guarded by
+ * `PlatformAdminOnly` server-side, and a venue user calling it gets a 403 that
+ * surfaces as a plain refusal rather than a retry loop. The venue *a person
+ * runs* is `GET /api/venues/{venueId}/manage`, the one read an owner or a
+ * manager is allowed, and the one the venue section learns its branches from.
+ * Nothing here sends a role or a scope — the token carries both.
  *
  * Every method maps a real endpoint. Nothing is faked: a fabricated
  * "suspended" would be worse than any error.
@@ -321,7 +330,10 @@ export function createConsoleHttpGateway(
 
       const known = identity.get();
       // A platform admin belongs to no venue and no branch, and carries
-      // neither claim. That is the correct empty scope, not a broken token.
+      // neither claim. An owner carries the venue and no branch, and so does a
+      // manager created with no branch. None of these is a broken token, and
+      // none of them says what the person may reach: that is
+      // `getManagedVenue`'s answer. `branchIds` is only the home branch.
       const venueId = claimString(claims, CLAIM.venueId);
       const branchId = claimString(claims, CLAIM.branchId);
 
@@ -348,6 +360,13 @@ export function createConsoleHttpGateway(
     },
 
     getVenue: (venueId) => venueDetail(`${PLATFORM}/venues/${venueId}`),
+
+    async getManagedVenue(venueId): Promise<ManagedVenue> {
+      // A 403 arrives as `ForbiddenError` from the client and is left alone:
+      // the notice classifies it, and there is nothing to retry.
+      const { data } = await client.get<WireManagedVenue>(`${VENUES}/${venueId}/manage`);
+      return managedVenueFromWire(data);
+    },
 
     async createVenue(command: CreateVenueCommand) {
       try {
