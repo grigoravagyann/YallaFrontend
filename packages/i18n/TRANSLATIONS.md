@@ -53,6 +53,8 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
 - `admin` — changing your own PIN (2026-09-11): the own card's action and its
   dialog (`staff.action.changeOwnPin`, `staff.ownPin.*`). Provisional, **not**
   reviewed.
+- `staff` — the kitchen screen (2026-09-11): its header title `kitchen.title`
+  ("Kitchen" / "Խոհանոց" / "Кухня"). Provisional, **not** reviewed.
 - `staff` — the floor screen: connection and sync states, the order and seating
   panel frames, and the install prompt. **Not** reviewed, and this set matters
   most of all: it is read by a waiter at arm's length during a rush, in Armenian

@@ -1,4 +1,4 @@
-import type { StaffSessionIdentity } from '@yalla/api';
+import type { EnrolledDevice, StaffSessionIdentity } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useState } from 'react';
 import { usingMockData } from '../data/gateway';
@@ -8,6 +8,7 @@ import { PinScreen } from './auth/PinScreen';
 import { staffAuthAvailable, staffSession } from './auth/staffSession';
 import { useStaffSessionSnapshot, useTouchOnInteraction } from './auth/useStaffSession';
 import { FloorRoute } from './FloorRoute';
+import { KitchenRoute } from './KitchenRoute';
 
 /**
  * The counter screen and everything that guards it.
@@ -92,7 +93,7 @@ export function StaffRoute() {
           thumb seat a table nobody is signed in for. */}
       {identity || !staffAuthAvailable ? (
         <div className="staff-shell" inert={locked ? true : undefined}>
-          <StaffFloor paused={locked} identity={identity} />
+          <StaffFloor paused={locked} identity={identity} device={snapshot.device} />
         </div>
       ) : null}
 
@@ -102,7 +103,8 @@ export function StaffRoute() {
 }
 
 /**
- * The floor, given whichever identity this build has.
+ * The floor — or, for the kitchen, the order queue — given whichever identity
+ * this build has.
  *
  * Against a real backend that is the staff session's. Against the mock there is
  * no tablet credential to hold — signing in is the one thing a mock cannot
@@ -113,9 +115,11 @@ export function StaffRoute() {
 function StaffFloor({
   paused,
   identity,
+  device,
 }: {
   readonly paused: boolean;
   readonly identity: StaffSessionIdentity | null;
+  readonly device: EnrolledDevice | null;
 }) {
   const { user } = useCurrentUser();
   const { t } = useTranslation(['staff']);
@@ -137,6 +141,13 @@ function StaffFloor({
         <p className="floor-note">{t('floor.loading')}</p>
       </div>
     );
+  }
+
+  // The kitchen gets its queue, not the room. The floor is refused to it by the
+  // server, and branching here keeps every read it cannot make out of the tree
+  // rather than guarding each one inside the floor screen.
+  if (resolved.role === 'kitchen') {
+    return <KitchenRoute identity={resolved} device={device} paused={paused} />;
   }
 
   return <FloorRoute identity={resolved} paused={paused} />;

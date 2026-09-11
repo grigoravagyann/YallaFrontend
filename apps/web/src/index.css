@@ -737,6 +737,18 @@ select {
   min-width: 280px;
 }
 
+/* The kitchen screen is the queue alone: the panel takes the whole row, and the
+   cards tile across it so a landscape tablet on the pass shows a service's worth
+   at once. */
+.kitchen-body .floor-panel {
+  flex: 1 1 100%;
+}
+
+.kitchen-body .queue-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
 .floor-panel-block {
   flex: 1;
   padding: var(--space-xl);
