@@ -804,6 +804,71 @@ ${backend.log()}`,
     expect(screen.queryAllByText('Northern Avenue')).toHaveLength(0);
     expect(backend.statuses(`GET /api/venues/${V}/manage`)).toEqual([200, 200]);
   });
+
+  it('shows the next person their own branches when the last session ended with nobody listening', async () => {
+    /*
+     * The sign-out listener above lives in the console's router. A session
+     * can end while it is not mounted — the owner signs out from the
+     * password page a sign-in link opens, which sits outside the console's
+     * router on purpose, or a refresh is rejected there — and then nothing
+     * has dropped the console's cache. The next person reaches the sign-in
+     * form and signs in, and *that* path has to forget the last person's
+     * data too, rather than trusting a sign-out event to have done it.
+     */
+    const client = createQueryClient({ mutationNetworkMode: 'online' });
+
+    await signInAs('owner');
+    const asOwner = openTheConsoleAt('/venue/floorplan', client);
+    await waitFor(
+      () =>
+        expect(screen.queryByLabelText(/^Branch$/u), backend.log()).toBeInstanceOf(
+          HTMLSelectElement,
+        ),
+      SETTLE,
+    );
+
+    // The owner opens a colleague's sign-in link and signs out from the
+    // password page to clear the way. That page is outside the console's
+    // router, so the console's listener is not mounted when the session ends.
+    asOwner.unmount();
+    const atTheLink = openTheConsoleAt('/reset-password#token=somebody-elses-link', client);
+    fireEvent.click(await screen.findByRole('button', { name: /^Sign out$/u }, SETTLE));
+    await waitFor(() => expect(screen.queryByLabelText(/^Email$/u)).toBeNull(), SETTLE);
+    atTheLink.unmount();
+
+    // The manager arrives at the console, is sent to the form, and signs in
+    // through it — the sign-in route's own path, not the session directly.
+    openTheConsoleAt('/venue/floorplan', client);
+    await waitFor(() => expect(screen.queryByLabelText(/^Email$/u)).not.toBeNull(), SETTLE);
+    fireEvent.change(screen.getByLabelText(/^Email$/u), {
+      target: { value: SIGN_IN.manager.email },
+    });
+    fireEvent.change(screen.getByLabelText(/^Password$/u), { target: { value: PASSWORD } });
+    fireEvent.click(screen.getByRole('button', { name: /^Sign in$/u }));
+
+    await waitFor(
+      () =>
+        expect(
+          backend.statuses(`GET /api/branches/${B2}/floor-plan`),
+          `The floor plan was never loaded for the manager's branch.
+${backend.log()}`,
+        ).toContain(200),
+      SETTLE,
+    );
+    // Signed in and past the form, on the manager's own answer.
+    await screen.findByRole('navigation', { name: 'Yalla console' }, SETTLE);
+    await waitFor(
+      () => expect(backend.statuses(`GET /api/venues/${V}/manage`), backend.log()).toHaveLength(2),
+      SETTLE,
+    );
+    expect(
+      screen.queryByLabelText(/^Branch$/u),
+      `The owner's branch list survived into the manager's sign-in.
+${backend.log()}`,
+    ).toBeNull();
+    expect(screen.queryAllByText('Northern Avenue')).toHaveLength(0);
+    expect(backend.statuses(`GET /api/venues/${V}/manage`)).toEqual([200, 200]);
+  });
 });
 
 describe('what the layout hands down', () => {
