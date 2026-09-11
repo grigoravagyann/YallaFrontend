@@ -33,7 +33,7 @@
 .brand {
   font-size: var(--font-size-xl);
   line-height: var(--line-height-xl);
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
 }
 
 .whoami {
@@ -73,8 +73,8 @@
 }
 
 .nav-link.active {
-  background: var(--color-green-tint);
-  color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
   font-weight: var(--font-weight-bold);
 }
 
@@ -159,7 +159,7 @@ select {
 
 .crumbs a,
 .table a {
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   font-weight: var(--font-weight-medium);
 }
 
@@ -198,7 +198,7 @@ select {
 .field:focus {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
-  border-color: var(--color-primary);
+  border-color: var(--color-primary-ink);
 }
 
 .field::placeholder {
@@ -232,10 +232,10 @@ select {
   gap: var(--space-sm);
   min-height: var(--touch-regular);
   padding: 0 var(--space-xl);
-  border: 2px solid var(--color-primary);
+  border: 2px solid var(--color-primary-ink);
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   font: inherit;
   font-weight: var(--font-weight-bold);
   text-decoration: none;
@@ -253,8 +253,8 @@ select {
     box-shadow: var(--shadow-lift);
   }
 
-  .nav-link:hover {
-    background: var(--color-green-tint);
+  .nav-link:not(.active):hover {
+    background: var(--color-accent-tint);
   }
 }
 
@@ -273,7 +273,7 @@ select {
 
 .button-primary:hover:not(:disabled),
 .button-primary:active:not(:disabled) {
-  border-color: var(--color-primary-pressed);
+  border-color: var(--color-primary-ink);
   background: var(--color-primary-pressed);
 }
 
@@ -464,7 +464,7 @@ select {
 .pill-active {
   border-color: var(--color-success);
   background: var(--color-green-tint);
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
 }
 
 .pill-suspended {
@@ -531,7 +531,7 @@ select {
   padding: var(--space-xs) var(--space-md);
   border-radius: var(--radius-pill);
   background: var(--color-green-tint);
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-xs);
   font-weight: var(--font-weight-medium);
@@ -658,12 +658,13 @@ select {
   color: var(--color-muted-foreground);
 }
 
-/* Ink, because a floor plan is on screen. A pressed state, no hover scale:
-   this is a touch device. Also used by /dev/tokens to show the variant. */
+/* The beige fill with an ink edge, because a floor plan is on screen: the fill
+   alone is 1.03:1 from an out-of-service table, the edge 3.13:1. A pressed
+   state, no hover scale: this is a touch device. Also used by /dev/tokens. */
 .floor-button {
   min-height: var(--touch-staff);
   padding: 0 var(--space-xl);
-  border: 2px solid var(--color-primary-on-floor-plan);
+  border: 2px solid var(--color-primary-ink);
   border-radius: var(--radius-pill);
   background: var(--color-primary-on-floor-plan);
   color: var(--color-primary-foreground);
@@ -675,7 +676,7 @@ select {
 
 .floor-button:hover:not(:disabled),
 .floor-button:active:not(:disabled) {
-  border-color: var(--color-primary-on-floor-plan-pressed);
+  border-color: var(--color-primary-ink);
   background: var(--color-primary-on-floor-plan-pressed);
   transform: none;
 }
@@ -938,7 +939,7 @@ select {
 .spacing-bar {
   height: 16px;
   border-radius: var(--radius-pill);
-  background: var(--color-primary);
+  background: var(--color-primary-ink);
 }
 
 .radii {
@@ -1065,7 +1066,7 @@ select {
   border: none;
   border-radius: var(--radius-soft);
   background: var(--color-green-tint);
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   cursor: pointer;
 }
 
@@ -1417,7 +1418,7 @@ kbd {
 /* On is a fill *and* a heavier border: the chip has to read as pressed from
    across the counter, and hue alone does not carry that far. */
 .chip.is-on {
-  border-color: var(--color-primary-on-floor-plan);
+  border-color: var(--color-primary-ink);
   background: var(--color-primary-on-floor-plan);
   color: var(--color-primary-foreground);
   font-weight: var(--font-weight-bold);
@@ -1434,10 +1435,10 @@ kbd {
 .stepper-button {
   width: var(--touch-staff);
   height: var(--touch-staff);
-  border: 2px solid var(--color-primary-on-floor-plan);
+  border: 2px solid var(--color-primary-ink);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
-  color: var(--color-primary-on-floor-plan);
+  color: var(--color-primary-ink);
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
   cursor: pointer;
@@ -1919,7 +1920,7 @@ kbd {
 }
 
 .order-category.is-active {
-  border-color: var(--color-primary-on-floor-plan);
+  border-color: var(--color-primary-ink);
   background: var(--color-primary-on-floor-plan);
   color: var(--color-primary-foreground);
 }
@@ -1958,7 +1959,7 @@ kbd {
 
 .order-item:active:not(:disabled) {
   transform: scale(var(--scale-press));
-  border-color: var(--color-primary-on-floor-plan);
+  border-color: var(--color-primary-ink);
 }
 
 .order-item:disabled {
@@ -2292,7 +2293,7 @@ kbd {
 }
 
 .cash-field.is-active {
-  border-color: var(--color-primary-on-floor-plan);
+  border-color: var(--color-primary-ink);
   border-width: 3px;
 }
 
@@ -2458,8 +2459,8 @@ kbd {
 }
 
 .pin-dot.is-filled {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--color-primary-ink);
+  border-color: var(--color-primary-ink);
 }
 
 .pin-keypad {
@@ -2570,7 +2571,7 @@ kbd {
 }
 
 .affected-contact a {
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   font-weight: var(--font-weight-medium);
 }
 
@@ -2629,7 +2630,7 @@ kbd {
 }
 
 .checklist-list li.is-done .checklist-mark {
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
 }
 
 /* Done rows recede. The list is a to-do, and what is left is what it is for. */
@@ -2822,7 +2823,7 @@ kbd {
 
 .badge-ok {
   background: var(--color-green-tint);
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
 }
 
 /* The house treatment for a warning: the colour on the border and the text,
@@ -2842,7 +2843,7 @@ kbd {
   border: none;
   background: none;
   padding: 0;
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   font: inherit;
   font-size: var(--font-size-sm);
   text-decoration: underline;
@@ -3379,7 +3380,7 @@ kbd {
 }
 
 .report-delta-up {
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
 }
 
 .report-delta-down {
@@ -3425,7 +3426,7 @@ kbd {
 .report-reading {
   margin: var(--space-sm) 0 0;
   padding: var(--space-sm) var(--space-md);
-  border-inline-start: 3px solid var(--color-primary);
+  border-inline-start: 3px solid var(--color-primary-ink);
   background: var(--color-paper);
   color: var(--color-foreground);
 }

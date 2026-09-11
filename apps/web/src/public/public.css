@@ -153,7 +153,7 @@
  * DESIGN.md spends the accent on "the primary button and the active navigation
  * item, and nowhere else". A free-table count is neither: it is the answer to
  * the question the page exists to answer, not a thing to press. It was also the
- * largest violet on a page whose legend, a few hundred pixels below, says green
+ * largest accent colour on a page whose legend, a few hundred pixels below, says green
  * means free — two hues for one idea, on the one screen where a colour has to
  * mean exactly one thing.
  *
@@ -258,13 +258,13 @@
 .pub-button-quiet {
   background: transparent;
   border-color: var(--color-border);
-  color: var(--color-primary-pressed);
+  color: var(--color-primary-ink);
 }
 
 .pub-button-danger {
   background: var(--color-danger);
   border-color: var(--color-danger);
-  color: var(--color-primary-foreground);
+  color: var(--color-danger-foreground);
 }
 
 .pub-button-small {
@@ -538,7 +538,7 @@
   margin-top: var(--space-sm);
   overflow-wrap: anywhere;
   font-size: var(--font-size-sm);
-  color: var(--color-primary-pressed);
+  color: var(--color-primary-ink);
 }
 
 .pub-confirm p {
@@ -632,7 +632,7 @@
   display: flex;
   align-items: center;
   cursor: pointer;
-  color: var(--color-primary-pressed);
+  color: var(--color-primary-ink);
   font-size: var(--font-size-sm);
 }
 

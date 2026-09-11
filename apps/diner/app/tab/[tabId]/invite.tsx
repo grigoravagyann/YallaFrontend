@@ -84,7 +84,7 @@ export default function InviteScreen() {
 
         {isLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={color.primary} />
+            <ActivityIndicator color={color.primaryInk} />
             <Text style={styles.muted}>{t('invite.loading')}</Text>
           </View>
         ) : isError || !invite ? (
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   secondaryPressed: { backgroundColor: color.greenTint },
   secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   linkRow: { minHeight: touchTarget.minimum, alignItems: 'center', justifyContent: 'center' },
-  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
+  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryInk },
   notice: { fontSize: fontSize.sm, color: color.success, textAlign: 'center' },
   error: { fontSize: fontSize.sm, color: color.danger, textAlign: 'center' },
   centered: { alignItems: 'center', gap: space.md, paddingTop: space.xxl },

@@ -213,7 +213,7 @@ export default function VerifyScreen() {
             accessibilityLabel={t('verify.codeTitle')}
           />
 
-          {verifyCode.isPending ? <ActivityIndicator color={color.primary} /> : null}
+          {verifyCode.isPending ? <ActivityIndicator color={color.primaryInk} /> : null}
           {errorText ? <Text style={styles.error}>{errorText}</Text> : null}
 
           <Pressable
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  codeCellActive: { borderColor: color.primary },
+  codeCellActive: { borderColor: color.primaryInk },
   codeDigit: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
@@ -338,6 +338,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryText: { fontSize: fontSize.md, color: color.primaryPressed },
+  secondaryText: { fontSize: fontSize.md, color: color.primaryInk },
   secondaryTextMuted: { color: color.mutedForeground },
 });

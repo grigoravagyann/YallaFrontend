@@ -12,37 +12,32 @@ for display, a faint paper grain on the page. Warm on the diner side,
 instrument-grade on the staff side, from one token system. One rule protects
 the whole thing, and it is the thing to check before changing any value.
 
-## The rule that keeps green safe
+## The accent: a beige fill, and an ink for every line
 
-The product has two greens and they must never be confused.
+The accent is beige, and it is two tokens because the beige is light.
 
-|            | Token                        | Hex       | Lightness | Meaning                              |
-| ---------- | ---------------------------- | --------- | --------- | ------------------------------------ |
-| Brand      | `color.primary`              | `#1E5B3C` | ~33       | Identity: buttons, links, active nav |
-| Free table | `tableStatusStyle.free.fill` | `#35B37E` | ~58       | Information: this table is free      |
+| Token                     | Hex       | Use                                                       | Key ratio                 |
+| ------------------------- | --------- | --------------------------------------------------------- | ------------------------- |
+| `color.primary`           | `#C3B59F` | Fill only: primary button, active nav, selected, progress | ink on it 8.70:1          |
+| `color.primaryPressed`    | `#AD9C80` | Hover / pressed fill                                      | ink on it 6.54:1          |
+| `color.primaryForeground` | `#131A22` | The label on either fill — ink, never white               | white would be 2.01:1     |
+| `color.primaryInk`        | `#6B5C45` | Text, icons, links, borders, focused-field edges          | 6.48 white, 5.99 paper    |
+| `color.accentTint`        | `#EFECE6` | Hover and selected grounds                                | `primaryInk` on it 5.49:1 |
 
-They stay distinguishable because of three constraints, each of which the code
-enforces in `contrast.test.ts`:
+Three constraints, each enforced in `contrast.test.ts`:
 
-1. **Brand green is deep and desaturated; free-table green is bright and
-   saturated.** The test asserts that brand green's contrast against white is
-   more than double free-table green's. Move them closer and the build fails.
-2. **No green fill appears inside or immediately beside the floor plan
-   canvas.** On any screen that shows a floor plan, primary buttons and chips
-   render in ink: `color.primaryOnFloorPlan` (`#17281F`, which _is_
-   `foreground`) with `primaryOnFloorPlanPressed` for the pressed state. This
-   is a token, not an override inside one component, because the rule applies
-   to every control on such a screen. The floor plan renderer draws fixed
-   features in `paper`, never in `greenTint`; no blob and no grain reaches the
-   canvas.
+1. **`primary` is never text, a border or a focus edge.** It is 2.01:1 on
+   white; those roles use `primaryInk`, which clears 4.5 on white and paper and
+   3 on every ground a control sits on.
+2. **The accent stays out of the floor plan's colour channel.** At 0.14 chroma
+   the beige is a warm neutral; every chromatic table state is above 0.4. Beside
+   a plan, an accent fill carries a `primaryInk` edge, because the fill alone is
+   1.03:1 from an out-of-service table and the edge is 3.13:1.
+   `primaryOnFloorPlan` is the same fill as `primary`, kept for its importers.
 3. **Feedback colours reuse the state hues.** `color.danger` _is_ the occupied
    red, `color.warning` _is_ the reserved amber, `color.success` _is_ the free
    green, `color.info` _is_ the held blue. One green, one red, one amber and one
    blue in the whole product. A second red would be a second thing red means.
-
-Break rule 2 and a green "Reserve" button beside green free tables teaches
-everyone that green means nothing in particular, on the one screen where a
-colour has to mean exactly one thing.
 
 ### The protected six
 

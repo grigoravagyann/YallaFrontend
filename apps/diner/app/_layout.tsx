@@ -102,7 +102,7 @@ export default function RootLayout() {
           backgroundColor: color.paper,
         }}
       >
-        <ActivityIndicator color={color.primary} />
+        <ActivityIndicator color={color.primaryInk} />
       </View>
     );
   }

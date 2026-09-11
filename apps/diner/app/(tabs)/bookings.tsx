@@ -51,7 +51,7 @@ export default function BookingsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primary} />
+          <ActivityIndicator color={color.primaryInk} />
           <Text style={styles.muted}>{t('bookings.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -186,9 +186,9 @@ const styles = StyleSheet.create({
     borderColor: color.border,
     backgroundColor: color.surface,
   },
-  tabActive: { borderColor: color.primaryPressed, backgroundColor: color.greenTint },
+  tabActive: { borderColor: color.primaryInk, backgroundColor: color.greenTint },
   tabText: { fontSize: fontSize.sm, color: color.foreground },
-  tabTextActive: { color: color.primaryPressed, fontWeight: fontWeight.medium },
+  tabTextActive: { color: color.primaryInk, fontWeight: fontWeight.medium },
   list: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   row: {
     flexDirection: 'row',
@@ -229,5 +229,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: color.greenTint,
   },
-  retryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryPressed },
+  retryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryInk },
 });
