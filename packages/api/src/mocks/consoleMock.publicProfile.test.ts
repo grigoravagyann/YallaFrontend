@@ -31,7 +31,11 @@ describe('the public profile in the mock', () => {
 
     const saved = await gateway.updatePublicProfile({
       branchId: 'b-lumen-cascade',
-      profile: { phoneE164: '+374 11 22 33 44', acceptsWebBookings: true, coverPhotoId: upload.photo.photoId },
+      profile: {
+        phoneE164: '+374 11 22 33 44',
+        acceptsWebBookings: true,
+        coverPhotoId: upload.photo.photoId,
+      },
     });
 
     expect(saved.coverPhoto?.photoId).toBe(upload.photo.photoId);
@@ -51,7 +55,11 @@ describe('the public profile in the mock', () => {
     const caught = await gateway
       .updatePublicProfile({
         branchId: 'b-lumen-cascade',
-        profile: { phoneE164: '+37411223344', acceptsWebBookings: true, coverPhotoId: 'photo-from-elsewhere' },
+        profile: {
+          phoneE164: '+37411223344',
+          acceptsWebBookings: true,
+          coverPhotoId: 'photo-from-elsewhere',
+        },
       })
       .then(() => null)
       .catch((error: unknown) => error);

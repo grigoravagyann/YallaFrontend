@@ -1,7 +1,7 @@
 import { ValidationError, type BranchPublicProfile, type Photo } from '@yalla/api';
 import { usePublicProfile, useSavePublicProfile } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
@@ -23,33 +23,43 @@ import { useVenueOutlet } from '../VenueLayout';
 export function PublicPageScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const { branchId } = useVenueOutlet();
-
   const query = usePublicProfile(branchId ?? undefined);
-  const save = useSavePublicProfile(branchId ?? undefined);
 
-  const [saved, setSaved] = useState<BranchPublicProfile | null>(null);
-  const [phone, setPhone] = useState('');
-  const [acceptsWebBookings, setAcceptsWebBookings] = useState(false);
-  const [cover, setCover] = useState<Photo | null>(null);
+  if (!branchId) return <p className="muted">{t('publicPage.noBranch')}</p>;
+  if (query.isLoading || !query.data) {
+    if (query.isError) {
+      return <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />;
+    }
+    return <p className="muted">{t('loading')}</p>;
+  }
+
+  // The form owns its draft from the moment the profile arrives. Keyed on the
+  // branch so switching branches starts a fresh draft rather than copying the
+  // new profile into the old one from an effect.
+  return <PublicPageForm key={branchId} branchId={branchId} initial={query.data} />;
+}
+
+function PublicPageForm({
+  branchId,
+  initial,
+}: {
+  readonly branchId: string;
+  readonly initial: BranchPublicProfile;
+}) {
+  const { t } = useTranslation(['admin', 'common']);
+  const save = useSavePublicProfile(branchId);
+
+  const [saved, setSaved] = useState<BranchPublicProfile>(initial);
+  const [phone, setPhone] = useState(initial.phoneE164 ?? '');
+  const [acceptsWebBookings, setAcceptsWebBookings] = useState(initial.acceptsWebBookings);
+  const [cover, setCover] = useState<Photo | null>(initial.coverPhoto);
   const [phoneRefusal, setPhoneRefusal] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<'saved' | 'failed' | null>(null);
 
-  useEffect(() => {
-    if (!query.data) return;
-    setSaved(query.data);
-    setPhone(query.data.phoneE164 ?? '');
-    setAcceptsWebBookings(query.data.acceptsWebBookings);
-    setCover(query.data.coverPhoto);
-  }, [query.data]);
-
-  const dirty = useMemo(
-    () =>
-      saved !== null &&
-      (phone !== (saved.phoneE164 ?? '') ||
-        acceptsWebBookings !== saved.acceptsWebBookings ||
-        (cover?.photoId ?? null) !== (saved.coverPhoto?.photoId ?? null)),
-    [saved, phone, acceptsWebBookings, cover],
-  );
+  const dirty =
+    phone !== (saved.phoneE164 ?? '') ||
+    acceptsWebBookings !== saved.acceptsWebBookings ||
+    (cover?.photoId ?? null) !== (saved.coverPhoto?.photoId ?? null);
   useUnsavedChangesGuard(dirty);
 
   async function submit() {
@@ -74,12 +84,6 @@ export function PublicPageScreen() {
       }
       setOutcome('failed');
     }
-  }
-
-  if (!branchId) return <p className="muted">{t('publicPage.noBranch')}</p>;
-  if (query.isLoading) return <p className="muted">{t('loading')}</p>;
-  if (query.isError) {
-    return <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />;
   }
 
   return (
