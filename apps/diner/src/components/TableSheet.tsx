@@ -1,17 +1,9 @@
 import { tableCopy, type CopyLine, type TableAvailability, type TableCopy } from '@yalla/api';
 import type { Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import {
-  color,
-  elevation,
-  fontSize,
-  fontWeight,
-  lineHeight,
-  radius,
-  space,
-  touchTarget,
-} from '@yalla/tokens';
+import { color, elevation, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Button } from './Button';
 import { Text } from './Text';
 
 export interface TableSheetProps {
@@ -59,7 +51,9 @@ export function TableSheet({
         <View style={styles.sheet}>
           <View style={styles.grabber} />
           <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.title}>{t(copy.title.key, copy.title.params)}</Text>
+            <Text display style={styles.title}>
+              {t(copy.title.key, copy.title.params)}
+            </Text>
             <Text style={styles.seats}>{t(copy.seats.key, copy.seats.params)}</Text>
 
             {copy.unavailable ? (
@@ -70,6 +64,14 @@ export function TableSheet({
             ) : (
               <BookableBody copy={copy} tableId={availability.tableId} onReserve={onReserve} />
             )}
+            {/* The way out, said. Tapping the room behind the sheet also works,
+                but a sheet with one button and no visible exit reads as a trap. */}
+            <Button
+              label={t('table.pickAnother')}
+              variant="text"
+              onPress={onClose}
+              style={styles.pickAnother}
+            />
           </ScrollView>
         </View>
       ) : null}
@@ -119,21 +121,19 @@ function BookableBody({
 
       {copy.approval ? <Text style={styles.approval}>{line(copy.approval)}</Text> : null}
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={line(copy.reserve)}
         onPress={() => onReserve(tableId)}
-        style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-      >
-        <Text style={styles.primaryText}>{line(copy.reserve)}</Text>
-      </Pressable>
+        style={styles.reserve}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: '#00000033' },
+  backdrop: { flex: 1, backgroundColor: color.scrim },
   sheet: {
-    maxHeight: '62%',
+    maxHeight: '70%',
     backgroundColor: color.surface,
     // The one elevation in the product: this genuinely floats over the room.
     ...elevation.sheet.native,
@@ -175,13 +175,13 @@ const styles = StyleSheet.create({
     marginTop: space.xs,
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    color: color.warning,
+    color: color.warningInk,
   },
   noLimit: {
     fontSize: fontSize.lg,
     lineHeight: lineHeight.lg,
     fontWeight: fontWeight.bold,
-    color: color.success,
+    color: color.successInk,
   },
   cancellation: {
     marginTop: space.md,
@@ -200,19 +200,7 @@ const styles = StyleSheet.create({
     lineHeight: lineHeight.md,
     color: color.mutedForeground,
   },
-  primary: {
-    marginTop: space.xl,
-    minHeight: touchTarget.minimum + 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    // The beige fill with its ink label. See `color.primaryOnFloorPlan`.
-    backgroundColor: color.primaryOnFloorPlan,
-  },
-  primaryPressed: { backgroundColor: color.primaryOnFloorPlanPressed },
-  primaryText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
+  // The beige fill with its ink label; `primaryOnFloorPlan` is the same value.
+  reserve: { marginTop: space.xl },
+  pickAnother: { marginTop: space.xs },
 });

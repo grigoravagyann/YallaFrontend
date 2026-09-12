@@ -1,10 +1,9 @@
-import type { DinerTabView } from '@yalla/api';
 import { formatNameList, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { StyleSheet, View } from 'react-native';
 import { Text } from './Text';
-import { onTab, roster, waitingToJoin, type RosterPerson } from '../tab/roster';
+import { onTab, type RosterPerson } from '../tab/roster';
 
 /**
  * "Aram, Nare and 1 guest" — the whole party in one line.
@@ -48,12 +47,12 @@ export interface ParticipantRowProps {
  */
 export function ParticipantRow({ person, children }: ParticipantRowProps) {
   const { t } = useTranslation('diner');
-  const name = person.displayName || (person.isYou ? t('tab.youName') : t('tab.guest'));
+  const name = person.displayName?.trim() || (person.isYou ? t('tab.youName') : t('tab.guest'));
 
   return (
     <View style={styles.row}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{name.slice(0, 1).toLocaleUpperCase()}</Text>
+        <Text style={styles.avatarText}>{initial(name)}</Text>
       </View>
 
       <View style={styles.who}>
@@ -82,43 +81,68 @@ function Badge({ label, tone }: { label: string; tone: 'you' | 'host' | 'waiting
   );
 }
 
-export interface ParticipantsListProps {
-  readonly view: Pick<DinerTabView, 'participants' | 'me'>;
+export interface AvatarRowProps {
+  readonly people: readonly RosterPerson[];
 }
 
-/** The read-only list, as shown on the tab screen itself. */
-export function ParticipantsList({ view }: ParticipantsListProps) {
+/** The first character as a person sees it, never half of a surrogate pair. */
+function initial(name: string): string {
+  return (Array.from(name)[0] ?? '').toLocaleUpperCase();
+}
+
+/** Past this the row stops being a glance; the rest fold into the "+n". */
+const MAX_AVATARS = 5;
+
+/**
+ * Everyone on the tab as a row of overlapping initials.
+ *
+ * The tab screen leads with the bill, so the people become a glance rather
+ * than a list: you in beige, everyone else on the neutral tint, anonymous
+ * guests folded into a "+n". The full list with badges and host controls is
+ * one tap away on the people screen.
+ */
+export function AvatarRow({ people }: AvatarRowProps) {
   const { t } = useTranslation('diner');
-  const people = roster(view);
-  const active = onTab(people);
-  const pending = waitingToJoin(people);
+  const here = onTab(people);
+  const named = here.filter((p) => p.displayName?.trim() || p.isYou).slice(0, MAX_AVATARS);
+  const folded = here.length - named.length;
 
+  // Decorative: the pressable around it already names everyone. Left in the
+  // tree it announced as a bare "image" on TalkBack.
   return (
-    <View style={styles.list}>
-      {active.map((person) => (
-        <ParticipantRow key={person.participantId} person={person} />
-      ))}
-
-      {pending.length > 0 ? (
-        <>
-          <Text style={styles.sectionLabel}>{t('people.pendingSection')}</Text>
-          {pending.map((person) => (
-            <ParticipantRow key={person.participantId} person={person} />
-          ))}
-        </>
+    <View
+      style={styles.avatarRow}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+    >
+      {named.map((person, i) => {
+        const name = person.displayName?.trim() || t('tab.youName');
+        return (
+          <View
+            key={person.participantId}
+            style={[
+              styles.avatar,
+              styles.avatarStacked,
+              i > 0 && styles.avatarOverlap,
+              person.isYou && styles.avatarYou,
+            ]}
+          >
+            <Text style={styles.avatarText}>{initial(name)}</Text>
+          </View>
+        );
+      })}
+      {folded > 0 ? (
+        <View
+          style={[styles.avatar, styles.avatarStacked, named.length > 0 && styles.avatarOverlap]}
+        >
+          <Text style={styles.avatarText}>{`+${folded}`}</Text>
+        </View>
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { gap: space.xs },
-  sectionLabel: {
-    marginTop: space.sm,
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
-    color: color.mutedForeground,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -134,6 +158,10 @@ const styles = StyleSheet.create({
     backgroundColor: color.greenTint,
   },
   avatarText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
+  avatarRow: { flexDirection: 'row', alignItems: 'center' },
+  avatarStacked: { borderWidth: 2, borderColor: color.paper },
+  avatarOverlap: { marginLeft: -space.sm },
+  avatarYou: { backgroundColor: color.primary },
   who: { flex: 1, gap: space.xs },
   name: {
     fontSize: fontSize.md,
@@ -149,6 +177,6 @@ const styles = StyleSheet.create({
   hostBadge: { backgroundColor: color.greenTint },
   hostBadgeText: { color: color.foreground },
   waitingBadge: { backgroundColor: color.greenTint },
-  waitingBadgeText: { color: color.warning },
+  waitingBadgeText: { color: color.warningInk },
   actions: { flexDirection: 'row', gap: space.sm },
 });
