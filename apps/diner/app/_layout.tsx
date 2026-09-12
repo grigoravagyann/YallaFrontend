@@ -1,3 +1,5 @@
+import '../src/intlPolyfills';
+
 import { createQueryClient } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
