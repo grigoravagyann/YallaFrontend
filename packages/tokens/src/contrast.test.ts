@@ -97,6 +97,15 @@ describe('brand and feedback fills', () => {
     passesBody(color.primaryForeground, color.primaryOnFloorPlanPressed);
   });
 
+  it('successInk and warningInk clear AA as text on every ground a sentence sits on', () => {
+    for (const ink of [color.successInk, color.warningInk]) {
+      for (const ground of textBackgrounds) passesBody(ink, ground);
+    }
+    // And the fills they darken do not — which is the reason the inks exist.
+    expect(contrastRatio(color.success, color.paper)).toBeLessThan(AA_BODY);
+    expect(contrastRatio(color.warning, color.paper)).toBeLessThan(AA_BODY);
+  });
+
   it('control outlines clear the 3:1 owed by a control boundary', () => {
     expect(round(contrastRatio(color.borderInteractive, color.surface))).toBeGreaterThanOrEqual(
       AA_LARGE,
