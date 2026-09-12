@@ -154,6 +154,19 @@ const palette = {
 
   /** Occupied red, darkened, for a destructive button under a finger. */
   stateOccupiedPressed: '#9E3232',
+
+  /**
+   * The free green and the reserved-soon amber, darkened until they work as
+   * **text**, the way `accentInk` does for the beige.
+   *
+   * The state fills are fills: `stateFree` reads 2.46:1 on paper and the amber
+   * 2.72, and the diner app was setting "4 tables free now" and "Paid 4 000 ֏"
+   * in them anyway. These clear 4.5 on white, paper and both tints (green
+   * 5.36 / 5.80 / 4.88 / 4.92; amber 5.27 / 5.70 / 4.80 / 4.83), and keep
+   * the hue, so a green sentence still means a free table.
+   */
+  stateFreeInk: '#1E7350',
+  stateReservedSoonInk: '#8A5E08',
 } as const;
 
 export const color = {
@@ -248,6 +261,13 @@ export const color = {
   warning: palette.stateReservedSoon,
   success: palette.stateFree,
   info: palette.stateHeld,
+  /**
+   * `success` and `warning` as text. The fills are never text: the green reads
+   * 2.46:1 on paper. A sentence about free tables or money already paid is
+   * set in these; a table on the plan and a badge fill keep the bright ones.
+   */
+  successInk: palette.stateFreeInk,
+  warningInk: palette.stateReservedSoonInk,
   /** The out-of-service grey. Only the floor plan draws with it. */
   outOfService: palette.stateOutOfService,
 
