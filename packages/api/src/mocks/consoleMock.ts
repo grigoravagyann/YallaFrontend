@@ -673,7 +673,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   function profileFor(branchId: string): BranchPublicProfile {
     const existing = profiles.get(branchId);
     if (existing) return existing;
-    const seeded: BranchPublicProfile = { phoneE164: null, acceptsWebBookings: false, coverPhoto: null };
+    const seeded: BranchPublicProfile = {
+      phoneE164: null,
+      acceptsWebBookings: false,
+      coverPhoto: null,
+    };
     profiles.set(branchId, seeded);
     return seeded;
   }

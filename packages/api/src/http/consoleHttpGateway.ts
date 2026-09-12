@@ -747,18 +747,23 @@ export function createConsoleHttpGateway(
     // --- The public page ------------------------------------------------------------
 
     async getPublicProfile(branchId: string): Promise<BranchPublicProfile> {
-      const { data } = await client.get<WirePublicProfile>(`${BRANCHES}/${branchId}/public-profile`);
+      const { data } = await client.get<WirePublicProfile>(
+        `${BRANCHES}/${branchId}/public-profile`,
+      );
       return publicProfile(data);
     },
 
     async updatePublicProfile({ branchId, profile }): Promise<BranchPublicProfile> {
       // The server omits null fields on the way out and takes them on the way
       // in; both the phone and the picture clear with an explicit null.
-      const { data } = await client.put<WirePublicProfile>(`${BRANCHES}/${branchId}/public-profile`, {
-        phoneE164: profile.phoneE164,
-        acceptsWebBookings: profile.acceptsWebBookings,
-        coverPhotoId: profile.coverPhotoId,
-      });
+      const { data } = await client.put<WirePublicProfile>(
+        `${BRANCHES}/${branchId}/public-profile`,
+        {
+          phoneE164: profile.phoneE164,
+          acceptsWebBookings: profile.acceptsWebBookings,
+          coverPhotoId: profile.coverPhotoId,
+        },
+      );
       return publicProfile(data);
     },
 
