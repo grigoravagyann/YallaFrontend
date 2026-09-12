@@ -165,6 +165,7 @@ invisible one that never gets revisited.
 `pnpm i18n:check` deliberately does not let you "fill in later" with `""` — an
 empty value renders as blank rather than falling back, which reads as a broken
 screen.
+
 - `diner` — the diner redesign (2026-09-12), provisional and **not** reviewed:
   `explore.freeLead_*` and `explore.inPlaces_*` (the lead line under the city:
   "38 tables free" + "in 12 places nearby" — the two halves are separate keys
