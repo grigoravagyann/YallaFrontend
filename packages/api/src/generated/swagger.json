@@ -18039,6 +18039,15 @@
             "type": "string",
             "description": "When the server read the live half of this page. FreeTableCount,\r\nIsOpenNow and each table's `isFree` are true as of this instant and no\r\nlater; the rest is stable. The page shows the staleness rather than implying there is none,\r\nbecause this link is cached for seconds and shared for days.",
             "format": "date-time"
+          },
+          "coverPhoto": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+              }
+            ],
+            "description": "One photo as a client consumes it: three URLs and the id behind them.",
+            "nullable": true
           }
         },
         "additionalProperties": false,

@@ -26,6 +26,7 @@ import type {
 } from '../contracts/branchSettings';
 import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../contracts/menuAdmin';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
+import { absolutePhoto } from './photoUrl';
 import type { PhotoUpload } from '../consoleGateway';
 import { REPORT_MAX_DAYS } from '../contracts/reports';
 import type { ReportExport, ReportQuery } from '../contracts/reports';
@@ -89,12 +90,15 @@ type WireItem = Schemas['Yalla.Application.Menus.MenuItemView'];
 type WireHours = Schemas['Yalla.Application.BranchSettings.OpeningHoursView'];
 type WirePublicProfile = Schemas['Yalla.Application.BranchSettings.PublicProfileView'];
 
-/** The public page's settings, with the absent-when-null fields made explicit. */
-function publicProfile(view: WirePublicProfile): BranchPublicProfile {
+/**
+ * The public page's settings, with the absent-when-null fields made explicit
+ * and the cover's links resolved against the API — see `photoUrl.ts`.
+ */
+function publicProfile(view: WirePublicProfile, baseUrl: string): BranchPublicProfile {
   return {
     phoneE164: view.phoneE164 ?? null,
     acceptsWebBookings: view.acceptsWebBookings,
-    coverPhoto: view.coverPhoto ? photo(view.coverPhoto) : null,
+    coverPhoto: view.coverPhoto ? absolutePhoto(baseUrl, photo(view.coverPhoto)) : null,
   };
 }
 type WirePolicy = Schemas['Yalla.Application.BranchSettings.ReservationPolicyView'];
@@ -326,6 +330,17 @@ export function createConsoleHttpGateway(
     return venueDetailFromWire(data);
   }
 
+  // Photo links resolved against the API's origin, at the boundary — see
+  // `photoUrl.ts`. The console is the one client that draws every variant.
+  const absoluteItem = (item: AdminMenuItem): AdminMenuItem => ({
+    ...item,
+    photo: absolutePhoto(client.baseUrl, item.photo),
+  });
+  const absoluteCategory = (category: AdminMenuCategory): AdminMenuCategory => ({
+    ...category,
+    items: category.items.map(absoluteItem),
+  });
+
   return {
     async getCurrentUser(): Promise<ConsoleUser> {
       // Refreshes first if the held token is stale, so the claims read below
@@ -555,7 +570,7 @@ export function createConsoleHttpGateway(
       // suspended venue, and a manager fixing their menu during a suspension is
       // exactly who is looking at this screen.
       const { data } = await client.get<WireCategory[]>(`${BRANCHES}/${branchId}/menu/manage`);
-      return adminMenu(data ?? []);
+      return adminMenu(data ?? []).map(absoluteCategory);
     },
 
     async createCategory({ branchId, name, displayOrder }): Promise<AdminMenuCategory> {
@@ -563,7 +578,7 @@ export function createConsoleHttpGateway(
         name,
         displayOrder,
       } satisfies Schemas['Yalla.Application.Menus.CreateMenuCategoryCommand']);
-      return adminCategory(data);
+      return absoluteCategory(adminCategory(data));
     },
 
     async updateCategory({ branchId, categoryId, name, displayOrder }) {
@@ -574,7 +589,7 @@ export function createConsoleHttpGateway(
           ...(displayOrder !== undefined ? { displayOrder } : {}),
         } satisfies Schemas['Yalla.Application.Menus.UpdateMenuCategoryCommand'],
       );
-      return adminCategory(data);
+      return absoluteCategory(adminCategory(data));
     },
 
     async deleteCategory({ branchId, categoryId }): Promise<void> {
@@ -608,7 +623,7 @@ export function createConsoleHttpGateway(
           displayOrder: item.displayOrder,
         } satisfies Schemas['Yalla.Application.Menus.CreateMenuItemCommand'],
       );
-      return adminItem(data);
+      return absoluteItem(adminItem(data));
     },
 
     async updateMenuItem({ branchId, itemId, patch }): Promise<AdminMenuItem> {
@@ -627,7 +642,7 @@ export function createConsoleHttpGateway(
           ...(patch.displayOrder !== undefined ? { displayOrder: patch.displayOrder } : {}),
         } satisfies Schemas['Yalla.Application.Menus.UpdateMenuItemCommand'],
       );
-      return adminItem(data);
+      return absoluteItem(adminItem(data));
     },
 
     async setMenuItemAvailability({ branchId, itemId, isAvailable }): Promise<AdminMenuItem> {
@@ -637,7 +652,7 @@ export function createConsoleHttpGateway(
           isAvailable,
         } satisfies Schemas['Yalla.Api.Endpoints.VenueAdminEndpoints.SetAvailabilityRequest'],
       );
-      return adminItem(data);
+      return absoluteItem(adminItem(data));
     },
 
     async deleteMenuItem({ branchId, itemId }): Promise<MenuItemDeletion> {
@@ -695,7 +710,7 @@ export function createConsoleHttpGateway(
               const result = body as Schemas['Yalla.Application.Media.PhotoUploadResult'];
               onProgress?.(1);
               resolve({
-                photo: photo(result.photo),
+                photo: absolutePhoto(client.baseUrl, photo(result.photo)),
                 wasDeduplicated: result.wasDeduplicated,
                 bytesStored: result.bytesStored,
               });
@@ -750,7 +765,7 @@ export function createConsoleHttpGateway(
       const { data } = await client.get<WirePublicProfile>(
         `${BRANCHES}/${branchId}/public-profile`,
       );
-      return publicProfile(data);
+      return publicProfile(data, client.baseUrl);
     },
 
     async updatePublicProfile({ branchId, profile }): Promise<BranchPublicProfile> {
@@ -764,7 +779,7 @@ export function createConsoleHttpGateway(
           coverPhotoId: profile.coverPhotoId,
         },
       );
-      return publicProfile(data);
+      return publicProfile(data, client.baseUrl);
     },
 
     async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {

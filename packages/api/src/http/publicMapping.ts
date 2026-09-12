@@ -11,6 +11,7 @@ import type {
 } from '../contracts/publicBranch';
 import type { BranchSummary, VenueSummary, VenueType } from '../contracts/booking';
 import type { components } from '../generated/schema';
+import { absolutePhotoUrl } from './photoUrl';
 
 type Schemas = components['schemas'];
 export type WirePublicBranch = Schemas['Yalla.Application.Public.PublicBranchPage'];
@@ -98,7 +99,8 @@ function openStateFromWire(wire: WirePublicBranch): OpenState {
   return { isOpen: wire.isOpenNow ?? false, closesAtUtc: null, opensAtUtc: null };
 }
 
-function venueHeaderFromWire(wire: WirePublicBranch): PublicVenueHeader {
+function venueHeaderFromWire(wire: WirePublicBranch, baseUrl: string): PublicVenueHeader {
+  const cover = wire.coverPhoto;
   return {
     /*
      * The slug, because the wire carries no venue id and this surface is
@@ -110,9 +112,20 @@ function venueHeaderFromWire(wire: WirePublicBranch): PublicVenueHeader {
     slug: wire.venueSlug ?? '',
     name: wire.venueName ?? '',
     type: venueTypeFromWire(wire.venueType),
-    // Neither is on the public wire. Both are nullable and both call sites guard.
+    // Not on the public wire. Nullable, and the call site guards.
     description: null,
-    coverPhoto: null,
+    // The branch's cover, on the venue header because that is where the page
+    // draws it. Links resolved against the API — see `photoUrl.ts`.
+    coverPhoto: cover
+      ? {
+          photoId: cover.photoId,
+          thumbnailUrl: absolutePhotoUrl(baseUrl, cover.thumbnailUrl),
+          cardUrl: absolutePhotoUrl(baseUrl, cover.cardUrl),
+          fullUrl: absolutePhotoUrl(baseUrl, cover.fullUrl),
+          width: cover.width ?? null,
+          height: cover.height ?? null,
+        }
+      : null,
   };
 }
 
@@ -124,10 +137,10 @@ function policyFromWire(wire: WirePublicBranch['policy']): PublicBranchPolicy {
   };
 }
 
-/** One branch's public page. */
-export function publicBranchFromWire(wire: WirePublicBranch): PublicBranch {
+/** One branch's public page. `baseUrl` is the API origin photo links resolve against. */
+export function publicBranchFromWire(wire: WirePublicBranch, baseUrl = ''): PublicBranch {
   return {
-    venue: venueHeaderFromWire(wire),
+    venue: venueHeaderFromWire(wire, baseUrl),
 
     id: wire.branchId ?? '',
     slug: wire.branchSlug ?? '',
@@ -268,6 +281,7 @@ export function venueSummariesFromCards(
 export function publicPageMetaFromWire(
   wire: WirePublicBranchMeta,
   canonicalUrl: string,
+  baseUrl = '',
 ): PublicPageMeta {
   let canonical = canonicalUrl;
   if (wire.canonicalPath) {
@@ -281,7 +295,9 @@ export function publicPageMetaFromWire(
   return {
     title: wire.title ?? '',
     description: wire.description ?? '',
-    imageUrl: wire.imageUrl ?? null,
+    // Absolute for the same reason the canonical is: an unfurler drops a
+    // relative url, and this one is served by the API, not the web host.
+    imageUrl: wire.imageUrl ? absolutePhotoUrl(baseUrl, wire.imageUrl) : null,
     canonicalUrl: canonical,
     /*
      * `og:site_name` is the site, not the venue — the venue is already the

@@ -5108,6 +5108,8 @@ export interface components {
             branchName: string;
             /** @description The branch half. */
             branchSlug: string;
+            /** @description One photo as a client consumes it: three URLs and the id behind them. */
+            coverPhoto?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
             /**
              * @description The room, in diner shape: the canvas, the areas and the tables with their geometry and whether
              *     each is free. <b>No QR tokens and no staff state</b> - see Yalla.Application.Public.PublicFloorTable.
