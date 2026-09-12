@@ -173,6 +173,21 @@ from these same tokens so it cannot drift from what the room draws.
 | `outOfService` | `#8B95A1` grey  | **Crosshatch** + 70% fill opacity             | ink   |
 | `yourPick`     | ink             | **Outside ring** in the canvas colour         | white |
 
+Two of these hues also exist as **text**, the way `primaryInk` does for the
+beige. The fills are fills: `free` green reads 2.46:1 on paper and the amber
+2.72, and the diner app was setting "4 tables free now" and "Paid 4 000 ֏" in
+them anyway. So each has an ink:
+
+| Token        | Value                                                                    |
+| ------------ | ------------------------------------------------------------------------ |
+| `successInk` | `#1E7350` — `free` darkened until it is text. 5.36 white, 5.80 paper     |
+| `warningInk` | `#8A5E08` — `reservedSoon` darkened the same way. 5.27 white, 5.70 paper |
+
+Both clear 4.5 on white, paper and both tints and keep the hue, so a green
+sentence still means a free table. A table on the plan and a badge fill keep the
+bright ones; a sentence about free tables or money already paid is set in the
+ink.
+
 ### Why each hue survives beside the accent
 
 `contrast.test.ts` measures the accent against **all six** states.
@@ -466,9 +481,10 @@ resolves to zero under `prefers-reduced-motion`, and a test asserts it.
 
 ## Verification
 
-`packages/tokens/src/contrast.test.ts` — **67 tests, all passing**. It covers
+`packages/tokens/src/contrast.test.ts` — **68 tests, all passing**. It covers
 text contrast on every ground including both tints, the state labels against
-their composited fills, control boundaries at 3:1, the accent's contrast
+their composited fills, `successInk` and `warningInk` as text on every ground
+(and that the fills they darken do not pass), control boundaries at 3:1, the accent's contrast
 minimums (ink on the fill ≥ 4.5, `primaryInk` ≥ 4.5 on white and paper and ≥ 3
 as a border on every control ground, white never on the fill), its saturation
 separation from all six states, the chart-fill rules, the pairwise distinctness
