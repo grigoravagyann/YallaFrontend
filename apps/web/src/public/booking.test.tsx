@@ -128,7 +128,10 @@ describe('the booking flow', () => {
     // than "until 00:00" — a literal here failed every night after ten.
     expect(table.freeCancellationUntilUtc).not.toBeNull();
     const deadline = freeCancellationCopy(table.freeCancellationUntilUtc!, branch.timeZoneId, 'en');
-    expect(screen.getByText(i18next.t(deadline.key, deadline.params))).toBeDefined();
+    // The sheet renders these keys with its `diner` translator.
+    expect(
+      screen.getByText(i18next.t(deadline.key, { ...deadline.params, ns: 'diner' })),
+    ).toBeDefined();
   });
 
   it('reaches a confirmed reservation through phone verification', async () => {
