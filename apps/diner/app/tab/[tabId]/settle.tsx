@@ -6,7 +6,16 @@ import {
 } from '@yalla/api';
 import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
+import {
+  color,
+  elevation,
+  fontSize,
+  fontWeight,
+  lineHeight,
+  radius,
+  space,
+  typeScale,
+} from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -16,11 +25,14 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  type TextStyle,
 } from 'react-native';
-import { Text } from '../../../src/components/Text';
+import { Button } from '../../../src/components/Button';
 import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
+import { Text } from '../../../src/components/Text';
 import { useDinerTab, useSetSettlementMode, useTabShares } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
+import { settleLead } from '../../../src/lib/settleLead';
 import { settlementModeFailureKey, withHost } from '../../../src/tab/settle';
 
 /**
@@ -32,8 +44,9 @@ import { settlementModeFailureKey, withHost } from '../../../src/tab/settle';
  * working out who hands over what needs the numbers far more than it needs a
  * card form.
  *
- * So the settle path is: see what you owe — and what has already been paid —
- * then ask for the waiter.
+ * So the screen leads with the one number a table at the end of a meal wants —
+ * what is still to pay — then how it splits, then who owes what, then the one
+ * press that brings the bill over.
  */
 export default function SettleScreen() {
   const { t } = useTranslation('diner');
@@ -52,12 +65,43 @@ export default function SettleScreen() {
   const isHost = view?.me.role === 'host' && view.me.status === 'approved';
   const shares = rawShares && view ? withHost(rawShares, view.hostParticipantId) : rawShares;
 
+  // The table's totals are on the body only when the host lets everyone see
+  // them; otherwise the number that leads is this person's own share.
+  const lead = settleLead(shares);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: true, title: '' }} />
 
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>{t('settle.title')}</Text>
+        <Text display style={styles.title}>
+          {t('settle.title')}
+        </Text>
+
+        {/* Not while the last read failed: React Query keeps the previous
+            answer through an error, and a 40px number over "could not load"
+            reads as current. The card below says what happened instead. */}
+        {lead && !isError ? (
+          <View
+            style={styles.lead}
+            accessible
+            accessibilityRole="header"
+            accessibilityLabel={`${t(lead.labelKey)}: ${formatDram(lead.amount, locale)}`}
+          >
+            <Text style={styles.leadLabel}>{t(lead.labelKey)}</Text>
+            <Text style={styles.leadAmount}>{formatDram(lead.amount, locale)}</Text>
+            {lead.total !== null && lead.paid !== null ? (
+              <Text style={styles.leadOf}>
+                {lead.paid > 0
+                  ? t('settle.remainingOf', {
+                      total: formatDram(lead.total, locale),
+                      paid: formatDram(lead.paid, locale),
+                    })
+                  : t('settle.nothingPaidYet')}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {/* The host picks how the bill splits, in the words a person would use
             rather than the enum names. Nothing is shown selected until the tab
@@ -127,13 +171,15 @@ export default function SettleScreen() {
             // else's share is in the body. This person's own share still is,
             // and on the screen for "what do I owe" it is the thing to show.
             <View style={styles.shares}>
-              {shares.yourShare ? <ShareRow share={shares.yourShare} locale={locale} /> : null}
+              {shares.yourShare ? (
+                <ShareRow share={shares.yourShare} locale={locale} first />
+              ) : null}
               <Text style={styles.muted}>{t('settle.shares.hidden')}</Text>
             </View>
           ) : (
             <View style={styles.shares}>
-              {shares.shares.map((share) => (
-                <ShareRow key={share.participantId} share={share} locale={locale} />
+              {shares.shares.map((share, i) => (
+                <ShareRow key={share.participantId} share={share} locale={locale} first={i === 0} />
               ))}
               <View style={styles.shareTotal}>
                 <Text style={styles.shareTotalLabel}>{t('settle.shares.total')}</Text>
@@ -152,8 +198,8 @@ export default function SettleScreen() {
                     </Text>
                   </View>
                   <View style={styles.shareTotalRow}>
-                    <Text style={styles.remainingLabel}>{t('bill.remaining')}</Text>
-                    <Text style={styles.remainingValue}>
+                    <Text style={styles.remaining}>{t('bill.remaining')}</Text>
+                    <Text style={styles.remaining}>
                       {formatDram(shares.totals.remainingDram, locale)}
                     </Text>
                   </View>
@@ -168,23 +214,20 @@ export default function SettleScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{t('settle.pay.title')}</Text>
           <Text style={styles.payBody}>{t('settle.pay.body')}</Text>
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={t('settle.pay.askForBill')}
+            size="large"
             onPress={() => setWaiterOpen(true)}
-            style={styles.primary}
-          >
-            <Text style={styles.primaryText}>{t('settle.pay.askForBill')}</Text>
-          </Pressable>
+            style={styles.askForBill}
+          />
         </View>
 
         {isHost ? (
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={t('settle.people')}
+            variant="outline"
             onPress={() => router.push({ pathname: '/tab/[tabId]/people', params: { tabId } })}
-            style={styles.secondary}
-          >
-            <Text style={styles.secondaryText}>{t('settle.people')}</Text>
-          </Pressable>
+          />
         ) : null}
       </ScrollView>
 
@@ -200,14 +243,22 @@ export default function SettleScreen() {
 }
 
 /** One person's share: what it is made of, and what they have already paid. */
-function ShareRow({ share, locale }: { share: ParticipantShare; locale: Locale }) {
+function ShareRow({
+  share,
+  locale,
+  first,
+}: {
+  share: ParticipantShare;
+  locale: Locale;
+  first: boolean;
+}) {
   const { t } = useTranslation('diner');
   return (
-    <View style={styles.shareRow}>
+    <View style={[styles.shareRow, !first && styles.shareRowRuled]}>
       <View style={styles.shareWho}>
         <Text style={styles.shareName}>
           {share.displayName || t('settle.unnamed')}
-          {share.isHost ? ` · ${t('settle.host')}` : ''}
+          {share.isHost ? `, ${t('settle.host')}` : ''}
         </Text>
         {/* Shared items and the service charge are already in the number;
             saying so is what stops the table adding it up again by hand and
@@ -238,19 +289,47 @@ function ShareRow({ share, locale }: { share: ParticipantShare; locale: Locale }
   );
 }
 
+const tabular: TextStyle = { fontVariant: ['tabular-nums'] };
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: color.paper },
-  body: { padding: space.lg, gap: space.lg, paddingBottom: space.xxxl },
-  title: { fontSize: fontSize.xl, lineHeight: lineHeight.xl, fontWeight: fontWeight.bold },
+  body: { padding: space.lg, gap: space.md, paddingBottom: space.xxxl },
+  title: {
+    fontSize: fontSize.xl,
+    lineHeight: lineHeight.xl,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+  },
+  // The hero number, in the diner's metric size: the one figure read from
+  // further away than anything else on the screen.
+  lead: { gap: 2, paddingBottom: space.xs },
+  leadLabel: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
+  leadAmount: {
+    fontSize: typeScale.diner.metric.size,
+    lineHeight: typeScale.diner.metric.lineHeight,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+    ...tabular,
+  },
+  leadOf: {
+    fontSize: fontSize.sm,
+    lineHeight: lineHeight.sm,
+    color: color.mutedForeground,
+    ...tabular,
+  },
   card: {
     gap: space.sm,
     padding: space.lg,
     borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: color.borderSoft,
     backgroundColor: color.surface,
+    ...elevation.soft.native,
   },
-  cardTitle: { fontSize: fontSize.lg, lineHeight: lineHeight.lg, fontWeight: fontWeight.bold },
+  cardTitle: {
+    fontSize: fontSize.lg,
+    lineHeight: lineHeight.lg,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+  },
   muted: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
   error: { color: color.danger, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
 
@@ -259,26 +338,43 @@ const styles = StyleSheet.create({
     padding: space.md,
     borderRadius: radius.soft,
     borderWidth: 2,
-    borderColor: color.borderStrong,
+    borderColor: color.borderInteractive,
   },
   optionOn: { borderColor: color.primaryInk, backgroundColor: color.greenTint },
   optionLocked: { opacity: 0.6 },
-  optionTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold },
+  optionTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: color.foreground },
   optionTitleOn: { color: color.primaryInk },
   optionBody: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
   optionBodyOn: { color: color.foreground },
 
-  shares: { gap: space.md, paddingTop: space.sm },
-  shareRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  shares: { paddingTop: space.xs },
+  shareRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: space.md,
+    paddingVertical: space.md,
+  },
+  shareRowRuled: { borderTopWidth: 1, borderTopColor: color.border },
   shareWho: { flex: 1, gap: 2 },
-  shareName: { fontSize: fontSize.md, fontWeight: fontWeight.medium },
+  shareName: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
   shareBreakdown: {
     color: color.subtleForeground,
     fontSize: fontSize.xs,
     lineHeight: lineHeight.xs,
+    ...tabular,
   },
-  sharePaid: { color: color.success, fontSize: fontSize.xs, lineHeight: lineHeight.xs },
-  shareAmount: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
+  sharePaid: {
+    color: color.successInk,
+    fontSize: fontSize.xs,
+    lineHeight: lineHeight.xs,
+    ...tabular,
+  },
+  shareAmount: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+    ...tabular,
+  },
   shareTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -286,33 +382,30 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: color.borderStrong,
   },
-  shareTotalRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  shareTotalLabel: { fontSize: fontSize.md, fontWeight: fontWeight.medium },
-  shareTotalValue: { fontSize: fontSize.md, fontWeight: fontWeight.bold },
-  remainingLabel: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  remainingValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-
-  payBody: { color: color.foreground, fontSize: fontSize.md, lineHeight: lineHeight.md },
-  primary: {
-    minHeight: touchTarget.large,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-    marginTop: space.sm,
+  shareTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: space.xs },
+  shareTotalLabel: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.medium,
+    color: color.foreground,
+    ...tabular,
   },
-  primaryText: {
-    color: color.primaryForeground,
+  shareTotalValue: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.bold,
+    color: color.foreground,
+    ...tabular,
   },
-  secondary: {
-    minHeight: touchTarget.regular,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: color.primaryInk,
+  remaining: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+    ...tabular,
   },
-  secondaryText: { color: color.primaryInk, fontWeight: fontWeight.bold },
+
+  payBody: {
+    color: color.foreground,
+    fontSize: fontSize.md,
+    lineHeight: lineHeight.md,
+  },
+  askForBill: { marginTop: space.xs },
 });

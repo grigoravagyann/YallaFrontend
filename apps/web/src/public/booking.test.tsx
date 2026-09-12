@@ -7,6 +7,7 @@ import {
   type TableAvailability,
 } from '@yalla/api';
 import { queryKeys } from '@yalla/api/react';
+import { i18next } from '@yalla/i18n';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -121,11 +122,15 @@ describe('the booking flow', () => {
     ).toBeTruthy();
 
     // And the deadline, from the same shared rule.
-    // The server's own deadline, carried on the offer.
+    // The server's own deadline, carried on the offer. Rendered through the
+    // same copy the page uses: late in the branch's evening a slot two hours
+    // out crosses midnight, and the rule then says "on <date> at 00:00" rather
+    // than "until 00:00" — a literal here failed every night after ten.
     expect(table.freeCancellationUntilUtc).not.toBeNull();
     const deadline = freeCancellationCopy(table.freeCancellationUntilUtc!, branch.timeZoneId, 'en');
+    // The sheet renders these keys with its `diner` translator.
     expect(
-      screen.getByText(`Free cancellation until ${String(deadline.params['time'])}`),
+      screen.getByText(i18next.t(deadline.key, { ...deadline.params, ns: 'diner' })),
     ).toBeDefined();
   });
 

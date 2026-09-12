@@ -42,6 +42,7 @@ import {
   outranks,
 } from '../contracts/staff';
 import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
+import type { BranchPublicProfile } from '../contracts/publicProfile';
 import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
 import type {
@@ -241,6 +242,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const menus = new Map<string, MockCategory[]>();
   const hours = new Map<string, WeeklyHours>();
   const policies = new Map<string, ReservationPolicy>();
+  const profiles = new Map<string, BranchPublicProfile>();
   const photosById = new Map<string, Photo>();
   const uploadedPhotos = new Map<string, Photo>();
   /** Items the fixture pretends have been ordered, so deletion is refused. */
@@ -661,6 +663,22 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     if (existing) return existing;
     const seeded = defaultPolicyFor('cafe');
     policies.set(branchId, seeded);
+    return seeded;
+  }
+
+  /**
+   * A branch's public settings, in the state every real venue starts in: no
+   * number published, bookings off until somebody says otherwise, no picture.
+   */
+  function profileFor(branchId: string): BranchPublicProfile {
+    const existing = profiles.get(branchId);
+    if (existing) return existing;
+    const seeded: BranchPublicProfile = {
+      phoneE164: null,
+      acceptsWebBookings: false,
+      coverPhoto: null,
+    };
+    profiles.set(branchId, seeded);
     return seeded;
   }
 
@@ -1677,6 +1695,53 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     },
 
     // --- The reservation policy ---------------------------------------------------
+
+    // --- The public page ------------------------------------------------------------
+
+    async getPublicProfile(branchId): Promise<BranchPublicProfile> {
+      await wait();
+      requireBranchInVenue(branchId);
+      return profileFor(branchId);
+    },
+
+    async updatePublicProfile({ branchId, profile }): Promise<BranchPublicProfile> {
+      await wait();
+      requireBranchInVenue(branchId);
+
+      // The server's order: the picture is checked before anything is written,
+      // so a foreign photo refuses the whole form and leaves the old phone and
+      // switch as they were. A photo this mock never stored is "not found at
+      // this branch", the same answer a menu item gets.
+      const cover = profile.coverPhotoId === null ? null : photosById.get(profile.coverPhotoId);
+      if (cover === undefined) {
+        throw new NotFoundError({ url: `${URL_TAG}/branches/${branchId}/public-profile` });
+      }
+
+      const phone = profile.phoneE164?.replace(/[\s\-()]/gu, '') ?? '';
+      if (phone !== '' && !/^\+[1-9]\d{6,14}$/u.test(phone)) {
+        throw new ValidationError({
+          url: `${URL_TAG}/branches/${branchId}/public-profile`,
+          status: 422,
+          problem: {
+            type: 'about:blank',
+            title: 'Validation failed',
+            status: 422,
+            detail: 'phoneE164 must be an E.164 number such as +37411223344.',
+            code: 'validation-failed',
+            traceId: 'mock',
+            context: { field: 'phoneE164' },
+          },
+        });
+      }
+
+      const saved: BranchPublicProfile = {
+        phoneE164: phone === '' ? null : phone,
+        acceptsWebBookings: profile.acceptsWebBookings,
+        coverPhoto: cover,
+      };
+      profiles.set(branchId, saved);
+      return saved;
+    },
 
     async getReservationPolicy(branchId): Promise<ReservationPolicy> {
       await wait();

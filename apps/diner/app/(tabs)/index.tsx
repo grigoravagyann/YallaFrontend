@@ -1,4 +1,4 @@
-import type { VenueSummary, VenueType } from '@yalla/api';
+import { venueAvailability, venueFreeTables, type VenueSummary, type VenueType } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
 import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
 import { Text, TextInput } from '../../src/components/Text';
-import { VenueCard } from '../../src/components/VenueCard';
+import { VenueRow } from '../../src/components/VenueRow';
 import { useVenues } from '../../src/data/queries';
 import { useActiveTab } from '../../src/stores/tab';
 
@@ -22,9 +22,11 @@ const FILTERS: readonly { key: Filter; type: VenueType | null }[] = [
 /**
  * Explore — the first screen anyone sees.
  *
- * It has to look worth browsing rather than like a utility, so the venue cards
- * lead with the one number only this app can show: how many tables are free
- * right now.
+ * The city is the title and the lead line under it is the number only this
+ * app can show: how many tables are free across the city right now. The list
+ * below is rows on the page, not cards, and each row carries its free count
+ * twice — as a sentence and as green squares — so a scan down the list is a
+ * scan of the city's free tables.
  *
  * Four states, explicitly: loading, empty, error and offline. The last two are
  * told apart by the client, not guessed here.
@@ -45,6 +47,9 @@ export default function ExploreScreen() {
   // producing a fresh array on every render.
   const venues: readonly VenueSummary[] = useMemo(() => data ?? [], [data]);
 
+  // Free tables at open branches only — see `venueFreeTables`. Said above the
+  // list because it is the whole pitch, and left out when it is zero: "0
+  // tables free in 12 places" at 02:00 is true and reads as a broken app.
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     const wanted = FILTERS.find((f) => f.key === filter)?.type ?? null;
@@ -60,6 +65,19 @@ export default function ExploreScreen() {
     });
   }, [venues, query, filter]);
 
+  // Over the rows on screen, not the whole city: with "Cafes" selected the
+  // line above three cafés must not quote the restaurants' tables too.
+  const freeAcrossCity = useMemo(
+    () => visible.reduce((total, venue) => total + venueFreeTables(venue), 0),
+    [visible],
+  );
+  // The places those tables are at — not every row, which would count the
+  // ones saying "Closed" a few lines down.
+  const placesWithFree = useMemo(
+    () => visible.filter((venue) => venueAvailability(venue).kind === 'freeNow').length,
+    [visible],
+  );
+
   const openVenue = useCallback(
     (venueId: string) => {
       // Object form, not a template string: typed routes match on the route
@@ -69,13 +87,22 @@ export default function ExploreScreen() {
     [router],
   );
 
+  const places = t('explore.placesNearby', { count: venues.length });
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <Text display style={styles.city}>
           {t('explore.city')}
         </Text>
-        <Text style={styles.count}>{t('explore.placesNearby', { count: venues.length })}</Text>
+        {freeAcrossCity > 0 ? (
+          <Text style={styles.lead}>
+            <Text style={styles.leadFree}>{t('explore.freeLead', { count: freeAcrossCity })}</Text>
+            {` ${t('explore.inPlaces', { count: placesWithFree })}`}
+          </Text>
+        ) : (
+          <Text style={styles.lead}>{places}</Text>
+        )}
       </View>
 
       {/* A way back to a tab you wandered off. Not a persistent bar: it only
@@ -86,8 +113,8 @@ export default function ExploreScreen() {
           onPress={() => router.push({ pathname: '/tab/[tabId]', params: { tabId: activeTabId } })}
           style={({ pressed }) => [styles.resume, pressed && styles.resumePressed]}
         >
-          <Text style={styles.resumeTitle}>{t('tab.resumeTitle')}</Text>
-          <Text style={styles.resumeAction}>{t('tab.resumeAction')}</Text>
+          <Text style={styles.resumeText}>{t('tab.resumeTitle')}</Text>
+          <Text style={styles.resumeText}>{t('tab.resumeAction')}</Text>
         </Pressable>
       ) : null}
 
@@ -134,7 +161,8 @@ export default function ExploreScreen() {
         <FlatList
           data={visible}
           keyExtractor={(venue) => venue.id}
-          renderItem={({ item }) => <VenueCard venue={item} onPress={openVenue} />}
+          renderItem={({ item }) => <VenueRow venue={item} onPress={openVenue} />}
+          ItemSeparatorComponent={Rule}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           // Pull to refresh: the free-table counts move, and a diner who has
@@ -154,8 +182,14 @@ export default function ExploreScreen() {
   );
 }
 
+/** The hairline between rows. FlatList draws it between items and nowhere else. */
+function Rule() {
+  return <View style={styles.rule} />;
+}
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: color.paper },
+  rule: { height: 1, backgroundColor: color.border },
   header: {
     paddingHorizontal: space.lg,
     paddingTop: space.lg,
@@ -167,11 +201,13 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: color.foreground,
   },
-  count: {
+  lead: {
+    marginTop: 2,
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
     color: color.mutedForeground,
   },
+  leadFree: { fontWeight: fontWeight.medium, color: color.successInk },
   resume: {
     marginHorizontal: space.lg,
     marginBottom: space.sm,
@@ -184,12 +220,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.greenTint,
   },
   resumePressed: { opacity: 0.8 },
-  resumeTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    color: color.primaryInk,
-  },
-  resumeAction: {
+  resumeText: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
     color: color.primaryInk,
@@ -200,7 +231,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color.border,
+    borderColor: color.borderInteractive,
     backgroundColor: color.surface,
     color: color.foreground,
     fontSize: fontSize.md,
@@ -209,7 +240,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: space.sm,
     paddingHorizontal: space.lg,
-    paddingBottom: space.md,
+    paddingBottom: space.xs,
   },
   chip: {
     minHeight: touchTarget.small,
@@ -217,7 +248,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color.border,
+    borderColor: color.borderInteractive,
     backgroundColor: color.surface,
   },
   chipActive: {

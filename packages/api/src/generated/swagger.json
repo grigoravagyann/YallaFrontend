@@ -960,8 +960,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Set the published phone number and whether the page takes bookings",
-        "description": "`acceptsWebBookings` is **false until somebody switches it on**, and stays false for every branch that has never been asked. A venue has not agreed to take bookings from strangers on the internet by never having been consulted, so this is a decision made during onboarding rather than a default inherited - which is also why it appears on the branch readiness checklist.\n\nWhile it is off the public page still shows the room, the menu and the hours and simply offers no booking.\n\n`phoneE164` must be E.164 (`+37411223344`); spaces, dashes and brackets are stripped first. Null or blank clears it. A branch with no number published is a branch a diner on the public page has no way to ask about a high chair.",
+        "summary": "Set the published phone number, whether the page takes bookings, and the cover photo",
+        "description": "`acceptsWebBookings` is **false until somebody switches it on**, and stays false for every branch that has never been asked. A venue has not agreed to take bookings from strangers on the internet by never having been consulted, so this is a decision made during onboarding rather than a default inherited - which is also why it appears on the branch readiness checklist.\n\nWhile it is off the public page still shows the room, the menu and the hours and simply offers no booking.\n\n`phoneE164` must be E.164 (`+37411223344`); spaces, dashes and brackets are stripped first. Null or blank clears it. A branch with no number published is a branch a diner on the public page has no way to ask about a high chair.\n\n`coverPhotoId` is the venue card's picture: a photo uploaded for **this** branch through `POST /api/branches/{branchId}/photos`, or null to clear it. A photo uploaded for another branch is not found here, and the whole form is refused before anything is written.",
         "operationId": "putBranchPublicProfile",
         "parameters": [
           {
@@ -983,7 +983,7 @@
                     "$ref": "#/components/schemas/Yalla.Application.BranchSettings.PublicProfileCommand"
                   }
                 ],
-                "description": "The same two settings, as written. Both are replaced at once."
+                "description": "The same settings, as written. All are replaced at once."
               }
             }
           },
@@ -1031,7 +1031,7 @@
             }
           },
           "404": {
-            "description": "No such branch.",
+            "description": "No such branch, or `coverPhotoId` names a photo that was not uploaded for it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -15591,10 +15591,16 @@
           "acceptsWebBookings": {
             "type": "boolean",
             "description": "Whether to offer booking on the public page."
+          },
+          "coverPhotoId": {
+            "type": "string",
+            "description": "A photo uploaded for <b>this</b> branch, or null to clear the picture. One uploaded for another\r\nbranch is not found here, the same answer a menu item gets for a foreign photo.",
+            "format": "uuid",
+            "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "The same two settings, as written. Both are replaced at once."
+        "description": "The same settings, as written. All are replaced at once."
       },
       "Yalla.Application.BranchSettings.PublicProfileView": {
         "required": [
@@ -15610,6 +15616,15 @@
           "acceptsWebBookings": {
             "type": "boolean",
             "description": "Whether the public page offers booking. See\r\nYalla.Domain.Venues.Branch.AcceptsWebBookings for why this is false until somebody\r\nsays otherwise."
+          },
+          "coverPhoto": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+              }
+            ],
+            "description": "The venue card's picture - the first thing a stranger sees on the public page and in the diner\r\napp's list - or null when there is none yet.",
+            "nullable": true
           }
         },
         "additionalProperties": false,

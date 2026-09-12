@@ -19,6 +19,7 @@ import type {
   ReservationPolicy,
   WeeklyHours,
 } from './contracts/branchSettings';
+import type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 import type {
   CreateStaffInput,
   EnrolmentCode,
@@ -269,6 +270,21 @@ export interface ConsoleGateway {
    * names the days.
    */
   replaceOpeningHours(input: { branchId: string; week: WeeklyHours }): Promise<WeeklyHours>;
+
+  // --- The public page ------------------------------------------------------------
+
+  getPublicProfile(branchId: string): Promise<BranchPublicProfile>;
+
+  /**
+   * Replace the public settings, including the venue card's picture.
+   *
+   * @throws {ValidationError} `phoneE164` is not E.164; the error names the field.
+   * @throws {NotFoundError} `coverPhotoId` was not uploaded for this branch.
+   */
+  updatePublicProfile(input: {
+    branchId: string;
+    profile: BranchPublicProfileInput;
+  }): Promise<BranchPublicProfile>;
 
   // --- The reservation policy ---------------------------------------------------
 

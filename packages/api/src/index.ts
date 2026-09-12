@@ -296,6 +296,7 @@ export type {
   VenueStatus,
 } from './contracts/console';
 export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+export type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 export type {
   ApprovalTrigger,
   ConsoleBooking,

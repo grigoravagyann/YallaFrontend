@@ -15,7 +15,11 @@
       "title": "Nothing matches that",
       "body": "Try a different name, or clear the filters."
     },
-    "loading": "Finding places nearby…"
+    "loading": "Finding places nearby…",
+    "freeLead_one": "{{count}} table free",
+    "freeLead_other": "{{count}} tables free",
+    "inPlaces_one": "in {{count}} place nearby",
+    "inPlaces_other": "in {{count}} places nearby"
   },
   "venue": {
     "type": {
@@ -33,7 +37,9 @@
     "notFound": {
       "title": "This place is not on Yalla any more",
       "body": "It may have closed or stopped taking bookings. Go back and pick another."
-    }
+    },
+    "openAcross_one": "Open now, {{count}} table free",
+    "openAcross_other": "Open now, {{count}} tables free"
   },
   "branches": {
     "title": "Choose a branch",
@@ -47,7 +53,8 @@
     "loading": "Loading branches…",
     "openNow": "open now",
     "freeNow_one": "{{count}} table free now",
-    "freeNow_other": "{{count}} tables free now"
+    "freeNow_other": "{{count}} tables free now",
+    "opensAt": "closed, opens at {{time}}"
   },
   "booking": {
     "date": "Date",
@@ -77,7 +84,8 @@
     "title": "Pick a table",
     "comingSoon": "The floor plan for this branch appears here.",
     "back": "Back",
-    "notFound": "That branch could not be found."
+    "notFound": "That branch could not be found.",
+    "pickFor": "Pick a table for {{time}}"
   },
   "tabs": {
     "explore": "Explore",
@@ -159,7 +167,8 @@
     },
     "close": "Close",
     "freeCancellationOn": "Free cancellation until {{time}} on {{date}}",
-    "freeCancellationPassed": "The free-cancellation time has passed. Cancelling still helps the venue."
+    "freeCancellationPassed": "The free-cancellation time has passed. Cancelling still helps the venue.",
+    "pickAnother": "Pick another"
   },
   "verify": {
     "phoneTitle": "Your phone number",
@@ -574,7 +583,9 @@
       "title": "Paying",
       "body": "Payment is taken at the table in cash. Ask for the bill and a waiter will come over with it.",
       "askForBill": "Ask for the bill"
-    }
+    },
+    "remainingOf": "of {{total}}, with {{paid}} already paid",
+    "nothingPaidYet": "Nothing paid yet"
   },
   "push": {
     "action": {

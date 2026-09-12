@@ -705,12 +705,14 @@ export interface paths {
         /** What this branch publishes on its public page */
         get: operations["getBranchPublicProfile"];
         /**
-         * Set the published phone number and whether the page takes bookings
+         * Set the published phone number, whether the page takes bookings, and the cover photo
          * @description `acceptsWebBookings` is **false until somebody switches it on**, and stays false for every branch that has never been asked. A venue has not agreed to take bookings from strangers on the internet by never having been consulted, so this is a decision made during onboarding rather than a default inherited - which is also why it appears on the branch readiness checklist.
          *
          *     While it is off the public page still shows the room, the menu and the hours and simply offers no booking.
          *
          *     `phoneE164` must be E.164 (`+37411223344`); spaces, dashes and brackets are stripped first. Null or blank clears it. A branch with no number published is a branch a diner on the public page has no way to ask about a high chair.
+         *
+         *     `coverPhotoId` is the venue card's picture: a photo uploaded for **this** branch through `POST /api/branches/{branchId}/photos`, or null to clear it. A photo uploaded for another branch is not found here, and the whole form is refused before anything is written.
          */
         put: operations["putBranchPublicProfile"];
         post?: never;
@@ -3958,10 +3960,16 @@ export interface components {
             /** Format: time */
             opensAt: string;
         };
-        /** @description The same two settings, as written. Both are replaced at once. */
+        /** @description The same settings, as written. All are replaced at once. */
         "Yalla.Application.BranchSettings.PublicProfileCommand": {
             /** @description Whether to offer booking on the public page. */
             acceptsWebBookings: boolean;
+            /**
+             * Format: uuid
+             * @description A photo uploaded for <b>this</b> branch, or null to clear the picture. One uploaded for another
+             *     branch is not found here, the same answer a menu item gets for a foreign photo.
+             */
+            coverPhotoId?: string | null;
             /**
              * @description E.164, e.g. `+37411223344`. Spaces, dashes and brackets are stripped before validation.
              *     Null or blank clears the number.
@@ -3976,6 +3984,11 @@ export interface components {
              *     says otherwise.
              */
             acceptsWebBookings: boolean;
+            /**
+             * @description The venue card's picture - the first thing a stranger sees on the public page and in the diner
+             *     app's list - or null when there is none yet.
+             */
+            coverPhoto?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
             /** @description The published contact number in E.164, or null when there is none. */
             phoneE164?: string | null;
         };
@@ -9422,7 +9435,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description No such branch. */
+            /** @description No such branch, or `coverPhotoId` names a photo that was not uploaded for it. */
             404: {
                 headers: {
                     [name: string]: unknown;
