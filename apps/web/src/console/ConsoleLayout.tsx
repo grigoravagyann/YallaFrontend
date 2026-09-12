@@ -34,6 +34,7 @@ export function navItemsFor(role: UserRole): readonly NavItem[] {
       { to: '/venue/menu', labelKey: 'nav.menu' },
       { to: '/venue/hours', labelKey: 'nav.hours' },
       { to: '/venue/policy', labelKey: 'nav.policy' },
+      { to: '/venue/public', labelKey: 'nav.public' },
       { to: '/venue/staff', labelKey: 'nav.staff' },
       { to: '/venue/reports', labelKey: 'nav.reports' },
     );

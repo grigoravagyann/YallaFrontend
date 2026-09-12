@@ -25,6 +25,7 @@ import type {
 import type { Menu } from '../contracts/menu';
 import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
+import type { BranchPublicProfileInput } from '../contracts/publicProfile';
 import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
@@ -205,6 +206,7 @@ export const queryKeys = {
   managedBooking: (token: string) => ['public', 'booking', token] as const,
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
+  publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
   pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
   devices: (branchId: string) => ['console', 'devices', branchId] as const,
@@ -911,6 +913,37 @@ export function useReservationPolicy(branchId: string | undefined) {
     enabled: Boolean(branchId),
     staleTime: staleTime.reference,
     refetchOnWindowFocus: false,
+  });
+}
+
+// --- The public page --------------------------------------------------------------
+
+export function usePublicProfile(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.publicProfile(branchId ?? ''),
+    queryFn: () => gateway.getPublicProfile(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    // Explicit-save screen, like the hours: a refetch mid-edit would replace
+    // a half-typed number with the server's copy and lose it without saying so.
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSavePublicProfile(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (profile: BranchPublicProfileInput) =>
+      gateway.updatePublicProfile({ branchId: branchId!, profile }),
+    retry: false,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.publicProfile(branchId ?? ''), saved);
+      // The card's picture is also what the public page and the readiness
+      // checklist read, through the managed venue.
+      void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+    },
   });
 }
 

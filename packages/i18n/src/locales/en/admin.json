@@ -8,7 +8,28 @@
     "reports": "Reports",
     "venues": "Venues",
     "floor": "Floor",
-    "overview": "Overview"
+    "overview": "Overview",
+    "public": "Public page"
+  },
+  "publicPage": {
+    "intro": "What anybody with your link sees: your picture, your number, and whether they can book.",
+    "noBranch": "Pick a branch to edit its public page.",
+    "cover": {
+      "title": "Cover photo",
+      "help": "The picture on your card in the app and at the top of your public page. Cropped to the same 4:3 frame as a dish."
+    },
+    "phone": {
+      "label": "Phone",
+      "help": "Published on the page. International format, like +374 11 22 33 44. Leave empty to publish no number."
+    },
+    "bookings": {
+      "label": "Take bookings from the public page",
+      "help": "Off until you switch it on. While it is off the page still shows the room, the menu and the hours, and simply offers no booking."
+    },
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "failed": "That did not save. Nothing changed — try again."
   },
   "shell": {
     "title": "Yalla console",

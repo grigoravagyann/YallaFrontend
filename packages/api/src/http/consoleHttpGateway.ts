@@ -25,6 +25,7 @@ import type {
   WeeklyHours,
 } from '../contracts/branchSettings';
 import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../contracts/menuAdmin';
+import type { BranchPublicProfile } from '../contracts/publicProfile';
 import type { PhotoUpload } from '../consoleGateway';
 import { REPORT_MAX_DAYS } from '../contracts/reports';
 import type { ReportExport, ReportQuery } from '../contracts/reports';
@@ -86,6 +87,16 @@ type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
 type WireCategory = Schemas['Yalla.Application.Menus.MenuCategoryView'];
 type WireItem = Schemas['Yalla.Application.Menus.MenuItemView'];
 type WireHours = Schemas['Yalla.Application.BranchSettings.OpeningHoursView'];
+type WirePublicProfile = Schemas['Yalla.Application.BranchSettings.PublicProfileView'];
+
+/** The public page's settings, with the absent-when-null fields made explicit. */
+function publicProfile(view: WirePublicProfile): BranchPublicProfile {
+  return {
+    phoneE164: view.phoneE164 ?? null,
+    acceptsWebBookings: view.acceptsWebBookings,
+    coverPhoto: view.coverPhoto ? photo(view.coverPhoto) : null,
+  };
+}
 type WirePolicy = Schemas['Yalla.Application.BranchSettings.ReservationPolicyView'];
 type WirePolicyResult = Schemas['Yalla.Application.BranchSettings.ReservationPolicyChangeResult'];
 type WirePage =
@@ -732,6 +743,24 @@ export function createConsoleHttpGateway(
     },
 
     // --- The reservation policy ---------------------------------------------------
+
+    // --- The public page ------------------------------------------------------------
+
+    async getPublicProfile(branchId: string): Promise<BranchPublicProfile> {
+      const { data } = await client.get<WirePublicProfile>(`${BRANCHES}/${branchId}/public-profile`);
+      return publicProfile(data);
+    },
+
+    async updatePublicProfile({ branchId, profile }): Promise<BranchPublicProfile> {
+      // The server omits null fields on the way out and takes them on the way
+      // in; both the phone and the picture clear with an explicit null.
+      const { data } = await client.put<WirePublicProfile>(`${BRANCHES}/${branchId}/public-profile`, {
+        phoneE164: profile.phoneE164,
+        acceptsWebBookings: profile.acceptsWebBookings,
+        coverPhotoId: profile.coverPhotoId,
+      });
+      return publicProfile(data);
+    },
 
     async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {
       const { data } = await client.get<WirePolicy>(`${BRANCHES}/${branchId}/reservation-policy`);

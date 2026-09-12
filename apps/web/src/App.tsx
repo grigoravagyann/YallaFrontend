@@ -18,6 +18,7 @@ import { FloorPlanEditorScreen } from './console/venue/floorplan/FloorPlanEditor
 import { MenuEditorScreen } from './console/venue/menu/MenuEditorScreen';
 import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
 import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolicyScreen';
+import { PublicPageScreen } from './console/venue/public/PublicPageScreen';
 import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
 import { StaffScreen } from './console/venue/staff/StaffScreen';
 
@@ -216,6 +217,7 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="menu" element={<MenuEditorScreen />} />
             <Route path="hours" element={<OpeningHoursScreen />} />
             <Route path="policy" element={<ReservationPolicyScreen />} />
+            <Route path="public" element={<PublicPageScreen />} />
             <Route path="staff" element={<StaffScreen />} />
             {/* Lazy: the reports screen is the only thing in the console
                 that needs a charting library, and an owner who opens the floor

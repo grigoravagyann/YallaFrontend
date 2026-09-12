@@ -126,6 +126,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
 - `admin` — changing your own PIN (2026-09-11): the own card's action and its
   dialog (`staff.action.changeOwnPin`, `staff.ownPin.*`). Provisional, **not**
   reviewed.
+- `admin` — the Public page tab (2026-09-12): `nav.public` and `publicPage.*` —
+  the intro, the cover photo's title and help (it must keep saying the crop is
+  the same 4:3 frame as a dish, because that is why the picker looks like the
+  menu's), the phone label and help, the bookings switch and its help (which
+  must keep saying the page still shows the room, menu and hours while it is
+  off — that is the whole reassurance), and the save states. Provisional,
+  **not** reviewed.
 - `admin` — the tier control on the platform venue page (2026-09-12):
   `venue.tier.toPaid`, `venue.tier.toFree` and the refusal `venue.tier.notReady_*`,
   which quotes how many dishes are unfinished and must keep pointing at the
