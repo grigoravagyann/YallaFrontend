@@ -1,8 +1,9 @@
 import { describeFailure, unavailableCopy, type TableAvailability } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { FloorPlan, Legend } from '@yalla/floorplan';
+import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, radius, space } from '@yalla/tokens';
+import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { SafeAreaView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
@@ -250,7 +251,9 @@ export default function BranchFloorPlanScreen() {
           {availabilityFailure === 'offline' ? t('net.offline') : t('net.serverError')}
         </Text>
       ) : (
-        <Text style={styles.status}>{t('floorPlan.title')}</Text>
+        <Text style={styles.status}>
+          {t('floorPlan.pickFor', { time: formatTime(booking.slotUtc, zone, locale) })}
+        </Text>
       )}
 
       <View style={styles.planWrap} onLayout={onLayout}>
@@ -281,14 +284,19 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: color.paper },
   header: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm },
   venue: { fontSize: fontSize.sm, color: color.mutedForeground },
-  branch: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: color.foreground },
-  legendWrap: { paddingHorizontal: space.lg },
+  branch: {
+    fontSize: fontSize.xl,
+    lineHeight: lineHeight.xl,
+    fontWeight: fontWeight.bold,
+    color: color.foreground,
+  },
+  legendWrap: { paddingHorizontal: space.lg, paddingVertical: space.xs },
   status: {
     paddingHorizontal: space.lg,
     paddingBottom: space.sm,
     fontSize: fontSize.sm,
     color: color.mutedForeground,
-    minHeight: 20,
+    minHeight: lineHeight.sm,
   },
   // A lost table is information with the next action attached, not an error
   // and not a coloured banner beside the plan. Ink on paper, one hairline.

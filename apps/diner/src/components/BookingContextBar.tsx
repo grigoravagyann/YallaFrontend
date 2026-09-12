@@ -105,7 +105,7 @@ export function BookingContextBar({
       />
       <Field
         label={t('booking.partySize')}
-        value={String(value.partySize)}
+        value={t('booking.guests', { count: value.partySize })}
         onPress={() => setOpen('party')}
       />
 
@@ -157,7 +157,8 @@ function Field({ label, value, onPress }: { label: string; value: string; onPres
       onPress={onPress}
       style={({ pressed }) => [styles.field, pressed && styles.fieldPressed]}
     >
-      <Text style={styles.fieldLabel}>{label}</Text>
+      {/* The value alone. Three pills reading "Today", "19:30", "2 guests"
+          need no captions; the label survives for the screen reader. */}
       <Text style={styles.fieldValue} numberOfLines={1}>
         {value}
       </Text>
@@ -230,33 +231,32 @@ function PickerSheet({
 }
 
 const styles = StyleSheet.create({
+  // On the paper, not in a white band: the plan is the screen and the bar is
+  // three controls above it, not a header.
   bar: {
     flexDirection: 'row',
     gap: space.sm,
     paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-    backgroundColor: color.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: color.border,
+    paddingVertical: space.sm,
   },
   field: {
     flex: 1,
     minHeight: touchTarget.minimum,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: space.md,
+    paddingHorizontal: space.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.paper,
+    borderColor: color.borderInteractive,
+    backgroundColor: color.surface,
   },
-  fieldPressed: { backgroundColor: color.border },
-  fieldLabel: { fontSize: fontSize.xs, color: color.mutedForeground },
+  fieldPressed: { backgroundColor: color.greenTint },
   fieldValue: {
-    fontSize: fontSize.md,
+    fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
     color: color.foreground,
   },
-  backdrop: { flex: 1, backgroundColor: '#00000055' },
+  backdrop: { flex: 1, backgroundColor: color.scrim },
   sheet: {
     maxHeight: '60%',
     backgroundColor: color.surface,

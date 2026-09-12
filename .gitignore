@@ -107,3 +107,6 @@ ehthumbs_vista.db
 Desktop.ini
 $RECYCLE.BIN/
 *.lnk
+
+# Superdesign temporary HTML
+.superdesign/tmp/
