@@ -1,10 +1,13 @@
 import {
+  ApiError,
+  BranchNotReadyError,
   StaffPermissionError,
   VenueHasOpenTabsError,
   canIssueSignIn,
   isAdminRole,
   type BlockingTab,
   type StaffMember,
+  type SubscriptionTier,
 } from '@yalla/api';
 import { useCreateStaff, useIssueStaffSignIn, useStaff } from '@yalla/api/react';
 import { formatDate } from '@yalla/format';
@@ -23,6 +26,7 @@ import {
   useConsoleVenue,
   useDeleteVenue,
   useResumeVenue,
+  useSetBranchTier,
   useSuspendVenue,
 } from '../../data/queries';
 
@@ -63,8 +67,16 @@ export function VenueDetailRoute() {
   const suspend = useSuspendVenue();
   const resume = useResumeVenue();
   const remove = useDeleteVenue();
+  const setTier = useSetBranchTier();
 
   const [confirming, setConfirming] = useState<'suspend' | 'delete' | null>(null);
+  /**
+   * The tier refusal, on the row it belongs to. Both of the server's answers
+   * are actionable in the next minute — "3 dishes still need a photo", "table 7
+   * has an open tab" — so they are shown where the button was, not in a
+   * venue-wide banner.
+   */
+  const [tierFailure, setTierFailure] = useState<{ branchId: string; text: string } | null>(null);
   const [typed, setTyped] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<readonly BlockingTab[] | null>(null);
@@ -150,6 +162,33 @@ export function VenueDetailRoute() {
   };
 
   const busy = suspend.isPending || resume.isPending || remove.isPending;
+
+  /**
+   * Tabs and ordering are what a branch pays for. The gateway, the mock and
+   * the contract could always change this; the page only displayed it, so the
+   * one way to switch a venue on was a hand call to the API.
+   */
+  const switchTier = async (branchId: string, tier: SubscriptionTier) => {
+    setTierFailure(null);
+    try {
+      await setTier.mutateAsync({ branchId, tier, commandId: newCommandId() });
+    } catch (error) {
+      if (error instanceof BranchNotReadyError) {
+        setTierFailure({
+          branchId,
+          text: t('venue.tier.notReady', { count: error.incompleteMenuItemCount }),
+        });
+        return;
+      }
+      // The open-tabs refusal is a plain 409 whose sentence names the tables;
+      // the server's words beat any paraphrase here.
+      if (error instanceof ApiError && error.status === 409) {
+        setTierFailure({ branchId, text: error.message });
+        return;
+      }
+      setTierFailure({ branchId, text: t('venue.failed') });
+    }
+  };
   // A typed confirmation, because the two destructive actions here are the ones
   // a tired person clicks past. Case-insensitive: the point is deliberation,
   // not transcription.
@@ -204,9 +243,29 @@ export function VenueDetailRoute() {
                       : ''}
                   </div>
                 </div>
-                <span className={`pill pill-${branch.subscriptionTier}`}>
-                  {t(`tier.${branch.subscriptionTier}`)}
-                </span>
+                <div className="actions">
+                  {tierFailure?.branchId === branch.id ? (
+                    <span className="error small">{tierFailure.text}</span>
+                  ) : null}
+                  <span className={`pill pill-${branch.subscriptionTier}`}>
+                    {t(`tier.${branch.subscriptionTier}`)}
+                  </span>
+                  <button
+                    type="button"
+                    className="button button-small button-ghost"
+                    disabled={setTier.isPending || venue.status === 'deleted'}
+                    onClick={() =>
+                      void switchTier(
+                        branch.id,
+                        branch.subscriptionTier === 'paid' ? 'free' : 'paid',
+                      )
+                    }
+                  >
+                    {branch.subscriptionTier === 'paid'
+                      ? t('venue.tier.toFree')
+                      : t('venue.tier.toPaid')}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

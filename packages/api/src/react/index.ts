@@ -8,7 +8,12 @@ import {
   type ReactNode,
 } from 'react';
 import type { ConsoleGateway } from '../consoleGateway';
-import type { ConsoleVenueDetail, CreateVenueCommand, ListVenuesQuery } from '../contracts/console';
+import type {
+  ConsoleVenueDetail,
+  CreateVenueCommand,
+  ListVenuesQuery,
+  SubscriptionTier,
+} from '../contracts/console';
 import type { ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type {
   AbandonTabCommand,
@@ -467,6 +472,14 @@ export function useDeleteVenue() {
 export function useCreateVenue() {
   const gateway = useConsoleGateway();
   return useVenueCommand((command: CreateVenueCommand) => gateway.createVenue(command));
+}
+
+/** Platform admin only. Answers with the whole venue, so the cache is replaced like the others. */
+export function useSetBranchTier() {
+  const gateway = useConsoleGateway();
+  return useVenueCommand((input: { branchId: string; tier: SubscriptionTier; commandId: string }) =>
+    gateway.setBranchTier(input),
+  );
 }
 
 // --- The floor plan editor -----------------------------------------------------

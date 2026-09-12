@@ -725,6 +725,34 @@ export class VenueHasOpenTabsError extends ApiError {
 }
 
 /**
+ * A branch cannot be moved to Paid while its menu has unfinished dishes.
+ *
+ * `branch-not-ready`, 409. The count is the point: "cannot upgrade" sends the
+ * admin nowhere, "eleven dishes still need a photo" sends them to the menu.
+ * The readiness endpoint lists which ones.
+ */
+export class BranchNotReadyError extends ApiError {
+  readonly branchId: string;
+  readonly incompleteMenuItemCount: number;
+
+  constructor(options: {
+    url: string;
+    branchId: string;
+    incompleteMenuItemCount: number;
+    requestId?: string | undefined;
+  }) {
+    super('That branch has unfinished dishes on its menu.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BranchNotReadyError';
+    this.branchId = options.branchId;
+    this.incompleteMenuItemCount = options.incompleteMenuItemCount;
+  }
+}
+
+/**
  * The floor plan the editor sent cannot be stored, and the server named the
  * offenders.
  *

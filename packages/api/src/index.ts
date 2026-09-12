@@ -303,6 +303,7 @@ export type {
 } from './contracts/approvals';
 
 export {
+  BranchNotReadyError,
   FloorPlanInvalidError,
   OutOfScopeError,
   SlugTakenError,
