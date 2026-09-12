@@ -17,6 +17,7 @@ import type {
   VenueStatus,
 } from '../contracts/console';
 import {
+  BranchNotReadyError,
   CategoryInUseError,
   FloorPlanInvalidError,
   OutOfScopeError,
@@ -1444,7 +1445,41 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         const index = record.branches.findIndex((branch) => branch.id === branchId);
         if (index === -1) continue;
         const branch = record.branches[index];
-        if (branch) record.branches[index] = { ...branch, subscriptionTier: tier };
+        if (!branch) break;
+
+        // The server's two rules, in its order. Going Free hides live bills
+        // from the people who owe them, so it waits for the tabs; going Paid
+        // is where an unfinished menu is finally refused, with the count.
+        if (tier === 'free' && branch.subscriptionTier === 'paid') {
+          const open = branch.openTabCount ?? 0;
+          if (open > 0) {
+            throw conflict(
+              `This branch has ${open} open tab(s). Moving it to Free would hide those bills from the people who owe them. Wait until they are settled.`,
+            );
+          }
+        }
+        if (tier === 'paid' && branch.subscriptionTier === 'free') {
+          const incomplete = menuFor(branchId)
+            .flatMap((category) => category.items)
+            .filter(
+              (item) =>
+                item.photoId === null ||
+                !item.description ||
+                !item.ingredients ||
+                !item.allergens ||
+                !item.portionSize ||
+                item.prepMinutes <= 0,
+            ).length;
+          if (incomplete > 0) {
+            throw new BranchNotReadyError({
+              url: URL_TAG,
+              branchId,
+              incompleteMenuItemCount: incomplete,
+            });
+          }
+        }
+
+        record.branches[index] = { ...branch, subscriptionTier: tier };
         return toDetail(record);
       }
       throw new OutOfScopeError({ url: URL_TAG });

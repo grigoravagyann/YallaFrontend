@@ -126,6 +126,10 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
 - `admin` — changing your own PIN (2026-09-11): the own card's action and its
   dialog (`staff.action.changeOwnPin`, `staff.ownPin.*`). Provisional, **not**
   reviewed.
+- `admin` — the tier control on the platform venue page (2026-09-12):
+  `venue.tier.toPaid`, `venue.tier.toFree` and the refusal `venue.tier.notReady_*`,
+  which quotes how many dishes are unfinished and must keep pointing at the
+  menu rather than reading as "cannot upgrade". Provisional, **not** reviewed.
 - `staff` — the kitchen screen (2026-09-11): its header title `kitchen.title`
   ("Kitchen" / "Խոհանոց" / "Кухня"). Provisional, **not** reviewed.
 - `staff` — the floor screen: connection and sync states, the order and seating

@@ -29,6 +29,7 @@ import type { PhotoUpload } from '../consoleGateway';
 import { REPORT_MAX_DAYS } from '../contracts/reports';
 import type { ReportExport, ReportQuery } from '../contracts/reports';
 import {
+  BranchNotReadyError,
   CategoryInUseError,
   ReportRangeTooLongError,
   StaffPermissionError,
@@ -506,13 +507,35 @@ export function createConsoleHttpGateway(
      * general branch patch rather than a tier-specific route.
      */
     async setBranchTier({ branchId, tier }) {
-      const { data } = await client.patch<Schemas['Yalla.Application.Platform.BranchSummary']>(
-        `${PLATFORM}/branches/${branchId}`,
-        { subscriptionTier: TIER_TO_WIRE[tier] },
-      );
+      let venueId: string;
+      try {
+        const { data } = await client.patch<Schemas['Yalla.Application.Platform.BranchSummary']>(
+          `${PLATFORM}/branches/${branchId}`,
+          { subscriptionTier: TIER_TO_WIRE[tier] },
+        );
+        venueId = data.venueId;
+      } catch (error) {
+        // Going Paid with an unfinished menu is the one refusal with a number
+        // in it, so it gets a type. Going Free with open tabs is a plain 409
+        // whose sentence already names the tables; it is left as it arrives.
+        if (error instanceof ApiError && error.code === 'branch-not-ready') {
+          const context = error.problem?.context as
+            { branchId?: unknown; incompleteMenuItemCount?: unknown } | null | undefined;
+          throw new BranchNotReadyError({
+            url: error.url,
+            requestId: error.requestId,
+            branchId: typeof context?.branchId === 'string' ? context.branchId : branchId,
+            incompleteMenuItemCount:
+              typeof context?.incompleteMenuItemCount === 'number'
+                ? context.incompleteMenuItemCount
+                : 0,
+          });
+        }
+        throw error;
+      }
       // The patch answers with the branch, not the venue the console caches.
       // Re-read the venue so the screen replaces rather than patches.
-      return venueDetail(`${PLATFORM}/venues/${data.venueId}`);
+      return venueDetail(`${PLATFORM}/venues/${venueId}`);
     },
     // --- The menu editor --------------------------------------------------------
 

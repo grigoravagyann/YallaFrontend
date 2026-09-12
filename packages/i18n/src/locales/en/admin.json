@@ -96,7 +96,13 @@
     },
     "failed": "That did not go through. Nothing changed — try again.",
     "working": "Working…",
-    "staffFailed": "Could not load this venue’s staff. Try again."
+    "staffFailed": "Could not load this venue’s staff. Try again.",
+    "tier": {
+      "toPaid": "Switch to Paid",
+      "toFree": "Switch to Free",
+      "notReady_one": "{{count}} dish is not ready to show a diner. Finish the menu, then switch.",
+      "notReady_other": "{{count}} dishes are not ready to show a diner. Finish the menu, then switch."
+    }
   },
   "create": {
     "title": "Add a venue",
