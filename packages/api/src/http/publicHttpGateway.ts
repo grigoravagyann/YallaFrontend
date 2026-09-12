@@ -95,7 +95,7 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
           `/api/public/branches/${encodeURIComponent(venueSlug)}/${encodeURIComponent(branchSlug)}`,
           anonymous,
         );
-        return publicBranchFromWire(data);
+        return publicBranchFromWire(data, client.baseUrl);
       } catch (error) {
         return readMiss('resolveBranch', error);
       }
@@ -109,7 +109,7 @@ export function createPublicHttpGateway(client: ApiClient): PublicGateway {
           `/api/public/branches/${encodeURIComponent(branchId)}/meta`,
           { ...anonymous, query: { locale } },
         );
-        return publicPageMetaFromWire(data, canonicalUrl);
+        return publicPageMetaFromWire(data, canonicalUrl, client.baseUrl);
       } catch (error) {
         return readMiss('getBranchMeta', error);
       }
