@@ -30,7 +30,8 @@ function initialsOf(name: string | null): string {
  * theirs. No dashboard, no stats.
  *
  * Signed-in here means a phone number confirmed by SMS; there is no other
- * account. A guest sees the same list with a way to confirm their number.
+ * account. A guest sees the same list, with a way in: log in, or create an
+ * account (the same verification plus the name the venue asks for).
  */
 export default function ProfileScreen() {
   const { t } = useTranslation('diner');
@@ -39,6 +40,7 @@ export default function ProfileScreen() {
   const signedIn = useSession((s) => s.signedIn);
   const guestName = useSession((s) => s.guestName);
   const phoneE164 = useSession((s) => s.phoneE164);
+  const email = useSession((s) => s.email);
   const unread = useNotificationCount();
 
   const [signingOut, setSigningOut] = useState(false);
@@ -59,6 +61,8 @@ export default function ProfileScreen() {
 
   const displayName = guestName ?? t('profile.guest');
   const contact = signedIn ? phoneE164 : null;
+  // The email is known only when sign-up asked for it; shown as a plain line.
+  const secondary = signedIn ? email : null;
 
   return (
     <Screen>
@@ -90,15 +94,23 @@ export default function ProfileScreen() {
                 {contact}
               </Text>
             ) : null}
+            {secondary ? (
+              <Text numberOfLines={1} style={styles.contact}>
+                {secondary}
+              </Text>
+            ) : null}
           </View>
         </View>
 
         {signedIn ? null : (
-          <Button
-            label={t('profile.signIn')}
-            variant="outline"
-            onPress={() => router.push('/verify')}
-          />
+          <View style={styles.guestActions}>
+            <Button label={t('profile.logIn')} onPress={() => router.push('/auth/login')} />
+            <Button
+              label={t('profile.createAccount')}
+              variant="outline"
+              onPress={() => router.push('/auth/signup')}
+            />
+          </View>
         )}
 
         <Card padded={false}>
@@ -169,4 +181,5 @@ const styles = StyleSheet.create({
   identityBody: { flex: 1, gap: 2 },
   name: { ...typography.h3, color: colors.text },
   contact: { ...typography.body, color: colors.textMuted },
+  guestActions: { gap: space.sm },
 });

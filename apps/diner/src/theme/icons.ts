@@ -76,4 +76,6 @@ export const actionIcon = {
   offline: 'cloud-offline-outline',
   error: 'alert-circle-outline',
   imageFallback: 'image-outline',
+  /** The glyph standing in for the brand on the welcome screen. */
+  brandMark: 'restaurant-outline',
 } as const satisfies Record<string, IoniconName>;

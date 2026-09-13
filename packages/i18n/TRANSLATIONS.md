@@ -185,7 +185,19 @@ screen.
   `orders.*` (statuses, `kind.*`, `tableAndParty_*`, the two empty states and
   the detail labels), `favorites.*`, and the Profile rows (`profile.settings`,
   `.myBookings`, `.myOrders`, `.favorites`, `.notifications`, `.help`,
-  `.about`, `.logOut`, `.guest`, `.signIn`). Also `tabs.orders`,
+  `.about`, `.logOut`, `.guest`). Also `tabs.orders`,
   `explore.mapButton`, `explore.filter.popular`/`.new`,
   `explore.empty.nearby.*`, and `explore.searchPlaceholder` rewritten to name
   cuisine as a third thing to search for.
+- `diner` — sign up and log in (2026-09-13), provisional and **not** reviewed:
+  `auth.*` (the welcome fork `welcome.*`, `logIn`, `createAccount`,
+  `continueAsGuest`; the log-in step `login.*` and the sign-up step
+  `signup.*`, whose bodies must keep saying that a code is texted and that
+  the name is what the venue asks for at the door; the name and email fields
+  `nameLabel`, `namePlaceholder`, `emailLabel`, `emailPlaceholder`,
+  `emailHint` — the hint must keep promising the email stays on the phone;
+  the after-log-in name step `nameStep.*`, `continue`, `skipForNow`; and the
+  three field errors `error.*`). Also `profile.logIn`,
+  `profile.createAccount`, and `bookings.signedOut.action` / `.body` reworded
+  from "Confirm my number" to "Log in" now that the tab opens the welcome
+  screen. `profile.signIn` was removed with the button it labelled.

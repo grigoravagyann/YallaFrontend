@@ -15,7 +15,7 @@ function memoryProfile(initial: DinerProfile): ProfileStorage {
 }
 
 beforeEach(() => {
-  useSession.setState({ signedIn: false, phoneE164: null, guestName: null });
+  useSession.setState({ signedIn: false, phoneE164: null, guestName: null, email: null });
 });
 
 describe('a returning diner', () => {
@@ -27,13 +27,18 @@ describe('a returning diner', () => {
 
     await restoreDinerSession({
       auth,
-      profile: memoryProfile({ phoneE164: '+37477123456', guestName: 'Ani' }),
+      profile: memoryProfile({
+        phoneE164: '+37477123456',
+        guestName: 'Ani',
+        email: 'ani@example.com',
+      }),
     });
 
     expect(useSession.getState().signedIn).toBe(true);
     // And comes back with the number and name the booking needs.
     expect(useSession.getState().phoneE164).toBe('+37477123456');
     expect(useSession.getState().guestName).toBe('Ani');
+    expect(useSession.getState().email).toBe('ani@example.com');
   });
 
   it('is not signed in with nothing in the keychain', async () => {
@@ -44,7 +49,7 @@ describe('a returning diner', () => {
 
     await restoreDinerSession({
       auth,
-      profile: memoryProfile({ phoneE164: null, guestName: null }),
+      profile: memoryProfile({ phoneE164: null, guestName: null, email: null }),
     });
 
     expect(useSession.getState().signedIn).toBe(false);

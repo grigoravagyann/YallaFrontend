@@ -66,7 +66,7 @@ export default function BookingsScreen() {
           icon="phone-portrait-outline"
           title={t('bookings.signedOut.title')}
           body={t('bookings.signedOut.body')}
-          action={{ label: t('bookings.signedOut.action'), onPress: () => router.push('/verify') }}
+          action={{ label: t('bookings.signedOut.action'), onPress: () => router.push('/auth') }}
         />
       </Screen>
     );
@@ -98,7 +98,7 @@ export default function BookingsScreen() {
             {...(copy.bodyKey ? { body: t(copy.bodyKey) } : {})}
             action={{
               label: t('bookings.signedOut.action'),
-              onPress: () => router.push('/verify'),
+              onPress: () => router.push('/auth'),
             }}
           />
         ) : (

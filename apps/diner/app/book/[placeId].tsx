@@ -75,7 +75,7 @@ function positiveInt(value: string | undefined): number | null {
  * press to confirm.
  *
  * A verified number is asked for here and nowhere earlier: a diner without one
- * is handed to `/verify` with the same forward params the floor plan uses, and
+ * is handed to `/auth/login` with the same forward params the floor plan uses, and
  * comes out on the existing confirm screen. A verified diner books from here.
  */
 export default function BookingScreen() {
@@ -295,12 +295,12 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
     };
 
     // Not verified, or verified on a restored session that never stored the
-    // number: the SMS step, then the existing confirm screen — with whatever
-    // name was typed here already remembered for it.
+    // number: log in (the SMS step), then the existing confirm screen — with
+    // whatever name was typed here already remembered for it.
     if (!verified || !phoneE164) {
       const typed = guestName.trim();
       if (typed) rememberName(typed);
-      router.push({ pathname: '/verify', params: forward });
+      router.push({ pathname: '/auth/login', params: forward });
       return;
     }
 

@@ -149,7 +149,7 @@ export default function BranchFloorPlanScreen() {
       router.push(
         verified
           ? { pathname: '/reserve/confirm', params: forward }
-          : { pathname: '/verify', params: forward },
+          : { pathname: '/auth/login', params: forward },
       );
     },
     [router, branchId, venueId, slotIso, booking.partySize],

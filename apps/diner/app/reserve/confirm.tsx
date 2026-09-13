@@ -334,7 +334,7 @@ export default function ConfirmScreen() {
                 label={t('confirm.verifyNumber')}
                 variant="outline"
                 fullWidth={false}
-                onPress={() => router.replace({ pathname: '/verify', params: forward })}
+                onPress={() => router.replace({ pathname: '/auth/login', params: forward })}
               />
             </Card>
           ) : null}

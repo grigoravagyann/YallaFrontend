@@ -18,8 +18,10 @@ export async function restoreDinerSession(deps: {
   readonly auth: AuthSession;
   readonly profile: ProfileStorage;
 }): Promise<() => void> {
+  // Neither store may keep the app on the boot spinner: an unreadable
+  // keychain (or, on the web, a blocked localStorage) is a signed-out launch.
   const [state, stored] = await Promise.all([
-    deps.auth.restore(),
+    deps.auth.restore().catch(() => 'signedOut' as const),
     deps.profile.read().catch(() => EMPTY_PROFILE),
   ]);
 

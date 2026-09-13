@@ -148,6 +148,11 @@ export default function RootLayout() {
             <Stack.Screen name="branch/[branchId]" />
             <Stack.Screen name="place/[placeId]" />
             <Stack.Screen name="book/[placeId]" />
+            {/* Sign up and log in: the welcome fork, then either flow. `verify`
+                stays as the older name for the log-in flow. */}
+            <Stack.Screen name="auth/index" />
+            <Stack.Screen name="auth/login" />
+            <Stack.Screen name="auth/signup" />
             <Stack.Screen name="verify/index" />
             <Stack.Screen name="reserve/confirm" />
             <Stack.Screen name="reserve/success" />

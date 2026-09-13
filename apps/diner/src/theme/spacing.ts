@@ -22,4 +22,8 @@ export const layout = {
   controlHeightLarge: 56,
   /** Square action tiles on the details screen (Call / Directions / …). */
   actionTile: 72,
+  /** The round brand mark above the welcome title. */
+  welcomeMark: 88,
+  /** Widest a centred paragraph runs before it stops being read as one. */
+  readableWidth: 320,
 } as const;

@@ -160,7 +160,7 @@ export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
    * and it runs from a press rather than from what somebody typed.
    */
   const confirmNumber = useCallback(() => {
-    router.push('/verify');
+    router.push('/auth/login');
   }, [router]);
 
   return {

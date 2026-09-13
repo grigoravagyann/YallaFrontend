@@ -140,8 +140,8 @@
     },
     "signedOut": {
       "title": "Your bookings are kept under your number",
-      "body": "Confirm your number to see them.",
-      "action": "Confirm my number"
+      "body": "Log in to see them.",
+      "action": "Log in"
     }
   },
   "profile": {
@@ -155,7 +155,8 @@
     "about": "About",
     "logOut": "Log Out",
     "guest": "Guest",
-    "signIn": "Confirm my number"
+    "logIn": "Log in",
+    "createAccount": "Create account"
   },
   "table": {
     "titleWithArea": "Table {{label}} · {{area}}",
@@ -213,6 +214,42 @@
       "rateLimitedNoTime": "Too many codes asked for. Try again a little later."
     },
     "changeNumber": "Use a different number"
+  },
+  "auth": {
+    "welcome": {
+      "title": "Welcome to Yalla",
+      "body": "Book a table, order at it, and keep your bookings in one place."
+    },
+    "logIn": "Log in",
+    "createAccount": "Create account",
+    "continueAsGuest": "Continue as guest",
+    "login": {
+      "title": "Log in",
+      "body": "We'll text you a code. No password to remember.",
+      "noAccount": "No account yet?",
+      "createOne": "Create one"
+    },
+    "signup": {
+      "title": "Create account",
+      "body": "Your name is what the venue asks for at the door. We'll text you a code to confirm your number.",
+      "haveAccount": "Already have an account?"
+    },
+    "nameLabel": "Your name",
+    "namePlaceholder": "Name the venue will ask for",
+    "emailLabel": "Email (optional)",
+    "emailPlaceholder": "you@example.com",
+    "emailHint": "Kept on this phone for your receipts. We don't send it anywhere.",
+    "nameStep": {
+      "title": "What should the venue call you?",
+      "body": "Shown to staff when you arrive. You can change it later."
+    },
+    "continue": "Continue",
+    "skipForNow": "Skip for now",
+    "error": {
+      "nameRequired": "Enter the name the venue should use.",
+      "emailInvalid": "That email doesn't look right.",
+      "phoneInvalid": "Enter a phone number with its country code."
+    }
   },
   "confirm": {
     "title": "Confirm your table",
