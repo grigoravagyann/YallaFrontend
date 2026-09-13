@@ -93,7 +93,11 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const [name, setName] = useState(rememberedName ?? '');
   const [email, setEmail] = useState(rememberedEmail ?? '');
   const [prefix, setPrefix] = useState(DEFAULT_PREFIX);
-  const [localNumber, setLocalNumber] = useState(accountPhone ?? '');
+  const [localNumber, setLocalNumber] = useState(
+    accountPhone?.startsWith(DEFAULT_PREFIX)
+      ? accountPhone.slice(DEFAULT_PREFIX.length)
+      : (accountPhone ?? ''),
+  );
   const [touched, setTouched] = useState({ name: false, phone: false, email: false });
   const [challenge, setChallenge] = useState<PhoneChallenge | null>(null);
   const [code, setCode] = useState('');
