@@ -1,7 +1,8 @@
 import { verificationFailureCopy, type PhoneChallenge } from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -28,7 +29,9 @@ import { Button } from '../Button';
 import { IconButton } from '../IconButton';
 import { Screen } from '../Screen';
 import { Text, TextInput } from '../Text';
+import { accountKeys } from '../../data/accountQueries';
 import { Field, FieldInput } from './Field';
+import { FROM_WELCOME, useAuthFinish, type AuthRouteParams } from './useAuthFinish';
 
 const DEFAULT_PREFIX = '+374';
 const CODE_LENGTH = 6;
@@ -37,49 +40,7 @@ const MAX_RESEND_WAIT_SECONDS = 120;
 
 export type AuthMode = 'login' | 'signup';
 
-/**
- * What the auth routes are opened with.
- *
- * The booking keys are the reservation the diner was in the middle of making
- * (see `book/[placeId]`); they are carried through untouched and handed to
- * `/reserve/confirm` once the number is verified. `from` says the welcome
- * screen pushed this one, so finishing has two screens to leave, not one.
- */
-export type AuthRouteParams = {
-  branchId?: string;
-  venueId?: string;
-  tableId?: string;
-  slotUtc?: string;
-  partySize?: string;
-  requests?: string;
-  from?: string;
-};
-
-/** The value of `from` when the welcome screen is underneath. */
-export const FROM_WELCOME = 'welcome';
-
-const BOOKING_KEYS = [
-  'branchId',
-  'venueId',
-  'tableId',
-  'slotUtc',
-  'partySize',
-  'requests',
-] as const;
-
-type BookingKey = (typeof BOOKING_KEYS)[number];
-
-/** The booking being made, and nothing else — what `/reserve/confirm` expects. */
-function bookingParams(params: {
-  readonly [K in BookingKey]?: string | undefined;
-}): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const key of BOOKING_KEYS) {
-    const value = params[key];
-    if (typeof value === 'string' && value.length > 0) out[key] = value;
-  }
-  return out;
-}
+export { FROM_WELCOME, type AuthRouteParams };
 
 /** Seconds until the server lets a code be resent: whole, non-negative, capped. */
 function secondsUntil(isoUtc: string): number {
@@ -117,22 +78,22 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const { locale } = useLocale();
   const router = useRouter();
   const navigation = useNavigation();
-  const { branchId, venueId, tableId, slotUtc, partySize, requests, from } = params;
-  const forward = useMemo(
-    () => bookingParams({ branchId, venueId, tableId, slotUtc, partySize, requests }),
-    [branchId, venueId, tableId, slotUtc, partySize, requests],
-  );
+  const { finish: leaveFlow, switchTo } = useAuthFinish(params);
+  const queryClient = useQueryClient();
 
   const rememberedName = useSession((s) => s.guestName);
   const rememberedEmail = useSession((s) => s.email);
   const setVerified = useSession((s) => s.setVerified);
-  const setProfile = useSession((s) => s.setProfile);
+  const setRemembered = useSession((s) => s.setRemembered);
+  // An account verifying the number it already holds (the profile's "Verify")
+  // arrives with that number filled in; a whole `+…` number is taken as is.
+  const accountPhone = useSession((s) => (s.signedIn ? s.phoneE164 : null));
 
   const [step, setStep] = useState<Step>(mode === 'signup' ? 'details' : 'phone');
   const [name, setName] = useState(rememberedName ?? '');
   const [email, setEmail] = useState(rememberedEmail ?? '');
   const [prefix, setPrefix] = useState(DEFAULT_PREFIX);
-  const [localNumber, setLocalNumber] = useState('');
+  const [localNumber, setLocalNumber] = useState(accountPhone ?? '');
   const [touched, setTouched] = useState({ name: false, phone: false, email: false });
   const [challenge, setChallenge] = useState<PhoneChallenge | null>(null);
   const [code, setCode] = useState('');
@@ -204,29 +165,12 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
 
   /**
    * Done: the number is verified and whatever was asked for is remembered.
-   *
-   * Replace, not push: the verification steps must not sit in the back stack
-   * between the table and its confirmation. Reached with no table in hand —
-   * from the profile, the bookings tab — it goes back to where it came from,
-   * which is two screens when the welcome screen is underneath. A stack too
-   * short for that (a cold start straight into welcome → log in) has nowhere
-   * to go back to, so the profile takes this screen's place.
+   * Where to go is the rule the password screens share — see `useAuthFinish`.
    */
   const finish = useCallback(() => {
     finishing.current = true;
-    if (forward.tableId) {
-      router.replace({ pathname: '/reserve/confirm', params: forward });
-      return;
-    }
-    const depth = navigation.getState()?.routes.length ?? 0;
-    if (from === FROM_WELCOME) {
-      if (depth >= 3) router.dismiss(2);
-      else router.replace('/(tabs)/profile');
-      return;
-    }
-    if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)/profile');
-  }, [router, navigation, forward, from]);
+    leaveFlow();
+  }, [leaveFlow]);
 
   /** Back from the code entry: the number entry again, the code forgotten. */
   const leaveCodeStep = useCallback(() => {
@@ -289,10 +233,12 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
         // number it already had: a different one drops the remembered name
         // and email, so one person's name is never shown for another's number.
         setVerified({ phoneE164: verified.phoneE164 });
+        // The account behind the number is now verified, or new: read it
+        // again so the profile says so.
+        void queryClient.invalidateQueries({ queryKey: accountKeys.profile });
 
         if (mode === 'signup') {
-          // Both live only on this phone: there is no profile endpoint.
-          setProfile({
+          setRemembered({
             ...(tidyName ? { guestName: tidyName } : {}),
             email: tidyEmail.length > 0 ? tidyEmail : null,
           });
@@ -317,7 +263,8 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       challenge,
       verifyCode,
       setVerified,
-      setProfile,
+      setRemembered,
+      queryClient,
       mode,
       tidyName,
       tidyEmail,
@@ -342,7 +289,7 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       touch('name');
       return;
     }
-    setProfile({ guestName: tidyName });
+    setRemembered({ guestName: tidyName });
     finish();
   };
 
@@ -357,11 +304,6 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
     }
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)/profile');
-  };
-
-  const switchTo = (target: '/auth/login' | '/auth/signup') => {
-    const carried = { ...forward, ...(from === FROM_WELCOME ? { from: FROM_WELCOME } : {}) };
-    router.replace({ pathname: target, params: carried });
   };
 
   const nameField = (

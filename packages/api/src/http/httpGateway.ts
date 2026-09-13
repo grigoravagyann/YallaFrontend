@@ -765,12 +765,18 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     async verifyPhoneCode({ challengeId, code, localeCode }): Promise<VerifiedPhone> {
       try {
+        // The session's token when there is one, so an account verifying its
+        // own number keeps its password; an unreadable session is anonymous.
+        const bearer = (await options.auth?.getAccessToken().catch(() => null)) ?? null;
         const result = await signedIn(
-          await dinerAuth.verifyCode({
-            phoneE164: challengeId,
-            code,
-            ...(localeCode ? { localeCode } : {}),
-          }),
+          await dinerAuth.verifyCode(
+            {
+              phoneE164: challengeId,
+              code,
+              ...(localeCode ? { localeCode } : {}),
+            },
+            bearer,
+          ),
         );
         return {
           // The bearer token is the proof now; screens keep treating this as an

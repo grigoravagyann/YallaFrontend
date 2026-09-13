@@ -33,7 +33,7 @@ export function AtMyTableAction({
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const now = useNow(30_000);
-  const { enter, failure, isWorking } = useJoinByCode({
+  const { enter, failure, isWorking, verifyNeeded, verifyNumber } = useJoinByCode({
     at: { timeZoneId: booking.timeZoneId, locale },
   });
 
@@ -55,6 +55,9 @@ export function AtMyTableAction({
         <Text style={styles.error} accessibilityRole="alert">
           {t(failure.key, failure.params ?? {})}
         </Text>
+      ) : null}
+      {verifyNeeded ? (
+        <Button label={t('confirm.verifyMyNumber')} variant="outline" onPress={verifyNumber} />
       ) : null}
     </Card>
   );

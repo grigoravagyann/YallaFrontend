@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useJoinTab, useOpenTabByBooking, useScanTableCode } from '../data/queries';
 import { newCommandId } from '../lib/commandId';
 import {
+  PHONE_NOT_VERIFIED_KEY,
   gateFor,
   scanFailureFor,
   scanWasRefused,
@@ -163,6 +164,15 @@ export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
     router.push('/auth/login');
   }, [router]);
 
+  /**
+   * An account whose number is not verified yet was refused: the code flow,
+   * on the diner's tap. Verifying refreshes the profile; the same code (and
+   * command id) is sent again when they tap the action once more.
+   */
+  const verifyNumber = useCallback(() => {
+    router.push('/auth/code');
+  }, [router]);
+
   return {
     submit,
     enter,
@@ -170,6 +180,8 @@ export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
     failure,
     signInNeeded,
     confirmNumber,
+    verifyNeeded: failure?.key === PHONE_NOT_VERIFIED_KEY,
+    verifyNumber,
     clearFailure: useCallback(() => {
       setFailure(null);
       setSignInNeeded(false);

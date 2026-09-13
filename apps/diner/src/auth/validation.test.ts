@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isValidEmail, normalizeName, normalizePhone } from './validation';
+import {
+  isValidEmail,
+  isValidPassword,
+  normalizeEmail,
+  normalizeName,
+  normalizePhone,
+  normalizeUsername,
+} from './validation';
 
 describe('a phone number', () => {
   it('joins the country code and the local digits into E.164', () => {
@@ -90,5 +97,44 @@ describe('the name the venue asks for', () => {
     expect(normalizeName('A')).toBe('A');
     expect(normalizeName('a'.repeat(60))).toBe('a'.repeat(60));
     expect(normalizeName('a'.repeat(61))).toBeNull();
+  });
+});
+
+describe('a username', () => {
+  it('is lowercased and trimmed, as the server stores it', () => {
+    expect(normalizeUsername(' Ani.Petrosyan_7 ')).toBe('ani.petrosyan_7');
+  });
+
+  it('needs three to thirty of letters, digits, dots and underscores, starting with a letter or digit', () => {
+    expect(normalizeUsername('an')).toBeNull();
+    expect(normalizeUsername('a'.repeat(31))).toBeNull();
+    expect(normalizeUsername('a'.repeat(30))).toBe('a'.repeat(30));
+    expect(normalizeUsername('.ani')).toBeNull();
+    expect(normalizeUsername('_ani')).toBeNull();
+    expect(normalizeUsername('ani-p')).toBeNull();
+    expect(normalizeUsername('ani p')).toBeNull();
+    expect(normalizeUsername('Անի')).toBeNull();
+    expect(normalizeUsername('7ani')).toBe('7ani');
+  });
+});
+
+describe('an email, as stored', () => {
+  it('is trimmed and lowercased', () => {
+    expect(normalizeEmail(' Ani@Example.COM ')).toBe('ani@example.com');
+  });
+
+  it('is null when it is not an address', () => {
+    expect(normalizeEmail('ani@gmail')).toBeNull();
+    expect(normalizeEmail('')).toBeNull();
+  });
+});
+
+describe('a password', () => {
+  it('is eight to a hundred and twenty-eight characters, whatever they are', () => {
+    expect(isValidPassword('1234567')).toBe(false);
+    expect(isValidPassword('12345678')).toBe(true);
+    expect(isValidPassword('պատուհան ծաղիկ')).toBe(true);
+    expect(isValidPassword('x'.repeat(128))).toBe(true);
+    expect(isValidPassword('x'.repeat(129))).toBe(false);
   });
 });

@@ -27,6 +27,7 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
 import { PlaceSummaryCard } from '../../src/components/place/PlaceSummaryCard';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
+import { useDinerProfile } from '../../src/data/accountQueries';
 import { useCreateBooking, useSlotFloor } from '../../src/data/queries';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
@@ -265,6 +266,19 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
   // screen after the SMS, so it is neither required nor asked twice here.
   const verified = signedIn && Boolean(phoneE164);
   const needsName = verified && !rememberedName;
+  /*
+   * An account whose number has never passed the SMS code cannot book. Known
+   * from the profile before the tap, or from the server's refusal after it
+   * (the backstop); either way Confirm becomes the Verify step, until the
+   * refreshed profile says the number is verified.
+   */
+  // Read here so the check does not depend on the Profile tab having been opened.
+  useDinerProfile();
+  const profilePhoneVerified = useSession((s) => s.profile?.phoneVerified);
+  const [verifyRefused, setVerifyRefused] = useState(false);
+  const mustVerify =
+    verified &&
+    (profilePhoneVerified === false || (verifyRefused && profilePhoneVerified !== true));
 
   // One id per screen, reused on every retry — see `confirm.tsx`.
   const commandId = useRef(newCommandId());
@@ -308,6 +322,12 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
     if (!name) return;
     rememberName(name);
 
+    // The code flow, with the booking in hand: it lands on `/reserve/confirm`.
+    if (mustVerify) {
+      router.push({ pathname: '/auth/code', params: forward });
+      return;
+    }
+
     try {
       const booking = await createBooking.mutateAsync({
         commandId: commandId.current,
@@ -332,11 +352,18 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
         void queryClient.invalidateQueries({ queryKey: placeKeys.tables(place.id) });
         void slotQuery.refetch();
       }
+      // Nothing was booked; the command id stays for the retry.
+      if (failure.kind === 'phoneNotVerified') {
+        setVerifyRefused(true);
+        setOutcomeUnknown(false);
+        return;
+      }
       if (failure.kind === 'commandInUse') commandId.current = newCommandId();
       setOutcomeUnknown(failure.kind === 'unknown');
       setErrorText(t(failure.line.key, failure.line.params));
     }
   }, [
+    mustVerify,
     activeSlot,
     targetTableId,
     pending,
@@ -532,6 +559,12 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
               note yet, so the request stays on this booking, on this phone. */}
           <Text style={styles.hint}>{t('book.requestHint')}</Text>
 
+          {mustVerify ? (
+            <Text accessibilityRole="alert" style={styles.error}>
+              {t('confirm.error.phoneNotVerified')}
+            </Text>
+          ) : null}
+
           {errorText ? (
             <Text accessibilityRole="alert" style={styles.error}>
               {errorText}
@@ -544,9 +577,11 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
             label={
               pending
                 ? t('confirm.submitting')
-                : outcomeUnknown
-                  ? t('confirm.checkAgain')
-                  : t('book.confirm')
+                : mustVerify
+                  ? t('confirm.verifyMyNumber')
+                  : outcomeUnknown
+                    ? t('confirm.checkAgain')
+                    : t('book.confirm')
             }
             size="large"
             disabled={!canConfirm}

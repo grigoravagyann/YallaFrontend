@@ -80,3 +80,34 @@ export function normalizeName(value: string): string | null {
   if (tidy.length === 0 || tidy.length > NAME_MAX_LENGTH) return null;
   return tidy;
 }
+
+/**
+ * The server's username rule, repeated so the form can refuse before sending:
+ * 3–30 of `a-z`, `0-9`, `.` and `_`, starting with a letter or digit. The
+ * server stores it lowercased, so this lowercases first — `Ani` is `ani`.
+ */
+const USERNAME_RE = /^[a-z0-9][a-z0-9._]{2,29}$/u;
+
+export const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
+
+/** The username as the server will store it, or `null` when it breaks the rule. */
+export function normalizeUsername(value: string): string | null {
+  const tidy = value.trim().toLowerCase();
+  return USERNAME_RE.test(tidy) ? tidy : null;
+}
+
+/** The email as the server will store it: trimmed and lowercased. `null` when it is not one. */
+export function normalizeEmail(value: string): string | null {
+  const tidy = value.trim().toLowerCase();
+  return isValidEmail(tidy) ? tidy : null;
+}
+
+/**
+ * 8–128 characters. The server also refuses a password equal to the username
+ * or the email; that arrives as a `ValidationError` on the password field and
+ * is shown where it belongs, so it is not repeated here.
+ */
+export function isValidPassword(value: string): boolean {
+  return value.length >= PASSWORD_MIN_LENGTH && value.length <= PASSWORD_MAX_LENGTH;
+}

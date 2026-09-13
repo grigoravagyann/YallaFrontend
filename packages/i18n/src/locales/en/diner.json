@@ -156,7 +156,12 @@
     "logOut": "Log Out",
     "guest": "Guest",
     "logIn": "Log in",
-    "createAccount": "Create account"
+    "createAccount": "Create account",
+    "editProfile": "Edit profile",
+    "notVerified": "Not verified",
+    "verify": "Verify",
+    "setPasswordPrompt": "Set a password to log in without a code.",
+    "setPasswordAction": "Set a password"
   },
   "table": {
     "titleWithArea": "Table {{label}} · {{area}}",
@@ -248,8 +253,30 @@
     "error": {
       "nameRequired": "Enter the name the venue should use.",
       "emailInvalid": "That email doesn't look right.",
-      "phoneInvalid": "Enter a phone number with its country code."
-    }
+      "phoneInvalid": "Enter a phone number with its country code.",
+      "usernameInvalid": "Use 3–30 lowercase letters, digits, dots or underscores.",
+      "usernameTaken": "That username is taken.",
+      "emailTaken": "That email already has an account.",
+      "phoneInUse": "This number already has an account.",
+      "passwordInvalid": "Use at least 8 characters, not your username or email.",
+      "invalidCredentials": "That username, email or password isn't right.",
+      "tooManyAttempts": "Too many tries. Wait a few minutes and try again."
+    },
+    "account": {
+      "loginBody": "Welcome back. Use your username or email and your password.",
+      "signupBody": "Your name is what the venue asks for at the door."
+    },
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "ani.petrosyan",
+    "usernameHint": "Lowercase letters, digits, dots and underscores.",
+    "emailFieldLabel": "Email",
+    "identifierLabel": "Username or email",
+    "identifierPlaceholder": "ani or you@example.com",
+    "passwordLabel": "Password",
+    "passwordHint": "At least 8 characters",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "codeInstead": "Log in with a code instead"
   },
   "confirm": {
     "title": "Confirm your table",
@@ -270,7 +297,8 @@
       "busy": "Someone else is booking that table this second. Tap confirm again.",
       "commandInUse": "That attempt could not be used. Tap confirm to try again.",
       "branchUnavailable": "This venue is not taking bookings right now.",
-      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice."
+      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice.",
+      "phoneNotVerified": "Confirm your phone number before booking. We'll text you a code."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",
@@ -279,7 +307,8 @@
     "tableError": "We could not check this table. Try again.",
     "tableMissing": "That table is not on the plan any more. Go back and pick another.",
     "phoneMissing": "We need to confirm your number before booking.",
-    "verifyNumber": "Confirm my number"
+    "verifyNumber": "Confirm my number",
+    "verifyMyNumber": "Verify my number"
   },
   "success": {
     "confirmedTitle": "Table booked",
@@ -837,5 +866,42 @@
     "title": "Settings",
     "language": "Language",
     "languageHint": "Applies to the whole app right away and is remembered on this phone."
+  },
+  "editProfile": {
+    "title": "Edit profile",
+    "changePhoto": "Change photo",
+    "chooseFromLibrary": "Choose from library",
+    "takePhoto": "Take photo",
+    "removePhoto": "Remove photo",
+    "cancel": "Cancel",
+    "uploading": "Uploading photo",
+    "permission": {
+      "library": "Yalla can't open your photos. Allow photo access in Settings to choose one.",
+      "camera": "Yalla can't use the camera. Allow camera access in Settings to take a photo."
+    },
+    "photoError": {
+      "format": "That file isn't a photo we can use. Choose a JPEG, PNG or WebP.",
+      "tooLarge": "That photo is too large. Choose a smaller one.",
+      "dimensions": "That photo is too small. Choose a larger one.",
+      "generic": "The photo couldn't be changed. Try again."
+    },
+    "details": "Your details",
+    "save": "Save",
+    "saved": "Saved.",
+    "password": {
+      "title": "Password",
+      "setBody": "Set one to log in with your username or email, not only a code.",
+      "current": "Current password",
+      "new": "New password",
+      "change": "Change password",
+      "set": "Set a password",
+      "changed": "Password changed.",
+      "setDone": "Password set. You can log in with it now.",
+      "wrongCurrent": "That isn't your current password."
+    },
+    "phone": {
+      "title": "Phone",
+      "verified": "Verified"
+    }
   }
 }

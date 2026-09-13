@@ -201,3 +201,15 @@ screen.
   `profile.createAccount`, and `bookings.signedOut.action` / `.body` reworded
   from "Confirm my number" to "Log in" now that the tab opens the welcome
   screen. `profile.signIn` was removed with the button it labelled.
+- `diner` — accounts with a password (2026-09-13), provisional and **not**
+  reviewed: `auth.account.*` (the password log-in and sign-up bodies),
+  `auth.usernameLabel` / `.usernamePlaceholder` / `.usernameHint`,
+  `auth.emailFieldLabel` (the required email, beside the older optional
+  `emailLabel`), `auth.identifierLabel` / `.identifierPlaceholder`,
+  `auth.passwordLabel` / `.passwordHint`, `auth.showPassword` /
+  `.hidePassword`, `auth.codeInstead`, and seven new `auth.error.*`
+  (`invalidCredentials` must never say which half was wrong). `profile.editProfile`,
+  `.notVerified`, `.verify`. The whole `editProfile.*` section (photo sheet,
+  permission and upload refusals per reason, details, password, phone). Also
+  `confirm.error.phoneNotVerified` and `confirm.verifyMyNumber`, shown when an
+  account whose number has not passed the SMS code tries to book or open a tab.

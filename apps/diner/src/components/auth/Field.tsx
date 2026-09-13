@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { colors, fontWeight, layout, radius, space, tabularNumbers, typography } from '../../theme';
+import { IconButton } from '../IconButton';
 import { Text, TextInput } from '../Text';
 
 export interface FieldProps {
@@ -88,7 +89,41 @@ export function FieldInput({
   );
 }
 
+export interface PasswordInputProps extends Omit<FieldInputProps, 'secureTextEntry'> {
+  readonly showLabel: string;
+  readonly hideLabel: string;
+}
+
+/**
+ * A pill password input with an eye to show what was typed. The eye sits over
+ * the input's right end as a sibling, never inside a pressable.
+ */
+export function PasswordInput({ showLabel, hideLabel, style, ...props }: PasswordInputProps) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <View style={styles.passwordWrap}>
+      <FieldInput
+        {...props}
+        secureTextEntry={!visible}
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={[styles.passwordInput, style]}
+      />
+      <IconButton
+        icon={visible ? 'eye-off-outline' : 'eye-outline'}
+        accessibilityLabel={visible ? hideLabel : showLabel}
+        variant="ghost"
+        onPress={() => setVisible((v) => !v)}
+        style={styles.eye}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  passwordWrap: { justifyContent: 'center' },
+  passwordInput: { paddingRight: layout.touchTarget + space.sm },
+  eye: { position: 'absolute', right: space.xs },
   field: { gap: space.xs },
   label: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.textMuted },
   hint: { ...typography.caption, color: colors.textSubtle },

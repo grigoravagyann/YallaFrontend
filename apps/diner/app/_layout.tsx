@@ -153,7 +153,9 @@ export default function RootLayout() {
             <Stack.Screen name="auth/index" />
             <Stack.Screen name="auth/login" />
             <Stack.Screen name="auth/signup" />
+            <Stack.Screen name="auth/code" />
             <Stack.Screen name="verify/index" />
+            <Stack.Screen name="profile/edit" />
             <Stack.Screen name="reserve/confirm" />
             <Stack.Screen name="reserve/success" />
             <Stack.Screen name="booking/[bookingId]" />

@@ -63,6 +63,13 @@ export default function ConfirmScreen() {
   }, [slotUtc]);
 
   const [errorText, setErrorText] = useState<string | null>(null);
+  /**
+   * The server refused because the account's number is not verified yet. Gone
+   * once the refreshed profile says it is, so tapping Confirm again is the retry.
+   */
+  const [verifyRefused, setVerifyRefused] = useState(false);
+  const profilePhoneVerified = useSession((s) => s.profile?.phoneVerified);
+  const mustVerify = verifyRefused && profilePhoneVerified !== true;
   /** The last attempt may have committed: the button checks rather than books. */
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
 
@@ -163,6 +170,14 @@ export default function ConfirmScreen() {
         // back(), not replace(): the branch screen underneath is still holding
         // this diner's slot and party size.
         router.back();
+        return;
+      }
+
+      // Nothing was booked, and the command id stays: the retry after
+      // verifying is the same command.
+      if (failure.kind === 'phoneNotVerified') {
+        setVerifyRefused(true);
+        setOutcomeUnknown(false);
         return;
       }
 
@@ -339,6 +354,21 @@ export default function ConfirmScreen() {
             </Card>
           ) : null}
 
+          {/* Opened with no booking params on purpose: the code flow then goes
+              back to this very screen, with its command id, instead of
+              replacing itself with a second confirm screen. */}
+          {mustVerify ? (
+            <Card style={[styles.windowCard, styles.verifyCard]}>
+              <Text style={styles.notice} accessibilityRole="alert">
+                {t('confirm.error.phoneNotVerified')}
+              </Text>
+              <Button
+                label={t('confirm.verifyMyNumber')}
+                onPress={() => router.push('/auth/code')}
+              />
+            </Card>
+          ) : null}
+
           {errorText ? (
             <Text style={styles.error} accessibilityRole="alert">
               {errorText}
@@ -426,6 +456,7 @@ const styles = StyleSheet.create({
   requestCard: { padding: space.md },
   request: { ...typography.body, color: colors.text },
   windowCard: { gap: space.sm },
+  verifyCard: { marginTop: space.lg },
   loading: { ...typography.caption, color: colors.textMuted },
   windowPrimary: { ...typography.h3, color: colors.text },
   shortWindow: { ...typography.caption, color: colors.warning },

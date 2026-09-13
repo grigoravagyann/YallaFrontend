@@ -163,6 +163,8 @@ export interface AccountStore {
   verifyPhone(
     phoneE164: string,
     localeCode?: string | undefined,
+    /** The account signed in when the code was passed, if any. */
+    callerAccountId?: string | null,
   ): { readonly accountId: string; readonly isNewAccount: boolean };
 }
 
@@ -322,10 +324,15 @@ export function createAccountStore(options: { readonly now: () => Date }): Accou
       byId(accountId).photo = null;
     },
 
-    verifyPhone(phoneE164, localeCode) {
+    verifyPhone(phoneE164, localeCode, callerAccountId) {
       const existing = [...accounts.values()].find((a) => a.phoneE164 === phoneE164);
       const t = now().getTime();
       if (existing) {
+        // As the server: proving the number anonymously on an account that
+        // never verified it evicts a squatter's password; its own session keeps it.
+        if (existing.phoneVerifiedAt === null && callerAccountId !== existing.id) {
+          existing.password = null;
+        }
         existing.phoneVerifiedAt ??= t;
         if (localeCode) existing.localeCode = localeCode;
         return { accountId: existing.id, isNewAccount: false };

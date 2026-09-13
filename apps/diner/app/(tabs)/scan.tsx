@@ -51,6 +51,8 @@ export default function ScanScreen() {
     failure,
     signInNeeded,
     confirmNumber,
+    verifyNeeded,
+    verifyNumber,
     clearFailure,
     isWorking,
   } = useJoinByCode();
@@ -209,6 +211,9 @@ export default function ScanScreen() {
             was typed may just as easily have been a mistyped table code, and
             this screen promises no sign-up and no phone number. */}
         {signInNeeded ? <Button label={t('scan.confirmNumber')} onPress={confirmNumber} /> : null}
+        {verifyNeeded ? (
+          <Button label={t('confirm.verifyMyNumber')} onPress={verifyNumber} />
+        ) : null}
 
         <DemoCodes onPick={(code) => setTyped(code)} />
       </ScrollView>

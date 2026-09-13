@@ -674,7 +674,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       challenges.delete(challengeId);
       // As the server does since accounts: a registered number is marked
       // verified and that account signed in; an unknown one gets an account.
-      const { accountId, isNewAccount } = accounts.verifyPhone(challenge.phoneE164, localeCode);
+      const { accountId, isNewAccount } = accounts.verifyPhone(
+        challenge.phoneE164,
+        localeCode,
+        signedInAccountId,
+      );
       signIn(accountId, isNewAccount);
       return {
         verificationToken: `vt_${challenge.phoneE164}_${sequence++}`,

@@ -27,13 +27,22 @@ export function createDinerAuth(client: ApiClient) {
       return data;
     },
 
+    /**
+     * `bearer` is the signed-in diner's access token, when there is one. The
+     * server keeps a registrant's password only when its own session verifies
+     * the number. Still `skipAuth`: a refused token must not trigger a refresh.
+     */
     async verifyCode(
       body: Schemas['Yalla.Api.Endpoints.VerifyDinerCodeRequest'],
+      bearer?: string | null,
     ): Promise<Schemas['Yalla.Application.Auth.DinerSignInResult']> {
       const { data } = await client.post<Schemas['Yalla.Application.Auth.DinerSignInResult']>(
         `${DINER}/verify-code`,
         body,
-        { skipAuth: true },
+        {
+          skipAuth: true,
+          ...(bearer ? { headers: { authorization: `Bearer ${bearer}` } } : {}),
+        },
       );
       return data;
     },
