@@ -795,5 +795,10 @@
       "title": "No favorites yet",
       "body": "Tap the heart on a place to keep it here."
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languageHint": "Applies to the whole app right away and is remembered on this phone."
   }
 }

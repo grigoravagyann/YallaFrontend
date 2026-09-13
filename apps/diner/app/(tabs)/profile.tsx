@@ -1,6 +1,6 @@
 import { useTranslation } from '@yalla/i18n';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { authSession } from '../../src/auth/session';
 import { Button } from '../../src/components/Button';
@@ -14,9 +14,6 @@ import { useSession } from '../../src/stores/session';
 import { actionIcon, colors, layout, navIcons, radius, space, typography } from '../../src/theme';
 
 const AVATAR = 64;
-/** How long the Settings row stays lit after the gear is tapped. */
-const HIGHLIGHT_MS = 700;
-
 /** "Lara Avagyan" → "LA"; a single name gives one letter; nothing gives "?". */
 function initialsOf(name: string | null): string {
   if (!name) return '?';
@@ -44,24 +41,8 @@ export default function ProfileScreen() {
   const phoneE164 = useSession((s) => s.phoneE164);
   const unread = useNotificationCount();
 
-  const [settingsLit, setSettingsLit] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (highlightTimer.current) clearTimeout(highlightTimer.current);
-    },
-    [],
-  );
-
-  // There is no settings screen yet. The gear points at the Settings row
-  // instead of opening a page that is not there.
-  const pointAtSettings = () => {
-    setSettingsLit(true);
-    if (highlightTimer.current) clearTimeout(highlightTimer.current);
-    highlightTimer.current = setTimeout(() => setSettingsLit(false), HIGHLIGHT_MS);
-  };
+  const openSettings = () => router.push('/settings');
 
   // The token session forgets the refresh token (and tells the server, when it
   // can reach it); the store then drops `signedIn`. The remembered number and
@@ -88,7 +69,7 @@ export default function ProfileScreen() {
           </Text>
           <IconButton
             icon={actionIcon.settings}
-            onPress={pointAtSettings}
+            onPress={openSettings}
             accessibilityLabel={t('profile.settings')}
             shape="square"
           />
@@ -141,14 +122,14 @@ export default function ProfileScreen() {
             label={t('profile.notifications')}
             badgeCount={unread}
           />
-          {/* Help, About and Settings have no screen yet: drawn as plain rows
-              (no chevron, no press) rather than buttons that go nowhere. */}
+          {/* Help and About have no screen yet: drawn as plain rows (no
+              chevron, no press) rather than buttons that go nowhere. */}
           <ProfileRow icon="help-circle-outline" label={t('profile.help')} />
           <ProfileRow icon="information-circle-outline" label={t('profile.about')} />
           <ProfileRow
             icon={actionIcon.settings}
             label={t('profile.settings')}
-            highlighted={settingsLit}
+            onPress={openSettings}
             divider={false}
           />
         </Card>

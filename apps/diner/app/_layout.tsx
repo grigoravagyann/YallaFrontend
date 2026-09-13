@@ -154,6 +154,7 @@ export default function RootLayout() {
             <Stack.Screen name="booking/[bookingId]" />
             <Stack.Screen name="order/[orderId]" />
             <Stack.Screen name="favorites" />
+            <Stack.Screen name="settings" />
             {/* Scanning in and the shared tab. */}
             <Stack.Screen name="tab/[tabId]/index" />
             <Stack.Screen name="tab/[tabId]/pending" />
