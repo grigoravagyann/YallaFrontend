@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@yalla/i18n';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, fontWeight, radius, space, typography } from '../theme';
@@ -108,6 +109,9 @@ export function Badge({
       ]}
     >
       {dot ? <View style={[styles.dot, { backgroundColor: foreground }]} /> : null}
+      {variant === 'popular' && !dot ? (
+        <Ionicons name="star" size={size === 'sm' ? 11 : 13} color={foreground} />
+      ) : null}
       <Text
         numberOfLines={1}
         style={[styles.label, size === 'sm' && styles.labelSm, { color: foreground }]}
@@ -127,8 +131,8 @@ const styles = StyleSheet.create({
     gap: space.xs + 2,
   },
   md: { paddingHorizontal: space.md - 2, paddingVertical: space.xs + 1 },
-  sm: { paddingHorizontal: space.sm, paddingVertical: 2 },
+  sm: { paddingHorizontal: space.sm + 2, paddingVertical: 3 },
   dot: { width: 6, height: 6, borderRadius: radius.pill },
   label: { ...typography.caption, fontWeight: fontWeight.bold },
-  labelSm: { fontSize: 11, lineHeight: 14 },
+  labelSm: { fontSize: 12, lineHeight: 16 },
 });

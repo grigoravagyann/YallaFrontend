@@ -3,7 +3,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { Place } from '../../places/model';
 import { useFavorites, useIsFavorite } from '../../stores/favorites';
-import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../theme';
+import { actionIcon, colors, fontWeight, layout, radius, space } from '../../theme';
 import { Badge } from '../Badge';
 import { Card } from '../Card';
 import { IconButton } from '../IconButton';
@@ -15,7 +15,7 @@ export { PlaceMetaRow, usePlaceCopy } from './placeCopy';
 export type { PlaceCopy, PlaceMetaRowProps } from './placeCopy';
 
 /** The bottom fraction of the photo under the dark scrim, so white text reads on any image. */
-const SCRIM = 0.72;
+const SCRIM = 0.55;
 /** Room kept on the right of the caption for the Open / Closed pill. */
 const STATUS_CLEARANCE = 96;
 
@@ -62,7 +62,7 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
   // tree on the phone. Instead a tap layer covers the photo and the heart sits
   // above it as a sibling, so each is its own control.
   return (
-    <Card padded={false} style={style}>
+    <Card padded={false} radiusToken="hero" style={style}>
       <PhotoImage source={photo} gradient={SCRIM} style={styles.photo}>
         {contentBadge ? <Badge variant={contentBadge} size="sm" style={styles.badge} /> : null}
 
@@ -89,10 +89,10 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
       <IconButton
         icon={favorited ? actionIcon.favorited : actionIcon.favorite}
         size="sm"
-        variant="translucent"
+        variant="ghost"
         accessibilityLabel={t(favorited ? 'place.unfavorite' : 'place.favorite')}
         onPress={() => toggleFavorite(place.id)}
-        {...(favorited ? { iconColor: colors.error } : {})}
+        iconColor={favorited ? colors.error : colors.onImage}
         style={styles.heart}
       />
     </Card>
@@ -100,19 +100,19 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
 });
 
 const styles = StyleSheet.create({
-  photo: { height: layout.heroCardHeight, borderRadius: radius.card },
-  tap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.card },
+  photo: { height: layout.heroCardHeight, borderRadius: radius.hero },
+  tap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.hero },
   tapPressed: { backgroundColor: colors.overlayDark, opacity: 0.25 },
-  badge: { position: 'absolute', top: space.sm + 2, left: space.sm + 2 },
-  heart: { position: 'absolute', top: space.sm, right: space.sm },
+  badge: { position: 'absolute', top: space.md, left: space.md, opacity: 0.92 },
+  heart: { position: 'absolute', top: space.sm + 2, right: space.sm + 2 },
   caption: {
     position: 'absolute',
     left: space.md,
     right: STATUS_CLEARANCE,
-    bottom: space.sm + 2,
-    gap: 2,
+    bottom: space.md,
+    gap: 3,
   },
-  name: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.onImage },
-  typeLine: { ...typography.caption, color: colors.onImage, opacity: 0.92 },
-  status: { position: 'absolute', right: space.sm + 2, bottom: space.sm + 2 },
+  name: { fontSize: 21, lineHeight: 26, fontWeight: fontWeight.bold, color: colors.onImage },
+  typeLine: { fontSize: 14, lineHeight: 18, color: colors.onImageMuted },
+  status: { position: 'absolute', right: space.md, bottom: space.md },
 });

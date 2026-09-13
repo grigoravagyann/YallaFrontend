@@ -18,7 +18,7 @@ export const iconSize = {
 export type IconSizeToken = keyof typeof iconSize;
 
 /** The Scan FAB: a circle this wide, its top rising above the tab bar pill. */
-export const fabSize = 58;
+export const fabSize = 60;
 
 export interface IconPair {
   readonly outline: IoniconName;
@@ -27,14 +27,14 @@ export interface IconPair {
 
 /**
  * Tab bar glyphs keyed by expo-router route name (`app/(tabs)/<name>.tsx`).
- * Inactive tabs draw the outline, the active one the filled glyph.
+ * One outline style throughout; the active tab changes colour, not glyph.
  */
 export const navIcons = {
-  index: { outline: 'compass-outline', filled: 'compass' },
-  bookings: { outline: 'calendar-outline', filled: 'calendar' },
-  scan: { outline: 'qr-code-outline', filled: 'scan' },
-  orders: { outline: 'bag-handle-outline', filled: 'bag-handle' },
-  profile: { outline: 'person-outline', filled: 'person' },
+  index: { outline: 'compass-outline', filled: 'compass-outline' },
+  bookings: { outline: 'calendar-outline', filled: 'calendar-outline' },
+  scan: { outline: 'qr-code-outline', filled: 'qr-code-outline' },
+  orders: { outline: 'bag-handle-outline', filled: 'bag-handle-outline' },
+  profile: { outline: 'person-outline', filled: 'person-outline' },
 } as const satisfies Record<string, IconPair>;
 
 export type NavRouteName = keyof typeof navIcons;
@@ -47,8 +47,8 @@ export const placeTypeIcon = {
 
 /** The rest of the glyph vocabulary, named once so screens agree. */
 export const actionIcon = {
-  call: 'call',
-  directions: 'navigate',
+  call: 'call-outline',
+  directions: 'navigate-outline',
   website: 'globe-outline',
   save: 'bookmark-outline',
   saved: 'bookmark',
@@ -56,18 +56,18 @@ export const actionIcon = {
   favorited: 'heart',
   share: 'share-outline',
   map: 'map-outline',
-  list: 'list',
-  search: 'search',
+  list: 'list-outline',
+  search: 'search-outline',
   location: 'location-outline',
-  star: 'star',
-  chevron: 'chevron-forward',
-  back: 'arrow-back',
+  star: 'star-outline',
+  chevron: 'chevron-forward-outline',
+  back: 'arrow-back-outline',
   settings: 'settings-outline',
-  expand: 'expand',
+  expand: 'expand-outline',
   zoomIn: 'add',
   zoomOut: 'remove',
-  locate: 'locate',
-  close: 'close',
+  locate: 'locate-outline',
+  close: 'close-outline',
   calendar: 'calendar-outline',
   time: 'time-outline',
   people: 'people-outline',

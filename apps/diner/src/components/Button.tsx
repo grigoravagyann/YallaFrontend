@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   fullWidth: { alignSelf: 'stretch' },
   hug: { alignSelf: 'flex-start' },
   large: { minHeight: layout.controlHeightLarge },
-  disabled: { opacity: 0.45 },
+  disabled: { opacity: 0.35 },
   primary: { backgroundColor: colors.primary },
   secondary: {
     backgroundColor: colors.surface,

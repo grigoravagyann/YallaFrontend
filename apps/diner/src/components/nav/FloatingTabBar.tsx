@@ -210,6 +210,8 @@ const styles = StyleSheet.create({
     height: tabBarMetrics.height,
     borderRadius: tabBarMetrics.radius,
     backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...shadows.float,
   },
   row: {
@@ -231,8 +233,8 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
     borderRadius: radius.tile,
   },
-  pairLifted: { backgroundColor: colors.surface, ...shadows.lift },
-  labelActive: { fontWeight: fontWeight.bold },
+  pairLifted: {},
+  labelActive: { fontWeight: fontWeight.medium },
   scanSlot: { height: STAGE_HEIGHT },
   badge: {
     position: 'absolute',

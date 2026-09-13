@@ -9,6 +9,8 @@ export const radius = {
   pill: 999,
   chip: 12,
   tile: 14,
+  /** The Explore search field. */
+  search: 22,
   small: 8,
 } as const;
 

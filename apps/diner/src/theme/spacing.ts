@@ -11,9 +11,9 @@ export const layout = {
   /** Horizontal page padding and the inset of the floating tab bar. */
   screenPadding: space.lg,
   /** Gap between stacked cards in a list. */
-  cardGap: space.md,
+  cardGap: space.md + 2,
   /** Height of a hero card on Explore. */
-  heroCardHeight: 116,
+  heroCardHeight: 160,
   /** Platform minimum touch target. */
   touchTarget: 44,
   /** Default control height (buttons, inputs, search field). */
