@@ -47,6 +47,8 @@ const styles = StyleSheet.create({
   // must respect the corners (a photo) clip themselves — see `PhotoImage`.
   card: {
     backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...shadows.card,
   },
   padded: { padding: space.lg },

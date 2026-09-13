@@ -60,5 +60,5 @@ const styles = StyleSheet.create({
   },
   title: { ...typography.h3, color: colors.text, textAlign: 'center' },
   body: { ...typography.body, color: colors.textMuted, textAlign: 'center', maxWidth: 280 },
-  action: { marginTop: space.md },
+  action: { marginTop: space.md, alignSelf: 'center' },
 });

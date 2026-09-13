@@ -28,7 +28,7 @@ export interface ChipProps {
 }
 
 /** Rendered height of each size. Exported so a row that sits on one can be measured from it. */
-export const chipHeight = { sm: 32, md: layout.touchTarget - 4 } as const;
+export const chipHeight = { sm: 36, md: layout.touchTarget - 4 } as const;
 
 /**
  * A selectable token: filters on Explore, the map legend, dates, times and
@@ -73,7 +73,7 @@ export function Chip({
         numberOfLines={1}
         style={[
           typography.body,
-          size === 'sm' && typography.caption,
+
           { color: foreground, fontWeight: selected ? fontWeight.bold : fontWeight.medium },
         ]}
       >

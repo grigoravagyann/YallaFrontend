@@ -4,15 +4,7 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import { useMemo } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { Place } from '../../places/model';
-import {
-  actionIcon,
-  colors,
-  fontWeight,
-  iconSize,
-  space,
-  tabularNumbers,
-  typography,
-} from '../../theme';
+import { actionIcon, colors, fontWeight, iconSize, space, tabularNumbers } from '../../theme';
 import { Text } from '../Text';
 
 /** The fields the three repeated lines are built from. */
@@ -83,7 +75,7 @@ export function PlaceMetaRow({
   const starColor = onImage ? colors.onImage : colors.warning;
   const rating = (
     <View key="rating" style={styles.metaItem}>
-      <Ionicons name={actionIcon.star} size={iconSize.sm - 2} color={starColor} />
+      <Ionicons name={actionIcon.star} size={iconSize.sm - 1} color={starColor} />
       <Text style={[styles.metaText, onImage && styles.metaTextOnImage, { color: textColor }]}>
         {copy.rating}
       </Text>
@@ -91,7 +83,7 @@ export function PlaceMetaRow({
   );
   const distance = (
     <View key="distance" style={styles.metaItem}>
-      <Ionicons name={actionIcon.location} size={iconSize.sm - 2} color={textColor} />
+      <Ionicons name={actionIcon.location} size={iconSize.sm - 1} color={textColor} />
       <Text style={[styles.metaText, onImage && styles.metaTextOnImage, { color: textColor }]}>
         {copy.distance}
       </Text>
@@ -107,6 +99,6 @@ export function PlaceMetaRow({
 const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  metaText: { ...typography.caption, ...tabularNumbers },
+  metaText: { fontSize: 13, lineHeight: 18, ...tabularNumbers },
   metaTextOnImage: { fontWeight: fontWeight.medium },
 });

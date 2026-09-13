@@ -135,6 +135,7 @@ export default function ExploreScreen() {
           <Chip
             key={value}
             label={t(`explore.filter.${value}`)}
+            size="sm"
             selected={badge === value}
             // Tapping the selected chip clears it: no chip means every place.
             onPress={() => setBadge(badge === value ? null : value)}
@@ -227,7 +228,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.md,
-    paddingBottom: space.md,
+    paddingBottom: space.lg,
   },
   title: { ...typography.title, color: colors.text },
   resume: {
@@ -241,7 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
   },
-  resumePressed: { backgroundColor: colors.secondary },
+  resumePressed: { backgroundColor: colors.border },
   resumeText: { ...typography.body, fontWeight: fontWeight.medium, color: colors.primary },
   searchWrap: { paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
   search: {
@@ -251,7 +252,7 @@ const styles = StyleSheet.create({
     minHeight: layout.controlHeight,
     paddingLeft: space.lg,
     paddingRight: space.sm,
-    borderRadius: radius.pill,
+    borderRadius: radius.search,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -259,7 +260,8 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    ...typography.bodyLg,
+    ...typography.body,
+    fontSize: 15,
     color: colors.text,
     paddingVertical: 0,
   },

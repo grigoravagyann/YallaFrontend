@@ -11,7 +11,7 @@ import type { TextStyle } from 'react-native';
  */
 export const typography = {
   /** Screen titles — render with `<Text display>`. */
-  title: { fontSize: 28, lineHeight: 34, fontWeight: fontWeight.bold },
+  title: { fontSize: 32, lineHeight: 38, fontWeight: fontWeight.bold },
   /** Place name in the details hero — render with `<Text display>`. */
   heading: { fontSize: 22, lineHeight: 28, fontWeight: fontWeight.bold },
   h3: { fontSize: 18, lineHeight: 24, fontWeight: fontWeight.bold },

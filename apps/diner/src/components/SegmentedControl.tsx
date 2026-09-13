@@ -7,7 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { colors, fontWeight, layout, radius, space, typography } from '../theme';
+import { colors, fontWeight, layout, radius, shadows, space, typography } from '../theme';
 import { Text } from './Text';
 
 export interface SegmentOption<T extends string> {
@@ -118,7 +118,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    ...shadows.card,
   },
   segment: {
     flex: 1,
@@ -131,5 +134,5 @@ const styles = StyleSheet.create({
   segmentPressed: { backgroundColor: colors.primarySoft },
   label: { fontWeight: fontWeight.medium },
   labelIdle: { color: colors.textMuted },
-  labelSelected: { color: colors.onPrimary, fontWeight: fontWeight.bold },
+  labelSelected: { color: colors.primary, fontWeight: fontWeight.bold },
 });
