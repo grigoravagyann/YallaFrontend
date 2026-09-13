@@ -27,6 +27,42 @@ async function caught(promise: Promise<unknown>): Promise<Error & Record<string,
   throw new Error('expected a rejection');
 }
 
+describe('booking with an unconfirmed number', () => {
+  const BOOKING = {
+    commandId: 'cmd-unverified-1',
+    branchId: 'b-unknown',
+    tableId: 't-unknown',
+    slotUtc: '2030-01-01T18:00:00.000Z',
+    timeZoneId: 'Asia/Yerevan',
+    partySize: 2,
+    guestName: 'Grigor A.',
+    guestPhone: FORM.phoneE164,
+    channel: 'app' as const,
+  };
+
+  it('is refused until the code confirms the number, and then goes on to the booking rules', async () => {
+    const gateway = createMockGateway();
+    await gateway.registerDiner(FORM);
+
+    const refused = await caught(gateway.createBooking(BOOKING));
+    expect(refused.name).toBe('PhoneNotVerifiedError');
+    expect(refused['status']).toBe(403);
+
+    const tab = await caught(gateway.openTabByBooking({ bookingCode: 'ABC123' } as never));
+    expect(tab.name).toBe('PhoneNotVerifiedError');
+
+    const challenge = await gateway.requestPhoneCode(FORM.phoneE164);
+    await gateway.verifyPhoneCode({
+      challengeId: challenge.challengeId,
+      code: challenge.devCode ?? '123456',
+    });
+
+    // Past the gate: now the unknown branch is what answers.
+    const next = await caught(gateway.createBooking({ ...BOOKING, commandId: 'cmd-unverified-2' }));
+    expect(next.name).not.toBe('PhoneNotVerifiedError');
+  });
+});
+
 describe('signing up', () => {
   it('creates the account, signs in, and stores the username and email lowercased', async () => {
     const gateway = createMockGateway();

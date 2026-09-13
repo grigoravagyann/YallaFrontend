@@ -178,6 +178,8 @@ export {
   EmailTakenError,
   InvalidCredentialsError,
   PhoneInUseError,
+  PhoneNotVerifiedError,
+  isPhoneNotVerified,
   UsernameTakenError,
   isAccountTaken,
   isInvalidCredentials,

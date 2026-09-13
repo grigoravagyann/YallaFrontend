@@ -1147,6 +1147,32 @@ export class InvalidCredentialsError extends ApiError {
   }
 }
 
+/**
+ * The account's phone number has not been confirmed by code — `phone-not-verified`, 403.
+ *
+ * A password account can be registered with any number, so booking a table (or
+ * opening a tab from a booking) waits until the number is proved: reminders and
+ * no-shows land on that number, and it must be the diner's own. The next step
+ * is the SMS code, not another attempt — a retry answers the same until then.
+ *
+ * Not a {@link ForbiddenError} in the sense of "not allowed": nothing about the
+ * session is wrong, and a screen must offer verification rather than sign-in.
+ */
+export class PhoneNotVerifiedError extends ApiError {
+  constructor(options: { url: string; requestId?: string | undefined }) {
+    super('Confirm your phone number before booking.', {
+      status: 403,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'PhoneNotVerifiedError';
+  }
+}
+
+export function isPhoneNotVerified(error: unknown): error is PhoneNotVerifiedError {
+  return error instanceof PhoneNotVerifiedError;
+}
+
 export function isInvalidCredentials(error: unknown): error is InvalidCredentialsError {
   return error instanceof InvalidCredentialsError;
 }

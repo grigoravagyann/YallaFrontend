@@ -45,6 +45,7 @@ import {
   MenuItemUnavailableError,
   NotTabHostError,
   PhoneInUseError,
+  PhoneNotVerifiedError,
   RateLimitedError,
   HostCannotLeaveError,
   InviteExpiredError,
@@ -262,6 +263,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       };
 
       switch (error.problem?.code) {
+        case 'phone-not-verified':
+          throw new PhoneNotVerifiedError({ url: error.url, requestId: error.requestId });
         case 'booking-not-found':
           throw new BookingNotFoundError({ url: error.url, requestId: error.requestId });
         case 'booking-too-early':
@@ -436,6 +439,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     const base = { url: error.url, requestId: error.requestId };
 
     switch (code) {
+      case 'phone-not-verified':
+        throw new PhoneNotVerifiedError(base);
       case 'table-currently-occupied':
       case 'table-already-booked': {
         const room = context['availability'] as

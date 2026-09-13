@@ -15,6 +15,7 @@ import type {
 } from '../contracts/booking';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
+  PhoneNotVerifiedError,
   BookingEndedError,
   BookingNotActiveError,
   BookingNotFoundError,
@@ -207,6 +208,18 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   let signedInAccountId: string | null = null;
 
   /** The signed-in account's id, or the 401 `/api/diner/me` answers a stranger. */
+  /**
+   * The server's booking gate for password accounts: a signed-in account whose
+   * number has not been confirmed by code may not book or open a tab from a
+   * booking. A device that only ever verified by code has no unverified account,
+   * so it is never refused here.
+   */
+  function requireVerifiedPhone(url: string): void {
+    if (!signedInAccountId) return;
+    const profile = accounts.profile(signedInAccountId);
+    if (profile && !profile.phoneVerified) throw new PhoneNotVerifiedError({ url });
+  }
+
   function me(): string {
     if (!signedInAccountId) throw new UnauthorizedError({ url: `${URL_TAG}/api/diner/me` });
     return signedInAccountId;
@@ -710,6 +723,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async createBooking(command: CreateBookingCommand) {
       await wait();
+      requireVerifiedPhone(`${URL_TAG}/api/reservations`);
 
       // Idempotency first: a retry of the same command must not book twice.
       const existingId = commandLog.get(command.commandId);
@@ -986,6 +1000,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       await wait();
 
       const url = `${URL_TAG}/api/tabs/open-by-booking`;
+      requireVerifiedPhone(url);
       const wanted = normaliseBookingCode(command.bookingCode);
       /*
        * Over this diner's own bookings — which *is* the ownership rule, not an
