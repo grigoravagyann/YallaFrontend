@@ -4205,7 +4205,7 @@
           "auth"
         ],
         "summary": "Exchange a one-time code for tokens",
-        "description": "Checks the newest live code for the number. On success the account is created if this is the first time - there is no separate registration step, because a separate registration step is a step people abandon.\n\nA wrong code spends one of five attempts and says how many are left. The sixth attempt is refused outright with 429: the code is dead and a new one is needed.",
+        "description": "Checks the newest live code for the number. On success the account is created if this is the first time - there is no separate registration step, because a separate registration step is a step people abandon.\n\n**A registered number.** The account that registered with the number is signed in and its number marked verified; no second account is made. The first time, send the `Authorization: Bearer` token `register` returned: a request carrying that same account's token keeps its password and sessions. Without it - anonymous, or under a different diner - the code's holder is treated as the number's owner and the registrant as a stranger: the password is cleared (`hasPassword` false) and every refresh token for the account is revoked. The route stays anonymous; an invalid token is ignored, not refused.\n\nA wrong code spends one of five attempts and says how many are left. The sixth attempt is refused outright with 429: the code is dead and a new one is needed.",
         "operationId": "verifyDinerCode",
         "requestBody": {
           "content": {
@@ -4265,6 +4265,192 @@
           },
           "429": {
             "description": "The code is out of attempts. Request a new one.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/diner/register": {
+      "post": {
+        "tags": [
+          "auth",
+          "diner"
+        ],
+        "summary": "Create a diner account with a username, email and password",
+        "description": "The sign-up form, for the people who want an account they can recognise - and for the moment there is no signal for an SMS. The code flow is still the front door and still needs no registration.\n\n**The phone number is stored as typed and is not verified by registering.** The account's `phoneVerified` stays false until a one-time code to it is passed once; the profile screen shows a *verify* link until then.\n\nUsername: 3-30 characters, letters, digits, dots and underscores, lowercased on the way in. Password: 8-128 characters and not the username or the email - no composition rules. A malformed field answers 400 with `context.field` naming it.\n\nRate limited per address like `request-code`. Signs the new account in: the response is exactly what `verify-code` returns, with `isNewAccount` true.",
+        "operationId": "registerDiner",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RegisterDinerRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/auth/diner/register`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Auth.DinerSignInResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field is malformed. `context.field` names it: `username`, `email`, `password`, `phoneE164` or `displayName`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`username-taken`, `email-taken`, or `phone-in-use` - the number already has an account, and the app should offer *log in with a code instead*. `context.field` names the input either way.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.IdentifierTakenProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many sign-ups from this address. Wait, then retry.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/diner/login": {
+      "post": {
+        "tags": [
+          "auth",
+          "diner"
+        ],
+        "summary": "Sign in a diner with a username or email and a password",
+        "description": "`identifier` is a username or an email address, case-insensitively.\n\nUnknown identifier, wrong password, an account that has no password yet and a deactivated account all answer the same `401 invalid-credentials`, and all cost the same time, so this form cannot be used to discover which accounts exist.\n\nRate limited on two axes: per address by the pipeline, and per identifier by the service - ten attempts in fifteen minutes, right or wrong, after which the answer is `429 too-many-attempts` rather than another 401. Wait; the account is not locked and nobody has to unlock it.\n\nThe response is exactly what `verify-code` returns, with `isNewAccount` false.",
+        "operationId": "loginDiner",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.LoginDinerRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/auth/diner/login`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Auth.DinerSignInResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid-credentials`: the identifier and password do not match a usable account.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`too-many-attempts` for this identifier, or too many requests from this address. Wait.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5623,7 +5809,7 @@
             }
           },
           "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
+            "description": "`phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7031,6 +7217,409 @@
         }
       }
     },
+    "/api/diner/me": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The signed-in diner's own account",
+        "description": "What the profile screen shows. Two fields say what is *missing*: `phoneVerified` false means the number was typed at sign-up and never proved - show a *verify* link into the code flow; `hasPassword` false means the account was created by a code and can set a password without giving a current one.\n\n`photo` is absent when there is no picture.",
+        "operationId": "getDinerProfile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerProfileView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is not a diner's - a tab participant has no account - or the account is no longer active.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Change the name, username or email",
+        "description": "Only the fields sent change; a null leaves the current value alone, and nothing here can be cleared. The username and email are under exactly the rules and the 409s of `register`, so the profile screen and the sign-up form cannot disagree.\n\nAnswers the whole profile, not just what changed.",
+        "operationId": "updateDinerProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.UpdateDinerProfileRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/diner/me`. Only the fields sent change."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerProfileView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A field is malformed. `context.field` names it: `displayName`, `username` or `email`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`username-taken` or `email-taken`, with `context.field` naming the input.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.IdentifierTakenProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/me/password": {
+      "put": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Set a first password, or change the current one",
+        "description": "An account the code flow created has no password and sets one without `currentPassword` - the bearer token is the proof. An account that has one must send it, and a wrong one is `401 invalid-credentials`.\n\nThe new password is under the same rule as registration: 8-128 characters, and not the username or the email. Existing sessions stay signed in.",
+        "operationId": "setDinerPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SetDinerPasswordRequest"
+                  }
+                ],
+                "description": "Body of `PUT /api/diner/me/password`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The new password breaks the rule. `context.field` is `newPassword`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid-credentials`: the current password is wrong or was needed and not sent. Or no diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/me/photo": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Set the profile picture",
+        "description": "Multipart upload of a single `file` part, through the same pipeline as a branch photo: **the bytes are sniffed, never trusted** - JPEG, PNG and WebP are accepted and everything else refused whatever the declared type says; **EXIF is stripped**; three WebP variants are kept and the original is discarded. Same size cap.\n\nReplaces whatever picture was there. The same bytes uploaded twice by the same person are one photo; the picture replaced is deleted by the orphan sweep after a day, so its old URL keeps working for that long and then does not.",
+        "operationId": "uploadDinerPhoto",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No `file` part in the upload.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`unsupported-image`: not a JPEG, PNG or WebP, or larger than this system accepts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Remove the profile picture",
+        "description": "Succeeds when there was none. The picture itself is left for the orphan sweep.",
+        "operationId": "removeDinerPhoto",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/diner/devices": {
       "post": {
         "tags": [
@@ -7181,7 +7770,7 @@
             }
           },
           "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
+            "description": "`phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7391,7 +7980,7 @@
             }
           },
           "403": {
-            "description": "Not the diner who made the booking.",
+            "description": "Not the diner who made the booking (`forbidden`), or `phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12549,593 +13138,6 @@
           }
         }
       }
-    },
-    "/api/auth/diner/register": {
-      "post": {
-        "tags": [
-          "Diner"
-        ],
-        "summary": "Create a diner account with a username, an email and a password",
-        "description": "Anonymous, rate limited like request-code. Answers the same tokens as verify-code with `isNewAccount` true. The phone number is **not** verified by registering: `phoneVerified` stays false until the diner passes the SMS code once.\n`username` is 3-30 lowercase letters, digits, `.` and `_`, starting with a letter or digit, and is stored lowercased; `email` is stored trimmed and lowercased; `password` is 8-128 characters and not equal to either; `displayName` is required because the venue asks for it at the door.",
-        "operationId": "registerDiner",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RegisterDinerRequest"
-                  }
-                ],
-                "description": "Body of `POST /api/auth/diner/register`."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Auth.DinerSignInResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No usable token was presented, or the one presented was rejected.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`username-taken`, `email-taken` or `phone-in-use`.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/auth/diner/login": {
-      "post": {
-        "tags": [
-          "Diner"
-        ],
-        "summary": "Sign in with a username or an email and a password",
-        "description": "`identifier` is a username or an email, matched case-insensitively. A wrong identifier, a wrong password, an account that never set a password and an inactive account all answer the same `401 invalid-credentials`, so this endpoint cannot be used to ask who has a Yalla account.\nRate limited per identifier and per address: ten attempts in fifteen minutes, then `429 too-many-attempts`.",
-        "operationId": "loginDiner",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.LoginDinerRequest"
-                  }
-                ],
-                "description": "Body of `POST /api/auth/diner/login`."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Auth.DinerSignInResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "`invalid-credentials`: no account matches, or the password is wrong.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/diner/me": {
-      "get": {
-        "tags": [
-          "Diner"
-        ],
-        "summary": "The signed-in diner's own profile",
-        "description": "Everything the profile screen shows: the username and email when set, the phone and whether it has been verified, the display name, the language, whether a password is set, and the avatar.",
-        "operationId": "getDinerProfile",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerProfileView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Needs a signed-in diner.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Diner"
-        ],
-        "summary": "Change the display name, username or email",
-        "description": "Only the fields present change. The same rules and the same 409 codes as registering - `username-taken`, `email-taken`.",
-        "operationId": "updateDinerProfile",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.UpdateDinerProfileRequest"
-                  }
-                ],
-                "description": "Body of `PUT /api/diner/me`."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerProfileView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Needs a signed-in diner.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`username-taken` or `email-taken`.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/diner/me/password": {
-      "put": {
-        "tags": [
-          "Diner"
-        ],
-        "summary": "Set or change the password",
-        "description": "An account that has no password yet - made by SMS - sets one without `currentPassword`. One that has a password must send the current one; a wrong one answers `401 invalid-credentials`.",
-        "operationId": "setDinerPassword",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.SetDinerPasswordRequest"
-                  }
-                ],
-                "description": "Body of `PUT /api/diner/me/password`."
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "`invalid-credentials`: the current password was wrong - or nobody is signed in.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/diner/me/photo": {
-      "post": {
-        "tags": [
-          "Diner"
-        ],
-        "summary": "Upload the diner's own photo",
-        "description": "Multipart upload of a single `file` part, with the same size cap and sniffing as a branch photo. Stored as the diner's photo, deduplicated per diner by content hash; replacing one frees the old one for the sweep.",
-        "operationId": "uploadDinerPhoto",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Needs a signed-in diner.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`unsupported-image`: not a JPEG, PNG or WebP, or larger than this system accepts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Diner"
-        ],
-        "summary": "Take the diner's photo off",
-        "description": "Succeeds for an account with no photo.",
-        "operationId": "removeDinerPhoto",
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "400": {
-            "description": "The request violated a domain rule or arrived malformed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Needs a signed-in diner.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The caller is authenticated but not allowed to perform this action.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected failure. Quote the traceId from the body.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -13381,15 +13383,15 @@
         "properties": {
           "identifier": {
             "type": "string",
-            "description": "A username or an email, either case."
+            "description": "A username or an email address, case-insensitively."
           },
           "password": {
             "type": "string",
-            "description": ""
+            "description": "The password."
           },
           "localeCode": {
             "type": "string",
-            "description": "Language to store against the account for future messages.",
+            "description": "Language to store against the account: `hy`, `ru` or `en`. Left alone when\r\nabsent or unrecognised - the account already knows its language.",
             "nullable": true
           }
         },
@@ -13743,27 +13745,27 @@
         "properties": {
           "username": {
             "type": "string",
-            "description": "3-30 characters: lowercase letters, digits, `.` and `_`, starting with a letter or digit. Stored lowercased; unique, case-insensitively."
+            "description": "3-30 characters - letters, digits, dots and underscores, starting with a letter or a digit.\r\nStored lowercased, unique case-insensitively."
           },
           "email": {
             "type": "string",
-            "description": "A valid address, at most 320 characters. Stored trimmed and lowercased; unique."
+            "description": "An email address. Stored trimmed and lowercased, unique."
           },
           "password": {
             "type": "string",
-            "description": "8-128 characters, and not equal to the username or the email."
+            "description": "8-128 characters, and not the username or the email. No composition rules."
           },
           "phoneE164": {
             "type": "string",
-            "description": "E.164 - `+37411223344`. Unique. Not verified by registering."
+            "description": "The number, in E.164 - `+37411223344`. <b>Not verified by registering:</b> the account's\r\n`phoneVerified` stays false until a one-time code to it is passed once."
           },
           "displayName": {
             "type": "string",
-            "description": "1-100 characters. Required: the venue asks for it at the door."
+            "description": "What the venue calls this person at the door. 1-100 characters, required."
           },
           "localeCode": {
             "type": "string",
-            "description": "Language to store against the account for future messages.",
+            "description": "Language for messages: `hy`, `ru` or `en`. Anything else falls back.",
             "nullable": true
           }
         },
@@ -14023,14 +14025,14 @@
         ],
         "type": "object",
         "properties": {
-          "currentPassword": {
-            "type": "string",
-            "description": "Required when the account already has a password; omitted when it has none yet.",
-            "nullable": true
-          },
           "newPassword": {
             "type": "string",
-            "description": "8-128 characters, and not equal to the username or the email."
+            "description": "8-128 characters, and not the username or the email. No composition rules."
+          },
+          "currentPassword": {
+            "type": "string",
+            "description": "Required when the account has a password; ignored when it has none yet. The profile's\r\n`hasPassword` says which.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -14156,22 +14158,22 @@
         "properties": {
           "displayName": {
             "type": "string",
-            "description": "",
+            "description": "A new name, 1-100 characters.",
             "nullable": true
           },
           "username": {
             "type": "string",
-            "description": "",
+            "description": "A new sign-in name, under the same rules as registration. Lowercased on the way in.",
             "nullable": true
           },
           "email": {
             "type": "string",
-            "description": "",
+            "description": "A new sign-in address, under the same rules as registration. Lowercased on the way in.",
             "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "Body of `PUT /api/diner/me`. Only the fields present change."
+        "description": "Body of `PUT /api/diner/me`. Only the fields sent change."
       },
       "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
         "required": [
@@ -14590,6 +14592,85 @@
         },
         "additionalProperties": false,
         "description": "`hold-not-active`, `hold-already-extended` or `extensions-not-offered`, 409. Branch\r\n            on the code: the three need three different sentences."
+      },
+      "Yalla.Api.Errors.IdentifierTakenContext": {
+        "required": [
+          "field"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "The request field to highlight: `username`, `email` or `phoneE164`. The same\r\ninformation the code carries, in the form a form keys on."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A diner's username, email or phone number is already somebody else's."
+      },
+      "Yalla.Api.Errors.IdentifierTakenProblem": {
+        "required": [
+          "code",
+          "context",
+          "detail",
+          "status",
+          "title",
+          "traceId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, stable summary of the kind of problem."
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong this time, in words."
+          },
+          "instance": {
+            "type": "string",
+            "description": "The request path this happened on.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "The stable kebab-case slug. <b>This is what a client branches on.</b>"
+          },
+          "traceId": {
+            "type": "string",
+            "description": "Correlates this response with the one log entry written for it."
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Field-level complaints, when the failure was about the payload.",
+            "nullable": true
+          },
+          "context": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Errors.IdentifierTakenContext"
+              }
+            ],
+            "description": "A diner's username, email or phone number is already somebody else's."
+          }
+        },
+        "additionalProperties": false,
+        "description": "`username-taken`, `email-taken` or `phone-in-use`, 409. Branch on the code: the\r\n            third is the one that offers \"log in with a code instead\", because the number's owner can\r\n            prove it and a stranger typing it cannot."
       },
       "Yalla.Api.Errors.LineAlreadyPaidContext": {
         "required": [
@@ -16588,34 +16669,34 @@
           },
           "username": {
             "type": "string",
-            "description": "Null for an account made by SMS that has never set one.",
+            "description": "Sign-in name, lowercased. Null for an account the code flow created and nobody has filled in.",
             "nullable": true
           },
           "email": {
             "type": "string",
-            "description": "Null for an account made by SMS that has never set one.",
+            "description": "Sign-in address, lowercased. Null until given.",
             "nullable": true
           },
           "phoneE164": {
             "type": "string",
-            "description": "E.164."
+            "description": "The number on the account."
           },
           "phoneVerified": {
             "type": "boolean",
-            "description": "Whether the number has ever passed the SMS code. Registering alone does not verify it."
+            "description": "Whether a one-time code to that number has ever been passed."
           },
           "displayName": {
             "type": "string",
-            "description": "What the venue calls them. Null until set.",
+            "description": "What the venue calls this person.",
             "nullable": true
           },
           "localeCode": {
             "type": "string",
-            "description": "BCP-47, the diner's own language."
+            "description": "Language for messages: `hy`, `ru` or `en`."
           },
           "hasPassword": {
             "type": "boolean",
-            "description": "False for an SMS-made account, which sets its first password with no current one."
+            "description": "Whether a password sign-in exists. False for a code-only account."
           },
           "photo": {
             "allOf": [
@@ -16623,12 +16704,12 @@
                 "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
               }
             ],
-            "description": "The avatar, when one is set.",
+            "description": "The profile picture's three links, or null when there is none.",
             "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "The signed-in diner's own profile, as `GET /api/diner/me` answers it."
+        "description": "A diner's own account, as their app shows it on the profile screen."
       },
       "Yalla.Application.Floor.BranchChange": {
         "required": [
@@ -18796,7 +18877,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
               }
             ],
-            "description": "One photo as a client consumes it: three URLs and the id behind them.",
+            "description": "The venue card's picture, or null when the owner has not set one. Part of the cached plan, not\r\nthe live stitch: it changes once during onboarding, and a stale cover is not a claim about the\r\nroom.",
             "nullable": true
           }
         },

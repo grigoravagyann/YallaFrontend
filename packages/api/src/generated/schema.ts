@@ -1,13 +1,12 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5088/swagger/v1/swagger.json
+ * Source: http://localhost:5086/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
 /* eslint-disable */
 export interface paths {
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     "/api/auth/diner/login": {
         parameters: {
             query?: never;
@@ -18,10 +17,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Sign in with a username or an email and a password
-         * @description `identifier` is a username or an email, matched case-insensitively. A wrong identifier, a wrong password, an account that never set a password and an inactive account all answer the same `401 invalid-credentials`, so this endpoint cannot be used to ask who has a Yalla account.
+         * Sign in a diner with a username or email and a password
+         * @description `identifier` is a username or an email address, case-insensitively.
          *
-         *     Rate limited per identifier and per address: ten attempts in fifteen minutes, then `429 too-many-attempts`.
+         *     Unknown identifier, wrong password, an account that has no password yet and a deactivated account all answer the same `401 invalid-credentials`, and all cost the same time, so this form cannot be used to discover which accounts exist.
+         *
+         *     Rate limited on two axes: per address by the pipeline, and per identifier by the service - ten attempts in fifteen minutes, right or wrong, after which the answer is `429 too-many-attempts` rather than another 401. Wait; the account is not locked and nobody has to unlock it.
+         *
+         *     The response is exactly what `verify-code` returns, with `isNewAccount` false.
          */
         post: operations["loginDiner"];
         delete?: never;
@@ -50,7 +53,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     "/api/auth/diner/register": {
         parameters: {
             query?: never;
@@ -61,10 +63,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create a diner account with a username, an email and a password
-         * @description Anonymous, rate limited like request-code. Answers the same tokens as verify-code with `isNewAccount` true. The phone number is **not** verified by registering: `phoneVerified` stays false until the diner passes the SMS code once.
+         * Create a diner account with a username, email and password
+         * @description The sign-up form, for the people who want an account they can recognise - and for the moment there is no signal for an SMS. The code flow is still the front door and still needs no registration.
          *
-         *     `username` is 3-30 lowercase letters, digits, `.` and `_`, starting with a letter or digit, and is stored lowercased; `email` is stored trimmed and lowercased; `password` is 8-128 characters and not equal to either; `displayName` is required because the venue asks for it at the door.
+         *     **The phone number is stored as typed and is not verified by registering.** The account's `phoneVerified` stays false until a one-time code to it is passed once; the profile screen shows a *verify* link until then.
+         *
+         *     Username: 3-30 characters, letters, digits, dots and underscores, lowercased on the way in. Password: 8-128 characters and not the username or the email - no composition rules. A malformed field answers 400 with `context.field` naming it.
+         *
+         *     Rate limited per address like `request-code`. Signs the new account in: the response is exactly what `verify-code` returns, with `isNewAccount` true.
          */
         post: operations["registerDiner"];
         delete?: never;
@@ -131,6 +137,8 @@ export interface paths {
         /**
          * Exchange a one-time code for tokens
          * @description Checks the newest live code for the number. On success the account is created if this is the first time - there is no separate registration step, because a separate registration step is a step people abandon.
+         *
+         *     **A registered number.** The account that registered with the number is signed in and its number marked verified; no second account is made. The first time, send the `Authorization: Bearer` token `register` returned: a request carrying that same account's token keeps its password and sessions. Without it - anonymous, or under a different diner - the code's holder is treated as the number's owner and the registrant as a stranger: the password is cleared (`hasPassword` false) and every refresh token for the account is revoked. The route stays anonymous; an invalid token is ignored, not refused.
          *
          *     A wrong code spends one of five attempts and says how many are left. The sixth attempt is refused outright with 429: the code is dead and a new one is needed.
          */
@@ -1221,7 +1229,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     "/api/diner/me": {
         parameters: {
             query?: never;
@@ -1230,13 +1237,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The signed-in diner's own profile
-         * @description Everything the profile screen shows: the username and email when set, the phone and whether it has been verified, the display name, the language, whether a password is set, and the avatar.
+         * The signed-in diner's own account
+         * @description What the profile screen shows. Two fields say what is *missing*: `phoneVerified` false means the number was typed at sign-up and never proved - show a *verify* link into the code flow; `hasPassword` false means the account was created by a code and can set a password without giving a current one.
+         *
+         *     `photo` is absent when there is no picture.
          */
         get: operations["getDinerProfile"];
         /**
-         * Change the display name, username or email
-         * @description Only the fields present change. The same rules and the same 409 codes as registering - `username-taken`, `email-taken`.
+         * Change the name, username or email
+         * @description Only the fields sent change; a null leaves the current value alone, and nothing here can be cleared. The username and email are under exactly the rules and the 409s of `register`, so the profile screen and the sign-up form cannot disagree.
+         *
+         *     Answers the whole profile, not just what changed.
          */
         put: operations["updateDinerProfile"];
         post?: never;
@@ -1246,7 +1257,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     "/api/diner/me/password": {
         parameters: {
             query?: never;
@@ -1256,8 +1266,10 @@ export interface paths {
         };
         get?: never;
         /**
-         * Set or change the password
-         * @description An account that has no password yet - made by SMS - sets one without `currentPassword`. One that has a password must send the current one; a wrong one answers `401 invalid-credentials`.
+         * Set a first password, or change the current one
+         * @description An account the code flow created has no password and sets one without `currentPassword` - the bearer token is the proof. An account that has one must send it, and a wrong one is `401 invalid-credentials`.
+         *
+         *     The new password is under the same rule as registration: 8-128 characters, and not the username or the email. Existing sessions stay signed in.
          */
         put: operations["setDinerPassword"];
         post?: never;
@@ -1267,7 +1279,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     "/api/diner/me/photo": {
         parameters: {
             query?: never;
@@ -1278,13 +1289,15 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Upload the diner's own photo
-         * @description Multipart upload of a single `file` part, with the same size cap and sniffing as a branch photo. Stored as the diner's photo, deduplicated per diner by content hash; replacing one frees the old one for the sweep.
+         * Set the profile picture
+         * @description Multipart upload of a single `file` part, through the same pipeline as a branch photo: **the bytes are sniffed, never trusted** - JPEG, PNG and WebP are accepted and everything else refused whatever the declared type says; **EXIF is stripped**; three WebP variants are kept and the original is discarded. Same size cap.
+         *
+         *     Replaces whatever picture was there. The same bytes uploaded twice by the same person are one photo; the picture replaced is deleted by the orphan sweep after a day, so its old URL keeps working for that long and then does not.
          */
         post: operations["uploadDinerPhoto"];
         /**
-         * Take the diner's photo off
-         * @description Succeeds for an account with no photo.
+         * Remove the profile picture
+         * @description Succeeds when there was none. The picture itself is left for the orphan sweep.
          */
         delete: operations["removeDinerPhoto"];
         options?: never;
@@ -2653,13 +2666,16 @@ export interface components {
             /** @description The invitation from the host's QR or share link. Thirty-minute lifetime. */
             joinToken: string;
         };
-        // generated-by-hand: diner accounts — replaced by the next api:generate
         /** @description Body of `POST /api/auth/diner/login`. */
         "Yalla.Api.Endpoints.LoginDinerRequest": {
-            /** @description A username or an email, either case. */
+            /** @description A username or an email address, case-insensitively. */
             identifier: string;
-            /** @description Language to store against the account for future messages. */
+            /**
+             * @description Language to store against the account: `hy`, `ru` or `en`. Left alone when
+             *     absent or unrecognised - the account already knows its language.
+             */
             localeCode?: string | null;
+            /** @description The password. */
             password: string;
         };
         /** @description Body of `POST /api/reservations/{id}/no-show`. */
@@ -2845,22 +2861,24 @@ export interface components {
             /** @description The Expo push token this phone reported. */
             pushToken: string;
         };
-        // generated-by-hand: diner accounts — replaced by the next api:generate
         /** @description Body of `POST /api/auth/diner/register`. */
         "Yalla.Api.Endpoints.RegisterDinerRequest": {
-            /** @description 1-100 characters. Required: the venue asks for it at the door. */
+            /** @description What the venue calls this person at the door. 1-100 characters, required. */
             displayName: string;
-            /** @description A valid address, at most 320 characters. Stored trimmed and lowercased; unique. */
+            /** @description An email address. Stored trimmed and lowercased, unique. */
             email: string;
-            /** @description Language to store against the account for future messages. */
+            /** @description Language for messages: `hy`, `ru` or `en`. Anything else falls back. */
             localeCode?: string | null;
-            /** @description 8-128 characters, and not equal to the username or the email. */
+            /** @description 8-128 characters, and not the username or the email. No composition rules. */
             password: string;
-            /** @description E.164 - `+37411223344`. Unique. Not verified by registering. */
+            /**
+             * @description The number, in E.164 - `+37411223344`. <b>Not verified by registering:</b> the account's
+             *     `phoneVerified` stays false until a one-time code to it is passed once.
+             */
             phoneE164: string;
             /**
-             * @description 3-30 characters: lowercase letters, digits, `.` and `_`, starting with a letter or
-             *     digit. Stored lowercased; unique, case-insensitively.
+             * @description 3-30 characters - letters, digits, dots and underscores, starting with a letter or a digit.
+             *     Stored lowercased, unique case-insensitively.
              */
             username: string;
         };
@@ -3022,15 +3040,17 @@ export interface components {
             /** @description Optional free text for the audit log. */
             reason?: string | null;
         };
-        /** @description Body of `POST /api/tabs/{tabId}/display-name`. */
-        // generated-by-hand: diner accounts — replaced by the next api:generate
         /** @description Body of `PUT /api/diner/me/password`. */
         "Yalla.Api.Endpoints.SetDinerPasswordRequest": {
-            /** @description Required when the account already has a password; omitted when it has none yet. */
+            /**
+             * @description Required when the account has a password; ignored when it has none yet. The profile's
+             *     `hasPassword` says which.
+             */
             currentPassword?: string | null;
-            /** @description 8-128 characters, and not equal to the username or the email. */
+            /** @description 8-128 characters, and not the username or the email. No composition rules. */
             newPassword: string;
         };
+        /** @description Body of `POST /api/tabs/{tabId}/display-name`. */
         "Yalla.Api.Endpoints.SetDisplayNameRequest": {
             /** @description What the host should see instead of "Guest 3". */
             displayName: string;
@@ -3086,14 +3106,16 @@ export interface components {
             /** @description Optional free text for the audit log. */
             reason?: string | null;
         };
-        /** @description Body of the sign-in issue. */
-        // generated-by-hand: diner accounts — replaced by the next api:generate
-        /** @description Body of `PUT /api/diner/me`. Only the fields present change. */
+        /** @description Body of `PUT /api/diner/me`. Only the fields sent change. */
         "Yalla.Api.Endpoints.UpdateDinerProfileRequest": {
+            /** @description A new name, 1-100 characters. */
             displayName?: string | null;
+            /** @description A new sign-in address, under the same rules as registration. Lowercased on the way in. */
             email?: string | null;
+            /** @description A new sign-in name, under the same rules as registration. Lowercased on the way in. */
             username?: string | null;
         };
+        /** @description Body of the sign-in issue. */
         "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
             /** @description The address this person will sign in with. Stored lowercased. */
             email: string;
@@ -3271,6 +3293,44 @@ export interface components {
             code: string;
             /** @description "Keep my table" was refused. */
             context: components["schemas"]["Yalla.Api.Errors.HoldExtensionRefusedContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
+        /** @description A diner's username, email or phone number is already somebody else's. */
+        "Yalla.Api.Errors.IdentifierTakenContext": {
+            /**
+             * @description The request field to highlight: `username`, `email` or `phoneE164`. The same
+             *     information the code carries, in the form a form keys on.
+             */
+            field: string;
+        };
+        /**
+         * @description `username-taken`, `email-taken` or `phone-in-use`, 409. Branch on the code: the
+         *                 third is the one that offers "log in with a code instead", because the number's owner can
+         *                 prove it and a stranger typing it cannot.
+         */
+        "Yalla.Api.Errors.IdentifierTakenProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description A diner's username, email or phone number is already somebody else's. */
+            context: components["schemas"]["Yalla.Api.Errors.IdentifierTakenContext"];
             /** @description What went wrong this time, in words. */
             detail: string;
             /** @description Field-level complaints, when the failure was about the payload. */
@@ -4242,32 +4302,31 @@ export interface components {
             /** Format: uuid */
             tableId: string;
         };
-        /** @description One entry in a branch's change stream, as a client catching up reads it. */
-        // generated-by-hand: diner accounts — replaced by the next api:generate
-        /** @description The signed-in diner's own profile, as `GET /api/diner/me` answers it. */
+        /** @description A diner's own account, as their app shows it on the profile screen. */
         "Yalla.Application.Diners.DinerProfileView": {
             /**
              * Format: uuid
              * @description The account.
              */
             dinerUserId: string;
-            /** @description What the venue calls them. Null until set. */
+            /** @description What the venue calls this person. */
             displayName?: string | null;
-            /** @description Null for an account made by SMS that has never set one. */
+            /** @description Sign-in address, lowercased. Null until given. */
             email?: string | null;
-            /** @description False for an SMS-made account, which sets its first password with no current one. */
+            /** @description Whether a password sign-in exists. False for a code-only account. */
             hasPassword: boolean;
-            /** @description BCP-47, the diner's own language. */
+            /** @description Language for messages: `hy`, `ru` or `en`. */
             localeCode: string;
-            /** @description E.164. */
+            /** @description The number on the account. */
             phoneE164: string;
-            /** @description Whether the number has ever passed the SMS code. Registering alone does not verify it. */
+            /** @description Whether a one-time code to that number has ever been passed. */
             phoneVerified: boolean;
-            /** @description The avatar, when one is set. */
+            /** @description The profile picture's three links, or null when there is none. */
             photo?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
-            /** @description Null for an account made by SMS that has never set one. */
+            /** @description Sign-in name, lowercased. Null for an account the code flow created and nobody has filled in. */
             username?: string | null;
         };
+        /** @description One entry in a branch's change stream, as a client catching up reads it. */
         "Yalla.Application.Floor.BranchChange": {
             /**
              * Format: uuid
@@ -5293,7 +5352,11 @@ export interface components {
             branchName: string;
             /** @description The branch half. */
             branchSlug: string;
-            /** @description One photo as a client consumes it: three URLs and the id behind them. */
+            /**
+             * @description The venue card's picture, or null when the owner has not set one. Part of the cached plan, not
+             *     the live stitch: it changes once during onboarding, and a stale cover is not a claim about the
+             *     room.
+             */
             coverPhoto?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
             /**
              * @description The room, in diner shape: the canvas, the areas and the tables with their geometry and whether
@@ -6802,7 +6865,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     loginDiner: {
         parameters: {
             query?: never;
@@ -6834,7 +6896,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `invalid-credentials`: no account matches, or the password is wrong. */
+            /** @description `invalid-credentials`: the identifier and password do not match a usable account. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -6852,7 +6914,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `too-many-attempts`: ten misses in fifteen minutes for this identifier or this address. */
+            /** @description `too-many-attempts` for this identifier, or too many requests from this address. Wait. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -6941,7 +7003,6 @@ export interface operations {
             };
         };
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     registerDiner: {
         parameters: {
             query?: never;
@@ -6964,7 +7025,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Auth.DinerSignInResult"];
                 };
             };
-            /** @description A field broke a rule; `context.field` names it. */
+            /** @description A field is malformed. `context.field` names it: `username`, `email`, `password`, `phoneE164` or `displayName`. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6991,16 +7052,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `username-taken`, `email-taken` or `phone-in-use`. */
+            /** @description `username-taken`, `email-taken`, or `phone-in-use` - the number already has an account, and the app should offer *log in with a code instead*. `context.field` names the input either way. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.IdentifierTakenProblem"];
                 };
             };
-            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            /** @description Too many sign-ups from this address. Wait, then retry. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -11723,7 +11784,6 @@ export interface operations {
             };
         };
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     getDinerProfile: {
         parameters: {
             query?: never;
@@ -11751,7 +11811,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Needs a signed-in diner. */
+            /** @description Needs a diner token. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11760,7 +11820,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The caller is authenticated but not allowed to perform this action. */
+            /** @description The token is not a diner's - a tab participant has no account - or the account is no longer active. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11789,7 +11849,6 @@ export interface operations {
             };
         };
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     updateDinerProfile: {
         parameters: {
             query?: never;
@@ -11812,7 +11871,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Diners.DinerProfileView"];
                 };
             };
-            /** @description A field broke a rule; `context.field` names it. */
+            /** @description A field is malformed. `context.field` names it: `displayName`, `username` or `email`. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11821,7 +11880,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Needs a signed-in diner. */
+            /** @description Needs a diner token. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11839,13 +11898,13 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `username-taken` or `email-taken`. */
+            /** @description `username-taken` or `email-taken`, with `context.field` naming the input. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.IdentifierTakenProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -11868,7 +11927,6 @@ export interface operations {
             };
         };
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     setDinerPassword: {
         parameters: {
             query?: never;
@@ -11889,7 +11947,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description The new password breaks the rule; `context.field` names it. */
+            /** @description The new password breaks the rule. `context.field` is `newPassword`. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11898,7 +11956,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `invalid-credentials`: the current password was wrong - or nobody is signed in. */
+            /** @description `invalid-credentials`: the current password is wrong or was needed and not sent. Or no diner token. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -11936,7 +11994,6 @@ export interface operations {
             };
         };
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     uploadDinerPhoto: {
         parameters: {
             query?: never;
@@ -11959,7 +12016,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Media.PhotoView"];
                 };
             };
-            /** @description The request violated a domain rule or arrived malformed. */
+            /** @description No `file` part in the upload. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -11968,7 +12025,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Needs a signed-in diner. */
+            /** @description Needs a diner token. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -12015,7 +12072,6 @@ export interface operations {
             };
         };
     };
-    // generated-by-hand: diner accounts — replaced by the next api:generate
     removeDinerPhoto: {
         parameters: {
             query?: never;
@@ -12041,7 +12097,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Needs a signed-in diner. */
+            /** @description Needs a diner token. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -13610,7 +13666,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The caller is authenticated but not allowed to perform this action. */
+            /** @description `phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13895,7 +13951,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Not the diner who made the booking. */
+            /** @description Not the diner who made the booking (`forbidden`), or `phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16337,7 +16393,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The caller is authenticated but not allowed to perform this action. */
+            /** @description `phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile. */
             403: {
                 headers: {
                     [name: string]: unknown;
