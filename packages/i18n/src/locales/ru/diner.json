@@ -6,16 +6,22 @@
     "placesNearby_few": "{{count}} места рядом",
     "placesNearby_many": "{{count}} мест рядом",
     "placesNearby_other": "{{count}} мест рядом",
-    "searchPlaceholder": "Поиск кафе и ресторанов",
+    "searchPlaceholder": "Поиск кафе, ресторанов или кухни…",
     "searchClear": "Очистить поиск",
     "filter": {
       "all": "Все",
       "cafes": "Кафе",
-      "restaurants": "Рестораны"
+      "restaurants": "Рестораны",
+      "popular": "Популярные",
+      "new": "Новые"
     },
     "empty": {
       "title": "Ничего не найдено",
-      "body": "Попробуйте другое название или сбросьте фильтры."
+      "body": "Попробуйте другое название или сбросьте фильтры.",
+      "nearby": {
+        "title": "Рядом нет мест",
+        "body": "Попробуйте расширить поиск или зайдите позже."
+      }
     },
     "loading": "Ищем места рядом…",
     "freeLead_one": "{{count}} свободный стол",
@@ -25,7 +31,8 @@
     "inPlaces_one": "в {{count}} месте рядом",
     "inPlaces_few": "в {{count}} местах рядом",
     "inPlaces_many": "в {{count}} местах рядом",
-    "inPlaces_other": "в {{count}} местах рядом"
+    "inPlaces_other": "в {{count}} местах рядом",
+    "mapButton": "Открыть карту"
   },
   "venue": {
     "type": {
@@ -106,7 +113,8 @@
   "tabs": {
     "explore": "Обзор",
     "bookings": "Брони",
-    "profile": "Профиль"
+    "profile": "Профиль",
+    "orders": "Заказы"
   },
   "bookings": {
     "title": "Брони",
@@ -153,7 +161,17 @@
     }
   },
   "profile": {
-    "title": "Профиль"
+    "title": "Профиль",
+    "settings": "Настройки",
+    "myBookings": "Мои брони",
+    "myOrders": "Мои заказы",
+    "favorites": "Избранное",
+    "notifications": "Уведомления",
+    "help": "Помощь и поддержка",
+    "about": "О приложении",
+    "logOut": "Выйти",
+    "guest": "Гость",
+    "signIn": "Подтвердить номер"
   },
   "table": {
     "titleWithArea": "Стол {{label}} · {{area}}",
@@ -192,6 +210,7 @@
     "phoneTitle": "Ваш номер телефона",
     "phoneBody": "Просим только чтобы придержать стол — заведение сможет связаться с вами.",
     "phoneLabel": "Номер телефона",
+    "countryCode": "Код страны",
     "phonePlaceholder": "77 123456",
     "sendCode": "Отправить код",
     "codeTitle": "Введите код",
@@ -663,6 +682,160 @@
       "closing": "Счёт уже попросили, поэтому в него больше ничего нельзя добавить.",
       "closed": "Этот счёт закрыт.",
       "removed": "Вы больше не в этом счёте."
+    }
+  },
+  "place": {
+    "type": {
+      "restaurant": "Ресторан",
+      "cafe": "Кафе"
+    },
+    "badge": {
+      "popular": "Популярное",
+      "new": "Новое"
+    },
+    "status": {
+      "open": "Открыто",
+      "closed": "Закрыто"
+    },
+    "todayHours": "Сегодня {{open}} – {{close}}",
+    "distanceKm": "{{km}} км",
+    "rating": "{{rating}} ({{count}})",
+    "favorite": "В избранное",
+    "unfavorite": "Убрать из избранного",
+    "share": "Поделиться",
+    "photoCounter": "{{index}}/{{total}}",
+    "action": {
+      "call": "Позвонить",
+      "directions": "Маршрут",
+      "website": "Сайт",
+      "save": "Сохранить"
+    },
+    "tab": {
+      "about": "О месте",
+      "menu": "Меню",
+      "reviews": "Отзывы"
+    },
+    "bookTable": "Забронировать стол",
+    "amenity": {
+      "outdoorSeating": "Столики на улице",
+      "wifi": "Wi-Fi",
+      "parking": "Парковка",
+      "cardPayment": "Оплата картой",
+      "vegan": "Веганские блюда"
+    }
+  },
+  "tables": {
+    "title": "Столы сейчас",
+    "subtitle": "Нажмите на стол на фото, чтобы узнать подробности",
+    "status": {
+      "free": "Свободен",
+      "reserved": "Забронирован",
+      "occupied": "Занят"
+    },
+    "legend": {
+      "free": "Свободен",
+      "reserved": "Забронирован",
+      "occupied": "Занят"
+    },
+    "table": "Стол {{label}}",
+    "capacity": "{{min}}–{{max}} чел.",
+    "capacityOne": "{{max}} чел.",
+    "book": "Забронировать",
+    "notBookable": "Этот стол сейчас нельзя забронировать",
+    "zoom": "Масштаб",
+    "zoomIn": "Увеличить",
+    "zoomOut": "Уменьшить",
+    "fullscreen": "На весь экран",
+    "close": "Закрыть",
+    "floorPlan": "План зала"
+  },
+  "map": {
+    "searchArea": "Искать в этой области",
+    "backToList": "К списку",
+    "myLocation": "Моё местоположение",
+    "filter": {
+      "restaurant": "Ресторан",
+      "cafe": "Кафе"
+    },
+    "viewDetails": "Подробнее",
+    "directions": "Маршрут",
+    "locationFallback": "Показан центр Еревана. Разрешите геолокацию, чтобы видеть места рядом с вами.",
+    "webFallback": "Карта открывается в приложении."
+  },
+  "book": {
+    "title": "Забронировать стол",
+    "date": "Дата",
+    "time": "Время",
+    "partySize": "Количество гостей",
+    "partySizeMore_one": "{{count}}+",
+    "partySizeMore_few": "{{count}}+",
+    "partySizeMore_many": "{{count}}+",
+    "partySizeMore_other": "{{count}}+",
+    "selectedTable": "Выбранный стол",
+    "specialRequests": "Особые пожелания",
+    "optional": "(необязательно)",
+    "requestPlaceholder": "Например: у окна, детский стульчик и т. д.",
+    "requestHint": "Сохраняется вместе с бронью на этом телефоне, чтобы вы могли сказать об этом у входа.",
+    "confirm": "Подтвердить бронь",
+    "noSlots": "На сегодня времени не осталось. Выберите другой день.",
+    "noTableForParty_one": "Сейчас нет свободного стола на {{count}} человека. Попробуйте другое число гостей.",
+    "noTableForParty_few": "Сейчас нет свободного стола на {{count}} человека. Попробуйте другое число гостей.",
+    "noTableForParty_many": "Сейчас нет свободного стола на {{count}} человек. Попробуйте другое число гостей.",
+    "noTableForParty_other": "Сейчас нет свободного стола на {{count}} человека. Попробуйте другое число гостей."
+  },
+  "orders": {
+    "title": "Заказы",
+    "active": "Активные",
+    "history": "История",
+    "status": {
+      "confirmed": "Подтверждён",
+      "preparing": "Готовится",
+      "inProgress": "В процессе",
+      "ready": "Готов",
+      "completed": "Завершён",
+      "cancelled": "Отменён"
+    },
+    "kind": {
+      "dineIn": "В зале",
+      "takeaway": "С собой"
+    },
+    "tableAndParty_one": "Стол {{table}} · {{count}} человек",
+    "tableAndParty_few": "Стол {{table}} · {{count}} человека",
+    "tableAndParty_many": "Стол {{table}} · {{count}} человек",
+    "tableAndParty_other": "Стол {{table}} · {{count}} человека",
+    "viewDetails": "Подробнее",
+    "cancel": "Отменить",
+    "trackOrder": "Отследить заказ",
+    "today": "Сегодня, {{time}}",
+    "empty": {
+      "active": {
+        "title": "Нет активных заказов",
+        "body": "Отсканируйте код на столе, чтобы заказать."
+      },
+      "history": {
+        "title": "Прошлых заказов пока нет",
+        "body": "Завершённые заказы появятся здесь."
+      }
+    },
+    "detail": {
+      "title": "Детали заказа",
+      "items": "Позиции",
+      "total": "Итого",
+      "timeline": "Статус"
+    },
+    "notFound": {
+      "title": "Мы не нашли этот заказ",
+      "body": "Возможно, он был оформлен с другого телефона или удалён."
+    },
+    "cancelTitle": "Отменить этот заказ?",
+    "cancelBody": "Кухня ещё не приступила к нему, поэтому ничего не будет списано.",
+    "cancelFailed": "Не удалось отменить заказ. Попробуйте ещё раз."
+  },
+  "favorites": {
+    "title": "Избранное",
+    "empty": {
+      "title": "В избранном пока пусто",
+      "body": "Нажмите на сердечко у места, чтобы сохранить его здесь."
     }
   }
 }

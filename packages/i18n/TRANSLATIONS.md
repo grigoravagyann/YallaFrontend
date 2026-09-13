@@ -172,3 +172,20 @@ screen.
   so a language can reorder them), `venue.openAcross_*`, `branches.opensAt`,
   `floorPlan.pickFor`, `table.pickAnother`, `settle.remainingOf`,
   `settle.nothingPaidYet`.
+- `diner` — the reference-design redesign (2026-09-13), provisional and **not**
+  reviewed. New sections: `place.*` (type, content badges `popular`/`new`,
+  the `open`/`closed` availability pills — which must stay availability words,
+  never category words — `todayHours`, `distanceKm`, `rating`, the four action
+  tiles, the About/Menu/Reviews tabs, `bookTable`, `amenity.*`), `tables.*`
+  (the photo table view: `status.*` and `legend.*` carry the same three words
+  on purpose, `capacity`, `capacityOne`, `book`, `notBookable`, zoom and
+  fullscreen controls, `floorPlan`), `map.*` (`locationFallback` must keep
+  saying the centre is being shown _because_ location was not allowed),
+  `book.*` (the booking screen; `partySizeMore_*` is the "5+" chip),
+  `orders.*` (statuses, `kind.*`, `tableAndParty_*`, the two empty states and
+  the detail labels), `favorites.*`, and the Profile rows (`profile.settings`,
+  `.myBookings`, `.myOrders`, `.favorites`, `.notifications`, `.help`,
+  `.about`, `.logOut`, `.guest`, `.signIn`). Also `tabs.orders`,
+  `explore.mapButton`, `explore.filter.popular`/`.new`,
+  `explore.empty.nearby.*`, and `explore.searchPlaceholder` rewritten to name
+  cuisine as a third thing to search for.

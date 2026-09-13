@@ -4,22 +4,29 @@
     "city": "Yerevan",
     "placesNearby_one": "{{count}} place nearby",
     "placesNearby_other": "{{count}} places nearby",
-    "searchPlaceholder": "Search cafes and restaurants",
+    "searchPlaceholder": "Search cafes, restaurants, or cuisine…",
     "searchClear": "Clear search",
     "filter": {
       "all": "All",
       "cafes": "Cafes",
-      "restaurants": "Restaurants"
+      "restaurants": "Restaurants",
+      "popular": "Popular",
+      "new": "New"
     },
     "empty": {
       "title": "Nothing matches that",
-      "body": "Try a different name, or clear the filters."
+      "body": "Try a different name, or clear the filters.",
+      "nearby": {
+        "title": "No places nearby",
+        "body": "Try widening the search or check back later."
+      }
     },
     "loading": "Finding places nearby…",
     "freeLead_one": "{{count}} table free",
     "freeLead_other": "{{count}} tables free",
     "inPlaces_one": "in {{count}} place nearby",
-    "inPlaces_other": "in {{count}} places nearby"
+    "inPlaces_other": "in {{count}} places nearby",
+    "mapButton": "Open map"
   },
   "venue": {
     "type": {
@@ -90,7 +97,8 @@
   "tabs": {
     "explore": "Explore",
     "bookings": "Bookings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "orders": "Orders"
   },
   "bookings": {
     "title": "Bookings",
@@ -137,7 +145,17 @@
     }
   },
   "profile": {
-    "title": "Profile"
+    "title": "Profile",
+    "settings": "Settings",
+    "myBookings": "My Bookings",
+    "myOrders": "My Orders",
+    "favorites": "Favorites",
+    "notifications": "Notifications",
+    "help": "Help & Support",
+    "about": "About",
+    "logOut": "Log Out",
+    "guest": "Guest",
+    "signIn": "Confirm my number"
   },
   "table": {
     "titleWithArea": "Table {{label}} · {{area}}",
@@ -174,6 +192,7 @@
     "phoneTitle": "Your phone number",
     "phoneBody": "We ask for this only to hold the table, so the venue can reach you if something changes.",
     "phoneLabel": "Phone number",
+    "countryCode": "Country code",
     "phonePlaceholder": "77 123456",
     "sendCode": "Send code",
     "codeTitle": "Enter the code",
@@ -627,6 +646,154 @@
       "closing": "The bill has been asked for, so nothing more can go on this tab.",
       "closed": "This tab is closed.",
       "removed": "You are no longer on this tab."
+    }
+  },
+  "place": {
+    "type": {
+      "restaurant": "Restaurant",
+      "cafe": "Café"
+    },
+    "badge": {
+      "popular": "Popular",
+      "new": "New"
+    },
+    "status": {
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "todayHours": "Today {{open}} – {{close}}",
+    "distanceKm": "{{km}} km",
+    "rating": "{{rating}} ({{count}})",
+    "favorite": "Save to favorites",
+    "unfavorite": "Remove from favorites",
+    "share": "Share",
+    "photoCounter": "{{index}}/{{total}}",
+    "action": {
+      "call": "Call",
+      "directions": "Directions",
+      "website": "Website",
+      "save": "Save"
+    },
+    "tab": {
+      "about": "About",
+      "menu": "Menu",
+      "reviews": "Reviews"
+    },
+    "bookTable": "Book a Table",
+    "amenity": {
+      "outdoorSeating": "Outdoor Seating",
+      "wifi": "Wi-Fi",
+      "parking": "Parking",
+      "cardPayment": "Card payment",
+      "vegan": "Vegan options"
+    }
+  },
+  "tables": {
+    "title": "Tables right now",
+    "subtitle": "Tap a table on the photo to see details",
+    "status": {
+      "free": "Free",
+      "reserved": "Reserved",
+      "occupied": "Occupied"
+    },
+    "legend": {
+      "free": "Free",
+      "reserved": "Reserved",
+      "occupied": "Occupied"
+    },
+    "table": "Table {{label}}",
+    "capacity": "{{min}}–{{max}} people",
+    "capacityOne": "{{max}} people",
+    "book": "Book",
+    "notBookable": "This table cannot be booked right now",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fullscreen": "Full screen",
+    "close": "Close",
+    "floorPlan": "Floor plan"
+  },
+  "map": {
+    "searchArea": "Search this area",
+    "backToList": "Back to list",
+    "myLocation": "My location",
+    "filter": {
+      "restaurant": "Restaurant",
+      "cafe": "Cafe"
+    },
+    "viewDetails": "View Details",
+    "directions": "Directions",
+    "locationFallback": "Showing Yerevan centre. Allow location to see places near you.",
+    "webFallback": "The live map opens in the app."
+  },
+  "book": {
+    "title": "Book a Table",
+    "date": "Date",
+    "time": "Time",
+    "partySize": "Party Size",
+    "partySizeMore_one": "{{count}}+",
+    "partySizeMore_other": "{{count}}+",
+    "selectedTable": "Selected table",
+    "specialRequests": "Special Requests",
+    "optional": "(optional)",
+    "requestPlaceholder": "E.g. window seat, high chair, etc.",
+    "requestHint": "Kept with your booking on this phone, so you can mention it at the door.",
+    "confirm": "Confirm Booking",
+    "noSlots": "No times left today. Pick another day.",
+    "noTableForParty_one": "No free table seats {{count}} guest right now. Try another party size.",
+    "noTableForParty_other": "No free table seats {{count}} guests right now. Try another party size."
+  },
+  "orders": {
+    "title": "Orders",
+    "active": "Active",
+    "history": "History",
+    "status": {
+      "confirmed": "Confirmed",
+      "preparing": "Preparing",
+      "inProgress": "In progress",
+      "ready": "Ready",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "kind": {
+      "dineIn": "Dine in",
+      "takeaway": "Takeaway"
+    },
+    "tableAndParty_one": "Table {{table}} · {{count}} person",
+    "tableAndParty_other": "Table {{table}} · {{count}} people",
+    "viewDetails": "View Details",
+    "cancel": "Cancel",
+    "trackOrder": "Track Order",
+    "today": "Today, {{time}}",
+    "empty": {
+      "active": {
+        "title": "No active orders",
+        "body": "Scan the code on your table to order."
+      },
+      "history": {
+        "title": "No past orders yet",
+        "body": "Orders you finish will show up here."
+      }
+    },
+    "detail": {
+      "title": "Order details",
+      "items": "Items",
+      "total": "Total",
+      "timeline": "Status"
+    },
+    "notFound": {
+      "title": "We could not find that order",
+      "body": "It may have been placed on another phone, or removed."
+    },
+    "cancelTitle": "Cancel this order?",
+    "cancelBody": "The kitchen has not started on it yet, so nothing will be charged.",
+    "cancelFailed": "We could not cancel that order. Try again."
+  },
+  "favorites": {
+    "title": "Favorites",
+    "empty": {
+      "title": "No favorites yet",
+      "body": "Tap the heart on a place to keep it here."
     }
   }
 }
