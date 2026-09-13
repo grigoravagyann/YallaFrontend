@@ -3,6 +3,7 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { newCommandId } from '../lib/commandId';
 import { actionFor, parsePushTarget, PUSH_ACTIONS, routeFor, type PushData } from './payload';
 import { onTokenRotation, platformCode, registerCategories, registerDevice } from './registration';
@@ -61,6 +62,12 @@ export interface PushOptions {
   readonly signedIn: boolean;
 }
 
+/**
+ * expo-notifications has no web implementation: every call in this hook throws
+ * ERR_UNAVAILABLE there. The web build exists for QA, not for push.
+ */
+const supported = Platform.OS !== 'web';
+
 export function usePushNotifications({ projectId, signedIn }: PushOptions): void {
   const router = useRouter();
   const gateway = useGateway();
@@ -87,6 +94,7 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
   // --- The action buttons ---------------------------------------------------
 
   useEffect(() => {
+    if (!supported) return;
     void registerCategories({
       cancel: t('push.action.cancel'),
       extendHold: t('push.action.extendHold'),
@@ -101,7 +109,7 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
   // confirmation screen, where it can be explained.
 
   useEffect(() => {
-    if (!signedIn) return;
+    if (!supported || !signedIn) return;
     let cancelled = false;
 
     void (async () => {
@@ -133,6 +141,7 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
   // --- Responses ------------------------------------------------------------
 
   useEffect(() => {
+    if (!supported) return;
     let cancelled = false;
 
     /** One path for all three states, so cold start cannot drift from the others. */

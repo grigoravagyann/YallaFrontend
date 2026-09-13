@@ -3,18 +3,16 @@ import { isOfflinePaused } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { QueryLoading } from '../../src/components/QueryState';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Button } from '../../src/components/Button';
+import { Card } from '../../src/components/Card';
+import { IconButton } from '../../src/components/IconButton';
+import { Screen } from '../../src/components/Screen';
+import { SectionHeader } from '../../src/components/SectionHeader';
+import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
 import { refreshRoomAfterLoss } from '../../src/data/bookingCache';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
@@ -22,8 +20,10 @@ import { useCreateBooking, useSlotFloor, useVenue } from '../../src/data/queries
 import { branchZoneSource } from '../../src/lib/browse';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH, canSubmit, confirmState } from '../../src/lib/confirm';
+import { useBookingNotes } from '../../src/stores/bookingNotes';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
+import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../src/theme';
 
 /**
  * A short review, and the one thing the venue needs from the diner: the name to
@@ -35,14 +35,17 @@ export default function ConfirmScreen() {
   const { locale } = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const forward = useLocalSearchParams<{
     branchId: string;
     venueId?: string;
     tableId: string;
     slotUtc: string;
     partySize: string;
+    /** The special request typed on the booking screen, carried through verification. */
+    requests?: string;
   }>();
-  const { branchId, venueId, tableId, slotUtc, partySize } = forward;
+  const { branchId, venueId, tableId, slotUtc, partySize, requests } = forward;
 
   /*
    * Route params, treated as untrusted input.
@@ -76,6 +79,7 @@ export default function ConfirmScreen() {
   const phoneE164 = useSession((s) => s.phoneE164);
   const rememberedName = useSession((s) => s.guestName);
   const rememberName = useSession((s) => s.setGuestName);
+  const saveNote = useBookingNotes((s) => s.setNote);
   const [guestName, setGuestName] = useState(rememberedName ?? '');
 
   const venueQuery = useVenue(venueId);
@@ -141,6 +145,9 @@ export default function ConfirmScreen() {
         channel: 'app',
       });
 
+      // The request typed before the SMS detour, kept against the booking it
+      // was made for. See `stores/bookingNotes`.
+      if (requests) saveNote(booking.id, requests);
       router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
     } catch (error) {
       // What kind of failure this was is decided in one shared place, so the
@@ -175,6 +182,8 @@ export default function ConfirmScreen() {
     branchId,
     tableId,
     size,
+    requests,
+    saveNote,
     router,
     queryClient,
     t,
@@ -188,70 +197,117 @@ export default function ConfirmScreen() {
   const line = (value: CopyLine): string => t(value.key, value.params);
   const enabled = canSubmit({ state, guestName, pending }) && Boolean(phoneE164);
 
+  const back = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: true, title: '' }} />
-
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>{t('confirm.title')}</Text>
-
-        <Row
-          label={t('confirm.venue')}
-          value={venueQuery.data?.name ? `${venueQuery.data.name} · ${branchName}` : branchName}
-        />
-        <Row
-          label={t('confirm.when')}
-          value={
-            slotDate && zone
-              ? `${formatDate(slotDate, zone, locale)} · ${formatTime(slotDate, zone, locale)}`
-              : ''
-          }
-        />
-        <Row label={t('confirm.party')} value={t('booking.guests', { count: size })} />
-        <Row label={t('confirm.tableRow')} value={table?.tableLabel ?? ''} />
-
-        <Text style={styles.label}>{t('confirm.nameLabel')}</Text>
-        <TextInput
-          style={styles.input}
-          value={guestName}
-          onChangeText={setGuestName}
-          placeholder={t('confirm.namePlaceholder')}
-          placeholderTextColor={color.mutedForeground}
-          maxLength={GUEST_NAME_MAX_LENGTH}
-          autoCapitalize="words"
-          autoComplete="name"
-          textContentType="name"
-          accessibilityLabel={t('confirm.nameLabel')}
-        />
-
-        {/* The table's answer, said as what it is — never an empty block and a
-            live button while it is still loading, failed, or gone. */}
-        {state === 'loading' ? (
-          <QueryLoading label={t('confirm.loading')} />
-        ) : state === 'offline' ? (
-          <Text style={styles.notice}>{t('net.offline')}</Text>
-        ) : state === 'error' ? (
-          <View style={styles.noticeBlock}>
-            <Text style={styles.notice}>{t('confirm.tableError')}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void slotQuery.refetch()}
-              style={styles.secondary}
-            >
-              <Text style={styles.secondaryText}>{t('net.retry')}</Text>
-            </Pressable>
-          </View>
-        ) : state === 'missing' ? (
-          <Text style={styles.notice}>{t('confirm.tableMissing')}</Text>
-        ) : state === 'unavailable' && copy?.unavailable ? (
-          <Text style={styles.notice} accessibilityRole="alert">
-            {line(copy.unavailable)}
+    <Screen edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.header}>
+          <IconButton
+            icon={actionIcon.back}
+            accessibilityLabel={t('floorPlan.back')}
+            variant="ghost"
+            onPress={back}
+          />
+          <Text display numberOfLines={1} style={styles.title} accessibilityRole="header">
+            {t('confirm.title')}
           </Text>
-        ) : (
-          <>
-            {/* The window again, so the limit is in front of them at the moment
-                of commitment and not only back on the sheet. */}
-            <View style={styles.windowBlock}>
+        </View>
+
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Card style={styles.rows}>
+            <Row
+              label={t('confirm.venue')}
+              value={venueQuery.data?.name ? `${venueQuery.data.name} · ${branchName}` : branchName}
+            />
+            <Row
+              label={t('confirm.when')}
+              value={
+                slotDate && zone
+                  ? `${formatDate(slotDate, zone, locale)} · ${formatTime(slotDate, zone, locale)}`
+                  : ''
+              }
+            />
+            <Row label={t('confirm.party')} value={t('booking.guests', { count: size })} />
+            <Row label={t('confirm.tableRow')} value={table?.tableLabel ?? ''} last />
+          </Card>
+
+          <SectionHeader label={t('confirm.nameLabel')} style={styles.section} />
+          <TextInput
+            style={styles.input}
+            value={guestName}
+            onChangeText={setGuestName}
+            placeholder={t('confirm.namePlaceholder')}
+            placeholderTextColor={colors.textSubtle}
+            maxLength={GUEST_NAME_MAX_LENGTH}
+            autoCapitalize="words"
+            autoComplete="name"
+            textContentType="name"
+            accessibilityLabel={t('confirm.nameLabel')}
+          />
+
+          {requests ? (
+            <>
+              <SectionHeader
+                label={t('book.specialRequests')}
+                icon={actionIcon.note}
+                style={styles.section}
+              />
+              <Card style={styles.requestCard}>
+                <Text style={styles.request}>{requests}</Text>
+              </Card>
+            </>
+          ) : null}
+
+          {/* The table's answer, said as what it is — never an empty block and a
+              live button while it is still loading, failed, or gone. */}
+          <SectionHeader label={t('confirm.window')} style={styles.section} />
+          {state === 'loading' ? (
+            <Card style={styles.windowCard}>
+              <Skeleton width="60%" height={20} />
+              <Skeleton width="80%" height={14} />
+              <Text style={styles.loading}>{t('confirm.loading')}</Text>
+            </Card>
+          ) : state === 'offline' ? (
+            <Card style={styles.windowCard}>
+              <Text style={styles.notice}>{t('net.offline')}</Text>
+            </Card>
+          ) : state === 'error' ? (
+            <Card style={styles.windowCard}>
+              <Text style={styles.notice}>{t('confirm.tableError')}</Text>
+              <Button
+                label={t('net.retry')}
+                variant="outline"
+                fullWidth={false}
+                onPress={() => void slotQuery.refetch()}
+              />
+            </Card>
+          ) : state === 'missing' ? (
+            <Card style={styles.windowCard}>
+              <Text style={styles.notice}>{t('confirm.tableMissing')}</Text>
+            </Card>
+          ) : state === 'unavailable' && copy?.unavailable ? (
+            <Card style={styles.windowCard}>
+              <Text style={styles.notice} accessibilityRole="alert">
+                {line(copy.unavailable)}
+              </Text>
+            </Card>
+          ) : (
+            <Card style={styles.windowCard}>
+              {/* The window again, so the limit is in front of them at the moment
+                  of commitment and not only back on the sheet. */}
               {copy?.window ? (
                 <>
                   <Text style={copy.window.isBounded ? styles.windowPrimary : styles.noLimit}>
@@ -262,76 +318,61 @@ export default function ConfirmScreen() {
                   ) : null}
                 </>
               ) : null}
-            </View>
+              {copy?.freeCancellation ? (
+                <Text style={styles.cancellation}>{line(copy.freeCancellation)}</Text>
+              ) : null}
+              {copy?.approval ? <Text style={styles.approval}>{line(copy.approval)}</Text> : null}
+            </Card>
+          )}
 
-            {copy?.freeCancellation ? (
-              <Text style={styles.cancellation}>{line(copy.freeCancellation)}</Text>
-            ) : null}
+          {/* A restored session from before the number was remembered: the
+              booking needs it, and the only honest source is confirming it. */}
+          {!phoneE164 ? (
+            <Card style={styles.windowCard}>
+              <Text style={styles.notice}>{t('confirm.phoneMissing')}</Text>
+              <Button
+                label={t('confirm.verifyNumber')}
+                variant="outline"
+                fullWidth={false}
+                onPress={() => router.replace({ pathname: '/verify', params: forward })}
+              />
+            </Card>
+          ) : null}
 
-            {copy?.approval ? <Text style={styles.approval}>{line(copy.approval)}</Text> : null}
-          </>
-        )}
+          {errorText ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {errorText}
+            </Text>
+          ) : null}
+        </ScrollView>
 
-        {/* A restored session from before the number was remembered: the
-            booking needs it, and the only honest source is confirming it. */}
-        {!phoneE164 ? (
-          <View style={styles.noticeBlock}>
-            <Text style={styles.notice}>{t('confirm.phoneMissing')}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.replace({ pathname: '/verify', params: forward })}
-              style={styles.secondary}
-            >
-              <Text style={styles.secondaryText}>{t('confirm.verifyNumber')}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {errorText ? (
-          <Text style={styles.error} accessibilityRole="alert">
-            {errorText}
-          </Text>
-        ) : null}
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: !enabled, busy: pending }}
-          disabled={!enabled}
-          onPress={() => void submit()}
-          style={({ pressed }) => [
-            styles.primary,
-            pressed && styles.primaryPressed,
-            !enabled && styles.primaryDisabled,
-          ]}
-        >
+        <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
           {/* No optimistic success: a booking either exists on the server or it
               does not, and telling someone they have a table when they might
               not is the worst possible lie in this app. */}
-          {pending ? (
-            <View style={styles.pendingRow}>
-              <ActivityIndicator color={color.primaryForeground} />
-              <Text style={styles.primaryText}>{t('confirm.submitting')}</Text>
-            </View>
-          ) : (
-            <Text style={styles.primaryText}>
-              {outcomeUnknown
-                ? t('confirm.checkAgain')
-                : copy?.approval
-                  ? t('confirm.requiresApproval')
-                  : t('confirm.submit')}
-            </Text>
-          )}
-        </Pressable>
-      </View>
-    </SafeAreaView>
+          <Button
+            label={
+              pending
+                ? t('confirm.submitting')
+                : outcomeUnknown
+                  ? t('confirm.checkAgain')
+                  : copy?.approval
+                    ? t('confirm.requiresApproval')
+                    : t('confirm.submit')
+            }
+            size="large"
+            disabled={!enabled}
+            onPress={() => void submit()}
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, last = false }: { label: string; value: string; last?: boolean }) {
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, !last && styles.rowDivider]}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
     </View>
@@ -339,105 +380,65 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
-  body: { padding: space.xl, gap: space.sm },
-  title: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-    marginBottom: space.md,
+  flex: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
   },
+  title: { ...typography.heading, color: colors.text, flexShrink: 1 },
+  body: {
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.sm,
+    paddingBottom: space.xl,
+  },
+  section: { marginTop: space.xl, marginBottom: space.md },
+  rows: { paddingVertical: space.xs },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: space.lg,
-    paddingVertical: space.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: color.border,
+    paddingVertical: space.sm + 2,
   },
-  rowLabel: { fontSize: fontSize.sm, color: color.mutedForeground },
+  rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  rowLabel: { ...typography.body, color: colors.textMuted },
   rowValue: {
     flex: 1,
     textAlign: 'right',
-    fontSize: fontSize.md,
+    ...typography.body,
     fontWeight: fontWeight.medium,
-    color: color.foreground,
+    color: colors.text,
   },
-  label: { marginTop: space.md, fontSize: fontSize.sm, color: color.mutedForeground },
   input: {
-    minHeight: touchTarget.minimum,
+    minHeight: layout.controlHeight,
     paddingHorizontal: space.md,
-    borderRadius: radius.soft,
-    borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.surface,
-    color: color.foreground,
-    fontSize: fontSize.md,
-  },
-  windowBlock: {
-    marginTop: space.lg,
-    padding: space.md,
+    paddingVertical: space.md,
     borderRadius: radius.card,
-    backgroundColor: color.surface,
-    gap: space.xs,
-  },
-  windowPrimary: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  shortWindow: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.warning },
-  noLimit: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.success },
-  cancellation: { marginTop: space.sm, fontSize: fontSize.sm, color: color.mutedForeground },
-  approval: {
-    marginTop: space.sm,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.info,
-  },
-  noticeBlock: { marginTop: space.lg, gap: space.sm },
-  notice: {
-    marginTop: space.lg,
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    color: color.foreground,
-  },
-  secondary: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color.borderStrong,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    ...typography.body,
   },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  error: {
-    marginTop: space.lg,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.danger,
-  },
+  requestCard: { padding: space.md },
+  request: { ...typography.body, color: colors.text },
+  windowCard: { gap: space.sm },
+  loading: { ...typography.caption, color: colors.textMuted },
+  windowPrimary: { ...typography.h3, color: colors.text },
+  shortWindow: { ...typography.caption, color: colors.warning },
+  noLimit: { ...typography.h3, color: colors.success },
+  cancellation: { ...typography.caption, color: colors.textMuted },
+  approval: { ...typography.caption, color: colors.info },
+  notice: { ...typography.body, color: colors.text },
+  error: { ...typography.body, color: colors.error, marginTop: space.lg },
   footer: {
-    padding: space.xl,
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.md,
     borderTopWidth: 1,
-    borderTopColor: color.border,
-    backgroundColor: color.surface,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  primary: {
-    minHeight: touchTarget.minimum + 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  primaryPressed: { backgroundColor: color.primaryPressed },
-  primaryDisabled: { opacity: 0.45 },
-  primaryText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  pendingRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
 });

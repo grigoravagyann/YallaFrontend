@@ -1,22 +1,25 @@
 import { MOCK_DEMO_TABLES, formatTableCode } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { openSettings } from 'expo-linking';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Button } from '../../src/components/Button';
+import { Card } from '../../src/components/Card';
+import { Screen, useNavClearance } from '../../src/components/Screen';
 import { Text, TextInput } from '../../src/components/Text';
 import { usingMockData } from '../../src/data/gateway';
 import { useJoinByCode } from '../../src/hooks/useJoinByCode';
+import {
+  colors,
+  fontWeight,
+  layout,
+  radius,
+  space,
+  tabularNumbers,
+  typography,
+} from '../../src/theme';
 
 /**
  * Can this device scan at all?
@@ -40,6 +43,7 @@ function cameraIsPossible(): boolean {
  */
 export default function ScanScreen() {
   const { t } = useTranslation('diner');
+  const paddingBottom = useNavClearance();
   const [permission, requestPermission] = useCameraPermissions();
   const {
     submit,
@@ -94,13 +98,17 @@ export default function ScanScreen() {
   const showCamera = possible && granted && focused && !manualOpen;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <Screen>
       <ScrollView
-        contentContainerStyle={styles.body}
+        // The floating nav owns the bottom of the screen; the viewfinder and
+        // the last card end above it rather than under it.
+        contentContainerStyle={[styles.body, { paddingBottom }]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        <Text style={styles.title}>{t('scan.title')}</Text>
+        <Text display style={styles.title} accessibilityRole="header">
+          {t('scan.title')}
+        </Text>
         <Text style={styles.lead}>{t('scan.lead')}</Text>
         <Text style={styles.noAccount}>{t('scan.noAccount')}</Text>
 
@@ -122,43 +130,35 @@ export default function ScanScreen() {
             preceding sentence is the single most common reason someone denies
             a camera they would otherwise have allowed. */}
         {possible && !granted && !permanentlyDenied ? (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             <Text style={styles.cardBody}>{t('scan.why')}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void requestPermission()}
-              style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-            >
-              <Text style={styles.primaryText}>{t('scan.allow')}</Text>
-            </Pressable>
-          </View>
+            <Button label={t('scan.allow')} onPress={() => void requestPermission()} />
+          </Card>
         ) : null}
 
         {/* Denied is not a dead end: there is a printed code under every QR. */}
         {possible && permanentlyDenied ? (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             <Text style={styles.cardTitle}>{t('scan.deniedTitle')}</Text>
             <Text style={styles.cardBody}>{t('scan.deniedBody')}</Text>
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label={t('scan.openSettings')}
+              variant="secondary"
               onPress={() => void openSettings()}
-              style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-            >
-              <Text style={styles.secondaryText}>{t('scan.openSettings')}</Text>
-            </Pressable>
-          </View>
+            />
+          </Card>
         ) : null}
 
         {!possible ? (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             <Text style={styles.cardTitle}>{t('scan.unavailableTitle')}</Text>
             <Text style={styles.cardBody}>{t('scan.unavailableBody')}</Text>
-          </View>
+          </Card>
         ) : null}
 
         {/* Manual entry is always one tap away, not only after a denial. */}
         {manualOpen || !possible || permanentlyDenied ? (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             <Text style={styles.cardTitle}>{t('scan.manualTitle')}</Text>
             <Text style={styles.cardBody}>{t('scan.manualBody')}</Text>
             <TextInput
@@ -169,7 +169,7 @@ export default function ScanScreen() {
                 clearFailure();
               }}
               placeholder={t('scan.manualPlaceholder')}
-              placeholderTextColor={color.mutedForeground}
+              placeholderTextColor={colors.textSubtle}
               // Not "characters": an invite token is case-sensitive, and a
               // table code is uppercased by the gateway whatever is typed.
               autoCapitalize="none"
@@ -180,56 +180,39 @@ export default function ScanScreen() {
               onSubmitEditing={submitTyped}
               accessibilityLabel={t('scan.manualTitle')}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: isWorking, busy: isWorking }}
-              disabled={isWorking}
-              onPress={submitTyped}
-              style={({ pressed }) => [
-                styles.primary,
-                pressed && styles.primaryPressed,
-                isWorking && styles.disabled,
-              ]}
-            >
-              <Text style={styles.primaryText}>{t('scan.manualSubmit')}</Text>
-            </Pressable>
-          </View>
+            <Button label={t('scan.manualSubmit')} onPress={submitTyped} disabled={isWorking} />
+          </Card>
         ) : (
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={t('scan.manualToggle')}
+            variant="text"
             onPress={() => setManualOpen(true)}
-            style={({ pressed }) => [styles.linkRow, pressed && styles.linkRowPressed]}
-          >
-            <Text style={styles.linkText}>{t('scan.manualToggle')}</Text>
-          </Pressable>
+            style={styles.manualToggle}
+          />
         )}
 
         {isWorking ? (
-          <View style={styles.working}>
-            <ActivityIndicator color={color.primaryInk} />
+          <View style={styles.working} accessibilityRole="progressbar">
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.workingText}>{t('scan.working')}</Text>
           </View>
         ) : null}
 
-        {failure ? <Text style={styles.error}>{t(failure.key, failure.params ?? {})}</Text> : null}
+        {failure ? (
+          <View style={styles.error} accessibilityRole="alert">
+            <Text style={styles.errorText}>{t(failure.key, failure.params ?? {})}</Text>
+          </View>
+        ) : null}
 
         {/* A booking code is the one code with an account behind it. The way to
             verification is offered here rather than taken automatically: what
             was typed may just as easily have been a mistyped table code, and
             this screen promises no sign-up and no phone number. */}
-        {signInNeeded ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={confirmNumber}
-            style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-          >
-            <Text style={styles.primaryText}>{t('scan.confirmNumber')}</Text>
-          </Pressable>
-        ) : null}
+        {signInNeeded ? <Button label={t('scan.confirmNumber')} onPress={confirmNumber} /> : null}
 
         <DemoCodes onPick={(code) => setTyped(code)} />
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -253,7 +236,7 @@ function DemoCodes({ onPick }: { onPick: (code: string) => void }) {
           key={demo.code}
           accessibilityRole="button"
           onPress={() => onPick(demo.code)}
-          style={styles.devRow}
+          style={({ pressed }) => [styles.devRow, pressed && styles.devRowPressed]}
         >
           <Text style={styles.devCode}>{formatTableCode(demo.code)}</Text>
           <Text style={styles.devWhat}>{t(`scan.dev.outcome.${demo.outcome}`)}</Text>
@@ -264,27 +247,20 @@ function DemoCodes({ onPick }: { onPick: (code: string) => void }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
-  body: { padding: space.lg, paddingBottom: space.xxxl, gap: space.sm },
-  title: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
+  body: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, gap: space.sm },
+  title: { ...typography.title, color: colors.text },
+  lead: { ...typography.bodyLg, color: colors.textMuted },
   noAccount: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.success,
+    ...typography.body,
     fontWeight: fontWeight.medium,
+    color: colors.success,
     marginBottom: space.sm,
   },
   viewfinder: {
     height: 320,
-    borderRadius: radius.card,
+    borderRadius: radius.hero,
     overflow: 'hidden',
-    backgroundColor: color.foreground,
+    backgroundColor: colors.surfaceDark,
   },
   reticle: {
     position: 'absolute',
@@ -293,95 +269,60 @@ const styles = StyleSheet.create({
     right: '14%',
     bottom: '18%',
     borderWidth: 3,
-    borderColor: color.surface,
+    borderColor: colors.onImage,
     borderRadius: radius.card,
   },
-  aiming: { fontSize: fontSize.sm, color: color.mutedForeground, textAlign: 'center' },
-  card: {
-    marginTop: space.sm,
-    padding: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: color.surface,
-    gap: space.sm,
-  },
-  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
-  cardBody: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
+  aiming: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  card: { marginTop: space.sm, gap: space.md },
+  cardTitle: { ...typography.h3, color: colors.text },
+  cardBody: { ...typography.body, color: colors.textMuted },
   input: {
-    minHeight: touchTarget.minimum,
-    paddingHorizontal: space.md,
+    minHeight: layout.controlHeight,
+    paddingHorizontal: space.lg,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.paper,
-    color: color.foreground,
-    fontSize: fontSize.lg,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    color: colors.text,
+    ...typography.bodyLg,
     letterSpacing: 2,
   },
-  primary: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  primaryPressed: { backgroundColor: color.primaryPressed },
-  primaryText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  secondary: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.border,
-  },
-  secondaryPressed: { backgroundColor: color.greenTint },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  disabled: { opacity: 0.6 },
-  linkRow: {
-    minHeight: touchTarget.minimum,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: space.sm,
-  },
-  linkRowPressed: { opacity: 0.6 },
-  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryInk },
+  manualToggle: { marginTop: space.sm },
   working: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm },
-  workingText: { fontSize: fontSize.sm, color: color.mutedForeground },
+  workingText: { ...typography.body, color: colors.textMuted },
   error: {
     marginTop: space.sm,
     padding: space.md,
     borderRadius: radius.card,
-    backgroundColor: color.surface,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.danger,
+    backgroundColor: colors.errorSoft,
   },
+  errorText: { ...typography.body, color: colors.error },
   dev: {
     marginTop: space.xl,
     padding: space.md,
     borderRadius: radius.card,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: color.warning,
+    borderColor: colors.warning,
     gap: space.xs,
   },
-  devTitle: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: color.warning },
+  devTitle: { ...typography.caption, fontWeight: fontWeight.bold, color: colors.warning },
   devRow: {
-    minHeight: touchTarget.minimum - 8,
+    minHeight: layout.touchTarget - 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.sm,
+    paddingHorizontal: space.xs,
+    borderRadius: radius.small,
   },
+  devRowPressed: { backgroundColor: colors.warningSoft },
   devCode: {
-    fontSize: fontSize.sm,
+    ...typography.body,
+    ...tabularNumbers,
     fontWeight: fontWeight.bold,
-    color: color.foreground,
+    color: colors.text,
     letterSpacing: 1,
   },
-  devWhat: { fontSize: fontSize.xs, color: color.mutedForeground },
+  devWhat: { ...typography.caption, color: colors.textMuted },
 });

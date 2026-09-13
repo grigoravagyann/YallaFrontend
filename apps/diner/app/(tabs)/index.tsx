@@ -1,108 +1,94 @@
-import { venueAvailability, venueFreeTables, type VenueSummary, type VenueType } from '@yalla/api';
+import { Ionicons } from '@expo/vector-icons';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
-import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { Chip } from '../../src/components/Chip';
+import { EmptyState } from '../../src/components/EmptyState';
+import { ErrorState } from '../../src/components/ErrorState';
+import { IconButton } from '../../src/components/IconButton';
+import { PlaceHeroCard } from '../../src/components/places/PlaceHeroCard';
+import { Screen, useNavClearance } from '../../src/components/Screen';
+import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
-import { VenueRow } from '../../src/components/VenueRow';
-import { useVenues } from '../../src/data/queries';
+import { usePlaces } from '../../src/places/hooks';
+import type { Place, PlaceBadge } from '../../src/places/model';
 import { useActiveTab } from '../../src/stores/tab';
+import {
+  actionIcon,
+  colors,
+  fontWeight,
+  iconSize,
+  layout,
+  radius,
+  shadows,
+  space,
+  typography,
+} from '../../src/theme';
 
-type Filter = 'all' | 'cafes' | 'restaurants';
-
-const FILTERS: readonly { key: Filter; type: VenueType | null }[] = [
-  { key: 'all', type: null },
-  { key: 'cafes', type: 'cafe' },
-  { key: 'restaurants', type: 'restaurant' },
-];
+const FILTERS: readonly PlaceBadge[] = ['popular', 'new'];
+/** Skeleton cards while the list loads — about what fits under the header. */
+const SKELETON_ROWS = 4;
 
 /**
  * Explore — the first screen anyone sees.
  *
- * The city is the title and the lead line under it is the number only this
- * app can show: how many tables are free across the city right now. The list
- * below is rows on the page, not cards, and each row carries its free count
- * twice — as a sentence and as green squares — so a scan down the list is a
- * scan of the city's free tables.
+ * A title, a search field, two chips and a column of photo-first cards. The
+ * photo is the card: name, kind, rating and distance sit on it, with the
+ * Open / Closed pill in the corner, so a scan down the list is a scan of the
+ * neighbourhood. The map button top-right opens the same places as pins.
  *
- * Four states, explicitly: loading, empty, error and offline. The last two are
- * told apart by the client, not guessed here.
+ * Five states, each drawn explicitly: loading (skeletons), offline, failed,
+ * empty (two kinds: nothing matched, nothing nearby) and the list itself.
  */
 export default function ExploreScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
+  const navClearance = useNavClearance();
 
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  // The reference opens on "Popular"; tapping the selected chip clears it.
+  const [badge, setBadge] = useState<PlaceBadge | null>('popular');
   const activeTabId = useActiveTab((s) => s.activeTabId);
 
-  const venuesQuery = useVenues();
-  const { data, isLoading, isError, error, isFetching, refetch } = venuesQuery;
+  const placesQuery = usePlaces({ query, ...(badge ? { filter: { badge } } : {}) });
+  const { data, isLoading, isError, error, isFetching, isPlaceholderData, refetch } = placesQuery;
   // An offline query is paused, never failed: without this the screen spins.
-  const offline = isOfflinePaused(venuesQuery);
-  // Stable identity, so the filter memo below is not defeated by `?? []`
-  // producing a fresh array on every render.
-  const venues: readonly VenueSummary[] = useMemo(() => data ?? [], [data]);
+  const offline = isOfflinePaused(placesQuery) && !data;
+  // Until the backend publishes browse endpoints, real mode rejects with this.
+  const unavailable =
+    isError && error instanceof Error && error.name === 'PlaceApiNotImplementedError';
+  // Stable identity, so `?? []` does not hand FlatList a fresh array per render.
+  const places: readonly Place[] = useMemo(() => data ?? [], [data]);
+  const filtering = query.trim() !== '' || badge !== null;
 
-  // Free tables at open branches only — see `venueFreeTables`. Said above the
-  // list because it is the whole pitch, and left out when it is zero: "0
-  // tables free in 12 places" at 02:00 is true and reads as a broken app.
-  const visible = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    const wanted = FILTERS.find((f) => f.key === filter)?.type ?? null;
-
-    return venues.filter((venue) => {
-      if (wanted && venue.type !== wanted) return false;
-      if (!needle) return true;
-      // Match branch names too: someone searching "Cascade" means the branch.
-      return (
-        venue.name.toLocaleLowerCase().includes(needle) ||
-        venue.branches.some((b) => b.name.toLocaleLowerCase().includes(needle))
-      );
-    });
-  }, [venues, query, filter]);
-
-  // Over the rows on screen, not the whole city: with "Cafes" selected the
-  // line above three cafés must not quote the restaurants' tables too.
-  const freeAcrossCity = useMemo(
-    () => visible.reduce((total, venue) => total + venueFreeTables(venue), 0),
-    [visible],
-  );
-  // The places those tables are at — not every row, which would count the
-  // ones saying "Closed" a few lines down.
-  const placesWithFree = useMemo(
-    () => visible.filter((venue) => venueAvailability(venue).kind === 'freeNow').length,
-    [visible],
-  );
-
-  const openVenue = useCallback(
-    (venueId: string) => {
+  const openPlace = useCallback(
+    (placeId: string) => {
       // Object form, not a template string: typed routes match on the route
       // pattern, so a literal path is not assignable.
-      router.push({ pathname: '/venue/[venueId]', params: { venueId } });
+      router.push({ pathname: '/place/[placeId]', params: { placeId } });
     },
     [router],
   );
 
-  const places = t('explore.placesNearby', { count: venues.length });
+  const renderItem = useCallback(
+    ({ item }: { item: Place }) => <PlaceHeroCard place={item} onPress={openPlace} />,
+    [openPlace],
+  );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <Screen>
       <View style={styles.header}>
-        <Text display style={styles.city}>
-          {t('explore.city')}
+        <Text display style={styles.title}>
+          {t('explore.title')}
         </Text>
-        {freeAcrossCity > 0 ? (
-          <Text style={styles.lead}>
-            <Text style={styles.leadFree}>{t('explore.freeLead', { count: freeAcrossCity })}</Text>
-            {` ${t('explore.inPlaces', { count: placesWithFree })}`}
-          </Text>
-        ) : (
-          <Text style={styles.lead}>{places}</Text>
-        )}
+        <IconButton
+          icon={actionIcon.map}
+          shape="square"
+          accessibilityLabel={t('explore.mapButton')}
+          onPress={() => router.push('/map')}
+        />
       </View>
 
       {/* A way back to a tab you wandered off. Not a persistent bar: it only
@@ -119,154 +105,172 @@ export default function ExploreScreen() {
       ) : null}
 
       <View style={styles.searchWrap}>
-        <TextInput
-          style={styles.search}
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('explore.searchPlaceholder')}
-          placeholderTextColor={color.mutedForeground}
-          autoCorrect={false}
-          returnKeyType="search"
-          accessibilityLabel={t('explore.searchPlaceholder')}
-          clearButtonMode="while-editing"
-        />
+        <View style={styles.search}>
+          <Ionicons name={actionIcon.search} size={iconSize.md} color={colors.textSubtle} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('explore.searchPlaceholder')}
+            placeholderTextColor={colors.textSubtle}
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel={t('explore.searchPlaceholder')}
+          />
+          {query ? (
+            <IconButton
+              icon={actionIcon.close}
+              size="sm"
+              variant="ghost"
+              iconColor={colors.textMuted}
+              accessibilityLabel={t('explore.searchClear')}
+              onPress={() => setQuery('')}
+            />
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.chips}>
-        {FILTERS.map(({ key }) => {
-          const active = key === filter;
-          return (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              onPress={() => setFilter(key)}
-              style={[styles.chip, active && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {t(`explore.filter.${key}`)}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {FILTERS.map((value) => (
+          <Chip
+            key={value}
+            label={t(`explore.filter.${value}`)}
+            selected={badge === value}
+            // Tapping the selected chip clears it: no chip means every place.
+            onPress={() => setBadge(badge === value ? null : value)}
+          />
+        ))}
       </View>
 
-      {offline && !data ? (
-        <QueryFailure offline onRetry={() => void refetch()} />
+      {offline ? (
+        <ErrorState offline onRetry={() => void refetch()} />
       ) : isLoading ? (
-        <QueryLoading label={t('explore.loading')} />
+        <SkeletonList />
+      ) : unavailable ? (
+        <ErrorState title={t('net.notAvailable')} body={t('net.notAvailableBody')} />
       ) : isError ? (
-        <QueryFailure error={error} onRetry={() => void refetch()} />
+        <ErrorState onRetry={() => void refetch()} />
       ) : (
         <FlatList
-          data={visible}
-          keyExtractor={(venue) => venue.id}
-          renderItem={({ item }) => <VenueRow venue={item} onPress={openVenue} />}
-          ItemSeparatorComponent={Rule}
-          contentContainerStyle={styles.list}
+          data={places}
+          keyExtractor={(place) => place.id}
+          renderItem={renderItem}
+          ItemSeparatorComponent={Gap}
+          contentContainerStyle={[styles.list, { paddingBottom: navClearance }]}
           keyboardShouldPersistTaps="handled"
-          // Pull to refresh: the free-table counts move, and a diner who has
-          // been staring at the list for a minute wants the current ones.
-          refreshing={isFetching && !isLoading}
-          onRefresh={() => void refetch()}
-          // An empty search result needs a real message, not a blank screen.
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          // A search in flight keeps the last list on screen, a shade quieter,
+          // instead of tearing it down for skeletons on every keystroke.
+          style={isPlaceholderData && styles.listStale}
+          // Pull to refresh: Open / Closed moves with the clock, and a diner who
+          // has been staring at the list for a minute wants the current one.
+          refreshControl={
+            <RefreshControl
+              refreshing={isFetching && !isLoading}
+              onRefresh={() => void refetch()}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+          // An empty result needs a real message, not a blank screen — and a
+          // different one for "nothing matched" than for "nothing around here".
           ListEmptyComponent={
-            <View style={styles.centered}>
-              <Text style={styles.emptyTitle}>{t('explore.empty.title')}</Text>
-              <Text style={styles.emptyBody}>{t('explore.empty.body')}</Text>
-            </View>
+            filtering ? (
+              <EmptyState
+                icon={actionIcon.search}
+                title={t('explore.empty.title')}
+                body={t('explore.empty.body')}
+                {...(query
+                  ? { action: { label: t('explore.searchClear'), onPress: () => setQuery('') } }
+                  : {})}
+              />
+            ) : (
+              <EmptyState
+                icon={actionIcon.location}
+                title={t('explore.empty.nearby.title')}
+                body={t('explore.empty.nearby.body')}
+              />
+            )
           }
         />
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-/** The hairline between rows. FlatList draws it between items and nowhere else. */
-function Rule() {
-  return <View style={styles.rule} />;
+/** The space between cards. FlatList draws it between items and nowhere else. */
+function Gap() {
+  return <View style={styles.gap} />;
+}
+
+/** The list's shape while it loads: the same height and corners as the cards. */
+function SkeletonList() {
+  return (
+    <View style={styles.list} accessibilityElementsHidden>
+      {Array.from({ length: SKELETON_ROWS }, (_, index) => (
+        <Skeleton
+          key={index}
+          height={layout.heroCardHeight}
+          borderRadius={radius.card}
+          style={index > 0 && styles.gapAbove}
+        />
+      ))}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
-  rule: { height: 1, backgroundColor: color.border },
   header: {
-    paddingHorizontal: space.lg,
-    paddingTop: space.lg,
-    paddingBottom: space.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.md,
+    paddingBottom: space.md,
   },
-  city: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  lead: {
-    marginTop: 2,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
-  },
-  leadFree: { fontWeight: fontWeight.medium, color: color.successInk },
+  title: { ...typography.title, color: colors.text },
   resume: {
-    marginHorizontal: space.lg,
-    marginBottom: space.sm,
-    minHeight: touchTarget.minimum,
+    marginHorizontal: layout.screenPadding,
+    marginBottom: space.md,
+    minHeight: layout.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: space.lg,
     borderRadius: radius.pill,
-    backgroundColor: color.greenTint,
+    backgroundColor: colors.primarySoft,
   },
-  resumePressed: { opacity: 0.8 },
-  resumeText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    color: color.primaryInk,
-  },
-  searchWrap: { paddingHorizontal: space.lg, paddingBottom: space.sm },
+  resumePressed: { backgroundColor: colors.secondary },
+  resumeText: { ...typography.body, fontWeight: fontWeight.medium, color: colors.primary },
+  searchWrap: { paddingHorizontal: layout.screenPadding, paddingBottom: space.md },
   search: {
-    minHeight: touchTarget.regular,
-    paddingHorizontal: space.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: layout.controlHeight,
+    paddingLeft: space.lg,
+    paddingRight: space.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color.borderInteractive,
-    backgroundColor: color.surface,
-    color: color.foreground,
-    fontSize: fontSize.md,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    ...shadows.card,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.bodyLg,
+    color: colors.text,
+    paddingVertical: 0,
   },
   chips: {
     flexDirection: 'row',
     gap: space.sm,
-    paddingHorizontal: space.lg,
-    paddingBottom: space.xs,
+    paddingHorizontal: layout.screenPadding,
+    paddingBottom: space.md,
   },
-  chip: {
-    minHeight: touchTarget.small,
-    justifyContent: 'center',
-    paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.borderInteractive,
-    backgroundColor: color.surface,
-  },
-  chipActive: {
-    borderColor: color.primaryInk,
-    backgroundColor: color.greenTint,
-  },
-  chipText: { fontSize: fontSize.sm, color: color.foreground },
-  chipTextActive: { color: color.primaryInk, fontWeight: fontWeight.medium },
-  list: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
-  centered: { alignItems: 'center', paddingTop: space.xxl, gap: space.sm },
-  emptyTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  emptyBody: {
-    fontSize: fontSize.sm,
-    color: color.mutedForeground,
-    textAlign: 'center',
-  },
+  list: { paddingHorizontal: layout.screenPadding, paddingTop: space.xs },
+  listStale: { opacity: 0.6 },
+  gap: { height: layout.cardGap },
+  gapAbove: { marginTop: layout.cardGap },
 });

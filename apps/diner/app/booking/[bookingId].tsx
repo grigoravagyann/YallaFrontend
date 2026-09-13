@@ -1,19 +1,45 @@
-import { freeCancellationCopy } from '@yalla/api';
+import { freeCancellationCopy, type Booking } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, SafeAreaView, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
-import { BookingStatusPill } from '../../src/components/BookingStatusPill';
-import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
+import { BookingBadge } from '../../src/components/bookings/BookingCard';
+import { Button } from '../../src/components/Button';
+import { Card } from '../../src/components/Card';
+import { ConfirmSheet } from '../../src/components/ConfirmSheet';
+import { EmptyState } from '../../src/components/EmptyState';
+import { IconButton } from '../../src/components/IconButton';
+import { PhotoImage } from '../../src/components/PhotoImage';
+import { QueryErrorState } from '../../src/components/QueryErrorState';
+import { Screen } from '../../src/components/Screen';
+import { SectionHeader } from '../../src/components/SectionHeader';
+import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { useBooking, useCancelBooking } from '../../src/data/queries';
 import { useNow } from '../../src/hooks/useNow';
 import { canCancel } from '../../src/lib/bookingActions';
+import { usePlace } from '../../src/places/hooks';
 import { KeepTableAction } from '../../src/push/ReservationActions';
+import { useBookingNote } from '../../src/stores/bookingNotes';
+import {
+  actionIcon,
+  colors,
+  fontWeight,
+  iconSize,
+  layout,
+  placeTypeIcon,
+  radius,
+  space,
+  tabularNumbers,
+  typography,
+  type IoniconName,
+} from '../../src/theme';
+
+const THUMB = 64;
 
 /**
  * One booking, from the diner's own bookings on the server.
@@ -24,49 +50,85 @@ import { KeepTableAction } from '../../src/push/ReservationActions';
  */
 export default function BookingDetailScreen() {
   const { t } = useTranslation('diner');
-  const { locale } = useLocale();
   const router = useRouter();
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const bookingQuery = useBooking(bookingId);
   const { data: booking, isLoading, isError, error, refetch } = bookingQuery;
-  const cancel = useCancelBooking();
-  const [confirming, setConfirming] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const now = useNow();
+
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/bookings');
+  };
+
+  const header = (
+    <View style={styles.header}>
+      <IconButton
+        icon={actionIcon.back}
+        onPress={goBack}
+        accessibilityLabel={t('floorPlan.back')}
+        variant="ghost"
+      />
+      <Text numberOfLines={1} style={styles.headerTitle} accessibilityRole="header">
+        {t('bookings.detail.title')}
+      </Text>
+      <View style={styles.headerSpacer} />
+    </View>
+  );
 
   if (!booking) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <Stack.Screen options={{ headerShown: true, title: '' }} />
+      <Screen edges={['top', 'left', 'right', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        {header}
         {isOfflinePaused(bookingQuery) ? (
-          <QueryFailure offline onRetry={() => void refetch()} />
+          <QueryErrorState offline onRetry={() => void refetch()} />
         ) : isLoading ? (
-          <QueryLoading label={t('net.loading')} />
+          <DetailSkeleton />
         ) : isError ? (
-          <QueryFailure error={error} onRetry={() => void refetch()} />
+          <QueryErrorState error={error} onRetry={() => void refetch()} />
         ) : (
-          <View style={styles.centered}>
-            <Text style={styles.title}>{t('booking.notFound.title')}</Text>
-            <Text style={styles.centeredBody}>{t('booking.notFound.body')}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.replace('/(tabs)/bookings')}
-              style={styles.secondary}
-            >
-              <Text style={styles.secondaryText}>{t('success.viewBookings')}</Text>
-            </Pressable>
-          </View>
+          <EmptyState
+            icon={actionIcon.error}
+            title={t('booking.notFound.title')}
+            body={t('booking.notFound.body')}
+            action={{
+              label: t('success.viewBookings'),
+              onPress: () => router.replace('/(tabs)/bookings'),
+            }}
+          />
         )}
-      </SafeAreaView>
+      </Screen>
     );
   }
+
+  return (
+    <Screen edges={['top', 'left', 'right', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      {header}
+      <BookingDetail booking={booking} />
+    </Screen>
+  );
+}
+
+function BookingDetail({ booking }: { readonly booking: Booking }) {
+  const { t } = useTranslation('diner');
+  const { locale } = useLocale();
+  const cancel = useCancelBooking();
+  const [confirming, setConfirming] = useState(false);
+  const now = useNow();
+  const { data: place } = usePlace(booking.branchId);
+  const note = useBookingNote(booking.id);
 
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
     booking.slotUtc,
     booking.timeZoneId,
     locale,
   )}`;
-  const where = booking.venueName ?? booking.branchName;
+  // The place the diner browsed when the browse data knows the branch; the
+  // server's venue name otherwise.
+  const where = place?.name ?? booking.venueName ?? booking.branchName;
+  const photo = place?.photos[0];
+  const pending = booking.status === 'pendingApproval';
   const isCancelled =
     booking.status === 'cancelledByDiner' || booking.status === 'cancelledByVenue';
   // The server's deadline. Past it the cancellation is late — but never blocked.
@@ -78,23 +140,71 @@ export default function BookingDetailScreen() {
     now,
   );
 
-  const doCancel = async () => {
-    setFailed(false);
-    try {
-      await cancel.mutateAsync(booking.id);
-      setConfirming(false);
-    } catch {
-      setFailed(true);
-    }
+  const share = () => {
+    void Share.share({
+      message: t('success.shareMessage', {
+        table: booking.tableLabel,
+        venue: where,
+        branch: booking.branchName,
+        time: when,
+        code: booking.code,
+      }),
+    }).catch(() => undefined);
+  };
+
+  const doCancel = () => {
+    cancel.mutate(booking.id, { onSuccess: () => setConfirming(false) });
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: true, title: '' }} />
-
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>{t('bookings.detail.title')}</Text>
-        <BookingStatusPill status={booking.status} />
+    <>
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <Card>
+          <View style={styles.summary}>
+            {photo ? (
+              <PhotoImage source={photo} style={styles.thumb} accessibilityLabel={where} />
+            ) : (
+              <View style={[styles.thumb, styles.thumbFallback]}>
+                <Ionicons
+                  name={place?.type === 'cafe' ? placeTypeIcon.cafe : placeTypeIcon.restaurant}
+                  size={iconSize.lg}
+                  color={colors.textSubtle}
+                />
+              </View>
+            )}
+            <View style={styles.summaryBody}>
+              <Text display numberOfLines={2} style={styles.placeName}>
+                {where}
+              </Text>
+              {place?.name && booking.venueName && place.name !== booking.venueName ? (
+                <Text numberOfLines={1} style={styles.detail}>
+                  {`${booking.venueName} · ${booking.branchName}`}
+                </Text>
+              ) : (
+                <Text numberOfLines={1} style={styles.detail}>
+                  {booking.branchName}
+                </Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.summaryFooter}>
+            <BookingBadge status={booking.status} />
+          </View>
+          <View style={styles.facts}>
+            <Fact icon={actionIcon.table} text={t('tables.table', { label: booking.tableLabel })} />
+            <Fact icon={actionIcon.calendar} text={when} />
+            <Fact
+              icon={actionIcon.people}
+              text={t('booking.guests', { count: booking.partySize })}
+            />
+            <Fact
+              icon={actionIcon.time}
+              text={t('bookings.detail.until', {
+                time: formatTime(booking.endUtc, booking.timeZoneId, locale),
+              })}
+            />
+          </View>
+        </Card>
 
         {/*
           The way onto the tab at the table they booked. Offered while the
@@ -109,32 +219,25 @@ export default function BookingDetailScreen() {
         */}
         <KeepTableAction booking={booking} />
 
-        <View
-          style={[styles.codeCard, booking.status === 'pendingApproval' && styles.codeCardPending]}
-        >
+        {/* Large and legible: staff ask for this at the door. Pending must never
+            look confirmed — a dashed blue edge instead of the solid green. */}
+        <Card style={[styles.codeCard, pending && styles.codeCardPending]}>
           <Text style={styles.codeLabel}>{t('success.codeLabel')}</Text>
           <Text style={styles.code} accessibilityLabel={booking.code.split('').join(' ')}>
             {booking.code}
           </Text>
-        </View>
+          <Text style={styles.codeHint}>{t('success.codeHint')}</Text>
+        </Card>
 
-        <View style={styles.details}>
-          <Text style={styles.venue}>{where}</Text>
-          {booking.venueName ? <Text style={styles.detail}>{booking.branchName}</Text> : null}
-          <Text style={styles.detail}>
-            {t('bookings.tableAt', { table: booking.tableLabel, branch: booking.branchName })}
-          </Text>
-          <Text style={styles.detail}>{when}</Text>
-          <Text style={styles.detail}>{t('booking.guests', { count: booking.partySize })}</Text>
-          <Text style={styles.detail}>
-            {t('bookings.detail.until', {
-              time: formatTime(booking.endUtc, booking.timeZoneId, locale),
-            })}
-          </Text>
-        </View>
+        {note ? (
+          <Card style={styles.noteCard}>
+            <SectionHeader label={t('book.specialRequests')} icon={actionIcon.note} />
+            <Text style={styles.note}>{note}</Text>
+          </Card>
+        ) : null}
 
         {isCancelled ? (
-          <Text style={styles.detail}>
+          <Text style={styles.cancellation}>
             {t('bookings.detail.cancelledOn', {
               date: formatDate(
                 booking.cancelledAtUtc ?? booking.slotUtc,
@@ -144,166 +247,144 @@ export default function BookingDetailScreen() {
             })}
           </Text>
         ) : canCancel(booking.status) ? (
-          <Text style={styles.detail}>{t(cancellation.key, cancellation.params)}</Text>
+          <Text style={styles.cancellation}>{t(cancellation.key, cancellation.params)}</Text>
         ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            void Share.share({
-              message: t('success.shareMessage', {
-                table: booking.tableLabel,
-                venue: where,
-                branch: booking.branchName,
-                time: when,
-                code: booking.code,
-              }),
-            })
-          }
-          style={styles.secondary}
-        >
-          <Text style={styles.secondaryText}>{t('success.share')}</Text>
-        </Pressable>
-
-        {/* One cancel, and only while the booking still holds a table — what
-            the server will accept. */}
-        {canCancel(booking.status) ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setConfirming(true)}
-            style={styles.danger}
-          >
-            <Text style={styles.dangerText}>{t('bookings.detail.cancel')}</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.actions}>
+          <Button
+            label={t('success.share')}
+            variant="secondary"
+            icon={actionIcon.share}
+            onPress={share}
+          />
+          {/* One cancel, and only while the booking still holds a table — what
+              the server will accept. */}
+          {canCancel(booking.status) ? (
+            <Button
+              label={t('bookings.detail.cancel')}
+              variant="destructive"
+              onPress={() => {
+                cancel.reset();
+                setConfirming(true);
+              }}
+            />
+          ) : null}
+        </View>
       </ScrollView>
 
       {/* One tap plus a confirmation step — cancelling a table by accident is
-          worse than one extra tap. */}
-      <Modal
+          worse than one extra tap. Never blocks a late cancellation, and does
+          not scold: a late cancel is far better for the venue than a no-show. */}
+      <ConfirmSheet
         visible={confirming}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirming(false)}
-      >
-        <Pressable style={styles.backdrop} onPress={() => setConfirming(false)} />
-        <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>{t('bookings.detail.cancelTitle')}</Text>
-          {/*
-            Never blocks a late cancellation, and does not scold. A late cancel
-            is far better for the venue than a no-show, so the copy says that
-            rather than implying the diner has done something wrong.
-          */}
-          <Text style={styles.sheetBody}>
-            {isLate ? t('bookings.detail.cancelLate') : t('bookings.detail.cancelFree')}
-          </Text>
+        title={t('bookings.detail.cancelTitle')}
+        body={isLate ? t('bookings.detail.cancelLate') : t('bookings.detail.cancelFree')}
+        confirmLabel={t('bookings.detail.cancelConfirm')}
+        cancelLabel={t('bookings.detail.cancelKeep')}
+        busyLabel={t('bookings.detail.cancelling')}
+        busy={cancel.isPending}
+        error={cancel.isError ? t('bookings.detail.cancelFailed') : null}
+        destructive
+        onConfirm={doCancel}
+        onCancel={() => setConfirming(false)}
+      />
+    </>
+  );
+}
 
-          {failed ? <Text style={styles.error}>{t('bookings.detail.cancelFailed')}</Text> : null}
+function Fact({ icon, text }: { readonly icon: IoniconName; readonly text: string }) {
+  return (
+    <View style={styles.fact}>
+      <Ionicons name={icon} size={iconSize.sm} color={colors.primary} />
+      <Text numberOfLines={1} style={styles.factText}>
+        {text}
+      </Text>
+    </View>
+  );
+}
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={cancel.isPending}
-            onPress={() => void doCancel()}
-            style={[styles.danger, cancel.isPending && styles.disabled]}
-          >
-            <Text style={styles.dangerText}>
-              {cancel.isPending
-                ? t('bookings.detail.cancelling')
-                : t('bookings.detail.cancelConfirm')}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setConfirming(false)}
-            style={styles.secondary}
-          >
-            <Text style={styles.secondaryText}>{t('bookings.detail.cancelKeep')}</Text>
-          </Pressable>
+function DetailSkeleton() {
+  return (
+    <View style={styles.body}>
+      <Card>
+        <View style={styles.summary}>
+          <Skeleton width={THUMB} height={THUMB} borderRadius={radius.chip} />
+          <View style={[styles.summaryBody, styles.skeletonGap]}>
+            <Skeleton width="70%" height={22} />
+            <Skeleton width="45%" height={14} />
+          </View>
         </View>
-      </Modal>
-    </SafeAreaView>
+        <View style={[styles.facts, styles.skeletonGap]}>
+          <Skeleton width="50%" height={14} />
+          <Skeleton width="60%" height={14} />
+          <Skeleton width="35%" height={14} />
+        </View>
+      </Card>
+      <Card style={styles.codeCard}>
+        <Skeleton width="30%" height={14} />
+        <Skeleton width="60%" height={44} style={styles.skeletonCode} />
+      </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
-  centered: {
-    flex: 1,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.sm,
+  },
+  headerTitle: { ...typography.h3, color: colors.text, flex: 1, textAlign: 'center' },
+  headerSpacer: { width: layout.touchTarget },
+  body: {
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.sm,
+    paddingBottom: space.xxl,
+    gap: layout.cardGap,
+  },
+  summary: { flexDirection: 'row', gap: space.md },
+  thumb: { width: THUMB, height: THUMB, borderRadius: radius.chip },
+  thumbFallback: {
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space.md,
-    padding: space.xl,
   },
-  centeredBody: {
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    color: color.mutedForeground,
-    textAlign: 'center',
-  },
-  body: { padding: space.xl, gap: space.sm },
-  title: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  codeCard: {
+  summaryBody: { flex: 1, gap: 2 },
+  placeName: { ...typography.heading, color: colors.text },
+  detail: { ...typography.body, color: colors.textMuted },
+  summaryFooter: { flexDirection: 'row', alignItems: 'center', marginTop: space.md },
+  facts: {
     marginTop: space.md,
-    padding: space.lg,
-    alignItems: 'center',
-    borderRadius: radius.card,
-    backgroundColor: color.surface,
-    borderWidth: 2,
-    borderColor: color.success,
+    paddingTop: space.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    gap: space.sm,
   },
-  codeCardPending: { borderColor: color.info, borderStyle: 'dashed' },
-  codeLabel: { fontSize: fontSize.sm, color: color.mutedForeground },
+  fact: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  factText: { ...typography.body, ...tabularNumbers, color: colors.text, flexShrink: 1 },
+  codeCard: {
+    alignItems: 'center',
+    gap: space.xs,
+    borderWidth: 2,
+    borderColor: colors.success,
+  },
+  codeCardPending: { borderColor: colors.info, borderStyle: 'dashed' },
+  codeLabel: { ...typography.caption, color: colors.textMuted },
   code: {
     fontSize: 40,
     lineHeight: 48,
     fontWeight: fontWeight.bold,
     letterSpacing: 5,
-    color: color.foreground,
+    color: colors.text,
+    ...tabularNumbers,
   },
-  details: { marginTop: space.lg, gap: 2 },
-  venue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
-  detail: { fontSize: fontSize.md, color: color.mutedForeground },
-  secondary: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: space.md,
-  },
-  secondaryText: { fontSize: fontSize.md, color: color.primaryInk },
-  danger: {
-    marginTop: space.md,
-    minHeight: touchTarget.minimum + 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.danger,
-  },
-  dangerText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.danger },
-  disabled: { opacity: 0.6 },
-  backdrop: { flex: 1, backgroundColor: '#00000055' },
-  sheet: {
-    backgroundColor: color.surface,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    padding: space.xl,
-  },
-  sheetTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  sheetBody: {
-    marginTop: space.sm,
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    color: color.mutedForeground,
-  },
-  error: { marginTop: space.sm, fontSize: fontSize.sm, color: color.danger },
+  codeHint: { ...typography.caption, color: colors.textMuted },
+  noteCard: { gap: space.sm },
+  note: { ...typography.body, color: colors.text },
+  cancellation: { ...typography.body, color: colors.textMuted, paddingHorizontal: space.xs },
+  actions: { gap: space.sm, marginTop: space.sm },
+  skeletonGap: { gap: space.sm },
+  skeletonCode: { marginTop: space.xs },
 });

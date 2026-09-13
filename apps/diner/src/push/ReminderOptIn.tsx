@@ -1,10 +1,11 @@
 import { useGateway } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Button } from '../components/Button';
 import { Text } from '../components/Text';
 import { projectId } from '../config';
+import { colors, radius, space, typography } from '../theme';
 import { permissionState, registerDevice, requestPermission } from './registration';
 
 /**
@@ -30,7 +31,7 @@ import { permissionState, registerDevice, requestPermission } from './registrati
 
 type State = 'checking' | 'offer' | 'granted' | 'declined' | 'unavailable';
 
-export function ReminderOptIn() {
+export function ReminderOptIn({ style }: { readonly style?: StyleProp<ViewStyle> }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const gateway = useGateway();
@@ -78,64 +79,35 @@ export function ReminderOptIn() {
 
   if (state === 'checking') return null;
 
-  if (state === 'granted') {
-    return (
-      <View style={styles.note}>
-        <Text style={styles.noteText}>{t('push.optIn.granted')}</Text>
-      </View>
-    );
-  }
-
-  if (state === 'declined' || state === 'unavailable') {
+  if (state === 'granted' || state === 'declined' || state === 'unavailable') {
     // Said once, plainly, and never again. The booking is fine; this is the one
-    // thing that will not happen, and a person who turned it down deserves to
-    // know that rather than to wonder later why nothing arrived.
+    // thing that will (or will not) happen, and a person who turned it down
+    // deserves to know that rather than to wonder later why nothing arrived.
     return (
-      <View style={styles.note}>
-        <Text style={styles.noteText}>{t('push.optIn.declined')}</Text>
+      <View style={[styles.note, style]}>
+        <Text style={styles.noteText}>
+          {state === 'granted' ? t('push.optIn.granted') : t('push.optIn.declined')}
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.offer}>
+    <View style={[styles.offer, style]}>
       <Text style={styles.offerText}>{t('push.optIn.explain')}</Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => void ask()}
-        style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-      >
-        <Text style={styles.actionText}>{t('push.optIn.allow')}</Text>
-      </Pressable>
+      <Button label={t('push.optIn.allow')} fullWidth={false} onPress={() => void ask()} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   offer: {
-    gap: space.sm,
-    padding: space.md,
+    gap: space.md,
+    padding: space.lg,
     borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: color.borderSoft,
-    backgroundColor: color.greenTint,
+    backgroundColor: colors.primarySoft,
   },
-  offerText: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.foreground },
-  action: {
-    minHeight: touchTarget.minimum,
-    alignSelf: 'flex-start',
-    justifyContent: 'center',
-    paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  actionText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
-  pressed: { opacity: 0.85 },
-
+  offerText: { ...typography.body, color: colors.text },
   note: { paddingHorizontal: space.xs },
-  noteText: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
-  },
+  noteText: { ...typography.caption, color: colors.textMuted },
 });

@@ -141,14 +141,19 @@ export default function RootLayout() {
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
+            {/* The map draws its own overlay controls over a full-bleed map. */}
+            <Stack.Screen name="map" />
             {/* Pushed screens set their own header, which also gives Android
                 hardware-back and the iOS swipe-back gesture. */}
-            <Stack.Screen name="venue/[venueId]" />
             <Stack.Screen name="branch/[branchId]" />
+            <Stack.Screen name="place/[placeId]" />
+            <Stack.Screen name="book/[placeId]" />
             <Stack.Screen name="verify/index" />
             <Stack.Screen name="reserve/confirm" />
             <Stack.Screen name="reserve/success" />
             <Stack.Screen name="booking/[bookingId]" />
+            <Stack.Screen name="order/[orderId]" />
+            <Stack.Screen name="favorites" />
             {/* Scanning in and the shared tab. */}
             <Stack.Screen name="tab/[tabId]/index" />
             <Stack.Screen name="tab/[tabId]/pending" />
