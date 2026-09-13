@@ -3,13 +3,15 @@ import { useGateway } from '@yalla/api/react';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useMutation } from '@tanstack/react-query';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Button } from '../components/Button';
+import { Card } from '../components/Card';
 import { Text } from '../components/Text';
 import { useNow } from '../hooks/useNow';
 import { canKeepTable, keepTableFailureKey } from '../lib/bookingActions';
 import { newCommandId } from '../lib/commandId';
+import { colors, space, typography } from '../theme';
 
 /**
  * "Keep my table", on the booking it belongs to.
@@ -29,7 +31,13 @@ export const reservationKeys = {
   state: (reservationId: string) => ['reservationState', reservationId] as const,
 };
 
-export function KeepTableAction({ booking }: { readonly booking: Booking }) {
+export function KeepTableAction({
+  booking,
+  style,
+}: {
+  readonly booking: Booking;
+  readonly style?: StyleProp<ViewStyle>;
+}) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const gateway = useGateway();
@@ -66,7 +74,7 @@ export function KeepTableAction({ booking }: { readonly booking: Booking }) {
 
   if (outcome) {
     return (
-      <View style={styles.card}>
+      <Card style={style}>
         <Text style={styles.note}>
           {outcome.kind === 'extended'
             ? t('push.actions.extended', {
@@ -74,49 +82,27 @@ export function KeepTableAction({ booking }: { readonly booking: Booking }) {
               })
             : t(outcome.key)}
         </Text>
-      </View>
+      </Card>
     );
   }
 
   if (!canKeepTable(booking, now)) return null;
 
   return (
-    <View style={styles.card}>
+    <Card style={[styles.card, style]}>
       <Text style={styles.hint}>{t('push.actions.keepTableHint')}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: extend.isPending, busy: extend.isPending }}
+      <Button
+        label={extend.isPending ? t('push.actions.working') : t('push.action.extendHold')}
+        variant="outline"
         disabled={extend.isPending}
         onPress={() => extend.mutate()}
-        style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
-      >
-        <Text style={styles.secondaryText}>
-          {extend.isPending ? t('push.actions.working') : t('push.action.extendHold')}
-        </Text>
-      </Pressable>
-    </View>
+      />
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    gap: space.sm,
-    padding: space.md,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: color.borderSoft,
-    backgroundColor: color.surface,
-  },
-  note: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.foreground },
-  hint: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  secondary: {
-    minHeight: touchTarget.minimum,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.borderStrong,
-  },
-  secondaryText: { fontWeight: fontWeight.bold, color: color.foreground },
-  pressed: { opacity: 0.85 },
+  card: { gap: space.md },
+  note: { ...typography.body, color: colors.text },
+  hint: { ...typography.body, color: colors.textMuted },
 });

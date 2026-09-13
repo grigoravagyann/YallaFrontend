@@ -11,8 +11,11 @@ import type {
 } from '../contracts/ordering';
 import type { TabParticipantChange, TabParticipantRole } from '../contracts/tab';
 import type { Booking } from '../contracts/booking';
+import type { DinerProfileView } from '../contracts/dinerAccount';
 import type { ReservationState, ReservationStatusCode } from '../contracts/push';
+import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
+import { photo } from './venueSettingsMapping';
 
 type Schemas = components['schemas'];
 type TabView = Schemas['Yalla.Application.Tabs.TabView'];
@@ -301,5 +304,31 @@ export function reservationState(view: ReservationViewWire): ReservationState {
     timeZoneId: view.timeZoneId,
     cancelledAtUtc: view.cancelledAtUtc ?? null,
     cancelledAfterDeadline: view.cancelledAfterDeadline,
+  };
+}
+
+// --- The account ----------------------------------------------------------------
+
+type DinerProfileWire = Schemas['Yalla.Application.Diners.DinerProfileView'];
+
+/**
+ * The diner's own profile, from the wire.
+ *
+ * `baseUrl` is the API's origin, for the avatar: its links arrive
+ * server-relative like every photo's and are made absolute here, at the one
+ * place the wire shape becomes the client's, rather than by a screen drawing an
+ * `<Image>` from a path a phone cannot resolve.
+ */
+export function dinerProfile(view: DinerProfileWire, baseUrl: string): DinerProfileView {
+  return {
+    dinerUserId: view.dinerUserId,
+    username: view.username ?? null,
+    email: view.email ?? null,
+    phoneE164: view.phoneE164,
+    phoneVerified: view.phoneVerified,
+    displayName: view.displayName ?? null,
+    localeCode: view.localeCode,
+    hasPassword: view.hasPassword,
+    photo: view.photo ? absolutePhoto(baseUrl, photo(view.photo)) : null,
   };
 }

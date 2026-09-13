@@ -1,14 +1,7 @@
-import {
-  color,
-  elevation,
-  fontSize,
-  fontWeight,
-  lineHeight,
-  radius,
-  space,
-  touchTarget,
-} from '@yalla/tokens';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius, shadows, space, typography } from '../theme';
+import { Button } from './Button';
 import { Text } from './Text';
 
 export interface ConfirmSheetProps {
@@ -22,6 +15,11 @@ export interface ConfirmSheetProps {
   readonly busy?: boolean;
   /** Surfaced above the buttons; the sheet stays open so the action is retryable. */
   readonly error?: string | null;
+  /**
+   * The confirm is red text rather than the brown fill: cancelling a booking
+   * or leaving a tab is not an alarm, but it is not the one thing the screen
+   * wants you to do either.
+   */
   readonly destructive?: boolean;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
@@ -49,6 +47,7 @@ export function ConfirmSheet({
   onConfirm,
   onCancel,
 }: ConfirmSheetProps) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal
       visible={visible}
@@ -63,87 +62,70 @@ export function ConfirmSheet({
         onPress={busy ? undefined : onCancel}
       />
 
-      <View style={styles.sheet}>
-        <Text style={styles.title}>{title}</Text>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
+        <View style={styles.grabber} />
+        <View style={styles.titleRow}>
+          <Text style={styles.title} accessibilityRole="header">
+            {title}
+          </Text>
+          {busy ? <ActivityIndicator color={colors.primary} /> : null}
+        </View>
         <Text style={styles.body}>{body}</Text>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {error}
+          </Text>
+        ) : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: busy, busy }}
-          disabled={busy}
-          onPress={onConfirm}
-          style={({ pressed }) => [
-            styles.confirm,
-            destructive && styles.confirmDestructive,
-            pressed && styles.pressed,
-            busy && styles.disabled,
-          ]}
-        >
-          {busy ? (
-            <View style={styles.busyRow}>
-              <ActivityIndicator color={color.primaryForeground} />
-              <Text style={styles.confirmText}>{busyLabel ?? confirmLabel}</Text>
-            </View>
-          ) : (
-            <Text style={styles.confirmText}>{confirmLabel}</Text>
-          )}
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={onCancel}
-          style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}
-        >
-          <Text style={styles.cancelText}>{cancelLabel}</Text>
-        </Pressable>
+        <View style={styles.actions}>
+          <Button
+            label={busy ? (busyLabel ?? confirmLabel) : confirmLabel}
+            variant={destructive ? 'destructive' : 'primary'}
+            disabled={busy}
+            onPress={onConfirm}
+            style={destructive && styles.destructive}
+          />
+          <Button
+            label={cancelLabel}
+            variant={destructive ? 'secondary' : 'text'}
+            disabled={busy}
+            onPress={onCancel}
+          />
+        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(18, 33, 26, 0.45)' },
+  backdrop: { flex: 1, backgroundColor: colors.overlayDark },
   sheet: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    padding: space.xl,
-    paddingBottom: space.xxl,
+    paddingHorizontal: space.xl,
+    paddingTop: space.md,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
-    backgroundColor: color.surface,
-    ...elevation.sheet.native,
+    backgroundColor: colors.surface,
     gap: space.sm,
+    ...shadows.float,
   },
-  title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
-  body: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  error: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.danger },
-  confirm: {
-    marginTop: space.sm,
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
+  grabber: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
     borderRadius: radius.pill,
-    backgroundColor: color.primary,
+    backgroundColor: colors.border,
+    marginBottom: space.sm,
   },
-  confirmDestructive: { backgroundColor: color.danger },
-  confirmText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  cancel: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-  },
-  cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  pressed: { opacity: 0.75 },
-  disabled: { opacity: 0.6 },
-  busyRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  title: { ...typography.h3, color: colors.text, flexShrink: 1 },
+  body: { ...typography.body, color: colors.textMuted },
+  error: { ...typography.body, color: colors.error },
+  actions: { marginTop: space.md, gap: space.sm },
+  // The red label sits on a thin neutral border so it still reads as a button.
+  destructive: { borderWidth: 1, borderColor: colors.border },
 });

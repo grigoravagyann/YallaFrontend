@@ -8,6 +8,7 @@ import {
   BranchUnavailableError,
   ExpiredCodeError,
   LeadTimeExceededError,
+  PhoneNotVerifiedError,
   RateLimitedError,
   TableTakenError,
   TooManyAttemptsError,
@@ -344,6 +345,7 @@ export type BookingFailure =
   | { readonly kind: 'busy'; readonly line: CopyLine }
   | { readonly kind: 'commandInUse'; readonly line: CopyLine }
   | { readonly kind: 'branchUnavailable'; readonly line: CopyLine }
+  | { readonly kind: 'phoneNotVerified'; readonly line: CopyLine }
   | { readonly kind: 'unknown'; readonly line: CopyLine }
   | { readonly kind: 'generic'; readonly line: CopyLine };
 
@@ -380,6 +382,11 @@ export function bookingFailure(
   }
   if (error instanceof BookingCommandInUseError) {
     return { kind: 'commandInUse', line: line('confirm.error.commandInUse') };
+  }
+  // Before the generic 4xx reading: the answer is "verify your number", and a
+  // screen offers the code flow rather than another tap on Confirm.
+  if (error instanceof PhoneNotVerifiedError) {
+    return { kind: 'phoneNotVerified', line: line('confirm.error.phoneNotVerified') };
   }
   if (error instanceof BranchUnavailableError) {
     return { kind: 'branchUnavailable', line: line('confirm.error.branchUnavailable') };

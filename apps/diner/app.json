@@ -44,6 +44,14 @@
       "expo-router",
       "expo-localization",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Yalla uses your location to show cafés and restaurants near you.",
+          "locationAlwaysAndWhenInUsePermission": "Yalla uses your location to show cafés and restaurants near you.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Yalla uses the camera to read the code on your table.",

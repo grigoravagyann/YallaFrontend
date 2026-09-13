@@ -6,6 +6,7 @@ import {
   BranchUnavailableError,
   InviteExpiredError,
   NetworkError,
+  PhoneNotVerifiedError,
   TabClosedError,
   TableOutOfServiceError,
   TabsNotEnabledError,
@@ -76,7 +77,14 @@ const NOT_ACTIVE_KEYS: Partial<Record<ReservationStatusCode, string>> = {
   noShow: 'scan.error.bookingNoShow',
 };
 
+/** The refusal an account whose number is not yet verified gets; the screen offers the code flow. */
+export const PHONE_NOT_VERIFIED_KEY = 'confirm.error.phoneNotVerified';
+
 export function scanFailureFor(error: unknown, at?: BranchClock): ScanFailure {
+  // Said the way the booking screens say it, so the Verify link means one thing.
+  if (error instanceof PhoneNotVerifiedError) {
+    return { key: PHONE_NOT_VERIFIED_KEY };
+  }
   // A booking code is not a table code, and none of these may ever come back
   // as "that code does not match a table" — the answer that sent a diner
   // holding a booking for table 5 round in circles.

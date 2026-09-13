@@ -40,6 +40,7 @@ export interface RequestOptions {
   readonly method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   readonly query?:
     Readonly<Record<string, string | number | boolean | undefined | null>> | undefined;
+  /** Serialised as JSON — except a `FormData`, which is sent as multipart as it is. */
   readonly body?: unknown;
   readonly signal?: AbortSignal | undefined;
   readonly timeoutMs?: number | undefined;
@@ -223,7 +224,14 @@ export class ApiClient {
     const token = await this.#token(options);
     if (token) headers.set('authorization', `Bearer ${token}`);
     if (ifMatch) headers.set('if-match', ifMatch);
-    if (body !== undefined) headers.set('content-type', 'application/json');
+    /*
+     * A `FormData` body goes out as multipart with **no content type set here**:
+     * the platform writes the header itself, boundary included, and setting it
+     * by hand omits the boundary and produces a body the server cannot parse.
+     * Everything else is JSON.
+     */
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isForm) headers.set('content-type', 'application/json');
 
     // Compose the caller's signal with our timeout so either can abort.
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
@@ -235,7 +243,7 @@ export class ApiClient {
         method,
         headers,
         signal: composed,
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(body === undefined ? {} : { body: isForm ? body : JSON.stringify(body) }),
       });
     } catch (cause) {
       if (timeoutSignal.aborted) throw new TimeoutError({ url, timeoutMs });

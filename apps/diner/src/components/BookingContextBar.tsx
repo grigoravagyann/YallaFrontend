@@ -1,9 +1,10 @@
 import { nextHalfHour } from '@yalla/api';
 import { branchDayKey, formatDate, formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { color, elevation, fontSize, fontWeight, radius, space, touchTarget } from '@yalla/tokens';
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNow } from '../hooks/useNow';
 import {
   DEFAULT_BOOKING_WINDOW_DAYS,
@@ -11,6 +12,19 @@ import {
   dayOptions,
   timeOptions,
 } from '../lib/bookingSlots';
+import {
+  actionIcon,
+  colors,
+  fontWeight,
+  iconSize,
+  layout,
+  radius,
+  shadows,
+  space,
+  typography,
+  type IoniconName,
+} from '../theme';
+import { Button } from './Button';
 import { Text } from './Text';
 
 /** The three values the floor plan filters and annotates on. */
@@ -94,16 +108,19 @@ export function BookingContextBar({
   return (
     <View style={styles.bar}>
       <Field
+        icon={actionIcon.calendar}
         label={t('booking.date')}
         value={selectedDay ? dayLabel(selectedDay) : formatDate(value.slotUtc, timeZoneId, locale)}
         onPress={() => setOpen('date')}
       />
       <Field
+        icon={actionIcon.time}
         label={t('booking.time')}
         value={formatTime(value.slotUtc, timeZoneId, locale)}
         onPress={() => setOpen('time')}
       />
       <Field
+        icon={actionIcon.people}
         label={t('booking.partySize')}
         value={t('booking.guests', { count: value.partySize })}
         onPress={() => setOpen('party')}
@@ -149,7 +166,17 @@ export function BookingContextBar({
   );
 }
 
-function Field({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
+function Field({
+  icon,
+  label,
+  value,
+  onPress,
+}: {
+  icon: IoniconName;
+  label: string;
+  value: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -157,8 +184,9 @@ function Field({ label, value, onPress }: { label: string; value: string; onPres
       onPress={onPress}
       style={({ pressed }) => [styles.field, pressed && styles.fieldPressed]}
     >
-      {/* The value alone. Three pills reading "Today", "19:30", "2 guests"
-          need no captions; the label survives for the screen reader. */}
+      {/* The value with its glyph. Three pills reading "Today", "19:30",
+          "2 guests" need no captions; the label survives for the screen reader. */}
+      <Ionicons name={icon} size={iconSize.sm} color={colors.primary} />
       <Text style={styles.fieldValue} numberOfLines={1}>
         {value}
       </Text>
@@ -188,6 +216,7 @@ function PickerSheet({
   empty?: string;
 }) {
   const { t } = useTranslation('diner');
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -197,8 +226,11 @@ function PickerSheet({
       onRequestClose={onClose} // Android hardware back closes the sheet.
     >
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" />
-      <View style={styles.sheet}>
-        <Text style={styles.sheetTitle}>{title}</Text>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
+        <View style={styles.grabber} />
+        <Text style={styles.sheetTitle} accessibilityRole="header">
+          {title}
+        </Text>
         <ScrollView style={styles.sheetScroll}>
           {options.length === 0 && empty ? <Text style={styles.empty}>{empty}</Text> : null}
           {options.map((option) => (
@@ -213,7 +245,7 @@ function PickerSheet({
               style={({ pressed }) => [
                 styles.option,
                 option.selected && styles.optionSelected,
-                pressed && styles.optionPressed,
+                pressed && !option.selected && styles.optionPressed,
               ]}
             >
               <Text style={[styles.optionText, option.selected && styles.optionTextSelected]}>
@@ -222,82 +254,71 @@ function PickerSheet({
             </Pressable>
           ))}
         </ScrollView>
-        <Pressable accessibilityRole="button" onPress={onClose} style={styles.close}>
-          <Text style={styles.closeText}>{t('booking.done')}</Text>
-        </Pressable>
+        <Button label={t('booking.done')} onPress={onClose} style={styles.close} />
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  // On the paper, not in a white band: the plan is the screen and the bar is
+  // On the cream, not in a white band: the plan is the screen and the bar is
   // three controls above it, not a header.
   bar: {
     flexDirection: 'row',
     gap: space.sm,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: layout.screenPadding,
     paddingVertical: space.sm,
   },
   field: {
     flex: 1,
-    minHeight: touchTarget.minimum,
+    minHeight: layout.touchTarget,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: space.xs + 2,
     paddingHorizontal: space.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: color.borderInteractive,
-    backgroundColor: color.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  fieldPressed: { backgroundColor: color.greenTint },
+  fieldPressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
   fieldValue: {
-    fontSize: fontSize.sm,
+    ...typography.body,
     fontWeight: fontWeight.medium,
-    color: color.foreground,
+    color: colors.text,
+    flexShrink: 1,
   },
-  backdrop: { flex: 1, backgroundColor: color.scrim },
+  backdrop: { flex: 1, backgroundColor: colors.overlayDark },
   sheet: {
     maxHeight: '60%',
-    backgroundColor: color.surface,
-    ...elevation.sheet.native,
+    backgroundColor: colors.surface,
+    ...shadows.float,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
-    padding: space.lg,
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
   },
-  sheetTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
+  grabber: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
     marginBottom: space.md,
   },
+  sheetTitle: { ...typography.h3, color: colors.text, marginBottom: space.md },
   sheetScroll: { flexGrow: 0 },
-  empty: {
-    paddingVertical: space.md,
-    fontSize: fontSize.md,
-    color: color.mutedForeground,
-  },
+  empty: { paddingVertical: space.md, ...typography.body, color: colors.textMuted },
   option: {
-    minHeight: touchTarget.minimum,
+    minHeight: layout.touchTarget,
     justifyContent: 'center',
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
   },
-  optionSelected: { backgroundColor: color.greenTint },
-  optionPressed: { backgroundColor: color.paper },
-  optionText: { fontSize: fontSize.md, color: color.foreground },
-  optionTextSelected: { fontWeight: fontWeight.bold, color: color.primaryInk },
-  close: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: space.md,
-    borderRadius: radius.pill,
-    backgroundColor: color.primaryOnFloorPlan,
-  },
-  closeText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
+  optionSelected: { backgroundColor: colors.primary },
+  optionPressed: { backgroundColor: colors.primarySoft },
+  optionText: { ...typography.bodyLg, color: colors.text },
+  optionTextSelected: { fontWeight: fontWeight.bold, color: colors.onPrimary },
+  close: { marginTop: space.md },
 });

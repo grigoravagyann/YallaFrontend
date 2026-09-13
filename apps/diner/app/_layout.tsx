@@ -141,14 +141,27 @@ export default function RootLayout() {
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />
+            {/* The map draws its own overlay controls over a full-bleed map. */}
+            <Stack.Screen name="map" />
             {/* Pushed screens set their own header, which also gives Android
                 hardware-back and the iOS swipe-back gesture. */}
-            <Stack.Screen name="venue/[venueId]" />
             <Stack.Screen name="branch/[branchId]" />
+            <Stack.Screen name="place/[placeId]" />
+            <Stack.Screen name="book/[placeId]" />
+            {/* Sign up and log in: the welcome fork, then either flow. `verify`
+                stays as the older name for the log-in flow. */}
+            <Stack.Screen name="auth/index" />
+            <Stack.Screen name="auth/login" />
+            <Stack.Screen name="auth/signup" />
+            <Stack.Screen name="auth/code" />
             <Stack.Screen name="verify/index" />
+            <Stack.Screen name="profile/edit" />
             <Stack.Screen name="reserve/confirm" />
             <Stack.Screen name="reserve/success" />
             <Stack.Screen name="booking/[bookingId]" />
+            <Stack.Screen name="order/[orderId]" />
+            <Stack.Screen name="favorites" />
+            <Stack.Screen name="settings" />
             {/* Scanning in and the shared tab. */}
             <Stack.Screen name="tab/[tabId]/index" />
             <Stack.Screen name="tab/[tabId]/pending" />

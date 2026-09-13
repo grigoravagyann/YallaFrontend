@@ -17,6 +17,16 @@ import {
 const URL = 'https://api.test.yalla.am/api/reservations';
 const YEREVAN = 'Asia/Yerevan';
 
+describe('a booking refused for an unconfirmed number', () => {
+  it('asks for verification rather than another tap on Confirm', () => {
+    const failure = bookingFailure(new errors.PhoneNotVerifiedError({ url: URL }), YEREVAN, 'en');
+    expect(failure).toEqual({
+      kind: 'phoneNotVerified',
+      line: { key: 'confirm.error.phoneNotVerified', params: {} },
+    });
+  });
+});
+
 describe('a refused code', () => {
   it('drops the count when the server sent none, rather than saying 0 attempts left', () => {
     const error = new WrongCodeError({ url: URL, attemptsRemaining: null });

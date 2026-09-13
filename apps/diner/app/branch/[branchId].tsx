@@ -3,16 +3,19 @@ import { isOfflinePaused } from '@yalla/api/react';
 import { FloorPlan, Legend } from '@yalla/floorplan';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { SafeAreaView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import {
   BookingContextBar,
   nextHalfHour,
   type BookingContext,
 } from '../../src/components/BookingContextBar';
-import { QueryFailure, QueryLoading } from '../../src/components/QueryState';
+import { EmptyState } from '../../src/components/EmptyState';
+import { IconButton } from '../../src/components/IconButton';
+import { QueryErrorState } from '../../src/components/QueryErrorState';
+import { Screen } from '../../src/components/Screen';
+import { Skeleton } from '../../src/components/Skeleton';
 import { TableSheet } from '../../src/components/TableSheet';
 import { Text } from '../../src/components/Text';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
@@ -20,15 +23,18 @@ import { useBookingRules, useSlotFloor, useVenue } from '../../src/data/queries'
 import { branchZoneSource } from '../../src/lib/browse';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
+import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../src/theme';
 
 /**
- * Pick a table at one branch.
+ * Pick a table at one branch — the floor-plan view.
  *
- * The booking context (date, time, party size) is held here and passed down:
- * party size decides which tables are selectable, the slot decides each table's
- * availability window. This screen stays mounted while verification and
- * confirmation are pushed on top of it — that is what preserves the diner's
- * selected table across the whole round trip, including Android hardware back.
+ * The secondary way in: the details screen's photo is the main experience and
+ * links here for a diner who wants the whole room. The booking context (date,
+ * time, party size) is held here and passed down: party size decides which
+ * tables are selectable, the slot decides each table's availability window.
+ * This screen stays mounted while verification and confirmation are pushed on
+ * top of it — that is what preserves the diner's selected table across the
+ * whole round trip, including Android hardware back.
  */
 export default function BranchFloorPlanScreen() {
   const { t } = useTranslation('diner');
@@ -143,10 +149,38 @@ export default function BranchFloorPlanScreen() {
       router.push(
         verified
           ? { pathname: '/reserve/confirm', params: forward }
-          : { pathname: '/verify', params: forward },
+          : { pathname: '/auth/login', params: forward },
       );
     },
     [router, branchId, venueId, slotIso, booking.partySize],
+  );
+
+  const back = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }, [router]);
+
+  const header = (
+    <View style={styles.header}>
+      <IconButton
+        icon={actionIcon.back}
+        accessibilityLabel={t('floorPlan.back')}
+        variant="ghost"
+        onPress={back}
+      />
+      <View style={styles.headerBody}>
+        {/* The branch name comes back with the room, so a deep link that never
+            read its venue still says where it is. */}
+        {venueQuery.data?.name ? (
+          <Text numberOfLines={1} style={styles.venue}>
+            {venueQuery.data.name}
+          </Text>
+        ) : null}
+        <Text display numberOfLines={1} style={styles.branch} accessibilityRole="header">
+          {branchSummary?.name ?? slotFloorQuery.data?.plan.branchName ?? t('floorPlan.title')}
+        </Text>
+      </View>
+    </View>
   );
 
   /*
@@ -157,25 +191,48 @@ export default function BranchFloorPlanScreen() {
    */
   if (!slotFloorQuery.data) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <Stack.Screen options={{ headerShown: true, title: '' }} />
+      <Screen edges={['top', 'left', 'right', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
+        {header}
         {isOfflinePaused(slotFloorQuery) || isOfflinePaused(zoneQuery) ? (
-          <QueryFailure offline onRetry={() => void slotFloorQuery.refetch()} />
+          <QueryErrorState offline onRetry={() => void slotFloorQuery.refetch()} />
         ) : waitingForZone || slotFloorQuery.isLoading ? (
-          <QueryLoading label={t('net.loading')} />
+          <View style={styles.skeleton} accessibilityLabel={t('net.loading')}>
+            <View style={styles.skeletonBar}>
+              <Skeleton
+                height={layout.touchTarget}
+                borderRadius={radius.pill}
+                style={styles.flex}
+              />
+              <Skeleton
+                height={layout.touchTarget}
+                borderRadius={radius.pill}
+                style={styles.flex}
+              />
+              <Skeleton
+                height={layout.touchTarget}
+                borderRadius={radius.pill}
+                style={styles.flex}
+              />
+            </View>
+            <Skeleton width="60%" height={14} />
+            <Skeleton height={320} borderRadius={radius.card} />
+          </View>
         ) : zoneQuery.isError ? (
-          <QueryFailure error={zoneQuery.error} onRetry={() => void zoneQuery.refetch()} />
+          <QueryErrorState error={zoneQuery.error} onRetry={() => void zoneQuery.refetch()} />
         ) : slotFloorQuery.isError ? (
-          <QueryFailure
+          <QueryErrorState
             error={slotFloorQuery.error}
             onRetry={() => void slotFloorQuery.refetch()}
           />
         ) : (
-          <View style={styles.centered}>
-            <Text style={styles.emptyTitle}>{t('floorPlan.notFound')}</Text>
-          </View>
+          <EmptyState
+            icon={actionIcon.error}
+            title={t('floorPlan.notFound')}
+            action={{ label: t('floorPlan.back'), onPress: back }}
+          />
         )}
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -203,19 +260,9 @@ export default function BranchFloorPlanScreen() {
       : null;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen
-        options={{ headerShown: true, title: '', headerBackTitle: t('floorPlan.back') }}
-      />
-
-      {/* The branch name comes back with the room, so a deep link that never
-          read its venue still says where it is. */}
-      <View style={styles.header}>
-        {venueQuery.data?.name ? <Text style={styles.venue}>{venueQuery.data.name}</Text> : null}
-        <Text display style={styles.branch}>
-          {branchSummary?.name ?? slotFloor.plan.branchName ?? ''}
-        </Text>
-      </View>
+    <Screen edges={['top', 'left', 'right', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      {header}
 
       <BookingContextBar
         value={booking}
@@ -233,6 +280,8 @@ export default function BranchFloorPlanScreen() {
         <Legend mode="diner" translate={(key) => t(key, { ns: 'common' })} />
       </View>
 
+      {/* A lost table is information with the next action attached, not an
+          error and not a coloured banner beside the plan. */}
       {conflictLabel ? (
         <Text style={styles.conflict}>
           {t(
@@ -276,43 +325,52 @@ export default function BranchFloorPlanScreen() {
         onReserve={handleReserve}
         onClose={() => setSheetTableId(null)}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
-  header: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm },
-  venue: { fontSize: fontSize.sm, color: color.mutedForeground },
-  branch: {
-    fontSize: fontSize.xl,
-    lineHeight: lineHeight.xl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
+  flex: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
   },
-  legendWrap: { paddingHorizontal: space.lg, paddingVertical: space.xs },
+  headerBody: { flex: 1 },
+  venue: { ...typography.caption, color: colors.textMuted },
+  branch: { ...typography.heading, color: colors.text },
+  legendWrap: { paddingHorizontal: layout.screenPadding, paddingVertical: space.xs },
   status: {
-    paddingHorizontal: space.lg,
+    paddingHorizontal: layout.screenPadding,
     paddingBottom: space.sm,
-    fontSize: fontSize.sm,
-    color: color.mutedForeground,
-    minHeight: lineHeight.sm,
+    ...typography.caption,
+    color: colors.textMuted,
   },
-  // A lost table is information with the next action attached, not an error
-  // and not a coloured banner beside the plan. Ink on paper, one hairline.
   conflict: {
-    marginHorizontal: space.lg,
+    marginHorizontal: layout.screenPadding,
     marginBottom: space.sm,
-    padding: space.sm,
-    borderRadius: radius.soft,
+    padding: space.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: color.borderStrong,
-    backgroundColor: color.paper,
-    color: color.foreground,
-    fontSize: fontSize.sm,
+    borderColor: colors.border,
+    color: colors.text,
+    ...typography.body,
     fontWeight: fontWeight.medium,
   },
-  planWrap: { flex: 1, marginHorizontal: space.lg, marginBottom: space.lg },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.sm },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  // The room sits in a white card like everything else on the cream.
+  planWrap: {
+    flex: 1,
+    marginHorizontal: layout.screenPadding,
+    marginBottom: space.lg,
+    borderRadius: radius.card,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  skeleton: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm, gap: space.md },
+  skeletonBar: { flexDirection: 'row', gap: space.sm },
 });

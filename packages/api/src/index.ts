@@ -163,6 +163,29 @@ export {
   isTableTaken,
 } from './contracts/errors';
 
+// --- Diner accounts ---------------------------------------------------------
+export type {
+  DinerPhotoFile,
+  DinerProfileView,
+  DinerSignInResult,
+  LoginDinerCommand,
+  NativeFile,
+  RegisterDinerCommand,
+  SetDinerPasswordCommand,
+  UpdateDinerProfileCommand,
+} from './contracts/dinerAccount';
+export {
+  EmailTakenError,
+  InvalidCredentialsError,
+  PhoneInUseError,
+  PhoneNotVerifiedError,
+  isPhoneNotVerified,
+  UsernameTakenError,
+  isAccountTaken,
+  isInvalidCredentials,
+} from './contracts/errors';
+export { SEEDED_ACCOUNT as MOCK_DINER_ACCOUNT } from './mocks/accounts';
+
 // --- Rules the phone app and the public web page both run --------------------
 export {
   approvalCopy,

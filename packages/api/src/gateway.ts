@@ -12,6 +12,16 @@ import type {
 } from './contracts/booking';
 
 import type {
+  DinerPhotoFile,
+  DinerProfileView,
+  DinerSignInResult,
+  LoginDinerCommand,
+  RegisterDinerCommand,
+  SetDinerPasswordCommand,
+  UpdateDinerProfileCommand,
+} from './contracts/dinerAccount';
+import type { Photo } from './contracts/menuAdmin';
+import type {
   CancelReservationCommand,
   ExtendHoldCommand,
   ExtendHoldOutcome,
@@ -152,6 +162,77 @@ export interface YallaGateway {
     code: string;
     localeCode?: string | undefined;
   }): Promise<VerifiedPhone>;
+
+  // --- The account --------------------------------------------------------
+  /**
+   * Sign up with a username, an email, a password and a phone number.
+   *
+   * Starts the token session exactly as {@link verifyPhoneCode} does — the
+   * diner is signed in when this resolves. The number is **not** verified by
+   * registering; `phoneVerified` on the profile stays false until they pass an
+   * SMS code once, which the profile screen offers.
+   *
+   * @throws {ValidationError} a field broke a rule; `field` names it.
+   * @throws {UsernameTakenError} somebody has that username.
+   * @throws {EmailTakenError} somebody signed up with that email.
+   * @throws {PhoneInUseError} the number already has an account — offer
+   * "Log in with a code instead", which signs that account in.
+   * @throws {RateLimitedError} too many sign-ups from this address.
+   */
+  registerDiner(command: RegisterDinerCommand): Promise<DinerSignInResult>;
+
+  /**
+   * Sign in with a username or an email and the password. Starts the token
+   * session like {@link verifyPhoneCode}.
+   *
+   * @throws {InvalidCredentialsError} no match — wrong identifier, wrong
+   * password, an account with no password yet, an inactive account: one
+   * answer for all four, on purpose.
+   * @throws {TooManyAttemptsError} ten misses in fifteen minutes for this
+   * identifier or this address; wait, or use a code.
+   */
+  loginDiner(command: LoginDinerCommand): Promise<DinerSignInResult>;
+
+  /**
+   * The signed-in diner's own profile, `GET /api/diner/me`.
+   *
+   * @throws {UnauthorizedError} nobody is signed in.
+   */
+  getDinerProfile(): Promise<DinerProfileView>;
+
+  /**
+   * Change the name, username or email — only the fields present. Same rules
+   * and the same refusals as {@link registerDiner}.
+   *
+   * @throws {ValidationError}
+   * @throws {UsernameTakenError}
+   * @throws {EmailTakenError}
+   */
+  updateDinerProfile(command: UpdateDinerProfileCommand): Promise<DinerProfileView>;
+
+  /**
+   * Set or change the password. An SMS-made account with none yet sends no
+   * `currentPassword`; one that has a password must.
+   *
+   * @throws {InvalidCredentialsError} the current password was wrong.
+   * @throws {ValidationError} the new one breaks the rule.
+   */
+  setDinerPassword(command: SetDinerPasswordCommand): Promise<void>;
+
+  /**
+   * Replace the avatar. One multipart `file` part: on React Native hand over
+   * the picker's `{ uri, name, type }`, on the web a `Blob` or `File` — see
+   * {@link DinerPhotoFile}. The links on the answer are already absolute.
+   *
+   * Same sniffing and size cap as a menu photo, so the same refusal.
+   *
+   * @throws {UnsupportedImageError} not a JPEG, PNG or WebP, too big, or too
+   * small; `reason` says which.
+   */
+  uploadDinerPhoto(file: DinerPhotoFile): Promise<Photo>;
+
+  /** Take the avatar off. Idempotent: an account with no photo answers success. */
+  removeDinerPhoto(): Promise<void>;
 
   // --- Booking ------------------------------------------------------------
   /**

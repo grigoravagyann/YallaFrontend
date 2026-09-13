@@ -1,11 +1,13 @@
 import type { Booking } from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from './Text';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useJoinByCode } from '../hooks/useJoinByCode';
 import { useNow } from '../hooks/useNow';
 import { canOpenTabForBooking } from '../lib/bookingActions';
+import { colors, space, typography } from '../theme';
+import { Button } from './Button';
+import { Card } from './Card';
+import { Text } from './Text';
 
 /**
  * "I'm at my table", on the booking it belongs to.
@@ -21,11 +23,17 @@ import { canOpenTabForBooking } from '../lib/bookingActions';
  * branch's zone, which is why a "not yet — from 19:10" here can say the hour
  * and the same refusal on the scan screen cannot.
  */
-export function AtMyTableAction({ booking }: { readonly booking: Booking }) {
+export function AtMyTableAction({
+  booking,
+  style,
+}: {
+  readonly booking: Booking;
+  readonly style?: StyleProp<ViewStyle>;
+}) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const now = useNow(30_000);
-  const { enter, failure, isWorking } = useJoinByCode({
+  const { enter, failure, isWorking, verifyNeeded, verifyNumber } = useJoinByCode({
     at: { timeZoneId: booking.timeZoneId, locale },
   });
 
@@ -34,25 +42,13 @@ export function AtMyTableAction({ booking }: { readonly booking: Booking }) {
   if (!canOpenTabForBooking(booking, now)) return null;
 
   return (
-    <View style={styles.card}>
+    <Card style={[styles.card, style]}>
       <Text style={styles.hint}>{t('booking.atTable.hint')}</Text>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: isWorking, busy: isWorking }}
+      <Button
+        label={isWorking ? t('booking.atTable.working') : t('booking.atTable.action')}
         disabled={isWorking}
         onPress={() => void enter({ kind: 'booking', code: booking.code })}
-        style={({ pressed }) => [
-          styles.primary,
-          pressed && styles.pressed,
-          isWorking && styles.busy,
-        ]}
-      >
-        <Text style={styles.primaryText}>
-          {isWorking ? t('booking.atTable.working') : t('booking.atTable.action')}
-        </Text>
-      </Pressable>
-
+      />
       {/* Each refusal as its own sentence, with the branch's own time in the
           one that has a time to give. */}
       {failure ? (
@@ -60,34 +56,15 @@ export function AtMyTableAction({ booking }: { readonly booking: Booking }) {
           {t(failure.key, failure.params ?? {})}
         </Text>
       ) : null}
-    </View>
+      {verifyNeeded ? (
+        <Button label={t('confirm.verifyMyNumber')} variant="outline" onPress={verifyNumber} />
+      ) : null}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    marginTop: space.md,
-    gap: space.sm,
-    padding: space.md,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: color.borderSoft,
-    backgroundColor: color.surface,
-  },
-  hint: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  primary: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  pressed: { backgroundColor: color.primaryPressed },
-  busy: { opacity: 0.6 },
-  primaryText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  error: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.danger },
+  card: { gap: space.md },
+  hint: { ...typography.body, color: colors.textMuted },
+  error: { ...typography.body, color: colors.error },
 });

@@ -4,22 +4,29 @@
     "city": "Yerevan",
     "placesNearby_one": "{{count}} place nearby",
     "placesNearby_other": "{{count}} places nearby",
-    "searchPlaceholder": "Search cafes and restaurants",
+    "searchPlaceholder": "Search cafes, restaurants, or cuisine…",
     "searchClear": "Clear search",
     "filter": {
       "all": "All",
       "cafes": "Cafes",
-      "restaurants": "Restaurants"
+      "restaurants": "Restaurants",
+      "popular": "Popular",
+      "new": "New"
     },
     "empty": {
       "title": "Nothing matches that",
-      "body": "Try a different name, or clear the filters."
+      "body": "Try a different name, or clear the filters.",
+      "nearby": {
+        "title": "No places nearby",
+        "body": "Try widening the search or check back later."
+      }
     },
     "loading": "Finding places nearby…",
     "freeLead_one": "{{count}} table free",
     "freeLead_other": "{{count}} tables free",
     "inPlaces_one": "in {{count}} place nearby",
-    "inPlaces_other": "in {{count}} places nearby"
+    "inPlaces_other": "in {{count}} places nearby",
+    "mapButton": "Open map"
   },
   "venue": {
     "type": {
@@ -90,7 +97,8 @@
   "tabs": {
     "explore": "Explore",
     "bookings": "Bookings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "orders": "Orders"
   },
   "bookings": {
     "title": "Bookings",
@@ -132,12 +140,28 @@
     },
     "signedOut": {
       "title": "Your bookings are kept under your number",
-      "body": "Confirm your number to see them.",
-      "action": "Confirm my number"
+      "body": "Log in to see them.",
+      "action": "Log in"
     }
   },
   "profile": {
-    "title": "Profile"
+    "title": "Profile",
+    "settings": "Settings",
+    "myBookings": "My Bookings",
+    "myOrders": "My Orders",
+    "favorites": "Favorites",
+    "notifications": "Notifications",
+    "help": "Help & Support",
+    "about": "About",
+    "logOut": "Log Out",
+    "guest": "Guest",
+    "logIn": "Log in",
+    "createAccount": "Create account",
+    "editProfile": "Edit profile",
+    "notVerified": "Not verified",
+    "verify": "Verify",
+    "setPasswordPrompt": "Set a password to log in without a code.",
+    "setPasswordAction": "Set a password"
   },
   "table": {
     "titleWithArea": "Table {{label}} · {{area}}",
@@ -174,6 +198,7 @@
     "phoneTitle": "Your phone number",
     "phoneBody": "We ask for this only to hold the table, so the venue can reach you if something changes.",
     "phoneLabel": "Phone number",
+    "countryCode": "Country code",
     "phonePlaceholder": "77 123456",
     "sendCode": "Send code",
     "codeTitle": "Enter the code",
@@ -195,6 +220,64 @@
     },
     "changeNumber": "Use a different number"
   },
+  "auth": {
+    "welcome": {
+      "title": "Welcome to Yalla",
+      "body": "Book a table, order at it, and keep your bookings in one place."
+    },
+    "logIn": "Log in",
+    "createAccount": "Create account",
+    "continueAsGuest": "Continue as guest",
+    "login": {
+      "title": "Log in",
+      "body": "We'll text you a code. No password to remember.",
+      "noAccount": "No account yet?",
+      "createOne": "Create one"
+    },
+    "signup": {
+      "title": "Create account",
+      "body": "Your name is what the venue asks for at the door. We'll text you a code to confirm your number.",
+      "haveAccount": "Already have an account?"
+    },
+    "nameLabel": "Your name",
+    "namePlaceholder": "Name the venue will ask for",
+    "emailLabel": "Email (optional)",
+    "emailPlaceholder": "you@example.com",
+    "emailHint": "Kept on this phone for your receipts. We don't send it anywhere.",
+    "nameStep": {
+      "title": "What should the venue call you?",
+      "body": "Shown to staff when you arrive. You can change it later."
+    },
+    "continue": "Continue",
+    "skipForNow": "Skip for now",
+    "error": {
+      "nameRequired": "Enter the name the venue should use.",
+      "emailInvalid": "That email doesn't look right.",
+      "phoneInvalid": "Enter a phone number with its country code.",
+      "usernameInvalid": "Use 3–30 lowercase letters, digits, dots or underscores.",
+      "usernameTaken": "That username is taken.",
+      "emailTaken": "That email already has an account.",
+      "phoneInUse": "This number already has an account.",
+      "passwordInvalid": "Use at least 8 characters, not your username or email.",
+      "invalidCredentials": "That username, email or password isn't right.",
+      "tooManyAttempts": "Too many tries. Wait a few minutes and try again."
+    },
+    "account": {
+      "loginBody": "Welcome back. Use your username or email and your password.",
+      "signupBody": "Your name is what the venue asks for at the door."
+    },
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "ani.petrosyan",
+    "usernameHint": "Lowercase letters, digits, dots and underscores.",
+    "emailFieldLabel": "Email",
+    "identifierLabel": "Username or email",
+    "identifierPlaceholder": "ani or you@example.com",
+    "passwordLabel": "Password",
+    "passwordHint": "At least 8 characters",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "codeInstead": "Log in with a code instead"
+  },
   "confirm": {
     "title": "Confirm your table",
     "venue": "Where",
@@ -214,7 +297,8 @@
       "busy": "Someone else is booking that table this second. Tap confirm again.",
       "commandInUse": "That attempt could not be used. Tap confirm to try again.",
       "branchUnavailable": "This venue is not taking bookings right now.",
-      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice."
+      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice.",
+      "phoneNotVerified": "Confirm your phone number before booking. We'll text you a code."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",
@@ -223,7 +307,8 @@
     "tableError": "We could not check this table. Try again.",
     "tableMissing": "That table is not on the plan any more. Go back and pick another.",
     "phoneMissing": "We need to confirm your number before booking.",
-    "verifyNumber": "Confirm my number"
+    "verifyNumber": "Confirm my number",
+    "verifyMyNumber": "Verify my number"
   },
   "success": {
     "confirmedTitle": "Table booked",
@@ -627,6 +712,196 @@
       "closing": "The bill has been asked for, so nothing more can go on this tab.",
       "closed": "This tab is closed.",
       "removed": "You are no longer on this tab."
+    }
+  },
+  "place": {
+    "type": {
+      "restaurant": "Restaurant",
+      "cafe": "Café"
+    },
+    "badge": {
+      "popular": "Popular",
+      "new": "New"
+    },
+    "status": {
+      "open": "Open",
+      "closed": "Closed"
+    },
+    "todayHours": "Today {{open}} – {{close}}",
+    "distanceKm": "{{km}} km",
+    "rating": "{{rating}} ({{count}})",
+    "favorite": "Save to favorites",
+    "unfavorite": "Remove from favorites",
+    "share": "Share",
+    "photoCounter": "{{index}}/{{total}}",
+    "action": {
+      "call": "Call",
+      "directions": "Directions",
+      "website": "Website",
+      "save": "Save"
+    },
+    "tab": {
+      "about": "About",
+      "menu": "Menu",
+      "reviews": "Reviews"
+    },
+    "bookTable": "Book a Table",
+    "amenity": {
+      "outdoorSeating": "Outdoor Seating",
+      "wifi": "Wi-Fi",
+      "parking": "Parking",
+      "cardPayment": "Card payment",
+      "vegan": "Vegan options"
+    }
+  },
+  "tables": {
+    "title": "Tables right now",
+    "subtitle": "Tap a table on the photo to see details",
+    "status": {
+      "free": "Free",
+      "reserved": "Reserved",
+      "occupied": "Occupied"
+    },
+    "legend": {
+      "free": "Free",
+      "reserved": "Reserved",
+      "occupied": "Occupied"
+    },
+    "table": "Table {{label}}",
+    "capacity": "{{min}}–{{max}} people",
+    "capacityOne": "{{max}} people",
+    "book": "Book",
+    "notBookable": "This table cannot be booked right now",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fullscreen": "Full screen",
+    "close": "Close",
+    "floorPlan": "Floor plan"
+  },
+  "map": {
+    "searchArea": "Search this area",
+    "backToList": "Back to list",
+    "myLocation": "My location",
+    "filter": {
+      "restaurant": "Restaurant",
+      "cafe": "Cafe"
+    },
+    "viewDetails": "View Details",
+    "directions": "Directions",
+    "locationFallback": "Showing Yerevan centre. Allow location to see places near you.",
+    "webFallback": "The live map opens in the app."
+  },
+  "book": {
+    "title": "Book a Table",
+    "date": "Date",
+    "time": "Time",
+    "partySize": "Party Size",
+    "partySizeMore_one": "{{count}}+",
+    "partySizeMore_other": "{{count}}+",
+    "selectedTable": "Selected table",
+    "specialRequests": "Special Requests",
+    "optional": "(optional)",
+    "requestPlaceholder": "E.g. window seat, high chair, etc.",
+    "requestHint": "Kept with your booking on this phone, so you can mention it at the door.",
+    "confirm": "Confirm Booking",
+    "noSlots": "No times left today. Pick another day.",
+    "noTableForParty_one": "No free table seats {{count}} guest right now. Try another party size.",
+    "noTableForParty_other": "No free table seats {{count}} guests right now. Try another party size."
+  },
+  "orders": {
+    "title": "Orders",
+    "active": "Active",
+    "history": "History",
+    "status": {
+      "confirmed": "Confirmed",
+      "preparing": "Preparing",
+      "inProgress": "In progress",
+      "ready": "Ready",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "kind": {
+      "dineIn": "Dine in",
+      "takeaway": "Takeaway"
+    },
+    "tableAndParty_one": "Table {{table}} · {{count}} person",
+    "tableAndParty_other": "Table {{table}} · {{count}} people",
+    "viewDetails": "View Details",
+    "cancel": "Cancel",
+    "trackOrder": "Track Order",
+    "today": "Today, {{time}}",
+    "empty": {
+      "active": {
+        "title": "No active orders",
+        "body": "Scan the code on your table to order."
+      },
+      "history": {
+        "title": "No past orders yet",
+        "body": "Orders you finish will show up here."
+      }
+    },
+    "detail": {
+      "title": "Order details",
+      "items": "Items",
+      "total": "Total",
+      "timeline": "Status"
+    },
+    "notFound": {
+      "title": "We could not find that order",
+      "body": "It may have been placed on another phone, or removed."
+    },
+    "cancelTitle": "Cancel this order?",
+    "cancelBody": "The kitchen has not started on it yet, so nothing will be charged.",
+    "cancelFailed": "We could not cancel that order. Try again."
+  },
+  "favorites": {
+    "title": "Favorites",
+    "empty": {
+      "title": "No favorites yet",
+      "body": "Tap the heart on a place to keep it here."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "languageHint": "Applies to the whole app right away and is remembered on this phone."
+  },
+  "editProfile": {
+    "title": "Edit profile",
+    "changePhoto": "Change photo",
+    "chooseFromLibrary": "Choose from library",
+    "takePhoto": "Take photo",
+    "removePhoto": "Remove photo",
+    "cancel": "Cancel",
+    "uploading": "Uploading photo",
+    "permission": {
+      "library": "Yalla can't open your photos. Allow photo access in Settings to choose one.",
+      "camera": "Yalla can't use the camera. Allow camera access in Settings to take a photo."
+    },
+    "photoError": {
+      "format": "That file isn't a photo we can use. Choose a JPEG, PNG or WebP.",
+      "tooLarge": "That photo is too large. Choose a smaller one.",
+      "dimensions": "That photo is too small. Choose a larger one.",
+      "generic": "The photo couldn't be changed. Try again."
+    },
+    "details": "Your details",
+    "save": "Save",
+    "saved": "Saved.",
+    "password": {
+      "title": "Password",
+      "setBody": "Set one to log in with your username or email, not only a code.",
+      "current": "Current password",
+      "new": "New password",
+      "change": "Change password",
+      "set": "Set a password",
+      "changed": "Password changed.",
+      "setDone": "Password set. You can log in with it now.",
+      "wrongCurrent": "That isn't your current password."
+    },
+    "phone": {
+      "title": "Phone",
+      "verified": "Verified"
     }
   }
 }

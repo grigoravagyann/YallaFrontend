@@ -172,3 +172,44 @@ screen.
   so a language can reorder them), `venue.openAcross_*`, `branches.opensAt`,
   `floorPlan.pickFor`, `table.pickAnother`, `settle.remainingOf`,
   `settle.nothingPaidYet`.
+- `diner` — the reference-design redesign (2026-09-13), provisional and **not**
+  reviewed. New sections: `place.*` (type, content badges `popular`/`new`,
+  the `open`/`closed` availability pills — which must stay availability words,
+  never category words — `todayHours`, `distanceKm`, `rating`, the four action
+  tiles, the About/Menu/Reviews tabs, `bookTable`, `amenity.*`), `tables.*`
+  (the photo table view: `status.*` and `legend.*` carry the same three words
+  on purpose, `capacity`, `capacityOne`, `book`, `notBookable`, zoom and
+  fullscreen controls, `floorPlan`), `map.*` (`locationFallback` must keep
+  saying the centre is being shown _because_ location was not allowed),
+  `book.*` (the booking screen; `partySizeMore_*` is the "5+" chip),
+  `orders.*` (statuses, `kind.*`, `tableAndParty_*`, the two empty states and
+  the detail labels), `favorites.*`, and the Profile rows (`profile.settings`,
+  `.myBookings`, `.myOrders`, `.favorites`, `.notifications`, `.help`,
+  `.about`, `.logOut`, `.guest`). Also `tabs.orders`,
+  `explore.mapButton`, `explore.filter.popular`/`.new`,
+  `explore.empty.nearby.*`, and `explore.searchPlaceholder` rewritten to name
+  cuisine as a third thing to search for.
+- `diner` — sign up and log in (2026-09-13), provisional and **not** reviewed:
+  `auth.*` (the welcome fork `welcome.*`, `logIn`, `createAccount`,
+  `continueAsGuest`; the log-in step `login.*` and the sign-up step
+  `signup.*`, whose bodies must keep saying that a code is texted and that
+  the name is what the venue asks for at the door; the name and email fields
+  `nameLabel`, `namePlaceholder`, `emailLabel`, `emailPlaceholder`,
+  `emailHint` — the hint must keep promising the email stays on the phone;
+  the after-log-in name step `nameStep.*`, `continue`, `skipForNow`; and the
+  three field errors `error.*`). Also `profile.logIn`,
+  `profile.createAccount`, and `bookings.signedOut.action` / `.body` reworded
+  from "Confirm my number" to "Log in" now that the tab opens the welcome
+  screen. `profile.signIn` was removed with the button it labelled.
+- `diner` — accounts with a password (2026-09-13), provisional and **not**
+  reviewed: `auth.account.*` (the password log-in and sign-up bodies),
+  `auth.usernameLabel` / `.usernamePlaceholder` / `.usernameHint`,
+  `auth.emailFieldLabel` (the required email, beside the older optional
+  `emailLabel`), `auth.identifierLabel` / `.identifierPlaceholder`,
+  `auth.passwordLabel` / `.passwordHint`, `auth.showPassword` /
+  `.hidePassword`, `auth.codeInstead`, and seven new `auth.error.*`
+  (`invalidCredentials` must never say which half was wrong). `profile.editProfile`,
+  `.notVerified`, `.verify`. The whole `editProfile.*` section (photo sheet,
+  permission and upload refusals per reason, details, password, phone). Also
+  `confirm.error.phoneNotVerified` and `confirm.verifyMyNumber`, shown when an
+  account whose number has not passed the SMS code tries to book or open a tab.

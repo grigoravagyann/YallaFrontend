@@ -1,8 +1,9 @@
 import { tableCopy, type CopyLine, type TableAvailability, type TableCopy } from '@yalla/api';
 import type { Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { color, elevation, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius, shadows, space, typography } from '../theme';
 import { Button } from './Button';
 import { Text } from './Text';
 
@@ -31,6 +32,7 @@ export function TableSheet({
   onClose,
 }: TableSheetProps) {
   const { t } = useTranslation('diner');
+  const insets = useSafeAreaInsets();
   const open = availability !== null;
 
   // Every sentence on this sheet comes from one call, shared with the confirm
@@ -48,10 +50,10 @@ export function TableSheet({
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('table.close')} />
 
       {availability && copy ? (
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
           <View style={styles.grabber} />
           <ScrollView contentContainerStyle={styles.content}>
-            <Text display style={styles.title}>
+            <Text display style={styles.title} accessibilityRole="header">
               {t(copy.title.key, copy.title.params)}
             </Text>
             <Text style={styles.seats}>{t(copy.seats.key, copy.seats.params)}</Text>
@@ -123,6 +125,7 @@ function BookableBody({
 
       <Button
         label={line(copy.reserve)}
+        size="large"
         onPress={() => onReserve(tableId)}
         style={styles.reserve}
       />
@@ -131,76 +134,39 @@ function BookableBody({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: color.scrim },
+  backdrop: { flex: 1, backgroundColor: colors.overlayDark },
   sheet: {
     maxHeight: '70%',
-    backgroundColor: color.surface,
-    // The one elevation in the product: this genuinely floats over the room.
-    ...elevation.sheet.native,
+    backgroundColor: colors.surface,
+    ...shadows.float,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
-    paddingBottom: space.xl,
   },
   grabber: {
     alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: radius.pill,
-    backgroundColor: color.border,
+    backgroundColor: colors.border,
     marginVertical: space.sm,
   },
   content: { paddingHorizontal: space.xl, gap: space.xs },
-  title: {
-    fontSize: fontSize.xl,
-    lineHeight: lineHeight.xl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  seats: { fontSize: fontSize.sm, color: color.mutedForeground },
+  title: { ...typography.heading, color: colors.text },
+  seats: { ...typography.body, color: colors.textMuted },
   windowBlock: {
     marginTop: space.lg,
     padding: space.md,
     borderRadius: radius.card,
-    backgroundColor: color.paper,
+    backgroundColor: colors.background,
     gap: space.xs,
   },
-  windowPrimary: {
-    fontSize: fontSize.lg,
-    lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  windowSecondary: { fontSize: fontSize.sm, color: color.mutedForeground },
-  shortWindow: {
-    marginTop: space.xs,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.warningInk,
-  },
-  noLimit: {
-    fontSize: fontSize.lg,
-    lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.bold,
-    color: color.successInk,
-  },
-  cancellation: {
-    marginTop: space.md,
-    fontSize: fontSize.sm,
-    color: color.mutedForeground,
-  },
-  approval: {
-    marginTop: space.sm,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.info,
-  },
-  unavailable: {
-    marginTop: space.lg,
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    color: color.mutedForeground,
-  },
-  // The beige fill with its ink label; `primaryOnFloorPlan` is the same value.
+  windowPrimary: { ...typography.h3, color: colors.text },
+  windowSecondary: { ...typography.caption, color: colors.textMuted },
+  shortWindow: { marginTop: space.xs, ...typography.caption, color: colors.warning },
+  noLimit: { ...typography.h3, color: colors.success },
+  cancellation: { marginTop: space.md, ...typography.caption, color: colors.textMuted },
+  approval: { marginTop: space.sm, ...typography.caption, color: colors.info },
+  unavailable: { marginTop: space.lg, ...typography.body, color: colors.textMuted },
   reserve: { marginTop: space.xl },
   pickAnother: { marginTop: space.xs },
 });

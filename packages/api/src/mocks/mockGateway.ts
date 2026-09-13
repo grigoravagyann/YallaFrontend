@@ -15,6 +15,7 @@ import type {
 } from '../contracts/booking';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
+  PhoneNotVerifiedError,
   BookingEndedError,
   BookingNotActiveError,
   BookingNotFoundError,
@@ -49,9 +50,16 @@ import type {
   TabShares,
 } from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
-import { ConcurrencyConflictError, ForbiddenError, NotFoundError } from '../errors';
+import type { DinerPhotoFile, DinerSignInResult } from '../contracts/dinerAccount';
+import {
+  ConcurrencyConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../errors';
 import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
+import { createAccountStore } from './accounts';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
@@ -188,6 +196,55 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   }
   const challenges = new Map<string, Challenge>();
   const codesPerNumber = new Map<string, number[]>();
+
+  /**
+   * The accounts, and who is signed in on this device.
+   *
+   * The real gateway keeps no such thing — the session does, and the server
+   * reads the token — but the mock has no token, so "who is `/me`" has to be
+   * remembered here. Set by register, login and a passed code; `null` until.
+   */
+  const accounts = createAccountStore({ now });
+  let signedInAccountId: string | null = null;
+
+  /** The signed-in account's id, or the 401 `/api/diner/me` answers a stranger. */
+  /**
+   * The server's booking gate for password accounts: a signed-in account whose
+   * number has not been confirmed by code may not book or open a tab from a
+   * booking. A device that only ever verified by code has no unverified account,
+   * so it is never refused here.
+   */
+  function requireVerifiedPhone(url: string): void {
+    if (!signedInAccountId) return;
+    const profile = accounts.profile(signedInAccountId);
+    if (profile && !profile.phoneVerified) throw new PhoneNotVerifiedError({ url });
+  }
+
+  function me(): string {
+    if (!signedInAccountId) throw new UnauthorizedError({ url: `${URL_TAG}/api/diner/me` });
+    return signedInAccountId;
+  }
+
+  /** Signed in: the tokens the server would issue, with the mock's own strings. */
+  function signIn(accountId: string, isNewAccount: boolean): DinerSignInResult {
+    signedInAccountId = accountId;
+    return {
+      accessToken: `at_${accountId}_${sequence++}`,
+      refreshToken: `rt_${accountId}_${sequence++}`,
+      expiresInSeconds: 900,
+      dinerUserId: accountId,
+      isNewAccount,
+    };
+  }
+
+  /** A name to seed the mock photo from, whichever shape the file came in. */
+  function photoSeed(file: DinerPhotoFile): string {
+    return 'uri' in file
+      ? file.name
+      : 'name' in file && typeof file.name === 'string'
+        ? file.name
+        : 'blob';
+  }
   /** commandId -> bookingId. This is what makes createBooking idempotent. */
   const commandLog = new Map<string, string>();
   let simulateTakenOnce = options.simulateTableTaken ?? false;
@@ -598,7 +655,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       } satisfies PhoneChallenge;
     },
 
-    async verifyPhoneCode({ challengeId, code }) {
+    async verifyPhoneCode({ challengeId, code, localeCode }) {
       await wait();
       const challenge = challenges.get(challengeId);
       if (!challenge) throw new ExpiredCodeError({ url: URL_TAG });
@@ -615,14 +672,62 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       }
 
       challenges.delete(challengeId);
+      // As the server does since accounts: a registered number is marked
+      // verified and that account signed in; an unknown one gets an account.
+      const { accountId, isNewAccount } = accounts.verifyPhone(
+        challenge.phoneE164,
+        localeCode,
+        signedInAccountId,
+      );
+      signIn(accountId, isNewAccount);
       return {
         verificationToken: `vt_${challenge.phoneE164}_${sequence++}`,
         phoneE164: challenge.phoneE164,
       } satisfies VerifiedPhone;
     },
 
+    // --- The account --------------------------------------------------------
+
+    async registerDiner(command) {
+      await wait();
+      return signIn(accounts.register(command), true);
+    },
+
+    async loginDiner(command) {
+      await wait();
+      return signIn(accounts.login(command), false);
+    },
+
+    async getDinerProfile() {
+      await wait();
+      const profile = accounts.profile(me());
+      if (!profile) throw new UnauthorizedError({ url: `${URL_TAG}/api/diner/me` });
+      return profile;
+    },
+
+    async updateDinerProfile(command) {
+      await wait();
+      return accounts.update(me(), command);
+    },
+
+    async setDinerPassword(command) {
+      await wait();
+      accounts.setPassword(me(), command);
+    },
+
+    async uploadDinerPhoto(file) {
+      await wait();
+      return accounts.setPhoto(me(), photoSeed(file));
+    },
+
+    async removeDinerPhoto() {
+      await wait();
+      accounts.removePhoto(me());
+    },
+
     async createBooking(command: CreateBookingCommand) {
       await wait();
+      requireVerifiedPhone(`${URL_TAG}/api/reservations`);
 
       // Idempotency first: a retry of the same command must not book twice.
       const existingId = commandLog.get(command.commandId);
@@ -899,6 +1004,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       await wait();
 
       const url = `${URL_TAG}/api/tabs/open-by-booking`;
+      requireVerifiedPhone(url);
       const wanted = normaliseBookingCode(command.bookingCode);
       /*
        * Over this diner's own bookings — which *is* the ownership rule, not an
