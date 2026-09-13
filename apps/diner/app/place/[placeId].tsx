@@ -28,6 +28,7 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { AmenityChips } from '../../src/components/place/AmenityChips';
 import { PlaceActions } from '../../src/components/place/PlaceActions';
+import { ReviewComposer } from '../../src/components/place/ReviewComposer';
 import { PlaceTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
 import { PlaceMetaRow, usePlaceCopy } from '../../src/components/places/placeCopy';
 import { TableLegend } from '../../src/components/tables/TableLegend';
@@ -364,7 +365,10 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
             ) : tab === 'menu' ? (
               <MenuList place={place} />
             ) : (
-              <ReviewList reviews={place.reviews} />
+              <>
+                <ReviewList reviews={place.reviews} />
+                <ReviewComposer placeId={place.id} style={styles.composer} />
+              </>
             )}
           </View>
         </View>
@@ -402,11 +406,15 @@ function MenuList({ place }: { place: Place }) {
 }
 
 function ReviewList({ reviews }: { reviews: readonly Review[] }) {
+  const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const dateFormat = useMemo(
     () => new Intl.DateTimeFormat(intlTag(locale), { dateStyle: 'medium', timeZone: 'UTC' }),
     [locale],
   );
+  if (reviews.length === 0) {
+    return <Text style={styles.noReviews}>{t('place.noReviews')}</Text>;
+  }
   return (
     <View style={styles.reviews}>
       {reviews.map((review) => {
@@ -591,6 +599,8 @@ const styles = StyleSheet.create({
   reviewDate: { ...typography.caption, color: colors.textSubtle },
   stars: { flexDirection: 'row', gap: 2 },
   reviewText: { ...typography.body, color: colors.text },
+  noReviews: { ...typography.body, color: colors.textMuted },
+  composer: { marginTop: space.lg },
 
   tablesHeader: { marginTop: space.xl },
   floorPlanLink: { paddingHorizontal: space.sm, minHeight: layout.touchTarget - 8 },

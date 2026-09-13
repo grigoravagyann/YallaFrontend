@@ -22,6 +22,17 @@ import type {
 } from './contracts/dinerAccount';
 import type { Photo } from './contracts/menuAdmin';
 import type {
+  BranchDetail,
+  BranchListing,
+  BranchReviewPage,
+  BranchSearchQuery,
+  BranchTableMarkers,
+  DinerOrder,
+  DinerOrderSegment,
+  MyBranchReview,
+  SubmitBranchReviewCommand,
+} from './contracts/places';
+import type {
   CancelReservationCommand,
   ExtendHoldCommand,
   ExtendHoldOutcome,
@@ -135,6 +146,65 @@ export interface YallaGateway {
     partySize: number;
     timeZoneId?: string | undefined;
   }): Promise<SlotFloor | null>;
+
+  // --- Places: the Explore list, search, details, reviews -------------------
+  /**
+   * Every listed branch, `GET /api/public/branches`. Anonymous.
+   *
+   * With a `position` the answer carries `distanceKm` and comes nearest first;
+   * without one it comes best rated first. `query` and `venueType` narrow it
+   * exactly as {@link searchBranches} does.
+   */
+  listBranches(query?: BranchSearchQuery): Promise<readonly BranchListing[]>;
+
+  /** `GET /api/public/branches/search`: name, venue, cuisine and address, case-insensitive. */
+  searchBranches(query: BranchSearchQuery): Promise<readonly BranchListing[]>;
+
+  /**
+   * One branch with its hours, gallery, newest reviews and photo markers.
+   *
+   * @returns `null` for a branch that is unknown, inactive or suspended.
+   */
+  getBranchDetail(
+    branchId: string,
+    position?: BranchSearchQuery['position'],
+  ): Promise<BranchDetail | null>;
+
+  /** A page of reviews, newest revision first. `null` for an unknown branch. */
+  getBranchReviews(input: { branchId: string; page?: number }): Promise<BranchReviewPage | null>;
+
+  /** Live table markers on the cover photo. `null` for an unknown branch. */
+  getBranchTableMarkers(branchId: string): Promise<BranchTableMarkers | null>;
+
+  /**
+   * The signed-in diner's own review of a branch, or `null` when they have not
+   * written one.
+   *
+   * @throws {UnauthorizedError} nobody is signed in.
+   */
+  getMyBranchReview(branchId: string): Promise<MyBranchReview | null>;
+
+  /**
+   * Write or revise the diner's review — one per diner per branch, so a second
+   * save replaces the first.
+   *
+   * @throws {PhoneNotVerifiedError} the account's number is not confirmed.
+   * @throws {ValidationError} rating outside 1–5 or text over 1000 characters.
+   * @throws {NotFoundError} the branch is not published.
+   * @throws {UnauthorizedError} nobody is signed in.
+   */
+  saveMyBranchReview(command: SubmitBranchReviewCommand): Promise<MyBranchReview>;
+
+  // --- The diner's orders -----------------------------------------------------
+  /**
+   * Orders this diner is on, newest first, at most 100.
+   *
+   * @throws {UnauthorizedError} nobody is signed in.
+   */
+  listDinerOrders(segment?: DinerOrderSegment): Promise<readonly DinerOrder[]>;
+
+  /** One order, or `null` when it is unknown or somebody else's. */
+  getDinerOrder(orderId: string): Promise<DinerOrder | null>;
 
   // --- Phone verification -------------------------------------------------
   /**

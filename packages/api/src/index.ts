@@ -87,6 +87,26 @@ export type {
   VerifiedPhone,
 } from './contracts/booking';
 
+export type {
+  BranchBadge,
+  BranchDetail,
+  BranchListing,
+  BranchOpeningBlock,
+  BranchReview,
+  BranchReviewPage,
+  BranchSearchQuery,
+  BranchTableMarker,
+  BranchTableMarkers,
+  DinerOrder,
+  DinerOrderLine,
+  DinerOrderSegment,
+  DinerOrderStatus,
+  MarkerStatus,
+  MyBranchReview,
+  SubmitBranchReviewCommand,
+} from './contracts/places';
+export { haversineKm } from './mocks/mockGateway';
+
 export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
 
 export { REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';

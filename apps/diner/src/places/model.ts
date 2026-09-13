@@ -88,15 +88,17 @@ export interface Place {
   readonly type: PlaceType;
   /** "Armenian & Mediterranean" — free text from the venue, not a key. */
   readonly cuisine: string;
-  readonly distanceKm: number;
-  /** 0–5, one decimal. */
-  readonly rating: number;
+  /** `null` when unknown: no position from the phone, or no coordinates for the place. */
+  readonly distanceKm: number | null;
+  /** 0–5, one decimal. `null` until the first review — never a stand-in zero. */
+  readonly rating: number | null;
   readonly ratingCount: number;
   readonly badges: readonly PlaceBadge[];
   readonly openState: OpenState;
   /** Remote URLs. The first is the hero and carries the table markers. */
   readonly photos: readonly string[];
-  readonly coords: Coordinates;
+  /** `null` when the venue has not set a location: no pin, no directions. */
+  readonly coords: Coordinates | null;
   readonly address: string;
   readonly phone?: string;
   readonly website?: string;
@@ -109,6 +111,13 @@ export interface Place {
   readonly menu: readonly MenuSection[];
   readonly reviews: readonly Review[];
   readonly tables: readonly TablePhotoMarker[];
+}
+
+/** A place the map can pin: one whose venue has set a location. */
+export type LocatedPlace = Place & { readonly coords: Coordinates };
+
+export function isLocated(place: Place): place is LocatedPlace {
+  return place.coords !== null;
 }
 
 // ---------------------------------------------------------------------------

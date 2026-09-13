@@ -42,7 +42,11 @@ const NO_EDGES: readonly Edge[] = [];
  * A driving-directions link the phone's own maps app understands: Apple Maps
  * on iOS, the `geo:` intent on Android, Google Maps in a browser tab elsewhere.
  */
-function directionsUrls(place: Place): { readonly preferred: string; readonly fallback: string } {
+function directionsUrls(
+  place: Place,
+): { readonly preferred: string; readonly fallback: string } | null {
+  // A place with no location set has no pin and nowhere to route to.
+  if (!place.coords) return null;
   const { latitude, longitude } = place.coords;
   const label = encodeURIComponent(place.name);
   const fallback = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
@@ -127,7 +131,9 @@ export default function MapScreen() {
   );
 
   const openDirections = useCallback((place: Place) => {
-    const { preferred, fallback } = directionsUrls(place);
+    const urls = directionsUrls(place);
+    if (!urls) return;
+    const { preferred, fallback } = urls;
     void openURL(preferred).catch(() => openURL(fallback).catch(() => undefined));
   }, []);
 

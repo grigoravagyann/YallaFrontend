@@ -1,8 +1,17 @@
+import type { YallaGateway } from '@yalla/api';
 import { currentLocale } from '@yalla/i18n';
-import { usingMockData } from '../data/gateway';
+import { gateway, usingMockData } from '../data/gateway';
+import { readDevicePosition } from './devicePosition';
+import {
+  markerFromApi,
+  placeFromDetail,
+  placeFromListing,
+  type PlaceMappingContext,
+} from './httpMapping';
 import { mockPlaces, type PlaceSeed } from './mockPlaces';
 import {
   openStateFor,
+  type Coordinates,
   type Place,
   type PlaceBadge,
   type PlaceType,
@@ -88,7 +97,8 @@ export function createMockPlaceRepository(
     openState: openStateFor(seed.hours, now(), seed.timeZoneId, locale()),
   });
 
-  const byDistance = (a: PlaceSeed, b: PlaceSeed) => a.distanceKm - b.distanceKm;
+  const byDistance = (a: PlaceSeed, b: PlaceSeed) =>
+    (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY);
 
   return {
     async listNearby() {
@@ -116,22 +126,82 @@ export function createMockPlaceRepository(
 }
 
 // ---------------------------------------------------------------------------
-// HTTP — the shape the real one drops into. Every method rejects with
-// `PlaceApiNotImplementedError` until the backend has browse endpoints, so a
-// screen on real data shows its "not available yet" state rather than hanging.
+// HTTP — the backend's `/api/public/branches` routes, through the gateway.
 // ---------------------------------------------------------------------------
 
-export function createHttpPlaceRepository(): PlaceRepository {
-  const refuse = (operation: string) => Promise.reject(new PlaceApiNotImplementedError(operation));
+export interface HttpPlaceRepositoryOptions {
+  readonly gateway?: Pick<
+    YallaGateway,
+    | 'listBranches'
+    | 'searchBranches'
+    | 'getBranchDetail'
+    | 'getBranchTableMarkers'
+    | 'getBranchMenuDetail'
+  >;
+  /** The phone's position, or null when it is unknown. Never prompts. */
+  readonly position?: () => Promise<Coordinates | null>;
+  readonly now?: () => Date;
+  readonly locale?: () => ReturnType<typeof currentLocale>;
+}
+
+export function createHttpPlaceRepository(
+  options: HttpPlaceRepositoryOptions = {},
+): PlaceRepository {
+  const source = options.gateway ?? gateway;
+  const position = options.position ?? (() => Promise.resolve(null));
+  const now = options.now ?? (() => new Date());
+  const locale = options.locale ?? currentLocale;
+
+  async function context(): Promise<PlaceMappingContext> {
+    return { now: now(), locale: locale(), position: await position() };
+  }
+
+  /** The server sorts nearest first when it has a position; unknown distances go last. */
+  const nearestFirst = (a: Place, b: Place) =>
+    (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY);
+
   return {
-    listNearby: () => refuse('listNearby'),
-    getById: () => refuse('getById'),
-    search: () => refuse('search'),
-    tables: () => refuse('tables'),
+    async listNearby() {
+      const ctx = await context();
+      const listings = await source.listBranches(ctx.position ? { position: ctx.position } : {});
+      const places = listings.map((listing) => placeFromListing(listing, ctx));
+      return ctx.position ? places.sort(nearestFirst) : places;
+    },
+
+    async search(query, filter) {
+      const ctx = await context();
+      const listings = await source.searchBranches({
+        query,
+        ...(filter?.type ? { venueType: filter.type } : {}),
+        ...(ctx.position ? { position: ctx.position } : {}),
+      });
+      // The route has no badge filter; badges are on every card, so narrow here.
+      return listings
+        .filter((listing) => !filter?.badge || listing.badges.includes(filter.badge))
+        .map((listing) => placeFromListing(listing, ctx));
+    },
+
+    async getById(placeId) {
+      const ctx = await context();
+      const [detail, menu] = await Promise.all([
+        source.getBranchDetail(placeId, ctx.position ?? undefined),
+        // The menu is a tab on the page, not the page: a failed menu read
+        // leaves the tab empty rather than taking the whole place down.
+        source.getBranchMenuDetail(placeId).catch(() => null),
+      ]);
+      return detail ? placeFromDetail(detail, menu, ctx) : null;
+    },
+
+    async tables(placeId) {
+      const markers = await source.getBranchTableMarkers(placeId);
+      // No cover photo means nothing to draw the markers on.
+      if (!markers?.photo) return [];
+      return markers.tables.map(markerFromApi);
+    },
   };
 }
 
 /** The app's one place source, chosen the same way `gateway` is. */
 export const placeRepository: PlaceRepository = usingMockData
   ? createMockPlaceRepository()
-  : createHttpPlaceRepository();
+  : createHttpPlaceRepository({ position: readDevicePosition });

@@ -75,7 +75,7 @@ export interface ContractSubject {
  * the single assertion it fails.
  */
 export type ContractCapability =
-  'availability' | 'reservations' | 'tabs' | 'tableState' | 'menu' | 'reports';
+  'availability' | 'reservations' | 'tabs' | 'tableState' | 'menu' | 'reports' | 'places';
 
 /**
  * The ids a suite needs to ask a real question.

@@ -37,16 +37,29 @@ export function usePlaceCopy(place: PlaceCopySource): PlaceCopy {
   const tag = intlTag(locale);
 
   return useMemo(() => {
-    const km = new Intl.NumberFormat(tag, { maximumFractionDigits: 1 }).format(place.distanceKm);
-    const rating = new Intl.NumberFormat(tag, {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    }).format(place.rating);
-    const count = new Intl.NumberFormat(tag).format(place.ratingCount);
+    const type = t(`place.type.${place.type}`);
+    const cuisine = place.cuisine.trim();
+    // No reviews yet is said in words, never as "0.0 (0)"; an unknown distance
+    // is left out rather than shown from somewhere invented.
+    let rating = t('place.noReviews');
+    if (place.rating !== null) {
+      const stars = new Intl.NumberFormat(tag, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(place.rating);
+      const count = new Intl.NumberFormat(tag).format(place.ratingCount);
+      rating = t('place.rating', { rating: stars, count });
+    }
+    const distance =
+      place.distanceKm === null
+        ? ''
+        : t('place.distanceKm', {
+            km: new Intl.NumberFormat(tag, { maximumFractionDigits: 1 }).format(place.distanceKm),
+          });
     return {
-      typeLine: `${t(`place.type.${place.type}`)} · ${place.cuisine}`,
-      rating: t('place.rating', { rating, count }),
-      distance: t('place.distanceKm', { km }),
+      typeLine: cuisine ? `${type} · ${cuisine}` : type,
+      rating,
+      distance,
     };
   }, [t, tag, place.type, place.cuisine, place.rating, place.ratingCount, place.distanceKm]);
 }
@@ -75,20 +88,23 @@ export function PlaceMetaRow({
   const starColor = onImage ? colors.onImage : colors.warning;
   const rating = (
     <View key="rating" style={styles.metaItem}>
-      <Ionicons name={actionIcon.star} size={iconSize.sm - 1} color={starColor} />
+      {place.rating !== null ? (
+        <Ionicons name={actionIcon.star} size={iconSize.sm - 1} color={starColor} />
+      ) : null}
       <Text style={[styles.metaText, onImage && styles.metaTextOnImage, { color: textColor }]}>
         {copy.rating}
       </Text>
     </View>
   );
-  const distance = (
-    <View key="distance" style={styles.metaItem}>
-      <Ionicons name={actionIcon.location} size={iconSize.sm - 1} color={textColor} />
-      <Text style={[styles.metaText, onImage && styles.metaTextOnImage, { color: textColor }]}>
-        {copy.distance}
-      </Text>
-    </View>
-  );
+  const distance =
+    place.distanceKm === null ? null : (
+      <View key="distance" style={styles.metaItem}>
+        <Ionicons name={actionIcon.location} size={iconSize.sm - 1} color={textColor} />
+        <Text style={[styles.metaText, onImage && styles.metaTextOnImage, { color: textColor }]}>
+          {copy.distance}
+        </Text>
+      </View>
+    );
   return (
     <View style={[styles.metaRow, style]}>
       {order === 'ratingFirst' ? [rating, distance] : [distance, rating]}

@@ -530,6 +530,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/branches/{branchId}/listing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the diner app's browse screens say about this branch */
+        get: operations["getBranchListing"];
+        /**
+         * Set cuisine, about, price level, website, amenities, map pin and gallery
+         * @description Every listing field is replaced; null or blank clears it. `priceLevel` is 1-4; `amenities` are keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`; `websiteUrl` is an absolute http(s) address. Every broken field is reported at once as `422 validation-failed`.
+         *
+         *     `latitude` and `longitude` move the map pin together (with `address` if sent); neither leaves it where it is.
+         *
+         *     `galleryPhotoIds` are photos uploaded for **this** branch through `POST /api/branches/{branchId}/photos`, in display order, at most 12. **Null leaves the gallery alone**; `[]` clears it. A photo from another branch is 404 and nothing is written.
+         */
+        put: operations["putBranchListing"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/branches/{branchId}/menu": {
         parameters: {
             query?: never;
@@ -1207,6 +1232,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/diner/branches/{branchId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in diner's own review of this place
+         * @description For pre-filling the review form. **404** when this diner has not reviewed it.
+         */
+        get: operations["getMyBranchReview"];
+        /**
+         * Write or replace the diner's review of a place
+         * @description Replaces rating and text together; blank text clears it. Writes the review if there was none (**201**), otherwise **200**. Same phone gate and bounds as POST.
+         */
+        put: operations["putBranchReview"];
+        /**
+         * Review a place: 1-5 stars and optional text
+         * @description **One review per diner per branch.** A second POST is `409 conflicting-state`; change the review with PUT instead.
+         *
+         *     **Needs a verified phone number** - `403 phone-not-verified` otherwise - so a throwaway registration cannot flood a place with one-star reviews.
+         *
+         *     `rating` 1-5 and `text` at most 1000 characters are `422 validation-failed` with `context.fields` naming each. The branch's `rating` and `reviewCount` on the list routes follow within fifteen seconds; the reviews route reads them live.
+         */
+        post: operations["createBranchReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/diner/devices": {
         parameters: {
             query?: never;
@@ -1300,6 +1357,50 @@ export interface paths {
          * @description Succeeds when there was none. The picture itself is left for the orphan sweep.
          */
         delete: operations["removeDinerPhoto"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/diner/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The diner's orders, for the Orders tab
+         * @description Every order this diner is on: placed from their phone, keyed in by a waiter on their behalf, or keyed in for the whole table on a tab they were approved onto. Newest first, at most 100.
+         *
+         *     `status=active` is New, InKitchen and Ready; `status=history` is Served and Voided; absent is both. Anything else is `400`.
+         *
+         *     `status` on each order is the app's word: New `confirmed`, InKitchen `preparing`, Ready `ready`, Served `completed`, Voided `cancelled`. `inProgress` is never produced - there is no takeaway. `kind` is always `dineIn`. `timeline` starts with `confirmed` at `placedAtUtc` and adds each kitchen step as it was recorded. `canCancel` is always false: voiding an order is a staff action.
+         */
+        get: operations["getDinerOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/diner/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One of the diner's orders
+         * @description Same shape as a list entry. Somebody else's order is **404**, the same as no order.
+         */
+        get: operations["getDinerOrder"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1544,6 +1645,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every published branch, for Explore and the map
+         * @description Each entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`.
+         *
+         *     `badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.
+         *
+         *     Send `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.
+         */
+        get: operations["getPublicBranches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/branches/{branchId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One branch's details screen, by id
+         * @description `listing` is the card exactly as the list serves it. Beside it: `about`, `websiteUrl`, `phoneE164`, `amenities`, `openingHours` (`day` 0 = Sunday, wall-clock `opensAt`/`closesAt` as `HH:mm:ss`, `closesNextDay`), `gallery` (pictures beyond the cover, in order), `tableCount`, `acceptsWebBookings`, `recentReviews` (newest three) and `tableMarkers` - the tables placed on the cover photo with their live state.
+         *
+         *     A branch that is inactive or whose venue is suspended or deleted is **404**, read live.
+         */
+        get: operations["getPublicBranchDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/branches/{branchId}/availability": {
         parameters: {
             query?: never;
@@ -1610,6 +1757,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/branches/{branchId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A page of a branch's reviews, newest first
+         * @description Twenty a page from `page=1`. `rating` and `reviewCount` are read live. Each review carries `authorName` as a first name and last initial, never the account or its id.
+         */
+        get: operations["getPublicBranchReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/branches/{branchId}/table-markers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tables drawn on the cover photo, with their live state
+         * @description Only tables a manager placed on the photo (`photoX`/`photoY` on the floor plan) appear. `photoX` and `photoY` are 0-1 across and down `photo`, the branch's cover. `state` is what the floor plan derives now: 1 Free, 2 ReservedSoon, 3 Held, 4 Occupied, 5 OutOfService. Refetch this more often than the details.
+         */
+        get: operations["getPublicTableMarkers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/branches/{venueSlug}/{branchSlug}": {
         parameters: {
             query?: never;
@@ -1626,6 +1813,32 @@ export interface paths {
          *     A suspended venue, an inactive branch and a wrong slug pairing all answer **404**, identically and on purpose - a public page that distinguished them would be publishing a customer's billing status to anybody who guessed a slug.
          */
         get: operations["getPublicBranch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/branches/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search published branches by name, cuisine or address
+         * @description `q` matches venue name, branch name, cuisine and address, contains and case-insensitive; blank matches everything. `category` narrows to one venue type (1 Cafe, 2 Restaurant). `q` is at most 100 characters.
+         *
+         *     Each entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`.
+         *
+         *     `badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.
+         *
+         *     Send `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.
+         */
+        get: operations["searchPublicBranches"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3954,6 +4167,72 @@ export interface components {
              */
             maxAttempts: number;
         };
+        /** @description The listing form, as written. */
+        "Yalla.Application.BranchSettings.BranchListingCommand": {
+            /** @description Up to 2000 characters. Null or blank clears it. */
+            about?: string | null;
+            /** @description A new street address; only applied together with coordinates. */
+            address?: string | null;
+            /**
+             * @description Keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`.
+             *     Null or empty clears them.
+             */
+            amenities?: string[] | null;
+            /** @description Up to 120 characters. Null or blank clears it. */
+            cuisine?: string | null;
+            /**
+             * @description Photos uploaded for <b>this</b> branch, in display order, at most 12. <b>Null leaves the gallery
+             *     as it is</b>; an empty list clears it.
+             */
+            galleryPhotoIds?: string[] | null;
+            /**
+             * Format: double
+             * @description Sent with Longitude to move the pin, or neither.
+             */
+            latitude?: number | null;
+            /**
+             * Format: double
+             * @description Sent with Latitude.
+             */
+            longitude?: number | null;
+            /**
+             * Format: int32
+             * @description 1-4, or null to clear.
+             */
+            priceLevel?: number | null;
+            /** @description An absolute http(s) URL, or null to clear. */
+            websiteUrl?: string | null;
+        };
+        /** @description What a branch says about itself on the diner app's browse screens. */
+        "Yalla.Application.BranchSettings.BranchListingView": {
+            /** @description A paragraph, or absent. */
+            about?: string | null;
+            /** @description Street address. */
+            address: string;
+            /** @description Amenity keys. */
+            amenities: string[];
+            /** @description The cuisine line, or absent. */
+            cuisine?: string | null;
+            /** @description Pictures beyond the cover, in order. */
+            gallery: components["schemas"]["Yalla.Application.Media.PhotoView"][];
+            /**
+             * Format: double
+             * @description WGS84.
+             */
+            latitude: number;
+            /**
+             * Format: double
+             * @description WGS84.
+             */
+            longitude: number;
+            /**
+             * Format: int32
+             * @description 1-4, or absent.
+             */
+            priceLevel?: number | null;
+            /** @description http(s), or absent. */
+            websiteUrl?: string | null;
+        };
         /** @description What a branch still needs before it can take diners. */
         "Yalla.Application.BranchSettings.BranchReadinessView": {
             /**
@@ -4111,6 +4390,17 @@ export interface components {
             label: string;
             /**
              * Format: double
+             * @description Where the table is on the branch's cover photo, 0 (left) to 1 (right). Sent with
+             *     PhotoY or not at all; both null takes the table off the photo.
+             */
+            photoX?: number | null;
+            /**
+             * Format: double
+             * @description 0 (top) to 1 (bottom).
+             */
+            photoY?: number | null;
+            /**
+             * Format: double
              * @description Clockwise rotation, 0 to 360.
              */
             rotationDegrees: number;
@@ -4148,6 +4438,10 @@ export interface components {
             isBookable: boolean;
             isDeletable: boolean;
             label: string;
+            /** Format: double */
+            photoX?: number | null;
+            /** Format: double */
+            photoY?: number | null;
             qrToken: string;
             /** Format: double */
             rotationDegrees: number;
@@ -4302,6 +4596,103 @@ export interface components {
             /** Format: uuid */
             tableId: string;
         };
+        /** @description One line on a diner's order. */
+        "Yalla.Application.Diners.DinerOrderItem": {
+            /** @description Removed by staff. Kept on the order, at zero, rather than vanishing. */
+            isVoided: boolean;
+            /**
+             * Format: uuid
+             * @description The line's id.
+             */
+            lineId: string;
+            /**
+             * Format: int64
+             * @description Quantity × unit price, or 0 once voided.
+             */
+            lineTotalAmd: number;
+            /** @description The item name as it read when ordered. */
+            name: string;
+            /** @description The kitchen note, or absent. */
+            note?: string | null;
+            /**
+             * Format: int32
+             * @description How many.
+             */
+            quantity: number;
+            /**
+             * Format: int64
+             * @description Whole dram per unit, as it stood when ordered.
+             */
+            unitPriceAmd: number;
+        };
+        /** @description When the order reached a status. */
+        "Yalla.Application.Diners.DinerOrderTimelineEntry": {
+            /**
+             * Format: date-time
+             * @description When.
+             */
+            atUtc: string;
+            /** @description An app status - see Yalla.Application.Diners.DinerOrderStatuses. */
+            status: string;
+        };
+        /** @description One order the diner is on, receipt-shaped, for the Orders tab. */
+        "Yalla.Application.Diners.DinerOrderView": {
+            /**
+             * Format: uuid
+             * @description The app's `placeId`.
+             */
+            branchId: string;
+            /** @description Which location. */
+            branchName: string;
+            /** @description Always false. Voiding an order is a staff action on the kitchen rail; a diner has no cancel. */
+            canCancel: boolean;
+            /** @description The branch's cover, or absent. */
+            coverPhoto?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
+            /**
+             * Format: date-time
+             * @description The kitchen's estimate, or absent.
+             */
+            estimatedReadyAtUtc?: string | null;
+            /** @description Every line, voided ones included. */
+            items: components["schemas"]["Yalla.Application.Diners.DinerOrderItem"][];
+            /** @description Always `"dineIn"`: every order in the domain is placed against a table's tab. */
+            kind: string;
+            /** @description Kitchen-facing progress of one order placed against a tab. */
+            kitchenStatus: components["schemas"]["Yalla.Domain.Enums.TabOrderStatus"];
+            /**
+             * Format: uuid
+             * @description The order's id.
+             */
+            orderId: string;
+            /**
+             * Format: int32
+             * @description The seated party's size.
+             */
+            partySize: number;
+            /**
+             * Format: date-time
+             * @description When it was sent to the kitchen.
+             */
+            placedAtUtc: string;
+            /** @description App status - see Yalla.Application.Diners.DinerOrderStatuses. */
+            status: string;
+            /**
+             * Format: uuid
+             * @description The tab it was placed against.
+             */
+            tabId: string;
+            /** @description The table's label. */
+            tableLabel: string;
+            /** @description Oldest first; the last entry is the current status. */
+            timeline: components["schemas"]["Yalla.Application.Diners.DinerOrderTimelineEntry"][];
+            /**
+             * Format: int64
+             * @description Sum of the non-voided lines, whole dram, before service charge.
+             */
+            totalAmd: number;
+            /** @description The brand name. */
+            venueName: string;
+        };
         /** @description A diner's own account, as their app shows it on the profile screen. */
         "Yalla.Application.Diners.DinerProfileView": {
             /**
@@ -4325,6 +4716,30 @@ export interface components {
             photo?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
             /** @description Sign-in name, lowercased. Null for an account the code flow created and nobody has filled in. */
             username?: string | null;
+        };
+        /** @description The signed-in diner's own review of one branch. */
+        "Yalla.Application.Diners.DinerReviewView": {
+            /** Format: uuid */
+            branchId: string;
+            /** Format: date-time */
+            createdAtUtc: string;
+            /** Format: int32 */
+            rating: number;
+            /** Format: uuid */
+            reviewId: string;
+            text?: string | null;
+            /** Format: date-time */
+            updatedAtUtc: string;
+        };
+        /** @description Body of the diner's review routes. */
+        "Yalla.Application.Diners.SubmitBranchReviewCommand": {
+            /**
+             * Format: int32
+             * @description 1-5 stars.
+             */
+            rating: number;
+            /** @description Optional, at most 1000 characters. Blank clears it. */
+            text?: string | null;
         };
         /** @description One entry in a branch's change stream, as a client catching up reads it. */
         "Yalla.Application.Floor.BranchChange": {
@@ -5307,6 +5722,109 @@ export interface components {
              */
             timeZoneId: string;
         };
+        /** @description One branch's details screen: everything on the card, and the rest. */
+        "Yalla.Application.Public.PublicBranchDetail": {
+            /** @description A paragraph from the venue, or absent. */
+            about?: string | null;
+            /** @description Whether the public page offers booking. */
+            acceptsWebBookings: boolean;
+            /** @description Keys: `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`. */
+            amenities: string[];
+            /**
+             * Format: date-time
+             * @description When the live half was read.
+             */
+            asOfUtc: string;
+            /** @description Pictures beyond the cover, in the venue's order. */
+            gallery: components["schemas"]["Yalla.Application.Media.PhotoView"][];
+            /** @description The card, exactly as the list serves it. */
+            listing: components["schemas"]["Yalla.Application.Public.PublicBranchListing"];
+            /** @description Weekly wall-clock hours; `day` 0 = Sunday. */
+            openingHours: components["schemas"]["Yalla.Application.BranchSettings.OpeningHoursView"][];
+            /** @description Published contact number, or absent. */
+            phoneE164?: string | null;
+            /** @description The newest three reviews. The rest are paged on the reviews route. */
+            recentReviews: components["schemas"]["Yalla.Application.Public.PublicReviewView"][];
+            /**
+             * Format: int32
+             * @description Active tables on the plan.
+             */
+            tableCount: number;
+            /** @description Tables placed on the cover photo, with their live state. */
+            tableMarkers: components["schemas"]["Yalla.Application.Public.PublicTableMarker"][];
+            /** @description http(s), or absent. */
+            websiteUrl?: string | null;
+        };
+        /** @description One branch on the diner app's Explore list, search results and map. */
+        "Yalla.Application.Public.PublicBranchListing": {
+            /** @description Street address. */
+            address: string;
+            /** @description `"popular"` and/or `"new"`, derived - see `BranchBadgeRules`. */
+            badges: string[];
+            /**
+             * Format: uuid
+             * @description The branch id every other route takes. The app's `Place.id`.
+             */
+            branchId: string;
+            /** @description Which location, e.g. "Cascade". */
+            branchName: string;
+            /** @description The branch half. */
+            branchSlug: string;
+            /** @description The hero picture, or absent. */
+            coverPhoto?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
+            /** @description Free text from the venue, or absent when not set. */
+            cuisine?: string | null;
+            /**
+             * Format: double
+             * @description From the `lat`/`lng` the caller sent, to 0.1 km. Absent when none was sent.
+             */
+            distanceKm?: number | null;
+            /**
+             * Format: int32
+             * @description Active tables with nobody at them.
+             */
+            freeTableCount: number;
+            /** @description Inside an opening block now, in the branch's zone. */
+            isOpenNow: boolean;
+            /**
+             * Format: double
+             * @description WGS84.
+             */
+            latitude: number;
+            /**
+             * Format: double
+             * @description WGS84.
+             */
+            longitude: number;
+            /**
+             * Format: int32
+             * @description 1-4, or absent when not set.
+             */
+            priceLevel?: number | null;
+            /**
+             * Format: double
+             * @description Average stars to one decimal; absent when nobody has reviewed it.
+             */
+            rating?: number | null;
+            /**
+             * Format: int32
+             * @description How many reviews.
+             */
+            reviewCount: number;
+            /** @description The branch's IANA zone. */
+            timeZoneId: string;
+            /**
+             * Format: uuid
+             * @description The venue's id.
+             */
+            venueId: string;
+            /** @description The brand name, what the card is titled with. */
+            venueName: string;
+            /** @description The venue half of the public link. */
+            venueSlug: string;
+            /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
+            venueType: components["schemas"]["Yalla.Domain.Enums.VenueType"];
+        };
         /** @description What a link to this branch should look like when it is pasted into WhatsApp or Telegram. */
         "Yalla.Application.Public.PublicBranchMeta": {
             /** @description The path this branch lives at, for `og:url`. */
@@ -5492,6 +6010,89 @@ export interface components {
              *     "can we linger?", and finding out at the table is worse.
              */
             turnTimeMinutes: number;
+        };
+        /** @description A page of a branch's reviews, newest revision first. */
+        "Yalla.Application.Public.PublicReviewPage": {
+            /** Format: uuid */
+            branchId: string;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+            /** Format: double */
+            rating?: number | null;
+            /** Format: int32 */
+            reviewCount: number;
+            reviews: components["schemas"]["Yalla.Application.Public.PublicReviewView"][];
+        };
+        /** @description One published review. */
+        "Yalla.Application.Public.PublicReviewView": {
+            /** @description "Anahit S." - first name and last initial, never the full name or any id. */
+            authorName: string;
+            /**
+             * Format: date-time
+             * @description First written.
+             */
+            createdAtUtc: string;
+            /**
+             * Format: int32
+             * @description 1-5.
+             */
+            rating: number;
+            /**
+             * Format: uuid
+             * @description The review's id.
+             */
+            reviewId: string;
+            /** @description Absent when the diner left stars only. */
+            text?: string | null;
+            /**
+             * Format: date-time
+             * @description Last revised.
+             */
+            updatedAtUtc: string;
+        };
+        /** @description One table drawn on the branch's cover photo. */
+        "Yalla.Application.Public.PublicTableMarker": {
+            /** @description False for walk-in-only seats. */
+            isBookable: boolean;
+            /** @description What is printed on it. */
+            label: string;
+            /**
+             * Format: double
+             * @description 0-1 across the photo.
+             */
+            photoX: number;
+            /**
+             * Format: double
+             * @description 0-1 down the photo.
+             */
+            photoY: number;
+            /**
+             * Format: int32
+             * @description How many it seats. There is no minimum party size in the model.
+             */
+            seats: number;
+            /**
+             * @description What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the
+             *     reservation overlay applied.
+             */
+            state: components["schemas"]["Yalla.Domain.Enums.DerivedTableState"];
+            /**
+             * Format: uuid
+             * @description The floor-plan table id the booking flow takes.
+             */
+            tableId: string;
+        };
+        /** @description The live markers, and the photo they are drawn on. */
+        "Yalla.Application.Public.PublicTableMarkers": {
+            /** Format: date-time */
+            asOfUtc: string;
+            /** Format: uuid */
+            branchId: string;
+            /** @description One photo as a client consumes it: three URLs and the id behind them. */
+            photo?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
+            tables: components["schemas"]["Yalla.Application.Public.PublicTableMarker"][];
         };
         /** @description One venue on the browse list, with its branches. */
         "Yalla.Application.Public.PublicVenueCard": {
@@ -6049,6 +6650,16 @@ export interface components {
             nextReservationId?: string | null;
             /** Format: date-time */
             nextReservationStartUtc?: string | null;
+            /**
+             * Format: double
+             * @description Where the table is on the branch's cover photo, 0-1 across; null when it is not placed there.
+             */
+            photoX?: number | null;
+            /**
+             * Format: double
+             * @description Where the table is on the branch's cover photo, 0-1 down; null when it is not placed there.
+             */
+            photoY?: number | null;
             /** @description The <b>physical</b> state of a table: what somebody did to it. */
             physicalStatus: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
             /**
@@ -8682,6 +9293,171 @@ export interface operations {
                 };
             };
             /** @description Tables outside the canvas or repeated labels; `context` names them. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBranchListing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.BranchSettings.BranchListingView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putBranchListing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Application.BranchSettings.BranchListingCommand"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.BranchSettings.BranchListingView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or a gallery photo not uploaded for it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Fields out of bounds; `context.fields` names each. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11715,6 +12491,278 @@ export interface operations {
             };
         };
     };
+    getMyBranchReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Diners.DinerReviewView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Needs a diner token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such published branch, or no review by this diner. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    putBranchReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Application.Diners.SubmitBranchReviewCommand"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Diners.DinerReviewView"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Diners.DinerReviewView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Needs a diner token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `phone-not-verified`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such published branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Rating or text out of bounds. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createBranchReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Application.Diners.SubmitBranchReviewCommand"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Diners.DinerReviewView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Needs a diner token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `phone-not-verified`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such published branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description This diner has already reviewed it. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Rating or text out of bounds. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     registerDinerDevice: {
         parameters: {
             query?: never;
@@ -12108,6 +13156,149 @@ export interface operations {
             };
             /** @description The caller is authenticated but not allowed to perform this action. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getDinerOrders: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Diners.DinerOrderView"][];
+                };
+            };
+            /** @description `status` is not `active` or `history`. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Needs a diner token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getDinerOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Diners.DinerOrderView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Needs a diner token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such order of this diner's. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13243,6 +14434,155 @@ export interface operations {
             };
         };
     };
+    getPublicBranches: {
+        parameters: {
+            query?: {
+                category?: components["schemas"]["Yalla.Domain.Enums.VenueType"];
+                lat?: number;
+                lng?: number;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBranchListing"][];
+                };
+            };
+            /** @description `lat` without `lng`, or either out of range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicBranchDetail: {
+        parameters: {
+            query?: {
+                lat?: number;
+                lng?: number;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBranchDetail"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or it is not published. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getPublicAvailability: {
         parameters: {
             query: {
@@ -13475,6 +14815,160 @@ export interface operations {
             };
         };
     };
+    getPublicBranchReviews: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicReviewPage"];
+                };
+            };
+            /** @description `page` below 1. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or it is not published. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPublicTableMarkers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicTableMarkers"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or it is not published. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getPublicBranch: {
         parameters: {
             query?: never;
@@ -13525,6 +15019,76 @@ export interface operations {
             };
             /** @description No branch is published at that pairing. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    searchPublicBranches: {
+        parameters: {
+            query?: {
+                category?: components["schemas"]["Yalla.Domain.Enums.VenueType"];
+                lat?: number;
+                lng?: number;
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Public.PublicBranchListing"][];
+                };
+            };
+            /** @description `q` too long, or a half or out-of-range position. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

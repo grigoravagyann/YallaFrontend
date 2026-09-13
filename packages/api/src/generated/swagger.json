@@ -1063,6 +1063,214 @@
         }
       }
     },
+    "/api/branches/{branchId}/listing": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "What the diner app's browse screens say about this branch",
+        "operationId": "getBranchListing",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.BranchSettings.BranchListingView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Set cuisine, about, price level, website, amenities, map pin and gallery",
+        "description": "Every listing field is replaced; null or blank clears it. `priceLevel` is 1-4; `amenities` are keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`; `websiteUrl` is an absolute http(s) address. Every broken field is reported at once as `422 validation-failed`.\n\n`latitude` and `longitude` move the map pin together (with `address` if sent); neither leaves it where it is.\n\n`galleryPhotoIds` are photos uploaded for **this** branch through `POST /api/branches/{branchId}/photos`, in display order, at most 12. **Null leaves the gallery alone**; `[]` clears it. A photo from another branch is 404 and nothing is written.",
+        "operationId": "putBranchListing",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Application.BranchSettings.BranchListingCommand"
+                  }
+                ],
+                "description": "The listing form, as written."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.BranchSettings.BranchListingView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or a gallery photo not uploaded for it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Fields out of bounds; `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/reservation-policy": {
       "get": {
         "tags": [
@@ -8448,6 +8656,528 @@
         }
       }
     },
+    "/api/diner/branches/{branchId}/review": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The signed-in diner's own review of this place",
+        "description": "For pre-filling the review form. **404** when this diner has not reviewed it.",
+        "operationId": "getMyBranchReview",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such published branch, or no review by this diner.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Review a place: 1-5 stars and optional text",
+        "description": "**One review per diner per branch.** A second POST is `409 conflicting-state`; change the review with PUT instead.\n\n**Needs a verified phone number** - `403 phone-not-verified` otherwise - so a throwaway registration cannot flood a place with one-star reviews.\n\n`rating` 1-5 and `text` at most 1000 characters are `422 validation-failed` with `context.fields` naming each. The branch's `rating` and `reviewCount` on the list routes follow within fifteen seconds; the reviews route reads them live.",
+        "operationId": "createBranchReview",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Application.Diners.SubmitBranchReviewCommand"
+                  }
+                ],
+                "description": "Body of the diner's review routes."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`phone-not-verified`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such published branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This diner has already reviewed it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rating or text out of bounds.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Write or replace the diner's review of a place",
+        "description": "Replaces rating and text together; blank text clears it. Writes the review if there was none (**201**), otherwise **200**. Same phone gate and bounds as POST.",
+        "operationId": "putBranchReview",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Application.Diners.SubmitBranchReviewCommand"
+                  }
+                ],
+                "description": "Body of the diner's review routes."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerReviewView"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`phone-not-verified`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such published branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rating or text out of bounds.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/orders": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The diner's orders, for the Orders tab",
+        "description": "Every order this diner is on: placed from their phone, keyed in by a waiter on their behalf, or keyed in for the whole table on a tab they were approved onto. Newest first, at most 100.\n\n`status=active` is New, InKitchen and Ready; `status=history` is Served and Voided; absent is both. Anything else is `400`.\n\n`status` on each order is the app's word: New `confirmed`, InKitchen `preparing`, Ready `ready`, Served `completed`, Voided `cancelled`. `inProgress` is never produced - there is no takeaway. `kind` is always `dineIn`. `timeline` starts with `confirmed` at `placedAtUtc` and adds each kitchen step as it was recorded. `canCancel` is always false: voiding an order is a staff action.",
+        "operationId": "getDinerOrders",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Diners.DinerOrderView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`status` is not `active` or `history`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diner/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "One of the diner's orders",
+        "description": "Same shape as a list entry. Somebody else's order is **404**, the same as no order.",
+        "operationId": "getDinerOrder",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Diners.DinerOrderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs a diner token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such order of this diner's.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/public/venues": {
       "get": {
         "tags": [
@@ -9058,6 +9788,532 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Application.Public.PublicBranchMeta"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or it is not published.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/branches": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Every published branch, for Explore and the map",
+        "description": "Each entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`.\n\n`badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.\n\nSend `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.",
+        "operationId": "getPublicBranches",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Yalla.Domain.Enums.VenueType"
+                }
+              ]
+            }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Public.PublicBranchListing"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`lat` without `lng`, or either out of range.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/branches/search": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Search published branches by name, cuisine or address",
+        "description": "`q` matches venue name, branch name, cuisine and address, contains and case-insensitive; blank matches everything. `category` narrows to one venue type (1 Cafe, 2 Restaurant). `q` is at most 100 characters.\n\nEach entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`.\n\n`badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.\n\nSend `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.",
+        "operationId": "searchPublicBranches",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Yalla.Domain.Enums.VenueType"
+                }
+              ]
+            }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Yalla.Application.Public.PublicBranchListing"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`q` too long, or a half or out-of-range position.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/branches/{branchId}": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "One branch's details screen, by id",
+        "description": "`listing` is the card exactly as the list serves it. Beside it: `about`, `websiteUrl`, `phoneE164`, `amenities`, `openingHours` (`day` 0 = Sunday, wall-clock `opensAt`/`closesAt` as `HH:mm:ss`, `closesNextDay`), `gallery` (pictures beyond the cover, in order), `tableCount`, `acceptsWebBookings`, `recentReviews` (newest three) and `tableMarkers` - the tables placed on the cover photo with their live state.\n\nA branch that is inactive or whose venue is suspended or deleted is **404**, read live.",
+        "operationId": "getPublicBranchDetail",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Public.PublicBranchDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or it is not published.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/branches/{branchId}/reviews": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "A page of a branch's reviews, newest first",
+        "description": "Twenty a page from `page=1`. `rating` and `reviewCount` are read live. Each review carries `authorName` as a first name and last initial, never the account or its id.",
+        "operationId": "getPublicBranchReviews",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Public.PublicReviewPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`page` below 1.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or it is not published.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/branches/{branchId}/table-markers": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Tables drawn on the cover photo, with their live state",
+        "description": "Only tables a manager placed on the photo (`photoX`/`photoY` on the floor plan) appear. `photoX` and `photoY` are 0-1 across and down `photo`, the branch's cover. `state` is what the floor plan derives now: 1 Free, 2 ReservedSoon, 3 Held, 4 Occupied, 5 OutOfService. Refetch this more often than the details.",
+        "operationId": "getPublicTableMarkers",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Public.PublicTableMarkers"
                 }
               }
             }
@@ -15868,6 +17124,131 @@
         "additionalProperties": false,
         "description": "What `request-code` answers, whether or not the number has an account."
       },
+      "Yalla.Application.BranchSettings.BranchListingCommand": {
+        "type": "object",
+        "properties": {
+          "cuisine": {
+            "type": "string",
+            "description": "Up to 120 characters. Null or blank clears it.",
+            "nullable": true
+          },
+          "about": {
+            "type": "string",
+            "description": "Up to 2000 characters. Null or blank clears it.",
+            "nullable": true
+          },
+          "priceLevel": {
+            "type": "integer",
+            "description": "1-4, or null to clear.",
+            "format": "int32",
+            "nullable": true
+          },
+          "websiteUrl": {
+            "type": "string",
+            "description": "An absolute http(s) URL, or null to clear.",
+            "nullable": true
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`.\r\nNull or empty clears them.",
+            "nullable": true
+          },
+          "galleryPhotoIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Photos uploaded for <b>this</b> branch, in display order, at most 12. <b>Null leaves the gallery\r\nas it is</b>; an empty list clears it.",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "description": "A new street address; only applied together with coordinates.",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Sent with Longitude to move the pin, or neither.",
+            "format": "double",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Sent with Latitude.",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "The listing form, as written."
+      },
+      "Yalla.Application.BranchSettings.BranchListingView": {
+        "required": [
+          "address",
+          "amenities",
+          "gallery",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "cuisine": {
+            "type": "string",
+            "description": "The cuisine line, or absent.",
+            "nullable": true
+          },
+          "about": {
+            "type": "string",
+            "description": "A paragraph, or absent.",
+            "nullable": true
+          },
+          "priceLevel": {
+            "type": "integer",
+            "description": "1-4, or absent.",
+            "format": "int32",
+            "nullable": true
+          },
+          "websiteUrl": {
+            "type": "string",
+            "description": "http(s), or absent.",
+            "nullable": true
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Amenity keys."
+          },
+          "address": {
+            "type": "string",
+            "description": "Street address."
+          },
+          "latitude": {
+            "type": "number",
+            "description": "WGS84.",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "description": "WGS84.",
+            "format": "double"
+          },
+          "gallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+            },
+            "description": "Pictures beyond the cover, in order."
+          }
+        },
+        "additionalProperties": false,
+        "description": "What a branch says about itself on the diner app's browse screens."
+      },
       "Yalla.Application.BranchSettings.BranchReadinessView": {
         "required": [
           "acceptsWebBookings",
@@ -16201,6 +17582,18 @@
           "isBookable": {
             "type": "boolean",
             "description": "False for tables that only ever take walk-ins, e.g. bar stools."
+          },
+          "photoX": {
+            "type": "number",
+            "description": "Where the table is on the branch's cover photo, 0 (left) to 1 (right). Sent with\r\nPhotoY or not at all; both null takes the table off the photo.",
+            "format": "double",
+            "nullable": true
+          },
+          "photoY": {
+            "type": "number",
+            "description": "0 (top) to 1 (bottom).",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -16288,6 +17681,16 @@
           },
           "isDeletable": {
             "type": "boolean"
+          },
+          "photoX": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "photoY": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -16652,6 +18055,189 @@
         "additionalProperties": false,
         "description": "What deleting a table did: removed outright, or deactivated because it has history."
       },
+      "Yalla.Application.Diners.DinerOrderItem": {
+        "required": [
+          "isVoided",
+          "lineId",
+          "lineTotalAmd",
+          "name",
+          "quantity",
+          "unitPriceAmd"
+        ],
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "description": "The line's id.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "The item name as it read when ordered."
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "How many.",
+            "format": "int32"
+          },
+          "unitPriceAmd": {
+            "type": "integer",
+            "description": "Whole dram per unit, as it stood when ordered.",
+            "format": "int64"
+          },
+          "lineTotalAmd": {
+            "type": "integer",
+            "description": "Quantity × unit price, or 0 once voided.",
+            "format": "int64"
+          },
+          "note": {
+            "type": "string",
+            "description": "The kitchen note, or absent.",
+            "nullable": true
+          },
+          "isVoided": {
+            "type": "boolean",
+            "description": "Removed by staff. Kept on the order, at zero, rather than vanishing."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One line on a diner's order."
+      },
+      "Yalla.Application.Diners.DinerOrderTimelineEntry": {
+        "required": [
+          "atUtc",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "An app status - see Yalla.Application.Diners.DinerOrderStatuses."
+          },
+          "atUtc": {
+            "type": "string",
+            "description": "When.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "When the order reached a status."
+      },
+      "Yalla.Application.Diners.DinerOrderView": {
+        "required": [
+          "branchId",
+          "branchName",
+          "canCancel",
+          "items",
+          "kind",
+          "kitchenStatus",
+          "orderId",
+          "partySize",
+          "placedAtUtc",
+          "status",
+          "tabId",
+          "tableLabel",
+          "timeline",
+          "totalAmd",
+          "venueName"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "description": "The order's id.",
+            "format": "uuid"
+          },
+          "tabId": {
+            "type": "string",
+            "description": "The tab it was placed against.",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "description": "The app's `placeId`.",
+            "format": "uuid"
+          },
+          "venueName": {
+            "type": "string",
+            "description": "The brand name."
+          },
+          "branchName": {
+            "type": "string",
+            "description": "Which location."
+          },
+          "coverPhoto": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+              }
+            ],
+            "description": "The branch's cover, or absent.",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "description": "Always `\"dineIn\"`: every order in the domain is placed against a table's tab."
+          },
+          "status": {
+            "type": "string",
+            "description": "App status - see Yalla.Application.Diners.DinerOrderStatuses."
+          },
+          "kitchenStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.TabOrderStatus"
+              }
+            ],
+            "description": "Kitchen-facing progress of one order placed against a tab."
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "The table's label."
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "The seated party's size.",
+            "format": "int32"
+          },
+          "placedAtUtc": {
+            "type": "string",
+            "description": "When it was sent to the kitchen.",
+            "format": "date-time"
+          },
+          "estimatedReadyAtUtc": {
+            "type": "string",
+            "description": "The kitchen's estimate, or absent.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "totalAmd": {
+            "type": "integer",
+            "description": "Sum of the non-voided lines, whole dram, before service charge.",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Diners.DinerOrderItem"
+            },
+            "description": "Every line, voided ones included."
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Diners.DinerOrderTimelineEntry"
+            },
+            "description": "Oldest first; the last entry is the current status."
+          },
+          "canCancel": {
+            "type": "boolean",
+            "description": "Always false. Voiding an order is a staff action on the kitchen rail; a diner has no cancel."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One order the diner is on, receipt-shaped, for the Orders tab."
+      },
       "Yalla.Application.Diners.DinerProfileView": {
         "required": [
           "dinerUserId",
@@ -16710,6 +18296,64 @@
         },
         "additionalProperties": false,
         "description": "A diner's own account, as their app shows it on the profile screen."
+      },
+      "Yalla.Application.Diners.DinerReviewView": {
+        "required": [
+          "branchId",
+          "createdAtUtc",
+          "rating",
+          "reviewId",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rating": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The signed-in diner's own review of one branch."
+      },
+      "Yalla.Application.Diners.SubmitBranchReviewCommand": {
+        "required": [
+          "rating"
+        ],
+        "type": "object",
+        "properties": {
+          "rating": {
+            "type": "integer",
+            "description": "1-5 stars.",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string",
+            "description": "Optional, at most 1000 characters. Blank clears it.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of the diner's review routes."
       },
       "Yalla.Application.Floor.BranchChange": {
         "required": [
@@ -18710,6 +20354,225 @@
         "additionalProperties": false,
         "description": "One branch on the browse list."
       },
+      "Yalla.Application.Public.PublicBranchDetail": {
+        "required": [
+          "acceptsWebBookings",
+          "amenities",
+          "asOfUtc",
+          "gallery",
+          "listing",
+          "openingHours",
+          "recentReviews",
+          "tableCount",
+          "tableMarkers"
+        ],
+        "type": "object",
+        "properties": {
+          "listing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Public.PublicBranchListing"
+              }
+            ],
+            "description": "The card, exactly as the list serves it."
+          },
+          "about": {
+            "type": "string",
+            "description": "A paragraph from the venue, or absent.",
+            "nullable": true
+          },
+          "websiteUrl": {
+            "type": "string",
+            "description": "http(s), or absent.",
+            "nullable": true
+          },
+          "phoneE164": {
+            "type": "string",
+            "description": "Published contact number, or absent.",
+            "nullable": true
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys: `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`."
+          },
+          "openingHours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.OpeningHoursView"
+            },
+            "description": "Weekly wall-clock hours; `day` 0 = Sunday."
+          },
+          "gallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+            },
+            "description": "Pictures beyond the cover, in the venue's order."
+          },
+          "tableCount": {
+            "type": "integer",
+            "description": "Active tables on the plan.",
+            "format": "int32"
+          },
+          "acceptsWebBookings": {
+            "type": "boolean",
+            "description": "Whether the public page offers booking."
+          },
+          "recentReviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Public.PublicReviewView"
+            },
+            "description": "The newest three reviews. The rest are paged on the reviews route."
+          },
+          "tableMarkers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Public.PublicTableMarker"
+            },
+            "description": "Tables placed on the cover photo, with their live state."
+          },
+          "asOfUtc": {
+            "type": "string",
+            "description": "When the live half was read.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One branch's details screen: everything on the card, and the rest."
+      },
+      "Yalla.Application.Public.PublicBranchListing": {
+        "required": [
+          "address",
+          "badges",
+          "branchId",
+          "branchName",
+          "branchSlug",
+          "freeTableCount",
+          "isOpenNow",
+          "latitude",
+          "longitude",
+          "reviewCount",
+          "timeZoneId",
+          "venueId",
+          "venueName",
+          "venueSlug",
+          "venueType"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch id every other route takes. The app's `Place.id`.",
+            "format": "uuid"
+          },
+          "venueId": {
+            "type": "string",
+            "description": "The venue's id.",
+            "format": "uuid"
+          },
+          "venueSlug": {
+            "type": "string",
+            "description": "The venue half of the public link."
+          },
+          "branchSlug": {
+            "type": "string",
+            "description": "The branch half."
+          },
+          "venueName": {
+            "type": "string",
+            "description": "The brand name, what the card is titled with."
+          },
+          "branchName": {
+            "type": "string",
+            "description": "Which location, e.g. \"Cascade\"."
+          },
+          "venueType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.VenueType"
+              }
+            ],
+            "description": "What kind of place a venue is. Drives the shipped reservation-policy defaults."
+          },
+          "cuisine": {
+            "type": "string",
+            "description": "Free text from the venue, or absent when not set.",
+            "nullable": true
+          },
+          "priceLevel": {
+            "type": "integer",
+            "description": "1-4, or absent when not set.",
+            "format": "int32",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "description": "Street address."
+          },
+          "latitude": {
+            "type": "number",
+            "description": "WGS84.",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "description": "WGS84.",
+            "format": "double"
+          },
+          "distanceKm": {
+            "type": "number",
+            "description": "From the `lat`/`lng` the caller sent, to 0.1 km. Absent when none was sent.",
+            "format": "double",
+            "nullable": true
+          },
+          "timeZoneId": {
+            "type": "string",
+            "description": "The branch's IANA zone."
+          },
+          "isOpenNow": {
+            "type": "boolean",
+            "description": "Inside an opening block now, in the branch's zone."
+          },
+          "freeTableCount": {
+            "type": "integer",
+            "description": "Active tables with nobody at them.",
+            "format": "int32"
+          },
+          "rating": {
+            "type": "number",
+            "description": "Average stars to one decimal; absent when nobody has reviewed it.",
+            "format": "double",
+            "nullable": true
+          },
+          "reviewCount": {
+            "type": "integer",
+            "description": "How many reviews.",
+            "format": "int32"
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`\"popular\"` and/or `\"new\"`, derived - see `BranchBadgeRules`."
+          },
+          "coverPhoto": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+              }
+            ],
+            "description": "The hero picture, or absent.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One branch on the diner app's Explore list, search results and map."
+      },
       "Yalla.Application.Public.PublicBranchMeta": {
         "required": [
           "canonicalPath",
@@ -19017,6 +20880,177 @@
         },
         "additionalProperties": false,
         "description": "The reservation rules a diner needs in order to book, and nothing else."
+      },
+      "Yalla.Application.Public.PublicReviewPage": {
+        "required": [
+          "branchId",
+          "page",
+          "pageSize",
+          "reviewCount",
+          "reviews"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rating": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "reviewCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Public.PublicReviewView"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "A page of a branch's reviews, newest revision first."
+      },
+      "Yalla.Application.Public.PublicReviewView": {
+        "required": [
+          "authorName",
+          "createdAtUtc",
+          "rating",
+          "reviewId",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "reviewId": {
+            "type": "string",
+            "description": "The review's id.",
+            "format": "uuid"
+          },
+          "authorName": {
+            "type": "string",
+            "description": "\"Anahit S.\" - first name and last initial, never the full name or any id."
+          },
+          "rating": {
+            "type": "integer",
+            "description": "1-5.",
+            "format": "int32"
+          },
+          "text": {
+            "type": "string",
+            "description": "Absent when the diner left stars only.",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "First written.",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "description": "Last revised.",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One published review."
+      },
+      "Yalla.Application.Public.PublicTableMarker": {
+        "required": [
+          "isBookable",
+          "label",
+          "photoX",
+          "photoY",
+          "seats",
+          "state",
+          "tableId"
+        ],
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "description": "The floor-plan table id the booking flow takes.",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "description": "What is printed on it."
+          },
+          "seats": {
+            "type": "integer",
+            "description": "How many it seats. There is no minimum party size in the model.",
+            "format": "int32"
+          },
+          "isBookable": {
+            "type": "boolean",
+            "description": "False for walk-in-only seats."
+          },
+          "state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.DerivedTableState"
+              }
+            ],
+            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\r\nreservation overlay applied."
+          },
+          "photoX": {
+            "type": "number",
+            "description": "0-1 across the photo.",
+            "format": "double"
+          },
+          "photoY": {
+            "type": "number",
+            "description": "0-1 down the photo.",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One table drawn on the branch's cover photo."
+      },
+      "Yalla.Application.Public.PublicTableMarkers": {
+        "required": [
+          "asOfUtc",
+          "branchId",
+          "tables"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "photo": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+              }
+            ],
+            "description": "One photo as a client consumes it: three URLs and the id behind them.",
+            "nullable": true
+          },
+          "asOfUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Public.PublicTableMarker"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "The live markers, and the photo they are drawn on."
       },
       "Yalla.Application.Public.PublicVenueCard": {
         "required": [
@@ -20287,6 +22321,18 @@
               }
             ],
             "description": "The <b>physical</b> state of a table: what somebody did to it."
+          },
+          "photoX": {
+            "type": "number",
+            "description": "Where the table is on the branch's cover photo, 0-1 across; null when it is not placed there.",
+            "format": "double",
+            "nullable": true
+          },
+          "photoY": {
+            "type": "number",
+            "description": "Where the table is on the branch's cover photo, 0-1 down; null when it is not placed there.",
+            "format": "double",
+            "nullable": true
           },
           "state": {
             "allOf": [

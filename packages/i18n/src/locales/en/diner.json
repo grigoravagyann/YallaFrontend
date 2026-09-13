@@ -730,6 +730,18 @@
     "todayHours": "Today {{open}} – {{close}}",
     "distanceKm": "{{km}} km",
     "rating": "{{rating}} ({{count}})",
+    "noReviews": "New · no reviews yet",
+    "review": {
+      "title": "Rate this place",
+      "yours": "Your review",
+      "starLabel": "{{rating}} of 5 stars",
+      "placeholder": "What was it like? (optional)",
+      "submit": "Post review",
+      "update": "Update review",
+      "saved": "Thanks, your review is posted.",
+      "failed": "We could not post your review. Try again.",
+      "verifyHint": "Verify your phone number in your profile to leave a review."
+    },
     "favorite": "Save to favorites",
     "unfavorite": "Remove from favorites",
     "share": "Share",

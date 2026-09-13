@@ -50,6 +50,32 @@ import type {
   TabShares,
 } from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
+import type {
+  BranchDetail,
+  BranchListing,
+  BranchReview,
+  BranchReviewPage,
+  BranchSearchQuery,
+  BranchTableMarkers,
+  DinerOrder,
+  MyBranchReview,
+} from '../contracts/places';
+import { ValidationError } from '../errors';
+import { parseProblem } from '../problem';
+
+/** Great-circle distance in kilometres. */
+export function haversineKm(
+  a: { readonly latitude: number; readonly longitude: number },
+  b: { readonly latitude: number; readonly longitude: number },
+): number {
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = rad(b.latitude - a.latitude);
+  const dLng = rad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
 import type { DinerPhotoFile, DinerSignInResult } from '../contracts/dinerAccount';
 import {
   ConcurrencyConflictError,
@@ -577,7 +603,239 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     };
   }
 
+  // --- Places ----------------------------------------------------------------
+
+  /** accountId → review, per branch. One per diner per branch, as the unique index says. */
+  const reviews = new Map<string, Map<string, MyBranchReview>>();
+
+  function reviewsOf(branchId: string): MyBranchReview[] {
+    return [...(reviews.get(branchId)?.values() ?? [])].sort((a, b) =>
+      b.updatedAtUtc.localeCompare(a.updatedAtUtc),
+    );
+  }
+
+  function publicReview(review: MyBranchReview, accountId: string): BranchReview {
+    const name = accounts.profile(accountId)?.displayName?.trim() ?? '';
+    const [first = '', last = ''] = name.split(/\s+/u);
+    return {
+      reviewId: review.reviewId,
+      authorName: first ? `${first}${last ? ` ${last[0]}.` : ''}` : 'Yalla diner',
+      rating: review.rating,
+      text: review.text,
+      createdAtUtc: review.createdAtUtc,
+      updatedAtUtc: review.updatedAtUtc,
+    };
+  }
+
+  function listingFor(
+    venue: MockVenue,
+    branch: MockBranch,
+    position: BranchSearchQuery['position'],
+  ): BranchListing | null {
+    const fixture = publicBranchFixtures[branch.id];
+    if (!fixture || fixture.status !== 'live') return null;
+    const own = reviewsOf(branch.id);
+    const average =
+      own.length > 0
+        ? Math.round((own.reduce((sum, r) => sum + r.rating, 0) / own.length) * 10) / 10
+        : null;
+    const located = fixture.latitude !== null && fixture.longitude !== null;
+    const floor = floors.get(branch.id);
+    return {
+      branchId: branch.id,
+      venueId: venue.id,
+      venueSlug: publicVenueFixtures[venue.id]?.slug ?? venue.id,
+      branchSlug: fixture.slug,
+      venueName: venue.name,
+      branchName: branch.name,
+      venueType: venue.type,
+      cuisine: null,
+      priceLevel: null,
+      address: fixture.addressLine,
+      latitude: located ? fixture.latitude : null,
+      longitude: located ? fixture.longitude : null,
+      distanceKm:
+        position && located
+          ? Math.round(
+              haversineKm(position, {
+                latitude: fixture.latitude!,
+                longitude: fixture.longitude!,
+              }) * 10,
+            ) / 10
+          : null,
+      timeZoneId: branch.timeZoneId,
+      isOpenNow: openStateFrom(fixture.weeklyHours, now(), branch.timeZoneId).isOpen,
+      freeTableCount: floor?.tables.filter((t) => t.state === 'free').length ?? 0,
+      rating: average,
+      reviewCount: own.length,
+      badges: [],
+      coverPhoto: publicVenueFixtures[venue.id]?.coverPhoto ?? null,
+    };
+  }
+
+  function listings(query: BranchSearchQuery | undefined): BranchListing[] {
+    const needle = query?.query?.trim().toLowerCase() ?? '';
+    const found = mockVenues.flatMap((venue) =>
+      venue.branches.flatMap((branch) => {
+        const listing = listingFor(venue, branch, query?.position);
+        if (!listing) return [];
+        if (query?.venueType && listing.venueType !== query.venueType) return [];
+        if (needle) {
+          const haystack =
+            `${listing.venueName} ${listing.branchName} ${listing.address}`.toLowerCase();
+          if (!haystack.includes(needle)) return [];
+        }
+        return [listing];
+      }),
+    );
+    return query?.position
+      ? found.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
+      : found.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+  }
+
+  function reviewUrl(branchId: string): string {
+    return `${URL_TAG}/api/diner/branches/${branchId}/review`;
+  }
+
   return {
+    async listBranches(query) {
+      await wait();
+      return listings(query);
+    },
+
+    async searchBranches(query) {
+      await wait();
+      return listings(query);
+    },
+
+    async getBranchDetail(branchId, position): Promise<BranchDetail | null> {
+      await wait();
+      const found = findBranch(branchId);
+      const listing = found ? listingFor(found.venue, found.branch, position) : null;
+      const fixture = publicBranchFixtures[branchId];
+      if (!listing || !fixture) return null;
+      const byAccount = reviews.get(branchId);
+      return {
+        listing,
+        about: publicVenueFixtures[listing.venueId]?.description ?? null,
+        websiteUrl: null,
+        phoneE164: fixture.phoneE164,
+        amenities: [],
+        openingHours: fixture.weeklyHours.flatMap((entry) =>
+          entry.blocks.map((block) => ({
+            day: entry.day,
+            opensAt: block.opensAt,
+            closesAt: block.closesAt,
+            closesNextDay: block.closesAt <= block.opensAt,
+          })),
+        ),
+        gallery: [],
+        tableCount: floors.get(branchId)?.tables.length ?? 0,
+        acceptsWebBookings: fixture.acceptsWebBookings,
+        recentReviews: [...(byAccount?.entries() ?? [])]
+          .sort(([, a], [, b]) => b.updatedAtUtc.localeCompare(a.updatedAtUtc))
+          .slice(0, 3)
+          .map(([accountId, review]) => publicReview(review, accountId)),
+        // The mock floor has no photo positions, so nothing is placed on a photo.
+        tableMarkers: [],
+        asOfUtc: now().toISOString(),
+      };
+    },
+
+    async getBranchReviews({ branchId, page = 1 }): Promise<BranchReviewPage | null> {
+      await wait();
+      if (!findBranch(branchId)) return null;
+      const byAccount = [...(reviews.get(branchId)?.entries() ?? [])].sort(([, a], [, b]) =>
+        b.updatedAtUtc.localeCompare(a.updatedAtUtc),
+      );
+      const pageSize = 20;
+      const count = byAccount.length;
+      return {
+        branchId,
+        rating:
+          count > 0
+            ? Math.round((byAccount.reduce((s, [, r]) => s + r.rating, 0) / count) * 10) / 10
+            : null,
+        reviewCount: count,
+        page,
+        pageSize,
+        reviews: byAccount
+          .slice((page - 1) * pageSize, page * pageSize)
+          .map(([accountId, review]) => publicReview(review, accountId)),
+      };
+    },
+
+    async getBranchTableMarkers(branchId): Promise<BranchTableMarkers | null> {
+      await wait();
+      if (!findBranch(branchId)) return null;
+      return { branchId, photo: null, asOfUtc: now().toISOString(), tables: [] };
+    },
+
+    async getMyBranchReview(branchId) {
+      await wait();
+      // Asked first, so a stranger is refused even for a branch nobody reviewed.
+      const accountId = me();
+      return reviews.get(branchId)?.get(accountId) ?? null;
+    },
+
+    async saveMyBranchReview({ branchId, rating, text }) {
+      await wait();
+      const accountId = me();
+      requireVerifiedPhone(reviewUrl(branchId));
+      if (!findBranch(branchId)) throw new NotFoundError({ url: reviewUrl(branchId) });
+      const trimmed = typeof text === 'string' ? text.trim() : '';
+      if (!Number.isInteger(rating) || rating < 1 || rating > 5 || trimmed.length > 1000) {
+        throw new ValidationError({
+          url: reviewUrl(branchId),
+          status: 422,
+          problem: parseProblem({
+            type: 'validation-failed',
+            title: 'Validation failed',
+            status: 422,
+            code: 'validation-failed',
+            context: {
+              fields: [
+                ...(Number.isInteger(rating) && rating >= 1 && rating <= 5
+                  ? []
+                  : [{ field: 'rating', message: 'Rating must be 1 to 5.', min: 1, max: 5 }]),
+                ...(trimmed.length > 1000
+                  ? [{ field: 'text', message: 'At most 1000 characters.', max: 1000 }]
+                  : []),
+              ],
+            },
+          }),
+        });
+      }
+      const byAccount = reviews.get(branchId) ?? new Map<string, MyBranchReview>();
+      const existing = byAccount.get(accountId);
+      const at = now().toISOString();
+      const saved: MyBranchReview = {
+        reviewId: existing?.reviewId ?? `review-${branchId}-${accountId}`,
+        branchId,
+        rating,
+        text: trimmed === '' ? null : trimmed,
+        createdAtUtc: existing?.createdAtUtc ?? at,
+        updatedAtUtc: at,
+      };
+      byAccount.set(accountId, saved);
+      reviews.set(branchId, byAccount);
+      return saved;
+    },
+
+    async listDinerOrders(): Promise<readonly DinerOrder[]> {
+      await wait();
+      me();
+      // The mock keeps no per-diner order history; the app's Orders tab runs on
+      // its own mock repository. An honest empty list, not invented receipts.
+      return [];
+    },
+
+    async getDinerOrder(): Promise<DinerOrder | null> {
+      await wait();
+      me();
+      return null;
+    },
+
     async listVenues() {
       await wait();
       return publishedVenues();

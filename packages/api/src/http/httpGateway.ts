@@ -94,6 +94,30 @@ import {
   reservationStatus,
   settlementModeCode,
 } from './dinerMapping';
+import type {
+  BranchDetail,
+  BranchListing,
+  BranchReviewPage,
+  BranchSearchQuery,
+  BranchTableMarkers,
+  DinerOrder,
+  MyBranchReview,
+} from '../contracts/places';
+import {
+  branchDetailFromWire,
+  branchListingFromWire,
+  dinerOrderFromWire,
+  myReviewFromWire,
+  reviewPageFromWire,
+  tableMarkersFromWire,
+  venueTypeCode,
+  type WireBranchDetail,
+  type WireBranchListing,
+  type WireDinerOrder,
+  type WireDinerReview,
+  type WireReviewPage,
+  type WireTableMarkers,
+} from './placesMapping';
 import { photoRejectionFrom } from './photoErrors';
 import { absolutePhoto } from './photoUrl';
 import { venueSummariesFromCards } from './publicMapping';
@@ -125,6 +149,23 @@ export interface HttpGatewayOptions {
   /** The zone to convert slots in when the caller did not pass one. */
   readonly defaultTimeZoneId?: string | undefined;
   readonly dinerAuth?: DinerAuth | undefined;
+}
+
+/**
+ * The browse query string: `q`, `category` (1 Cafe, 2 Restaurant), and `lat`
+ * with `lng` — both or neither, which the server enforces with a 400.
+ */
+function branchQuery(query: BranchSearchQuery | undefined): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  const q = query?.query?.trim();
+  if (q) out['q'] = q;
+  if (query?.venueType) out['category'] = venueTypeCode(query.venueType);
+  const position = query?.position;
+  if (position && Number.isFinite(position.latitude) && Number.isFinite(position.longitude)) {
+    out['lat'] = position.latitude;
+    out['lng'] = position.longitude;
+  }
+  return out;
 }
 
 /** Resend is allowed once the backend's code-request window has passed. */
@@ -721,6 +762,120 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         // otherwise book a table three hours from the one they picked.
         const { date, time } = localDateTime(slotUtc, timeZoneId ?? defaultZone);
         return slotFloorFromResponse(await availability(branchId, { date, time, partySize }));
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    // --- Places ---------------------------------------------------------------
+    //
+    // All anonymous reads except the diner's own review. Photo links arrive
+    // root-relative and leave absolute, resolved against this client's origin.
+
+    async listBranches(query): Promise<readonly BranchListing[]> {
+      const { data } = await client.get<WireBranchListing[]>('/api/public/branches', {
+        skipAuth: true,
+        query: branchQuery(query),
+      });
+      return (data ?? []).map((wire) => branchListingFromWire(wire, client.baseUrl));
+    },
+
+    async searchBranches(query): Promise<readonly BranchListing[]> {
+      const { data } = await client.get<WireBranchListing[]>('/api/public/branches/search', {
+        skipAuth: true,
+        query: branchQuery(query),
+      });
+      return (data ?? []).map((wire) => branchListingFromWire(wire, client.baseUrl));
+    },
+
+    async getBranchDetail(branchId, position): Promise<BranchDetail | null> {
+      try {
+        const { data } = await client.get<WireBranchDetail>(
+          `/api/public/branches/${encodeURIComponent(branchId)}`,
+          { skipAuth: true, query: branchQuery({ position }) },
+        );
+        return branchDetailFromWire(data, client.baseUrl);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async getBranchReviews({ branchId, page }): Promise<BranchReviewPage | null> {
+      try {
+        const { data } = await client.get<WireReviewPage>(
+          `/api/public/branches/${encodeURIComponent(branchId)}/reviews`,
+          { skipAuth: true, query: { page: page ?? 1 } },
+        );
+        return reviewPageFromWire(data);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async getBranchTableMarkers(branchId): Promise<BranchTableMarkers | null> {
+      try {
+        const { data } = await client.get<WireTableMarkers>(
+          `/api/public/branches/${encodeURIComponent(branchId)}/table-markers`,
+          { skipAuth: true },
+        );
+        return tableMarkersFromWire(data, client.baseUrl);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    /** `GET /api/diner/branches/{id}/review`. A 404 is "not written yet". */
+    async getMyBranchReview(branchId): Promise<MyBranchReview | null> {
+      try {
+        const { data } = await client.get<WireDinerReview>(
+          `/api/diner/branches/${encodeURIComponent(branchId)}/review`,
+        );
+        return myReviewFromWire(data);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    /**
+     * `PUT /api/diner/branches/{id}/review` — the upsert, so a first review and
+     * a revision are one call and a retry after a lost response cannot 409.
+     */
+    async saveMyBranchReview({ branchId, rating, text }): Promise<MyBranchReview> {
+      try {
+        const trimmed = typeof text === 'string' ? text.trim() : '';
+        const { data } = await client.put<WireDinerReview>(
+          `/api/diner/branches/${encodeURIComponent(branchId)}/review`,
+          { rating, text: trimmed === '' ? null : trimmed },
+        );
+        return myReviewFromWire(data);
+      } catch (error) {
+        if (error instanceof ForbiddenError && error.problem?.code === 'phone-not-verified') {
+          throw new PhoneNotVerifiedError({ url: error.url, requestId: error.requestId });
+        }
+        throw error;
+      }
+    },
+
+    // --- The diner's orders -----------------------------------------------------
+
+    async listDinerOrders(segment): Promise<readonly DinerOrder[]> {
+      const { data } = await client.get<WireDinerOrder[]>('/api/diner/orders', {
+        ...(segment ? { query: { status: segment } } : {}),
+      });
+      return (data ?? []).map((wire) => dinerOrderFromWire(wire, client.baseUrl));
+    },
+
+    async getDinerOrder(orderId): Promise<DinerOrder | null> {
+      try {
+        const { data } = await client.get<WireDinerOrder>(
+          `/api/diner/orders/${encodeURIComponent(orderId)}`,
+        );
+        return dinerOrderFromWire(data, client.baseUrl);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;

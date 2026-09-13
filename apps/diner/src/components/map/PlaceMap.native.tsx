@@ -1,8 +1,8 @@
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import MapView, { Marker, type Region } from 'react-native-maps';
-import type { Coordinates } from '../../places/model';
+import { isLocated, type Coordinates } from '../../places/model';
 import { colors } from '../../theme';
 import { PlaceMarker } from './PlaceMarker';
 import { boundsOf, type GeoBounds, type PlaceMapProps } from './types';
@@ -40,7 +40,7 @@ function compact(ids: readonly (string | null)[]): readonly string[] {
  * deselected — and is a frozen image the rest of the time.
  */
 export function PlaceMap({
-  places,
+  places: allPlaces,
   selectedId,
   onSelect,
   center,
@@ -49,6 +49,8 @@ export function PlaceMap({
   ref,
 }: PlaceMapProps) {
   const { t } = useTranslation('diner');
+  // A place with no location set gets no pin, rather than one at a guess.
+  const places = useMemo(() => allPlaces.filter(isLocated), [allPlaces]);
   const mapRef = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
   const [settled, setSettled] = useState(false);

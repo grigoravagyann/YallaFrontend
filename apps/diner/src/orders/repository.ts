@@ -1,4 +1,6 @@
-import { usingMockData } from '../data/gateway';
+import { UnauthorizedError, type YallaGateway } from '@yalla/api';
+import { gateway, usingMockData } from '../data/gateway';
+import { orderFromApi } from './httpMapping';
 import { createMockOrders } from './mockOrders';
 import { canCancelOrder, type Order } from './model';
 
@@ -85,15 +87,35 @@ export function createMockOrderRepository(
 }
 
 // ---------------------------------------------------------------------------
-// HTTP — rejects until the backend has order endpoints.
+// HTTP — `GET /api/diner/orders` and `/{id}` through the gateway.
 // ---------------------------------------------------------------------------
 
-export function createHttpOrderRepository(): OrderRepository {
-  const refuse = (operation: string) => Promise.reject(new OrderApiNotImplementedError(operation));
+export function createHttpOrderRepository(
+  source: Pick<YallaGateway, 'listDinerOrders' | 'getDinerOrder'> = gateway,
+): OrderRepository {
   return {
-    list: () => refuse('list'),
-    getById: () => refuse('getById'),
-    cancel: () => refuse('cancel'),
+    async list() {
+      try {
+        // Both segments: `splitOrders` applies the 24-hour window itself.
+        return (await source.listDinerOrders()).map(orderFromApi);
+      } catch (error) {
+        // Nobody signed in has no orders, which is an empty tab, not a failure.
+        if (error instanceof UnauthorizedError) return [];
+        throw error;
+      }
+    },
+    async getById(orderId) {
+      try {
+        const order = await source.getDinerOrder(orderId);
+        return order ? orderFromApi(order) : null;
+      } catch (error) {
+        if (error instanceof UnauthorizedError) return null;
+        throw error;
+      }
+    },
+    // The domain has no diner cancel — voiding is staff-only — so there is no
+    // endpoint to call and no request is made.
+    cancel: (orderId) => Promise.reject(new OrderNotCancellableError(orderId)),
   };
 }
 

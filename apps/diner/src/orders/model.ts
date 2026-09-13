@@ -48,6 +48,12 @@ export interface Order {
   readonly totalDram: number;
   /** Oldest first. The last entry is the current status. */
   readonly timeline: readonly OrderTimelineEntry[];
+  /**
+   * The source's own answer to "may the diner cancel this". Absent means the
+   * status rule decides; the backend sends false for every order, because a
+   * diner has no cancel in its domain.
+   */
+  readonly cancellable?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,7 +128,7 @@ export function orderStatusKey(status: OrderStatus): `orders.status.${OrderStatu
 
 /** A diner can only cancel before the kitchen has started. */
 export function canCancelOrder(order: Order): boolean {
-  return order.status === 'confirmed';
+  return order.cancellable !== false && order.status === 'confirmed';
 }
 
 /** Tracking is for a takeaway still on its way to "ready". */

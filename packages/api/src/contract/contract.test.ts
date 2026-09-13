@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import { describeAvailabilityContract } from './availability.contract';
 import { describeMenuContract, describeReportContract } from './menuReports.contract';
+import { describePlacesContract } from './places.contract';
 import { describeReservationContract } from './reservation.contract';
 import { describeTabContract } from './tab.contract';
 import { describeTableStateContract } from './tableState.contract';
@@ -40,6 +41,7 @@ function describeEveryContract(subject: Parameters<typeof describeAvailabilityCo
   describeTableStateContract(subject);
   describeMenuContract(subject);
   describeReportContract(subject);
+  describePlacesContract(subject);
 }
 
 describeEveryContract(mockSubject());
