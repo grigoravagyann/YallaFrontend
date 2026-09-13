@@ -26,6 +26,7 @@ import type {
 } from '../contracts/branchSettings';
 import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../contracts/menuAdmin';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
+import { photoRejection } from './photoErrors';
 import { absolutePhoto } from './photoUrl';
 import type { PhotoUpload } from '../consoleGateway';
 import { REPORT_MAX_DAYS } from '../contracts/reports';
@@ -39,7 +40,6 @@ import {
   OverlappingHoursError,
   PolicyBoundsError,
   SlugTakenError,
-  UnsupportedImageError,
 } from '../contracts/errors';
 import { ApiError, ForbiddenError, NetworkError, TimeoutError, UnauthorizedError } from '../errors';
 import type { components } from '../generated/schema';
@@ -993,28 +993,6 @@ function safeJson(text: string): unknown {
  * fixes and lumping them together as "upload failed" is the version that
  * generates a support conversation about a `.jpg` that is really a HEIC.
  */
-function photoRejection(url: string, status: number, body: unknown): ApiError {
-  const problem = parseProblem(body);
-  const detail = problem?.detail ?? 'That photo could not be uploaded.';
-  const lower = detail.toLowerCase();
-
-  if (status === 413 || lower.includes('larger') || lower.includes('too big')) {
-    return new UnsupportedImageError({ url, reason: 'tooLarge', detail });
-  }
-  if (status === 409 || status === 415) {
-    const detected = problem?.context?.['detectedFormat'];
-    return new UnsupportedImageError({
-      url,
-      reason: lower.includes('pixel') || lower.includes('dimension') ? 'dimensions' : 'format',
-      detectedFormat: typeof detected === 'string' ? detected : null,
-      detail,
-    });
-  }
-  if (status === 401) return new UnauthorizedError({ url, body, problem });
-  if (status === 403) return new ForbiddenError({ url, body, problem });
-  return new ApiError(detail, { status, url, body, problem });
-}
-
 type WireArea = EditorFloorArea;
 
 interface WireTable {

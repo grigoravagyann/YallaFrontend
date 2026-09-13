@@ -38,6 +38,34 @@ export function createDinerAuth(client: ApiClient) {
       return data;
     },
 
+    /**
+     * `POST /api/auth/diner/register`: an account with a username, an email and
+     * a password. Answers the same tokens as `verifyCode`, and the number is
+     * **not** verified by it — that still takes a code.
+     */
+    async register(
+      body: Schemas['Yalla.Api.Endpoints.RegisterDinerRequest'],
+    ): Promise<Schemas['Yalla.Application.Auth.DinerSignInResult']> {
+      const { data } = await client.post<Schemas['Yalla.Application.Auth.DinerSignInResult']>(
+        `${DINER}/register`,
+        body,
+        { skipAuth: true },
+      );
+      return data;
+    },
+
+    /** `POST /api/auth/diner/login`: a username or an email, and the password. */
+    async login(
+      body: Schemas['Yalla.Api.Endpoints.LoginDinerRequest'],
+    ): Promise<Schemas['Yalla.Application.Auth.DinerSignInResult']> {
+      const { data } = await client.post<Schemas['Yalla.Application.Auth.DinerSignInResult']>(
+        `${DINER}/login`,
+        body,
+        { skipAuth: true },
+      );
+      return data;
+    },
+
     async refreshTokens(refreshToken: string): Promise<TokenPair> {
       const { data } = await client.post<Schemas['Yalla.Application.Auth.RefreshResult']>(
         `${DINER}/refresh`,

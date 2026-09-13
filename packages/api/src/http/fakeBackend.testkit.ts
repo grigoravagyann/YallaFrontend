@@ -19,7 +19,10 @@ export interface FakeRequest {
   readonly method: string;
   readonly path: string;
   readonly query: URLSearchParams;
+  /** The JSON body, parsed. `undefined` for a multipart one — see {@link form}. */
   readonly body: unknown;
+  /** The multipart body, as it was sent, when the request carried one. */
+  readonly form: FormData | undefined;
   readonly headers: Headers;
 }
 
@@ -70,6 +73,7 @@ export function fakeBackend(routes: Readonly<Record<string, FakeRoute>>): FakeBa
       path: url.pathname,
       query: url.searchParams,
       body: typeof raw === 'string' ? (JSON.parse(raw) as unknown) : undefined,
+      form: raw instanceof FormData ? raw : undefined,
       headers: new Headers(init?.headers),
     };
     requests.push(request);
