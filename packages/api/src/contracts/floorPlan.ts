@@ -43,6 +43,12 @@ export interface EditorFloorTable {
    * the one thing that changes it, and it is its own guarded action.
    */
   readonly qrToken: string;
+  /**
+   * Where the table sits on the branch's cover photo, 0 (left/top) to 1, or
+   * absent when it has not been placed. Both or neither.
+   */
+  readonly photoX?: number | null | undefined;
+  readonly photoY?: number | null | undefined;
 }
 
 export interface EditorFloorPlan {
@@ -68,6 +74,12 @@ export interface ReplaceFloorTableInput {
   /** The backend matches an area by **name**, not by id, on this payload. */
   readonly floorAreaName?: string | null | undefined;
   readonly isBookable: boolean;
+  /**
+   * The table's place on the cover photo, 0–1. **Omitted or null takes it off
+   * the photo**, so every save of the plan must carry what it read back.
+   */
+  readonly photoX?: number | null | undefined;
+  readonly photoY?: number | null | undefined;
 }
 
 export interface ReplaceFloorAreaInput {

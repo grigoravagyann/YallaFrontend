@@ -17,6 +17,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
 ### What is currently provisional
 
 - `common` — the app shell, table-state legend and connection states.
+- `admin` — the diner app listing and table pins on the Public page
+  (2026-09-14), provisional and **not** reviewed: `publicPage.listing.*`
+  (cuisine, about, the four price-level names, website, the five amenity
+  names — which must match the diner app's `place.amenity.*` wording — the map
+  pin fields and the gallery manager) and `publicPage.markers.*` (placing
+  tables on the cover photo). `publicPage.markers.noCover` must keep saying
+  the cover has to be **saved** first.
 - `diner` — the whole browse flow: Explore header and filters, venue cards,
   branch rows, the booking bar and the floor plan screen. Added with the browse
   flow and **not** reviewed.

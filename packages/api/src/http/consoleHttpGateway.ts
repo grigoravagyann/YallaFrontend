@@ -26,6 +26,7 @@ import type {
 } from '../contracts/branchSettings';
 import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../contracts/menuAdmin';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
+import type { VenueListing } from '../contracts/listing';
 import { photoRejection } from './photoErrors';
 import { absolutePhoto } from './photoUrl';
 import type { PhotoUpload } from '../consoleGateway';
@@ -99,6 +100,23 @@ function publicProfile(view: WirePublicProfile, baseUrl: string): BranchPublicPr
     phoneE164: view.phoneE164 ?? null,
     acceptsWebBookings: view.acceptsWebBookings,
     coverPhoto: view.coverPhoto ? absolutePhoto(baseUrl, photo(view.coverPhoto)) : null,
+  };
+}
+type WireListing = Schemas['Yalla.Application.BranchSettings.BranchListingView'];
+type WireListingCommand = Schemas['Yalla.Application.BranchSettings.BranchListingCommand'];
+
+/** The listing with absent fields made explicit and gallery links made absolute. */
+function branchListing(view: WireListing, baseUrl: string): VenueListing {
+  return {
+    cuisine: view.cuisine ?? null,
+    about: view.about ?? null,
+    priceLevel: view.priceLevel ?? null,
+    websiteUrl: view.websiteUrl ?? null,
+    amenities: view.amenities ?? [],
+    address: view.address,
+    latitude: view.latitude,
+    longitude: view.longitude,
+    gallery: (view.gallery ?? []).map((item) => absolutePhoto(baseUrl, photo(item))),
   };
 }
 type WirePolicy = Schemas['Yalla.Application.BranchSettings.ReservationPolicyView'];
@@ -468,6 +486,10 @@ export function createConsoleHttpGateway(
             shape: shapeToWire(table.shape),
             floorAreaName: table.floorAreaName ?? null,
             isBookable: table.isBookable,
+            // Omitted or null takes the table off the cover photo, so the
+            // position read back is always sent back.
+            photoX: table.photoX ?? null,
+            photoY: table.photoY ?? null,
             // `qrToken` is deliberately absent. The sticker on the table has to
             // keep working, and the only way it changes is the explicit
             // regenerate action.
@@ -782,6 +804,30 @@ export function createConsoleHttpGateway(
       return publicProfile(data, client.baseUrl);
     },
 
+    // --- The diner app listing ------------------------------------------------------
+
+    async getBranchListing(branchId: string): Promise<VenueListing> {
+      const { data } = await client.get<WireListing>(`${BRANCHES}/${branchId}/listing`);
+      return branchListing(data, client.baseUrl);
+    },
+
+    async updateBranchListing({ branchId, listing }): Promise<VenueListing> {
+      // Every field is replaced, so blanks travel as explicit nulls. The
+      // address is not sent: the console edits the pin, not the street.
+      const body: WireListingCommand = {
+        cuisine: blankToNull(listing.cuisine),
+        about: blankToNull(listing.about),
+        priceLevel: listing.priceLevel,
+        websiteUrl: blankToNull(listing.websiteUrl),
+        amenities: [...listing.amenities],
+        galleryPhotoIds: listing.galleryPhotoIds === null ? null : [...listing.galleryPhotoIds],
+        latitude: listing.latitude,
+        longitude: listing.longitude,
+      };
+      const { data } = await client.put<WireListing>(`${BRANCHES}/${branchId}/listing`, body);
+      return branchListing(data, client.baseUrl);
+    },
+
     async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {
       const { data } = await client.get<WirePolicy>(`${BRANCHES}/${branchId}/reservation-policy`);
       return reservationPolicy(data);
@@ -1009,6 +1055,12 @@ interface WireTable {
   isBookable: boolean;
   isActive: boolean;
   qrToken: string;
+  photoX?: number | null;
+  photoY?: number | null;
+}
+
+function blankToNull(value: string | null): string | null {
+  return value === null || value.trim() === '' ? null : value.trim();
 }
 
 interface WireFloorPlan {
@@ -1046,6 +1098,8 @@ function floorPlanFromWire(plan: WireFloorPlan): EditorFloorPlan {
       isBookable: table.isBookable,
       isActive: table.isActive,
       qrToken: table.qrToken,
+      photoX: table.photoX ?? null,
+      photoY: table.photoY ?? null,
     })),
   };
 }

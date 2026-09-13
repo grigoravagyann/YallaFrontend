@@ -320,6 +320,9 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
             // exactly on top of the original.
             x: table.x + state.gridSize * 2,
             y: table.y + state.gridSize * 2,
+            // Not on the cover photo until somebody places it there.
+            photoX: null,
+            photoY: null,
             // A copy is a new table: it has no QR sticker and no history.
             qrToken: '',
             isActive: true,
@@ -616,6 +619,10 @@ export function toSaveCommand(state: EditorState): ReplaceFloorPlanCommand {
         shape: table.shape,
         floorAreaName: table.floorAreaId ? (areaById.get(table.floorAreaId) ?? null) : null,
         isBookable: table.isBookable,
+        // Carried through untouched: omitting them would take every table off
+        // the cover photo each time the room is saved.
+        photoX: table.photoX ?? null,
+        photoY: table.photoY ?? null,
       })),
   };
 }

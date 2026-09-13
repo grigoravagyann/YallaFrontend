@@ -1,4 +1,5 @@
 import type { ConsoleBooking, DecideReservationCommand } from './contracts/approvals';
+import type { VenueListing, VenueListingInput } from './contracts/listing';
 import type {
   EditorFloorArea,
   EditorFloorPlan,
@@ -285,6 +286,23 @@ export interface ConsoleGateway {
     branchId: string;
     profile: BranchPublicProfileInput;
   }): Promise<BranchPublicProfile>;
+
+  // --- The diner app listing ------------------------------------------------------
+
+  getBranchListing(branchId: string): Promise<VenueListing>;
+
+  /**
+   * Replace the listing: cuisine, about, price level, website, amenities, the
+   * map pin and the ordered gallery. Table positions on the cover photo are
+   * saved with the floor plan (`photoX`/`photoY` per table).
+   *
+   * @throws {ValidationError} 422 naming every bad field in `violations`.
+   * @throws {NotFoundError} a gallery photo was not uploaded for this branch.
+   */
+  updateBranchListing(input: {
+    branchId: string;
+    listing: VenueListingInput;
+  }): Promise<VenueListing>;
 
   // --- The reservation policy ---------------------------------------------------
 

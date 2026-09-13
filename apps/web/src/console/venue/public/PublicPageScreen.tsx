@@ -6,6 +6,8 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
+import { ListingSection } from './ListingSection';
+import { TableMarkersSection } from './TableMarkersSection';
 
 /**
  * What this branch says to strangers on the internet: the number, whether the
@@ -150,6 +152,11 @@ function PublicPageForm({
           {outcome === 'failed' ? <span className="error">{t('publicPage.failed')}</span> : null}
         </div>
       </form>
+
+      {/* The diner app's listing sits next to the cover it describes, and the
+          table pins go on the cover as it was last saved. */}
+      <ListingSection branchId={branchId} />
+      <TableMarkersSection branchId={branchId} cover={saved.coverPhoto} />
     </section>
   );
 }

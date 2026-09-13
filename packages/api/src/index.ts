@@ -340,6 +340,8 @@ export type {
 } from './contracts/console';
 export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
 export type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
+export type { AmenityKey, VenueListing, VenueListingInput } from './contracts/listing';
+export { AMENITY_KEYS, MAX_GALLERY_PHOTOS } from './contracts/listing';
 export type {
   ApprovalTrigger,
   ConsoleBooking,

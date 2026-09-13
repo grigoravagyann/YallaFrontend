@@ -26,6 +26,7 @@ import type { Menu } from '../contracts/menu';
 import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
 import type { BranchPublicProfileInput } from '../contracts/publicProfile';
+import type { VenueListingInput } from '../contracts/listing';
 import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
@@ -207,6 +208,7 @@ export const queryKeys = {
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
   publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
+  branchListing: (branchId: string) => ['console', 'listing', branchId] as const,
   pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
   devices: (branchId: string) => ['console', 'devices', branchId] as const,
@@ -928,6 +930,33 @@ export function usePublicProfile(branchId: string | undefined) {
     // Explicit-save screen, like the hours: a refetch mid-edit would replace
     // a half-typed number with the server's copy and lose it without saying so.
     refetchOnWindowFocus: false,
+  });
+}
+
+// --- The diner app listing ------------------------------------------------------
+
+export function useBranchListing(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.branchListing(branchId ?? ''),
+    queryFn: () => gateway.getBranchListing(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    // Explicit save: a refetch mid-edit would overwrite a half-written paragraph.
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSaveBranchListing(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (listing: VenueListingInput) =>
+      gateway.updateBranchListing({ branchId: branchId!, listing }),
+    retry: false,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.branchListing(branchId ?? ''), saved);
+    },
   });
 }
 

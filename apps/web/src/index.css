@@ -2994,6 +2994,134 @@ kbd {
   flex: 1;
 }
 
+/* --- The diner app listing ------------------------------------------------------ */
+
+/* Fieldsets for grouping and screen readers, without the browser's box: the
+   console's cards already say where a group starts. */
+.listing-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.listing-form legend {
+  margin-bottom: var(--space-xs);
+  padding: 0;
+  font-weight: var(--font-weight-bold);
+}
+
+.listing-map-link {
+  color: var(--color-primary-ink);
+}
+
+.listing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-md);
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gallery-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.gallery-tile img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+}
+
+.gallery-tile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.marker-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+@media (max-width: 48rem) {
+  .marker-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.marker-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-soft);
+  background: var(--color-green-tint);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.marker-stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+.marker-pin {
+  position: absolute;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 var(--space-xs);
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-on-floor-plan);
+  color: var(--color-primary-foreground);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  cursor: grab;
+}
+
+.marker-pin.is-selected {
+  border-color: var(--color-primary-ink);
+  outline: 3px solid var(--color-primary-ink);
+}
+
+.marker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.marker-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.marker-list .chip {
+  flex: 1;
+  text-align: start;
+}
+
 .bulk-drop {
   width: min(52rem, 94vw);
   max-height: 90vh;

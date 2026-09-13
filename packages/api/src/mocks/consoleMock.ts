@@ -43,6 +43,7 @@ import {
 } from '../contracts/staff';
 import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
+import { AMENITY_KEYS, MAX_GALLERY_PHOTOS, type VenueListing } from '../contracts/listing';
 import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
 import type {
@@ -682,6 +683,26 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     return seeded;
   }
 
+  /** The diner app listing, empty the way a new branch's is, pinned in central Yerevan. */
+  const listings = new Map<string, VenueListing>();
+  function listingFor(branchId: string): VenueListing {
+    const existing = listings.get(branchId);
+    if (existing) return existing;
+    const seeded: VenueListing = {
+      cuisine: null,
+      about: null,
+      priceLevel: null,
+      websiteUrl: null,
+      amenities: [],
+      address: '12 Abovyan Street, Yerevan',
+      latitude: 40.1843,
+      longitude: 44.5129,
+      gallery: [],
+    };
+    listings.set(branchId, seeded);
+    return seeded;
+  }
+
   // --- Bookings waiting for approval ------------------------------------------
 
   /**
@@ -1315,6 +1336,34 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           );
         });
 
+      // Photo positions: both or neither, each 0–1. The server's 422.
+      const badPhoto = command.tables
+        .filter((t) => {
+          const x = t.photoX ?? null;
+          const y = t.photoY ?? null;
+          if (x === null && y === null) return false;
+          return x === null || y === null || x < 0 || x > 1 || y < 0 || y > 1;
+        })
+        .map((t) => t.label);
+      if (badPhoto.length > 0) {
+        throw new ValidationError({
+          url: URL_TAG,
+          status: 422,
+          problem: {
+            type: 'about:blank',
+            title: 'Validation failed',
+            status: 422,
+            detail: `Photo positions must be 0 to 1, both or neither: ${badPhoto.join(', ')}.`,
+            code: 'validation-failed',
+            traceId: 'mock',
+            context: {
+              field: 'photoX',
+              fields: [{ field: 'photoX', message: 'Photo position out of range.' }],
+            },
+          },
+        });
+      }
+
       if (outside.length > 0 || duplicates.length > 0) {
         const errors: string[] = [];
         if (outside.length > 0) {
@@ -1365,6 +1414,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             isActive: true,
             // Survives the edit, exactly as on the server.
             qrToken: previous?.qrToken ?? `qr-${branchId}-${table.label}`,
+            // Omitted takes it off the photo, as on the server.
+            photoX: table.photoX ?? null,
+            photoY: table.photoY ?? null,
           };
         }),
         ...deactivated.map((table) => ({ ...table, isActive: false })),
@@ -1740,6 +1792,105 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         coverPhoto: cover,
       };
       profiles.set(branchId, saved);
+      return saved;
+    },
+
+    // --- The diner app listing ------------------------------------------------------
+
+    async getBranchListing(branchId): Promise<VenueListing> {
+      await wait();
+      requireBranchInVenue(branchId);
+      return listingFor(branchId);
+    },
+
+    async updateBranchListing({ branchId, listing }): Promise<VenueListing> {
+      await wait();
+      requireBranchInVenue(branchId);
+      const url = `${URL_TAG}/branches/${branchId}/listing`;
+      const existing = listingFor(branchId);
+
+      // The server's order: an unknown gallery photo is a 404 before anything
+      // else, and nothing is written.
+      const gallery =
+        listing.galleryPhotoIds === null
+          ? existing.gallery
+          : listing.galleryPhotoIds.map((id) => photosById.get(id));
+      if (gallery.some((item) => item === undefined)) throw new NotFoundError({ url });
+
+      const clean = (value: string | null) =>
+        value === null || value.trim() === '' ? null : value.trim();
+      const cuisine = clean(listing.cuisine);
+      const about = clean(listing.about);
+      const website = clean(listing.websiteUrl);
+
+      // Every bad field at once, as the 422 `validation-failed` names them.
+      const fields: { field: string; message: string }[] = [];
+      if (cuisine !== null && cuisine.length > 120) {
+        fields.push({ field: 'cuisine', message: 'Cuisine must be 120 characters or fewer.' });
+      }
+      if (about !== null && about.length > 2000) {
+        fields.push({ field: 'about', message: 'About must be 2000 characters or fewer.' });
+      }
+      if (
+        listing.priceLevel !== null &&
+        (!Number.isInteger(listing.priceLevel) || listing.priceLevel < 1 || listing.priceLevel > 4)
+      ) {
+        fields.push({ field: 'priceLevel', message: 'Price level must be between 1 and 4.' });
+      }
+      if (website !== null && !/^https?:\/\/[^\s/]+\.[^\s]+$/iu.test(website)) {
+        fields.push({
+          field: 'websiteUrl',
+          message: 'Website must be an absolute http or https address.',
+        });
+      }
+      if (listing.amenities.some((key) => !(AMENITY_KEYS as readonly string[]).includes(key))) {
+        fields.push({ field: 'amenities', message: 'Unknown amenity.' });
+      }
+      if (gallery.length > MAX_GALLERY_PHOTOS) {
+        fields.push({
+          field: 'galleryPhotoIds',
+          message: `At most ${MAX_GALLERY_PHOTOS} gallery photos.`,
+        });
+      }
+      const oneCoordinate = (listing.latitude === null) !== (listing.longitude === null);
+      if (
+        oneCoordinate ||
+        (listing.latitude !== null && Math.abs(listing.latitude) > 90) ||
+        (listing.longitude !== null && Math.abs(listing.longitude) > 180)
+      ) {
+        fields.push({
+          field: 'latitude',
+          message: 'Latitude and longitude must be sent together and be in range.',
+        });
+      }
+      if (fields.length > 0) {
+        throw new ValidationError({
+          url,
+          status: 422,
+          problem: {
+            type: 'about:blank',
+            title: 'Validation failed',
+            status: 422,
+            detail: fields.map((f) => f.message).join(' '),
+            code: 'validation-failed',
+            traceId: 'mock',
+            context: { field: fields[0]!.field, fields },
+          },
+        });
+      }
+
+      const saved: VenueListing = {
+        cuisine,
+        about,
+        priceLevel: listing.priceLevel,
+        websiteUrl: website,
+        amenities: [...new Set(listing.amenities)],
+        address: existing.address,
+        latitude: listing.latitude ?? existing.latitude,
+        longitude: listing.longitude ?? existing.longitude,
+        gallery: gallery as Photo[],
+      };
+      listings.set(branchId, saved);
       return saved;
     },
 
