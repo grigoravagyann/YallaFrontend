@@ -82,7 +82,7 @@ describe('a table free now, booked at 20:00', () => {
       code: '123456',
     });
     await gateway.createBooking({
-      commandId: 'cmd-seed',
+      commandId: '723497eb-d37f-4111-8f9e-111312a1093d',
       branchId: BRANCH,
       tableId: free!.id,
       slotUtc: TOMORROW_EVENING,
@@ -132,7 +132,7 @@ describe('a table free now, booked at 20:00', () => {
       code: '123456',
     });
     await gateway.createBooking({
-      commandId: 'cmd-seed-2',
+      commandId: '8370ba83-8a80-4c33-843f-2368cd3aae72',
       branchId: BRANCH,
       tableId: free!.id,
       slotUtc: TOMORROW_EVENING,

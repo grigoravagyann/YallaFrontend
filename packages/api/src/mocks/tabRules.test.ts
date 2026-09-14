@@ -25,7 +25,10 @@ async function caught(promise: Promise<unknown>): Promise<Error & Record<string,
 describe('the mock tab', () => {
   it('hands the scan back as the tab a diner reads, with its zone and venue', async () => {
     const gateway = createMockGateway({ now: () => NOW, simulateJoiners: false });
-    const opened = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId: 'c1' });
+    const opened = await gateway.scanTableCode({
+      tableCode: FREE_TABLE,
+      commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+    });
 
     expect(opened.kind).toBe('tabOpened');
     expect(opened.tab.venueName).toBe('Lumen Coffee');
@@ -36,13 +39,19 @@ describe('the mock tab', () => {
   it('keeps the typed code case-insensitive, as the server does', async () => {
     const gateway = createMockGateway({ now: () => NOW, simulateJoiners: false });
     await expect(
-      gateway.scanTableCode({ tableCode: FREE_TABLE.toUpperCase(), commandId: 'c1' }),
+      gateway.scanTableCode({
+        tableCode: FREE_TABLE.toUpperCase(),
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     ).resolves.toMatchObject({ kind: 'tabOpened' });
   });
 
   it('refuses to let a host with nobody approved walk away from the tab', async () => {
     const gateway = createMockGateway({ now: () => NOW, simulateJoiners: false });
-    const opened = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId: 'c1' });
+    const opened = await gateway.scanTableCode({
+      tableCode: FREE_TABLE,
+      commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+    });
 
     expect((await caught(gateway.leaveTab({ tabId: opened.tab.tabId }))).name).toBe(
       'HostCannotLeaveError',
@@ -95,7 +104,7 @@ describe('the mock tab', () => {
 
     orders.place(tab, {
       tabId: tab.id,
-      clientCommandId: 'order-1',
+      clientCommandId: '6e7f85a9-d0fe-4b5d-8b50-4c6f2991d744',
       lines: [{ menuItemId: itemId, quantity: 1, isShared: false, participantId: 'p-you' }],
     });
     const lineId = orders.lines(tab.id)[0]?.id ?? '';

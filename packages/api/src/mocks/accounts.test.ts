@@ -29,7 +29,7 @@ async function caught(promise: Promise<unknown>): Promise<Error & Record<string,
 
 describe('booking with an unconfirmed number', () => {
   const BOOKING = {
-    commandId: 'cmd-unverified-1',
+    commandId: 'f6759b53-fe9b-44ad-8a90-cad220eca0d0',
     branchId: 'b-unknown',
     tableId: 't-unknown',
     slotUtc: '2030-01-01T18:00:00.000Z',
@@ -58,7 +58,9 @@ describe('booking with an unconfirmed number', () => {
     });
 
     // Past the gate: now the unknown branch is what answers.
-    const next = await caught(gateway.createBooking({ ...BOOKING, commandId: 'cmd-unverified-2' }));
+    const next = await caught(
+      gateway.createBooking({ ...BOOKING, commandId: 'a7349047-a625-4c20-85ee-7ccefc6c2ea1' }),
+    );
     expect(next.name).not.toBe('PhoneNotVerifiedError');
   });
 });

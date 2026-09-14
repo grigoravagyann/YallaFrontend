@@ -18,7 +18,7 @@ const OUT_OF_SERVICE = mockTableCode('b-lumen-north-t14');
 const CLOSED_TAB = mockTableCode('b-greenbean-main-t16');
 
 let id = 0;
-const cmd = () => `cmd_${(id += 1)}`;
+const cmd = () => `00000000-0000-4000-8000-${String((id += 1)).padStart(12, '0')}`;
 
 describe('mock gateway — scanning in', () => {
   let gateway: YallaGateway;

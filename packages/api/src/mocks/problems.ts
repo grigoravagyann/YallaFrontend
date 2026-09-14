@@ -49,3 +49,24 @@ export function invalidRequest(url: string, field: string, detail: string): Vali
     },
   });
 }
+
+/** What .NET's JSON reader takes for a `Guid`: the hyphenated 36-character form, any hex. */
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * The server's refusal of a `clientCommandId` it cannot use: 400 `invalid-request`.
+ *
+ * The request types declare it a `Guid`, so `cmd-1` never reaches a handler —
+ * the binder refuses it — and `ClientCommandIdFilter` refuses the empty GUID.
+ * The HTTP client turns that 400 into a `ValidationError`, and so does this, so
+ * a caller that mints its own ids fails against the mock the way it would live.
+ */
+export function requireClientCommandId(url: string, value: unknown): void {
+  if (typeof value === 'string' && GUID_RE.test(value) && value !== EMPTY_GUID) return;
+  throw invalidRequest(
+    url,
+    'clientCommandId',
+    'clientCommandId must be a GUID. Generate one per command and reuse it when retrying.',
+  );
+}

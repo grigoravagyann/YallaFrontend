@@ -352,7 +352,7 @@ jobs:
       # `ContractSubject.unsupported`.
       - name: Contract suite
         run: >-
-          pnpm --filter @yalla/api exec vitest run src/contract
+          pnpm --filter @yalla/api exec vitest run src/contract/
           --reporter=default --reporter=json
           --outputFile.json="$GITHUB_WORKSPACE/contract-results.json"
 

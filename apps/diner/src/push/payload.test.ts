@@ -149,7 +149,7 @@ async function aConfirmedBooking() {
   expect(table, 'the mock branch needs a bookable table').toBeDefined();
 
   const booking = await gateway.createBooking({
-    commandId: 'cmd-push-test',
+    commandId: 'b9f10039-79af-459f-86a2-7080424ff7c6',
     branchId: BRANCH,
     tableId: table!.tableId,
     slotUtc: SLOT,
@@ -216,7 +216,10 @@ describe('extending a hold', () => {
 
     // Three and a half hours early: there is no held table to keep yet.
     const early = await gateway
-      .extendReservationHold({ reservationId: booking.id, clientCommandId: 'early-tap' })
+      .extendReservationHold({
+        reservationId: booking.id,
+        clientCommandId: '92a0b0e6-19ca-4ffe-8c9b-15061b1a0647',
+      })
       .then(
         () => null,
         (error: unknown) => error as Error,
@@ -226,7 +229,10 @@ describe('extending a hold', () => {
     // And the one extension is still there once they are actually late.
     arrive();
     await expect(
-      gateway.extendReservationHold({ reservationId: booking.id, clientCommandId: 'late-tap' }),
+      gateway.extendReservationHold({
+        reservationId: booking.id,
+        clientCommandId: '6e8a11c8-8e1e-43e9-85f6-313ed93a0202',
+      }),
     ).resolves.toMatchObject({ wasReplay: false });
   });
 

@@ -1026,7 +1026,7 @@ mock; this job runs it against the real backend, built from source:
 3. Builds the API and starts it in Development on `http://127.0.0.1:5086`, with
    `--no-launch-profile`, the dev seed on and the actor stub off. The log goes to
    `api.log`; the step prints `API up after Ns`, or the log when it never answers.
-4. Runs `pnpm --filter @yalla/api exec vitest run src/contract` with
+4. Runs `pnpm --filter @yalla/api exec vitest run src/contract/` with
    `YALLA_CONTRACT_BASE_URL` set, then **fails if no test against the HTTP client
    passed** — a green run that only exercised the mock proves nothing.
 5. **OpenAPI drift gate.** Fetches `/swagger/v1/swagger.json` from that API and
@@ -1073,7 +1073,7 @@ To run it locally, start the backend on 5086 (`pnpm dev:real --only api`) and:
 ```bash
 YALLA_CONTRACT_BASE_URL=http://localhost:5086 \
 YALLA_CONTRACT_VENUE_EMAIL='<PlatformAdmin:Email>' YALLA_CONTRACT_VENUE_PASSWORD='<PlatformAdmin:Password>' \
-  pnpm --filter @yalla/api exec vitest run src/contract
+  pnpm --filter @yalla/api exec vitest run src/contract/
 ```
 
 Or let `scripts/e2e-local.sh --no-e2e` start a throwaway backend for it, below.
@@ -1158,9 +1158,18 @@ For example, with the API at `https://api.example.com`, `<API origin>` is
 `https://api.example.com` and `<ws origin>` is `wss://api.example.com`.
 
 Send it as a **header**, even though the built page may carry the same policy in
-a `<meta>` tag: browsers ignore `frame-ancestors` in a meta tag, so only the
-header stops the console being framed by another site. `img-src` names the API
-because photos are served from `/api/photos/...` on the API's origin.
+a `<meta>` tag: browsers ignore `frame-ancestors` in a meta tag, so
+`frame-ancestors 'none'` takes effect only when the host sends the contents of
+`dist/content-security-policy.txt` as the `Content-Security-Policy` response
+header. A host that serves the files without that header leaves the console
+frameable by any site, whatever the meta tag says.
+
+`img-src` names the API because photos are served from `/api/photos/...` on the
+API's origin, and it names nothing else. If photos are ever served from another
+host — a CDN, blob storage, a signed-URL bucket — that host must be added to
+`img-src` (in `contentSecurityPolicy`, `apps/web/src/csp.ts`, then rebuild so
+the header file and the meta tag agree), or the browser blocks every photo from
+it.
 
 ## Run everything on real data
 

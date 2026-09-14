@@ -225,7 +225,7 @@ describe('the calendar file the confirmation hands over', () => {
     const { harness, branch, slotUtc, selection, table } = await setUp();
 
     const booking = (await harness.gateway.createBooking({
-      commandId: 'cmd-ics',
+      commandId: '821075c1-812c-4846-8c3c-3adc4b452189',
       branchId: branch.id,
       tableId: table.tableId,
       slotUtc,

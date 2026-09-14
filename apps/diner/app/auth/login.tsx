@@ -117,6 +117,6 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  error: { ...typography.body, color: colors.error },
+  error: { ...typography.body, color: colors.errorInk },
   primary: { marginTop: space.lg },
 });

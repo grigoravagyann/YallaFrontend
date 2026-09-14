@@ -1,3 +1,9 @@
+/// <reference types="node" />
+// Node's globals scoped to this file, as in i18nBundle.test.ts: the last block
+// reads the app's own source.
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { contrastRatio } from '@yalla/tokens';
 import { describe, expect, it } from 'vitest';
 import { badgeColors, badgeVariants, type BadgeTone, type BadgeVariant } from './badges';
@@ -121,5 +127,70 @@ describe('glyphs', () => {
     expect(
       contrastRatio(colors.onImage, over(colors.glass, colors.surface)),
     ).toBeGreaterThanOrEqual(AA_GLYPH);
+  });
+});
+
+/**
+ * The lists above hold only if the screens keep to them.
+ *
+ * `textColors` leaving the bright fills out says nothing about a style that
+ * sets `color: colors.warning` anyway — which is how the orange, at 2.3:1,
+ * reached the confirm screen, the profile editor and the scan screen. So the
+ * app's own source is read: a text colour is never a bright state fill, and an
+ * icon gets one only where that fill clears 3:1 on every ground.
+ */
+describe('screens', () => {
+  const dinerRoot = fileURLToPath(new URL('../../', import.meta.url));
+  const themeDirectory = fileURLToPath(new URL('./', import.meta.url));
+  const FILLS = ['success', 'warning', 'error', 'info'] as const;
+  type Fill = (typeof FILLS)[number];
+  const fill = `colors\\.(${FILLS.join('|')})\\b`;
+
+  /** `color: colors.warning` in a style. `borderColor` and `backgroundColor` are fills, and fine. */
+  const TEXT_RE = new RegExp(`(?<![\\w$])color\\s*:\\s*${fill}`, 'gu');
+  /** An icon's colour: `color={colors.error}`, `iconColor={colors.error}`, `{ iconColor: colors.error }`. */
+  const GLYPH_RE = new RegExp(
+    `(?<![\\w$])(?:color|iconColor|tintColor)=\\{\\s*${fill}|(?<![\\w$])(?:iconColor|tintColor)\\s*:\\s*${fill}`,
+    'gu',
+  );
+
+  function* sourceFiles(directory: string): Generator<string> {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const full = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== 'node_modules' && join(full, '/') !== themeDirectory) {
+          yield* sourceFiles(full);
+        }
+      } else if (/\.tsx?$/u.test(entry.name)) {
+        yield full;
+      }
+    }
+  }
+
+  const files = ['app', 'src'].flatMap((directory) => [...sourceFiles(join(dinerRoot, directory))]);
+
+  function uses(pattern: RegExp): { at: string; fill: Fill }[] {
+    return files.flatMap((file) => {
+      const source = readFileSync(file, 'utf8');
+      return [...source.matchAll(pattern)].map((match) => ({
+        at: `${relative(dinerRoot, file).replaceAll('\\', '/')}:${source.slice(0, match.index).split('\n').length}`,
+        fill: (match[1] ?? match[2]) as Fill,
+      }));
+    });
+  }
+
+  it('reads the app and src trees', () => {
+    expect(files.length).toBeGreaterThan(20);
+  });
+
+  it('set no text in a bright state fill — the *Ink partner is the text colour', () => {
+    expect(uses(TEXT_RE).map((use) => `${use.at} colors.${use.fill}`)).toEqual([]);
+  });
+
+  it('give an icon a bright state fill only where it clears 3:1 on every ground', () => {
+    const faint = uses(GLYPH_RE).filter((use) =>
+      Object.values(grounds).some((ground) => contrastRatio(colors[use.fill], ground) < AA_GLYPH),
+    );
+    expect(faint.map((use) => `${use.at} colors.${use.fill}`)).toEqual([]);
   });
 });

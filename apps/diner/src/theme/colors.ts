@@ -24,6 +24,10 @@ export const colors = {
   overlayDark: 'rgba(0,0,0,0.65)',
   /** Same hue as `overlayDark` at zero alpha, so a gradient from it never greys. */
   overlayClear: 'rgba(0,0,0,0)',
+  /** The light band a loading skeleton sweeps across its block, at its brightest. */
+  shimmerPeak: 'rgba(255,255,255,0.65)',
+  /** Same white at zero alpha — the band's edges, so the sweep never greys. */
+  shimmerClear: 'rgba(255,255,255,0)',
   /**
    * Translucent circle behind an icon sitting on a photo (heart, back, share).
    * 45% black, so a white glyph on it still clears 3:1 over a white photo.

@@ -408,7 +408,7 @@ if [ "$run_contract" -eq 1 ]; then
   step "Contract suite against the API"
   if YALLA_CONTRACT_BASE_URL="$api_url" \
      YALLA_CONTRACT_ADMIN_EMAIL="$admin_email" YALLA_CONTRACT_ADMIN_PASSWORD="$admin_password" \
-     pnpm --filter @yalla/api exec vitest run src/contract \
+     pnpm --filter @yalla/api exec vitest run src/contract/ \
        --reporter=default --reporter=json --outputFile.json="$(native_path "$contract_results")"; then
     # A green run in which nothing against the HTTP client passed proved nothing.
     node -e '

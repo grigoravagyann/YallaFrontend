@@ -23,7 +23,7 @@ describe('losing the race for a table', () => {
     const table = room?.tables.find((entry) => entry.isBookable);
     const lost = await gateway
       .createBooking({
-        commandId: 'cmd-race',
+        commandId: 'f61c23aa-c283-4db6-8c88-e3d4e91e6b8b',
         branchId: BRANCH,
         tableId: table!.tableId,
         slotUtc,

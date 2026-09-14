@@ -31,7 +31,7 @@ import { describeTableStateContract } from './tableState.contract';
  *
  *     YALLA_CONTRACT_BASE_URL=http://localhost:5086 \
  *     YALLA_CONTRACT_ADMIN_EMAIL=… YALLA_CONTRACT_ADMIN_PASSWORD=… \
- *     pnpm --filter @yalla/api exec vitest run src/contract
+ *     pnpm --filter @yalla/api exec vitest run src/contract/
  *
  * against a backend in Development with `DevSeed__Enabled=true` and
  * `DevActor__Enabled=false`. The admin pair is the backend's

@@ -84,7 +84,7 @@ async function bookAt(
   const floor = await gateway.getSlotFloor({ branchId, slotUtc, partySize: 2 });
   const table = floor!.tables.find((t) => t.isBookable) ?? floor!.tables[0]!;
   return gateway.createBooking({
-    commandId: `cmd-${(commandSequence += 1)}`,
+    commandId: `00000000-0000-4000-8000-${String((commandSequence += 1)).padStart(12, '0')}`,
     branchId,
     tableId: table.tableId,
     slotUtc,
@@ -162,7 +162,10 @@ describe('reviews in the mock (K8)', () => {
     );
 
     time.advance(2 * HOUR_MS - 10 * 60_000);
-    await gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'open-1' });
+    await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: '274b0887-fc06-4cea-807a-1570a87ab603',
+    });
     await expect(gateway.saveMyBranchReview({ branchId: NORTH, rating: 5 })).resolves.toMatchObject(
       {
         rating: 5,
@@ -505,7 +508,7 @@ describe('naming yourself on a tab in the mock', () => {
     const gateway = createMockGateway({ simulateJoiners: false });
     const scan = await gateway.scanTableCode({
       tableCode: mockTableCode('b-lumen-north-t1'),
-      commandId: 'scan-1',
+      commandId: 'bf2af33e-9ba7-415d-80c4-8455f703eec3',
     });
 
     const change = await gateway.setTabDisplayName(scan.tab.tabId, '  Tigran  ');

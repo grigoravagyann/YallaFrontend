@@ -82,7 +82,7 @@ import {
   REVIEW_VISIT_WINDOW_DAYS,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
-import { invalidRequest, validationFailed } from './problems';
+import { invalidRequest, requireClientCommandId, validationFailed } from './problems';
 
 /** Great-circle distance in kilometres. */
 export function haversineKm(
@@ -1456,6 +1456,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async createBooking(command: CreateBookingCommand) {
       await wait();
       const url = `${URL_TAG}/api/reservations`;
+      // The body binds first: a command id that is not a GUID never reaches the rules.
+      requireClientCommandId(url, command.commandId);
       // The request's own validation runs before anything else, as on the server.
       const note = typeof command.note === 'string' ? command.note.trim() : '';
       if (note.length > MAX_BOOKING_NOTE) {
@@ -1665,6 +1667,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async extendReservationHold({ reservationId, clientCommandId }) {
       await wait();
+      requireClientCommandId(
+        `${URL_TAG}/api/reservations/${reservationId}/extend-hold`,
+        clientCommandId,
+      );
       const booking = bookings.get(reservationId);
       if (!booking) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
       // As the server now refuses it: nothing is held before the start, and
@@ -1739,6 +1745,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
       await wait();
+      requireClientCommandId(`${URL_TAG}/api/tabs/open`, command.commandId);
       const result = world.scan(command);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
@@ -1755,6 +1762,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
       const url = `${URL_TAG}/api/tabs/open-by-booking`;
       requireVerifiedPhone(url);
+      // After the policy, as there: VerifiedDiner answers before the body is bound.
+      requireClientCommandId(url, command.commandId);
       const wanted = normaliseBookingCode(command.bookingCode);
       /*
        * Over this diner's own bookings — which *is* the ownership rule, not an
@@ -1906,6 +1915,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       if (!dinerViewOf(tab).me.canOrderNow) {
         throw new ForbiddenError({ url: `${URL_TAG}/api/tabs/${command.tabId}/orders` });
       }
+      requireClientCommandId(
+        `${URL_TAG}/api/tabs/${command.tabId}/orders`,
+        command.clientCommandId,
+      );
       return orders.place(tab, command);
     },
 

@@ -18,6 +18,7 @@ import { Field, FieldInput, PasswordInput } from '../components/auth/Field';
 import { Text } from '../components/Text';
 import { useRequestPhoneCode } from '../data/queries';
 import { colors, radius, shadows, space, typography } from '../theme';
+import { deleteAccountErrorKey } from './deleteAccountError';
 
 export interface DeleteAccountSheetProps {
   readonly visible: boolean;
@@ -64,7 +65,7 @@ function DeleteForm({ profile, onClose, onDeleted }: Omit<DeleteAccountSheetProp
   });
   const busy = deletion.isPending;
   const canConfirm = secret.trim().length > 0 && !busy;
-  const failed = deletion.isError || requestCode.isError;
+  const failure = deletion.error ?? requestCode.error;
 
   return (
     <KeyboardAvoidingView
@@ -136,9 +137,9 @@ function DeleteForm({ profile, onClose, onDeleted }: Omit<DeleteAccountSheetProp
             </>
           )}
 
-          {failed ? (
+          {failure ? (
             <Text style={styles.error} accessibilityRole="alert">
-              {t('profile.deleteAccount.error')}
+              {t(deleteAccountErrorKey(failure, withPassword))}
             </Text>
           ) : null}
 

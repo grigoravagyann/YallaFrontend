@@ -145,7 +145,10 @@
       "confirm": "Delete my account",
       "cancel": "Keep my account",
       "done": "Your account is deleted.",
-      "error": "The account was not deleted. Try again."
+      "error": "The account was not deleted. Try again.",
+      "wrongPassword": "That password isn't right. Nothing was deleted.",
+      "wrongCode": "That code isn't right. Nothing was deleted.",
+      "tooManyAttempts": "Too many tries. Wait a few minutes and try again."
     }
   },
   "table": {
