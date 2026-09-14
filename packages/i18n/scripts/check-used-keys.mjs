@@ -48,14 +48,50 @@
  *
  * A computed key — a variable, a template literal, anything but a string literal
  * — is not knowable and is not checked.
+ *
+ * ## And the other direction, for the diner app
+ *
+ * A diner key that nothing references is also a failure. Translators keep dead
+ * strings in three languages, and "coming soon" copy for a screen that shipped
+ * can be wired back in by mistake — `menu.pricesOnly` ("ordering arrives soon")
+ * sat in the bundle long after ordering arrived.
+ *
+ * A key counts as referenced when any `.ts`/`.tsx` file under `apps` or
+ * `packages` contains it as a quoted string (not only inside `t(` — screens pass
+ * keys around as `labelKey: 'orders.status.ready'`), or when a template literal
+ * builds keys under its prefix (`` t(`waiter.${reason}`) `` references every
+ * `waiter.*`). Over-approximating again: a prefix vouches for its whole subtree.
+ * A key assembled any other way — `t(prefix + '.title')` — is invisible, so do
+ * not build keys like that.
+ *
+ * Keys added ahead of the screen that will render them go in
+ * `pending-diner-keys.json`. They are accepted while unreferenced; once a screen
+ * uses one, the check prints a note that its entry can go.
+ *
+ * `YALLA_I18N_LOCALES_DIR` and `YALLA_I18N_REPO_ROOT` point the check at a copy
+ * of the bundles or another source tree, for the package's own tests.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const LOCALES_DIR = resolve(HERE, '..', 'src', 'locales');
-const REPO_ROOT = resolve(HERE, '..', '..', '..');
+const LOCALES_DIR = process.env.YALLA_I18N_LOCALES_DIR
+  ? resolve(process.env.YALLA_I18N_LOCALES_DIR)
+  : resolve(HERE, '..', 'src', 'locales');
+const REPO_ROOT = process.env.YALLA_I18N_REPO_ROOT
+  ? resolve(process.env.YALLA_I18N_REPO_ROOT)
+  : resolve(HERE, '..', '..', '..');
+const PENDING_KEYS_FILE = join(HERE, 'pending-diner-keys.json');
+
+/** Namespaces whose every key must be referenced from source. */
+const REVERSE_NAMESPACES = ['diner'];
+
+/** A quoted dotted key, optionally namespace-qualified: `'diner:place.review.title'`. */
+const KEY_LITERAL_RE = /(['"`])(?:[a-z]+:)?([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)\1/gu;
+
+/** A template literal that opens with a dotted prefix and then interpolates: `` `waiter.${`` */
+const KEY_PREFIX_RE = /`(?:[a-z]+:)?((?:[A-Za-z][A-Za-z0-9_]*\.)+)\$\{/gu;
 const SOURCE_ROOTS = ['apps', 'packages'];
 const SOURCE_EXTENSIONS = ['.ts', '.tsx'];
 const SKIP_DIRECTORIES = new Set(['node_modules', 'dist', 'build', 'coverage', '.git']);
@@ -174,14 +210,28 @@ function definesKey(namespace, key) {
 }
 
 const problems = [];
+const notes = [];
 let checked = 0;
 let skippedForDefault = 0;
+
+/** Every quoted dotted key in the source, plural suffixes collapsed too. */
+const referencedLiterals = new Set();
+/** Every `prefix.` a template literal builds keys under. */
+const referencedPrefixes = new Set();
 
 for (const root of SOURCE_ROOTS) {
   const absolute = join(REPO_ROOT, root);
 
   for (const file of sourceFiles(absolute)) {
     const source = readFileSync(file, 'utf8');
+
+    for (const match of source.matchAll(KEY_LITERAL_RE)) {
+      referencedLiterals.add(match[2]);
+      referencedLiterals.add(baseKey(match[2]));
+    }
+    for (const match of source.matchAll(KEY_PREFIX_RE)) {
+      referencedPrefixes.add(match[1]);
+    }
     const where = (index) =>
       `${relative(REPO_ROOT, file).replaceAll('\\', '/')}:${source.slice(0, index).split('\n').length}`;
 
@@ -240,6 +290,58 @@ for (const root of SOURCE_ROOTS) {
   }
 }
 
+// The other direction: keys defined for the diner app that nothing references.
+
+/** `{ "keys": { "about.*": "who renders it" } }` — a full key, or a prefix ending in `.*`. */
+function readPendingKeys() {
+  try {
+    return Object.keys(JSON.parse(readFileSync(PENDING_KEYS_FILE, 'utf8')).keys ?? {});
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw new Error(`${PENDING_KEYS_FILE} is not valid JSON`, { cause: error });
+  }
+}
+
+function matchesPattern(pattern, key) {
+  return pattern.endsWith('.*') ? key.startsWith(pattern.slice(0, -1)) : key === pattern;
+}
+
+function isReferenced(key) {
+  if (referencedLiterals.has(key)) return true;
+  for (const prefix of referencedPrefixes) if (key.startsWith(prefix)) return true;
+  return false;
+}
+
+const pendingPatterns = readPendingKeys();
+let reverseChecked = 0;
+
+for (const namespace of REVERSE_NAMESPACES) {
+  const keys = defined.get(namespace);
+  if (keys === undefined) continue;
+
+  for (const key of [...keys].sort()) {
+    reverseChecked += 1;
+    const referenced = isReferenced(key);
+    const pending = pendingPatterns.some((pattern) => matchesPattern(pattern, key));
+    if (!referenced && !pending) {
+      problems.push(
+        `"${namespace}:${key}" is defined but nothing in ${SOURCE_ROOTS.join(', ')} references it — ` +
+          `delete it from every locale, or list it in scripts/pending-diner-keys.json if a screen ` +
+          `is about to render it`,
+      );
+    }
+  }
+
+  for (const pattern of pendingPatterns) {
+    const covered = [...keys].filter((key) => matchesPattern(pattern, key));
+    if (covered.length === 0) {
+      notes.push(`pending entry "${pattern}" matches no ${namespace} key; it can be removed`);
+    } else if (covered.every(isReferenced)) {
+      notes.push(`pending entry "${pattern}" is fully referenced now; it can be removed`);
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error('i18n:used-keys failed:\n');
   for (const problem of problems.sort()) console.error(`  - ${problem}`);
@@ -247,9 +349,12 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
+for (const note of notes) console.log(`i18n:used-keys note: ${note}`);
+
 console.log(
   `i18n:used-keys passed — ${checked} t() references across ${SOURCE_ROOTS.join(', ')} all ` +
     `resolve against ${REFERENCE}` +
     (skippedForDefault > 0 ? `; ${skippedForDefault} skipped for a defaultValue` : '') +
-    '.',
+    `; all ${reverseChecked} ${REVERSE_NAMESPACES.join(', ')} keys are referenced or pending ` +
+    `(${pendingPatterns.length} pending entries).`,
 );

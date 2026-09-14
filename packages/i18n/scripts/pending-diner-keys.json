@@ -1,0 +1,20 @@
+{
+  "$comment": "Diner keys added before the screens that render them. check-used-keys.mjs accepts these while nothing references them; once a screen uses a key it prints a note, and the entry should be deleted. An entry is a full key or a prefix ending in .* — the value says who renders it.",
+  "keys": {
+    "place.reviews.seeAll": "D1 — 'See all N reviews' on the place screen",
+    "reviews.*": "D1 — app/place/[placeId]/reviews.tsx",
+    "place.menu.*": "D1 — the place screen's menu empty and error states",
+    "place.review.postedAs": "D1 — ReviewComposer, from publicAuthorName",
+    "place.review.needsVisit": "D1 — ReviewComposer on ReviewNeedsVisitError",
+    "place.review.hidden": "D1 — ReviewComposer when the diner's own review is hidden",
+    "place.review.report.*": "D1 — the report sheet on each review",
+    "place.bookingsOff.*": "D1 — replaces Book when acceptsAppBookings is false",
+    "booking.note.*": "D1 — the booking note field, success screen and booking detail",
+    "profile.deleteAccount.*": "D1 — Profile > Delete account",
+    "auth.sessionRevoked.*": "D1 — sign-out on SessionRevokedError",
+    "tab.name.*": "D2 — the optional name prompt on pending and tab screens",
+    "notifications.*": "D1 — app/notifications.tsx",
+    "help.*": "D1 — app/help.tsx",
+    "about.*": "D1 — app/about.tsx"
+  }
+}

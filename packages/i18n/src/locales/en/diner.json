@@ -1,9 +1,6 @@
 {
   "explore": {
     "title": "Explore",
-    "city": "Yerevan",
-    "placesNearby_one": "{{count}} place nearby",
-    "placesNearby_other": "{{count}} places nearby",
     "searchPlaceholder": "Search cafes, restaurants, or cuisine…",
     "searchClear": "Clear search",
     "filter": {
@@ -22,10 +19,6 @@
       }
     },
     "loading": "Finding places nearby…",
-    "freeLead_one": "{{count}} table free",
-    "freeLead_other": "{{count}} tables free",
-    "inPlaces_one": "in {{count}} place nearby",
-    "inPlaces_other": "in {{count}} places nearby",
     "mapButton": "Open map"
   },
   "venue": {
@@ -33,35 +26,10 @@
       "cafe": "Cafe",
       "restaurant": "Restaurant"
     },
-    "branchCount_one": "{{count}} branch",
-    "branchCount_other": "{{count}} branches",
-    "typeAndBranches": "{{type}} · {{branches}}",
-    "freeNow_one": "{{count}} table free now",
-    "freeNow_other": "{{count}} tables free now",
-    "openNow": "Open now",
-    "closedNow": "Closed",
-    "noneFreeNow": "No tables free right now",
-    "notFound": {
-      "title": "This place is not on Yalla any more",
-      "body": "It may have closed or stopped taking bookings. Go back and pick another."
-    },
-    "openAcross_one": "Open now, {{count}} table free",
-    "openAcross_other": "Open now, {{count}} tables free"
+    "openNow": "Open now"
   },
   "branches": {
-    "title": "Choose a branch",
-    "openUntil": "open until {{time}}",
-    "closed": "closed",
-    "noneFree": "No tables free",
-    "empty": {
-      "title": "No branches",
-      "body": "This venue has no locations listed yet."
-    },
-    "loading": "Loading branches…",
-    "openNow": "open now",
-    "freeNow_one": "{{count}} table free now",
-    "freeNow_other": "{{count}} tables free now",
-    "opensAt": "closed, opens at {{time}}"
+    "title": "Choose a branch"
   },
   "booking": {
     "date": "Date",
@@ -85,11 +53,16 @@
       "action": "I’m at my table",
       "hint": "At the venue? Open your tab on the table you booked.",
       "working": "Opening your tab…"
+    },
+    "note": {
+      "title": "Note for the venue",
+      "placeholder": "For example, a high chair or a birthday",
+      "hint": "The venue sees this with your booking.",
+      "tooLong": "Keep the note to {{max}} characters."
     }
   },
   "floorPlan": {
     "title": "Pick a table",
-    "comingSoon": "The floor plan for this branch appears here.",
     "back": "Back",
     "notFound": "That branch could not be found.",
     "pickFor": "Pick a table for {{time}}"
@@ -114,7 +87,6 @@
       "cancelledByVenue": "Cancelled by the venue",
       "unknown": "Changed"
     },
-    "tableAt": "Table {{table}} · {{branch}}",
     "empty": {
       "title": "No bookings yet",
       "body": "Find a table and it will show up here.",
@@ -161,7 +133,20 @@
     "notVerified": "Not verified",
     "verify": "Verify",
     "setPasswordPrompt": "Set a password to log in without a code.",
-    "setPasswordAction": "Set a password"
+    "setPasswordAction": "Set a password",
+    "deleteAccount": {
+      "row": "Delete account",
+      "title": "Delete your account?",
+      "body": "This cannot be undone. Your reviews, profile photo, favorites and notifications are deleted, and you are logged out on every phone. Venues keep their own record of your past bookings and orders, no longer linked to an account.",
+      "passwordLabel": "Your password",
+      "codeLabel": "Code from the SMS",
+      "sendCode": "Text me a code",
+      "codeSent": "We sent a code to {{phone}}.",
+      "confirm": "Delete my account",
+      "cancel": "Keep my account",
+      "done": "Your account is deleted.",
+      "error": "The account was not deleted. Try again."
+    }
   },
   "table": {
     "titleWithArea": "Table {{label}} · {{area}}",
@@ -180,7 +165,8 @@
       "alreadyBooked": "Already booked at that time.",
       "held": "Someone else is booking this table.",
       "outOfService": "This table is out of service.",
-      "tooSmall": "Too small for {{count}} guests.",
+      "tooSmall_one": "Too small for {{count}} guest.",
+      "tooSmall_other": "Too small for {{count}} guests.",
       "notBookable": "This table is not bookable.",
       "pastLeadTime": "Too soon to book this table.",
       "tooLarge": "Kept for larger parties. Pick a smaller table.",
@@ -276,7 +262,11 @@
     "passwordHint": "At least 8 characters",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
-    "codeInstead": "Log in with a code instead"
+    "codeInstead": "Log in with a code instead",
+    "sessionRevoked": {
+      "title": "You were logged out",
+      "body": "Something about your account changed, so this phone was logged out. Log in again to continue."
+    }
   },
   "confirm": {
     "title": "Confirm your table",
@@ -285,7 +275,6 @@
     "party": "Guests",
     "tableRow": "Table",
     "window": "Your table",
-    "cancellation": "Cancellation",
     "submit": "Confirm booking",
     "submitting": "Confirming…",
     "requiresApproval": "Request table",
@@ -319,7 +308,6 @@
     "share": "Share",
     "shareMessage": "I booked table {{table}} at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
     "viewBookings": "See my bookings",
-    "done": "Done",
     "atTableHint": "When you arrive, tap “I’m at my table” on your booking — or scan the QR on the table."
   },
   "net": {
@@ -328,8 +316,8 @@
     "loading": "Loading…",
     "offlineBody": "Check your connection and try again.",
     "serverError": "Something went wrong on our side. Try again.",
-    "notAvailable": "This is not available yet.",
-    "notAvailableBody": "The backend does not offer this yet. Nothing is wrong with your phone.",
+    "notAvailable": "This isn’t available right now.",
+    "notAvailableBody": "Try again a little later.",
     "signedOut": "Your session ended. Verify your number again when you reserve."
   },
   "scan": {
@@ -353,11 +341,6 @@
     "working": "Opening your tab…",
     "scanAgain": "Scan again",
     "confirmNumber": "Confirm my number",
-    "result": {
-      "opened": "Your tab is open and you are the host.",
-      "pending": "You have asked to join. The host taps approve and you are in.",
-      "alreadyOn": "You are already on this tab."
-    },
     "error": {
       "outOfService": "Table {{label}} is out of service. Ask a waiter for another one.",
       "unknownCode": "That code does not match a table here. Check it again, or ask a waiter.",
@@ -416,10 +399,6 @@
     "leaveConfirm": "Yes, leave",
     "leaveKeep": "Stay",
     "leaveFailed": "We could not leave the tab. Try again.",
-    "orders": {
-      "title": "Orders",
-      "placeholder": "Ordering arrives next. Your items and the running total appear here."
-    },
     "closedTitle": "This tab has been closed",
     "closedBody": "It has been paid and settled. Scan again to start a new one.",
     "loading": "Loading your tab…",
@@ -435,7 +414,13 @@
     },
     "hostCannotLeave": "Nobody else is on the tab to take it over, so you cannot leave it yet. A waiter can close it for you.",
     "loadError": "We could not load your tab.",
-    "closingBanner": "The bill has been asked for, so nothing more can be ordered on this tab."
+    "closingBanner": "The bill has been asked for, so nothing more can be ordered on this tab.",
+    "name": {
+      "title": "Your name on this tab",
+      "placeholder": "Name",
+      "save": "Save",
+      "skip": "Not now"
+    }
   },
   "pending": {
     "title": "Waiting for the host",
@@ -446,7 +431,6 @@
     "openMenu": "See the menu and prices",
     "refresh": "Check again",
     "checking": "Checking…",
-    "approvedTitle": "You are on the tab",
     "leave": "Leave",
     "endedTitle": "You are not on this tab",
     "endedBody": "The host did not add you, or the tab has closed. If you are at this table, ask them, or scan once more."
@@ -492,13 +476,10 @@
     "savePermissions": "Save for this person"
   },
   "menu": {
-    "title": "Menu",
-    "pricesOnly": "Prices only for now — ordering arrives soon.",
     "unavailable": "Not available today",
     "loading": "Loading the menu…",
     "emptyTitle": "No menu yet",
     "emptyBody": "This branch has not published a menu.",
-    "updated": "Updated {{time}}",
     "search": "Search dishes or ingredients",
     "noMatches": "Nothing matches that.",
     "error": "We could not load the menu.",
@@ -678,28 +659,17 @@
       "extendHold": "Extend hold"
     },
     "optIn": {
-      "explain": "We can remind you an hour before, so you can cancel in one tap if plans change.",
+      "explain": "We can remind you before your booking, so you can cancel in one tap if plans change.",
       "allow": "Remind me",
-      "granted": "We will remind you an hour before.",
+      "granted": "We will remind you before your booking.",
       "declined": "No reminder will arrive for this booking. Your table is still held."
     },
     "actions": {
-      "hint": "Cancelling late is far better for the restaurant than not turning up.",
       "working": "One moment…",
       "extended": "The table is held until {{time}}. That was your one extension.",
       "alreadyExtended": "You have already let them know — the table had its one extension. If you need longer, the restaurant will decide.",
-      "cancelled": "Cancelled. Thank you for saying so.",
       "offline": "No signal, so nothing changed. Try again when you are back online.",
       "failed": "That did not go through, so nothing changed.",
-      "unknown": "We could not read this booking, so there is nothing safe to offer here.",
-      "stale": {
-        "seated": "You are already at the table. Enjoy it.",
-        "completed": "This booking is finished.",
-        "cancelledByDiner": "You cancelled this booking.",
-        "cancelledByVenue": "The restaurant cancelled this booking.",
-        "noShow": "This booking was marked as a no-show.",
-        "unknown": "This booking is no longer one you can change here."
-      },
       "holdNotActive": "Your table is held from the booking time. You can ask to keep it once it starts.",
       "extensionsNotOffered": "This venue does not hold tables for late arrivals. Call them if you are running late.",
       "keepTableHint": "Running late? Let them know once, and the table is held a little longer."
@@ -741,7 +711,26 @@
       "saved": "Thanks, your review is posted.",
       "failed": "We could not post your review. Try again.",
       "verifyHint": "Verify your phone number in your profile to leave a review.",
-      "loadFailed": "We could not load your review. Try again before writing a new one."
+      "loadFailed": "We could not load your review. Try again before writing a new one.",
+      "postedAs": "Posted publicly as {{name}}",
+      "needsVisit": "Reviews are for visits. You can leave one after a booking you were seated for, or a tab you were on here, in the last 180 days.",
+      "hidden": "Your review is hidden and no longer shows on this place’s page.",
+      "report": {
+        "action": "Report",
+        "title": "Report this review",
+        "reason": {
+          "spam": "Spam or advertising",
+          "offensive": "Offensive or abusive",
+          "notAVisit": "Not about a real visit",
+          "personalInfo": "Shares someone’s personal details",
+          "other": "Something else"
+        },
+        "note": "Anything to add? (optional)",
+        "send": "Send report",
+        "done": "Thanks. Your report was sent.",
+        "own": "This is your own review, so it cannot be reported.",
+        "failed": "The report did not send. Try again."
+      }
     },
     "favorite": "Save to favorites",
     "unfavorite": "Remove from favorites",
@@ -760,11 +749,23 @@
     },
     "bookTable": "Book a Table",
     "amenity": {
-      "outdoorSeating": "Outdoor Seating",
+      "outdoorSeating": "Outdoor seating",
       "wifi": "Wi-Fi",
       "parking": "Parking",
       "cardPayment": "Card payment",
       "vegan": "Vegan options"
+    },
+    "reviews": {
+      "seeAll_one": "See {{count}} review",
+      "seeAll_other": "See all {{count}} reviews"
+    },
+    "menu": {
+      "empty": "This place has not published a menu yet.",
+      "error": "We could not load the menu."
+    },
+    "bookingsOff": {
+      "title": "Not taking bookings in the app",
+      "body": "You can still look at the menu and the opening hours, but tables here cannot be booked in the app right now."
     }
   },
   "tables": {
@@ -785,7 +786,6 @@
     "capacityOne": "{{max}} people",
     "book": "Book",
     "notBookable": "This table cannot be booked right now",
-    "zoom": "Zoom",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "fullscreen": "Full screen",
@@ -836,7 +836,6 @@
       "cancelled": "Cancelled"
     },
     "kind": {
-      "dineIn": "Dine in",
       "takeaway": "Takeaway"
     },
     "tableAndParty_one": "Table {{table}} · {{count}} person",
@@ -922,5 +921,90 @@
       "title": "Phone",
       "verified": "Verified"
     }
+  },
+  "reviews": {
+    "title": "Reviews",
+    "empty": "No reviews yet.",
+    "loadFailed": "We could not load the reviews. Try again."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet",
+    "emptyBody": "Booking updates and ready orders will show up here.",
+    "markAllRead": "Mark all as read",
+    "loadFailed": "We could not load your notifications. Try again.",
+    "kind": {
+      "bookingReminder": {
+        "title": "Booking reminder",
+        "body": "Your booking at {{place}} is coming up."
+      },
+      "bookingConfirmed": {
+        "title": "Booking confirmed",
+        "body": "{{place}} confirmed your booking."
+      },
+      "bookingDeclined": {
+        "title": "Booking declined",
+        "body": "{{place}} could not take your booking."
+      },
+      "bookingCancelledByVenue": {
+        "title": "Booking cancelled by the venue",
+        "body": "{{place}} cancelled your booking."
+      },
+      "orderReady": {
+        "title": "Your order is ready",
+        "body": "Your order at {{place}} is ready."
+      },
+      "reviewHidden": {
+        "title": "Your review was hidden",
+        "body": "Your review of {{place}} no longer shows on its page."
+      },
+      "unknown": {
+        "title": "Update",
+        "body": "Something changed. Open it to see what."
+      }
+    }
+  },
+  "help": {
+    "title": "Help & Support",
+    "faqTitle": "Common questions",
+    "faq": {
+      "booking": {
+        "question": "How do I book a table?",
+        "answer": "Open a place, tap Book a Table, then pick the day, time, number of guests and a table. You need to be logged in with a confirmed phone number. Some places do not take bookings in the app."
+      },
+      "code": {
+        "question": "Why do I get a code by SMS?",
+        "answer": "The code confirms the phone number is yours, so a venue can reach you about your booking. If it does not arrive, wait a moment and ask for a new one."
+      },
+      "table": {
+        "question": "How does the code on the table work?",
+        "answer": "Scan the QR code on your table to open a tab, or to join the one already open. No account is needed. If someone opened the tab before you, they approve you on their phone."
+      },
+      "reviews": {
+        "question": "Why can’t I leave a review?",
+        "answer": "Reviews are for real visits: a booking you were seated for, or a tab you were on at that place, in the last 180 days. You also need a confirmed phone number. Reviews are public and show your first name and an initial."
+      },
+      "deleteAccount": {
+        "question": "How do I delete my account?",
+        "answer": "Go to Profile and tap Delete account. Your reviews, profile photo, favorites and notifications are deleted. Venues keep their own record of your past bookings and orders, no longer linked to an account."
+      },
+      "favorites": {
+        "question": "Where are my favorites saved?",
+        "answer": "When you are logged in, favorites are saved to your account, so they are there on any phone you log in on. Hearts you tap while logged out stay on this phone and move to your account when you log in."
+      }
+    },
+    "contactTitle": "Contact support",
+    "contactBody": "If your question is not answered here, write to us or call.",
+    "email": "Email {{email}}",
+    "phone": "Call {{phone}}"
+  },
+  "about": {
+    "title": "About",
+    "version": "Version {{version}} (build {{build}})",
+    "versionNoBuild": "Version {{version}}",
+    "terms": "Terms of use",
+    "privacy": "Privacy policy",
+    "licences": "Open-source licences",
+    "licencesBody": "Yalla is built with open-source software. Each package is used under its own licence."
   }
 }
