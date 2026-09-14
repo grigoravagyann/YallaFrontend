@@ -1,4 +1,4 @@
-import type { OpeningHours, Place, TablePhotoMarker, Weekday } from './model';
+import type { MenuSection, OpeningHours, Place, TablePhotoMarker, Weekday } from './model';
 
 /**
  * Six places in central Yerevan, photographed and tabled.
@@ -21,8 +21,11 @@ import type { OpeningHours, Place, TablePhotoMarker, Weekday } from './model';
  * computes it at read time from `hours`.
  */
 
-/** Everything but `openState`, which is derived when read. */
-export type PlaceSeed = Omit<Place, 'openState'>;
+/**
+ * Everything but `openState`, which is derived when read, plus the menu, which
+ * the repository hands out on its own read.
+ */
+export type PlaceSeed = Omit<Place, 'openState'> & { readonly menu: readonly MenuSection[] };
 
 const YEREVAN = 'Asia/Yerevan';
 const ALL_WEEK: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
@@ -61,6 +64,11 @@ export const mockPlaces: readonly PlaceSeed[] = [
     id: 'b-lumen-cascade',
     venueId: 'v-lumen',
     name: 'The Green Table',
+    venueSlug: 'lumen-coffee',
+    branchSlug: 'cascade',
+    venueName: 'The Green Table',
+    branchName: 'Cascade',
+    acceptsAppBookings: true,
     type: 'cafe',
     cuisine: 'Armenian & Mediterranean',
     distanceKm: 0.3,
@@ -157,6 +165,11 @@ export const mockPlaces: readonly PlaceSeed[] = [
     id: 'b-lumen-north',
     venueId: 'v-lumen',
     name: 'Lumen Coffee',
+    venueSlug: 'lumen-coffee',
+    branchSlug: 'northern-avenue',
+    venueName: 'Lumen Coffee',
+    branchName: 'Northern Avenue',
+    acceptsAppBookings: true,
     type: 'cafe',
     cuisine: 'Specialty coffee & bakery',
     distanceKm: 0.4,
@@ -244,6 +257,11 @@ export const mockPlaces: readonly PlaceSeed[] = [
     id: 'b-dolmama-pushkin',
     venueId: 'v-dolmama',
     name: 'Dolmama',
+    venueSlug: 'dolmama',
+    branchSlug: 'pushkin-street',
+    venueName: 'Dolmama',
+    branchName: 'Pushkin Street',
+    acceptsAppBookings: true,
     type: 'restaurant',
     cuisine: 'Traditional Armenian',
     distanceKm: 0.9,
@@ -336,6 +354,11 @@ export const mockPlaces: readonly PlaceSeed[] = [
     id: 'b-tumanyan-main',
     venueId: 'v-tumanyan',
     name: 'Tavern Yerevan',
+    venueSlug: 'tumanyan-shawarma',
+    branchSlug: 'tumanyan-street',
+    venueName: 'Tavern Yerevan',
+    branchName: 'Tumanyan Street',
+    acceptsAppBookings: false,
     type: 'restaurant',
     cuisine: 'Armenian grill & tavern',
     distanceKm: 1.4,
@@ -429,6 +452,11 @@ export const mockPlaces: readonly PlaceSeed[] = [
     id: 'b-ararat-opera',
     venueId: 'v-ararat',
     name: 'Ararat Terrace',
+    venueSlug: 'ararat-terrace',
+    branchSlug: 'opera',
+    venueName: 'Ararat Terrace',
+    branchName: 'Opera',
+    acceptsAppBookings: true,
     type: 'restaurant',
     cuisine: 'Modern Armenian',
     distanceKm: 1.1,
@@ -516,6 +544,11 @@ export const mockPlaces: readonly PlaceSeed[] = [
     id: 'b-greenbean-main',
     venueId: 'v-greenbean',
     name: 'Green Bean',
+    venueSlug: 'green-bean',
+    branchSlug: 'mashtots-avenue',
+    venueName: 'Green Bean',
+    branchName: 'Mashtots Avenue',
+    acceptsAppBookings: true,
     type: 'cafe',
     cuisine: 'Café & brunch',
     distanceKm: 1.7,

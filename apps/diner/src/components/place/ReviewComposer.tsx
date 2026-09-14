@@ -1,5 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { staleTime } from '@yalla/api';
+import {
+  PhoneNotVerifiedError,
+  ReviewNeedsVisitError,
+  publicAuthorName,
+  staleTime,
+} from '@yalla/api';
 import { useGateway } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,7 +14,7 @@ import { useDinerProfile } from '../../data/accountQueries';
 import { myReviewKey } from '../../data/dinerScope';
 import { placeKeys } from '../../places/hooks';
 import { useSession } from '../../stores/session';
-import { colors, fontWeight, iconSize, radius, space, typography } from '../../theme';
+import { colors, fontWeight, iconSize, layout, radius, space, typography } from '../../theme';
 import { Button } from '../Button';
 import { Text, TextInput } from '../Text';
 import { reviewForm, type ReviewDraft } from './reviewDraft';
@@ -31,7 +36,9 @@ export interface ReviewComposerProps {
  * rather than a form that fails on submit. Nobody signed in sees nothing — a
  * review is not a reason to push a stranger into sign-up from a details page.
  *
- * One review per diner per place: a second save revises the first.
+ * One review per diner per place: a second save revises the first. A first
+ * review needs a visit in the last 180 days (K8), and the refusal says exactly
+ * that. The review is public under the name shown above the stars.
  */
 export function ReviewComposer({ placeId, style }: ReviewComposerProps) {
   const { t } = useTranslation('diner');
@@ -65,6 +72,7 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
   const { t } = useTranslation('diner');
   const gateway = useGateway();
   const queryClient = useQueryClient();
+  const displayName = useSession((state) => state.profile?.displayName ?? null);
 
   const mine = useQuery({
     queryKey: myReviewKey(placeId),
@@ -81,8 +89,9 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
     onSuccess: (saved) => {
       queryClient.setQueryData(myReviewKey(placeId), saved);
       setDraft({});
-      // The page's rating, count and newest reviews all moved.
+      // The page's rating, count and newest reviews all moved, and so did the full list.
       void queryClient.invalidateQueries({ queryKey: placeKeys.detail(placeId) });
+      void queryClient.invalidateQueries({ queryKey: placeKeys.reviews(placeId) });
       void queryClient.invalidateQueries({ queryKey: ['places', 'list'] });
     },
   });
@@ -112,33 +121,46 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
   }
 
   const failure = save.error
-    ? save.error.name === 'PhoneNotVerifiedError'
-      ? t('place.review.verifyHint')
-      : t('place.review.failed')
+    ? save.error instanceof ReviewNeedsVisitError
+      ? t('place.review.needsVisit')
+      : save.error instanceof PhoneNotVerifiedError
+        ? t('place.review.verifyHint')
+        : t('place.review.failed')
     : null;
+
+  // The server's own answer once there is a review; the same rule applied to
+  // the account's name before the first one, so the diner knows before posting.
+  const postedAs = mine.data?.publicAuthorName ?? publicAuthorName(displayName);
 
   return (
     <View style={[styles.card, style]}>
       <Text style={styles.title}>
         {mine.data ? t('place.review.yours') : t('place.review.title')}
       </Text>
-      <View style={styles.stars} accessibilityRole="adjustable">
+      <Text style={styles.hint}>{t('place.review.postedAs', { name: postedAs })}</Text>
+      {mine.data?.hidden ? (
+        <Text style={styles.hidden} accessibilityRole="alert">
+          {t('place.review.hidden')}
+        </Text>
+      ) : null}
+      {/* Five buttons, each a full touch target and each saying what it sets. */}
+      <View style={styles.stars}>
         {[1, 2, 3, 4, 5].map((step) => (
           <Pressable
             key={step}
             accessibilityRole="button"
             accessibilityLabel={t('place.review.starLabel', { rating: step })}
-            accessibilityState={{ selected: step <= rating }}
-            hitSlop={6}
+            accessibilityState={{ selected: step === rating }}
             onPress={() => {
               save.reset();
               setDraft((current) => ({ ...current, rating: step }));
             }}
+            style={({ pressed }) => [styles.star, pressed && styles.starPressed]}
           >
             <Ionicons
               name={step <= rating ? 'star' : 'star-outline'}
               size={iconSize.lg}
-              color={colors.warning}
+              color={colors.warningInk}
             />
           </Pressable>
         ))}
@@ -156,7 +178,11 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
         maxLength={MAX_TEXT}
         accessibilityLabel={t('place.review.placeholder')}
       />
-      {failure ? <Text style={styles.error}>{failure}</Text> : null}
+      {failure ? (
+        <Text style={styles.error} accessibilityRole="alert">
+          {failure}
+        </Text>
+      ) : null}
       {save.isSuccess && !touched ? (
         <Text style={styles.saved}>{t('place.review.saved')}</Text>
       ) : null}
@@ -180,7 +206,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   title: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
-  stars: { flexDirection: 'row', gap: space.sm },
+  stars: { flexDirection: 'row', gap: space.xs },
+  star: {
+    minWidth: layout.touchTarget,
+    minHeight: layout.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+  },
+  starPressed: { backgroundColor: colors.surfaceMuted },
   input: {
     ...typography.body,
     color: colors.text,
@@ -192,7 +226,8 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   hint: { ...typography.caption, color: colors.textMuted },
-  error: { ...typography.caption, color: colors.error },
+  hidden: { ...typography.body, color: colors.warningInk },
+  error: { ...typography.caption, color: colors.errorInk },
   saved: { ...typography.caption, color: colors.textMuted },
   submit: { marginTop: space.xs },
 });

@@ -18,8 +18,14 @@ import {
  * clock; the venue opens when its own wall clock says so.
  */
 
-/** A booking this close to now is refused by the server, so it is not offered. */
+/**
+ * How soon a booking may start when the branch's own rule is not known yet.
+ * Only a stand-in while the rules load: the branch's `minLeadMinutes` replaces it.
+ */
 export const LEAD_MINUTES = 30;
+
+/** How many days the strip offers while the branch's `bookingWindowDays` is not known yet. */
+export const WINDOW_DAYS = 7;
 
 /** Slots are cut every half hour. */
 export const SLOT_MINUTES = 30;
@@ -78,18 +84,20 @@ function clockOf(instant: Date, timeZoneId: string): ClockTime {
  *
  * Inside any of the place's opening blocks for that weekday — a split lunch
  * and dinner service offers both, and nothing in the gap — (a close after
- * midnight counts as the same service day), at least `LEAD_MINUTES` ahead of
- * `now`, and never a closing time itself. A day the place is shut yields nothing.
+ * midnight counts as the same service day), at least `leadMinutes` ahead of
+ * `now` — the branch's `minLeadMinutes`, or `LEAD_MINUTES` until that is known —
+ * and never a closing time itself. A day the place is shut yields nothing.
  */
 export function timeSlots(
   place: Pick<Place, 'hours' | 'timeZoneId'>,
   dateKey: string,
   now: Date,
+  leadMinutes: number = LEAD_MINUTES,
 ): readonly TimeSlot[] {
   const blocks = hoursBlocksOn(place.hours, dateKey);
   if (blocks.length === 0) return [];
 
-  const earliest = now.getTime() + LEAD_MINUTES * MINUTE_MS;
+  const earliest = now.getTime() + Math.max(0, leadMinutes) * MINUTE_MS;
   const taken = new Set<number>();
   const slots: TimeSlot[] = [];
 

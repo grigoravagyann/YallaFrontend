@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { OpeningHours, Place } from './model';
-import { bookableTables, dayOptions, tablesForParty, timeSlots } from './slots';
+import {
+  LEAD_MINUTES,
+  WINDOW_DAYS,
+  bookableTables,
+  dayOptions,
+  tablesForParty,
+  timeSlots,
+} from './slots';
 
 const YEREVAN = 'Asia/Yerevan';
 
@@ -38,6 +45,12 @@ describe('dayOptions', () => {
     expect(dayOptions(NOW, YEREVAN, 0)).toHaveLength(1);
     expect(dayOptions(NOW, YEREVAN, 3)).toHaveLength(3);
   });
+
+  it("offers only the branch's own window: three days, not the default week", () => {
+    const days = dayOptions(NOW, YEREVAN, 3);
+    expect(days.map((day) => day.dateKey)).toEqual(['2026-09-12', '2026-09-13', '2026-09-14']);
+    expect(dayOptions(NOW, YEREVAN)).toHaveLength(WINDOW_DAYS);
+  });
 });
 
 describe('timeSlots', () => {
@@ -58,6 +71,20 @@ describe('timeSlots', () => {
     const slots = timeSlots(place(every('08:00', '23:00')), '2026-09-20', now);
     expect(slots[0]?.key).toBe('15:00');
     expect(slots.at(-1)?.key).toBe('22:30');
+  });
+
+  it("keeps to the branch's own lead: nothing sooner than two hours when it asks for 120 minutes", () => {
+    // 14:05 in Yerevan. With a 120-minute lead the first slot is 16:30, not 15:00.
+    const now = new Date('2026-09-20T10:05:00Z');
+    const hours = place(every('08:00', '23:00'));
+
+    expect(timeSlots(hours, '2026-09-20', now, 120)[0]?.key).toBe('16:30');
+    expect(timeSlots(hours, '2026-09-20', now)[0]?.key).toBe('15:00');
+    expect(timeSlots(hours, '2026-09-20', now, LEAD_MINUTES)[0]?.key).toBe('15:00');
+    // A 180-minute lead, as set in the console: nothing before 17:05 is offered.
+    const later = timeSlots(hours, '2026-09-20', now, 180);
+    expect(later[0]?.key).toBe('17:30');
+    expect(later.every((slot) => slot.at.getTime() >= now.getTime() + 180 * 60_000)).toBe(true);
   });
 
   it('returns nothing for a day the place is shut', () => {

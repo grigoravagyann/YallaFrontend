@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { DeleteAccountSheet } from '../../src/auth/DeleteAccountSheet';
 import { authSession } from '../../src/auth/session';
+import { signOut } from '../../src/auth/signOut';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { IconButton } from '../../src/components/IconButton';
@@ -11,8 +13,7 @@ import { PhotoImage } from '../../src/components/PhotoImage';
 import { ProfileRow } from '../../src/components/profile/ProfileRow';
 import { Screen, useNavClearance } from '../../src/components/Screen';
 import { Text } from '../../src/components/Text';
-import { accountKeys, useDinerProfile } from '../../src/data/accountQueries';
-import { resetDinerScopedQueries } from '../../src/data/dinerScope';
+import { useDinerProfile } from '../../src/data/accountQueries';
 import { useNotificationCount } from '../../src/hooks/useNotificationCount';
 import { initialsOf } from '../../src/lib/initials';
 import { useSession } from '../../src/stores/session';
@@ -27,6 +28,8 @@ const AVATAR = 64;
  * Signed in, it is the account as `/me` describes it: the photo (or
  * initials), name, @username, email and phone, with a way to confirm a number
  * that has not been. A guest sees the same list, with a way in.
+ *
+ * Every row opens something. A row with nowhere to go is not drawn.
  */
 export default function ProfileScreen() {
   const { t } = useTranslation('diner');
@@ -42,22 +45,27 @@ export default function ProfileScreen() {
   useDinerProfile();
 
   const [signingOut, setSigningOut] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   const openSettings = () => router.push('/settings');
 
-  // The token session forgets the refresh token (and tells the server, when it
-  // can reach it); the store then drops `signedIn` and the profile. The
-  // remembered number and name stay as prefill, as the store intends.
   const logOut = async () => {
     setSigningOut(true);
     try {
-      await authSession.signOut();
+      await signOut(queryClient, authSession);
     } finally {
-      useSession.getState().clear();
-      queryClient.removeQueries({ queryKey: accountKeys.profile });
-      // Their orders and reviews must not greet whoever uses this phone next.
-      resetDinerScopedQueries(queryClient);
       setSigningOut(false);
     }
+  };
+
+  // The server has already ended every session this account had. Signed out
+  // here at once — before any query can hear the revoked session and report
+  // it as something that happened *to* the diner.
+  const onDeleted = () => {
+    setDeleting(false);
+    setDeleted(true);
+    useSession.getState().clear();
+    void signOut(queryClient, authSession);
   };
 
   const name = signedIn ? (profile?.displayName ?? guestName) : null;
@@ -84,6 +92,14 @@ export default function ProfileScreen() {
             shape="square"
           />
         </View>
+
+        {deleted && !signedIn ? (
+          <Card>
+            <Text style={styles.contact} accessibilityRole="alert">
+              {t('profile.deleteAccount.done')}
+            </Text>
+          </Card>
+        ) : null}
 
         <View style={styles.identity}>
           {photoUrl ? (
@@ -171,11 +187,18 @@ export default function ProfileScreen() {
             icon="notifications-outline"
             label={t('profile.notifications')}
             badgeCount={unread}
+            onPress={() => router.push('/notifications')}
           />
-          {/* Help and About have no screen yet: drawn as plain rows (no
-              chevron, no press) rather than buttons that go nowhere. */}
-          <ProfileRow icon="help-circle-outline" label={t('profile.help')} />
-          <ProfileRow icon="information-circle-outline" label={t('profile.about')} />
+          <ProfileRow
+            icon="help-circle-outline"
+            label={t('profile.help')}
+            onPress={() => router.push('/help')}
+          />
+          <ProfileRow
+            icon="information-circle-outline"
+            label={t('profile.about')}
+            onPress={() => router.push('/about')}
+          />
           <ProfileRow
             icon={actionIcon.settings}
             label={t('profile.settings')}
@@ -193,7 +216,27 @@ export default function ProfileScreen() {
             onPress={() => void logOut()}
           />
         ) : null}
+
+        {signedIn && profile ? (
+          <Card padded={false}>
+            <ProfileRow
+              icon="trash-outline"
+              label={t('profile.deleteAccount.row')}
+              onPress={() => setDeleting(true)}
+              divider={false}
+            />
+          </Card>
+        ) : null}
       </ScrollView>
+
+      {profile ? (
+        <DeleteAccountSheet
+          visible={deleting && signedIn}
+          profile={profile}
+          onClose={() => setDeleting(false)}
+          onDeleted={onDeleted}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -220,7 +263,7 @@ const styles = StyleSheet.create({
   name: { ...typography.h3, color: colors.text },
   contact: { ...typography.body, color: colors.textMuted },
   verifyRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  unverified: { ...typography.body, color: colors.warning },
+  unverified: { ...typography.body, color: colors.warningInk },
   verifyButton: { paddingHorizontal: space.xs },
   guestActions: { gap: space.sm },
   prompt: { gap: space.sm },

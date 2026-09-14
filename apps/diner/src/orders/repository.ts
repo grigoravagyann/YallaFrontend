@@ -6,7 +6,8 @@ import { canCancelOrder, type Order } from './model';
 
 /**
  * Where the Orders tab gets its orders. Same shape as `places/repository.ts`:
- * a mock that holds state in memory, and an HTTP stub for the backend.
+ * the HTTP implementation over `GET /api/diner/orders` and `/{orderId}`, and a
+ * mock that holds state in memory for `EXPO_PUBLIC_DATA_SOURCE=mock`.
  */
 
 export interface OrderRepository {
@@ -16,13 +17,6 @@ export interface OrderRepository {
   getById(orderId: string): Promise<Order | null>;
   /** Cancels a confirmed order and returns it. Rejects when it is past cancelling. */
   cancel(orderId: string): Promise<Order>;
-}
-
-export class OrderApiNotImplementedError extends Error {
-  constructor(operation: string) {
-    super(`not implemented: orders.${operation}`);
-    this.name = 'OrderApiNotImplementedError';
-  }
 }
 
 /** The kitchen has the order already, or it is already finished. */
@@ -109,6 +103,9 @@ export function createHttpOrderRepository(
     cancel: (orderId) => Promise.reject(new OrderNotCancellableError(orderId)),
   };
 }
+
+/** Which implementation {@link orderRepository} is, for the test that pins the choice. */
+export const orderRepositorySource: 'http' | 'mock' = usingMockData ? 'mock' : 'http';
 
 export const orderRepository: OrderRepository = usingMockData
   ? createMockOrderRepository()

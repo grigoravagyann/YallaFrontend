@@ -22,14 +22,6 @@ type Segment = 'active' | 'history';
 const SKELETON_ROWS = [0, 1, 2] as const;
 
 /**
- * The backend has no order endpoints yet: the HTTP repository says so with this
- * error, and the screen says "not available yet" rather than "something broke".
- */
-function isNotImplemented(error: unknown): boolean {
-  return error instanceof Error && error.name === 'OrderApiNotImplementedError';
-}
-
-/**
  * Orders — what the diner has ordered, the live ones first.
  *
  * Two segments. Active is anything the kitchen still owes (confirmed,
@@ -104,15 +96,7 @@ export default function OrdersScreen() {
     return (
       <Screen>
         {header}
-        {isNotImplemented(error) ? (
-          <ErrorState
-            title={t('net.notAvailable')}
-            body={t('net.notAvailableBody')}
-            onRetry={() => void refetch()}
-          />
-        ) : (
-          <ErrorState offline={offline} onRetry={() => void refetch()} />
-        )}
+        <ErrorState offline={offline} onRetry={() => void refetch()} />
       </Screen>
     );
   }

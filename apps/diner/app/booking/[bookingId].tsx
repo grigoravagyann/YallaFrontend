@@ -24,7 +24,6 @@ import { useNow } from '../../src/hooks/useNow';
 import { canCancel } from '../../src/lib/bookingActions';
 import { usePlace } from '../../src/places/hooks';
 import { KeepTableAction } from '../../src/push/ReservationActions';
-import { useBookingNote } from '../../src/stores/bookingNotes';
 import {
   actionIcon,
   colors,
@@ -117,7 +116,8 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
   const [confirming, setConfirming] = useState(false);
   const now = useNow();
   const { data: place } = usePlace(booking.branchId);
-  const note = useBookingNote(booking.id);
+  // What the venue sees with the booking (K9).
+  const note = booking.note;
 
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
     booking.slotUtc,
@@ -235,7 +235,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
 
         {note ? (
           <Card style={styles.noteCard}>
-            <SectionHeader label={t('book.specialRequests')} icon={actionIcon.note} />
+            <SectionHeader label={t('booking.note.title')} icon={actionIcon.note} />
             <Text style={styles.note}>{note}</Text>
           </Card>
         ) : null}

@@ -81,10 +81,8 @@ export default function MapScreen() {
     query,
     ...(typeFilter ? { filter: { type: typeFilter } } : {}),
   });
-  const { data, isLoading, isError, error, refetch } = placesQuery;
+  const { data, isLoading, isError, refetch } = placesQuery;
   const offline = isOfflinePaused(placesQuery) && !data;
-  const unavailable =
-    isError && error instanceof Error && error.name === 'PlaceApiNotImplementedError';
   const places: readonly Place[] = useMemo(() => data ?? [], [data]);
 
   // A pin filtered away is no longer selected, whatever `selectedId` says.
@@ -254,12 +252,6 @@ export default function MapScreen() {
       <BottomSheetCard visible={problem} bottomOffset={cardOffset}>
         {offline ? (
           <ErrorState offline onRetry={() => void refetch()} style={styles.problem} />
-        ) : unavailable ? (
-          <ErrorState
-            title={t('net.notAvailable')}
-            body={t('net.notAvailableBody')}
-            style={styles.problem}
-          />
         ) : (
           <ErrorState onRetry={() => void refetch()} style={styles.problem} />
         )}

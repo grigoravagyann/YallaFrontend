@@ -20,7 +20,7 @@ import { useCreateBooking, useSlotFloor, useVenue } from '../../src/data/queries
 import { branchZoneSource } from '../../src/lib/browse';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH, canSubmit, confirmState } from '../../src/lib/confirm';
-import { useBookingNotes } from '../../src/stores/bookingNotes';
+import { bookingRefusal } from '../../src/data/bookingRefusals';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
 import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../src/theme';
@@ -42,7 +42,7 @@ export default function ConfirmScreen() {
     tableId: string;
     slotUtc: string;
     partySize: string;
-    /** The special request typed on the booking screen, carried through verification. */
+    /** The note for the venue typed on the booking screen, carried through verification. */
     requests?: string;
   }>();
   const { branchId, venueId, tableId, slotUtc, partySize, requests } = forward;
@@ -86,7 +86,6 @@ export default function ConfirmScreen() {
   const phoneE164 = useSession((s) => s.phoneE164);
   const rememberedName = useSession((s) => s.guestName);
   const rememberName = useSession((s) => s.setGuestName);
-  const saveNote = useBookingNotes((s) => s.setNote);
   const [guestName, setGuestName] = useState(rememberedName ?? '');
 
   const venueQuery = useVenue(venueId);
@@ -150,13 +149,20 @@ export default function ConfirmScreen() {
         guestName: name,
         guestPhone: phoneE164,
         channel: 'app',
+        // The note typed before the SMS detour goes to the venue with the booking (K9).
+        note: requests?.trim() || null,
       });
 
-      // The request typed before the SMS detour, kept against the booking it
-      // was made for. See `stores/bookingNotes`.
-      if (requests) saveNote(booking.id, requests);
       router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
     } catch (error) {
+      // Not taking app bookings, or a note over the limit: said in their own words.
+      const refusal = bookingRefusal(error);
+      if (refusal) {
+        setOutcomeUnknown(false);
+        setErrorText(t(refusal.key, refusal.params));
+        return;
+      }
+
       // What kind of failure this was is decided in one shared place, so the
       // web page classifies the same refusal the same way. See `bookingFailure`.
       const failure = bookingFailure(error, zone, locale);
@@ -198,7 +204,6 @@ export default function ConfirmScreen() {
     tableId,
     size,
     requests,
-    saveNote,
     router,
     queryClient,
     t,
@@ -276,7 +281,7 @@ export default function ConfirmScreen() {
           {requests ? (
             <>
               <SectionHeader
-                label={t('book.specialRequests')}
+                label={t('booking.note.title')}
                 icon={actionIcon.note}
                 style={styles.section}
               />

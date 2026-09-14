@@ -7,9 +7,15 @@ import { useSession } from '../stores/session';
  *
  * The keys are written out rather than imported from `orders/hooks` and the
  * review composer: both pull in the gateway, and this module is tested without
- * a phone. `['dinerOrders']` is `dinerOrderKeys.all`.
+ * a phone. `['dinerOrders']` is `dinerOrderKeys.all`, `['favorites']` is
+ * `favoriteKeys.all` and `['notifications']` is `notificationKeys.all`.
  */
-const DINER_SCOPED_KEYS = [['dinerOrders'], ['places', 'myReview']] as const;
+const DINER_SCOPED_KEYS = [
+  ['dinerOrders'],
+  ['places', 'myReview'],
+  ['favorites'],
+  ['notifications'],
+] as const;
 
 /** This diner's own review of one place — `GET /api/diner/branches/{id}/review`. */
 export const myReviewKey = (placeId: string) => ['places', 'myReview', placeId] as const;

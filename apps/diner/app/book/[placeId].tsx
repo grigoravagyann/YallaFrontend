@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { bookingFailure, unavailableCopy } from '@yalla/api';
+import { MAX_BOOKING_NOTE, bookingFailure, unavailableCopy } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatTime, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -28,13 +28,21 @@ import { Text, TextInput } from '../../src/components/Text';
 import { PlaceSummaryCard } from '../../src/components/place/PlaceSummaryCard';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
 import { useDinerProfile } from '../../src/data/accountQueries';
-import { useCreateBooking, useSlotFloor } from '../../src/data/queries';
+import { bookingRefusal } from '../../src/data/bookingRefusals';
+import { useBookingRules, useCreateBooking, useSlotFloor } from '../../src/data/queries';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
 import { placeKeys, usePlace, usePlaceTables } from '../../src/places/hooks';
 import type { Place, TablePhotoMarker } from '../../src/places/model';
-import { dayOptions, tablesForParty, timeSlots, type DayOption } from '../../src/places/slots';
-import { useBookingNotes } from '../../src/stores/bookingNotes';
+import { bookingRulesInput } from '../../src/places/navigation';
+import {
+  LEAD_MINUTES,
+  WINDOW_DAYS,
+  dayOptions,
+  tablesForParty,
+  timeSlots,
+  type DayOption,
+} from '../../src/places/slots';
 import { useSession } from '../../src/stores/session';
 import {
   actionIcon,
@@ -52,9 +60,7 @@ import {
 const PARTY_SIZES = [2, 3, 4] as const;
 const PARTY_MORE_FROM = 5;
 const PARTY_MAX = 12;
-const DAYS_AHEAD = 7;
 const SLOT_COLUMNS = 3;
-const REQUEST_MAX_LENGTH = 500;
 
 // A type alias, not an interface: `useLocalSearchParams` wants an implicit
 // index signature, which only object literal types carry.
@@ -109,16 +115,12 @@ export default function BookingScreen() {
   }
 
   if (placeQuery.isError || isOfflinePaused(placeQuery)) {
-    const notAvailable = placeQuery.error?.name === 'PlaceApiNotImplementedError';
     return (
       <Screen edges={['top', 'left', 'right', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <Header onBack={back} />
         <ErrorState
           offline={isOfflinePaused(placeQuery)}
-          {...(notAvailable
-            ? { title: t('net.notAvailable'), body: t('net.notAvailableBody') }
-            : {})}
           onRetry={() => void placeQuery.refetch()}
           style={styles.centered}
         />
@@ -186,11 +188,24 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
   const fits = (size: number): boolean =>
     (capacityMin === null || size >= capacityMin) && (capacityMax === null || size <= capacityMax);
 
+  /*
+   * How far ahead and how soon this branch takes bookings, read from its public
+   * page by slug. The defaults stand in only while that loads (or for a place
+   * with no slugs); the pickers then offer exactly the branch's window and lead,
+   * so a diner is never offered a day or a time the server will refuse.
+   */
+  const rulesQuery = useBookingRules(bookingRulesInput(place));
+  const windowDays = rulesQuery.data?.bookingWindowDays ?? WINDOW_DAYS;
+  const leadMinutes = rulesQuery.data?.minLeadMinutes ?? LEAD_MINUTES;
+  // Known from the place's page, or from the rules: the app cannot book here (K9).
+  const bookingsOff =
+    place.acceptsAppBookings === false || rulesQuery.data?.acceptsAppBookings === false;
+
   // "Now", read once: the slot list must not reshuffle under a finger.
   const now = useMemo(() => new Date(), []);
   const days = useMemo(
-    () => dayOptions(now, place.timeZoneId, DAYS_AHEAD),
-    [now, place.timeZoneId],
+    () => dayOptions(now, place.timeZoneId, windowDays),
+    [now, place.timeZoneId, windowDays],
   );
 
   const [dateKey, setDateKey] = useState<string | null>(null);
@@ -206,8 +221,8 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
 
   const activeDateKey = dateKey ?? days[0]?.dateKey ?? null;
   const slots = useMemo(
-    () => (activeDateKey ? timeSlots(place, activeDateKey, now) : []),
-    [place, activeDateKey, now],
+    () => (activeDateKey ? timeSlots(place, activeDateKey, now, leadMinutes) : []),
+    [place, activeDateKey, now, leadMinutes],
   );
   // The tapped slot while it is still on offer, else the first of the day.
   const activeSlot = slots.find((slot) => slot.key === slotKey) ?? slots[0] ?? null;
@@ -260,7 +275,6 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
   const phoneE164 = useSession((s) => s.phoneE164);
   const rememberedName = useSession((s) => s.guestName);
   const rememberName = useSession((s) => s.setGuestName);
-  const saveNote = useBookingNotes((s) => s.setNote);
   const [guestName, setGuestName] = useState(rememberedName ?? '');
   // A diner who still has to confirm their number gives the name on the confirm
   // screen after the SMS, so it is neither required nor asked twice here.
@@ -339,12 +353,19 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
         guestName: name,
         guestPhone: phoneE164,
         channel: 'app',
+        // The note goes to the venue with the booking (K9).
+        note: note || null,
       });
-      // The request goes with the booking on this phone — see `stores/bookingNotes`.
-      if (note) saveNote(booking.id, note);
       void queryClient.invalidateQueries({ queryKey: placeKeys.tables(place.id) });
       router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
     } catch (error) {
+      // Not taking app bookings, or a note over the limit: said in their own words.
+      const refusal = bookingRefusal(error);
+      if (refusal) {
+        setOutcomeUnknown(false);
+        setErrorText(t(refusal.key, refusal.params));
+        return;
+      }
       const failure = bookingFailure(error, place.timeZoneId, locale);
       if (failure.kind === 'tableTaken') {
         // The photo underneath and the slot answer are told to redraw; the
@@ -380,7 +401,6 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
     rememberName,
     router,
     createBooking,
-    saveNote,
     queryClient,
     slotQuery,
     locale,
@@ -410,7 +430,7 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Header onBack={onBack} />
+        <Header onBack={onBack} place={place} />
         <ScrollView
           style={styles.flex}
           contentContainerStyle={styles.content}
@@ -539,7 +559,7 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
           ) : null}
 
           <SectionHeader
-            label={t('book.specialRequests')}
+            label={t('booking.note.title')}
             icon={actionIcon.note}
             hint={t('book.optional')}
             style={styles.section}
@@ -547,17 +567,19 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
           <TextInput
             style={[styles.input, styles.requests]}
             value={requests}
-            onChangeText={setRequests}
-            placeholder={t('book.requestPlaceholder')}
+            onChangeText={(value) => {
+              setRequests(value);
+              setErrorText(null);
+            }}
+            placeholder={t('booking.note.placeholder')}
             placeholderTextColor={colors.textSubtle}
             multiline
-            maxLength={REQUEST_MAX_LENGTH}
+            maxLength={MAX_BOOKING_NOTE}
             textAlignVertical="top"
-            accessibilityLabel={t('book.specialRequests')}
+            accessibilityLabel={t('booking.note.title')}
           />
-          {/* Honest about where the words go: the reservation API carries no
-              note yet, so the request stays on this booking, on this phone. */}
-          <Text style={styles.hint}>{t('book.requestHint')}</Text>
+          {/* Honest about where the words go: to the venue, with the booking. */}
+          <Text style={styles.hint}>{t('booking.note.hint')}</Text>
 
           {mustVerify ? (
             <Text accessibilityRole="alert" style={styles.error}>
@@ -573,28 +595,52 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
-          <Button
-            label={
-              pending
-                ? t('confirm.submitting')
-                : mustVerify
-                  ? t('confirm.verifyMyNumber')
-                  : outcomeUnknown
-                    ? t('confirm.checkAgain')
-                    : t('book.confirm')
-            }
-            size="large"
-            disabled={!canConfirm}
-            onPress={() => void confirm()}
-          />
+          {bookingsOff ? (
+            // Where the app cannot book, the button is not offered at all; the
+            // same words the place page shows say why.
+            <View style={styles.bookingsOff} accessibilityRole="summary">
+              <Text style={styles.bookingsOffTitle}>{t('place.bookingsOff.title')}</Text>
+              <Text style={styles.bookingsOffBody}>{t('place.bookingsOff.body')}</Text>
+            </View>
+          ) : (
+            <Button
+              label={
+                pending
+                  ? t('confirm.submitting')
+                  : mustVerify
+                    ? t('confirm.verifyMyNumber')
+                    : outcomeUnknown
+                      ? t('confirm.checkAgain')
+                      : t('book.confirm')
+              }
+              size="large"
+              disabled={!canConfirm}
+              onPress={() => void confirm()}
+            />
+          )}
         </View>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
-function Header({ onBack }: { onBack: () => void }) {
+/**
+ * "Book a Table" until the place is known; then the venue on one line and the
+ * branch on the next, so two branches of one venue are never confused here.
+ */
+function Header({
+  onBack,
+  place,
+}: {
+  onBack: () => void;
+  place?: Pick<Place, 'name' | 'venueName' | 'branchName'> | undefined;
+}) {
   const { t } = useTranslation('diner');
+  const venue = place ? place.venueName.trim() || place.name : null;
+  const branch =
+    place && venue && place.branchName.trim().toLocaleLowerCase() !== venue.toLocaleLowerCase()
+      ? place.branchName.trim() || null
+      : null;
   return (
     <View style={styles.header}>
       <IconButton
@@ -603,9 +649,27 @@ function Header({ onBack }: { onBack: () => void }) {
         variant="ghost"
         onPress={onBack}
       />
-      <Text display numberOfLines={1} style={styles.title} accessibilityRole="header">
-        {t('book.title')}
-      </Text>
+      {venue ? (
+        <View
+          style={styles.titleBlock}
+          accessible
+          accessibilityRole="header"
+          accessibilityLabel={[t('book.title'), venue, branch].filter(Boolean).join(', ')}
+        >
+          <Text display numberOfLines={1} style={styles.title}>
+            {venue}
+          </Text>
+          {branch ? (
+            <Text numberOfLines={1} style={styles.branch}>
+              {branch}
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <Text display numberOfLines={1} style={styles.title} accessibilityRole="header">
+          {t('book.title')}
+        </Text>
+      )}
     </View>
   );
 }
@@ -708,6 +772,8 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
   },
   title: { ...typography.heading, color: colors.text, flexShrink: 1 },
+  titleBlock: { flexShrink: 1 },
+  branch: { ...typography.body, color: colors.textMuted },
   content: {
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.sm,
@@ -761,7 +827,7 @@ const styles = StyleSheet.create({
   },
   warning: {
     ...typography.body,
-    color: colors.warning,
+    color: colors.warningInk,
     marginTop: space.md,
   },
 
@@ -777,8 +843,11 @@ const styles = StyleSheet.create({
     ...typography.body,
   },
   requests: { minHeight: 96 },
-  hint: { ...typography.caption, color: colors.textSubtle, marginTop: space.sm },
-  error: { ...typography.body, color: colors.error, marginTop: space.lg },
+  hint: { ...typography.caption, color: colors.textMuted, marginTop: space.sm },
+  error: { ...typography.body, color: colors.errorInk, marginTop: space.lg },
+  bookingsOff: { gap: space.xs, paddingVertical: space.xs },
+  bookingsOffTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
+  bookingsOffBody: { ...typography.body, color: colors.textMuted },
 
   footer: {
     paddingHorizontal: layout.screenPadding,

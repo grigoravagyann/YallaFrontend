@@ -1,10 +1,12 @@
 import { useGateway } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { newCommandId } from '../lib/commandId';
+import { invalidateForPush } from './invalidation';
 import { actionFor, parsePushTarget, PUSH_ACTIONS, routeFor, type PushData } from './payload';
 import { onTokenRotation, platformCode, registerCategories, registerDevice } from './registration';
 
@@ -71,6 +73,7 @@ const supported = Platform.OS !== 'web';
 export function usePushNotifications({ projectId, signedIn }: PushOptions): void {
   const router = useRouter();
   const gateway = useGateway();
+  const queryClient = useQueryClient();
   const { locale } = useLocale();
   const { t } = useTranslation('diner');
 
@@ -138,6 +141,21 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
     };
   }, [gateway, projectId, locale, signedIn]);
 
+  // --- Arrivals -------------------------------------------------------------
+  //
+  // A push is the server saying something changed. Whatever it is about is read
+  // again now — the order, the booking, the notifications feed and its badge —
+  // rather than when a stale time runs out, so the banner and the screen under
+  // it agree.
+
+  useEffect(() => {
+    if (!supported) return;
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      invalidateForPush(queryClient, notification.request.content.data as PushData | undefined);
+    });
+    return () => subscription.remove();
+  }, [queryClient]);
+
   // --- Responses ------------------------------------------------------------
 
   useEffect(() => {
@@ -147,6 +165,8 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
     /** One path for all three states, so cold start cannot drift from the others. */
     async function handle(response: Notifications.NotificationResponse): Promise<void> {
       const data = response.notification.request.content.data as PushData | undefined;
+      // A tap from a killed app never passed through the arrival listener.
+      invalidateForPush(queryClient, data);
       const target = parsePushTarget(data);
       const action = actionFor(response.actionIdentifier);
 
@@ -195,6 +215,6 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       subscription.remove();
     };
     // `router` is stable across renders in expo-router; `gateway` changes only
-    // when the data source does.
-  }, [gateway, router]);
+    // when the data source does, and the query client never does.
+  }, [gateway, router, queryClient]);
 }

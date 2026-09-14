@@ -1,5 +1,6 @@
 import { staleTime } from '@yalla/api';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { nextReviewPage } from './model';
 import { positionKey, usePosition, type PositionKey } from './positionStore';
 import { placeRepository, type PlaceFilter } from './repository';
 
@@ -36,6 +37,10 @@ export const placeKeys = {
   detailAt: (placeId: string, position: PositionKey | null) =>
     [...detailKey(placeId), position?.[0] ?? null, position?.[1] ?? null] as const,
   tables: (placeId: string) => ['places', 'tables', placeId] as const,
+  /** The menu on its own, so a failed menu read is the menu tab's problem and nobody else's. */
+  menu: (placeId: string) => ['places', 'menu', placeId] as const,
+  /** Every page of a place's reviews read so far. */
+  reviews: (placeId: string) => ['places', 'reviews', placeId] as const,
 };
 
 export interface UsePlacesInput {
@@ -90,5 +95,34 @@ export function usePlaceTables(placeId: string | undefined) {
     enabled: Boolean(placeId),
     staleTime: staleTime.live,
     refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * The place's menu, in its own query: loading, failed (with a retry that reads
+ * only the menu again) and empty are the menu tab's states, and the rest of the
+ * page renders whatever the menu does.
+ */
+export function useMenuDetail(placeId: string | undefined) {
+  return useQuery({
+    queryKey: placeKeys.menu(placeId ?? ''),
+    queryFn: () => placeRepository.menu(placeId!),
+    enabled: Boolean(placeId),
+    staleTime: staleTime.reference,
+  });
+}
+
+/**
+ * Every review of a place, twenty at a time, newest first. The next page is
+ * asked for only while the last one was full and the total says there is more.
+ */
+export function useReviewPages(placeId: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: placeKeys.reviews(placeId ?? ''),
+    queryFn: ({ pageParam }) => placeRepository.reviewPage(placeId!, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (last) => nextReviewPage(last),
+    enabled: Boolean(placeId),
+    staleTime: staleTime.frequent,
   });
 }

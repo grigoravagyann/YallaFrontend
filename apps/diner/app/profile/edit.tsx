@@ -471,7 +471,7 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
           <Text style={styles.phone}>{profile.phoneE164}</Text>
           {profile.phoneVerified ? (
             <View style={styles.statusRow}>
-              <Ionicons name="checkmark-circle" size={iconSize.md} color={colors.success} />
+              <Ionicons name="checkmark-circle-outline" size={iconSize.md} color={colors.success} />
               <Text style={styles.verified}>{t('editProfile.phone.verified')}</Text>
             </View>
           ) : (

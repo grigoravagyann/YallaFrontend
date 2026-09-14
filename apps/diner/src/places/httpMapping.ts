@@ -4,6 +4,7 @@ import {
   type BranchListing,
   type BranchMenu,
   type BranchReview,
+  type BranchReviewPage,
   type BranchTableMarker,
   type Photo,
 } from '@yalla/api';
@@ -15,6 +16,7 @@ import {
   type OpeningHours,
   type Place,
   type Review,
+  type ReviewPage,
   type TablePhotoMarker,
 } from './model';
 
@@ -89,6 +91,16 @@ export function reviewFromApi(review: BranchReview): Review {
     rating: review.rating,
     text: review.text ?? '',
     date: (review.updatedAtUtc || review.createdAtUtc).slice(0, 10),
+    edited: review.edited,
+  };
+}
+
+export function reviewPageFromApi(page: BranchReviewPage): ReviewPage {
+  return {
+    reviews: page.reviews.map(reviewFromApi),
+    total: page.reviewCount,
+    page: page.page,
+    pageSize: page.pageSize,
   };
 }
 
@@ -119,12 +131,16 @@ export function menuFromApi(menu: BranchMenu | null): MenuSection[] {
     }));
 }
 
-/** A card on Explore, search and the map: everything the list knows, no hours. */
+/** A card on Explore, search, the map and Favorites: everything the list knows, no hours. */
 export function placeFromListing(listing: BranchListing, context: PlaceMappingContext): Place {
   const cover = listing.coverPhoto?.cardUrl ?? listing.coverPhoto?.fullUrl;
   return {
     id: listing.branchId,
     venueId: listing.venueId,
+    venueSlug: listing.venueSlug,
+    branchSlug: listing.branchSlug,
+    venueName: listing.venueName,
+    branchName: listing.branchName,
     name: placeName(listing),
     type: listing.venueType,
     cuisine: listing.cuisine ?? '',
@@ -142,18 +158,15 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
     hours: [],
     amenities: [],
     about: '',
-    menu: [],
+    // The list does not say; the place's own page does.
+    acceptsAppBookings: null,
     reviews: [],
     tables: [],
   };
 }
 
-/** The details screen: the listing plus hours, gallery, reviews, markers and menu. */
-export function placeFromDetail(
-  detail: BranchDetail,
-  menu: BranchMenu | null,
-  context: PlaceMappingContext,
-): Place {
+/** The details screen: the listing plus hours, gallery, reviews and markers. The menu is its own read. */
+export function placeFromDetail(detail: BranchDetail, context: PlaceMappingContext): Place {
   const base = placeFromListing(detail.listing, context);
   const hours = hoursFromApi(detail);
   const cover = coverUrl(detail.listing.coverPhoto);
@@ -173,7 +186,7 @@ export function placeFromDetail(
     hours,
     amenities: detail.amenities,
     about: detail.about ?? '',
-    menu: menuFromApi(menu),
+    acceptsAppBookings: detail.acceptsAppBookings,
     reviews: detail.recentReviews.map(reviewFromApi),
     // Markers only mean something on the cover; without one there is nothing to draw on.
     tables: cover ? detail.tableMarkers.map(markerFromApi) : [],

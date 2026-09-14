@@ -57,12 +57,9 @@ export default function ExploreScreen() {
   const activeTabId = useActiveTab((s) => s.activeTabId);
 
   const placesQuery = usePlaces({ query, ...(badge ? { filter: { badge } } : {}) });
-  const { data, isLoading, isError, error, isFetching, isPlaceholderData, refetch } = placesQuery;
+  const { data, isLoading, isError, isFetching, isPlaceholderData, refetch } = placesQuery;
   // An offline query is paused, never failed: without this the screen spins.
   const offline = isOfflinePaused(placesQuery) && !data;
-  // Until the backend publishes browse endpoints, real mode rejects with this.
-  const unavailable =
-    isError && error instanceof Error && error.name === 'PlaceApiNotImplementedError';
   // Stable identity, so `?? []` does not hand FlatList a fresh array per render.
   const places: readonly Place[] = useMemo(() => data ?? [], [data]);
   const filtering = query.trim() !== '' || badge !== null;
@@ -153,8 +150,6 @@ export default function ExploreScreen() {
         <ErrorState offline onRetry={() => void refetch()} />
       ) : isLoading ? (
         <SkeletonList />
-      ) : unavailable ? (
-        <ErrorState title={t('net.notAvailable')} body={t('net.notAvailableBody')} />
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
       ) : (

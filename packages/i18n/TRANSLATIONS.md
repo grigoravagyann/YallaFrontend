@@ -300,6 +300,11 @@ screen.
     `pending.approvedTitle`, `menu.title`, `menu.updated`,
     `push.actions.hint`, `.cancelled`, `.unknown`, `push.actions.stale.*`,
     `tables.zoom`, `orders.kind.dineIn`.
+  - **Removed with the booking note (PLAN-90 D1):** `book.specialRequests`,
+    `book.requestPlaceholder` and `book.requestHint`, in all three languages.
+    The booking screen now sends the note to the venue and labels it with
+    `booking.note.title` / `.placeholder` / `.hint`, so the old "kept on this
+    phone" wording would have been untrue. D1 added no new hy or ru strings.
   - **New `diner` keys.** `scripts/pending-diner-keys.json` names the screen
     that renders each one. `place.reviews.seeAll_*`, `reviews.*`,
     `place.menu.empty` / `.error`; `place.review.postedAs` (must say the

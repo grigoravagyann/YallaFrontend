@@ -1,16 +1,10 @@
-import { usingMockData } from '../data/gateway';
+import { useUnreadNotificationCount } from '../data/notificationQueries';
 
 /**
- * Unread notifications, for the red count on the Profile row.
- *
- * There is no notifications feed on the backend yet, so in real mode the
- * answer is honestly zero and the badge stays hidden. The mock returns the
- * count the reference design shows, the same way the other mocks return the
- * reference's places and orders. When the feed exists this becomes a query
- * and no screen changes.
+ * Unread notifications, for the red count on the Profile row: the server's
+ * `unreadCount` from `GET /api/diner/notifications` (K12), in real mode and on
+ * the mock alike. Zero, and no request, while nobody is signed in.
  */
-const MOCK_UNREAD = 2;
-
 export function useNotificationCount(): number {
-  return usingMockData ? MOCK_UNREAD : 0;
+  return useUnreadNotificationCount();
 }

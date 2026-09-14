@@ -16,7 +16,6 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { useBooking } from '../../src/data/queries';
 import { ReminderOptIn } from '../../src/push/ReminderOptIn';
-import { useBookingNote } from '../../src/stores/bookingNotes';
 import {
   actionIcon,
   colors,
@@ -38,7 +37,6 @@ export default function SuccessScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const bookingQuery = useBooking(bookingId);
   const { data: booking, isLoading, isError, error, refetch } = bookingQuery;
-  const note = useBookingNote(bookingId);
 
   /*
    * Every state said, never a spinner that waits for ever.
@@ -79,6 +77,8 @@ export default function SuccessScreen() {
   }
 
   const pending = booking.status === 'pendingApproval';
+  // The note as the venue received it (K9), not a copy kept on this phone.
+  const note = booking.note;
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
     booking.slotUtc,
     booking.timeZoneId,
@@ -162,7 +162,7 @@ export default function SuccessScreen() {
           </View>
           {note ? (
             <View style={styles.noteBlock}>
-              <SectionHeader label={t('book.specialRequests')} icon={actionIcon.note} />
+              <SectionHeader label={t('booking.note.title')} icon={actionIcon.note} />
               <Text style={styles.note}>{note}</Text>
             </View>
           ) : null}

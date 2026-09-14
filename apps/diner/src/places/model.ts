@@ -70,6 +70,29 @@ export interface Review {
   readonly text: string;
   /** ISO-8601 date, `YYYY-MM-DD`. */
   readonly date: string;
+  /** Revised since it was first written. Absent in the mock seeds, which are never edited. */
+  readonly edited?: boolean;
+}
+
+/** One page of a place's reviews, newest first. */
+export interface ReviewPage {
+  readonly reviews: readonly Review[];
+  /** Every visible review of the place, across all pages. */
+  readonly total: number;
+  /** 1-based. */
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+/** The server's page size for `GET /api/public/branches/{id}/reviews`. */
+export const REVIEW_PAGE_SIZE = 20;
+
+/** The page after `last`, or `undefined` when `last` was the final one. */
+export function nextReviewPage(last: ReviewPage | null | undefined): number | undefined {
+  if (!last) return undefined;
+  if (last.reviews.length < last.pageSize) return undefined;
+  if (last.page * last.pageSize >= last.total) return undefined;
+  return last.page + 1;
 }
 
 /**
@@ -99,6 +122,15 @@ export interface PlaceTables {
 export interface Place {
   readonly id: string;
   readonly venueId: string;
+  /** The public page's address, `lumen-coffee` — what booking rules are read with. Never an id. */
+  readonly venueSlug: string;
+  /** `cascade`, as above. */
+  readonly branchSlug: string;
+  /** The venue on its own, for a title line. */
+  readonly venueName: string;
+  /** The branch on its own, for the line under the venue. */
+  readonly branchName: string;
+  /** "Venue · Branch" when the branch has a name of its own, else the venue — see `placeName`. */
   readonly name: string;
   readonly type: PlaceType;
   /** "Armenian & Mediterranean" — free text from the venue, not a key. */
@@ -129,7 +161,17 @@ export interface Place {
   /** Keys under `place.amenity.*` — `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`. */
   readonly amenities: readonly string[];
   readonly about: string;
-  readonly menu: readonly MenuSection[];
+  /**
+   * Whether the app may book a table here (K9): the venue's online bookings are
+   * on and its reservation policy has been reviewed. `null` on a list card, which
+   * does not carry it; known once the place's own page has been read.
+   */
+  readonly acceptsAppBookings: boolean | null;
+  /**
+   * The newest few, from the place's page. The whole list pages through
+   * `PlaceRepository.reviewPage`; the menu is read on its own through
+   * `PlaceRepository.menu`, so a menu that fails leaves the place standing.
+   */
   readonly reviews: readonly Review[];
   readonly tables: readonly TablePhotoMarker[];
 }

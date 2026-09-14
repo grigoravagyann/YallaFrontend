@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
+import { DinerSessionWiring } from '../src/auth/DinerSessionWiring';
 import { createSecureProfileStorage } from '../src/auth/profileStorage';
 import { restoreDinerSession } from '../src/auth/restore';
 import { authSession } from '../src/auth/session';
@@ -148,6 +149,7 @@ export default function RootLayout() {
               above the navigator, because a cold-start tap has to be able to
               route before any screen has mounted. */}
           <PushNotifications />
+          <DinerSessionWiring />
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(tabs)" />

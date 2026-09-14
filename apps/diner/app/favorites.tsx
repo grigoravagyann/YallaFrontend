@@ -1,7 +1,6 @@
 import { useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
 import { FlatList, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Badge } from '../src/components/Badge';
 import { Card } from '../src/components/Card';
@@ -13,7 +12,7 @@ import { PlaceMetaRow, usePlaceCopy } from '../src/components/places/placeCopy';
 import { Screen } from '../src/components/Screen';
 import { Skeleton } from '../src/components/Skeleton';
 import { Text } from '../src/components/Text';
-import { usePlaces } from '../src/places/hooks';
+import { useFavoritePlaces } from '../src/data/useFavoritePlaces';
 import type { Place } from '../src/places/model';
 import { useFavorites } from '../src/stores/favorites';
 import {
@@ -31,26 +30,17 @@ const THUMB = 72;
 const SKELETON_ROWS = [0, 1, 2] as const;
 
 /**
- * Favorites — every place the diner tapped the heart on, in the order they
- * were saved. Kept on the phone, so the list is the store's ids resolved
- * against the places the browse data knows.
+ * Favorites — every place the diner tapped the heart on, newest first.
+ *
+ * Signed in, the list is the account's (K11), so it is the same on every phone
+ * they log in on. Signed out, it is the hearts on this phone, which move into
+ * the account at the next log in.
  */
 export default function FavoritesScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
-  const favoriteIds = useFavorites((s) => s.favoriteIds);
-  const hydrated = useFavorites((s) => s.hydrated);
   const toggle = useFavorites((s) => s.toggle);
-  const placesQuery = usePlaces();
-  const { data, isLoading, isError, refetch } = placesQuery;
-
-  const favorites = useMemo(() => {
-    const byId = new Map((data ?? []).map((place) => [place.id, place] as const));
-    return favoriteIds.flatMap((id) => {
-      const place = byId.get(id);
-      return place ? [place] : [];
-    });
-  }, [data, favoriteIds]);
+  const { places, isLoading, isError, refetch } = useFavoritePlaces();
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -72,7 +62,7 @@ export default function FavoritesScreen() {
     </View>
   );
 
-  if ((isLoading || !hydrated) && favoriteIds.length > 0) {
+  if (isLoading) {
     return (
       <Screen edges={['top', 'left', 'right', 'bottom']}>
         {header}
@@ -94,11 +84,11 @@ export default function FavoritesScreen() {
     );
   }
 
-  if (isError && !data && favoriteIds.length > 0) {
+  if (isError) {
     return (
       <Screen edges={['top', 'left', 'right', 'bottom']}>
         {header}
-        <ErrorState onRetry={() => void refetch()} />
+        <ErrorState onRetry={refetch} />
       </Screen>
     );
   }
@@ -107,7 +97,7 @@ export default function FavoritesScreen() {
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       {header}
       <FlatList
-        data={favorites}
+        data={places}
         keyExtractor={(place) => place.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
@@ -134,8 +124,9 @@ export default function FavoritesScreen() {
 }
 
 /**
- * One saved place: photo thumb, name and badge, type and cuisine, rating and
- * distance, an Open/Closed pill, and the filled heart that un-saves it.
+ * One saved place: photo thumb, the venue and its branch on their own lines,
+ * type and cuisine, rating and distance, an Open/Closed pill, and the filled
+ * heart that un-saves it.
  */
 function FavoriteRow({
   place,
@@ -152,6 +143,11 @@ function FavoriteRow({
   const copy = usePlaceCopy(place);
   const badge = place.badges[0];
   const photo = place.photos[0];
+  const venue = place.venueName || place.name;
+  const branch =
+    place.branchName && place.branchName.toLocaleLowerCase() !== venue.toLocaleLowerCase()
+      ? place.branchName
+      : null;
   return (
     <Card onPress={onPress} accessibilityLabel={place.name} style={style}>
       <View style={styles.row}>
@@ -169,10 +165,15 @@ function FavoriteRow({
         <View style={styles.body}>
           <View style={styles.nameRow}>
             <Text numberOfLines={1} style={styles.name}>
-              {place.name}
+              {venue}
             </Text>
             {badge ? <Badge variant={badge} size="sm" /> : null}
           </View>
+          {branch ? (
+            <Text numberOfLines={1} style={styles.branch}>
+              {branch}
+            </Text>
+          ) : null}
           <Text numberOfLines={1} style={styles.detail}>
             {copy.typeLine}
           </Text>
@@ -219,5 +220,6 @@ const styles = StyleSheet.create({
   skeletonBody: { gap: space.sm },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   name: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text, flex: 1 },
+  branch: { ...typography.body, color: colors.text },
   detail: { ...typography.caption, color: colors.textMuted },
 });
