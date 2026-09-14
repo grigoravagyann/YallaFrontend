@@ -1132,8 +1132,10 @@ the backend running, as described below.
 - **The demo venue.** In Development the backend migrates the database and runs
   its dev seed on every start, idempotently: the `yalla-demo` venue ("Yalla Demo
   Cafe") and its `yerevan-centre` branch, with tables, opening hours, a waiter
-  and a manager, a listing, reviews, a cover photo and table pins on it.
-  `DevSeed:Enabled=false` in the backend gives an empty database instead.
+  and a manager, a listing and reviews. Table pins are seeded onto the branch's
+  cover photo, so they appear only on a backend whose seed also writes a cover;
+  without one the branch shows no photo and no pins until a manager uploads a
+  cover. `DevSeed:Enabled=false` in the backend gives an empty database instead.
 - **A verified diner.** Sign up in the diner app with a test number from the
   `+37499000xxx` range. There is no SMS in Development:
   `POST /api/auth/diner/request-code` returns the code in `developmentCode`, and
