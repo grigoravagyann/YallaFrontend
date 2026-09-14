@@ -262,6 +262,8 @@ function floorPlan(branchId: string) {
     floorHeight: 600,
     areas: [],
     tables: [],
+    // Opaque to the client (K6); this layout test never saves the plan.
+    version: 'v1',
   } satisfies Schemas['Yalla.Application.BranchSettings.FloorPlanView'];
 }
 
