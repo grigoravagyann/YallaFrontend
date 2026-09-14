@@ -1,27 +1,31 @@
 # Continuous integration for the Yalla frontend monorepo.
 #
-# Two jobs. `build` is everything that can say "this is broken" without a
-# phone, a tablet or a backend — and the one gate people are most tempted to
-# drop is the one that matters most in a three-language product, see
-# `i18n:check` below. `contract` runs the gateway contract suite against a real
-# backend built from source, because a mock that is only ever checked against
-# itself is the failure that suite was written for.
+# Three jobs, and a small fourth that two of them share. `build` is everything
+# that can say "this is broken" without a phone, a tablet or a backend — and the
+# one gate people are most tempted to drop is the one that matters most in a
+# three-language product, see `i18n:check` below. `contract` runs the gateway
+# contract suite against a real backend built from source, because a mock that
+# is only ever checked against itself is the failure that suite was written for,
+# and fails when that backend's OpenAPI document has drifted from the committed
+# one. `diner-web-e2e` drives the diner web build and the console in a browser
+# against the same kind of backend. `backend-ref` decides which backend branch
+# both live jobs use, once, so they cannot disagree.
 #
-# Neither job needs a secret. The backend repository is public, and every
-# credential the contract job uses is generated or fixed for a database that
-# lives for one job.
+# None of them needs a secret. The backend repository is public, and every
+# credential the live jobs use is generated or fixed for a database that lives
+# for one job.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-  # From the Actions tab, to run the contract job against a backend branch of
-  # your choosing. `backend_ref` wins over every other way the job picks one.
+  # From the Actions tab, to run the live jobs against a backend branch of your
+  # choosing. `backend_ref` wins over every other way a ref is picked.
   workflow_dispatch:
     inputs:
       backend_ref:
-        description: Backend branch, tag or commit for the contract suite. Blank picks one automatically.
+        description: Backend branch, tag or commit for the live jobs. Blank picks one automatically.
         required: false
         default: ''
 
@@ -118,6 +122,83 @@ jobs:
       - name: Test
         run: pnpm test
 
+  # Which backend the two live jobs run against, decided once. In this order:
+  #   1. the `backend_ref` input of a manual run
+  #   2. a `backend-ref: <ref>` line on its own in the pull request description
+  #   3. a backend branch with the same name as this branch
+  #   4. master
+  # A ref named by 1 or 2 has to exist. Falling back to master there would run
+  # the live jobs against a backend nobody asked for and report their answer as
+  # if it were the right one.
+  #
+  # Skipped for a pull request from a fork, and both live jobs with it: its
+  # branch name means nothing to the backend repository and its author cannot
+  # re-run the jobs with a chosen `backend_ref`, so they would run against a
+  # guess. Skipped, not run and reported green. Every other trigger runs them,
+  # and they fail rather than skip.
+  backend-ref:
+    name: pick the backend ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    permissions:
+      contents: read
+      # To read the live pull request description for a `backend-ref:` line.
+      pull-requests: read
+
+    outputs:
+      ref: ${{ steps.backend.outputs.ref }}
+
+    steps:
+      - name: Pick the backend ref
+        id: backend
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BACKEND_REPO: https://github.com/grigoravagyann/Yalla.git
+          INPUT_REF: ${{ inputs.backend_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_PR_BODY: ${{ github.event.pull_request.body }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          ref='' reason=''
+
+          if [ -n "$INPUT_REF" ]; then
+            ref="$INPUT_REF"
+            reason='the backend_ref input'
+          fi
+
+          if [ -z "$ref" ] && [ -n "$PR_NUMBER" ]; then
+            # The live description rather than the event's copy, so re-running
+            # the jobs after editing the description picks up the edit.
+            body="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body 2>/dev/null)" \
+              || body="$EVENT_PR_BODY"
+            line_ref="$(printf '%s\n' "$body" | tr -d '\r' \
+              | sed -nE 's/^[[:space:]]*backend-ref:[[:space:]]*([^[:space:]]+).*$/\1/Ip' | head -n 1)"
+            if [ -n "$line_ref" ]; then
+              ref="$line_ref"
+              reason="the backend-ref line in pull request #$PR_NUMBER"
+            fi
+          fi
+
+          if [ -n "$ref" ]; then
+            if ! [[ "$ref" =~ ^[0-9a-f]{7,40}$ ]] \
+              && ! git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$ref" "refs/tags/$ref" >/dev/null; then
+              echo "::error title=Backend ref not found::$reason names '$ref', which is not a branch, tag or commit of grigoravagyann/Yalla."
+              exit 1
+            fi
+          elif git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$BRANCH" >/dev/null; then
+            ref="$BRANCH"
+            reason="the backend branch named like this one"
+          else
+            ref=master
+            reason='the default: no input, no backend-ref line, no backend branch with this name'
+          fi
+
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Backend ref: $ref ($reason)"
+          echo "Live jobs against backend \`$ref\`, chosen by $reason." >> "$GITHUB_STEP_SUMMARY"
+
   # The half of the contract suite that makes the other half mean anything.
   #
   # `packages/api/src/contract` is one set of assertions run against both
@@ -127,21 +208,11 @@ jobs:
   # checks it against the real thing, and a failure here means something
   # different from a failure above: the two implementations disagree, and one of
   # them is lying to every test that uses it.
-  #
-  # It fails rather than skips. The one exception is a pull request from a fork:
-  # its branch name means nothing to the backend repository and its author
-  # cannot re-run the job with a chosen `backend_ref`, so it would run against a
-  # guess. The job is skipped there, not run and reported green.
   contract:
     name: contract suite against a live backend
+    needs: backend-ref
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-
-    permissions:
-      contents: read
-      # To read the live pull request description for a `backend-ref:` line.
-      pull-requests: read
 
     env:
       # Only ever in a throwaway container that lives for one job. It still has
@@ -178,62 +249,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Which backend to run against, in this order:
-      #   1. the `backend_ref` input of a manual run
-      #   2. a `backend-ref: <ref>` line on its own in the pull request description
-      #   3. a backend branch with the same name as this branch
-      #   4. master
-      # A ref named by 1 or 2 has to exist. Falling back to master there would
-      # run the suite against a backend nobody asked for and report its answer
-      # as if it were the right one.
-      - name: Pick the backend ref
-        id: backend
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BACKEND_REPO: https://github.com/grigoravagyann/Yalla.git
-          INPUT_REF: ${{ inputs.backend_ref }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          EVENT_PR_BODY: ${{ github.event.pull_request.body }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: |
-          ref='' reason=''
-
-          if [ -n "$INPUT_REF" ]; then
-            ref="$INPUT_REF"
-            reason='the backend_ref input'
-          fi
-
-          if [ -z "$ref" ] && [ -n "$PR_NUMBER" ]; then
-            # The live description rather than the event's copy, so re-running
-            # the job after editing the description picks up the edit.
-            body="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body 2>/dev/null)" \
-              || body="$EVENT_PR_BODY"
-            line_ref="$(printf '%s\n' "$body" | tr -d '\r' \
-              | sed -nE 's/^[[:space:]]*backend-ref:[[:space:]]*([^[:space:]]+).*$/\1/Ip' | head -n 1)"
-            if [ -n "$line_ref" ]; then
-              ref="$line_ref"
-              reason="the backend-ref line in pull request #$PR_NUMBER"
-            fi
-          fi
-
-          if [ -n "$ref" ]; then
-            if ! [[ "$ref" =~ ^[0-9a-f]{7,40}$ ]] \
-              && ! git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$ref" "refs/tags/$ref" >/dev/null; then
-              echo "::error title=Backend ref not found::$reason names '$ref', which is not a branch, tag or commit of grigoravagyann/Yalla."
-              exit 1
-            fi
-          elif git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$BRANCH" >/dev/null; then
-            ref="$BRANCH"
-            reason="the backend branch named like this one"
-          else
-            ref=master
-            reason='the default: no input, no backend-ref line, no backend branch with this name'
-          fi
-
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
-          echo "Backend ref: $ref ($reason)"
-          echo "Contract suite against backend \`$ref\`, chosen by $reason." >> "$GITHUB_STEP_SUMMARY"
-
       # Checked out beside this repository and run from source rather than from a
       # published image, so the contract runs against the branch actually shipping.
       # The repository is public: no token beyond the job's own.
@@ -241,7 +256,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: grigoravagyann/Yalla
-          ref: ${{ steps.backend.outputs.ref }}
+          ref: ${{ needs.backend-ref.outputs.ref }}
           path: backend
 
       - name: Install .NET
@@ -286,6 +301,7 @@ jobs:
       # code in the response. `--no-launch-profile` so the address comes from
       # ASPNETCORE_URLS and no https port wants a certificate.
       - name: Start the API
+        id: api
         working-directory: backend
         env:
           ASPNETCORE_ENVIRONMENT: Development
@@ -358,6 +374,19 @@ jobs:
             }
           ' "$GITHUB_WORKSPACE/contract-results.json"
 
+      # The committed swagger.json and schema.ts are what every app compiles
+      # against. A backend DTO renamed without `pnpm api:generate` still compiles
+      # here, and the suite above only notices the fields it reads, so the whole
+      # document is compared: object keys sorted at every depth, array order kept.
+      # It runs whenever the API came up, even after a red contract suite, so one
+      # run reports both. The fetched document is uploaded as swagger.live.json.
+      - name: OpenAPI drift gate
+        if: ${{ !cancelled() && steps.api.outcome == 'success' }}
+        run: >-
+          node scripts/check-swagger-drift.mjs
+          --url "$API_URL/swagger/v1/swagger.json"
+          --save "$GITHUB_WORKSPACE/swagger.live.json"
+
       - name: Show the end of the API log
         if: failure()
         run: tail -n 200 "$GITHUB_WORKSPACE/api.log" || true
@@ -370,4 +399,119 @@ jobs:
           path: |
             api.log
             contract-results.json
+            swagger.live.json
+          if-no-files-found: ignore
+
+  # The diner app and the console, in a browser, against a real backend.
+  #
+  # The specs are `apps/e2e`. What runs them is `scripts/e2e-local.sh`, here and
+  # on a laptop, so the two cannot drift: it builds the API out of the checkout,
+  # starts it in Development on a database of its own with the dev seed (photos
+  # included), exports the diner web app and builds the console against that API,
+  # serves both, and runs Playwright with E2E_REQUIRED=1 so a missing stack fails
+  # instead of passing. `--no-contract` because the job above runs the contract
+  # suite and the drift gate. The script generates the platform admin and the JWT
+  # signing key for the run and masks them.
+  #
+  # The web build is the phone app's stand-in. Camera scanning, native push and
+  # the native photo picker stay on apps/diner/docs/PHONE-QA.md.
+  diner-web-e2e:
+    name: diner-web-e2e
+    needs: backend-ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      YALLA_BACKEND_DIR: ${{ github.workspace }}/backend
+      # A throwaway container's sa, like the contract job's.
+      E2E_SQL_SERVER: localhost,1433
+      E2E_SQL_USER: sa
+      E2E_SQL_PASSWORD: 'Yalla-E2E-p4ssw0rd!'
+      E2E_API_PORT: '5199'
+      E2E_DINER_PORT: '8095'
+      E2E_CONSOLE_PORT: '5198'
+      E2E_ARTIFACTS_DIR: ${{ github.workspace }}/e2e-artifacts
+      EXPO_NO_TELEMETRY: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          # Must equal E2E_SQL_PASSWORD above; the `env` context is not available here.
+          MSSQL_SA_PASSWORD: 'Yalla-E2E-p4ssw0rd!'
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Yalla-E2E-p4ssw0rd!' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out the backend
+        uses: actions/checkout@v7
+        with:
+          repository: grigoravagyann/Yalla
+          ref: ${{ needs.backend-ref.outputs.ref }}
+          path: backend
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: backend/global.json
+
+      - name: Wait for SQL Server
+        env:
+          CONTAINER: ${{ job.services.sqlserver.id }}
+        run: |
+          for attempt in $(seq 1 60); do
+            if docker exec "$CONTAINER" /opt/mssql-tools18/bin/sqlcmd \
+                 -C -S localhost -U sa -P "$E2E_SQL_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1; then
+              echo "SQL Server answered on attempt $attempt."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error title=SQL Server never answered::The API would fail to migrate."
+          docker logs "$CONTAINER" | tail -50
+          exit 1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Chromium only, with the system libraries it needs on a bare runner.
+      - name: Install Chromium
+        run: pnpm --filter @yalla/e2e exec playwright install --with-deps chromium
+
+      # sqlcmd from inside the container, as above; the script uses it to check
+      # the run's database name is free and to drop the database at the end.
+      - name: Diner web and console, end to end
+        env:
+          E2E_SQLCMD: docker exec -e SQLCMDPASSWORD ${{ job.services.sqlserver.id }} /opt/mssql-tools18/bin/sqlcmd
+        run: bash scripts/e2e-local.sh --no-contract
+
+      - name: Upload the Playwright report, traces and API log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diner-web-e2e
+          path: |
+            apps/e2e/playwright-report
+            apps/e2e/test-results
+            e2e-artifacts
           if-no-files-found: ignore

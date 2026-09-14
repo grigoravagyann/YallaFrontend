@@ -17,28 +17,42 @@
 #   ./verify.sh                 the gates CI's build job runs
 #   ./verify.sh --no-test       everything except the test suite (the fast half)
 #   ./verify.sh --no-install    skip the lockfile check, for a tight edit loop
+#   ./verify.sh --live          the gates, then what CI's live jobs run:
+#                               scripts/e2e-local.sh starts a throwaway backend
+#                               and runs the OpenAPI drift gate, the contract
+#                               suite and the Playwright specs against it
 #
 # On Windows, run it from Git Bash.
 #
-# What it does NOT prove on its own: that the gateway the apps use agrees with
-# the backend. CI's contract job does; see "The contract suite" at the end.
+# What it does NOT prove without --live: that the gateway the apps use agrees
+# with the backend. CI's contract job does; see "The contract suite" at the end.
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
 RUN_TESTS=1
 RUN_INSTALL=1
+RUN_LIVE=0
 
 for arg in "$@"; do
   case "$arg" in
     --no-test) RUN_TESTS=0 ;;
     --no-install) RUN_INSTALL=0 ;;
-    -h|--help) sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --live) RUN_LIVE=1 ;;
+    -h|--help) sed -n '3,28p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "verify.sh: unknown argument '$arg'" >&2; exit 2 ;;
   esac
 done
 
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
+
+# --live starts a backend at the very end, after minutes of gates. Its
+# pre-flight — the backend checkout, SQL Server, sqlcmd, free ports, Chromium —
+# runs first, so a missing prerequisite fails now rather than after the build.
+if [ "$RUN_LIVE" -eq 1 ]; then
+  step "Pre-flight for --live"
+  bash scripts/e2e-local.sh --preflight
+fi
 
 # The workflow takes the Node version from .nvmrc so that "a developer's shell
 # and CI cannot drift". This is the half of that sentence the workflow cannot
@@ -92,13 +106,24 @@ step "Bundle the diner app"
 EXPO_PUBLIC_DATA_SOURCE=real EXPO_PUBLIC_API_URL=http://localhost:5086 EXPO_NO_TELEMETRY=1 \
   pnpm --filter @yalla/diner exec expo export --platform web --output-dir dist-web
 
-if [ "$RUN_TESTS" -eq 0 ]; then
+if [ "$RUN_TESTS" -eq 0 ] && [ "$RUN_LIVE" -eq 0 ]; then
   printf '\n\033[1mBuild, bundle, lint, formatting and parity verified. Tests skipped (--no-test).\033[0m\n'
   exit 0
 fi
 
-step "Test"
-pnpm test
+if [ "$RUN_TESTS" -eq 1 ]; then
+  step "Test"
+  pnpm test
+fi
+
+# CI's `contract` and `diner-web-e2e` jobs, on this machine: a backend built from
+# the checkout beside this one, on a database and photo folder that exist for the
+# run and are removed at the end. Non-zero if the backend cannot start, or if any
+# of the drift gate, the contract suite or the specs fails.
+if [ "$RUN_LIVE" -eq 1 ]; then
+  step "Live: drift gate, contract suite and end-to-end against a throwaway backend"
+  bash scripts/e2e-local.sh
+fi
 
 # ---------------------------------------------------------------------------
 # The contract suite, and what this run did not prove.
@@ -106,8 +131,9 @@ pnpm test
 # packages/api/src/contract is one set of assertions run against both
 # implementations of the gateway interfaces. `pnpm test` runs it against the
 # mock, offline. The live half needs a backend on a URL, and is off unless
-# YALLA_CONTRACT_BASE_URL is set — in CI it is its own job, against the backend
-# built from source with a SQL Server container, and needs no secrets.
+# YALLA_CONTRACT_BASE_URL is set or --live starts one — in CI it is its own job,
+# against the backend built from source with a SQL Server container, and needs
+# no secrets.
 #
 # The backend's verify.sh FAILS when its integration tests skip, because a run
 # with no SQL Server proves nothing about the concurrency it claims to test.
@@ -120,7 +146,10 @@ pnpm test
 # ---------------------------------------------------------------------------
 step "The contract suite"
 
-if [ -n "${YALLA_CONTRACT_BASE_URL:-}" ]; then
+if [ "$RUN_LIVE" -eq 1 ]; then
+  printf 'Ran against a throwaway live backend (scripts/e2e-local.sh) as well as the mock,\n'
+  printf 'with the OpenAPI drift gate and the Playwright specs.\n'
+elif [ -n "${YALLA_CONTRACT_BASE_URL:-}" ]; then
   printf 'Ran against a live backend at %s as well as the mock.\n' "$YALLA_CONTRACT_BASE_URL"
 else
   cat <<'MESSAGE'
@@ -128,10 +157,20 @@ Ran against the MOCK ONLY. The live half did not run, so nothing above says the
 gateway and the backend agree — only that the mock agrees with itself, which is
 the failure the contract suite was written for.
 
-To run both, with the backend up on 5086:
+To run it, and the end-to-end specs, against a backend started for the purpose:
+
+  ./verify.sh --live
+
+Or against a backend already up on 5086:
 
   YALLA_CONTRACT_BASE_URL=http://localhost:5086 ./verify.sh
 MESSAGE
 fi
 
-printf '\n\033[1;32mVerified. This is what CI runs.\033[0m\n'
+if [ "$RUN_TESTS" -eq 0 ]; then
+  printf '\n\033[1;32mVerified, live half included. Unit tests skipped (--no-test).\033[0m\n'
+elif [ "$RUN_LIVE" -eq 1 ]; then
+  printf '\n\033[1;32mVerified, live half included. This is what CI runs.\033[0m\n'
+else
+  printf '\n\033[1;32mVerified. This is what CI runs.\033[0m\n'
+fi

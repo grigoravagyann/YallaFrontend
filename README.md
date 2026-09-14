@@ -69,18 +69,26 @@ It ends by saying what it did **not** prove: the contract suite ran against the
 mock only unless you set `YALLA_CONTRACT_BASE_URL`. CI's contract job runs the
 live half on every pull request.
 
+`./verify.sh --live` runs that live half here too, and the end-to-end specs:
+after the gates it runs `scripts/e2e-local.sh`, which builds the backend beside
+this repo, starts it on a throwaway database, and runs the OpenAPI drift gate,
+the contract suite and the Playwright specs against it. Its pre-flight runs
+first, so a missing backend checkout or SQL Server fails in seconds rather than
+after the build. See [Everything live, on this machine](#everything-live-on-this-machine).
+
 ### Workspace scripts
 
-| Script              | What it does                                              |
-| ------------------- | --------------------------------------------------------- |
-| `pnpm dev:real`     | Backend, console and diner web on real data               |
-| `pnpm typecheck`    | `tsc --noEmit` across every package and app               |
-| `pnpm test`         | Vitest across the shared packages                         |
-| `pnpm lint`         | ESLint across the workspace                               |
-| `pnpm format`       | Prettier, write mode (`format:check` to verify only)      |
-| `pnpm build:web`    | Production build of the web app                           |
-| `pnpm i18n:check`   | Fails if translation keys drift between languages         |
-| `pnpm api:generate` | Regenerates API types from the backend's OpenAPI document |
+| Script              | What it does                                                          |
+| ------------------- | --------------------------------------------------------------------- |
+| `pnpm dev:real`     | Backend, console and diner web on real data                           |
+| `pnpm e2e:local`    | Drift gate, live contract suite and Playwright on a throwaway backend |
+| `pnpm typecheck`    | `tsc --noEmit` across every package and app                           |
+| `pnpm test`         | Vitest across the shared packages                                     |
+| `pnpm lint`         | ESLint across the workspace                                           |
+| `pnpm format`       | Prettier, write mode (`format:check` to verify only)                  |
+| `pnpm build:web`    | Production build of the web app                                       |
+| `pnpm i18n:check`   | Fails if translation keys drift between languages                     |
+| `pnpm api:generate` | Regenerates API types from the backend's OpenAPI document             |
 
 ## Pointing an app at a local backend
 
@@ -959,7 +967,8 @@ never on each other except `api → format` and `floorplan → tokens`.
 ## Continuous integration
 
 `.github/workflows/ci.yml`, on every push to `main`, every pull request, and on
-demand from the Actions tab. Two jobs, and **neither needs a secret**.
+demand from the Actions tab. Three jobs, plus `pick the backend ref`, which
+decides once which backend branch the two live jobs use. **None needs a secret.**
 
 ### `typecheck, test, lint, build`
 
@@ -1010,9 +1019,9 @@ neither version is written down twice. The pnpm store is cached on the lockfile.
 implementations of the gateway interfaces. The build job runs it against the
 mock; this job runs it against the real backend, built from source:
 
-1. Picks a backend ref (below) and checks out
-   [grigoravagyann/Yalla](https://github.com/grigoravagyann/Yalla) into `backend/`.
-   The repository is public, so no token is needed.
+1. Checks out [grigoravagyann/Yalla](https://github.com/grigoravagyann/Yalla)
+   into `backend/`, at the ref `pick the backend ref` chose (below). The
+   repository is public, so no token is needed.
 2. Installs .NET from `backend/global.json` and starts SQL Server in a container.
 3. Builds the API and starts it in Development on `http://127.0.0.1:5086`, with
    `--no-launch-profile`, the dev seed on and the actor stub off. The log goes to
@@ -1020,10 +1029,21 @@ mock; this job runs it against the real backend, built from source:
 4. Runs `pnpm --filter @yalla/api exec vitest run src/contract` with
    `YALLA_CONTRACT_BASE_URL` set, then **fails if no test against the HTTP client
    passed** — a green run that only exercised the mock proves nothing.
-5. Uploads `api.log` and the test results as the `api-log` artifact on every run,
-   and prints the end of the log when anything failed.
+5. **OpenAPI drift gate.** Fetches `/swagger/v1/swagger.json` from that API and
+   fails, listing every differing path, when it is not the committed
+   `packages/api/src/generated/swagger.json` once object keys are sorted at every
+   depth (array order is kept). A backend DTO property renamed without
+   `pnpm api:generate` still compiles against the committed types and only
+   trips the contract suite if a test reads that field; this catches it anyway.
+   It runs whenever the API came up, even after a red contract suite, so one run
+   reports both. Locally:
+   `node scripts/check-swagger-drift.mjs --url http://localhost:5086/swagger/v1/swagger.json`.
+6. Uploads `api.log`, the test results and the fetched `swagger.live.json` as the
+   `api-log` artifact on every run, and prints the end of the log when anything
+   failed.
 
-**Which backend.** The first of these that applies:
+**Which backend.** Decided once, by `pick the backend ref`, for both live jobs.
+The first of these that applies:
 
 | Order | Source                                                                                   | If it names a ref that does not exist |
 | ----- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
@@ -1041,9 +1061,9 @@ under the `YALLA_CONTRACT_VENUE_*` names the suite reads today) and the SQL
 Server password are fixed throwaway values in the workflow: they protect a
 database that is deleted with the runner.
 
-**Forks.** A pull request from a fork skips this job: its branch name means
-nothing to the backend repository, and its author cannot choose `backend_ref`.
-Every other trigger fails rather than skips.
+**Forks.** A pull request from a fork skips `pick the backend ref`, and both live
+jobs with it: its branch name means nothing to the backend repository, and its
+author cannot choose `backend_ref`. Every other trigger fails rather than skips.
 
 **Status:** configured; first green run: not yet recorded. Fill in the run id
 here after the first `workflow_dispatch` run with `backend_ref` set.
@@ -1056,12 +1076,67 @@ YALLA_CONTRACT_VENUE_EMAIL='<PlatformAdmin:Email>' YALLA_CONTRACT_VENUE_PASSWORD
   pnpm --filter @yalla/api exec vitest run src/contract
 ```
 
+Or let `scripts/e2e-local.sh --no-e2e` start a throwaway backend for it, below.
+
+### `diner-web-e2e`
+
+The Playwright specs in `apps/e2e` (its README lists what each one walks), on
+the diner app's web build and the console, against a real backend. The job runs
+`bash scripts/e2e-local.sh --no-contract`, the same script as a laptop run, so
+the two cannot drift:
+
+1. Checks out the backend at the shared ref, installs .NET from its
+   `global.json`, starts SQL Server in a container, and installs Chromium with
+   the system libraries it needs.
+2. Builds the API into the runner's temp folder and starts it in Development on
+   `http://127.0.0.1:5199`, on a database of its own, with the dev seed (cover,
+   gallery and table pins included) on and a platform admin and JWT signing key
+   generated for the run and masked.
+3. Exports the diner web app and builds the console with `*_DATA_SOURCE=real` and
+   that API URL, and serves them on 8095 and 5198.
+4. Runs `pnpm --filter @yalla/e2e test` with `E2E_REQUIRED=1`, so a missing stack
+   fails rather than passes.
+5. Uploads the `diner-web-e2e` artifact on every run: the Playwright HTML report,
+   the traces and screenshots of failures, and the API log.
+
+`--no-contract` because the contract job already runs the contract suite and the
+drift gate against the same backend ref.
+
+### Everything live, on this machine
+
+`scripts/e2e-local.sh` (or `pnpm e2e:local`, which runs it with Git Bash on
+Windows, or `./verify.sh --live` after the gates) runs both live jobs end to
+end, without touching your own database or photos:
+
+| Step | What                                                                                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Pre-flight: dotnet, pnpm, curl, sqlcmd, the backend checkout, SQL Server answering, the ports free, Chromium installed                                  |
+| 2    | Builds the API from `$YALLA_BACKEND_DIR` (default `../Yalla-browse`, then `../Yalla`) into a temp folder, never the checkout's `bin/` or `obj/`         |
+| 3    | Starts it on `http://127.0.0.1:5199` in Development, on database `YallaE2E_<random>` and a temp photo root, with a platform admin made up for the run   |
+| 4    | Exports the diner web app and builds the console against it, while the API migrates and seeds                                                           |
+| 5    | Waits for `/api/public/venues`; then the drift gate, the contract suite (failing if nothing against the HTTP client passed) and the Playwright specs    |
+| 6    | On the way out, however the run ended: stops every process it started, drops the database, deletes the temp folder, and checks nothing still holds 5199 |
+
+A failing check does not stop the next one: the run lists every failure and
+exits non-zero. A clean run ends with `live contract + e2e passed`.
+
+- `--no-contract` or `--no-e2e` runs one half; `--preflight` checks and starts
+  nothing; `--keep` leaves the database and the temp folder for a look.
+- SQL Server is `(localdb)\MSSQLLocalDB` on Windows and `localhost` elsewhere;
+  `E2E_SQL_SERVER`, `E2E_SQL_USER` with `E2E_SQL_PASSWORD`, and `E2E_SQLCMD`
+  change that.
+- The ports (5199, 8199, 5198) are clear of `pnpm dev:real`'s, so both can run at
+  once; `E2E_API_PORT`, `E2E_DINER_PORT` and `E2E_CONSOLE_PORT` move them.
+- Chromium once: `pnpm --filter @yalla/e2e install:browsers`.
+- `scripts/e2e-local.sh --help` for the rest.
+
 ### Branch protection
 
 Not something a workflow file can do for itself. **Settings → Branches → Add
 rule** on `main`, with _Require status checks to pass before merging_, _Require
-branches to be up to date_, and both checks selected:
-`typecheck, test, lint, build` and `contract suite against a live backend`.
+branches to be up to date_, and these three checks selected:
+`typecheck, test, lint, build`, `contract suite against a live backend` and
+`diner-web-e2e`.
 Without it the workflow is advisory and a red run can still be merged, which is
 most of the value gone.
 
