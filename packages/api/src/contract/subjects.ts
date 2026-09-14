@@ -1,15 +1,19 @@
 import { ApiClient } from '../client';
-import { createConsoleMockGateway } from '../mocks/consoleMock';
-import { createConsoleHttpGateway } from '../http/consoleHttpGateway';
+import { createDinerAuth } from '../auth/endpoints';
+import { createAuthSession, type AuthSession } from '../auth/session';
+import { createMemoryTokenStorage } from '../auth/storage';
+import { PhoneInUseError } from '../contracts/errors';
+import type { YallaGateway } from '../gateway';
+import { createConsoleHttpGateway, createMemoryIdentityStore } from '../http/consoleHttpGateway';
 import { createHttpGateway } from '../http/httpGateway';
-import { createMockGateway } from '../mocks/mockGateway';
 import { createStaffHttpGateway } from '../http/staffHttpGateway';
+import { createConsoleMockGateway } from '../mocks/consoleMock';
+import { createMockGateway } from '../mocks/mockGateway';
+import { createMockReviewStore } from '../mocks/reviewStore';
 import { createStaffMockGateway } from '../mocks/staffMock';
-import { createMemoryIdentityStore } from '../http/consoleHttpGateway';
-import type { AuthSession } from '../auth/session';
 
-import type { ContractCapability, ContractSubject } from './subject';
-import { tomorrowEvening } from './subject';
+import type { ContractCapability, ContractDiner, ContractSubject } from './subject';
+import { randomToken, randomUuid, testPhone, tomorrowEvening } from './subject';
 
 /**
  * The two implementations the contract suite is run against.
@@ -23,10 +27,10 @@ import { tomorrowEvening } from './subject';
  * A session that holds one token and never refreshes.
  *
  * The console gateway takes an `AuthSession` because the app's does refresh;
- * a contract run lives for seconds and signs in once, so the whole rotation
+ * a contract run lives for minutes and signs in once, so the whole rotation
  * story is deliberately absent rather than reimplemented badly.
  */
-function staticSession(token: string | null): AuthSession {
+export function staticSession(token: string | null): AuthSession {
   return {
     restore: async () => (token ? 'signedIn' : 'signedOut'),
     getAccessToken: async () => token,
@@ -39,25 +43,94 @@ function staticSession(token: string | null): AuthSession {
   };
 }
 
+/**
+ * Register a diner, confirm the number by code, and hand back the signed-in
+ * gateway — the same three calls the app's sign-up screen makes, through the
+ * interface under test.
+ *
+ * Every account is new: a random username, an address on the reserved `.test`
+ * domain, and a number in the `+37491000xxx` test range, tried again when a
+ * previous run against the same database already holds it.
+ */
+export async function signUpDiner(gateway: YallaGateway): Promise<ContractDiner> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const tag = randomToken(10);
+    const phoneE164 = testPhone();
+    const password = `contract-${randomToken(16)}`;
+
+    let dinerUserId: string;
+    try {
+      const result = await gateway.registerDiner({
+        username: `contract.${tag}`,
+        email: `contract.${tag}@yalla.test`,
+        password,
+        phoneE164,
+        displayName: 'Contract Diner',
+        localeCode: 'en',
+      });
+      dinerUserId = result.dinerUserId;
+    } catch (error) {
+      if (error instanceof PhoneInUseError) continue;
+      throw error;
+    }
+
+    const challenge = await gateway.requestPhoneCode(phoneE164);
+    if (!challenge.devCode) {
+      throw new Error(
+        'No development code came back from request-code. The contract run needs the backend ' +
+          'in Development, the one environment that returns it.',
+      );
+    }
+    await gateway.verifyPhoneCode({ challengeId: challenge.challengeId, code: challenge.devCode });
+
+    return { gateway, dinerUserId, phoneE164, password };
+  }
+  throw new Error('Eight test numbers in a row already had accounts on this backend.');
+}
+
 const MOCK_BRANCH = 'b-lumen-north';
 const MOCK_ZONE = 'Asia/Yerevan';
 
+/**
+ * The mock's two declared gaps, both about bytes and pixels it does not hold.
+ *
+ * Nothing else is excused: the uploads, the gallery, the cover, the pins and
+ * their refusals all run against the mock with the same assertions as the live
+ * backend.
+ */
+const MOCK_GAPS: Partial<Record<ContractCapability, string>> = {
+  photoBytes: 'the mock stores no image bytes to serve',
+  photoMarkers:
+    "the mock's diner world keeps no photo positions, so the console mock's pins never reach its markers",
+};
+
 export function mockSubject(): ContractSubject {
-  const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
+  // One review store for every mock in the world, as the server has one table:
+  // what a diner reports here is what the console mock moderates.
+  const reviews = createMockReviewStore({ seed: true });
+  const diner = () => createMockGateway({ latencyMs: 0, simulateJoiners: false, reviews });
 
   return {
     name: 'mock adapter',
-    gateway,
+    gateway: diner(),
     staff: createStaffMockGateway(),
-    console: createConsoleMockGateway({ latencyMs: 0 }),
+    console: createConsoleMockGateway({ latencyMs: 0, reviews }),
+    managerConsole: createConsoleMockGateway({
+      latencyMs: 0,
+      role: 'manager',
+      managerBranch: 'home',
+      reviews,
+    }),
     fixtures: {
       branchId: MOCK_BRANCH,
       timeZoneId: MOCK_ZONE,
       tomorrowEveningUtc: tomorrowEvening(MOCK_ZONE),
     },
-    // The mock supports everything by construction. If it ever cannot satisfy
-    // a contract the answer is to fix the mock, never to declare a gap here.
-    unsupported: () => null,
+    // A gateway per diner, as a phone per diner: the mock remembers who is
+    // signed in on the instance, the way a session remembers it on a device.
+    newDiner: () => signUpDiner(diner()),
+    fetchPhoto: () => Promise.reject(new Error(MOCK_GAPS.photoBytes)),
+    unsupported: (capability) => MOCK_GAPS[capability] ?? null,
   };
 }
 
@@ -78,57 +151,78 @@ export interface HttpSubjectOptions {
   /** The seeded branch to ask about, discovered from `/api/public/venues`. */
   readonly branchId: string;
   readonly timeZoneId: string;
-  /** A venue-user token, when one could be obtained. Console reads need it. */
-  readonly venueToken: string | null;
+  /** A platform admin's admin-panel token. */
+  readonly adminToken: string;
+  /** A PIN session of a manager whose home branch is `branchId`. */
+  readonly managerToken: string;
+  /** A PIN session of a waiter at `branchId`. */
+  readonly waiterToken: string;
+  /**
+   * What the backend's *data* cannot exercise, found by `resolveLiveSubject`
+   * and printed in the test names. Never a credential or a person: those fail
+   * the run at start-up instead.
+   */
+  readonly gaps?: Partial<Record<ContractCapability, string>> | undefined;
+}
+
+/** A diner's own phone: its own client, session and device id. */
+function httpDinerGateway(baseUrl: string): YallaGateway {
+  const dinerAuth = createDinerAuth(new ApiClient({ baseUrl }));
+  const session = createAuthSession({
+    storage: createMemoryTokenStorage(),
+    refreshTokens: (refreshToken) => dinerAuth.refreshTokens(refreshToken),
+  });
+  const deviceId = randomUuid();
+  return createHttpGateway(new ApiClient({ baseUrl, auth: session }), {
+    audience: 'diner',
+    auth: session,
+    dinerAuth,
+    deviceId: async () => deviceId,
+  });
 }
 
 /**
- * The real client, pointed at a live backend.
+ * The real client, pointed at a live backend, with every identity the suites
+ * act as already signed in by `resolveLiveSubject`.
  *
- * What it cannot authenticate for, it declares. Tabs and table state need a
- * staff device enrolled with a PIN, and reservations need a verified diner —
- * neither of which a bare backend container has until something seeds them. A
- * declared gap prints in the test name and has to be accounted for in the
- * report; a silent skip is how a live run ends up covering a third of the
- * surface while looking complete.
+ * With a backend URL set the run either has the platform admin, the staff
+ * sessions and a way to make diners, or it fails at start-up saying which is
+ * missing. The only gaps it declares are about seeded data (`gaps`).
  */
 export function httpSubject(options: HttpSubjectOptions): ContractSubject {
-  const anonymous = new ApiClient({ baseUrl: options.baseUrl });
+  const { baseUrl } = options;
+  const anonymous = new ApiClient({ baseUrl });
+  const browseDevice = randomUuid();
 
-  const authorised = new ApiClient({
-    baseUrl: options.baseUrl,
-    ...(options.venueToken ? { getToken: async () => options.venueToken } : {}),
-  });
-
-  const needsStaffDevice = 'no staff device is enrolled on this backend';
-  const needsDiner = 'no verified diner session on this backend';
-  const needsVenueToken = 'no venue-user token — set YALLA_CONTRACT_VENUE_EMAIL/PASSWORD';
-
-  const gaps: Partial<Record<ContractCapability, string>> = {
-    tabs: needsStaffDevice,
-    tableState: needsStaffDevice,
-    reservations: needsDiner,
-    ...(options.venueToken ? {} : { reports: needsVenueToken, menu: needsVenueToken }),
-  };
+  const consoleAs = (token: string) =>
+    createConsoleHttpGateway(new ApiClient({ baseUrl, getToken: async () => token }), {
+      auth: staticSession(token),
+      identity: createMemoryIdentityStore(),
+    });
 
   return {
     name: 'HTTP client',
-    // Availability and the diner menu are anonymous — browsing needs no
-    // account — which is why the flagship contract runs live with no setup.
-    // Every method is real now, so there is no mock fallback for a contract to
-    // reach and report the mock as agreeing with itself.
-    gateway: createHttpGateway(anonymous, { audience: 'diner' }),
-    staff: createStaffHttpGateway(authorised),
-    console: createConsoleHttpGateway(authorised, {
-      auth: staticSession(options.venueToken),
-      identity: createMemoryIdentityStore(),
+    gateway: createHttpGateway(anonymous, {
+      audience: 'diner',
+      deviceId: async () => browseDevice,
     }),
+    staff: createStaffHttpGateway(
+      new ApiClient({ baseUrl, getToken: async () => options.waiterToken }),
+    ),
+    console: consoleAs(options.adminToken),
+    managerConsole: consoleAs(options.managerToken),
     fixtures: {
       branchId: options.branchId,
       timeZoneId: options.timeZoneId,
       tomorrowEveningUtc: tomorrowEvening(options.timeZoneId),
     },
-    unsupported: (capability) => gaps[capability] ?? null,
+    newDiner: () => signUpDiner(httpDinerGateway(baseUrl)),
+    fetchPhoto: async (url) => {
+      const response = await fetch(new URL(url, baseUrl));
+      await response.arrayBuffer();
+      return { status: response.status, contentType: response.headers.get('content-type') ?? '' };
+    },
+    unsupported: (capability) => options.gaps?.[capability] ?? null,
     knownDefect: (contract) => LIVE_DEFECTS[contract] ?? null,
   };
 }

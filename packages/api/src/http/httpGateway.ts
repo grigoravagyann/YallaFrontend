@@ -29,7 +29,6 @@ import type {
 import type { FavoriteBranch } from '../contracts/favorites';
 import { MAX_FAVORITES } from '../contracts/favorites';
 import type { DinerNotificationPage } from '../contracts/notifications';
-import type * as Hand from '../generated/handwritten';
 import {
   BookingBusyError,
   BookingCommandInUseError,
@@ -127,6 +126,8 @@ import {
   type WireBranchListing,
   type WireDinerOrder,
   type WireDinerReview,
+  type WireFavoriteList,
+  type WireNotificationPage,
   type WireReviewPage,
   type WireTableMarkers,
 } from './placesMapping';
@@ -749,12 +750,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           `/api/public/branches/${venueSlug}/${branchSlug}`,
           { skipAuth: true },
         );
-        const page = data as typeof data & Hand.AcceptsAppBookingsAddition;
         return {
           bookingWindowDays: data.bookingWindowDays,
           minLeadMinutes: data.policy.minLeadMinutes,
           // Absent only from a server that predates the K9 gate, which books.
-          acceptsAppBookings: page.acceptsAppBookings ?? true,
+          acceptsAppBookings: data.acceptsAppBookings ?? true,
         };
       } catch (error) {
         if (error instanceof NotFoundError) return null;
@@ -911,11 +911,10 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async reportReview({ reviewId, reason, note }): Promise<void> {
       try {
-        // gateway-schema: awaiting-route — generated-by-hand (addendum, review report)
         await client.post(`/api/diner/reviews/${encodeURIComponent(reviewId)}/report`, {
           reason,
           note: noteOrNull(note),
-        } satisfies Hand.ReportReviewRequest);
+        } satisfies Schemas['Yalla.Application.Diners.ReportReviewCommand']);
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           throw new CannotReportOwnReviewError({ url: error.url, requestId: error.requestId });
@@ -930,8 +929,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     // hearts. The position rides along like the browse list's, rounded the same.
 
     async listFavorites(position): Promise<readonly FavoriteBranch[]> {
-      // gateway-schema: awaiting-route — generated-by-hand (K11)
-      const { data } = await client.get<Hand.DinerFavoritesView>('/api/diner/favorites', {
+      const { data } = await client.get<WireFavoriteList>('/api/diner/favorites', {
         query: branchQuery({ position }),
       });
       return favoritesFromWire(data, client.baseUrl);
@@ -939,7 +937,6 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     async addFavorite(branchId): Promise<void> {
       try {
-        // gateway-schema: awaiting-route — generated-by-hand (K11)
         await client.put(`/api/diner/favorites/${encodeURIComponent(branchId)}`);
       } catch (error) {
         // The route's one 409 is the cap. A 404 (unknown or inactive) passes through.
@@ -955,16 +952,16 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     },
 
     async removeFavorite(branchId): Promise<void> {
-      // gateway-schema: awaiting-route — generated-by-hand (K11)
       await client.delete(`/api/diner/favorites/${encodeURIComponent(branchId)}`);
     },
 
     async mergeFavorites(branchIds, position): Promise<readonly FavoriteBranch[]> {
       try {
-        // gateway-schema: awaiting-route — generated-by-hand (K11)
-        const { data } = await client.put<Hand.DinerFavoritesView>(
+        const { data } = await client.put<WireFavoriteList>(
           '/api/diner/favorites',
-          { branchIds: [...new Set(branchIds)] } satisfies Hand.MergeFavoritesRequest,
+          {
+            branchIds: [...new Set(branchIds)],
+          } satisfies Schemas['Yalla.Application.Diners.MergeFavoritesCommand'],
           { query: branchQuery({ position }) },
         );
         return favoritesFromWire(data, client.baseUrl);
@@ -983,8 +980,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     // --- The notifications feed (K12) ------------------------------------------------
 
     async listNotifications(query): Promise<DinerNotificationPage> {
-      // gateway-schema: awaiting-route — generated-by-hand (K12)
-      const { data } = await client.get<Hand.DinerNotificationPage>('/api/diner/notifications', {
+      const { data } = await client.get<WireNotificationPage>('/api/diner/notifications', {
         query: {
           ...(query?.before ? { before: query.before } : {}),
           ...(query?.limit !== undefined ? { limit: query.limit } : {}),
@@ -994,19 +990,17 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     },
 
     async getUnreadNotificationCount(): Promise<number> {
-      // gateway-schema: awaiting-route — generated-by-hand (K12)
-      const { data } = await client.get<Hand.DinerNotificationPage>('/api/diner/notifications', {
+      const { data } = await client.get<WireNotificationPage>('/api/diner/notifications', {
         query: { limit: 1 },
       });
       return data?.unreadCount ?? 0;
     },
 
     async markNotificationsRead(command): Promise<void> {
-      // gateway-schema: awaiting-route — generated-by-hand (K12)
       await client.post('/api/diner/notifications/read', {
         upTo: command.upTo ?? null,
         ids: command.ids ? [...command.ids] : null,
-      } satisfies Hand.MarkNotificationsReadRequest);
+      } satisfies Schemas['Yalla.Application.Diners.MarkNotificationsReadCommand']);
     },
 
     // --- The diner's orders -----------------------------------------------------
@@ -1217,12 +1211,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async deleteDinerAccount({ password, code }): Promise<void> {
       try {
-        // A route this build already calls (GET/PUT); the DELETE is generated-by-hand (K2).
         await client.delete('/api/diner/me', {
           body: {
             password: password ?? null,
             code: code ?? null,
-          } satisfies Hand.DeleteDinerAccountRequest,
+          } satisfies Schemas['Yalla.Api.Endpoints.DeleteDinerAccountRequest'],
         });
       } catch (error) {
         if (error instanceof TooManyRequestsError) {
@@ -1446,27 +1439,22 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async createBooking(command): Promise<Booking> {
       const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
-      /*
-       * Built by name rather than inline only because `note` (K9) is not in the
-       * committed swagger yet, and the schema check reads inline keys against it.
-       * generated-by-hand: A1b puts this back inline after regenerating.
-       */
-      const body: Hand.CreateReservationRequest = {
-        branchId: command.branchId,
-        tableId: command.tableId,
-        date,
-        time,
-        partySize: command.partySize,
-        guestName: command.guestName,
-        guestPhone: command.guestPhone,
-        clientCommandId: command.commandId,
-        channel: CHANNEL_CODE[command.channel],
-        note: noteOrNull(command.note),
-      };
       try {
+        // Inline, so check-gateway-schema reads every key against the request shape.
         const { data } = await client.post<
           Schemas['Yalla.Application.Reservations.ReservationView']
-        >('/api/reservations', body);
+        >('/api/reservations', {
+          branchId: command.branchId,
+          tableId: command.tableId,
+          date,
+          time,
+          partySize: command.partySize,
+          guestName: command.guestName,
+          guestPhone: command.guestPhone,
+          clientCommandId: command.commandId,
+          channel: CHANNEL_CODE[command.channel],
+          note: noteOrNull(command.note),
+        });
         return toBooking(data);
       } catch (error) {
         rethrowBooking(error, command);

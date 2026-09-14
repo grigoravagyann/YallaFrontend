@@ -14,13 +14,13 @@ import type { ReservationStatusCode } from '../contracts/push';
 import type { TablePhotoPositions } from '../contracts/floorPlan';
 import type { BranchReadiness } from '../contracts/readiness';
 import type { ModeratedReview, VenueModeratedReview } from '../contracts/reviews';
-import type * as Hand from '../generated/handwritten';
 import type { components } from '../generated/schema';
 
 type Schemas = components['schemas'];
-/** `note` (K9) is generated-by-hand until A1b regenerates the schema. */
-type WireReservation = Schemas['Yalla.Application.Reservations.ReservationView'] &
-  Hand.ReservationViewAdditions;
+type WireReservation = Schemas['Yalla.Application.Reservations.ReservationView'];
+type WireTablePhotoPositions = Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsView'];
+type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
+type WireModeratedReviewPage = Schemas['Yalla.Application.Reviews.ModeratedReviewPage'];
 type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
 type WireBranch = Schemas['Yalla.Application.Platform.BranchSummary'];
 type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
@@ -219,9 +219,7 @@ export function readinessFromWire(view: WireReadiness): BranchReadiness {
 
 // --- Table photo positions (K7) ---------------------------------------------------
 
-export function tablePhotoPositionsFromWire(
-  view: Hand.TablePhotoPositionsView,
-): TablePhotoPositions {
+export function tablePhotoPositionsFromWire(view: WireTablePhotoPositions): TablePhotoPositions {
   return {
     coverPhotoId: view.coverPhotoId,
     tables: (view.tables ?? []).map((table) => {
@@ -241,7 +239,7 @@ export function tablePhotoPositionsFromWire(
 
 // --- Review moderation ------------------------------------------------------------
 
-export function moderatedReviewFromWire(view: Hand.PlatformReviewView): ModeratedReview {
+export function moderatedReviewFromWire(view: WireModeratedReview): ModeratedReview {
   return {
     reviewId: view.reviewId,
     branchId: view.branchId,
@@ -258,7 +256,7 @@ export function moderatedReviewFromWire(view: Hand.PlatformReviewView): Moderate
   };
 }
 
-export function venueReviewFromWire(view: Hand.VenueReviewView): VenueModeratedReview {
+export function venueReviewFromWire(view: WireModeratedReview): VenueModeratedReview {
   return {
     ...moderatedReviewFromWire(view),
     reportCount: view.reportCount ?? 0,
@@ -266,7 +264,10 @@ export function venueReviewFromWire(view: Hand.VenueReviewView): VenueModeratedR
   };
 }
 
-export function reviewPageFromWire<W, T>(wire: Hand.ReviewPage<W>, map: (item: W) => T): Page<T> {
+export function reviewPageFromWire<T>(
+  wire: WireModeratedReviewPage,
+  map: (item: WireModeratedReview) => T,
+): Page<T> {
   return {
     items: (wire.items ?? []).map(map),
     total: wire.total ?? 0,

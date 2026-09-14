@@ -1,4 +1,3 @@
-import type { ReservationViewAdditions } from '../generated/handwritten';
 import type { components } from '../generated/schema';
 import type { SettlementMode } from '../contracts/service';
 import type {
@@ -235,9 +234,7 @@ export function dinerTab(view: TabView, fetchedAtUtc: string): DinerTabView {
 
 // --- Reservations, for the notification actions ------------------------------
 
-/** `& ReservationViewAdditions`: `note` (K9), generated-by-hand until A1b regenerates. */
-type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] &
-  ReservationViewAdditions;
+type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'];
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,

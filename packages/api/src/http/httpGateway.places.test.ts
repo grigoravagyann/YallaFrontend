@@ -104,6 +104,7 @@ describe('places over /api/public/branches', () => {
       gallery: [],
       tableCount: 2,
       acceptsWebBookings: false,
+      acceptsAppBookings: false,
       recentReviews: [
         {
           reviewId: 'r1',
@@ -111,6 +112,7 @@ describe('places over /api/public/branches', () => {
           rating: 5,
           createdAtUtc: '2026-09-10T10:00:00Z',
           updatedAtUtc: '2026-09-11T10:00:00Z',
+          edited: true,
         },
       ],
       tableMarkers: [

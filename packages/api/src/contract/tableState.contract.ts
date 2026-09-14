@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConcurrencyConflictError } from '../errors';
 import type { ContractSubject } from './subject';
+import { randomUuid } from './subject';
 
 /**
  * Moving a table between states, and the two failures that must not look alike.
@@ -16,6 +17,9 @@ import type { ContractSubject } from './subject';
  * original response comes back with `wasReplay` set. It is a success, and the
  * offline queue clears such an entry silently rather than worrying a waiter
  * with a duplicate.
+ *
+ * Every `clientCommandId` is a fresh GUID, as the tablet mints one: the wire
+ * type is a GUID, so anything else is refused before the table is looked at.
  */
 export function describeTableStateContract(subject: ContractSubject): void {
   const reason = subject.unsupported('tableState');
@@ -42,7 +46,7 @@ export function describeTableStateContract(subject: ContractSubject): void {
         branchId: fixtures.branchId,
         tableId: table.id,
         partySize: 2,
-        clientCommandId: `contract-seat-${table.id}`,
+        clientCommandId: randomUuid(),
       });
 
       expect(result.tableId).toBe(table.id);
@@ -57,7 +61,7 @@ export function describeTableStateContract(subject: ContractSubject): void {
 
     it('replays an identical command instead of applying it twice', async () => {
       const table = await aFreeTable();
-      const clientCommandId = `contract-replay-${table.id}`;
+      const clientCommandId = randomUuid();
       const command = {
         kind: 'seatWalkIn' as const,
         branchId: fixtures.branchId,
@@ -89,7 +93,7 @@ export function describeTableStateContract(subject: ContractSubject): void {
         branchId: fixtures.branchId,
         tableId: table.id,
         partySize: 2,
-        clientCommandId: `contract-precondition-seat-${table.id}`,
+        clientCommandId: randomUuid(),
       });
 
       const stale = staff.applyTableAction({
@@ -97,7 +101,7 @@ export function describeTableStateContract(subject: ContractSubject): void {
         branchId: fixtures.branchId,
         tableId: table.id,
         partySize: 2,
-        clientCommandId: `contract-precondition-stale-${table.id}`,
+        clientCommandId: randomUuid(),
         // The room as the waiter last saw it: free, at the version they read.
         // It is neither any more.
         precondition: { expectedFromStatus: 'free', rowVersion: table.rowVersion },

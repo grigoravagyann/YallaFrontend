@@ -16,7 +16,6 @@ import type {
 } from '../contracts/places';
 import type { FavoriteBranch } from '../contracts/favorites';
 import type { DinerNotification, DinerNotificationPage } from '../contracts/notifications';
-import type * as Hand from '../generated/handwritten';
 import type { components } from '../generated/schema';
 import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
@@ -24,23 +23,22 @@ import { photo } from './venueSettingsMapping';
 type Schemas = components['schemas'];
 
 export type WireBranchListing = Schemas['Yalla.Application.Public.PublicBranchListing'];
-// `& Hand.…` — fields from the hardening contract the committed swagger lacks.
-// generated-by-hand: A1b drops the intersections after regenerating.
-export type WireBranchDetail = Schemas['Yalla.Application.Public.PublicBranchDetail'] &
-  Hand.AcceptsAppBookingsAddition;
+export type WireBranchDetail = Schemas['Yalla.Application.Public.PublicBranchDetail'];
 export type WireReviewPage = Omit<
   Schemas['Yalla.Application.Public.PublicReviewPage'],
   'reviews'
 > & {
   reviews?: WireReview[];
 };
-export type WireReview = Schemas['Yalla.Application.Public.PublicReviewView'] &
-  Hand.PublicReviewViewAdditions;
+export type WireReview = Schemas['Yalla.Application.Public.PublicReviewView'];
 export type WireTableMarker = Schemas['Yalla.Application.Public.PublicTableMarker'];
 export type WireTableMarkers = Schemas['Yalla.Application.Public.PublicTableMarkers'];
-export type WireDinerReview = Schemas['Yalla.Application.Diners.DinerReviewView'] &
-  Hand.DinerReviewViewAdditions;
+export type WireDinerReview = Schemas['Yalla.Application.Diners.DinerReviewView'];
 export type WireDinerOrder = Schemas['Yalla.Application.Diners.DinerOrderView'];
+export type WireFavorite = Schemas['Yalla.Application.Diners.DinerFavoriteView'];
+export type WireFavoriteList = Schemas['Yalla.Application.Diners.DinerFavoriteList'];
+export type WireNotification = Schemas['Yalla.Application.Diners.DinerNotificationView'];
+export type WireNotificationPage = Schemas['Yalla.Application.Diners.DinerNotificationPage'];
 
 type WirePhoto = Schemas['Yalla.Application.Media.PhotoView'];
 
@@ -244,7 +242,7 @@ export function myReviewFromWire(wire: WireDinerReview): MyBranchReview {
 
 // --- Favourites (K11) and the notifications feed (K12) ------------------------
 
-export function favoriteFromWire(wire: Hand.DinerFavoriteView, baseUrl: string): FavoriteBranch {
+export function favoriteFromWire(wire: WireFavorite, baseUrl: string): FavoriteBranch {
   return {
     branchId: wire.branchId,
     createdAtUtc: wire.createdAtUtc,
@@ -253,13 +251,13 @@ export function favoriteFromWire(wire: Hand.DinerFavoriteView, baseUrl: string):
 }
 
 export function favoritesFromWire(
-  wire: Hand.DinerFavoritesView | null | undefined,
+  wire: WireFavoriteList | null | undefined,
   baseUrl: string,
 ): FavoriteBranch[] {
   return (wire?.items ?? []).map((item) => favoriteFromWire(item, baseUrl));
 }
 
-export function notificationFromWire(wire: Hand.DinerNotificationView): DinerNotification {
+export function notificationFromWire(wire: WireNotification): DinerNotification {
   return {
     notificationId: wire.notificationId,
     kind: wire.kind,
@@ -274,7 +272,7 @@ export function notificationFromWire(wire: Hand.DinerNotificationView): DinerNot
   };
 }
 
-export function notificationPageFromWire(wire: Hand.DinerNotificationPage): DinerNotificationPage {
+export function notificationPageFromWire(wire: WireNotificationPage): DinerNotificationPage {
   return {
     items: (wire.items ?? []).map(notificationFromWire),
     nextCursor: orNull(wire.nextCursor),

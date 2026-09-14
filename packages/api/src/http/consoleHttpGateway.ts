@@ -19,7 +19,6 @@ import type {
   FloorPlanSaveResult,
   TableDeletionResult,
 } from '../contracts/floorPlan';
-import type * as Hand from '../generated/handwritten';
 import type {
   PolicyChangeResult,
   ReservationPolicy,
@@ -478,43 +477,39 @@ export function createConsoleHttpGateway(
     },
 
     async replaceFloorPlan({ branchId, command }): Promise<FloorPlanSaveResult> {
-      /*
-       * Built by name only because `expectedVersion` (K6) is not in the
-       * committed swagger yet, and the schema check reads inline keys against
-       * it. generated-by-hand: A1b puts this back inline after regenerating.
-       */
-      const body: Hand.ReplaceFloorPlanCommand = {
-        floorWidth: command.floorWidth,
-        floorHeight: command.floorHeight,
-        expectedVersion: command.expectedVersion,
-        areas: command.areas.map((area) => ({
-          id: area.id ?? null,
-          name: area.name,
-          displayOrder: area.displayOrder,
-        })),
-        tables: command.tables.map((table) => ({
-          id: table.id ?? null,
-          label: table.label,
-          seats: table.seats,
-          x: Math.round(table.x),
-          y: Math.round(table.y),
-          width: Math.round(table.width),
-          height: Math.round(table.height),
-          rotationDegrees: table.rotationDegrees,
-          shape: shapeToWire(table.shape),
-          floorAreaName: table.floorAreaName ?? null,
-          isBookable: table.isBookable,
-          // No `photoX`/`photoY` (K6): pins are saved on their own route, and
-          // a plan save that carried them wiped pins placed meanwhile.
-          // `qrToken` is deliberately absent too. The sticker on the table has
-          // to keep working, and only the explicit regenerate action changes it.
-        })),
-      };
       try {
-        const { data } = await client.put<WireSaveResult>(
-          `${BRANCHES}/${branchId}/floor-plan`,
-          body,
-        );
+        // Inline, so check-gateway-schema reads every key against the request shape.
+        const { data } = await client.put<WireSaveResult>(`${BRANCHES}/${branchId}/floor-plan`, {
+          floorWidth: command.floorWidth,
+          floorHeight: command.floorHeight,
+          expectedVersion: command.expectedVersion,
+          areas: command.areas.map(
+            (area): Schemas['Yalla.Application.BranchSettings.FloorAreaInput'] => ({
+              id: area.id ?? null,
+              name: area.name,
+              displayOrder: area.displayOrder,
+            }),
+          ),
+          tables: command.tables.map(
+            (table): Schemas['Yalla.Application.BranchSettings.FloorTableInput'] => ({
+              id: table.id ?? null,
+              label: table.label,
+              seats: table.seats,
+              x: Math.round(table.x),
+              y: Math.round(table.y),
+              width: Math.round(table.width),
+              height: Math.round(table.height),
+              rotationDegrees: table.rotationDegrees,
+              shape: shapeToWire(table.shape),
+              floorAreaName: table.floorAreaName ?? null,
+              isBookable: table.isBookable,
+              // No `photoX`/`photoY` (K6): pins are saved on their own route, and
+              // a plan save that carried them wiped pins placed meanwhile.
+              // `qrToken` is deliberately absent too. The sticker on the table has
+              // to keep working, and only the explicit regenerate action changes it.
+            }),
+          ),
+        });
         return {
           plan: floorPlanFromWire(data.plan),
           warnings: data.warnings ?? [],
@@ -552,18 +547,16 @@ export function createConsoleHttpGateway(
 
     async saveTablePhotoPositions(branchId, command) {
       try {
-        // gateway-schema: awaiting-route — generated-by-hand (K7)
-        const { data } = await client.put<Hand.TablePhotoPositionsView>(
-          `${BRANCHES}/${branchId}/table-photo-positions`,
-          {
-            coverPhotoId: command.coverPhotoId,
-            positions: command.positions.map((position) => ({
-              tableId: position.tableId,
-              photoX: position.photoX,
-              photoY: position.photoY,
-            })),
-          } satisfies Hand.TablePhotoPositionsCommand,
-        );
+        const { data } = await client.put<
+          Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsView']
+        >(`${BRANCHES}/${branchId}/table-photo-positions`, {
+          coverPhotoId: command.coverPhotoId,
+          positions: command.positions.map((position) => ({
+            tableId: position.tableId,
+            photoX: position.photoX,
+            photoY: position.photoY,
+          })),
+        } satisfies Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsCommand']);
         return tablePhotoPositionsFromWire(data);
       } catch (error) {
         if (error instanceof ApiError && error.code === 'cover-changed') {
@@ -944,8 +937,7 @@ export function createConsoleHttpGateway(
     // --- Review moderation ------------------------------------------------------
 
     async listPlatformBranchReviews(branchId, page = 1) {
-      // gateway-schema: awaiting-route — generated-by-hand (K8)
-      const { data } = await client.get<Hand.ReviewPage<Hand.PlatformReviewView>>(
+      const { data } = await client.get<Schemas['Yalla.Application.Reviews.ModeratedReviewPage']>(
         `${PLATFORM}/branches/${branchId}/reviews`,
         { query: { page, pageSize: REVIEW_PAGE_SIZE } },
       );
@@ -953,17 +945,15 @@ export function createConsoleHttpGateway(
     },
 
     async setReviewVisibility(reviewId, command) {
-      // gateway-schema: awaiting-route — generated-by-hand (K8)
-      const { data } = await client.put<Hand.PlatformReviewView>(
+      const { data } = await client.put<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
         `${PLATFORM}/reviews/${reviewId}/visibility`,
-        { hidden: command.hidden, reason: command.reason } satisfies Hand.ReviewVisibilityRequest,
+        { hidden: command.hidden, reason: command.reason },
       );
       return moderatedReviewFromWire(data);
     },
 
     async listVenueBranchReviews(branchId, query = {}) {
-      // gateway-schema: awaiting-route — generated-by-hand (addendum, venue moderation)
-      const { data } = await client.get<Hand.ReviewPage<Hand.VenueReviewView>>(
+      const { data } = await client.get<Schemas['Yalla.Application.Reviews.ModeratedReviewPage']>(
         `${BRANCHES}/${branchId}/reviews`,
         {
           query: {
@@ -978,10 +968,9 @@ export function createConsoleHttpGateway(
 
     async setVenueReviewVisibility(branchId, reviewId, command) {
       try {
-        // gateway-schema: awaiting-route — generated-by-hand (addendum, venue moderation)
-        const { data } = await client.put<Hand.VenueReviewView>(
+        const { data } = await client.put<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
           `${BRANCHES}/${branchId}/reviews/${reviewId}/visibility`,
-          { hidden: command.hidden, reason: command.reason } satisfies Hand.ReviewVisibilityRequest,
+          { hidden: command.hidden, reason: command.reason },
         );
         return venueReviewFromWire(data);
       } catch (error) {
@@ -1199,7 +1188,10 @@ function blankToNull(value: string | null): string | null {
   return value === null || value.trim() === '' ? null : value.trim();
 }
 
-interface WireFloorPlan extends Hand.FloorPlanViewAdditions {
+interface WireFloorPlan extends Pick<
+  Schemas['Yalla.Application.BranchSettings.FloorPlanView'],
+  'version'
+> {
   branchId: string;
   floorWidth: number;
   floorHeight: number;

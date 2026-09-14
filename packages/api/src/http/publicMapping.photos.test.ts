@@ -24,6 +24,7 @@ const PAGE: Page = {
   tableCount: 8,
   floorPlan: { floorWidth: 800, floorHeight: 600, areas: [], tables: [] },
   acceptsWebBookings: true,
+  acceptsAppBookings: true,
   bookingWindowDays: 14,
   policy: { turnTimeMinutes: 90, minLeadMinutes: 30, cancellationDeadlineMinutes: 120 },
   asOfUtc: '2026-09-13T00:00:00Z',
