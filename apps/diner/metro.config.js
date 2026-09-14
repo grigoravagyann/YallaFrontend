@@ -22,4 +22,14 @@ config.resolver.nodeModulesPaths = [
 // second copy and the "Invalid hook call" that comes with it.
 config.resolver.disableHierarchicalLookup = true;
 
+// Watching the whole workspace includes the console's Vite cache. Vite creates and
+// deletes `node_modules/.vite/deps_temp_*` while it pre-bundles, and without
+// watchman Metro's fallback watcher crashes on a folder that vanished between
+// being found and being watched — which is what `pnpm dev:real` does to it by
+// starting both at once. The blockList is also the watcher's ignore pattern.
+config.resolver.blockList = [
+  ...config.resolver.blockList,
+  /[\\/]node_modules[\\/]\.vite(?:[\\/].*)?$/,
+];
+
 module.exports = config;

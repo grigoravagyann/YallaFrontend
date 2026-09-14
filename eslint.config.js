@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/dist-web/**',
       '**/build/**',
       '**/.expo/**',
       '**/expo-env.d.ts',
@@ -60,7 +61,12 @@ export default tseslint.config(
 
   // Node-side tooling: codegen, the i18n parity check, the og-card generator.
   {
-    files: ['**/*.config.{js,ts,mjs}', 'packages/*/scripts/**/*.mjs', 'apps/*/scripts/**/*.mjs'],
+    files: [
+      '**/*.config.{js,ts,mjs}',
+      'scripts/**/*.mjs',
+      'packages/*/scripts/**/*.mjs',
+      'apps/*/scripts/**/*.mjs',
+    ],
     languageOptions: {
       sourceType: 'module',
       globals: { ...globals.node },

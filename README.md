@@ -15,8 +15,9 @@ Yerevan. **Two apps** share one set of packages:
 app for the console and an **installed PWA on Android tablets** for the floor
 screen.
 
-Everything runs on mock data behind a swappable gateway; no backend is required
-to work on any of it.
+Both apps talk to the real backend by default. Every screen is typed against a
+gateway interface that also has an in-memory mock, so either app runs with no
+backend at all on `*_DATA_SOURCE=mock`.
 
 ## Requirements
 
@@ -34,9 +35,13 @@ pnpm install
 Then run whichever surface you're working on:
 
 ```bash
+pnpm dev:real     # backend + console + diner web, all on real data (see below)
 pnpm dev:diner    # Expo dev server, then scan the QR with Expo Go
 pnpm dev:web      # http://localhost:5173
 ```
+
+`pnpm dev:real` needs the backend cloned beside this repo and its user secrets
+set once — see [Run everything on real data](#run-everything-on-real-data).
 
 In development the console shows a **dev-only role switcher** in the sidebar (and
 in the floor screen's header, which has no sidebar). It changes which role the
@@ -54,18 +59,21 @@ puts you back on platform admin.
 ./verify.sh
 ```
 
-Runs the six gates CI runs, in CI's order, so a green run here means a green
-check there. `--no-test` for the fast half; `--help` for the rest. It exists
-because the six are otherwise written down only in the workflow file, and a
-pull request went out having passed two of them.
+Runs the gates CI's build job runs, in CI's order — including bundling the
+diner app with Metro — so a green run here means a green build check there.
+`--no-test` for the fast half; `--help` for the rest. It exists because the
+gates are otherwise written down only in the workflow file, and a pull request
+went out having passed two of them.
 
 It ends by saying what it did **not** prove: the contract suite ran against the
-mock only unless you set `YALLA_CONTRACT_BASE_URL`.
+mock only unless you set `YALLA_CONTRACT_BASE_URL`. CI's contract job runs the
+live half on every pull request.
 
 ### Workspace scripts
 
 | Script              | What it does                                              |
 | ------------------- | --------------------------------------------------------- |
+| `pnpm dev:real`     | Backend, console and diner web on real data               |
 | `pnpm typecheck`    | `tsc --noEmit` across every package and app               |
 | `pnpm test`         | Vitest across the shared packages                         |
 | `pnpm lint`         | ESLint across the workspace                               |
@@ -76,48 +84,58 @@ mock only unless you set `YALLA_CONTRACT_BASE_URL`.
 
 ## Pointing an app at a local backend
 
-The backend is a separate ASP.NET Core project. Its dev URL is normally
-`https://localhost:7188`, which is the default every app falls back to.
+The backend is a separate ASP.NET Core project
+([grigoravagyann/Yalla](https://github.com/grigoravagyann/Yalla)). In
+Development it serves plain http on **port 5086**, and that is the port both
+apps use: its https port carries a self-signed certificate a phone refuses.
 
-To override it, copy the example env file in the app you're running:
+Each app reads where its data comes from and where the backend is. Copy the
+app's example file, or set the variables in the environment:
 
 ```bash
-cp apps/web/.env.example apps/web/.env       # VITE_API_BASE_URL=...
-cp apps/diner/.env.example apps/diner/.env   # EXPO_PUBLIC_API_BASE_URL=...
+cp apps/web/.env.example apps/web/.env
+cp apps/diner/.env.example apps/diner/.env
 ```
+
+| App     | Data source               | Backend origin                     | Defaults                                                                                    |
+| ------- | ------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `web`   | `VITE_DATA_SOURCE`        | `VITE_API_URL`, required on `real` | `real`; `.env.example` sets `http://localhost:5086`                                         |
+| `diner` | `EXPO_PUBLIC_DATA_SOURCE` | `EXPO_PUBLIC_API_URL`, optional    | `real`; unset, the Expo dev server's host with port 5086 — the laptop, as the phone sees it |
+
+`*_DATA_SOURCE` is `real` or `mock`. Any other value, or a missing or malformed
+URL on `real`, fails at startup with a message naming the variable — a boxed
+message in the browser, a red screen in Expo — rather than sending requests to
+the wrong origin. Both dev servers read these when they **start**, so restart
+after editing.
 
 The prefixes are not interchangeable: Vite only exposes `VITE_`-prefixed
 variables to the browser bundle, and Expo only inlines `EXPO_PUBLIC_`-prefixed
 ones.
 
-**On a physical phone or tablet, `localhost` is the device, not your machine.**
-Use your machine's LAN address instead, e.g.
-`EXPO_PUBLIC_API_BASE_URL=https://192.168.1.20:7188`, and make sure the backend
-listens on that interface. The .NET dev certificate is self-signed, so a device
-will reject it until you trust it or run the backend over plain HTTP for local
-testing.
+**On a physical phone, `localhost` is the phone.** Leave `EXPO_PUBLIC_API_URL`
+unset and the app finds the laptop by itself; set it only when the backend is on
+another machine or port. [Running against the real backend](#running-against-the-real-backend)
+has the details and a troubleshooting list.
 
 ### Mock data versus a real backend
 
-The diner app runs on **mock data by default**. There is one switch:
+`real` is the default for both apps. On `mock` the URL is ignored and the app
+runs on the in-memory mock gateway:
 
-| `EXPO_PUBLIC_API_BASE_URL` | Data source            |
-| -------------------------- | ---------------------- |
-| unset or blank             | in-memory mock gateway |
-| set to a backend origin    | real HTTP gateway      |
+| Variable                  | `real` (default)                      | `mock`                        |
+| ------------------------- | ------------------------------------- | ----------------------------- |
+| `VITE_DATA_SOURCE`        | HTTP gateway at `VITE_API_URL`        | in-memory mock, role switcher |
+| `EXPO_PUBLIC_DATA_SOURCE` | HTTP gateway at `EXPO_PUBLIC_API_URL` | in-memory mock                |
 
-That decision lives entirely in `resolveGateway` (`packages/api/src/resolveGateway.ts`),
-which returns a `YallaGateway`. **Every screen is typed against that interface
-and none against a mock shape**, so pointing the app at a live backend is a
-change to one module — not to a single component.
+The choice lives in the resolvers in `packages/api/src` — `resolveGateway`,
+`resolveConsoleGateway`, `resolveStaffGateway` and `resolvePublicGateway` — each
+of which returns an interface. **Every screen is typed against that interface
+and none against a mock shape**, so switching is a change to one module — not to
+a single component.
 
 ```bash
-# mock data (default): just start it
-pnpm dev:diner
-
-# real backend
-echo 'EXPO_PUBLIC_API_BASE_URL=https://192.168.0.30:7188' > apps/diner/.env
-pnpm dev:diner
+# the diner app with no backend: in apps/diner/.env
+EXPO_PUBLIC_DATA_SOURCE=mock
 ```
 
 The mock gateway is a real implementation, not a stub: it holds bookings in
@@ -141,13 +159,13 @@ so a contract change becomes a compile error in all three apps instead of a
 runtime surprise in one:
 
 ```bash
-pnpm api:generate                                     # default swagger URL
-pnpm api:generate --url http://localhost:5188/swagger/v1/swagger.json
+pnpm api:generate --url http://localhost:5086/swagger/v1/swagger.json
 ```
 
-The output lands in `packages/api/src/generated/schema.ts` and **is committed**,
-so the workspace typechecks with no backend running. Until you run it against a
-real backend, that file is a placeholder stub.
+The output lands in `packages/api/src/generated/` (`swagger.json` and
+`schema.ts`) and **is committed**, so the workspace typechecks with no backend
+running. Regenerate it against the backend branch this branch pairs with, and
+commit both files together.
 
 ## Adding a translation key
 
@@ -250,17 +268,16 @@ web page instead of doing nothing at all. (That page is out of scope; the scheme
 is chosen so it can exist.) Android verifies the domain via
 `android.intentFilters` in `app.json`, iOS via `associatedDomains`.
 
-### Calling a waiter is not wired yet
+### Calling a waiter
 
 Presets only — napkins, water, the bill, other. One tap, no typing, no reply
 expected. Deliberately not a chat: a chat promises an answer, and during the
 Friday rush nobody answers, which leaves the diner more annoyed than if they had
 raised a hand.
 
-The backend endpoint does not exist yet. Rather than fake a confirmation,
-`createHttpGateway` throws `EndpointNotWiredError` and the sheet says plainly
-that the feature is not live. Grep for that class to find everything still
-unwired.
+The call is `POST /api/tabs/{tabId}/service-requests`. It appears on the staff
+floor screen, where a waiter acknowledges it
+(`POST /api/service-requests/{id}/acknowledge`).
 
 ## The two-app layout, and the four tiers
 
@@ -870,34 +887,31 @@ area is fine", so a change that fixes Windows fails there and gets this
 paragraph rewritten. The second fallback — for an area that still does not fit
 alone — belongs in `@yalla/floorplan` and is not built.
 
-### What the backend does not have yet
+### The routes it reads
 
-There are **no `/api/public` routes**. `createPublicHttpGateway` calls the five
-it needs and each throws `EndpointNotWiredError`, which the page renders as
-"this is not available yet" rather than as a server error, because retrying will
-not deploy anything.
+`createPublicHttpGateway` reads the anonymous `/api/public` routes:
 
-Everything _else_ the page uses is already anonymous and already wired:
-`GET /api/branches/{id}/availability` carries the floor, the derived table
-states, the branch's zone and its turn time; `GET /api/branches/{id}/menu`
+| Route                                               | What the page uses it for                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `GET /api/public/venues`                            | The branch chooser                                                                          |
+| `GET /api/public/branches/{venueSlug}/{branchSlug}` | Turns a printable slug pair into a branch, and refuses a pair that does not belong together |
+| `GET /api/public/branches/{branchId}/meta`          | The unfurl card, for a server that can render it                                            |
+| `GET /api/public/bookings/{token}`                  | Reading one booking with no account                                                         |
+| `POST /api/public/bookings/{token}/cancel`          | Cancelling it                                                                               |
+
+Everything _else_ the page uses is anonymous as well: availability carries the
+floor, the derived table states, the branch's zone and its turn time; the menu
 excludes unfinished items; photos are anonymous; and the diner sign-in pair is
-anonymous by definition. So when the five land, nothing else changes.
+anonymous by definition. The reservation response carries `manageToken`, which
+becomes `Booking.manageToken` and the manage link.
 
-The five, and what each is for:
+A 404 with **no** error code — what a backend too old to have one of these
+routes answers, as opposed to `not-found` for a branch that does not exist —
+becomes `EndpointNotWiredError`, which the page renders as "this is not
+available yet" rather than as a server error, because retrying will not deploy
+anything.
 
-| Route                                                      | Why the page cannot be built without it                                                     |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `GET /api/public/venues/{venueSlug}`                       | The branch chooser                                                                          |
-| `GET /api/public/venues/{venueSlug}/branches/{branchSlug}` | Turns a printable slug pair into a branch, and refuses a pair that does not belong together |
-| `.../meta`                                                 | The unfurl card, for a server that can render it                                            |
-| `GET /api/public/bookings/{token}`                         | Reading one booking with no account                                                         |
-| `POST /api/public/bookings/{token}/cancel`                 | Cancelling it                                                                               |
-
-`Booking.manageToken` is the sixth thing needed: the reservation response has to
-carry the signed token for a web-made booking. Until it does, the confirmation
-offers the venue's phone number instead of a link that goes nowhere.
-
-Run the whole page today with `VITE_DATA_SOURCE=mock`. The mock is complete —
+Run the whole page with no backend on `VITE_DATA_SOURCE=mock`. The mock is complete —
 slug resolution, a suspended branch, a branch that takes no web bookings, a
 thirty-table room, and a manage link that operates on the very booking the
 confirmation screen just created.
@@ -944,20 +958,31 @@ never on each other except `api → format` and `floorplan → tokens`.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml`, on every push to `main` and every pull request.
-Six gates, in the order that makes a failure quickest to read:
+`.github/workflows/ci.yml`, on every push to `main`, every pull request, and on
+demand from the Actions tab. Two jobs, and **neither needs a secret**.
 
-| Gate                 | Command                              |
-| -------------------- | ------------------------------------ |
-| Lockfile and install | `pnpm install --frozen-lockfile`     |
-| Types                | `pnpm typecheck` (all nine projects) |
-| Lint                 | `pnpm lint`                          |
-| Formatting           | `pnpm format:check`                  |
-| Translation parity   | `pnpm i18n:check`                    |
-| Production build     | `pnpm build:web`                     |
-| Tests                | `pnpm test`                          |
+### `typecheck, test, lint, build`
 
-Three of those are worth saying why.
+The gates, in the order that makes a failure quickest to read:
+
+| Gate                 | Command                                                                            |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| Lockfile and install | `pnpm install --frozen-lockfile`                                                   |
+| Types                | `pnpm typecheck` (all nine projects)                                               |
+| Lint                 | `pnpm lint`                                                                        |
+| Formatting           | `pnpm format:check`                                                                |
+| Translation parity   | `pnpm i18n:check`                                                                  |
+| Production build     | `pnpm build:web`                                                                   |
+| Diner bundle         | `pnpm --filter @yalla/diner exec expo export --platform web --output-dir dist-web` |
+| Tests                | `pnpm test`                                                                        |
+
+`./verify.sh` runs the same list. Four of them are worth saying why.
+
+**The diner bundle is the only gate that runs Metro.** Typecheck does not
+resolve assets and the diner's tests run under Vitest, so a `require` of an
+image that does not exist, or an import only Metro cannot resolve, would
+otherwise first fail on a phone. The web export is the one a Linux runner can
+produce; it is built with `EXPO_PUBLIC_DATA_SOURCE=real`.
 
 **`--frozen-lockfile` is the reason to run install in CI at all.** It fails when
 the lockfile disagrees with `package.json`, which is how a dependency somebody
@@ -979,12 +1004,151 @@ test failure, and the test then reuses the output.
 Node comes from `.nvmrc` and pnpm from `packageManager` in `package.json`, so
 neither version is written down twice. The pnpm store is cached on the lockfile.
 
+### `contract suite against a live backend`
+
+`packages/api/src/contract` is one set of assertions run against both
+implementations of the gateway interfaces. The build job runs it against the
+mock; this job runs it against the real backend, built from source:
+
+1. Picks a backend ref (below) and checks out
+   [grigoravagyann/Yalla](https://github.com/grigoravagyann/Yalla) into `backend/`.
+   The repository is public, so no token is needed.
+2. Installs .NET from `backend/global.json` and starts SQL Server in a container.
+3. Builds the API and starts it in Development on `http://127.0.0.1:5086`, with
+   `--no-launch-profile`, the dev seed on and the actor stub off. The log goes to
+   `api.log`; the step prints `API up after Ns`, or the log when it never answers.
+4. Runs `pnpm --filter @yalla/api exec vitest run src/contract` with
+   `YALLA_CONTRACT_BASE_URL` set, then **fails if no test against the HTTP client
+   passed** — a green run that only exercised the mock proves nothing.
+5. Uploads `api.log` and the test results as the `api-log` artifact on every run,
+   and prints the end of the log when anything failed.
+
+**Which backend.** The first of these that applies:
+
+| Order | Source                                                                                   | If it names a ref that does not exist |
+| ----- | ---------------------------------------------------------------------------------------- | ------------------------------------- |
+| 1     | the `backend_ref` input of a manual run (Actions → CI → Run workflow)                    | the job fails                         |
+| 2     | a line `backend-ref: <branch, tag or commit>` on its own in the pull request description | the job fails                         |
+| 3     | a backend branch with the same name as this branch                                       | —                                     |
+| 4     | `master`                                                                                 | —                                     |
+
+The description is read live, so after adding the line, re-run the job.
+
+**Credentials.** The JWT signing key is generated for each run with
+`openssl rand` and masked. The platform admin's email and password
+(`YALLA_CONTRACT_ADMIN_EMAIL`, `YALLA_CONTRACT_ADMIN_PASSWORD`, also exported
+under the `YALLA_CONTRACT_VENUE_*` names the suite reads today) and the SQL
+Server password are fixed throwaway values in the workflow: they protect a
+database that is deleted with the runner.
+
+**Forks.** A pull request from a fork skips this job: its branch name means
+nothing to the backend repository, and its author cannot choose `backend_ref`.
+Every other trigger fails rather than skips.
+
+**Status:** configured; first green run: not yet recorded. Fill in the run id
+here after the first `workflow_dispatch` run with `backend_ref` set.
+
+To run it locally, start the backend on 5086 (`pnpm dev:real --only api`) and:
+
+```bash
+YALLA_CONTRACT_BASE_URL=http://localhost:5086 \
+YALLA_CONTRACT_VENUE_EMAIL='<PlatformAdmin:Email>' YALLA_CONTRACT_VENUE_PASSWORD='<PlatformAdmin:Password>' \
+  pnpm --filter @yalla/api exec vitest run src/contract
+```
+
 ### Branch protection
 
 Not something a workflow file can do for itself. **Settings → Branches → Add
-rule** on `main`, with _Require status checks to pass before merging_ and the
-`typecheck, test, lint, build` check selected. Without it the workflow is
-advisory and a red run can still be merged, which is most of the value gone.
+rule** on `main`, with _Require status checks to pass before merging_, _Require
+branches to be up to date_, and both checks selected:
+`typecheck, test, lint, build` and `contract suite against a live backend`.
+Without it the workflow is advisory and a red run can still be merged, which is
+most of the value gone.
+
+## Hosting the web app
+
+The console and the public branch page are static files from `pnpm build:web`.
+Whatever serves them should send this `Content-Security-Policy` header, with the
+API's origin and its websocket origin filled in:
+
+```
+Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self' <API origin> <ws origin>; img-src 'self' data: blob: <API origin>; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'
+```
+
+For example, with the API at `https://api.example.com`, `<API origin>` is
+`https://api.example.com` and `<ws origin>` is `wss://api.example.com`.
+
+Send it as a **header**, even though the built page may carry the same policy in
+a `<meta>` tag: browsers ignore `frame-ancestors` in a meta tag, so only the
+header stops the console being framed by another site. `img-src` names the API
+because photos are served from `/api/photos/...` on the API's origin.
+
+## Run everything on real data
+
+One command runs the backend, the console and the diner app's web target, all on
+real data:
+
+```bash
+pnpm dev:real
+```
+
+| Process | URL                   | Runs with                                                                            |
+| ------- | --------------------- | ------------------------------------------------------------------------------------ |
+| api     | http://localhost:5086 | `$YALLA_BACKEND_DIR` (default `../Yalla-browse`, then `../Yalla`), Development, http |
+| console | http://localhost:5173 | `VITE_DATA_SOURCE=real`, `VITE_API_URL=http://localhost:5086`                        |
+| diner   | http://localhost:8095 | `EXPO_PUBLIC_DATA_SOURCE=real`, `EXPO_PUBLIC_API_URL=http://localhost:5086`          |
+
+`--only api` (or `console`, `diner`) runs one of them, `--no-api` runs the two
+apps against a backend you started yourself, and a backend already answering on
+5086 is reused rather than started twice. Ctrl+C stops all three; if one exits,
+the others are stopped too. The ports move with `YALLA_API_PORT`,
+`YALLA_CONSOLE_PORT` and `YALLA_DINER_PORT`. The same three processes are in
+`.claude/launch.json`. The script is `scripts/dev-real.sh`; on Windows
+`pnpm dev:real` runs it with Git Bash rather than WSL's `bash`.
+
+The diner process is the **web** target, for checking on the laptop. A phone
+needs the laptop's LAN address rather than localhost: use `pnpm dev:diner` with
+the backend running, as described below.
+
+### Once per machine
+
+1. **Clone the backend beside this repo** — as `../Yalla-browse` or `../Yalla`,
+   or anywhere with `YALLA_BACKEND_DIR` pointing at it. It needs the .NET SDK its
+   `global.json` names, and a SQL Server reachable as `localhost` (the connection
+   string is in its `src/Yalla.Api/appsettings.Development.json`).
+2. **Set its user secrets**, from the backend repo. The API refuses to start
+   without them, and `pnpm dev:real` checks for them before starting anything:
+
+   ```bash
+   dotnet user-secrets set "Jwt:SigningKey" "$(openssl rand -base64 48)" --project src/Yalla.Api
+   dotnet user-secrets set "PlatformAdmin:Email" "<your email>" --project src/Yalla.Api
+   dotnet user-secrets set "PlatformAdmin:Password" "<12 or more characters>" --project src/Yalla.Api
+   ```
+
+3. `pnpm install` in this repo.
+
+### What you get
+
+- **The demo venue.** In Development the backend migrates the database and runs
+  its dev seed on every start, idempotently: the `yalla-demo` venue ("Yalla Demo
+  Cafe") and its `yerevan-centre` branch, with tables, opening hours, a waiter
+  and a manager, a listing, reviews, a cover photo and table pins on it.
+  `DevSeed:Enabled=false` in the backend gives an empty database instead.
+- **A verified diner.** Sign up in the diner app with a test number from the
+  `+37499000xxx` range. There is no SMS in Development:
+  `POST /api/auth/diner/request-code` returns the code in `developmentCode`, and
+  the code screen shows it. The same pair of calls works from
+  http://localhost:5086/swagger.
+- **The console.** Sign in at http://localhost:5173 with the
+  `PlatformAdmin:Email` and `PlatformAdmin:Password` you set. That account sees
+  every venue. A venue's own screens — floor plan, public page with its cover
+  and pins, staff — are its owner's and managers'.
+- **Photos.** Uploads are written on the backend machine under
+  `PhotoStorage:RootPath`, default `.photos`, relative to the directory the API
+  was started from — for `pnpm dev:real` that is the backend checkout. Delete the
+  folder along with the database to start clean. Photo links in API responses are
+  root-relative (`/api/photos/{id}/{variant}`), and both apps resolve them
+  against the API origin.
 
 ## Running against the real backend
 
@@ -1061,32 +1225,47 @@ from `mocks/`; the switch is `resolveGateway` and `resolveConsoleGateway` in
 
 ### What is real, and what is still on the mock
 
-| Screen                                      | Source | Endpoint                                                                                            |
-| ------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| Console venue list                          | real   | `GET /api/platform/venues` (platform admin)                                                         |
-| Console venue and branches (owner, manager) | real   | `GET /api/venues/{id}/manage` — the branches the caller's staff row covers                          |
-| Diner floor plan                            | real   | `GET /api/branches/{id}/availability`                                                               |
-| Staff device enrolment and PIN sign-in      | real   | `POST /api/auth/staff/{enrol,pin,renew,sign-out}`                                                   |
-| Staff floor plan                            | real   | `GET /api/branches/{id}/tables/floor`                                                               |
-| Staff table actions                         | real   | the eight `POST /api/branches/{id}/tables/{id}/…`                                                   |
-| Floor change stream                         | real   | `GET /api/branches/{id}/tables/changes`                                                             |
-| Order entry and the kitchen rail            | real   | `POST /api/tabs/{id}/staff-orders`, `GET /api/branches/{id}/orders`, `POST /api/orders/{id}/status` |
-| Service requests                            | real   | `GET /api/branches/{id}/service-requests`, `POST /api/service-requests/{id}/acknowledge`            |
-| Tab totals and participants                 | real   | `GET /api/tabs/{id}/participants`                                                                   |
-| Voids, comps and discounts                  | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                            |
-| Cash, closing, abandon, reassign host       | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                 |
-| Releasing a late booking                    | real   | `POST /api/reservations/{id}/release`                                                               |
-| Diner menu, tab, shares, events             | real   | `GET /api/branches/{id}/menu`, `/api/tabs/{id}`, `/shares`, `/events`                               |
-| Diner ordering                              | real   | `POST /api/tabs/{id}/orders` — wired, and **refused by the server**; see below                      |
-| Settlement mode, calling a waiter           | real   | `POST /api/tabs/{id}/settlement-mode`, `/service-requests`                                          |
-| Push registration and the two actions       | real   | `POST /api/diner/devices`, `/api/reservations/{id}/{cancel,extend-hold}`                            |
-| Branch time zone                            | real   | `GET /api/branches/{id}/availability` — the only diner-readable source                              |
-| Diner venue and branch lists                | —      | **no backend endpoint exists**                                                                      |
-| Bookings and the tab roster                 | mock   | `TableTab`/`Booking` carry six fields no reservation or tab view has                                |
+Built from the HTTP gateways in `packages/api/src/http`. Every endpoint marked
+real is in the backend's swagger document (`packages/api/src/generated/swagger.json`).
 
-Nothing on the counter screen says "not available yet" any more.
-`EndpointNotWiredError` survives for the diner's venue catalogue and nothing
-else; the staff gateway raises it nowhere.
+| Screen                                      | Source | Endpoint                                                                                              |
+| ------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| Diner: places near me                       | real   | `GET /api/public/branches?lat=&lng=`                                                                  |
+| Diner: search                               | real   | `GET /api/public/branches/search?q=&category=`                                                        |
+| Diner: place details                        | real   | `GET /api/public/branches/{branchId}`                                                                 |
+| Diner: reviews                              | real   | `GET /api/public/branches/{branchId}/reviews`                                                         |
+| Diner: pins on the table photo              | real   | `GET /api/public/branches/{branchId}/table-markers`                                                   |
+| Diner: writing a review                     | real   | `GET`/`POST`/`PUT /api/diner/branches/{branchId}/review`                                              |
+| Diner: orders                               | real   | `GET /api/diner/orders`, `GET /api/diner/orders/{orderId}`                                            |
+| Diner: bookings                             | real   | `POST /api/reservations`, `GET /api/reservations/mine`, `POST /api/reservations/{id}/cancel`          |
+| Diner: account and profile photo            | real   | `GET`/`PUT /api/diner/me`, `PUT /api/diner/me/password`, `POST`/`DELETE /api/diner/me/photo`          |
+| Console: the diner app listing              | real   | `GET`/`PUT /api/branches/{branchId}/listing`                                                          |
+| Console: onboarding checklist               | real   | `GET /api/branches/{branchId}/readiness`                                                              |
+| Console: table pins on the cover photo      | client | `PUT /api/branches/{branchId}/table-photo-positions` — the backend route is K7 and not yet in swagger |
+| Console venue list                          | real   | `GET /api/platform/venues` (platform admin)                                                           |
+| Console venue and branches (owner, manager) | real   | `GET /api/venues/{id}/manage` — the branches the caller's staff row covers                            |
+| Diner floor plan                            | real   | `GET /api/branches/{id}/availability`                                                                 |
+| Staff device enrolment and PIN sign-in      | real   | `POST /api/auth/staff/{enrol,pin,renew,sign-out}`                                                     |
+| Staff floor plan                            | real   | `GET /api/branches/{id}/tables/floor`                                                                 |
+| Staff table actions                         | real   | the eight `POST /api/branches/{id}/tables/{id}/…`                                                     |
+| Floor change stream                         | real   | `GET /api/branches/{id}/tables/changes`                                                               |
+| Order entry and the kitchen rail            | real   | `POST /api/tabs/{id}/staff-orders`, `GET /api/branches/{id}/orders`, `POST /api/orders/{id}/status`   |
+| Service requests                            | real   | `GET /api/branches/{id}/service-requests`, `POST /api/service-requests/{id}/acknowledge`              |
+| Tab totals and participants                 | real   | `GET /api/tabs/{id}/participants`                                                                     |
+| Voids, comps and discounts                  | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                              |
+| Cash, closing, abandon, reassign host       | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                   |
+| Releasing a late booking                    | real   | `POST /api/reservations/{id}/release`                                                                 |
+| Diner menu, tab, shares, events             | real   | `GET /api/branches/{id}/menu`, `/api/tabs/{id}`, `/shares`, `/events`                                 |
+| Diner ordering                              | real   | `POST /api/tabs/{id}/orders` — wired, and **refused by the server**; see below                        |
+| Settlement mode, calling a waiter           | real   | `POST /api/tabs/{id}/settlement-mode`, `/service-requests`                                            |
+| Push registration and the two actions       | real   | `POST /api/diner/devices`, `/api/reservations/{id}/{cancel,extend-hold}`                              |
+| Branch time zone                            | real   | `GET /api/branches/{id}/availability`                                                                 |
+
+Nothing on the counter screen says "not available yet" any more, and the staff
+gateway raises `EndpointNotWiredError` nowhere. Favourites synced to the account
+and the diner notifications feed are specified for the diner app — see
+[`apps/diner/README.md`](apps/diner/README.md) — and join this table when their
+routes are in swagger.
 
 ### Four things a staff token cannot do, and how the screens handle it
 
@@ -1432,8 +1611,8 @@ is genuinely cancelled.
 `ReservationState` is deliberately narrower than `Booking`. The rich contract
 carries `venueId`, `venueName`, `floorAreaName`, the availability `window`,
 `freeCancellationUntilUtc` and `createdAtUtc`; `ReservationView` carries none of
-the six, which is why the booking screens are still on the mock. What is real is
-the subset an action needs, and that is what this reads.
+the six. What a notification action needs is the subset in `ReservationState`,
+and that is what this reads.
 
 ### Signing a tablet in
 
