@@ -3,11 +3,19 @@ import {
   queryKeys,
   useConsoleGateway,
   useEditorFloorPlan,
+  usePublicProfile,
   useSaveFloorPlan,
 } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import {
@@ -28,16 +36,38 @@ import {
  * it would undo, delete or bring back tables edited since. The picture is the
  * **saved** cover: placing tables on a photo nobody has saved yet would put
  * them on the wrong picture in the app.
+ *
+ * The saved cover is read from the public profile's cache, which the form's
+ * save writes and a pin save refreshes. Changing it takes every table off the
+ * photo on the server, so a draft of pins made on the old picture is dropped
+ * — and the person is told, rather than finding their work quietly gone.
  */
-export function TableMarkersSection({
-  branchId,
-  cover,
-}: {
-  readonly branchId: string;
-  readonly cover: Photo | null;
-}) {
+export function TableMarkersSection({ branchId }: { readonly branchId: string }) {
   const { t } = useTranslation(['admin', 'common']);
+  const profile = usePublicProfile(branchId);
   const query = useEditorFloorPlan(branchId);
+  const cover = profile.data?.coverPhoto ?? null;
+  const coverId = cover?.photoId ?? null;
+
+  // The cover the draft on screen was made on, and whether it holds unsaved
+  // pins. Adjusted during render, not from an effect, so the render that shows
+  // the new cover is the same one that says the old draft was dropped.
+  const [draft, setDraft] = useState({ coverId, dirty: false });
+  const [discarded, setDiscarded] = useState(false);
+  const [coverMoved, setCoverMoved] = useState(false);
+  if (draft.coverId !== coverId) {
+    setDraft({ coverId, dirty: false });
+    setDiscarded(draft.dirty);
+  }
+
+  const onDirtyChange = useCallback((dirty: boolean) => {
+    setDraft((current) => (current.dirty === dirty ? current : { ...current, dirty }));
+  }, []);
+  const onEdit = useCallback(() => {
+    setDiscarded(false);
+    setCoverMoved(false);
+  }, []);
+  const onCoverMoved = useCallback(() => setCoverMoved(true), []);
 
   let body;
   if (!cover) {
@@ -59,6 +89,9 @@ export function TableMarkersSection({
         branchId={branchId}
         cover={cover}
         plan={query.data}
+        onDirtyChange={onDirtyChange}
+        onEdit={onEdit}
+        onCoverMoved={onCoverMoved}
       />
     );
   }
@@ -69,6 +102,12 @@ export function TableMarkersSection({
         <h3 id="markers-title">{t('publicPage.markers.title')}</h3>
         <p className="muted small">{t('publicPage.markers.intro')}</p>
       </div>
+      {coverMoved ? <p className="error">{t('publicPage.markers.refused')}</p> : null}
+      {discarded ? (
+        <p className="muted" role="status">
+          {t('publicPage.markers.discarded')}
+        </p>
+      ) : null}
       {body}
     </section>
   );
@@ -80,10 +119,19 @@ function MarkerEditor({
   branchId,
   cover,
   plan,
+  onDirtyChange,
+  onEdit,
+  onCoverMoved,
 }: {
   readonly branchId: string;
   readonly cover: Photo;
   readonly plan: EditorFloorPlan;
+  /** Told whether unsaved pins are on screen, so a cover change can say it dropped them. */
+  readonly onDirtyChange: (dirty: boolean) => void;
+  /** A pin was placed, moved or taken off. */
+  readonly onEdit: () => void;
+  /** A save found the saved cover is no longer the one these pins were placed on. */
+  readonly onCoverMoved: () => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const gateway = useConsoleGateway();
@@ -121,12 +169,14 @@ function MarkerEditor({
     return a?.x !== b?.x || a?.y !== b?.y;
   });
   useUnsavedChangesGuard(dirty);
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
   const placedCount = tables.filter((table) => positions.get(table.id)).length;
   const selectedTable = tables.find((table) => table.id === selected) ?? null;
 
   function place(tableId: string, position: PhotoPosition | null) {
     setOutcome(null);
+    onEdit();
     setPositions((current) => {
       const next = new Map(current);
       next.set(tableId, position ? { x: toFraction(position.x), y: toFraction(position.y) } : null);
@@ -203,6 +253,21 @@ function MarkerEditor({
     setOutcome(null);
     setBusy(true);
     try {
+      // The cover as the server holds it now. Changing it took every table off
+      // the photo, so pins placed on the one this draft shows would land on a
+      // different picture: refuse, and read the cover and the room again —
+      // which swaps this draft for a fresh one on the new picture.
+      const profile = await queryClient.fetchQuery({
+        queryKey: queryKeys.publicProfile(branchId),
+        queryFn: () => gateway.getPublicProfile(branchId),
+        staleTime: 0,
+      });
+      if ((profile.coverPhoto?.photoId ?? null) !== cover.photoId) {
+        onCoverMoved();
+        setOutcome('refused');
+        void queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(branchId) });
+        return;
+      }
       // The room as the server holds it now, not the copy this page opened
       // with: a table added, moved or retired since must survive a save that
       // only moves pins. Only the pins moved here are applied to it.

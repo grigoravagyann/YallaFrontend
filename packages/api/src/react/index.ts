@@ -14,7 +14,7 @@ import type {
   ListVenuesQuery,
   SubscriptionTier,
 } from '../contracts/console';
-import type { ReplaceFloorPlanCommand } from '../contracts/floorPlan';
+import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type {
   AbandonTabCommand,
   CompCommand,
@@ -25,7 +25,7 @@ import type {
 import type { Menu } from '../contracts/menu';
 import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
-import type { BranchPublicProfileInput } from '../contracts/publicProfile';
+import type { BranchPublicProfile, BranchPublicProfileInput } from '../contracts/publicProfile';
 import type { VenueListingInput } from '../contracts/listing';
 import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
@@ -968,7 +968,32 @@ export function useSavePublicProfile(branchId: string | undefined) {
       gateway.updatePublicProfile({ branchId: branchId!, profile }),
     retry: false,
     onSuccess: (saved) => {
-      queryClient.setQueryData(queryKeys.publicProfile(branchId ?? ''), saved);
+      const profileKey = queryKeys.publicProfile(branchId ?? '');
+      const planKey = queryKeys.editorFloorPlan(branchId ?? '');
+      const previous = queryClient.getQueryData<BranchPublicProfile>(profileKey);
+      const coverId = saved.coverPhoto?.photoId ?? null;
+      if (!previous || (previous.coverPhoto?.photoId ?? null) !== coverId) {
+        // A new cover (or none) takes every table off the photo on the server.
+        // A cached plan still carries the old pins: drawn on the new picture
+        // they point at the wrong spots, and a later floor-plan or pin save
+        // would send them back and put them there. With the old cover known,
+        // the cache mirrors the server at once so nothing renders them in the
+        // meantime; either way the plan is read again.
+        if (previous) {
+          queryClient.setQueryData<EditorFloorPlan>(planKey, (plan) =>
+            plan
+              ? {
+                  ...plan,
+                  tables: plan.tables.map((table) => ({ ...table, photoX: null, photoY: null })),
+                }
+              : plan,
+          );
+        }
+        void queryClient.invalidateQueries({ queryKey: planKey });
+      }
+      // Set after the plan, so a screen that keys its pin draft on the cover
+      // never sees the new cover next to the old pins.
+      queryClient.setQueryData(profileKey, saved);
       // The card's picture is also what the public page and the readiness
       // checklist read, through the managed venue.
       void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });

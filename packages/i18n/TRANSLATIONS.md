@@ -26,7 +26,9 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   the cover has to be **saved** first. Added with the review fixes, also
   **not** reviewed: `publicPage.listing.location.notANumber` and `outOfRange`
   (which must say both ranges), `publicPage.markers.selectedUnplaced`,
-  `placeInMiddle` and `refused`.
+  `placeInMiddle` and `refused`. Added when a cover change started taking the
+  pins off (2026-09-14), **not** reviewed: `publicPage.markers.discarded`,
+  which must say it was the **unsaved** pin changes that were dropped.
 - `diner` — the real-data review fixes (2026-09-14), provisional and **not**
   reviewed: `place.review.loadFailed`, `orders.signedOut.*` (orders live on
   the account — never phrase it as the order being gone) and

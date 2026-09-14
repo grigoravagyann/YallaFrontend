@@ -109,7 +109,8 @@
       "failed": "The positions did not save. Nothing changed — try again.",
       "selectedUnplaced": "Table {{label}} is not on the photo yet. Click where it is in the picture, or place it in the middle and move its pin with the arrow keys.",
       "placeInMiddle": "Place table {{label}} on the photo",
-      "refused": "The floor plan was refused — a table in use is missing, or two tables share a label. Fix it in the floor plan editor, then save the positions again."
+      "refused": "The floor plan was refused — a table in use is missing, or two tables share a label. Fix it in the floor plan editor, then save the positions again.",
+      "discarded": "The cover photo changed, so the pin changes you had not saved were discarded."
     }
   },
   "shell": {

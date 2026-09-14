@@ -51,6 +51,58 @@ describe('the public profile in the mock', () => {
     expect(cleared.phoneE164).toBeNull();
   });
 
+  it('takes every table off the photo when the cover changes or is cleared, as the server does', async () => {
+    const branchId = 'b-lumen-cascade';
+    const upload = async (fileName: string) =>
+      (
+        await gateway.uploadPhoto({
+          branchId,
+          file: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }),
+          fileName,
+        })
+      ).photo.photoId;
+    const setCover = (coverPhotoId: string | null) =>
+      gateway.updatePublicProfile({
+        branchId,
+        profile: { phoneE164: null, acceptsWebBookings: true, coverPhotoId },
+      });
+    const placeEveryTable = async () => {
+      const plan = await gateway.getFloorPlan(branchId);
+      await gateway.replaceFloorPlan({
+        branchId,
+        command: {
+          floorWidth: plan.floorWidth,
+          floorHeight: plan.floorHeight,
+          areas: plan.areas,
+          tables: plan.tables
+            .filter((t) => t.isActive)
+            .map((t) => ({ ...t, floorAreaName: null, photoX: 0.4, photoY: 0.6 })),
+        },
+      });
+    };
+    const placed = async () =>
+      (await gateway.getFloorPlan(branchId)).tables.filter(
+        (t) => t.photoX != null || t.photoY != null,
+      ).length;
+
+    const front = await upload('front.png');
+    const terrace = await upload('terrace.png');
+    await setCover(front);
+    await placeEveryTable();
+    expect(await placed()).toBeGreaterThan(0);
+
+    // The same cover sent again with the rest of the form keeps them.
+    await setCover(front);
+    expect(await placed()).toBeGreaterThan(0);
+
+    await setCover(terrace);
+    expect(await placed()).toBe(0);
+
+    await placeEveryTable();
+    await setCover(null);
+    expect(await placed()).toBe(0);
+  });
+
   it('refuses a photo it never stored, and leaves the form as it was', async () => {
     const caught = await gateway
       .updatePublicProfile({

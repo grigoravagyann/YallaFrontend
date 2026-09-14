@@ -154,9 +154,10 @@ function PublicPageForm({
       </form>
 
       {/* The diner app's listing sits next to the cover it describes, and the
-          table pins go on the cover as it was last saved. */}
+          table pins go on the cover as it was last saved — read from the
+          profile's cache, which this form's save writes. */}
       <ListingSection branchId={branchId} />
-      <TableMarkersSection branchId={branchId} cover={saved.coverPhoto} />
+      <TableMarkersSection branchId={branchId} />
     </section>
   );
 }

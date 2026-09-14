@@ -1786,6 +1786,18 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         });
       }
 
+      // A new picture — or none — takes every table off the photo, as on the
+      // server: pins placed on the old cover would point at the wrong spots on
+      // the new one. The same cover sent again keeps them.
+      const previousCoverId = profileFor(branchId).coverPhoto?.photoId ?? null;
+      const plan = floorPlans.get(branchId);
+      if (plan && previousCoverId !== (cover?.photoId ?? null)) {
+        floorPlans.set(branchId, {
+          ...plan,
+          tables: plan.tables.map((table) => ({ ...table, photoX: null, photoY: null })),
+        });
+      }
+
       const saved: BranchPublicProfile = {
         phoneE164: phone === '' ? null : phone,
         acceptsWebBookings: profile.acceptsWebBookings,
