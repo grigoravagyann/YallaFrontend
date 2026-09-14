@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve as resolvePath } from 'node:path';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { contentSecurityPolicy } from './src/csp';
 
 /**
  * Write the built chunk graph beside the bundle, so a test can read it.
@@ -121,11 +122,49 @@ function brandCardMeta(publicOrigin: string): Plugin {
   };
 }
 
+/**
+ * The Content-Security-Policy, on the built shell and beside the bundle.
+ *
+ * Build only. The dev server injects an inline React Refresh preamble that
+ * `script-src 'self'` would block, and a policy that has to be switched off
+ * to develop is one nobody notices breaking — so development runs without it
+ * and `productionBundle.test.ts` reads it off the real build output.
+ *
+ * The meta tag goes straight after the charset, because a policy delivered in
+ * a meta element only governs what comes after it. The same string is written
+ * to `dist/content-security-policy.txt` for the host to send as a header, which
+ * is the only way `frame-ancestors` takes effect. See `src/csp.ts`.
+ */
+function contentSecurityPolicyMeta(apiUrl: string): Plugin {
+  const policy = contentSecurityPolicy({ apiUrl });
+  return {
+    name: 'yalla:csp',
+    apply: 'build',
+    transformIndexHtml(html) {
+      return html.replace(
+        '<meta charset="UTF-8" />',
+        `<meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="${policy}" />`,
+      );
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'content-security-policy.txt',
+        source: `${policy}\n`,
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     emitChunkGraph(),
     brandCardMeta((process.env['VITE_PUBLIC_ORIGIN'] ?? '').trim()),
+    // `loadEnv` so a value in `.env` counts, with the process environment
+    // winning over it — which is how the bundle test pins the origin.
+    contentSecurityPolicyMeta(loadEnv(mode, import.meta.dirname, 'VITE_')['VITE_API_URL'] ?? ''),
   ],
   resolve: {
     alias: [

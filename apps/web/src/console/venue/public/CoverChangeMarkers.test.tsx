@@ -86,28 +86,18 @@ function setCover(gateway: ConsoleGateway, coverPhotoId: string | null) {
 }
 
 /** A venue with a saved cover and table 2 already on it. */
-async function venueWithPins(): Promise<{ gateway: ConsoleGateway; terrace: Photo }> {
+async function venueWithPins() {
   const gateway = createConsoleMockGateway({ latencyMs: 0 });
   const front = await upload(gateway, 'front.png');
   const terrace = await upload(gateway, 'terrace.png');
   await setCover(gateway, front.photoId);
   const plan = await gateway.getFloorPlan(BRANCH);
-  await gateway.replaceFloorPlan({
-    branchId: BRANCH,
-    command: {
-      floorWidth: plan.floorWidth,
-      floorHeight: plan.floorHeight,
-      areas: plan.areas,
-      tables: plan.tables
-        .filter((t) => t.isActive)
-        .map((t) =>
-          t.label === '2'
-            ? { ...t, floorAreaName: null, photoX: 0.5, photoY: 0.5 }
-            : { ...t, floorAreaName: null },
-        ),
-    },
+  const tableId = (label: string) => plan.tables.find((t) => t.label === label)!.id;
+  await gateway.saveTablePhotoPositions(BRANCH, {
+    coverPhotoId: front.photoId,
+    positions: [{ tableId: tableId('2'), photoX: 0.5, photoY: 0.5 }],
   });
-  return { gateway, terrace };
+  return { gateway, front, terrace, tableId };
 }
 
 async function stage() {
@@ -125,9 +115,11 @@ async function draftTableThree(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole('button', { name: /^table 3$/i });
 }
 
+const COVER_CHANGED = /cover photo was changed somewhere else/i;
+
 describe('changing the cover photo under the table pins', () => {
   it('drops the old pins and the unsaved draft, says so, and a later pin save cannot bring them back', async () => {
-    const { gateway, terrace } = await venueWithPins();
+    const { gateway, terrace, tableId } = await venueWithPins();
     const user = userEvent.setup();
     renderScreen(gateway);
 
@@ -149,16 +141,23 @@ describe('changing the cover photo under the table pins', () => {
     expect(screen.getByRole('button', { name: /table 2 · not placed/i })).toBeTruthy();
 
     // Placing a table on the new picture clears the notice, and its save
-    // carries no position made on the old one.
+    // carries the new cover and only the pin placed on it.
+    const positions = vi.spyOn(gateway, 'saveTablePhotoPositions');
     const replace = vi.spyOn(gateway, 'replaceFloorPlan');
     await user.click(screen.getByRole('button', { name: /table 5 · not placed/i }));
     fireEvent.pointerDown(fresh, { clientX: 100, clientY: 50, pointerId: 1 });
     expect(screen.queryByText(/pin changes you had not saved were discarded/i)).toBeNull();
     await user.click(screen.getByRole('button', { name: /save positions/i }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const tables = replace.mock.calls[0]?.[0].command.tables ?? [];
-    expect(tables.filter((t) => t.photoX != null).map((t) => t.label)).toEqual(['5']);
+    await waitFor(() => expect(positions).toHaveBeenCalledTimes(1));
+    expect(positions.mock.calls[0]).toEqual([
+      BRANCH,
+      {
+        coverPhotoId: terrace.photoId,
+        positions: [{ tableId: tableId('5'), photoX: 0.5, photoY: 0.5 }],
+      },
+    ]);
+    expect(replace).not.toHaveBeenCalled();
     await screen.findByText(/positions saved/i);
   });
 
@@ -177,8 +176,8 @@ describe('changing the cover photo under the table pins', () => {
     expect(screen.queryByText(/discarded/i)).toBeNull();
   });
 
-  it('refuses a pin save when the cover was changed in another tab, and reads it again', async () => {
-    const { gateway, terrace } = await venueWithPins();
+  it('says once that the cover was changed in another tab, writes nothing, and shows the new cover', async () => {
+    const { gateway, front, terrace } = await venueWithPins();
     const user = userEvent.setup();
     renderScreen(gateway);
 
@@ -186,20 +185,35 @@ describe('changing the cover photo under the table pins', () => {
 
     // Meanwhile, in another tab, somebody saves a new cover.
     await setCover(gateway, terrace.photoId);
+    const positions = vi.spyOn(gateway, 'saveTablePhotoPositions');
     const replace = vi.spyOn(gateway, 'replaceFloorPlan');
 
     await user.click(screen.getByRole('button', { name: /save positions/i }));
 
-    await screen.findByText(/the floor plan was refused/i);
-    await screen.findByText(/pin changes you had not saved were discarded/i);
+    // One call, refused by the server against the cover the pins were made on.
+    await waitFor(() => expect(screen.getAllByText(COVER_CHANGED)).toHaveLength(1));
+    expect(positions).toHaveBeenCalledTimes(1);
+    expect(positions.mock.calls[0]?.[1].coverPhotoId).toBe(front.photoId);
     expect(replace).not.toHaveBeenCalled();
 
     // Read again: the new picture, and the room with nothing on it.
     const fresh = await stage();
-    expect(fresh.querySelector('img')?.getAttribute('src')).toBe(
-      terrace.fullUrl || terrace.cardUrl,
+    await waitFor(() =>
+      expect(fresh.querySelector('img')?.getAttribute('src')).toBe(
+        terrace.fullUrl || terrace.cardUrl,
+      ),
     );
     await waitFor(() => expect(screen.queryByRole('button', { name: /^table 2$/i })).toBeNull());
     expect(screen.queryByRole('button', { name: /^table 3$/i })).toBeNull();
+
+    // The one sentence, and no second opinion beside it: not the old
+    // "floor plan was refused", not "discarded", not "did not save".
+    expect(screen.getAllByText(COVER_CHANGED)).toHaveLength(1);
+    expect(screen.queryByText(/floor plan was refused/i)).toBeNull();
+    expect(screen.queryByText(/discarded/i)).toBeNull();
+    expect(screen.queryByText(/did not save/i)).toBeNull();
+    // Nothing was written: table 3 is on no photo on the server.
+    const plan = await gateway.getFloorPlan(BRANCH);
+    expect(plan.tables.filter((t) => t.photoX != null)).toEqual([]);
   });
 });

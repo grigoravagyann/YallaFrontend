@@ -1068,8 +1068,12 @@ most of the value gone.
 ## Hosting the web app
 
 The console and the public branch page are static files from `pnpm build:web`.
-Whatever serves them should send this `Content-Security-Policy` header, with the
-API's origin and its websocket origin filled in:
+Whatever serves them should send a `Content-Security-Policy` header. The policy
+is written once, in `apps/web/src/csp.ts` (`contentSecurityPolicy`), and the
+build writes it for the `VITE_API_URL` it was built with to
+`apps/web/dist/content-security-policy.txt` — send that file's contents as the
+header rather than copying the line below, which is the same policy with the
+API's origin and its websocket origin left as placeholders:
 
 ```
 Content-Security-Policy: default-src 'self'; script-src 'self'; connect-src 'self' <API origin> <ws origin>; img-src 'self' data: blob: <API origin>; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'

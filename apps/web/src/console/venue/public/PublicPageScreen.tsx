@@ -24,10 +24,28 @@ import { TableMarkersSection } from './TableMarkersSection';
  */
 export function PublicPageScreen() {
   const { t } = useTranslation(['admin', 'common']);
-  const { branchId } = useVenueOutlet();
-  const query = usePublicProfile(branchId ?? undefined);
+  const { branchId, canRelocate } = useVenueOutlet();
 
   if (!branchId) return <p className="muted">{t('publicPage.noBranch')}</p>;
+  return <PublicPageEditor branchId={branchId} canRelocate={canRelocate} />;
+}
+
+/**
+ * The screen for one explicit branch, so the platform section can render it
+ * for a branch its admin holds no scope claim for — the branch id is theirs to
+ * name, and the server checks it either way.
+ */
+export function PublicPageEditor({
+  branchId,
+  canRelocate,
+}: {
+  readonly branchId: string;
+  /** Owner or platform admin: may move the map pin and change the address (K5). */
+  readonly canRelocate: boolean;
+}) {
+  const { t } = useTranslation(['admin', 'common']);
+  const query = usePublicProfile(branchId);
+
   if (query.isLoading || !query.data) {
     if (query.isError) {
       return <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />;
@@ -38,15 +56,24 @@ export function PublicPageScreen() {
   // The form owns its draft from the moment the profile arrives. Keyed on the
   // branch so switching branches starts a fresh draft rather than copying the
   // new profile into the old one from an effect.
-  return <PublicPageForm key={branchId} branchId={branchId} initial={query.data} />;
+  return (
+    <PublicPageForm
+      key={branchId}
+      branchId={branchId}
+      initial={query.data}
+      canRelocate={canRelocate}
+    />
+  );
 }
 
 function PublicPageForm({
   branchId,
   initial,
+  canRelocate,
 }: {
   readonly branchId: string;
   readonly initial: BranchPublicProfile;
+  readonly canRelocate: boolean;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const save = useSavePublicProfile(branchId);
@@ -156,7 +183,7 @@ function PublicPageForm({
       {/* The diner app's listing sits next to the cover it describes, and the
           table pins go on the cover as it was last saved — read from the
           profile's cache, which this form's save writes. */}
-      <ListingSection branchId={branchId} />
+      <ListingSection branchId={branchId} canRelocate={canRelocate} />
       <TableMarkersSection branchId={branchId} />
     </section>
   );

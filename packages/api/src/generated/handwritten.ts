@@ -119,6 +119,8 @@ export interface PlatformReviewView {
   hidden: boolean;
   hiddenReason?: string | null;
   hiddenAtUtc?: string | null;
+  /** Backend `ModeratedReviewView.HiddenByPlatform`: taken down by the platform, which a venue cannot undo. */
+  hiddenByPlatform?: boolean;
 }
 
 /**

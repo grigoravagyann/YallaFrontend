@@ -56,6 +56,8 @@ export interface ModeratedReview {
   readonly hidden: boolean;
   readonly hiddenReason: string | null;
   readonly hiddenAtUtc: string | null;
+  /** Hidden by the platform rather than the venue: a venue cannot show it again. False while visible. */
+  readonly hiddenByPlatform: boolean;
 }
 
 /** The venue's view adds how often, and how recently, diners reported it. */

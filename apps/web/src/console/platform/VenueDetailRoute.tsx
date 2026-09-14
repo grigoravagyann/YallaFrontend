@@ -244,6 +244,26 @@ export function VenueDetailRoute() {
                   </div>
                 </div>
                 <div className="actions">
+                  {/* A platform admin holds no branch claim, so these pages take
+                      the branch from here rather than from a venue section. */}
+                  <Link
+                    className="button button-small button-ghost"
+                    to={`/platform/venues/${venue.id}/branches/${branch.id}/public`}
+                  >
+                    {t('platform.venue.publicPageLink')}
+                  </Link>
+                  <Link
+                    className="button button-small button-ghost"
+                    to={`/platform/venues/${venue.id}/branches/${branch.id}/floorplan`}
+                  >
+                    {t('nav.floorplan')}
+                  </Link>
+                  <Link
+                    className="button button-small button-ghost"
+                    to={`/platform/venues/${venue.id}/branches/${branch.id}/reviews`}
+                  >
+                    {t('platform.venue.reviewsLink')}
+                  </Link>
                   {tierFailure?.branchId === branch.id ? (
                     <span className="error small">{tierFailure.text}</span>
                   ) : null}

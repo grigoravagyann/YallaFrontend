@@ -408,11 +408,52 @@ describe('review moderation over HTTP', () => {
       `GET ${BASE}/api/platform/branches/b-1/reviews?page=2&pageSize=20`,
     );
     expect(page).toEqual({
-      items: [{ ...WIRE_REVIEW, text: null, hiddenReason: null, hiddenAtUtc: null }],
+      items: [
+        {
+          ...WIRE_REVIEW,
+          text: null,
+          hiddenReason: null,
+          hiddenAtUtc: null,
+          hiddenByPlatform: false,
+        },
+      ],
       page: 2,
       pageSize: 20,
       total: 21,
     });
+  });
+
+  it("reads the platform's takedown flag, and never reports it on a visible review", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      json(200, {
+        items: [
+          {
+            ...WIRE_REVIEW,
+            reviewId: 'rv-1',
+            hidden: true,
+            hiddenByPlatform: true,
+            reportCount: 0,
+          },
+          {
+            ...WIRE_REVIEW,
+            reviewId: 'rv-2',
+            hidden: false,
+            hiddenByPlatform: true,
+            reportCount: 0,
+          },
+        ],
+        page: 1,
+        pageSize: 20,
+        total: 2,
+      }),
+    );
+
+    const page = await gatewayOver(fetchImpl).listVenueBranchReviews('b-1');
+
+    expect(page.items.map((item) => [item.reviewId, item.hiddenByPlatform])).toEqual([
+      ['rv-1', true],
+      ['rv-2', false],
+    ]);
   });
 
   it('hides for the platform with the reason in the body', async () => {

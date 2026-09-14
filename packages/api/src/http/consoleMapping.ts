@@ -254,6 +254,7 @@ export function moderatedReviewFromWire(view: Hand.PlatformReviewView): Moderate
     hidden: Boolean(view.hidden),
     hiddenReason: view.hiddenReason ?? null,
     hiddenAtUtc: view.hiddenAtUtc ?? null,
+    hiddenByPlatform: Boolean(view.hidden) && Boolean(view.hiddenByPlatform),
   };
 }
 

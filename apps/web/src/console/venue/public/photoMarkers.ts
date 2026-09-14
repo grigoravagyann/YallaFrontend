@@ -1,4 +1,8 @@
-import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '@yalla/api';
+import type {
+  EditorFloorPlan,
+  SaveTablePhotoPositionsCommand,
+  TablePhotoPositions,
+} from '@yalla/api';
 
 /** A table's place on the cover photo, as fractions of its width and height. */
 export interface PhotoPosition {
@@ -27,12 +31,26 @@ export function positionsFromPlan(plan: EditorFloorPlan): Map<string, PhotoPosit
   return positions;
 }
 
+/** The positions a save answered with: every active table at the branch, placed or not. */
+export function positionsFromAnswer(
+  answer: TablePhotoPositions,
+): Map<string, PhotoPosition | null> {
+  const positions = new Map<string, PhotoPosition | null>();
+  for (const table of answer.tables) {
+    positions.set(
+      table.tableId,
+      table.photoX === null || table.photoY === null ? null : { x: table.photoX, y: table.photoY },
+    );
+  }
+  return positions;
+}
+
 /**
  * The entries of `positions` that differ from `saved`: the pins this page moved.
  *
- * The save applies only these to the floor plan as it is at the moment of
- * saving, so every other table keeps whatever position the server holds then —
- * including one placed from another tab since this page loaded.
+ * Only these are sent. The server changes only the tables a save lists, so
+ * every other table keeps whatever pin it has then — including one placed from
+ * another tab since this page loaded.
  */
 export function changedPositions(
   positions: PhotoPositions,
@@ -49,50 +67,20 @@ export function changedPositions(
 }
 
 /**
- * The floor-plan `PUT` that changes nothing but where tables sit on the photo.
- *
- * The endpoint replaces the whole room, so the rest of the plan is sent back
- * exactly as it was read: same canvas, areas by name, every active table with
- * its geometry. Deactivated tables are left out, as the floor plan editor does,
- * so this save cannot resurrect one. A table missing from `positions` keeps the
- * position the plan had.
+ * The one call a pin save makes (K7): the changed pins, against the cover they
+ * were placed on. A cover changed since is refused by the server with nothing
+ * written, which is the whole reason the id travels with the pins.
  */
-export function withPhotoPositions(
-  plan: EditorFloorPlan,
-  positions: PhotoPositions,
-): ReplaceFloorPlanCommand {
-  const areaById = new Map(plan.areas.map((area) => [area.id, area.name]));
+export function positionsCommand(
+  coverPhotoId: string,
+  changed: PhotoPositions,
+): SaveTablePhotoPositionsCommand {
   return {
-    floorWidth: plan.floorWidth,
-    floorHeight: plan.floorHeight,
-    areas: plan.areas.map((area) => ({
-      id: area.id,
-      name: area.name,
-      displayOrder: area.displayOrder,
+    coverPhotoId,
+    positions: [...changed].map(([tableId, position]) => ({
+      tableId,
+      photoX: position ? toFraction(position.x) : null,
+      photoY: position ? toFraction(position.y) : null,
     })),
-    tables: plan.tables
-      .filter((table) => table.isActive)
-      .map((table) => {
-        const position = positions.has(table.id)
-          ? (positions.get(table.id) ?? null)
-          : table.photoX != null && table.photoY != null
-            ? { x: table.photoX, y: table.photoY }
-            : null;
-        return {
-          id: table.id,
-          label: table.label,
-          seats: table.seats,
-          x: table.x,
-          y: table.y,
-          width: table.width,
-          height: table.height,
-          rotationDegrees: table.rotationDegrees,
-          shape: table.shape,
-          floorAreaName: table.floorAreaId ? (areaById.get(table.floorAreaId) ?? null) : null,
-          isBookable: table.isBookable,
-          photoX: position ? toFraction(position.x) : null,
-          photoY: position ? toFraction(position.y) : null,
-        };
-      }),
   };
 }

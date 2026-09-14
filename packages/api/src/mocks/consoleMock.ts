@@ -1188,6 +1188,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       hidden: review.hidden,
       hiddenReason: review.hiddenReason,
       hiddenAtUtc: review.hiddenAtUtc,
+      hiddenByPlatform: review.hiddenBy === 'platform',
     };
   }
 

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { createConsoleMockGateway, ValidationError, type ConsoleGateway } from '@yalla/api';
+import { i18next } from '@yalla/i18n';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
@@ -28,12 +29,19 @@ const owner = {
   scope: { venueId: 'v-lumen', branchIds: [] },
 };
 
-function renderScreen(gateway: ConsoleGateway) {
+const manager = {
+  id: 'b-lumen-north-manager',
+  displayName: 'Nare Petrosyan',
+  role: 'manager' as const,
+  scope: { venueId: 'v-lumen', branchIds: ['b-lumen-north'] },
+};
+
+function renderScreen(gateway: ConsoleGateway, user: typeof owner | typeof manager = owner) {
   const harness = createConsoleHarness({ gateway });
   render(
     harness.wrap(
       <Routes>
-        <Route path="/venue" element={<VenueLayout user={owner} />}>
+        <Route path="/venue" element={<VenueLayout user={user} />}>
           <Route path="public" element={<PublicPageScreen />} />
         </Route>
       </Routes>,
@@ -52,7 +60,7 @@ async function uploadTo(gateway: ConsoleGateway, fileName: string, size: number)
 }
 
 describe('the listing section', () => {
-  it('saves cuisine, price level, amenities, the pin and the gallery order', async () => {
+  it('saves cuisine, price level, amenities, the pin with its address, and the gallery order', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
     // Two gallery photos already saved; the crop-and-upload path is the menu
     // picker's and jsdom has no canvas, so this pins the ordering and removal.
@@ -99,10 +107,76 @@ describe('the listing section', () => {
       websiteUrl: 'https://lumen.am',
       amenities: ['wifi', 'parking'],
       galleryPhotoIds: [second, first],
+      // The address travels with the pin, as the server requires (K5).
+      address: current.address,
       latitude: 40.2,
       longitude: current.longitude,
     });
     await screen.findByText(/listing saved/i);
+  });
+
+  it('lets an owner move the branch: a new address and pin are saved and shown', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const update = vi.spyOn(gateway, 'updateBranchListing');
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    const scoped = within(form);
+    const address = scoped.getByLabelText(/street address/i) as HTMLInputElement;
+    expect(address.disabled).toBe(false);
+    expect(scoped.queryByText(/only an owner can move/i)).toBeNull();
+
+    await user.clear(address);
+    await user.type(address, '1 Test Street, Yerevan');
+    const latitude = scoped.getByLabelText(/latitude/i);
+    const longitude = scoped.getByLabelText(/longitude/i);
+    await user.clear(latitude);
+    await user.type(latitude, '40.19');
+    await user.clear(longitude);
+    await user.type(longitude, '44.52');
+    await user.click(scoped.getByRole('button', { name: /save listing/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0]?.[0].listing).toMatchObject({
+      address: '1 Test Street, Yerevan',
+      latitude: 40.19,
+      longitude: 44.52,
+    });
+    await screen.findByText(/listing saved/i);
+    expect((scoped.getByLabelText(/street address/i) as HTMLInputElement).value).toBe(
+      '1 Test Street, Yerevan',
+    );
+    expect((await gateway.getBranchListing(BRANCH)).address).toBe('1 Test Street, Yerevan');
+  });
+
+  it('shows a manager the pin and the address read-only, and says who can change them', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'manager' });
+    renderScreen(gateway, manager);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    const scoped = within(form);
+    expect((scoped.getByLabelText(/street address/i) as HTMLInputElement).disabled).toBe(true);
+    expect((scoped.getByLabelText(/latitude/i) as HTMLInputElement).disabled).toBe(true);
+    expect((scoped.getByLabelText(/longitude/i) as HTMLInputElement).disabled).toBe(true);
+    expect(scoped.getByText(/only an owner can move the map pin/i)).toBeTruthy();
+    // The rest of the listing is still theirs to edit.
+    expect((scoped.getByLabelText(/cuisine/i) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('asks for the address with the pin before sending anything', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const update = vi.spyOn(gateway, 'updateBranchListing');
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    await user.clear(within(form).getByLabelText(/street address/i));
+    await user.click(within(form).getByRole('button', { name: /save listing/i }));
+
+    const refusal = await within(form).findByRole('alert');
+    expect(refusal.textContent).toMatch(/address together with the map pin/i);
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('refuses one coordinate without the other before sending anything', async () => {
@@ -195,10 +269,92 @@ describe('the listing section', () => {
     fireEvent.submit(form);
 
     const refusal = await within(form).findByRole('alert');
-    expect(refusal.textContent).toMatch(/http or https/i);
+    // The console's sentence, not the server's English.
+    expect(refusal.textContent).toMatch(/must start with http:\/\/ or https:\/\//i);
     expect(website.getAttribute('aria-describedby')).toBe(refusal.id);
   });
+
+  it('renders refusals in the reader’s language and never the server’s English', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    vi.spyOn(gateway, 'updateBranchListing').mockRejectedValueOnce(
+      new ValidationError({
+        url: `/api/branches/${BRANCH}/listing`,
+        status: 422,
+        problem: {
+          type: 'about:blank',
+          title: 'Validation failed',
+          status: 422,
+          detail: 'One or more fields are invalid.',
+          code: 'validation-failed',
+          traceId: 'test',
+          context: {
+            fields: [
+              {
+                field: 'priceLevel',
+                message: 'The price level is 1 to 4.',
+                bound: 'range',
+                min: 1,
+                max: 4,
+              },
+              { field: 'websiteUrl', message: 'The website must be an http or https address.' },
+            ],
+          },
+        },
+      }),
+    );
+
+    await i18next.changeLanguage('hy');
+    try {
+      renderScreen(gateway);
+      const form = await waitFor(() => {
+        const found = document.querySelector<HTMLFormElement>('form.listing-form');
+        expect(found).not.toBeNull();
+        return found!;
+      });
+      fireEvent.submit(form);
+
+      const price = i18next.t('publicPage.listing.errors.priceLevel.range', {
+        lng: 'hy',
+        ns: 'admin',
+        min: 1,
+        max: 4,
+      });
+      const website = i18next.t('publicPage.listing.errors.websiteUrl.scheme', {
+        lng: 'hy',
+        ns: 'admin',
+      });
+      // Really Armenian copy, not an English fallback that happens to match.
+      expect(website).not.toBe(
+        i18next.t('publicPage.listing.errors.websiteUrl.scheme', { lng: 'en', ns: 'admin' }),
+      );
+
+      expect(await within(form).findByText(price)).toBeTruthy();
+      expect(within(form).getByText(website)).toBeTruthy();
+      expect(form.textContent).not.toContain('The website');
+      expect(form.textContent).not.toContain('The price level');
+    } finally {
+      await i18next.changeLanguage('en');
+    }
+  });
 });
+
+async function withSavedCover(gateway: ConsoleGateway) {
+  const cover = await uploadTo(gateway, 'front.png', 3);
+  await gateway.updatePublicProfile({
+    branchId: BRANCH,
+    profile: { phoneE164: null, acceptsWebBookings: false, coverPhotoId: cover },
+  });
+  const plan = await gateway.getFloorPlan(BRANCH);
+  const tableId = (label: string) => plan.tables.find((t) => t.label === label)!.id;
+  return { cover, plan, tableId };
+}
+
+async function openStage() {
+  const stage = await screen.findByTestId('marker-stage');
+  stage.getBoundingClientRect = () =>
+    ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 }) as DOMRect;
+  return stage;
+}
 
 describe('the table pins on the cover photo', () => {
   it('asks for a saved cover first', async () => {
@@ -206,35 +362,21 @@ describe('the table pins on the cover photo', () => {
     await screen.findByText(/save a cover photo above first/i);
   });
 
-  it('places the selected table where the photo is clicked, clears one, and saves', async () => {
+  it('places a table, clears one, and saves only those two pins, never the floor plan', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const cover = await uploadTo(gateway, 'front.png', 3);
-    await gateway.updatePublicProfile({
-      branchId: BRANCH,
-      profile: { phoneE164: null, acceptsWebBookings: false, coverPhotoId: cover },
-    });
+    const { cover, tableId } = await withSavedCover(gateway);
     // Table 2 already placed, as a venue that did this last week has.
-    const plan = await gateway.getFloorPlan(BRANCH);
-    await gateway.replaceFloorPlan({
-      branchId: BRANCH,
-      command: {
-        floorWidth: plan.floorWidth,
-        floorHeight: plan.floorHeight,
-        areas: plan.areas,
-        tables: plan.tables.map((t) =>
-          t.label === '2' ? { ...t, photoX: 0.5, photoY: 0.5 } : { ...t, floorAreaName: null },
-        ),
-      },
+    await gateway.saveTablePhotoPositions(BRANCH, {
+      coverPhotoId: cover,
+      positions: [{ tableId: tableId('2'), photoX: 0.5, photoY: 0.5 }],
     });
+    const positions = vi.spyOn(gateway, 'saveTablePhotoPositions');
     const replace = vi.spyOn(gateway, 'replaceFloorPlan');
     const user = userEvent.setup();
     renderScreen(gateway);
 
-    const stage = await screen.findByTestId('marker-stage');
-    stage.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 }) as DOMRect;
+    const stage = await openStage();
 
-    // The first unplaced table is picked to start with.
     await user.click(screen.getByRole('button', { name: /table 3 · not placed/i }));
     fireEvent.pointerDown(stage, { clientX: 50, clientY: 75, pointerId: 1 });
     expect(await screen.findByRole('button', { name: /^table 3$/i })).toBeTruthy();
@@ -244,28 +386,27 @@ describe('the table pins on the cover photo', () => {
 
     await user.click(screen.getByRole('button', { name: /save positions/i }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const tables = replace.mock.calls[0]?.[0].command.tables ?? [];
-    expect(tables.find((t) => t.label === '3')).toMatchObject({ photoX: 0.25, photoY: 0.75 });
-    expect(tables.find((t) => t.label === '2')).toMatchObject({ photoX: null, photoY: null });
-    // The rest of the room goes back as it was.
-    expect(tables).toHaveLength(plan.tables.filter((t) => t.isActive).length);
+    await waitFor(() => expect(positions).toHaveBeenCalledTimes(1));
+    const [branchId, command] = positions.mock.calls[0]!;
+    expect(branchId).toBe(BRANCH);
+    expect(command.coverPhotoId).toBe(cover);
+    expect(command.positions).toHaveLength(2);
+    expect(command.positions).toEqual(
+      expect.arrayContaining([
+        { tableId: tableId('3'), photoX: 0.25, photoY: 0.75 },
+        { tableId: tableId('2'), photoX: null, photoY: null },
+      ]),
+    );
+    expect(replace).not.toHaveBeenCalled();
     await screen.findByText(/positions saved/i);
   });
 
-  it('saves pins onto the room as it is now, not the copy the page opened with', async () => {
+  it('reads nothing and sends nothing about the room, so a floor plan edit in another tab survives', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const cover = await uploadTo(gateway, 'front.png', 3);
-    await gateway.updatePublicProfile({
-      branchId: BRANCH,
-      profile: { phoneE164: null, acceptsWebBookings: false, coverPhotoId: cover },
-    });
+    const { tableId } = await withSavedCover(gateway);
     const user = userEvent.setup();
     renderScreen(gateway);
-
-    const stage = await screen.findByTestId('marker-stage');
-    stage.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 }) as DOMRect;
+    const stage = await openStage();
 
     // Meanwhile, in another tab, the floor plan editor adds table 99 and gives
     // table 1 another seat.
@@ -273,6 +414,7 @@ describe('the table pins on the cover photo', () => {
     await gateway.replaceFloorPlan({
       branchId: BRANCH,
       command: {
+        expectedVersion: before.version,
         floorWidth: before.floorWidth,
         floorHeight: before.floorHeight,
         areas: before.areas,
@@ -299,34 +441,38 @@ describe('the table pins on the cover photo', () => {
         ],
       },
     });
-    const now = await gateway.getFloorPlan(BRANCH);
+    const read = vi.spyOn(gateway, 'getFloorPlan');
     const replace = vi.spyOn(gateway, 'replaceFloorPlan');
+    const positions = vi.spyOn(gateway, 'saveTablePhotoPositions');
 
     await user.click(screen.getByRole('button', { name: /table 3 · not placed/i }));
     fireEvent.pointerDown(stage, { clientX: 50, clientY: 75, pointerId: 1 });
     await user.click(screen.getByRole('button', { name: /save positions/i }));
 
-    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const tables = replace.mock.calls[0]?.[0].command.tables ?? [];
-    expect(tables.find((t) => t.label === '99')).toBeTruthy();
-    expect(tables.find((t) => t.label === '1')?.seats).toBe(
-      now.tables.find((t) => t.label === '1')?.seats,
-    );
-    expect(tables.find((t) => t.label === '3')).toMatchObject({ photoX: 0.25, photoY: 0.75 });
+    await waitFor(() => expect(positions).toHaveBeenCalledTimes(1));
+    expect(Object.keys(positions.mock.calls[0]![1]).sort()).toEqual(['coverPhotoId', 'positions']);
     await screen.findByText(/positions saved/i);
+    expect(read).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+
+    const now = await gateway.getFloorPlan(BRANCH);
+    expect(now.tables.find((t) => t.label === '99')).toBeTruthy();
+    expect(now.tables.find((t) => t.label === '1')?.seats).toBe(
+      before.tables.find((t) => t.label === '1')!.seats + 1,
+    );
+    expect(now.tables.find((t) => t.id === tableId('3'))).toMatchObject({
+      photoX: 0.25,
+      photoY: 0.75,
+    });
   });
 
   it('lets a keyboard place a table on the photo and nudge its pin', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const cover = await uploadTo(gateway, 'front.png', 3);
-    await gateway.updatePublicProfile({
-      branchId: BRANCH,
-      profile: { phoneE164: null, acceptsWebBookings: false, coverPhotoId: cover },
-    });
+    const { tableId } = await withSavedCover(gateway);
     const user = userEvent.setup();
     renderScreen(gateway);
     await screen.findByTestId('marker-stage');
-    const replace = vi.spyOn(gateway, 'replaceFloorPlan');
+    const positions = vi.spyOn(gateway, 'saveTablePhotoPositions');
 
     screen.getByRole('button', { name: /table 3 · not placed/i }).focus();
     await user.keyboard('{Enter}');
@@ -340,8 +486,9 @@ describe('the table pins on the cover photo', () => {
     await user.keyboard('{ArrowRight}');
 
     await user.click(screen.getByRole('button', { name: /save positions/i }));
-    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
-    const tables = replace.mock.calls[0]?.[0].command.tables ?? [];
-    expect(tables.find((t) => t.label === '3')).toMatchObject({ photoX: 0.51, photoY: 0.5 });
+    await waitFor(() => expect(positions).toHaveBeenCalledTimes(1));
+    expect(positions.mock.calls[0]?.[1].positions).toEqual([
+      { tableId: tableId('3'), photoX: 0.51, photoY: 0.5 },
+    ]);
   });
 });

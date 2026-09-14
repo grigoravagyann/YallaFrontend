@@ -2,13 +2,16 @@ import {
   AMENITY_KEYS,
   MAX_GALLERY_PHOTOS,
   NotFoundError,
+  RelocationNotAllowedError,
   ValidationError,
+  type FieldViolation,
   type Photo,
   type VenueListing,
   type VenueListingInput,
 } from '@yalla/api';
 import { useBranchListing, useSaveBranchListing } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
+import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { PhotoPicker } from '../menu/PhotoPicker';
@@ -16,15 +19,28 @@ import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 
 /**
  * What the diner app reads about a branch beyond the public page: cuisine,
- * a paragraph, the price level, the website, amenities, the map pin and the
- * gallery after the cover.
+ * a paragraph, the price level, the website, amenities, the map pin with its
+ * street address, and the gallery after the cover.
  *
  * Its own form with its own save, because it is its own endpoint
  * (`PUT /api/branches/{id}/listing`) and replaces every field at once. The
  * gallery reuses the menu editor's picker, so a gallery photo is cropped to the
  * same 4:3 card the app draws it in.
+ *
+ * **Moving the branch is an owner's.** The pin and the address together say
+ * where diners are sent, so changing either is a relocation, which the server
+ * allows an owner or the platform team only and audits (K5). A manager sees
+ * both read-only with a line saying who can change them, rather than an editor
+ * whose save would be refused.
  */
-export function ListingSection({ branchId }: { readonly branchId: string }) {
+export function ListingSection({
+  branchId,
+  canRelocate,
+}: {
+  readonly branchId: string;
+  /** Owner or platform admin. Anyone else gets the pin and the address read-only. */
+  readonly canRelocate: boolean;
+}) {
   const { t } = useTranslation(['admin', 'common']);
   const query = useBranchListing(branchId);
 
@@ -34,7 +50,14 @@ export function ListingSection({ branchId }: { readonly branchId: string }) {
     }
     return <p className="muted">{t('loading')}</p>;
   }
-  return <ListingForm key={branchId} branchId={branchId} initial={query.data} />;
+  return (
+    <ListingForm
+      key={branchId}
+      branchId={branchId}
+      initial={query.data}
+      canRelocate={canRelocate}
+    />
+  );
 }
 
 const PRICE_LEVELS = [1, 2, 3, 4] as const;
@@ -47,6 +70,7 @@ const RENDERED_FIELDS: ReadonlySet<string> = new Set([
   'websiteUrl',
   'amenities',
   'latitude',
+  'address',
   'galleryPhotoIds',
 ]);
 
@@ -62,12 +86,65 @@ function parseCoordinate(text: string): number | null {
   return Number.isFinite(value) ? value : Number.NaN;
 }
 
+/**
+ * One server refusal in the console's words, by the field it names and the
+ * rule it broke (`bound`). Null for a combination this form has no sentence
+ * for.
+ *
+ * The server's own `message` is English prose meant for developers: an
+ * Armenian owner must never read "The website must be an http or https
+ * address." under a field. So it is shown only in a development build, and only
+ * where no sentence exists — which is the case that needs a developer anyway.
+ */
+export function listingViolationText(violation: FieldViolation, t: TFunction): string | null {
+  const { field, bound, min, max } = violation;
+  const key = (path: string) => `publicPage.listing.errors.${path}`;
+
+  switch (field) {
+    case 'priceLevel':
+      return t(key('priceLevel.range'), { min: min ?? 1, max: max ?? 4 });
+    case 'websiteUrl':
+      return bound === 'max'
+        ? t(key('websiteUrl.tooLong'), { max: max ?? 2048 })
+        : t(key('websiteUrl.scheme'));
+    case 'cuisine':
+      return t(key('cuisine.tooLong'), { max: max ?? 120 });
+    case 'about':
+      return t(key('about.tooLong'), { max: max ?? 2000 });
+    case 'galleryPhotoIds':
+      return bound === 'conflict'
+        ? t(key('galleryPhotoIds.duplicate'))
+        : t(key('galleryPhotoIds.tooMany'), { max: max ?? MAX_GALLERY_PHOTOS });
+    case 'amenities':
+      return t(key('amenities.unknown'));
+    case 'latitude':
+    case 'longitude':
+      return bound === 'required'
+        ? t(key('coordinates.pair'))
+        : t(key(`${field}.range`), {
+            min: min ?? (field === 'latitude' ? -90 : -180),
+            max: max ?? (field === 'latitude' ? 90 : 180),
+          });
+    case 'address':
+      return bound === 'required'
+        ? t('publicPage.listing.address.required')
+        : t(key('address.tooLong'), { max: max ?? 500 });
+    default:
+      if (/photo[XY]$/u.test(field)) {
+        return bound === 'range' ? t(key('photoXY.range')) : t(key('photoXY.pair'));
+      }
+      return null;
+  }
+}
+
 function ListingForm({
   branchId,
   initial,
+  canRelocate,
 }: {
   readonly branchId: string;
   readonly initial: VenueListing;
+  readonly canRelocate: boolean;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const save = useSaveBranchListing(branchId);
@@ -80,12 +157,15 @@ function ListingForm({
   const [amenities, setAmenities] = useState<readonly string[]>(initial.amenities);
   const [latitude, setLatitude] = useState(coordinateText(initial.latitude));
   const [longitude, setLongitude] = useState(coordinateText(initial.longitude));
+  const [address, setAddress] = useState(initial.address ?? '');
   const [gallery, setGallery] = useState<readonly Photo[]>(initial.gallery);
   // A fresh picker after each upload, so the drop zone is empty for the next photo.
   const [pickerKey, setPickerKey] = useState(0);
 
   const [fieldErrors, setFieldErrors] = useState<Readonly<Record<string, string>>>({});
-  const [outcome, setOutcome] = useState<'saved' | 'failed' | 'photoMissing' | null>(null);
+  const [outcome, setOutcome] = useState<
+    'saved' | 'failed' | 'photoMissing' | 'relocateOwnerOnly' | null
+  >(null);
 
   const lat = parseCoordinate(latitude);
   const lng = parseCoordinate(longitude);
@@ -98,6 +178,7 @@ function ListingForm({
     [...amenities].sort().join() !== [...saved.amenities].sort().join() ||
     lat !== saved.latitude ||
     lng !== saved.longitude ||
+    address !== (saved.address ?? '') ||
     gallery.map((p) => p.photoId).join() !== saved.gallery.map((p) => p.photoId).join();
   useUnsavedChangesGuard(dirty);
 
@@ -120,6 +201,8 @@ function ListingForm({
   async function submit() {
     setOutcome(null);
     const errors: Record<string, string> = {};
+    const hasPin = lat !== null && lng !== null;
+    const addressText = address.trim();
     if ((lat === null) !== (lng === null)) {
       errors['latitude'] = t('publicPage.listing.location.bothOrNeither');
     } else if (Number.isNaN(lat) || Number.isNaN(lng)) {
@@ -127,6 +210,14 @@ function ListingForm({
     } else if ((lat !== null && Math.abs(lat) > 90) || (lng !== null && Math.abs(lng) > 180)) {
       // The server refuses these too, but with a 400 that names one field.
       errors['latitude'] = t('publicPage.listing.location.outOfRange');
+    }
+    // The pin and the address travel together (K5): one without the other is
+    // refused, so it is said here before anything is sent. With both
+    // coordinates left empty the current pin is kept, and so is the address.
+    if (hasPin && addressText === '') {
+      errors['address'] = t('publicPage.listing.address.required');
+    } else if (!hasPin && lat === null && addressText !== (saved.address ?? '').trim()) {
+      errors['address'] = t('publicPage.listing.address.required');
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -138,6 +229,7 @@ function ListingForm({
       websiteUrl: website.trim() === '' ? null : website,
       amenities,
       galleryPhotoIds: gallery.map((p) => p.photoId),
+      address: hasPin ? addressText : null,
       latitude: lat,
       longitude: lng,
     };
@@ -152,25 +244,33 @@ function ListingForm({
       setAmenities(result.amenities);
       setLatitude(coordinateText(result.latitude));
       setLongitude(coordinateText(result.longitude));
+      setAddress(result.address ?? '');
       setGallery(result.gallery);
       setOutcome('saved');
     } catch (error) {
+      if (error instanceof RelocationNotAllowedError) {
+        setOutcome('relocateOwnerOnly');
+        return;
+      }
       if (error instanceof ValidationError) {
         const named: Record<string, string> = {};
-        const blame = (field: string, message: string) => {
+        const blame = (violation: FieldViolation) => {
+          const text =
+            listingViolationText(violation, t) ??
+            (import.meta.env.DEV && violation.message
+              ? violation.message
+              : t('publicPage.listing.errors.generic'));
           // Both coordinates share one error line, under the pin.
-          named[field === 'longitude' ? 'latitude' : field] ??= message;
+          named[violation.field === 'longitude' ? 'latitude' : violation.field] ??= text;
         };
-        // The 422 names every bad field; each message goes under its control.
-        for (const violation of error.violations) blame(violation.field, violation.message);
+        // The 422 names every bad field; each sentence goes under its control.
+        for (const violation of error.violations) blame(violation);
         // A 400 names one field in `context.field` and collects nothing — a
         // coordinate out of range comes back this way.
         if (error.violations.length === 0 && error.field) {
           const coordinate = error.field === 'latitude' || error.field === 'longitude';
-          blame(
-            error.field,
-            coordinate ? t('publicPage.listing.location.outOfRange') : error.message,
-          );
+          if (coordinate) named['latitude'] = t('publicPage.listing.location.outOfRange');
+          else blame({ field: error.field, message: error.message, bound: 'range' });
         }
         const fields = Object.keys(named);
         if (fields.some((field) => RENDERED_FIELDS.has(field))) {
@@ -304,6 +404,26 @@ function ListingForm({
       <fieldset className="field-group">
         <legend>{t('publicPage.listing.location.title')}</legend>
         <p className="muted small">{t('publicPage.listing.location.help')}</p>
+        {canRelocate ? null : (
+          <p className="muted small" data-testid="relocate-owner-only">
+            {t('publicPage.listing.relocateOwnerOnly')}
+          </p>
+        )}
+        <label className="labelled">
+          <span>{t('publicPage.listing.address.label')}</span>
+          <input
+            className="field"
+            value={address}
+            maxLength={500}
+            autoComplete="street-address"
+            disabled={!canRelocate}
+            onChange={(event) => setAddress(event.target.value)}
+            aria-invalid={fieldErrors['address'] ? true : undefined}
+            aria-describedby={describedBy('address')}
+          />
+          <span className="muted small">{t('publicPage.listing.address.help')}</span>
+          {fieldError('address')}
+        </label>
         <div className="listing-grid">
           <label className="labelled">
             <span>{t('publicPage.listing.location.latitude')}</span>
@@ -311,6 +431,7 @@ function ListingForm({
               className="field"
               inputMode="decimal"
               value={latitude}
+              disabled={!canRelocate}
               onChange={(event) => setLatitude(event.target.value)}
               aria-invalid={fieldErrors['latitude'] ? true : undefined}
               aria-describedby={describedBy('latitude')}
@@ -322,6 +443,7 @@ function ListingForm({
               className="field"
               inputMode="decimal"
               value={longitude}
+              disabled={!canRelocate}
               onChange={(event) => setLongitude(event.target.value)}
               aria-invalid={fieldErrors['latitude'] ? true : undefined}
               aria-describedby={describedBy('latitude')}
@@ -433,6 +555,9 @@ function ListingForm({
         ) : null}
         {outcome === 'photoMissing' ? (
           <span className="error">{t('publicPage.listing.photoMissing')}</span>
+        ) : null}
+        {outcome === 'relocateOwnerOnly' ? (
+          <span className="error">{t('publicPage.listing.relocateOwnerOnly')}</span>
         ) : null}
       </div>
     </form>

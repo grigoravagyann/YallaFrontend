@@ -3358,6 +3358,31 @@ kbd {
   align-self: flex-start;
 }
 
+/* The diner's note on a booking waiting for approval (K9): plain text, wraps. */
+.approvals-note {
+  overflow-wrap: anywhere;
+}
+
+/* A review a venue or the platform may take down. */
+.review-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-hide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 16rem;
+}
+
+.checklist-blockers {
+  margin-top: var(--space-md);
+}
+
 .approvals-actions {
   display: flex;
   flex-direction: column;

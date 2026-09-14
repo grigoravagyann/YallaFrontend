@@ -10,7 +10,6 @@ import {
   reducer,
   tablesOutsideCanvas,
   toSaveCommand,
-  withCurrentPhotoPositions,
   type EditorAction,
   type EditorState,
   type EditorTable,
@@ -26,6 +25,7 @@ import {
 
 const PLAN: EditorFloorPlan = {
   branchId: 'b1',
+  version: 'v1',
   floorWidth: 1000,
   floorHeight: 800,
   areas: [
@@ -555,74 +555,64 @@ describe('the save payload', () => {
   });
 });
 
-describe('photo positions in the save payload', () => {
-  // The server reads a missing or null position as "take it off the photo", so
-  // a room save that dropped these would wipe every pin the venue placed.
+describe('the save payload and the cover photo pins', () => {
+  /*
+   * Pins are the Public page's, saved through their own route (K7). A room
+   * save that carried them could only put back a pin somebody had since moved
+   * or taken off, so the payload has no such key at all — and the server keeps
+   * the pins of every table the save keeps.
+   */
   const placed: EditorFloorPlan = {
     ...PLAN,
     tables: PLAN.tables.map((t) => (t.id === 't1' ? { ...t, photoX: 0.25, photoY: 0.75 } : t)),
   };
   const loadedPlaced = () => reducer(initialState('b1'), { type: 'loaded', plan: placed });
 
-  it('sends back the positions it loaded', () => {
-    const tables = toSaveCommand(loadedPlaced()).tables;
-    expect(tables.find((t) => t.id === 't1')).toMatchObject({ photoX: 0.25, photoY: 0.75 });
-    expect(tables.find((t) => t.id === 't2')).toMatchObject({ photoX: null, photoY: null });
-  });
-
-  it('keeps a position through a move, a relabel and a save', () => {
+  it('has no photoX or photoY key on any table, placed, moved, new or duplicated', () => {
     const state = run(
       loadedPlaced(),
       { type: 'select', ids: ['t1'] },
       { type: 'move', dx: 40, dy: 0 },
-      { type: 'updateTable', id: 't1', patch: { label: '1A' } },
-    );
-    expect(toSaveCommand(state).tables.find((t) => t.id === 't1')).toMatchObject({
-      label: '1A',
-      photoX: 0.25,
-      photoY: 0.75,
-    });
-
-    const saved = reducer(state, {
-      type: 'saved',
-      result: { plan: placed, warnings: [], deactivatedTables: [], removedTables: [] },
-    });
-    expect(toSaveCommand(saved).tables.find((t) => t.id === 't1')).toMatchObject({
-      photoX: 0.25,
-      photoY: 0.75,
-    });
-  });
-
-  it('puts a new or duplicated table nowhere on the photo', () => {
-    const state = run(
-      loadedPlaced(),
-      { type: 'select', ids: ['t1'] },
       { type: 'duplicate' },
       { type: 'addTable' },
     );
-    const fresh = toSaveCommand(state).tables.filter((t) => t.id === undefined);
-    expect(fresh).toHaveLength(2);
-    for (const table of fresh) expect(table).toMatchObject({ photoX: null, photoY: null });
+    const command = toSaveCommand(state);
+    expect(command.tables).toHaveLength(4);
+    for (const table of command.tables) {
+      expect(table).not.toHaveProperty('photoX');
+      expect(table).not.toHaveProperty('photoY');
+    }
+    expect(JSON.stringify(command)).not.toContain('photo');
+  });
+});
+
+describe('the version the save is made against', () => {
+  it('sends the version the plan was loaded with', () => {
+    expect(toSaveCommand(loaded()).expectedVersion).toBe('v1');
   });
 
-  it('takes positions from the room as the server holds it at save time', () => {
-    // Loaded with table 1 on the photo; since then, another tab took table 1
-    // off it and placed table 2.
-    const current: EditorFloorPlan = {
-      ...PLAN,
-      tables: PLAN.tables.map((t) =>
-        t.id === 't2' ? { ...t, photoX: 0.5, photoY: 0.5 } : { ...t, photoX: null, photoY: null },
-      ),
-    };
-    const state = run(loadedPlaced(), { type: 'addTable' });
-    const merged = withCurrentPhotoPositions(toSaveCommand(state), current);
+  it('keeps it through edits and undo, which change the drawing and not the server', () => {
+    const state = run(
+      loaded(),
+      { type: 'select', ids: ['t1'] },
+      { type: 'move', dx: 20, dy: 0 },
+      { type: 'undo' },
+    );
+    expect(toSaveCommand(state).expectedVersion).toBe('v1');
+  });
 
-    expect(merged.tables.find((t) => t.id === 't1')).toMatchObject({ photoX: null, photoY: null });
-    expect(merged.tables.find((t) => t.id === 't2')).toMatchObject({ photoX: 0.5, photoY: 0.5 });
-    expect(merged.tables.find((t) => t.id === undefined)).toMatchObject({
-      photoX: null,
-      photoY: null,
+  it('takes the new version from a save, so the next save is not refused as stale', () => {
+    const state = run(loaded(), { type: 'addTable' });
+    const saved = reducer(state, {
+      type: 'saved',
+      result: {
+        plan: { ...PLAN, version: 'v2' },
+        warnings: [],
+        deactivatedTables: [],
+        removedTables: [],
+      },
     });
+    expect(toSaveCommand(saved).expectedVersion).toBe('v2');
   });
 });
 

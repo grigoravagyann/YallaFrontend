@@ -115,6 +115,14 @@ function BookingRow({
         <span className="badge">
           {t(`approvals.because.${booking.awaitingApprovalBecause ?? 'unknown'}`)}
         </span>
+        {/* What the diner asked for when booking (K9). Deciding without it is
+            deciding blind: "a birthday, a quiet corner" is often the reason a
+            large party is worth a yes. Plain text, never markup. */}
+        {booking.note ? (
+          <span className="approvals-note">
+            <span className="muted small">{t('reservations.note')}</span> <q>{booking.note}</q>
+          </span>
+        ) : null}
       </div>
 
       <div className="approvals-actions">

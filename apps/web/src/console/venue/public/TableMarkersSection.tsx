@@ -1,10 +1,9 @@
-import { isFloorPlanInvalid, type EditorFloorPlan, type Photo } from '@yalla/api';
+import { CoverChangedError, NotFoundError, type EditorFloorPlan, type Photo } from '@yalla/api';
 import {
   queryKeys,
-  useConsoleGateway,
   useEditorFloorPlan,
   usePublicProfile,
-  useSaveFloorPlan,
+  useSaveTablePhotoPositions,
 } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,27 +19,29 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import {
   changedPositions,
+  positionsCommand,
+  positionsFromAnswer,
   positionsFromPlan,
   toFraction,
-  withPhotoPositions,
   type PhotoPosition,
 } from './photoMarkers';
 
 /**
  * Where each table is on the cover photo, for the diner app's tap-to-book view.
  *
- * Positions are 0–1 fractions of the photo and are saved through the floor
- * plan's `PUT`, which replaces the whole room — so the save reads the room
- * again at that moment and sends it back with only the pins moved here
- * changed. A copy read when the page opened could be minutes old, and sending
- * it would undo, delete or bring back tables edited since. The picture is the
- * **saved** cover: placing tables on a photo nobody has saved yet would put
- * them on the wrong picture in the app.
+ * Positions are 0–1 fractions of the photo, saved through their own route
+ * (`PUT …/table-photo-positions`, K7) in **one call** carrying only the pins
+ * moved here and the cover they were placed on. Nothing about the room travels
+ * with them, so a table added or relabelled in the floor plan editor since this
+ * page opened cannot be undone by a pin save, and nothing is read first.
  *
- * The saved cover is read from the public profile's cache, which the form's
- * save writes and a pin save refreshes. Changing it takes every table off the
- * photo on the server, so a draft of pins made on the old picture is dropped
- * — and the person is told, rather than finding their work quietly gone.
+ * The picture is the **saved** cover: placing tables on a photo nobody has
+ * saved yet would put them on the wrong picture in the app. It is read from the
+ * public profile's cache, which the form above writes. Changing it takes every
+ * table off the photo on the server, so a draft made on the old picture is
+ * dropped and the person is told. If the cover was changed somewhere else, the
+ * server refuses the save with nothing written; this says so once, and the new
+ * cover is read.
  */
 export function TableMarkersSection({ branchId }: { readonly branchId: string }) {
   const { t } = useTranslation(['admin', 'common']);
@@ -54,7 +55,7 @@ export function TableMarkersSection({ branchId }: { readonly branchId: string })
   // the new cover is the same one that says the old draft was dropped.
   const [draft, setDraft] = useState({ coverId, dirty: false });
   const [discarded, setDiscarded] = useState(false);
-  const [coverMoved, setCoverMoved] = useState(false);
+  const [coverChanged, setCoverChanged] = useState(false);
   if (draft.coverId !== coverId) {
     setDraft({ coverId, dirty: false });
     setDiscarded(draft.dirty);
@@ -65,9 +66,9 @@ export function TableMarkersSection({ branchId }: { readonly branchId: string })
   }, []);
   const onEdit = useCallback(() => {
     setDiscarded(false);
-    setCoverMoved(false);
+    setCoverChanged(false);
   }, []);
-  const onCoverMoved = useCallback(() => setCoverMoved(true), []);
+  const onCoverChanged = useCallback(() => setCoverChanged(true), []);
 
   let body;
   if (!cover) {
@@ -82,7 +83,6 @@ export function TableMarkersSection({ branchId }: { readonly branchId: string })
     body = <p className="muted">{t('publicPage.markers.noTables')}</p>;
   } else {
     // Keyed on the branch and the saved cover: a new cover starts a fresh draft.
-    // A floor-plan edit elsewhere does not — the save reads the room again instead.
     body = (
       <MarkerEditor
         key={`${branchId}:${cover.photoId}`}
@@ -91,7 +91,7 @@ export function TableMarkersSection({ branchId }: { readonly branchId: string })
         plan={query.data}
         onDirtyChange={onDirtyChange}
         onEdit={onEdit}
-        onCoverMoved={onCoverMoved}
+        onCoverChanged={onCoverChanged}
       />
     );
   }
@@ -102,8 +102,13 @@ export function TableMarkersSection({ branchId }: { readonly branchId: string })
         <h3 id="markers-title">{t('publicPage.markers.title')}</h3>
         <p className="muted small">{t('publicPage.markers.intro')}</p>
       </div>
-      {coverMoved ? <p className="error">{t('publicPage.markers.refused')}</p> : null}
-      {discarded ? (
+      {/* One sentence, not two: the cover-changed notice already says the pins
+          were not saved, so the "discarded" line would repeat it. */}
+      {coverChanged ? (
+        <p className="error" role="alert">
+          {t('publicPage.markers.coverChanged')}
+        </p>
+      ) : discarded ? (
         <p className="muted" role="status">
           {t('publicPage.markers.discarded')}
         </p>
@@ -121,7 +126,7 @@ function MarkerEditor({
   plan,
   onDirtyChange,
   onEdit,
-  onCoverMoved,
+  onCoverChanged,
 }: {
   readonly branchId: string;
   readonly cover: Photo;
@@ -130,19 +135,17 @@ function MarkerEditor({
   readonly onDirtyChange: (dirty: boolean) => void;
   /** A pin was placed, moved or taken off. */
   readonly onEdit: () => void;
-  /** A save found the saved cover is no longer the one these pins were placed on. */
-  readonly onCoverMoved: () => void;
+  /** The server refused a save because the cover is no longer the one these pins are on. */
+  readonly onCoverChanged: () => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
-  const gateway = useConsoleGateway();
   const queryClient = useQueryClient();
-  const save = useSaveFloorPlan();
+  const save = useSaveTablePhotoPositions(branchId);
   const stageRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<string | null>(null);
   // The pin to move focus to once it has been drawn: a keyboard user who places
   // a table goes straight on to nudging it with the arrow keys.
   const pendingFocus = useRef<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const tables = plan.tables.filter((table) => table.isActive);
   const [savedPositions, setSavedPositions] = useState(() => positionsFromPlan(plan));
@@ -150,7 +153,7 @@ function MarkerEditor({
   const [selected, setSelected] = useState<string | null>(
     () => tables.find((table) => !positionsFromPlan(plan).get(table.id))?.id ?? null,
   );
-  const [outcome, setOutcome] = useState<'saved' | 'failed' | 'refused' | null>(null);
+  const [outcome, setOutcome] = useState<'saved' | 'failed' | null>(null);
 
   useEffect(() => {
     const tableId = pendingFocus.current;
@@ -251,46 +254,28 @@ function MarkerEditor({
 
   async function submit() {
     setOutcome(null);
-    setBusy(true);
     try {
-      // The cover as the server holds it now. Changing it took every table off
-      // the photo, so pins placed on the one this draft shows would land on a
-      // different picture: refuse, and read the cover and the room again —
-      // which swaps this draft for a fresh one on the new picture.
-      const profile = await queryClient.fetchQuery({
-        queryKey: queryKeys.publicProfile(branchId),
-        queryFn: () => gateway.getPublicProfile(branchId),
-        staleTime: 0,
-      });
-      if ((profile.coverPhoto?.photoId ?? null) !== cover.photoId) {
-        onCoverMoved();
-        setOutcome('refused');
-        void queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(branchId) });
-        return;
-      }
-      // The room as the server holds it now, not the copy this page opened
-      // with: a table added, moved or retired since must survive a save that
-      // only moves pins. Only the pins moved here are applied to it.
-      const current = await queryClient.fetchQuery({
-        queryKey: queryKeys.editorFloorPlan(branchId),
-        queryFn: () => gateway.getFloorPlan(branchId),
-        staleTime: 0,
-      });
-      const result = await save.mutateAsync({
-        branchId,
-        command: withPhotoPositions(current, changedPositions(positions, savedPositions)),
-      });
-      const fresh = positionsFromPlan(result.plan);
+      const answer = await save.mutateAsync(
+        positionsCommand(cover.photoId, changedPositions(positions, savedPositions)),
+      );
+      const fresh = positionsFromAnswer(answer);
       setSavedPositions(fresh);
       setPositions(fresh);
       setOutcome('saved');
     } catch (error) {
-      // Refused (a seated table, a repeated label) or failed: either way the
-      // room is read again, so the list and the next try start from it.
-      setOutcome(isFloorPlanInvalid(error) ? 'refused' : 'failed');
-      void queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(branchId) });
-    } finally {
-      setBusy(false);
+      if (error instanceof CoverChangedError) {
+        // Nothing was written. The mutation reads the cover and the room again,
+        // which swaps this draft for a fresh one on the new picture; the
+        // section says why, once.
+        onCoverChanged();
+        return;
+      }
+      setOutcome('failed');
+      // A table taken out of service since this page opened: read the room
+      // again, so the list and the next try start from it.
+      if (error instanceof NotFoundError) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(branchId) });
+      }
     }
   }
 
@@ -388,10 +373,10 @@ function MarkerEditor({
         <button
           type="button"
           className="button button-primary"
-          disabled={busy || !dirty}
+          disabled={save.isPending || !dirty}
           onClick={() => void submit()}
         >
-          {busy ? t('publicPage.markers.saving') : t('publicPage.markers.save')}
+          {save.isPending ? t('publicPage.markers.saving') : t('publicPage.markers.save')}
         </button>
         {outcome === 'saved' ? (
           <span className="muted" role="status">
@@ -400,9 +385,6 @@ function MarkerEditor({
         ) : null}
         {outcome === 'failed' ? (
           <span className="error">{t('publicPage.markers.failed')}</span>
-        ) : null}
-        {outcome === 'refused' ? (
-          <span className="error">{t('publicPage.markers.refused')}</span>
         ) : null}
       </div>
     </div>

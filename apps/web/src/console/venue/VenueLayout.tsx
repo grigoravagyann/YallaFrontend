@@ -84,6 +84,10 @@ export function VenueLayout({ user }: VenueLayoutProps) {
               // so no screen re-implements a role check — and so a manager who
               // sees several branches is not offered a query the server 403s.
               canRollUpVenue: user.role === 'owner' && branches.length > 1,
+              // Moving a branch — its map pin or its address — is an owner's
+              // (K5); a manager's save of either is refused and audited as a
+              // refusal, so the editors are not offered.
+              canRelocate: user.role === 'owner',
             } satisfies VenueOutletContext
           }
         />
@@ -111,6 +115,12 @@ export interface VenueOutletContext {
    * because the server refuses them the rollup.
    */
   readonly canRollUpVenue: boolean;
+  /**
+   * Whether the listing form may move the branch: the map pin and the street
+   * address. An owner only — the platform admin reaches the same form through
+   * the platform section, which says so itself.
+   */
+  readonly canRelocate: boolean;
 }
 
 export function useVenueOutlet(): VenueOutletContext {
