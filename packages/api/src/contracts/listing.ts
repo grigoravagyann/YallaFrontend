@@ -36,6 +36,13 @@ export interface VenueListingInput {
   readonly amenities: readonly string[];
   /** Photos uploaded for this branch, ordered, at most 12. Null leaves the gallery; [] clears it. */
   readonly galleryPhotoIds: readonly string[] | null;
+  /**
+   * The street address, sent **with** the coordinates (K5): coordinates without
+   * an address, or an address without coordinates, is a 422 naming the missing
+   * half. A change to either is a relocation, which only an owner or a platform
+   * admin may make; a manager repeating the stored values is not one.
+   */
+  readonly address: string | null;
   /** Latitude and longitude together or neither. */
   readonly latitude: number | null;
   readonly longitude: number | null;

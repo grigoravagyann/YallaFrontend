@@ -1178,6 +1178,152 @@ export function isInvalidCredentials(error: unknown): error is InvalidCredential
 }
 
 /** Any of the three 409s a sign-up form has a field for. */
+// ---------------------------------------------------------------------------
+// Hardening contract K0 and the 2026-09-14 addendum
+// ---------------------------------------------------------------------------
+
+interface RefusalOptions {
+  readonly url: string;
+  readonly requestId?: string | undefined;
+}
+
+/**
+ * Moving a branch — its pin or its street address — is for an owner or a
+ * platform admin — `relocation-not-allowed`, 403 (K5).
+ *
+ * Nothing was written, the other fields on the same save included: the save is
+ * atomic. A manager's form shows the pin and address read-only, so reaching this
+ * means a stale screen or a role changed under the person.
+ */
+export class RelocationNotAllowedError extends ApiError {
+  constructor(options: RefusalOptions) {
+    super('Only an owner can move a branch.', { status: 403, ...options });
+    this.name = 'RelocationNotAllowedError';
+  }
+}
+
+/**
+ * Somebody else saved the floor plan since this editor loaded it —
+ * `floor-plan-changed`, 409 (K6).
+ *
+ * Nothing was written. The editor offers to reload rather than overwrite a room
+ * somebody else just drew.
+ */
+export class FloorPlanChangedError extends ApiError {
+  /** The version the server holds now, from `context.currentVersion`. */
+  readonly currentVersion: string | null;
+
+  constructor(options: RefusalOptions & { currentVersion: string | null }) {
+    super('The floor plan was changed by somebody else.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'FloorPlanChangedError';
+    this.currentVersion = options.currentVersion;
+  }
+}
+
+/**
+ * The cover photo changed while pins were being placed on the old one —
+ * `cover-changed`, 409 (K7).
+ *
+ * Positions are fractions of *a* picture; saved against a different one they
+ * point at the wrong spots, so nothing was written.
+ */
+export class CoverChangedError extends ApiError {
+  /** The cover the branch has now, or `null` when it has none. */
+  readonly currentCoverPhotoId: string | null;
+
+  constructor(options: RefusalOptions & { currentCoverPhotoId: string | null }) {
+    super('The cover photo changed before the pins were saved.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'CoverChangedError';
+    this.currentCoverPhotoId = options.currentCoverPhotoId;
+  }
+}
+
+/**
+ * A first review needs a visit — `review-needs-visit`, 403 (K8).
+ *
+ * A seated or completed booking at the branch, or a place on one of its tabs,
+ * within the last 180 days. Revising a review the diner already wrote is never
+ * refused this way.
+ */
+export class ReviewNeedsVisitError extends ApiError {
+  constructor(options: RefusalOptions) {
+    super('Reviews are for places you have visited.', { status: 403, ...options });
+    this.name = 'ReviewNeedsVisitError';
+  }
+}
+
+/**
+ * The branch is not taking bookings from the app — `bookings-not-accepted`,
+ * 409 (K9).
+ *
+ * Its online-bookings switch is off, or nobody has reviewed its reservation
+ * policy yet. Not the diner's doing, and not worth a retry.
+ */
+export class BookingsNotAcceptedError extends ApiError {
+  readonly branchId: string | null;
+
+  constructor(options: RefusalOptions & { branchId?: string | null | undefined }) {
+    super('This venue is not taking bookings in the app.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingsNotAcceptedError';
+    this.branchId = options.branchId ?? null;
+  }
+}
+
+/** A diner reporting their own review — `conflicting-state`, 409 (addendum, K8 extension). */
+export class CannotReportOwnReviewError extends ApiError {
+  constructor(options: RefusalOptions) {
+    super('You cannot report your own review.', { status: 409, ...options });
+    this.name = 'CannotReportOwnReviewError';
+  }
+}
+
+/** The account already has the most favourites it may keep — `conflicting-state`, 409 (K11). */
+export class TooManyFavoritesError extends ApiError {
+  readonly max: number;
+
+  constructor(options: RefusalOptions & { max: number }) {
+    super(`At most ${options.max} places can be saved.`, {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'TooManyFavoritesError';
+    this.max = options.max;
+  }
+}
+
+/**
+ * A venue unhiding a review the platform hid — `forbidden`, 403 (addendum).
+ *
+ * Read from the venue visibility route when the request was an unhide. The
+ * platform's takedown outranks the venue's; only the platform can reverse it.
+ */
+export class ReviewHiddenByPlatformError extends ApiError {
+  readonly reviewId: string;
+
+  constructor(options: RefusalOptions & { reviewId: string }) {
+    super('This review was hidden by Yalla and can only be restored by Yalla.', {
+      status: 403,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ReviewHiddenByPlatformError';
+    this.reviewId = options.reviewId;
+  }
+}
+
 export function isAccountTaken(
   error: unknown,
 ): error is UsernameTakenError | EmailTakenError | PhoneInUseError {

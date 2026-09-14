@@ -6,7 +6,9 @@ import {
   InvalidTransitionError,
   NetworkError,
   NotFoundError,
+  SESSION_REVOKED_CODE,
   ServerError,
+  SessionRevokedError,
   TimeoutError,
   TooManyRequestsError,
   UnauthorizedError,
@@ -59,6 +61,20 @@ export interface RequestOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+
+/**
+ * 401 codes a refresh cannot fix, so none is attempted.
+ *
+ * `session-revoked` (K1): the session was ended and every refresh token with
+ * it. `invalid-credentials`: the token was accepted and a password or code in
+ * the body was wrong — refreshing spends the rotating refresh token for
+ * nothing, on every mistyped password in a change-password or delete-account
+ * form.
+ */
+const NO_REFRESH_CODES: ReadonlySet<string> = new Set([
+  SESSION_REVOKED_CODE,
+  'invalid-credentials',
+]);
 
 function buildUrl(baseUrl: string, path: string, query: RequestOptions['query']): string {
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -122,7 +138,9 @@ function toError(response: Response, url: string, body: unknown): ApiError {
 
   switch (response.status) {
     case 401:
-      return new UnauthorizedError(base);
+      return problem?.code === SESSION_REVOKED_CODE
+        ? new SessionRevokedError(base)
+        : new UnauthorizedError(base);
     case 403:
       return new ForbiddenError(base);
     case 404:
@@ -252,16 +270,26 @@ export class ApiClient {
       throw new NetworkError({ url, cause });
     }
 
+    const payload = await readBody(response);
+
     // One refresh, one retry. Several requests failing at once all await the
     // same refresh inside the session, so the rotating token is spent exactly
     // once — spending it twice is what gets a user signed out.
-    if (response.status === 401 && this.#config.auth && !options.skipAuth && !isRetry) {
+    //
+    // Except for `session-revoked` (K1): the server ended the session and
+    // revoked every refresh token with it, so a refresh is a wasted round trip
+    // that can only fail. It rejects straight away as `SessionRevokedError`.
+    if (
+      response.status === 401 &&
+      this.#config.auth &&
+      !options.skipAuth &&
+      !isRetry &&
+      !NO_REFRESH_CODES.has(parseProblem(payload)?.code ?? '')
+    ) {
       const current = this.#config.auth.peekAccessToken();
       const fresh = current && current !== token ? current : await this.#config.auth.refresh();
       if (fresh) return this.#send<T>(path, options, true);
     }
-
-    const payload = await readBody(response);
 
     if (!response.ok) throw toError(response, url, payload);
 
@@ -301,10 +329,12 @@ export class ApiClient {
     return this.request<T>(path, { ...options, method: 'PATCH', body });
   }
 
-  delete<T>(
-    path: string,
-    options?: Omit<RequestOptions, 'method' | 'body'>,
-  ): Promise<ApiResponse<T>> {
+  /**
+   * `options.body` is allowed here, unlike on `get`: `DELETE /api/diner/me`
+   * takes the password or code that confirms it (K2) in the body, and a
+   * credential does not belong in a query string.
+   */
+  delete<T>(path: string, options?: Omit<RequestOptions, 'method'>): Promise<ApiResponse<T>> {
     return this.request<T>(path, { ...options, method: 'DELETE' });
   }
 }

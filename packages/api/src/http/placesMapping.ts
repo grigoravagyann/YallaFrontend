@@ -14,6 +14,9 @@ import type {
   MarkerStatus,
   MyBranchReview,
 } from '../contracts/places';
+import type { FavoriteBranch } from '../contracts/favorites';
+import type { DinerNotification, DinerNotificationPage } from '../contracts/notifications';
+import type * as Hand from '../generated/handwritten';
 import type { components } from '../generated/schema';
 import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
@@ -21,12 +24,22 @@ import { photo } from './venueSettingsMapping';
 type Schemas = components['schemas'];
 
 export type WireBranchListing = Schemas['Yalla.Application.Public.PublicBranchListing'];
-export type WireBranchDetail = Schemas['Yalla.Application.Public.PublicBranchDetail'];
-export type WireReviewPage = Schemas['Yalla.Application.Public.PublicReviewPage'];
-export type WireReview = Schemas['Yalla.Application.Public.PublicReviewView'];
+// `& Hand.…` — fields from the hardening contract the committed swagger lacks.
+// generated-by-hand: A1b drops the intersections after regenerating.
+export type WireBranchDetail = Schemas['Yalla.Application.Public.PublicBranchDetail'] &
+  Hand.AcceptsAppBookingsAddition;
+export type WireReviewPage = Omit<
+  Schemas['Yalla.Application.Public.PublicReviewPage'],
+  'reviews'
+> & {
+  reviews?: WireReview[];
+};
+export type WireReview = Schemas['Yalla.Application.Public.PublicReviewView'] &
+  Hand.PublicReviewViewAdditions;
 export type WireTableMarker = Schemas['Yalla.Application.Public.PublicTableMarker'];
 export type WireTableMarkers = Schemas['Yalla.Application.Public.PublicTableMarkers'];
-export type WireDinerReview = Schemas['Yalla.Application.Diners.DinerReviewView'];
+export type WireDinerReview = Schemas['Yalla.Application.Diners.DinerReviewView'] &
+  Hand.DinerReviewViewAdditions;
 export type WireDinerOrder = Schemas['Yalla.Application.Diners.DinerOrderView'];
 
 type WirePhoto = Schemas['Yalla.Application.Media.PhotoView'];
@@ -142,6 +155,9 @@ export function branchReviewFromWire(wire: WireReview): BranchReview {
     text: orNull(wire.text),
     createdAtUtc: wire.createdAtUtc,
     updatedAtUtc: wire.updatedAtUtc,
+    // The server's flag (K8). A server that predates it never sends one, and
+    // there a revision is exactly a later `updatedAtUtc`.
+    edited: wire.edited ?? wire.updatedAtUtc !== wire.createdAtUtc,
   };
 }
 
@@ -192,6 +208,10 @@ export function branchDetailFromWire(wire: WireBranchDetail, baseUrl: string): B
     gallery: (wire.gallery ?? []).map((view) => absolutePhoto(baseUrl, photo(view))),
     tableCount: wire.tableCount ?? 0,
     acceptsWebBookings: Boolean(wire.acceptsWebBookings),
+    // A boolean is never omitted, so an absent one is a server from before the
+    // K9 gate, which takes app bookings. Reading it as false would hide Book on
+    // every place against that server.
+    acceptsAppBookings: wire.acceptsAppBookings ?? true,
     recentReviews: (wire.recentReviews ?? []).map(branchReviewFromWire),
     tableMarkers: markersFrom(wire.tableMarkers),
     asOfUtc: wire.asOfUtc,
@@ -217,6 +237,48 @@ export function myReviewFromWire(wire: WireDinerReview): MyBranchReview {
     text: orNull(wire.text),
     createdAtUtc: wire.createdAtUtc,
     updatedAtUtc: wire.updatedAtUtc,
+    publicAuthorName: orNull(wire.publicAuthorName),
+    hidden: Boolean(wire.hidden),
+  };
+}
+
+// --- Favourites (K11) and the notifications feed (K12) ------------------------
+
+export function favoriteFromWire(wire: Hand.DinerFavoriteView, baseUrl: string): FavoriteBranch {
+  return {
+    branchId: wire.branchId,
+    createdAtUtc: wire.createdAtUtc,
+    listing: branchListingFromWire(wire.listing, baseUrl),
+  };
+}
+
+export function favoritesFromWire(
+  wire: Hand.DinerFavoritesView | null | undefined,
+  baseUrl: string,
+): FavoriteBranch[] {
+  return (wire?.items ?? []).map((item) => favoriteFromWire(item, baseUrl));
+}
+
+export function notificationFromWire(wire: Hand.DinerNotificationView): DinerNotification {
+  return {
+    notificationId: wire.notificationId,
+    kind: wire.kind,
+    params: wire.params ?? {},
+    branchId: orNull(wire.branchId),
+    branchName: orNull(wire.branchName),
+    reservationId: orNull(wire.reservationId),
+    tabId: orNull(wire.tabId),
+    orderId: orNull(wire.orderId),
+    createdAtUtc: wire.createdAtUtc,
+    read: Boolean(wire.read),
+  };
+}
+
+export function notificationPageFromWire(wire: Hand.DinerNotificationPage): DinerNotificationPage {
+  return {
+    items: (wire.items ?? []).map(notificationFromWire),
+    nextCursor: orNull(wire.nextCursor),
+    unreadCount: wire.unreadCount ?? 0,
   };
 }
 

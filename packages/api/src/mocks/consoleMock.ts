@@ -19,7 +19,11 @@ import type {
 import {
   BranchNotReadyError,
   CategoryInUseError,
+  CoverChangedError,
+  FloorPlanChangedError,
   FloorPlanInvalidError,
+  RelocationNotAllowedError,
+  ReviewHiddenByPlatformError,
   OutOfScopeError,
   OverlappingHoursError,
   PolicyBoundsError,
@@ -43,6 +47,17 @@ import {
 } from '../contracts/staff';
 import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
+import type { BranchReadiness } from '../contracts/readiness';
+import {
+  MAX_MODERATION_TEXT,
+  REVIEW_MODERATION_FILTERS,
+  type ModeratedReview,
+  type SetReviewVisibilityCommand,
+  type VenueModeratedReview,
+} from '../contracts/reviews';
+import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
+import { invalidRequest, validationFailed, type MockViolation } from './problems';
+import { publicBranchFixtures } from './publicVenues';
 import { AMENITY_KEYS, MAX_GALLERY_PHOTOS, type VenueListing } from '../contracts/listing';
 import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
@@ -72,6 +87,7 @@ import type {
   EditorFloorTable,
   FloorPlanSaveResult,
   TableDeletionResult,
+  TablePhotoPositions,
 } from '../contracts/floorPlan';
 import { createMockReports } from './reports';
 import { mockVenues } from './venues';
@@ -100,6 +116,25 @@ const NO_PHOTO: Photo = {
 
 /** Eight megabytes, matching `PhotoRules.MaxUploadBytes`. */
 const MOCK_MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+/** `FieldLengths` on the server, for the listing form. */
+const CUISINE_MAX = 120;
+const ABOUT_MAX = 2000;
+const URL_MAX = 2048;
+const ADDRESS_MAX = 400;
+
+/** Both moderation lists page by 20, the public reviews route's size. */
+const REVIEW_PAGE_SIZE = 20;
+
+/** Absolute http or https, as `Uri.TryCreate(…, UriKind.Absolute)` plus the scheme check reads it. */
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Bookings the policy screen reports as falling outside a tightened rule.
@@ -201,6 +236,12 @@ export interface ConsoleMockOptions {
    * second could not be represented at all before this option.
    */
   readonly managerBranch?: 'home' | 'none';
+  /**
+   * The review store, shared with a diner mock so what a diner writes there is
+   * moderated here. Absent: a store seeded with placeholder reviews in every
+   * moderation state (reported, hidden by the venue, hidden by the platform).
+   */
+  readonly reviews?: MockReviewStore;
 }
 
 /** Both tiers across the fixture so the list column is not one repeated value. */
@@ -220,6 +261,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const latency = options.latencyMs ?? 0;
   const role: UserRole = options.role ?? 'platformAdmin';
   const managerBranch = options.managerBranch ?? 'home';
+  const reviewStore = options.reviews ?? createMockReviewStore({ now, seed: true });
 
   /**
    * `multiplier` exists for the reports.
@@ -246,6 +288,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const profiles = new Map<string, BranchPublicProfile>();
   const photosById = new Map<string, Photo>();
   const uploadedPhotos = new Map<string, Photo>();
+  /**
+   * photoId → the branch it was uploaded for. The gallery and the cover accept
+   * only their own branch's photos; a foreign one is "not found here", as on
+   * the server, where `Photos.BranchId` is part of the lookup.
+   */
+  const photoBranch = new Map<string, string>();
+  /** Branches whose reservation policy somebody has saved, for the readiness answer. */
+  const policyReviewed = new Set<string>();
   /** Items the fixture pretends have been ordered, so deletion is refused. */
   const orderedItemIds = new Set<string>();
 
@@ -285,7 +335,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     for (const category of seeded) {
       for (const item of category.items) {
-        if (item.photoId) photosById.set(item.photoId, mockPhoto(item.id));
+        if (item.photoId) {
+          photosById.set(item.photoId, mockPhoto(item.id));
+          photoBranch.set(item.photoId, branchId);
+        }
       }
     }
     // The first item of the second category is "on an order": deleting it
@@ -338,6 +391,18 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const category = menuFor(branchId).find((candidate) => candidate.id === categoryId);
     if (!category) throw new NotFoundError({ url: `${URL_TAG}/menu/${categoryId}` });
     return category;
+  }
+
+  /** `MenuItemCompleteness.Rule`: what a diner needs before a dish may be published. */
+  function isIncompleteItem(item: MockItem): boolean {
+    return (
+      item.photoId === null ||
+      !item.description ||
+      !item.ingredients ||
+      !item.allergens ||
+      !item.portionSize ||
+      item.prepMinutes <= 0
+    );
   }
 
   function requireItem(branchId: string, itemId: string): MockItem {
@@ -683,20 +748,28 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     return seeded;
   }
 
-  /** The diner app listing, empty the way a new branch's is, pinned in central Yerevan. */
+  /**
+   * The diner app listing, empty the way a new branch's is, at the address and
+   * pin its own fixture has — so a relocation is a change from *this* branch's
+   * place, not from one pin every branch shared. A branch created in the mock
+   * has no fixture and starts in central Yerevan.
+   */
   const listings = new Map<string, VenueListing>();
   function listingFor(branchId: string): VenueListing {
     const existing = listings.get(branchId);
     if (existing) return existing;
+    const fixture = publicBranchFixtures[branchId];
+    const located =
+      fixture !== undefined && fixture.latitude !== null && fixture.longitude !== null;
     const seeded: VenueListing = {
       cuisine: null,
       about: null,
       priceLevel: null,
       websiteUrl: null,
       amenities: [],
-      address: '12 Abovyan Street, Yerevan',
-      latitude: 40.1843,
-      longitude: 44.5129,
+      address: fixture?.addressLine ?? '12 Abovyan Street, Yerevan',
+      latitude: located ? fixture.latitude! : 40.1843,
+      longitude: located ? fixture.longitude! : 44.5129,
       gallery: [],
     };
     listings.set(branchId, seeded);
@@ -743,7 +816,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const seed = (
       branchId: string,
       suffix: string,
-      guest: { name: string; phone: string; party: number; table: string; time: string },
+      guest: {
+        name: string;
+        phone: string;
+        party: number;
+        table: string;
+        time: string;
+        note?: string;
+      },
       because: ConsoleBooking['awaitingApprovalBecause'],
     ) => {
       const id = `r-${branchId.replace(/^b-/u, '')}-${suffix}`;
@@ -759,6 +839,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         localStartTime: guest.time,
         status: 'pendingApproval',
         awaitingApprovalBecause: because,
+        note: guest.note ?? null,
       });
     };
 
@@ -771,6 +852,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         party: 10,
         table: 'W3',
         time: '19:00:00',
+        note: 'A birthday. A quiet corner if possible.',
       },
       'largeParty',
     );
@@ -994,17 +1076,160 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   }
 
   /**
-   * The server's scope rule, as `BranchScoped` and `StaffBranchGuard` apply
-   * it: a branch read must name a branch of the token's venue. Not the
-   * console's narrower view — a manager with a home branch is *not* confined
-   * to it here, because the server does not confine them either.
+   * The server's scope rule, as `BranchScoped` and `IStaffBranchGuard` apply
+   * it: the branch must belong to the token's venue, and since K4 a **manager
+   * whose stored home branch is another one** is refused too. The home branch
+   * is read from the stored staff row, as the guard reads it, so a reassignment
+   * takes effect at once. Owners, managers created with no branch and the
+   * platform admin are unaffected.
    */
   function requireBranchInVenue(branchId: string): void {
     if (role === 'platformAdmin') return;
+    const url = `${URL_TAG}/branches/${branchId}`;
     const venueId = currentUser().scope.venueId;
     if (venueId === null || venueOfBranch(branchId) !== venueId) {
-      throw new ForbiddenError({ url: `${URL_TAG}/branches/${branchId}` });
+      throw new ForbiddenError({ url });
     }
+    if (role === 'manager') {
+      const actor = actingStaff(venueId);
+      const row = staffFor(venueId).find((member) => member.id === actor.id);
+      const home = row ? row.branchId : (currentUser().scope.branchIds[0] ?? null);
+      if (home !== null && home !== branchId) throw new ForbiddenError({ url });
+    }
+  }
+
+  /** `ManagerOrAbove` on top of the branch rule: a waiter or kitchen account is refused. */
+  function requireManagerAtBranch(branchId: string, url: string): void {
+    if (role === 'waiter' || role === 'kitchen') throw new ForbiddenError({ url });
+    requireBranchInVenue(branchId);
+  }
+
+  // --- Readiness ----------------------------------------------------------------
+
+  /**
+   * `BranchReadinessQuery`, over the mock's own state. The policy line counts
+   * only once somebody has **saved** the policy: every branch has a default one,
+   * and a checklist that ticked on "a policy loads" ticked for nobody.
+   */
+  function readinessFor(branchId: string): BranchReadiness {
+    const active = floorPlanFor(branchId).tables.filter((table) => table.isActive);
+    const categories = menuFor(branchId);
+    const items = categories.flatMap((category) => category.items);
+    const incomplete = items.filter(isIncompleteItem);
+    const openDays = hoursFor(branchId).filter((day) => day.blocks.length > 0).length;
+    const venueId = venueOfBranch(branchId);
+    const staffCount =
+      venueId === null
+        ? 0
+        : staffFor(venueId).filter(
+            (member) =>
+              member.isActive && (member.branchId === null || member.branchId === branchId),
+          ).length;
+    const deviceCount = devicesFor(branchId).filter((device) => !device.isRevoked).length;
+
+    const floorPlanDrawn = active.length > 0;
+    const tablesLabelled = floorPlanDrawn && active.every((table) => table.label.trim() !== '');
+    const menuCategoriesPresent = categories.length > 0;
+    const menuComplete = menuCategoriesPresent && items.length > 0 && incomplete.length === 0;
+    const openingHoursSet = openDays > 0;
+    const reservationPolicyReviewed = policyReviewed.has(branchId);
+
+    const blockers: string[] = [];
+    if (!floorPlanDrawn) blockers.push('The floor plan has no tables on it yet.');
+    else if (!tablesLabelled) blockers.push('Some tables have no label printed on them.');
+    if (!menuCategoriesPresent) blockers.push('The menu has no categories yet.');
+    else if (items.length === 0) blockers.push('The menu has categories but no items.');
+    else if (incomplete.length > 0) {
+      blockers.push(`${incomplete.length} menu item(s) are missing details diners need.`);
+    }
+    if (!openingHoursSet) blockers.push('Opening hours have not been set.');
+    if (!reservationPolicyReviewed) {
+      blockers.push('Nobody has reviewed the reservation policy; it is still on the defaults.');
+    }
+    if (staffCount === 0) blockers.push('No staff work at this branch yet.');
+    if (deviceCount === 0) blockers.push('No tablet has been enrolled at this branch.');
+
+    return {
+      branchId,
+      isReadyForDiners: blockers.length === 0,
+      floorPlanDrawn,
+      tableCount: active.length,
+      tablesLabelled,
+      menuCategoriesPresent,
+      menuCategoryCount: categories.length,
+      menuItemCount: items.length,
+      menuComplete,
+      incompleteMenuItemCount: incomplete.length,
+      incompleteMenuItemIds: incomplete.map((item) => item.id),
+      openingHoursSet,
+      openingHoursDayCount: openDays,
+      reservationPolicyReviewed,
+      staffEnrolled: staffCount > 0,
+      staffCount,
+      deviceEnrolled: deviceCount > 0,
+      deviceCount,
+      acceptsWebBookings: profileFor(branchId).acceptsWebBookings,
+      blockers,
+    };
+  }
+
+  // --- Review moderation ------------------------------------------------------------
+
+  function toModerated(review: StoredReview): ModeratedReview {
+    return {
+      reviewId: review.reviewId,
+      branchId: review.branchId,
+      rating: review.rating,
+      text: review.text,
+      authorName: review.authorName,
+      dinerUserId: review.dinerUserId,
+      createdAtUtc: review.createdAtUtc,
+      updatedAtUtc: review.updatedAtUtc,
+      hidden: review.hidden,
+      hiddenReason: review.hiddenReason,
+      hiddenAtUtc: review.hiddenAtUtc,
+    };
+  }
+
+  function toVenueModerated(review: StoredReview): VenueModeratedReview {
+    const reports = reviewStore.reports(review.reviewId);
+    return {
+      ...toModerated(review),
+      reportCount: reports.length,
+      lastReportedAtUtc: reports.reduce<string | null>(
+        (latest, report) =>
+          latest === null || report.createdAtUtc > latest ? report.createdAtUtc : latest,
+        null,
+      ),
+    };
+  }
+
+  function pageOf<T>(rows: readonly T[], page: number, pageSize: number): Page<T> {
+    return {
+      items: rows.slice((page - 1) * pageSize, page * pageSize),
+      total: rows.length,
+      page,
+      pageSize,
+    };
+  }
+
+  /** The body's rules for both visibility routes: a reason to hide, at most 500 characters. */
+  function visibilityReason(url: string, command: SetReviewVisibilityCommand): string | null {
+    const reason = command.reason?.trim() ?? '';
+    const fields: MockViolation[] = [];
+    if (command.hidden && reason === '') {
+      fields.push({ field: 'reason', message: 'Say why the review is hidden.', bound: 'required' });
+    }
+    if (reason.length > MAX_MODERATION_TEXT) {
+      fields.push({
+        field: 'reason',
+        message: `At most ${MAX_MODERATION_TEXT} characters.`,
+        bound: 'max',
+        max: MAX_MODERATION_TEXT,
+      });
+    }
+    if (fields.length > 0) throw validationFailed(url, fields);
+    return reason === '' ? null : reason;
   }
 
   /** `VenueScoped`: the venue in the route must be the token's. */
@@ -1129,7 +1354,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       };
     });
 
-    return { branchId, floorWidth: 1000, floorHeight: 800, areas, tables };
+    return { branchId, floorWidth: 1000, floorHeight: 800, areas, tables, version: '1' };
   }
 
   function floorPlanFor(branchId: string): EditorFloorPlan {
@@ -1306,7 +1531,25 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async replaceFloorPlan({ branchId, command }): Promise<FloorPlanSaveResult> {
       await wait();
+      const url = `${URL_TAG}/branches/${branchId}/floor-plan`;
+      requireBranchInVenue(branchId);
       const existing = floorPlanFor(branchId);
+
+      // K6: the version this edit started from is required, and must still be
+      // the plan's. Checked before the plan itself: a stale editor's plan is
+      // not worth validating, it is worth reloading.
+      if (typeof command.expectedVersion !== 'string' || command.expectedVersion.trim() === '') {
+        throw validationFailed(url, [
+          {
+            field: 'expectedVersion',
+            message: 'Send the version of the plan this edit started from.',
+            bound: 'required',
+          },
+        ]);
+      }
+      if (command.expectedVersion !== existing.version) {
+        throw new FloorPlanChangedError({ url, currentVersion: existing.version });
+      }
 
       // The same two refusals the server makes, and no more. Overlapping
       // tables are deliberately not one of them: a client stricter than the
@@ -1335,34 +1578,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             all.findIndex((l) => l.toLocaleLowerCase() === key) === index
           );
         });
-
-      // Photo positions: both or neither, each 0–1. The server's 422.
-      const badPhoto = command.tables
-        .filter((t) => {
-          const x = t.photoX ?? null;
-          const y = t.photoY ?? null;
-          if (x === null && y === null) return false;
-          return x === null || y === null || x < 0 || x > 1 || y < 0 || y > 1;
-        })
-        .map((t) => t.label);
-      if (badPhoto.length > 0) {
-        throw new ValidationError({
-          url: URL_TAG,
-          status: 422,
-          problem: {
-            type: 'about:blank',
-            title: 'Validation failed',
-            status: 422,
-            detail: `Photo positions must be 0 to 1, both or neither: ${badPhoto.join(', ')}.`,
-            code: 'validation-failed',
-            traceId: 'mock',
-            context: {
-              field: 'photoX',
-              fields: [{ field: 'photoX', message: 'Photo position out of range.' }],
-            },
-          },
-        });
-      }
 
       if (outside.length > 0 || duplicates.length > 0) {
         const errors: string[] = [];
@@ -1414,9 +1629,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             isActive: true,
             // Survives the edit, exactly as on the server.
             qrToken: previous?.qrToken ?? `qr-${branchId}-${table.label}`,
-            // Omitted takes it off the photo, as on the server.
-            photoX: table.photoX ?? null,
-            photoY: table.photoY ?? null,
+            // Pins are not part of a plan save (K6): a kept table keeps its
+            // pin, a new one has none, and anything sent for them is ignored.
+            photoX: previous?.photoX ?? null,
+            photoY: previous?.photoY ?? null,
           };
         }),
         ...deactivated.map((table) => ({ ...table, isActive: false })),
@@ -1428,6 +1644,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         floorHeight: command.floorHeight,
         areas,
         tables,
+        // Bumped here and only here: pin saves and cover changes leave it.
+        version: String((Number.parseInt(existing.version, 10) || 0) + 1),
       };
       floorPlans.set(branchId, saved);
 
@@ -1437,6 +1655,89 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         deactivatedTables: deactivated.map((t) => t.label),
         removedTables: removed.map((t) => t.label),
       };
+    },
+
+    /**
+     * K7, refused in this order with nothing written for any refusal: the role
+     * and branch (403), the body (422), the cover (409), the tables (404).
+     */
+    async saveTablePhotoPositions(branchId, command): Promise<TablePhotoPositions> {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/table-photo-positions`;
+      requireManagerAtBranch(branchId, url);
+
+      const fields: MockViolation[] = [];
+      command.positions.forEach((position, index) => {
+        const x = position.photoX ?? null;
+        const y = position.photoY ?? null;
+        if ((x === null) !== (y === null)) {
+          fields.push({
+            field: `positions[${index}].${x === null ? 'photoX' : 'photoY'}`,
+            message: 'Send photoX and photoY together, or neither.',
+            bound: 'required',
+          });
+        }
+        for (const [name, value] of [
+          ['photoX', x],
+          ['photoY', y],
+        ] as const) {
+          if (value !== null && (!Number.isFinite(value) || value < 0 || value > 1)) {
+            fields.push({
+              field: `positions[${index}].${name}`,
+              message: 'Photo coordinates are fractions from 0 to 1.',
+              bound: 'range',
+              min: 0,
+              max: 1,
+            });
+          }
+        }
+      });
+      const ids = command.positions.map((position) => position.tableId);
+      if (new Set(ids).size !== ids.length) {
+        fields.push({
+          field: 'positions',
+          message: 'A table appears more than once.',
+          bound: 'conflict',
+        });
+      }
+      if (fields.length > 0) throw validationFailed(url, fields);
+
+      const cover = profileFor(branchId).coverPhoto?.photoId ?? null;
+      if (cover === null || cover !== command.coverPhotoId) {
+        throw new CoverChangedError({ url, currentCoverPhotoId: cover });
+      }
+
+      const plan = floorPlanFor(branchId);
+      const active = new Set(
+        plan.tables.filter((table) => table.isActive).map((table) => table.id),
+      );
+      if (ids.some((id) => !active.has(id))) throw new NotFoundError({ url });
+
+      const changes = new Map(command.positions.map((position) => [position.tableId, position]));
+      const tables = plan.tables.map((table) => {
+        const change = changes.get(table.id);
+        return change ? { ...table, photoX: change.photoX, photoY: change.photoY } : table;
+      });
+      // The plan's version is left alone: a pin is not a plan edit.
+      floorPlans.set(branchId, { ...plan, tables });
+
+      return {
+        coverPhotoId: cover,
+        tables: tables
+          .filter((table) => table.isActive)
+          .map((table) => ({
+            tableId: table.id,
+            label: table.label,
+            photoX: table.photoX ?? null,
+            photoY: table.photoY ?? null,
+          })),
+      };
+    },
+
+    async getBranchReadiness(branchId): Promise<BranchReadiness> {
+      await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/readiness`);
+      return readinessFor(branchId);
     },
 
     async createFloorArea({ branchId, name, displayOrder }) {
@@ -1531,15 +1832,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         if (tier === 'paid' && branch.subscriptionTier === 'free') {
           const incomplete = menuFor(branchId)
             .flatMap((category) => category.items)
-            .filter(
-              (item) =>
-                item.photoId === null ||
-                !item.description ||
-                !item.ingredients ||
-                !item.allergens ||
-                !item.portionSize ||
-                item.prepMinutes <= 0,
-            ).length;
+            .filter(isIncompleteItem).length;
           if (incomplete > 0) {
             throw new BranchNotReadyError({
               url: URL_TAG,
@@ -1663,7 +1956,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     // --- Photos ------------------------------------------------------------------
 
-    async uploadPhoto({ file, fileName, onProgress }): Promise<PhotoUpload> {
+    async uploadPhoto({ branchId, file, fileName, onProgress }): Promise<PhotoUpload> {
+      requireBranchInVenue(branchId);
       // Progress in steps, because a bar that jumps from nothing to done is a
       // bar nobody believes, and this is the one screen where the wait is real.
       for (const fraction of [0.25, 0.6, 0.9]) {
@@ -1694,7 +1988,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // Deduplicated by size and name, which is the closest a mock gets to the
       // server's content hash. Reported rather than hidden: an upload that
       // wrote nothing looks like a failure.
-      const key = `${fileName}:${file.size}`;
+      // Per branch, as the server's content hash is looked up per branch.
+      const key = `${branchId}:${fileName}:${file.size}`;
       const existing = uploadedPhotos.get(key);
       if (existing) {
         onProgress?.(1);
@@ -1712,6 +2007,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       };
       uploadedPhotos.set(key, stored);
       photosById.set(photoId, stored);
+      photoBranch.set(photoId, branchId);
       onProgress?.(1);
       return { photo: stored, wasDeduplicated: false, bytesStored: file.size };
     },
@@ -1764,7 +2060,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // so a foreign photo refuses the whole form and leaves the old phone and
       // switch as they were. A photo this mock never stored is "not found at
       // this branch", the same answer a menu item gets.
-      const cover = profile.coverPhotoId === null ? null : photosById.get(profile.coverPhotoId);
+      const cover =
+        profile.coverPhotoId === null
+          ? null
+          : photoBranch.get(profile.coverPhotoId) === branchId
+            ? photosById.get(profile.coverPhotoId)
+            : undefined;
       if (cover === undefined) {
         throw new NotFoundError({ url: `${URL_TAG}/branches/${branchId}/public-profile` });
       }
@@ -1815,100 +2116,180 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       return listingFor(branchId);
     },
 
+    /**
+     * The server's order, and nothing is written for any refusal: the pin and
+     * its address as a pair (422), the gallery's size and repeats (422), a
+     * photo that is not this branch's (404), every other field at once (422),
+     * a move by somebody who may not move the branch (403, K5), then a
+     * coordinate out of range (`Branch.Relocate`'s 400).
+     */
     async updateBranchListing({ branchId, listing }): Promise<VenueListing> {
       await wait();
       requireBranchInVenue(branchId);
       const url = `${URL_TAG}/branches/${branchId}/listing`;
       const existing = listingFor(branchId);
 
-      // The server's order: an unknown gallery photo is a 404 before anything
-      // else, and nothing is written.
-      const gallery =
-        listing.galleryPhotoIds === null
-          ? existing.gallery
-          : listing.galleryPhotoIds.map((id) => photosById.get(id));
-      if (gallery.some((item) => item === undefined)) throw new NotFoundError({ url });
+      const clean = (value: string | null | undefined) =>
+        value === null || value === undefined || value.trim() === '' ? null : value.trim();
 
-      const clean = (value: string | null) =>
-        value === null || value.trim() === '' ? null : value.trim();
+      // 1. The pin is a pair, and its street address travels with it.
+      const hasLatitude = listing.latitude !== null;
+      const hasLongitude = listing.longitude !== null;
+      if (hasLatitude !== hasLongitude) {
+        throw validationFailed(url, [
+          {
+            field: hasLatitude ? 'longitude' : 'latitude',
+            message: 'Send latitude and longitude together to move the pin, or neither.',
+            bound: 'required',
+          },
+        ]);
+      }
+      const hasPin = hasLatitude && hasLongitude;
+      const address = clean(listing.address);
+      if (hasPin && address === null) {
+        throw validationFailed(url, [
+          { field: 'address', message: 'Send the street address with the pin.', bound: 'required' },
+        ]);
+      }
+      if (!hasPin && address !== null) {
+        throw validationFailed(url, [
+          {
+            field: 'latitude',
+            message: 'Send the pin with the street address.',
+            bound: 'required',
+          },
+          {
+            field: 'longitude',
+            message: 'Send the pin with the street address.',
+            bound: 'required',
+          },
+        ]);
+      }
+      if (address !== null && address.length > ADDRESS_MAX) {
+        throw validationFailed(url, [
+          {
+            field: 'address',
+            message: `At most ${ADDRESS_MAX} characters.`,
+            bound: 'max',
+            max: ADDRESS_MAX,
+          },
+        ]);
+      }
+
+      // 2. The gallery: how many, then repeats. 3. Then whose.
+      const ids = listing.galleryPhotoIds;
+      if (ids !== null) {
+        if (ids.length > MAX_GALLERY_PHOTOS) {
+          throw validationFailed(url, [
+            {
+              field: 'galleryPhotoIds',
+              message: `A gallery holds at most ${MAX_GALLERY_PHOTOS} photos.`,
+              bound: 'max',
+              max: MAX_GALLERY_PHOTOS,
+            },
+          ]);
+        }
+        if (new Set(ids).size !== ids.length) {
+          throw validationFailed(url, [
+            {
+              field: 'galleryPhotoIds',
+              message: 'A photo appears in the gallery more than once.',
+              bound: 'conflict',
+            },
+          ]);
+        }
+        if (ids.some((id) => photoBranch.get(id) !== branchId)) throw new NotFoundError({ url });
+      }
+      const gallery = ids === null ? existing.gallery : ids.map((id) => photosById.get(id)!);
+
+      // 4. Every other field at once, as `BranchListingRules.Normalise` collects them.
       const cuisine = clean(listing.cuisine);
       const about = clean(listing.about);
       const website = clean(listing.websiteUrl);
-
-      // Every bad field at once, as the 422 `validation-failed` names them.
-      const fields: { field: string; message: string }[] = [];
-      if (cuisine !== null && cuisine.length > 120) {
-        fields.push({ field: 'cuisine', message: 'Cuisine must be 120 characters or fewer.' });
+      const fields: MockViolation[] = [];
+      if (cuisine !== null && cuisine.length > CUISINE_MAX) {
+        fields.push({
+          field: 'cuisine',
+          message: `At most ${CUISINE_MAX} characters.`,
+          bound: 'max',
+          max: CUISINE_MAX,
+        });
       }
-      if (about !== null && about.length > 2000) {
-        fields.push({ field: 'about', message: 'About must be 2000 characters or fewer.' });
+      if (about !== null && about.length > ABOUT_MAX) {
+        fields.push({
+          field: 'about',
+          message: `At most ${ABOUT_MAX} characters.`,
+          bound: 'max',
+          max: ABOUT_MAX,
+        });
       }
       if (
         listing.priceLevel !== null &&
         (!Number.isInteger(listing.priceLevel) || listing.priceLevel < 1 || listing.priceLevel > 4)
       ) {
-        fields.push({ field: 'priceLevel', message: 'Price level must be between 1 and 4.' });
+        fields.push({
+          field: 'priceLevel',
+          message: 'The price level is 1 to 4.',
+          bound: 'range',
+          min: 1,
+          max: 4,
+        });
       }
-      if (website !== null && !/^https?:\/\/[^\s/]+\.[^\s]+$/iu.test(website)) {
+      if (website !== null && website.length > URL_MAX) {
         fields.push({
           field: 'websiteUrl',
-          message: 'Website must be an absolute http or https address.',
+          message: `At most ${URL_MAX} characters.`,
+          bound: 'max',
+          max: URL_MAX,
         });
       }
-      if (listing.amenities.some((key) => !(AMENITY_KEYS as readonly string[]).includes(key))) {
-        fields.push({ field: 'amenities', message: 'Unknown amenity.' });
-      }
-      if (gallery.length > MAX_GALLERY_PHOTOS) {
+      if (website !== null && !isHttpUrl(website)) {
         fields.push({
-          field: 'galleryPhotoIds',
-          message: `At most ${MAX_GALLERY_PHOTOS} gallery photos.`,
+          field: 'websiteUrl',
+          message: 'The website must be an http or https address.',
         });
       }
-      const oneCoordinate = (listing.latitude === null) !== (listing.longitude === null);
-      if (oneCoordinate) {
-        fields.push({
-          field: 'latitude',
-          message: 'Latitude and longitude must be sent together.',
-        });
+      // Matched ignoring case and stored as the canonical key, once each.
+      const amenities: string[] = [];
+      for (const raw of listing.amenities) {
+        const known = AMENITY_KEYS.find((key) => key.toLowerCase() === raw.trim().toLowerCase());
+        if (!known) {
+          fields.push({
+            field: 'amenities',
+            message: `'${raw}' is not an amenity. Known: ${AMENITY_KEYS.join(', ')}.`,
+          });
+        } else if (!amenities.includes(known)) {
+          amenities.push(known);
+        }
       }
-      if (fields.length > 0) {
-        throw new ValidationError({
-          url,
-          status: 422,
-          problem: {
-            type: 'about:blank',
-            title: 'Validation failed',
-            status: 422,
-            detail: fields.map((f) => f.message).join(' '),
-            code: 'validation-failed',
-            traceId: 'mock',
-            context: { field: fields[0]!.field, fields },
-          },
-        });
+      if (fields.length > 0) throw validationFailed(url, fields);
+
+      // 5. Moving the branch — the pin or the address — is an owner's or the
+      //    platform's (K5). Repeating what is stored is not a move.
+      const moves =
+        hasPin &&
+        (listing.latitude !== existing.latitude ||
+          listing.longitude !== existing.longitude ||
+          address !== existing.address);
+      if (moves && role !== 'platformAdmin') {
+        const venueId = venueOfBranch(branchId);
+        const actor = role === 'owner' && venueId !== null ? actingStaff(venueId) : null;
+        const row =
+          actor && venueId !== null
+            ? staffFor(venueId).find((member) => member.id === actor.id)
+            : undefined;
+        if (!row || !row.isActive || row.role !== 'owner') {
+          throw new RelocationNotAllowedError({ url });
+        }
       }
-      // The server's order: a coordinate out of range is not one of the 422's
-      // collected fields but `Branch.Relocate`'s guard — a 400 `invalid-request`
-      // naming the one parameter in `context.field`, with no `fields` list.
-      const outOfRange =
-        listing.latitude !== null && Math.abs(listing.latitude) > 90
-          ? { field: 'latitude', value: listing.latitude }
-          : listing.longitude !== null && Math.abs(listing.longitude) > 180
-            ? { field: 'longitude', value: listing.longitude }
-            : null;
-      if (outOfRange) {
-        throw new ValidationError({
-          url,
-          status: 400,
-          problem: {
-            type: 'about:blank',
-            title: 'Invalid request',
-            status: 400,
-            detail: `${outOfRange.field} is out of range.`,
-            code: 'invalid-request',
-            traceId: 'mock',
-            context: outOfRange,
-          },
-        });
+
+      // 6. A coordinate out of range is not one of the collected fields but
+      //    `Branch.Relocate`'s guard: a 400 `invalid-request` naming one parameter.
+      if (listing.latitude !== null && Math.abs(listing.latitude) > 90) {
+        throw invalidRequest(url, 'latitude', 'latitude is out of range.');
+      }
+      if (listing.longitude !== null && Math.abs(listing.longitude) > 180) {
+        throw invalidRequest(url, 'longitude', 'longitude is out of range.');
       }
 
       const saved: VenueListing = {
@@ -1916,11 +2297,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         about,
         priceLevel: listing.priceLevel,
         websiteUrl: website,
-        amenities: [...new Set(listing.amenities)],
-        address: existing.address,
+        amenities,
+        address: hasPin && address !== null ? address : existing.address,
         latitude: listing.latitude ?? existing.latitude,
         longitude: listing.longitude ?? existing.longitude,
-        gallery: gallery as Photo[],
+        gallery,
       };
       listings.set(branchId, saved);
       return saved;
@@ -1936,9 +2317,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async listPendingReservations(branchId) {
       await wait();
-      // A branch *read*, so the read guard: a manager with a home branch may
-      // look at a sibling branch's list, as they may its floor plan. It is the
-      // decision the server confines to their own branch, not the looking.
+      // `BranchScoped`: since K4 a manager whose home branch is another one is
+      // refused here, as on every branch route.
       requireBranchInVenue(branchId);
       seedBookings();
       return [...bookings.values()]
@@ -1958,6 +2338,90 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async rejectReservation(command) {
       await wait();
       return decideBooking(command, false);
+    },
+
+    // --- Review moderation ------------------------------------------------------
+
+    async listPlatformBranchReviews(branchId, page = 1) {
+      await wait();
+      const url = `${URL_TAG}/platform/branches/${branchId}/reviews`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      if (!Number.isInteger(page) || page < 1) {
+        throw invalidRequest(url, 'page', 'The page is 1 or more.');
+      }
+      if (venueOfBranch(branchId) === null) throw new NotFoundError({ url });
+      return pageOf(reviewStore.all(branchId).map(toModerated), page, REVIEW_PAGE_SIZE);
+    },
+
+    /** The platform's word is final: it can hide anything, and restore what the venue hid. */
+    async setReviewVisibility(reviewId, command) {
+      await wait();
+      const url = `${URL_TAG}/platform/reviews/${reviewId}/visibility`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      const reason = visibilityReason(url, command);
+      if (!reviewStore.find(reviewId)) throw new NotFoundError({ url });
+      return toModerated(
+        reviewStore.setVisibility({
+          reviewId,
+          hidden: command.hidden,
+          reason,
+          by: 'platform',
+          atUtc: now().toISOString(),
+        }),
+      );
+    },
+
+    async listVenueBranchReviews(branchId, query = {}) {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/reviews`;
+      requireManagerAtBranch(branchId, url);
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? REVIEW_PAGE_SIZE;
+      const filter = query.filter ?? 'all';
+      if (!Number.isInteger(page) || page < 1) {
+        throw invalidRequest(url, 'page', 'The page is 1 or more.');
+      }
+      if (!Number.isInteger(pageSize) || pageSize < 1) {
+        throw invalidRequest(url, 'pageSize', 'The page size is 1 or more.');
+      }
+      if (!REVIEW_MODERATION_FILTERS.includes(filter)) {
+        throw invalidRequest(url, 'filter', 'The filter is all, reported or hidden.');
+      }
+      const rows = reviewStore
+        .all(branchId)
+        .map(toVenueModerated)
+        .filter((review) =>
+          filter === 'reported'
+            ? review.reportCount > 0
+            : filter === 'hidden'
+              ? review.hidden
+              : true,
+        );
+      return pageOf(rows, page, pageSize);
+    },
+
+    async setVenueReviewVisibility(branchId, reviewId, command) {
+      await wait();
+      const url = `${URL_TAG}/branches/${branchId}/reviews/${reviewId}/visibility`;
+      requireManagerAtBranch(branchId, url);
+      const reason = visibilityReason(url, command);
+      const review = reviewStore.find(reviewId);
+      if (!review || review.branchId !== branchId) throw new NotFoundError({ url });
+      if (review.hiddenBy === 'platform') {
+        // The platform's takedown outranks the venue's: restoring it is
+        // refused, and hiding it again changes nothing.
+        if (!command.hidden) throw new ReviewHiddenByPlatformError({ url, reviewId });
+        return toVenueModerated(review);
+      }
+      return toVenueModerated(
+        reviewStore.setVisibility({
+          reviewId,
+          hidden: command.hidden,
+          reason,
+          by: 'venue',
+          atUtc: now().toISOString(),
+        }),
+      );
     },
 
     // --- Staff ----------------------------------------------------------------
@@ -2338,6 +2802,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
       const previous = policyFor(branchId);
       policies.set(branchId, policy);
+      // Saving the form is what marks the policy reviewed, defaults or not.
+      policyReviewed.add(branchId);
 
       // Bookings that would not have been allowed under the new rules. They are
       // **not** changed — a settings edit never rewrites a booking — and the

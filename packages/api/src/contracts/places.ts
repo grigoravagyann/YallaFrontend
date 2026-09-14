@@ -60,8 +60,11 @@ export interface BranchReview {
   /** 1–5. */
   readonly rating: number;
   readonly text: string | null;
+  /** First written. The lists are ordered by this, newest first (K8). */
   readonly createdAtUtc: string;
   readonly updatedAtUtc: string;
+  /** Revised since it was first written. An identical save does not count. */
+  readonly edited: boolean;
 }
 
 export interface BranchTableMarker {
@@ -96,7 +99,13 @@ export interface BranchDetail {
   readonly gallery: readonly Photo[];
   readonly tableCount: number;
   readonly acceptsWebBookings: boolean;
-  /** Newest three. */
+  /**
+   * Whether a booking from the app is taken (K9): the online-bookings switch is
+   * on **and** somebody has reviewed the reservation policy. When false, the
+   * place page explains instead of offering Book.
+   */
+  readonly acceptsAppBookings: boolean;
+  /** Newest three, hidden reviews left out. */
   readonly recentReviews: readonly BranchReview[];
   readonly tableMarkers: readonly BranchTableMarker[];
   readonly asOfUtc: string;
@@ -119,6 +128,13 @@ export interface MyBranchReview {
   readonly text: string | null;
   readonly createdAtUtc: string;
   readonly updatedAtUtc: string;
+  /**
+   * The name the review is shown under, by the server's rule — "Posted as
+   * Anahit S." `null` only from a server that predates K8.
+   */
+  readonly publicAuthorName: string | null;
+  /** Taken down by the venue or the platform: the diner still sees it, nobody else does. */
+  readonly hidden: boolean;
 }
 
 export interface SubmitBranchReviewCommand {

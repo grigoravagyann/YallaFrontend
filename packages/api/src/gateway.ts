@@ -20,6 +20,14 @@ import type {
   SetDinerPasswordCommand,
   UpdateDinerProfileCommand,
 } from './contracts/dinerAccount';
+import type { DeleteDinerAccountCommand } from './contracts/dinerAccount';
+import type { FavoriteBranch } from './contracts/favorites';
+import type {
+  DinerNotificationPage,
+  MarkNotificationsReadCommand,
+  NotificationPageQuery,
+} from './contracts/notifications';
+import type { ReportReviewCommand } from './contracts/reviews';
 import type { Photo } from './contracts/menuAdmin';
 import type {
   BranchDetail,
@@ -161,7 +169,8 @@ export interface YallaGateway {
   searchBranches(query: BranchSearchQuery): Promise<readonly BranchListing[]>;
 
   /**
-   * One branch with its hours, gallery, newest reviews and photo markers.
+   * One branch with its hours, gallery, newest reviews and photo markers, and
+   * `acceptsAppBookings` — whether the Book button may be offered (K9).
    *
    * @returns `null` for a branch that is unknown, inactive or suspended.
    */
@@ -170,7 +179,11 @@ export interface YallaGateway {
     position?: BranchSearchQuery['position'],
   ): Promise<BranchDetail | null>;
 
-  /** A page of reviews, newest revision first. `null` for an unknown branch. */
+  /**
+   * A page of 20 reviews, newest **first written** first, each marked `edited`
+   * when revised. Hidden reviews are left out of the page and the aggregate.
+   * `null` for an unknown branch.
+   */
   getBranchReviews(input: { branchId: string; page?: number }): Promise<BranchReviewPage | null>;
 
   /** Live table markers on the cover photo. `null` for an unknown branch. */
@@ -186,14 +199,79 @@ export interface YallaGateway {
 
   /**
    * Write or revise the diner's review — one per diner per branch, so a second
-   * save replaces the first.
+   * save replaces the first. Saving the same stars and text again changes
+   * nothing, `updatedAtUtc` included.
    *
+   * @throws {ReviewNeedsVisitError} a first review with no visit in 180 days
+   * (K8). Revising an existing review is never refused for this.
    * @throws {PhoneNotVerifiedError} the account's number is not confirmed.
    * @throws {ValidationError} rating outside 1–5 or text over 1000 characters.
    * @throws {NotFoundError} the branch is not published.
+   * @throws {TooManyRequestsError} more than ten writes a minute.
    * @throws {UnauthorizedError} nobody is signed in.
    */
   saveMyBranchReview(command: SubmitBranchReviewCommand): Promise<MyBranchReview>;
+
+  /**
+   * Report somebody else's review, `POST /api/diner/reviews/{reviewId}/report`.
+   * One report per diner per review: a second is accepted and changes nothing.
+   *
+   * @throws {CannotReportOwnReviewError} it is the diner's own review.
+   * @throws {NotFoundError} no such review, or it is already hidden.
+   * @throws {ValidationError} an unknown reason, or a note over 500 characters.
+   * @throws {UnauthorizedError} nobody is signed in.
+   */
+  reportReview(command: ReportReviewCommand): Promise<void>;
+
+  // --- Favourites (K11) ---------------------------------------------------------
+  /**
+   * The signed-in diner's saved places, newest first. A branch that has since
+   * gone inactive is left out. With a `position`, each listing carries
+   * `distanceKm`. Unverified accounts may keep favourites.
+   *
+   * @throws {UnauthorizedError} nobody is signed in.
+   */
+  listFavorites(position?: BranchSearchQuery['position']): Promise<readonly FavoriteBranch[]>;
+
+  /**
+   * Save a place. Idempotent: saving it again is a success.
+   *
+   * @throws {NotFoundError} the branch is unknown or inactive.
+   * @throws {TooManyFavoritesError} the account already keeps the maximum.
+   */
+  addFavorite(branchId: string): Promise<void>;
+
+  /** Unsave a place. Idempotent: a place that was not saved is a success. */
+  removeFavorite(branchId: string): Promise<void>;
+
+  /**
+   * Upload the hearts made while signed out, once, on sign-in. Adds what is
+   * missing and never removes; answers the whole list as {@link listFavorites}.
+   *
+   * @throws {ValidationError} more than 500 ids in one call.
+   * @throws {TooManyFavoritesError} the merged list would exceed the maximum.
+   */
+  mergeFavorites(
+    branchIds: readonly string[],
+    position?: BranchSearchQuery['position'],
+  ): Promise<readonly FavoriteBranch[]>;
+
+  // --- The notifications feed (K12) ---------------------------------------------
+  /**
+   * One page of the feed, newest first, with the unread count across all of it.
+   *
+   * @throws {UnauthorizedError} nobody is signed in.
+   */
+  listNotifications(query?: NotificationPageQuery): Promise<DinerNotificationPage>;
+
+  /** The unread count for a badge — the feed's `unreadCount`, read with the smallest page. */
+  getUnreadNotificationCount(): Promise<number>;
+
+  /**
+   * Mark read: everything up to one notification, or exactly the ids given.
+   * Ids that are not the diner's are ignored, never revealed.
+   */
+  markNotificationsRead(command: MarkNotificationsReadCommand): Promise<void>;
 
   // --- The diner's orders -----------------------------------------------------
   /**
@@ -304,6 +382,23 @@ export interface YallaGateway {
   /** Take the avatar off. Idempotent: an account with no photo answers success. */
   removeDinerPhoto(): Promise<void>;
 
+  /**
+   * Delete the account, `DELETE /api/diner/me` (K2).
+   *
+   * An account with a password confirms with it; one without confirms with a
+   * code from {@link requestPhoneCode} for its own number. On success the
+   * server has already ended every session: the next diner call rejects with
+   * `SessionRevokedError`, so the caller signs out locally straight after.
+   * Reviews, the photo, favourites and notifications go; bookings and orders
+   * stay with the venue, no longer linked to anybody.
+   *
+   * @throws {ValidationError} the password (or the code) is missing; `field` names it.
+   * @throws {InvalidCredentialsError} the password or the code is wrong.
+   * @throws {TooManyAttemptsError} too many wrong tries; wait.
+   * @throws {PhoneNotVerifiedError} the number was never confirmed.
+   */
+  deleteDinerAccount(command: DeleteDinerAccountCommand): Promise<void>;
+
   // --- Booking ------------------------------------------------------------
   /**
    * Create a booking. Idempotent on `commandId`: replaying the same command
@@ -317,6 +412,9 @@ export interface YallaGateway {
    * @throws {LeadTimeExceededError} the slot became too soon while deciding.
    * @throws {BookingRejectedError} a rule refused it; carries the reason.
    * @throws {BookingBusyError} the table was locked; tap again, same command.
+   * @throws {BookingsNotAcceptedError} an app booking at a branch whose
+   * `acceptsAppBookings` is false (K9).
+   * @throws {ValidationError} a `note` over 500 characters; `field` is `note`.
    */
   createBooking(command: CreateBookingCommand): Promise<Booking>;
 
@@ -431,6 +529,16 @@ export interface YallaGateway {
    * id here, and each call to it issues a new token.
    */
   createTabInvite(input: { tabId: string; commandId: string }): Promise<TabInvite>;
+
+  /**
+   * Put a name on this phone's place at the tab, so the host sees "Tigran"
+   * rather than "Guest 3" — `POST /api/tabs/{tabId}/display-name`. Optional
+   * for a walk-in, and answered with this participant as it now stands.
+   *
+   * @throws {ValidationError} a blank name, or one over the server's length.
+   * @throws {TabAccessEndedError} the tab closed, or this phone is no longer on it.
+   */
+  setTabDisplayName(tabId: string, displayName: string): Promise<TabParticipantChange>;
 
   // --- Host controls ------------------------------------------------------
   /**

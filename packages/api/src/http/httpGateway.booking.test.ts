@@ -134,6 +134,8 @@ describe('creating a booking', () => {
       guestPhone: '+37477123456',
       clientCommandId: 'cmd-1',
       channel: 1,
+      // No note written: sent as an explicit null (K9).
+      note: null,
     });
     expect(backend.requests[0]?.headers.get('authorization')).toBe('Bearer diner-token');
 
@@ -154,6 +156,7 @@ describe('creating a booking', () => {
       freeCancellationUntilUtc: '2026-09-20T13:30:00Z',
       cancelledAtUtc: null,
       cancelledAfterDeadline: false,
+      note: null,
       manageToken: 'mt-1',
     });
   });

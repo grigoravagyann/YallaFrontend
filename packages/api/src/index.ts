@@ -10,6 +10,8 @@ export {
   NetworkError,
   NotFoundError,
   ServerError,
+  SESSION_REVOKED_CODE,
+  SessionRevokedError,
   TimeoutError,
   TooManyRequestsError,
   UnauthorizedError,
@@ -18,8 +20,9 @@ export {
   isConcurrencyConflict,
   isOffline,
   isRetryable,
+  isSessionRevoked,
 } from './errors';
-export type { FailureKind } from './errors';
+export type { FailureKind, FieldViolation } from './errors';
 
 export { parseProblem } from './problem';
 export type { ProblemDetails } from './problem';
@@ -106,7 +109,63 @@ export type {
   SubmitBranchReviewCommand,
 } from './contracts/places';
 export { haversineKm } from './mocks/mockGateway';
+export type { MockVisit } from './mocks/mockGateway';
 export { clampBranchSearch, MAX_BRANCH_SEARCH_LENGTH } from './contracts/places';
+
+// --- Hardening contract K0 and the 2026-09-14 addendum ------------------------
+export { MAX_BOOKING_NOTE } from './contracts/booking';
+export { MAX_FAVORITES } from './contracts/favorites';
+export type { FavoriteBranch } from './contracts/favorites';
+export {
+  DINER_NOTIFICATION_KINDS,
+  NOTIFICATION_PAGE_SIZE,
+  isKnownNotificationKind,
+} from './contracts/notifications';
+export type {
+  DinerNotification,
+  DinerNotificationKind,
+  DinerNotificationPage,
+  KnownDinerNotificationKind,
+  MarkNotificationsReadCommand,
+  NotificationPageQuery,
+  NotificationParams,
+} from './contracts/notifications';
+export {
+  ANONYMOUS_AUTHOR,
+  MAX_MODERATION_TEXT,
+  REVIEW_MODERATION_FILTERS,
+  REVIEW_REPORT_REASONS,
+  REVIEW_VISIT_WINDOW_DAYS,
+  publicAuthorName,
+} from './contracts/reviews';
+export type {
+  ModeratedReview,
+  ReportReviewCommand,
+  ReviewModerationFilter,
+  ReviewReportReason,
+  SetReviewVisibilityCommand,
+  VenueModeratedReview,
+  VenueReviewQuery,
+} from './contracts/reviews';
+export type { BranchReadiness } from './contracts/readiness';
+export {
+  BookingsNotAcceptedError,
+  CannotReportOwnReviewError,
+  CoverChangedError,
+  FloorPlanChangedError,
+  RelocationNotAllowedError,
+  ReviewHiddenByPlatformError,
+  ReviewNeedsVisitError,
+  TooManyFavoritesError,
+} from './contracts/errors';
+export { createMockReviewStore } from './mocks/reviewStore';
+export type {
+  HiddenBy,
+  MockReviewStore,
+  MockReviewStoreOptions,
+  StoredReport,
+  StoredReview,
+} from './mocks/reviewStore';
 
 export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
 
@@ -186,6 +245,7 @@ export {
 
 // --- Diner accounts ---------------------------------------------------------
 export type {
+  DeleteDinerAccountCommand,
   DinerPhotoFile,
   DinerProfileView,
   DinerSignInResult,
@@ -428,7 +488,10 @@ export type {
   ReplaceFloorAreaInput,
   ReplaceFloorPlanCommand,
   ReplaceFloorTableInput,
+  SaveTablePhotoPositionsCommand,
   TableDeletionResult,
+  TablePhotoPosition,
+  TablePhotoPositions,
 } from './contracts/floorPlan';
 
 // --- The counter screen ------------------------------------------------------

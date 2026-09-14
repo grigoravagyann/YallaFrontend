@@ -19,6 +19,7 @@ import type {
   FloorPlanSaveResult,
   TableDeletionResult,
 } from '../contracts/floorPlan';
+import type * as Hand from '../generated/handwritten';
 import type {
   PolicyChangeResult,
   ReservationPolicy,
@@ -35,7 +36,11 @@ import type { ReportExport, ReportQuery } from '../contracts/reports';
 import {
   BranchNotReadyError,
   CategoryInUseError,
+  CoverChangedError,
+  FloorPlanChangedError,
+  RelocationNotAllowedError,
   ReportRangeTooLongError,
+  ReviewHiddenByPlatformError,
   StaffPermissionError,
   FloorPlanInvalidError,
   OverlappingHoursError,
@@ -48,8 +53,13 @@ import { parseProblem } from '../problem';
 import {
   consoleBookingFromWire,
   managedVenueFromWire,
+  moderatedReviewFromWire,
+  readinessFromWire,
+  reviewPageFromWire,
+  tablePhotoPositionsFromWire,
   venueDetailFromWire,
   venuePageFromWire,
+  venueReviewFromWire,
   type WireManagedVenue,
 } from './consoleMapping';
 import {
@@ -166,6 +176,9 @@ const BRANCHES = '/api/branches';
 const VENUES = '/api/venues';
 const RESERVATIONS = '/api/reservations';
 
+/** Both moderation lists page by 20, the public reviews route's size. */
+const REVIEW_PAGE_SIZE = 20;
+
 type WireReservation = components['schemas']['Yalla.Application.Reservations.ReservationView'];
 type WireDecision = components['schemas']['Yalla.Api.Endpoints.DecideReservationRequest'];
 
@@ -227,7 +240,7 @@ function shapeFromWire(value: number): 'rectangle' | 'round' {
   return value === 2 ? 'round' : 'rectangle';
 }
 
-function shapeToWire(shape: 'rectangle' | 'round'): number {
+function shapeToWire(shape: 'rectangle' | 'round'): 1 | 2 {
   return shape === 'round' ? 2 : 1;
 }
 
@@ -465,36 +478,43 @@ export function createConsoleHttpGateway(
     },
 
     async replaceFloorPlan({ branchId, command }): Promise<FloorPlanSaveResult> {
+      /*
+       * Built by name only because `expectedVersion` (K6) is not in the
+       * committed swagger yet, and the schema check reads inline keys against
+       * it. generated-by-hand: A1b puts this back inline after regenerating.
+       */
+      const body: Hand.ReplaceFloorPlanCommand = {
+        floorWidth: command.floorWidth,
+        floorHeight: command.floorHeight,
+        expectedVersion: command.expectedVersion,
+        areas: command.areas.map((area) => ({
+          id: area.id ?? null,
+          name: area.name,
+          displayOrder: area.displayOrder,
+        })),
+        tables: command.tables.map((table) => ({
+          id: table.id ?? null,
+          label: table.label,
+          seats: table.seats,
+          x: Math.round(table.x),
+          y: Math.round(table.y),
+          width: Math.round(table.width),
+          height: Math.round(table.height),
+          rotationDegrees: table.rotationDegrees,
+          shape: shapeToWire(table.shape),
+          floorAreaName: table.floorAreaName ?? null,
+          isBookable: table.isBookable,
+          // No `photoX`/`photoY` (K6): pins are saved on their own route, and
+          // a plan save that carried them wiped pins placed meanwhile.
+          // `qrToken` is deliberately absent too. The sticker on the table has
+          // to keep working, and only the explicit regenerate action changes it.
+        })),
+      };
       try {
-        const { data } = await client.put<WireSaveResult>(`${BRANCHES}/${branchId}/floor-plan`, {
-          floorWidth: command.floorWidth,
-          floorHeight: command.floorHeight,
-          areas: command.areas.map((area) => ({
-            id: area.id ?? null,
-            name: area.name,
-            displayOrder: area.displayOrder,
-          })),
-          tables: command.tables.map((table) => ({
-            id: table.id ?? null,
-            label: table.label,
-            seats: table.seats,
-            x: Math.round(table.x),
-            y: Math.round(table.y),
-            width: Math.round(table.width),
-            height: Math.round(table.height),
-            rotationDegrees: table.rotationDegrees,
-            shape: shapeToWire(table.shape),
-            floorAreaName: table.floorAreaName ?? null,
-            isBookable: table.isBookable,
-            // Omitted or null takes the table off the cover photo, so the
-            // position read back is always sent back.
-            photoX: table.photoX ?? null,
-            photoY: table.photoY ?? null,
-            // `qrToken` is deliberately absent. The sticker on the table has to
-            // keep working, and the only way it changes is the explicit
-            // regenerate action.
-          })),
-        });
+        const { data } = await client.put<WireSaveResult>(
+          `${BRANCHES}/${branchId}/floor-plan`,
+          body,
+        );
         return {
           plan: floorPlanFromWire(data.plan),
           warnings: data.warnings ?? [],
@@ -502,7 +522,19 @@ export function createConsoleHttpGateway(
           removedTables: data.removedTables ?? [],
         };
       } catch (error) {
-        if (error instanceof ApiError && error.status === 422) {
+        if (error instanceof ApiError && error.code === 'floor-plan-changed') {
+          const current = error.problem?.context?.['currentVersion'];
+          throw new FloorPlanChangedError({
+            url: error.url,
+            requestId: error.requestId,
+            currentVersion: typeof current === 'string' ? current : null,
+          });
+        }
+        // Only the plan's own refusal is a plan error. A `validation-failed`
+        // 422 — a missing `expectedVersion`, say — is already the client's
+        // `ValidationError`, and dressing it as "these tables are wrong" named
+        // no table and hid the field that was.
+        if (error instanceof ApiError && error.code === 'floor-plan-invalid') {
           const context = error.problem?.context ?? {};
           throw new FloorPlanInvalidError({
             url: error.url,
@@ -516,6 +548,41 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    async saveTablePhotoPositions(branchId, command) {
+      try {
+        // gateway-schema: awaiting-route — generated-by-hand (K7)
+        const { data } = await client.put<Hand.TablePhotoPositionsView>(
+          `${BRANCHES}/${branchId}/table-photo-positions`,
+          {
+            coverPhotoId: command.coverPhotoId,
+            positions: command.positions.map((position) => ({
+              tableId: position.tableId,
+              photoX: position.photoX,
+              photoY: position.photoY,
+            })),
+          } satisfies Hand.TablePhotoPositionsCommand,
+        );
+        return tablePhotoPositionsFromWire(data);
+      } catch (error) {
+        if (error instanceof ApiError && error.code === 'cover-changed') {
+          const current = error.problem?.context?.['currentCoverPhotoId'];
+          throw new CoverChangedError({
+            url: error.url,
+            requestId: error.requestId,
+            currentCoverPhotoId: typeof current === 'string' ? current : null,
+          });
+        }
+        throw error;
+      }
+    },
+
+    async getBranchReadiness(branchId) {
+      const { data } = await client.get<
+        Schemas['Yalla.Application.BranchSettings.BranchReadinessView']
+      >(`${BRANCHES}/${branchId}/readiness`);
+      return readinessFromWire(data);
     },
 
     async createFloorArea({ branchId, name, displayOrder }): Promise<EditorFloorArea> {
@@ -813,7 +880,7 @@ export function createConsoleHttpGateway(
 
     async updateBranchListing({ branchId, listing }): Promise<VenueListing> {
       // Every field is replaced, so blanks travel as explicit nulls. The
-      // address is not sent: the console edits the pin, not the street.
+      // address travels with the pin (K5): the server refuses either half alone.
       const body: WireListingCommand = {
         cuisine: blankToNull(listing.cuisine),
         about: blankToNull(listing.about),
@@ -821,11 +888,19 @@ export function createConsoleHttpGateway(
         websiteUrl: blankToNull(listing.websiteUrl),
         amenities: [...listing.amenities],
         galleryPhotoIds: listing.galleryPhotoIds === null ? null : [...listing.galleryPhotoIds],
+        address: blankToNull(listing.address),
         latitude: listing.latitude,
         longitude: listing.longitude,
       };
-      const { data } = await client.put<WireListing>(`${BRANCHES}/${branchId}/listing`, body);
-      return branchListing(data, client.baseUrl);
+      try {
+        const { data } = await client.put<WireListing>(`${BRANCHES}/${branchId}/listing`, body);
+        return branchListing(data, client.baseUrl);
+      } catch (error) {
+        if (error instanceof ApiError && error.code === 'relocation-not-allowed') {
+          throw new RelocationNotAllowedError({ url: error.url, requestId: error.requestId });
+        }
+        throw error;
+      }
     },
 
     async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {
@@ -864,6 +939,67 @@ export function createConsoleHttpGateway(
         { reason: reason ?? null } satisfies WireDecision,
       );
       return consoleBookingFromWire(data);
+    },
+
+    // --- Review moderation ------------------------------------------------------
+
+    async listPlatformBranchReviews(branchId, page = 1) {
+      // gateway-schema: awaiting-route — generated-by-hand (K8)
+      const { data } = await client.get<Hand.ReviewPage<Hand.PlatformReviewView>>(
+        `${PLATFORM}/branches/${branchId}/reviews`,
+        { query: { page, pageSize: REVIEW_PAGE_SIZE } },
+      );
+      return reviewPageFromWire(data, moderatedReviewFromWire);
+    },
+
+    async setReviewVisibility(reviewId, command) {
+      // gateway-schema: awaiting-route — generated-by-hand (K8)
+      const { data } = await client.put<Hand.PlatformReviewView>(
+        `${PLATFORM}/reviews/${reviewId}/visibility`,
+        { hidden: command.hidden, reason: command.reason } satisfies Hand.ReviewVisibilityRequest,
+      );
+      return moderatedReviewFromWire(data);
+    },
+
+    async listVenueBranchReviews(branchId, query = {}) {
+      // gateway-schema: awaiting-route — generated-by-hand (addendum, venue moderation)
+      const { data } = await client.get<Hand.ReviewPage<Hand.VenueReviewView>>(
+        `${BRANCHES}/${branchId}/reviews`,
+        {
+          query: {
+            page: query.page ?? 1,
+            pageSize: query.pageSize ?? REVIEW_PAGE_SIZE,
+            filter: query.filter ?? 'all',
+          },
+        },
+      );
+      return reviewPageFromWire(data, venueReviewFromWire);
+    },
+
+    async setVenueReviewVisibility(branchId, reviewId, command) {
+      try {
+        // gateway-schema: awaiting-route — generated-by-hand (addendum, venue moderation)
+        const { data } = await client.put<Hand.VenueReviewView>(
+          `${BRANCHES}/${branchId}/reviews/${reviewId}/visibility`,
+          { hidden: command.hidden, reason: command.reason } satisfies Hand.ReviewVisibilityRequest,
+        );
+        return venueReviewFromWire(data);
+      } catch (error) {
+        /*
+         * Restoring is refused with a plain 403 when the platform hid the
+         * review. The route is otherwise guarded before the handler runs, and a
+         * screen only offers "restore" on a review it could list, so a 403 on a
+         * restore is that refusal. A 403 on a hide stays a `ForbiddenError`.
+         */
+        if (error instanceof ForbiddenError && !command.hidden) {
+          throw new ReviewHiddenByPlatformError({
+            url: error.url,
+            requestId: error.requestId,
+            reviewId,
+          });
+        }
+        throw error;
+      }
     },
 
     // --- Staff ----------------------------------------------------------------
@@ -1063,7 +1199,7 @@ function blankToNull(value: string | null): string | null {
   return value === null || value.trim() === '' ? null : value.trim();
 }
 
-interface WireFloorPlan {
+interface WireFloorPlan extends Hand.FloorPlanViewAdditions {
   branchId: string;
   floorWidth: number;
   floorHeight: number;
@@ -1101,6 +1237,8 @@ function floorPlanFromWire(plan: WireFloorPlan): EditorFloorPlan {
       photoX: table.photoX ?? null,
       photoY: table.photoY ?? null,
     })),
+    // Empty only from a server that predates K6, which ignores what is sent back.
+    version: plan.version ?? '',
   };
 }
 

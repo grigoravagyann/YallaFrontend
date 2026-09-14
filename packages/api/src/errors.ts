@@ -90,6 +90,33 @@ export class UnauthorizedError extends AuthError {
   }
 }
 
+/** The code a revoked diner session is answered with (K1). */
+export const SESSION_REVOKED_CODE = 'session-revoked';
+
+/**
+ * 401 `session-revoked`: the diner's session was ended on the server.
+ *
+ * The account was deactivated or deleted, or its session generation moved on —
+ * the number's owner proved it and displaced whoever held it, or the password
+ * changed. Refreshing cannot help (every refresh token was revoked with it), so
+ * the client **never tries**: it rejects with this at once. A screen signs the
+ * diner out and says why, rather than routing to sign-in as if a token had
+ * merely aged out.
+ *
+ * A subclass of {@link UnauthorizedError}, so everything that already treats a
+ * 401 as "signed out" keeps doing so.
+ */
+export class SessionRevokedError extends UnauthorizedError {
+  constructor(options: Omit<ErrorOptions, 'status'>) {
+    super(options);
+    this.name = 'SessionRevokedError';
+  }
+}
+
+export function isSessionRevoked(error: unknown): error is SessionRevokedError {
+  return error instanceof SessionRevokedError;
+}
+
 /**
  * 403. A real permission failure. Do not retry, do not refresh — the token is
  * fine, it just does not cover this. Show the access-denied state.
@@ -121,6 +148,16 @@ export class InvalidTransitionError extends ApiError {
 export interface FieldViolation {
   readonly field: string;
   readonly message: string;
+  /**
+   * Which rule it broke, as `FieldBounds` spells it on the wire — `required`,
+   * `range`, `min`, `max` (a length or a count), `conflict`. A form maps a violation
+   * to its own localised sentence by `field` and `bound`, and shows the
+   * server's English `message` only in a development build. `undefined` when
+   * the server named no bound.
+   */
+  readonly bound?: string | undefined;
+  readonly min?: number | undefined;
+  readonly max?: number | undefined;
 }
 
 /** A refusal that names fields: 400 for one out of range, 422 for a collected set. */
@@ -157,11 +194,32 @@ export class ValidationError extends ApiError {
     const context = options.problem?.context as { field?: unknown; fields?: unknown } | undefined;
 
     const collected = Array.isArray(context?.fields) ? context.fields : [];
-    this.violations = collected.flatMap((entry) => {
-      const violation = entry as { field?: unknown; message?: unknown };
-      return typeof violation.field === 'string' && violation.field.length > 0
-        ? [{ field: violation.field, message: String(violation.message ?? '') }]
-        : [];
+    const numberOrUndefined = (value: unknown) =>
+      typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    this.violations = collected.flatMap((entry): FieldViolation[] => {
+      const violation = entry as {
+        field?: unknown;
+        message?: unknown;
+        bound?: unknown;
+        min?: unknown;
+        max?: unknown;
+      };
+      if (typeof violation.field !== 'string' || violation.field.length === 0) return [];
+      return [
+        {
+          field: violation.field,
+          message: String(violation.message ?? ''),
+          ...(typeof violation.bound === 'string' && violation.bound.length > 0
+            ? { bound: violation.bound }
+            : {}),
+          ...(numberOrUndefined(violation.min) !== undefined
+            ? { min: numberOrUndefined(violation.min) }
+            : {}),
+          ...(numberOrUndefined(violation.max) !== undefined
+            ? { max: numberOrUndefined(violation.max) }
+            : {}),
+        },
+      ];
     });
 
     const named = context?.field;

@@ -32,7 +32,7 @@ const OUTPUT = resolve(HERE, '..', 'src', 'generated', 'schema.ts');
  */
 const RAW_OUTPUT = resolve(HERE, '..', 'src', 'generated', 'swagger.json');
 
-const DEFAULT_URL = 'https://localhost:7188/swagger/v1/swagger.json';
+const DEFAULT_URL = 'http://localhost:5086/swagger/v1/swagger.json';
 
 function readUrl() {
   const flagIndex = process.argv.indexOf('--url');

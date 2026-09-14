@@ -66,18 +66,17 @@ describe('the public profile in the mock', () => {
         branchId,
         profile: { phoneE164: null, acceptsWebBookings: true, coverPhotoId },
       });
+    // Pins go through their own route (K7), against the cover they were placed on.
     const placeEveryTable = async () => {
-      const plan = await gateway.getFloorPlan(branchId);
-      await gateway.replaceFloorPlan({
-        branchId,
-        command: {
-          floorWidth: plan.floorWidth,
-          floorHeight: plan.floorHeight,
-          areas: plan.areas,
-          tables: plan.tables
-            .filter((t) => t.isActive)
-            .map((t) => ({ ...t, floorAreaName: null, photoX: 0.4, photoY: 0.6 })),
-        },
+      const [plan, profile] = await Promise.all([
+        gateway.getFloorPlan(branchId),
+        gateway.getPublicProfile(branchId),
+      ]);
+      await gateway.saveTablePhotoPositions(branchId, {
+        coverPhotoId: profile.coverPhoto!.photoId,
+        positions: plan.tables
+          .filter((t) => t.isActive)
+          .map((t) => ({ tableId: t.id, photoX: 0.4, photoY: 0.6 })),
       });
     };
     const placed = async () =>

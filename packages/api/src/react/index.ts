@@ -14,7 +14,12 @@ import type {
   ListVenuesQuery,
   SubscriptionTier,
 } from '../contracts/console';
-import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
+import type {
+  EditorFloorPlan,
+  ReplaceFloorPlanCommand,
+  SaveTablePhotoPositionsCommand,
+} from '../contracts/floorPlan';
+import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
   AbandonTabCommand,
   CompCommand,
@@ -31,7 +36,7 @@ import type { ConsoleBooking, DecideReservationCommand } from '../contracts/appr
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
-import { ReportRangeTooLongError } from '../contracts/errors';
+import { CoverChangedError, ReportRangeTooLongError } from '../contracts/errors';
 import type { PublicGateway } from '../publicGateway';
 import type { ReleaseReservationCommand } from '../staffGateway';
 import type { YallaGateway } from '../gateway';
@@ -210,6 +215,23 @@ export const queryKeys = {
   publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
   branchListing: (branchId: string) => ['console', 'listing', branchId] as const,
   pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
+  /*
+   * `['console', 'readiness', …]` is the prefix the staff and device mutations
+   * already invalidate, so a checklist reading this key refreshes when a person
+   * or a tablet is added, and so does every save below that feeds a line.
+   */
+  readiness: (branchId: string) => ['console', 'readiness', branchId] as const,
+  platformReviews: (branchId: string, page: number) =>
+    ['console', 'platformReviews', branchId, page] as const,
+  venueReviews: (branchId: string, query: VenueReviewQuery) =>
+    [
+      'console',
+      'venueReviews',
+      branchId,
+      query.filter ?? 'all',
+      query.page ?? 1,
+      query.pageSize ?? null,
+    ] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
   devices: (branchId: string) => ['console', 'devices', branchId] as const,
   /*
@@ -521,11 +543,70 @@ export function useSaveFloorPlan() {
     mutationFn: (input: { branchId: string; command: ReplaceFloorPlanCommand }) =>
       gateway.replaceFloorPlan(input),
     onSuccess: (result, input) => {
+      // Carries the new `version`, which the next save sends back.
       queryClient.setQueryData(queryKeys.editorFloorPlan(input.branchId), result.plan);
       // The room the diner and the staff screens draw has just changed shape.
       void queryClient.invalidateQueries({ queryKey: queryKeys.floor(input.branchId) });
       void queryClient.invalidateQueries({ queryKey: ['availability', input.branchId] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(input.branchId) });
     },
+  });
+}
+
+/**
+ * Pins on the cover photo (K7), one call for every changed table.
+ *
+ * On success the cached plan takes the answer's pins and keeps its `version`:
+ * a pin is not a plan edit, and bumping the cached version here would make the
+ * floor-plan editor's next save look stale to itself. A `CoverChangedError`
+ * refetches the cover and the plan, because both are what the pins were wrong
+ * about.
+ */
+export function useSaveTablePhotoPositions(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: SaveTablePhotoPositionsCommand) =>
+      gateway.saveTablePhotoPositions(branchId!, command),
+    retry: false,
+    onSuccess: (result) => {
+      const pins = new Map(result.tables.map((table) => [table.tableId, table]));
+      queryClient.setQueryData<EditorFloorPlan>(
+        queryKeys.editorFloorPlan(branchId ?? ''),
+        (plan) =>
+          plan
+            ? {
+                ...plan,
+                tables: plan.tables.map((table) => {
+                  const pin = pins.get(table.id);
+                  return pin ? { ...table, photoX: pin.photoX, photoY: pin.photoY } : table;
+                }),
+              }
+            : plan,
+      );
+    },
+    onError: (error) => {
+      if (error instanceof CoverChangedError) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.publicProfile(branchId ?? '') });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(branchId ?? '') });
+      }
+    },
+  });
+}
+
+/**
+ * What the branch still needs before it can take diners, from the server.
+ *
+ * Short-lived rather than reference data: it is the screen somebody watches
+ * while finishing onboarding, and every save that feeds a line invalidates it.
+ */
+export function useBranchReadiness(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.readiness(branchId ?? ''),
+    queryFn: () => gateway.getBranchReadiness(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.live,
   });
 }
 
@@ -807,6 +888,8 @@ function useMenuMutation<TInput, TResult>(
     retry: false,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+      // Categories, items and their completeness are three checklist lines.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
     },
   });
 }
@@ -903,6 +986,7 @@ export function useSaveOpeningHours(branchId: string | undefined) {
     retry: false,
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.openingHours(branchId ?? ''), saved);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
     },
   });
 }
@@ -997,6 +1081,8 @@ export function useSavePublicProfile(branchId: string | undefined) {
       // The card's picture is also what the public page and the readiness
       // checklist read, through the managed venue.
       void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+      // The booking switch is a checklist line of its own.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
     },
   });
 }
@@ -1238,8 +1324,72 @@ export function useSaveReservationPolicy(branchId: string | undefined) {
       queryClient.setQueryData(queryKeys.reservationPolicy(branchId ?? ''), result.policy);
       // The floor and availability both read the turn time and the buffer.
       void queryClient.invalidateQueries({ queryKey: ['availability', branchId] });
+      // Saving the form is what marks the policy reviewed on the checklist.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
     },
   });
+}
+
+// --- Review moderation ----------------------------------------------------------
+
+/** A branch's reviews for the platform team. Platform admin only. */
+export function usePlatformBranchReviews(branchId: string | undefined, page = 1) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.platformReviews(branchId ?? '', page),
+    queryFn: () => gateway.listPlatformBranchReviews(branchId!, page),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.frequent,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** A branch's reviews for its owner or manager, with report counts. */
+export function useVenueBranchReviews(branchId: string | undefined, query: VenueReviewQuery = {}) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.venueReviews(branchId ?? '', query),
+    queryFn: () => gateway.listVenueBranchReviews(branchId!, query),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.frequent,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Both takedown routes invalidate both lists on settle: a refusal (the
+ * platform hid it first, somebody else restored it) means the row on screen
+ * is what is stale.
+ */
+function useReviewVisibility<TInput>(
+  run: (gateway: ConsoleGateway, input: TInput) => Promise<unknown>,
+) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: TInput) => run(gateway, input),
+    retry: false,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] });
+      void queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] });
+    },
+  });
+}
+
+/** The platform's hide or restore. */
+export function useSetReviewVisibility() {
+  return useReviewVisibility(
+    (gateway, input: { reviewId: string; command: SetReviewVisibilityCommand }) =>
+      gateway.setReviewVisibility(input.reviewId, input.command),
+  );
+}
+
+/** The venue's hide or restore, at one branch. */
+export function useSetVenueReviewVisibility(branchId: string | undefined) {
+  return useReviewVisibility(
+    (gateway, input: { reviewId: string; command: SetReviewVisibilityCommand }) =>
+      gateway.setVenueReviewVisibility(branchId!, input.reviewId, input.command),
+  );
 }
 
 // --- Bookings waiting for approval ------------------------------------------

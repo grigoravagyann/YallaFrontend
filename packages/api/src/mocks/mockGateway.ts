@@ -15,6 +15,11 @@ import type {
 } from '../contracts/booking';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
+  BookingsNotAcceptedError,
+  CannotReportOwnReviewError,
+  InvalidCredentialsError,
+  ReviewNeedsVisitError,
+  TooManyFavoritesError,
   PhoneNotVerifiedError,
   BookingEndedError,
   BookingNotActiveError,
@@ -61,8 +66,23 @@ import {
   type DinerOrder,
   type MyBranchReview,
 } from '../contracts/places';
-import { ValidationError } from '../errors';
+import { SessionRevokedError, ValidationError } from '../errors';
 import { parseProblem } from '../problem';
+import { MAX_BOOKING_NOTE } from '../contracts/booking';
+import { MAX_FAVORITES, type FavoriteBranch } from '../contracts/favorites';
+import {
+  NOTIFICATION_PAGE_SIZE,
+  type DinerNotification,
+  type DinerNotificationPage,
+  type NotificationPageQuery,
+} from '../contracts/notifications';
+import {
+  MAX_MODERATION_TEXT,
+  REVIEW_REPORT_REASONS,
+  REVIEW_VISIT_WINDOW_DAYS,
+} from '../contracts/reviews';
+import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
+import { invalidRequest, validationFailed } from './problems';
 
 /** Great-circle distance in kilometres. */
 export function haversineKm(
@@ -86,7 +106,7 @@ import {
 } from '../errors';
 import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
-import { createAccountStore } from './accounts';
+import { SEEDED_ACCOUNT, createAccountStore } from './accounts';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
@@ -113,6 +133,24 @@ const MAX_CODES_PER_NUMBER = 5;
 /** The fixed code the mock accepts, so the flow is testable without SMS. */
 const MOCK_CODE = '123456';
 
+/** `FieldLengths.DisplayName` on the server: the longest name a tab takes. */
+const DISPLAY_NAME_MAX = 100;
+
+const DAY_MS = 24 * 60 * 60_000;
+
+/**
+ * How long before a booking the mock's reminder lands. The real one is the
+ * branch's own setting; this is the mock having to pick one.
+ */
+const REMINDER_LEAD_MINUTES = 120;
+
+/** A visit that counts toward writing a first review (K8). */
+export interface MockVisit {
+  readonly dinerUserId: string;
+  readonly branchId: string;
+  readonly atUtc: string;
+}
+
 interface Challenge {
   id: string;
   phoneE164: string;
@@ -138,6 +176,18 @@ export interface MockGatewayOptions {
    * the host controls have something to approve on a single device.
    */
   readonly simulateJoiners?: boolean;
+  /**
+   * The review store, shared with a console mock so a review written here can
+   * be moderated there and a takedown there drops it from the list here. A
+   * fresh, empty one when absent. See `reviewStore.ts`.
+   */
+  readonly reviews?: MockReviewStore;
+  /**
+   * Visits beyond the ones this gateway watches happen (a seated booking of the
+   * diner's). Absent: the seeded account visited Lumen North ten days ago, so
+   * writing a review is walkable from the seed.
+   */
+  readonly visits?: readonly MockVisit[];
 }
 
 function minutesBetween(a: Date, b: Date): number {
@@ -233,6 +283,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
    */
   const accounts = createAccountStore({ now });
   let signedInAccountId: string | null = null;
+  /**
+   * Accounts deleted on this device (K2). The mock has no token to revoke, so a
+   * session still pointing at one of these answers as the server answers a
+   * revoked token, until somebody signs in again.
+   */
+  const deletedAccounts = new Set<string>();
 
   /** The signed-in account's id, or the 401 `/api/diner/me` answers a stranger. */
   /**
@@ -248,7 +304,21 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   }
 
   function me(): string {
-    if (!signedInAccountId) throw new UnauthorizedError({ url: `${URL_TAG}/api/diner/me` });
+    const url = `${URL_TAG}/api/diner/me`;
+    if (!signedInAccountId) throw new UnauthorizedError({ url });
+    if (deletedAccounts.has(signedInAccountId)) {
+      throw new SessionRevokedError({
+        url,
+        problem: {
+          type: 'about:blank',
+          title: 'Session revoked',
+          status: 401,
+          detail: 'This session has ended.',
+          code: 'session-revoked',
+          traceId: 'mock',
+        },
+      });
+    }
     return signedInAccountId;
   }
 
@@ -606,25 +676,227 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
   // --- Places ----------------------------------------------------------------
 
-  /** accountId → review, per branch. One per diner per branch, as the unique index says. */
-  const reviews = new Map<string, Map<string, MyBranchReview>>();
+  /**
+   * Reviews live in a store a console mock can share, so a review written here
+   * is moderated there. One per diner per branch, as the unique index says.
+   */
+  const reviewStore = options.reviews ?? createMockReviewStore({ now });
 
-  function reviewsOf(branchId: string): MyBranchReview[] {
-    return [...(reviews.get(branchId)?.values() ?? [])].sort((a, b) =>
-      b.updatedAtUtc.localeCompare(a.updatedAtUtc),
-    );
-  }
-
-  function publicReview(review: MyBranchReview, accountId: string): BranchReview {
-    const name = accounts.profile(accountId)?.displayName?.trim() ?? '';
-    const [first = '', last = ''] = name.split(/\s+/u);
+  function toPublicReview(review: StoredReview): BranchReview {
     return {
       reviewId: review.reviewId,
-      authorName: first ? `${first}${last ? ` ${last[0]}.` : ''}` : 'Yalla diner',
+      authorName: review.authorName,
       rating: review.rating,
       text: review.text,
       createdAtUtc: review.createdAtUtc,
       updatedAtUtc: review.updatedAtUtc,
+      edited: review.updatedAtUtc !== review.createdAtUtc,
+    };
+  }
+
+  function toMyReview(review: StoredReview): MyBranchReview {
+    return {
+      reviewId: review.reviewId,
+      branchId: review.branchId,
+      rating: review.rating,
+      text: review.text,
+      createdAtUtc: review.createdAtUtc,
+      updatedAtUtc: review.updatedAtUtc,
+      publicAuthorName: review.authorName,
+      hidden: review.hidden,
+    };
+  }
+
+  /**
+   * K9's gate: the online-bookings switch on and the reservation policy
+   * reviewed. The fixture's public-page switch stands for the first; the diner
+   * mock has no policy for anybody to review, so every live fixture counts as
+   * reviewed, and a branch with the switch off refuses app bookings.
+   */
+  function acceptsAppBookings(branchId: string): boolean {
+    const fixture = publicBranchFixtures[branchId];
+    return fixture?.status === 'live' && fixture.acceptsWebBookings;
+  }
+
+  /** Booking id → the account that made it, for the visit rule and the feed. */
+  const bookingOwners = new Map<string, string>();
+
+  const visits: MockVisit[] = options.visits
+    ? [...options.visits]
+    : [
+        {
+          dinerUserId: SEEDED_ACCOUNT.id,
+          branchId: 'b-lumen-north',
+          atUtc: new Date(now().getTime() - 10 * DAY_MS).toISOString(),
+        },
+      ];
+
+  /**
+   * K8's eligibility: a seated or completed booking of the diner's at the
+   * branch, or a visit handed in through the options, within 180 days.
+   *
+   * A table scan is not one, for the real gateway's reason: the scan goes out
+   * with no diner token, so the server never links that participant to an
+   * account. "I'm at my table" does, and it seats the booking, which counts.
+   */
+  function hasVisit(accountId: string, branchId: string): boolean {
+    const t = now().getTime();
+    const recent = (atUtc: string) => t - Date.parse(atUtc) <= REVIEW_VISIT_WINDOW_DAYS * DAY_MS;
+    const seated = [...bookings.values()].some(
+      (booking) =>
+        booking.branchId === branchId &&
+        bookingOwners.get(booking.id) === accountId &&
+        (booking.status === 'seated' || booking.status === 'completed') &&
+        recent(booking.slotUtc),
+    );
+    return (
+      seated ||
+      visits.some(
+        (visit) =>
+          visit.dinerUserId === accountId && visit.branchId === branchId && recent(visit.atUtc),
+      )
+    );
+  }
+
+  // --- Favourites (K11) --------------------------------------------------------
+
+  /** accountId → branchId → when it was saved. */
+  const favorites = new Map<
+    string,
+    Map<string, { readonly atUtc: string; readonly order: number }>
+  >();
+  let favoriteOrder = 0;
+
+  function favoritesOf(accountId: string) {
+    let saved = favorites.get(accountId);
+    if (!saved) {
+      saved = new Map();
+      favorites.set(accountId, saved);
+    }
+    return saved;
+  }
+
+  /** A branch as the public list would show it, or `null` when it is not listed. */
+  function liveListing(
+    branchId: string,
+    position?: BranchSearchQuery['position'],
+  ): BranchListing | null {
+    const found = findBranch(branchId);
+    return found ? listingFor(found.venue, found.branch, position) : null;
+  }
+
+  /** Newest first; a branch that has gone inactive is left out, as the server leaves it out. */
+  function favoriteList(
+    accountId: string,
+    position: BranchSearchQuery['position'],
+  ): FavoriteBranch[] {
+    return [...favoritesOf(accountId).entries()]
+      .sort(([, a], [, b]) => b.atUtc.localeCompare(a.atUtc) || b.order - a.order)
+      .flatMap(([branchId, entry]) => {
+        const listing = liveListing(branchId, position);
+        return listing ? [{ branchId, createdAtUtc: entry.atUtc, listing }] : [];
+      });
+  }
+
+  // --- The notifications feed (K12) ---------------------------------------------
+
+  const feeds = new Map<string, DinerNotification[]>();
+  let notificationOrder = 0;
+
+  /**
+   * The diner's feed, brought up to date with what has happened — the rows the
+   * server's producers would have written as it happened.
+   *
+   * Only what this mock can observe is produced: a reminder once a booking of
+   * the diner's is within two hours of starting, and `review-hidden` once a
+   * review of theirs is taken down (by a console mock sharing the store). The
+   * venue's decisions and order-ready never happen in the diner mock, so no row
+   * for them is invented.
+   */
+  function feedOf(accountId: string): DinerNotification[] {
+    const feed = feeds.get(accountId) ?? [];
+    feeds.set(accountId, feed);
+    const t = now().getTime();
+    const add = (row: Omit<DinerNotification, 'notificationId' | 'read'>) => {
+      feed.push({ ...row, notificationId: `ntf-${(notificationOrder += 1)}`, read: false });
+    };
+
+    for (const booking of bookings.values()) {
+      if (bookingOwners.get(booking.id) !== accountId || booking.status !== 'confirmed') continue;
+      const remindAt = Date.parse(booking.slotUtc) - REMINDER_LEAD_MINUTES * 60_000;
+      if (t < remindAt || t >= Date.parse(booking.endUtc)) continue;
+      if (feed.some((row) => row.kind === 'booking-reminder' && row.reservationId === booking.id)) {
+        continue;
+      }
+      add({
+        kind: 'booking-reminder',
+        params: {
+          venueName: booking.venueName,
+          branchName: booking.branchName,
+          tableLabel: booking.tableLabel,
+          partySize: booking.partySize,
+          startUtc: booking.slotUtc,
+          timeZoneId: booking.timeZoneId,
+        },
+        branchId: booking.branchId,
+        branchName: booking.branchName,
+        reservationId: booking.id,
+        tabId: null,
+        orderId: null,
+        createdAtUtc: new Date(remindAt).toISOString(),
+      });
+    }
+
+    for (const venue of mockVenues) {
+      for (const branch of venue.branches) {
+        const review = reviewStore.mine(branch.id, accountId);
+        if (!review?.hidden || !review.hiddenAtUtc) continue;
+        const hiddenAt = review.hiddenAtUtc;
+        if (
+          feed.some(
+            (row) =>
+              row.kind === 'review-hidden' &&
+              row.params['reviewId'] === review.reviewId &&
+              row.createdAtUtc === hiddenAt,
+          )
+        ) {
+          continue;
+        }
+        add({
+          kind: 'review-hidden',
+          params: { reviewId: review.reviewId, venueName: venue.name, branchName: branch.name },
+          branchId: branch.id,
+          branchName: branch.name,
+          reservationId: null,
+          tabId: null,
+          orderId: null,
+          createdAtUtc: hiddenAt,
+        });
+      }
+    }
+
+    const order = (row: DinerNotification) => Number(row.notificationId.slice(4));
+    feed.sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc) || order(b) - order(a));
+    return feed;
+  }
+
+  function notificationPage(
+    accountId: string,
+    query: NotificationPageQuery | undefined,
+  ): DinerNotificationPage {
+    const feed = feedOf(accountId);
+    const limit = Math.min(50, Math.max(1, Math.trunc(query?.limit ?? NOTIFICATION_PAGE_SIZE)));
+    const before = query?.before ?? null;
+    const cursorAt = before === null ? -1 : feed.findIndex((row) => row.notificationId === before);
+    // An unknown cursor is an empty page, not the first one again: starting
+    // over would show the newest rows twice at the bottom of the list.
+    const start = before === null ? 0 : cursorAt + 1;
+    const rows = before !== null && cursorAt === -1 ? [] : feed.slice(start, start + limit);
+    const more = rows.length === limit && start + limit < feed.length;
+    return {
+      items: rows,
+      nextCursor: more ? rows[rows.length - 1]!.notificationId : null,
+      unreadCount: feed.filter((row) => !row.read).length,
     };
   }
 
@@ -635,7 +907,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   ): BranchListing | null {
     const fixture = publicBranchFixtures[branch.id];
     if (!fixture || fixture.status !== 'live') return null;
-    const own = reviewsOf(branch.id);
+    const own = reviewStore.visible(branch.id);
     const average =
       own.length > 0
         ? Math.round((own.reduce((sum, r) => sum + r.rating, 0) / own.length) * 10) / 10
@@ -716,7 +988,6 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       const listing = found ? listingFor(found.venue, found.branch, position) : null;
       const fixture = publicBranchFixtures[branchId];
       if (!listing || !fixture) return null;
-      const byAccount = reviews.get(branchId);
       return {
         listing,
         about: publicVenueFixtures[listing.venueId]?.description ?? null,
@@ -734,10 +1005,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         gallery: [],
         tableCount: floors.get(branchId)?.tables.length ?? 0,
         acceptsWebBookings: fixture.acceptsWebBookings,
-        recentReviews: [...(byAccount?.entries() ?? [])]
-          .sort(([, a], [, b]) => b.updatedAtUtc.localeCompare(a.updatedAtUtc))
-          .slice(0, 3)
-          .map(([accountId, review]) => publicReview(review, accountId)),
+        acceptsAppBookings: acceptsAppBookings(branchId),
+        // Newest first written, hidden reviews left out (K8).
+        recentReviews: reviewStore.visible(branchId).slice(0, 3).map(toPublicReview),
         // The mock floor has no photo positions, so nothing is placed on a photo.
         tableMarkers: [],
         asOfUtc: now().toISOString(),
@@ -746,24 +1016,24 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
     async getBranchReviews({ branchId, page = 1 }): Promise<BranchReviewPage | null> {
       await wait();
+      const url = `${URL_TAG}/api/public/branches/${branchId}/reviews`;
+      if (!Number.isInteger(page) || page < 1) {
+        throw invalidRequest(url, 'page', 'The page is 1 or more.');
+      }
       if (!findBranch(branchId)) return null;
-      const byAccount = [...(reviews.get(branchId)?.entries() ?? [])].sort(([, a], [, b]) =>
-        b.updatedAtUtc.localeCompare(a.updatedAtUtc),
-      );
+      const visible = reviewStore.visible(branchId);
       const pageSize = 20;
-      const count = byAccount.length;
+      const count = visible.length;
       return {
         branchId,
         rating:
           count > 0
-            ? Math.round((byAccount.reduce((s, [, r]) => s + r.rating, 0) / count) * 10) / 10
+            ? Math.round((visible.reduce((s, r) => s + r.rating, 0) / count) * 10) / 10
             : null,
         reviewCount: count,
         page,
         pageSize,
-        reviews: byAccount
-          .slice((page - 1) * pageSize, page * pageSize)
-          .map(([accountId, review]) => publicReview(review, accountId)),
+        reviews: visible.slice((page - 1) * pageSize, page * pageSize).map(toPublicReview),
       };
     },
 
@@ -777,7 +1047,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       await wait();
       // Asked first, so a stranger is refused even for a branch nobody reviewed.
       const accountId = me();
-      return reviews.get(branchId)?.get(accountId) ?? null;
+      const review = reviewStore.mine(branchId, accountId);
+      return review ? toMyReview(review) : null;
     },
 
     async saveMyBranchReview({ branchId, rating, text }) {
@@ -799,29 +1070,168 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
               fields: [
                 ...(Number.isInteger(rating) && rating >= 1 && rating <= 5
                   ? []
-                  : [{ field: 'rating', message: 'Rating must be 1 to 5.', min: 1, max: 5 }]),
+                  : [
+                      {
+                        field: 'rating',
+                        message: 'Rating must be 1 to 5.',
+                        bound: 'range',
+                        min: 1,
+                        max: 5,
+                      },
+                    ]),
                 ...(trimmed.length > 1000
-                  ? [{ field: 'text', message: 'At most 1000 characters.', max: 1000 }]
+                  ? [
+                      {
+                        field: 'text',
+                        message: 'At most 1000 characters.',
+                        bound: 'max',
+                        max: 1000,
+                      },
+                    ]
                   : []),
               ],
             },
           }),
         });
       }
-      const byAccount = reviews.get(branchId) ?? new Map<string, MyBranchReview>();
-      const existing = byAccount.get(accountId);
-      const at = now().toISOString();
-      const saved: MyBranchReview = {
-        reviewId: existing?.reviewId ?? `review-${branchId}-${accountId}`,
+      // K8: a first review needs a visit; revising one never does.
+      if (!reviewStore.mine(branchId, accountId) && !hasVisit(accountId, branchId)) {
+        throw new ReviewNeedsVisitError({ url: reviewUrl(branchId) });
+      }
+      // The same stars and text again change nothing, `updatedAtUtc` included.
+      const saved = reviewStore.save({
         branchId,
+        dinerUserId: accountId,
+        displayName: accounts.profile(accountId)?.displayName ?? null,
         rating,
         text: trimmed === '' ? null : trimmed,
-        createdAtUtc: existing?.createdAtUtc ?? at,
-        updatedAtUtc: at,
-      };
-      byAccount.set(accountId, saved);
-      reviews.set(branchId, byAccount);
-      return saved;
+        atUtc: now().toISOString(),
+      });
+      return toMyReview(saved);
+    },
+
+    /**
+     * The server's order: the body is validated, then the review is looked up
+     * (a hidden one is as good as absent), then the diner's own is refused. A
+     * second report by the same diner is accepted and changes nothing.
+     */
+    async reportReview({ reviewId, reason, note }) {
+      await wait();
+      const url = `${URL_TAG}/api/diner/reviews/${reviewId}/report`;
+      const accountId = me();
+      const trimmed = typeof note === 'string' ? note.trim() : '';
+      const fields = [
+        ...((REVIEW_REPORT_REASONS as readonly string[]).includes(reason)
+          ? []
+          : [{ field: 'reason', message: `Known reasons: ${REVIEW_REPORT_REASONS.join(', ')}.` }]),
+        ...(trimmed.length > MAX_MODERATION_TEXT
+          ? [
+              {
+                field: 'note',
+                message: `At most ${MAX_MODERATION_TEXT} characters.`,
+                bound: 'max',
+                max: MAX_MODERATION_TEXT,
+              },
+            ]
+          : []),
+      ];
+      if (fields.length > 0) throw validationFailed(url, fields);
+
+      const review = reviewStore.find(reviewId);
+      if (!review || review.hidden) throw new NotFoundError({ url });
+      if (review.dinerUserId === accountId) throw new CannotReportOwnReviewError({ url });
+
+      reviewStore.report({
+        reviewId,
+        dinerUserId: accountId,
+        reason,
+        note: trimmed === '' ? null : trimmed,
+        createdAtUtc: now().toISOString(),
+      });
+    },
+
+    // --- Favourites (K11) ------------------------------------------------------
+
+    async listFavorites(position) {
+      await wait();
+      return favoriteList(me(), position);
+    },
+
+    async addFavorite(branchId) {
+      await wait();
+      const url = `${URL_TAG}/api/diner/favorites/${branchId}`;
+      const accountId = me();
+      if (!liveListing(branchId)) throw new NotFoundError({ url });
+      const saved = favoritesOf(accountId);
+      if (saved.has(branchId)) return;
+      if (saved.size >= MAX_FAVORITES) throw new TooManyFavoritesError({ url, max: MAX_FAVORITES });
+      saved.set(branchId, { atUtc: now().toISOString(), order: (favoriteOrder += 1) });
+    },
+
+    async removeFavorite(branchId) {
+      await wait();
+      favoritesOf(me()).delete(branchId);
+    },
+
+    /**
+     * Adds what is missing and never removes. A place that is no longer listed
+     * is skipped rather than failing the whole upload: the hearts were made
+     * while signed out, possibly weeks ago, and one closed café must not cost
+     * the diner the rest. Nothing is written when the result would pass the cap.
+     */
+    async mergeFavorites(branchIds, position) {
+      await wait();
+      const url = `${URL_TAG}/api/diner/favorites`;
+      const accountId = me();
+      if (branchIds.length > MAX_FAVORITES) {
+        throw validationFailed(url, [
+          {
+            field: 'branchIds',
+            message: `At most ${MAX_FAVORITES} places at once.`,
+            bound: 'max',
+            max: MAX_FAVORITES,
+          },
+        ]);
+      }
+      const saved = favoritesOf(accountId);
+      const missing = [...new Set(branchIds)].filter((id) => !saved.has(id) && liveListing(id));
+      if (saved.size + missing.length > MAX_FAVORITES) {
+        throw new TooManyFavoritesError({ url, max: MAX_FAVORITES });
+      }
+      for (const id of missing) {
+        saved.set(id, { atUtc: now().toISOString(), order: (favoriteOrder += 1) });
+      }
+      return favoriteList(accountId, position);
+    },
+
+    // --- The notifications feed (K12) --------------------------------------------
+
+    async listNotifications(query) {
+      await wait();
+      return notificationPage(me(), query);
+    },
+
+    async getUnreadNotificationCount() {
+      await wait();
+      return notificationPage(me(), { limit: 1 }).unreadCount;
+    },
+
+    async markNotificationsRead(command) {
+      await wait();
+      const feed = feedOf(me());
+      if (command.upTo !== undefined) {
+        const index = feed.findIndex((row) => row.notificationId === command.upTo);
+        // Everything up to it is everything at it and older; the feed is newest first.
+        if (index >= 0) {
+          for (let i = index; i < feed.length; i += 1) feed[i] = { ...feed[i]!, read: true };
+        }
+        return;
+      }
+      // Ids that are not this diner's are ignored, never revealed.
+      const ids = new Set(command.ids ?? []);
+      for (let i = 0; i < feed.length; i += 1) {
+        if (ids.has(feed[i]!.notificationId)) feed[i] = { ...feed[i]!, read: true };
+      }
     },
 
     async listDinerOrders(): Promise<readonly DinerOrder[]> {
@@ -853,7 +1263,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       const venue = mockVenues.find((v) => publicVenueFixtures[v.id]?.slug === venueSlug);
       const branch = venue?.branches.find((b) => publicBranchFixtures[b.id]?.slug === branchSlug);
       return branch
-        ? { bookingWindowDays: BOOKING_WINDOW_DAYS, minLeadMinutes: DEFAULT_POLICY.leadTimeMinutes }
+        ? {
+            bookingWindowDays: BOOKING_WINDOW_DAYS,
+            minLeadMinutes: DEFAULT_POLICY.leadTimeMinutes,
+            acceptsAppBookings: acceptsAppBookings(branch.id),
+          }
         : null;
     },
 
@@ -985,9 +1399,76 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       accounts.removePhoto(me());
     },
 
+    /**
+     * K2, in the server's order: `VerifiedDiner` first, then the confirmation
+     * the account needs (the password when it has one, otherwise a code for its
+     * own number), then everything erased at once. The bookings stay for the
+     * venue with nobody linked; the session answers `session-revoked` after.
+     */
+    async deleteDinerAccount({ password, code }) {
+      await wait();
+      const url = `${URL_TAG}/api/diner/me`;
+      const accountId = me();
+      const profile = accounts.profile(accountId);
+      if (!profile) throw new UnauthorizedError({ url });
+      if (!profile.phoneVerified) throw new PhoneNotVerifiedError({ url });
+
+      if (profile.hasPassword) {
+        if (!password) {
+          throw validationFailed(url, [
+            { field: 'password', message: 'Confirm with your password.', bound: 'required' },
+          ]);
+        }
+        if (!accounts.passwordMatches(accountId, password)) {
+          throw new InvalidCredentialsError({ url });
+        }
+      } else {
+        if (!code) {
+          throw validationFailed(url, [
+            {
+              field: 'code',
+              message: 'Confirm with the code sent to your phone.',
+              bound: 'required',
+            },
+          ]);
+        }
+        const t = now().getTime();
+        const challenge = [...challenges.values()].find(
+          (entry) => entry.phoneE164 === profile.phoneE164 && !entry.burned && t <= entry.expiresAt,
+        );
+        if (!challenge || challenge.code !== code) throw new InvalidCredentialsError({ url });
+        challenges.delete(challenge.id);
+      }
+
+      reviewStore.deleteByDiner(accountId);
+      favorites.delete(accountId);
+      feeds.delete(accountId);
+      for (const [bookingId, owner] of bookingOwners) {
+        if (owner === accountId) bookingOwners.delete(bookingId);
+      }
+      for (let i = visits.length - 1; i >= 0; i -= 1) {
+        if (visits[i]!.dinerUserId === accountId) visits.splice(i, 1);
+      }
+      accounts.remove(accountId);
+      deletedAccounts.add(accountId);
+    },
+
     async createBooking(command: CreateBookingCommand) {
       await wait();
-      requireVerifiedPhone(`${URL_TAG}/api/reservations`);
+      const url = `${URL_TAG}/api/reservations`;
+      // The request's own validation runs before anything else, as on the server.
+      const note = typeof command.note === 'string' ? command.note.trim() : '';
+      if (note.length > MAX_BOOKING_NOTE) {
+        throw validationFailed(url, [
+          {
+            field: 'note',
+            message: `At most ${MAX_BOOKING_NOTE} characters.`,
+            bound: 'max',
+            max: MAX_BOOKING_NOTE,
+          },
+        ]);
+      }
+      requireVerifiedPhone(url);
 
       // Idempotency first: a retry of the same command must not book twice.
       const existingId = commandLog.get(command.commandId);
@@ -1001,6 +1482,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
       // A 404, as the server answers an unknown branch or table.
       if (!found || !floor) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
       const policy = DEFAULT_POLICY;
+
+      // K9: the app channel needs the switch on and a reviewed policy.
+      if (command.channel === 'app' && !acceptsAppBookings(command.branchId)) {
+        throw new BookingsNotAcceptedError({ url, branchId: command.branchId });
+      }
 
       const table = floor.tables.find((t) => t.id === command.tableId);
       if (!table) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
@@ -1096,6 +1582,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         ).toISOString(),
         cancelledAtUtc: null,
         cancelledAfterDeadline: false,
+        note: note === '' ? null : note,
         // The mock issues one for every booking, so the manage-booking page is
         // walkable from the app's own flow too. See `publicMock.ts` for what
         // the token is and, more importantly, what it is not.
@@ -1104,6 +1591,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
 
       bookings.set(id, booking);
       commandLog.set(command.commandId, id);
+      if (signedInAccountId && !deletedAccounts.has(signedInAccountId)) {
+        bookingOwners.set(id, signedInAccountId);
+      }
 
       // Reflect the booking on the floor so a second attempt sees it gone.
       floors.set(command.branchId, {
@@ -1333,6 +1823,20 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
     async createTabInvite(input): Promise<TabInvite> {
       await wait();
       return world.invite(input);
+    },
+
+    async setTabDisplayName(tabId, displayName): Promise<TabParticipantChange> {
+      await wait();
+      const url = `${URL_TAG}/api/tabs/${tabId}/display-name`;
+      const tab = readableTab(tabId);
+      if (!tab) throw new TabAccessEndedError({ url, tabId, status: 403 });
+      // `Guard.NotBlank(displayName, FieldLengths.DisplayName)`: a 400 naming it.
+      const name = displayName.trim();
+      if (name === '' || name.length > DISPLAY_NAME_MAX) {
+        throw invalidRequest(url, 'displayName', `A name is 1 to ${DISPLAY_NAME_MAX} characters.`);
+      }
+      const updated = world.setDisplayName({ tabId, displayName: name });
+      return changeOf(updated, updated.yourParticipantId);
     },
 
     async approveJoin(input): Promise<TabParticipantChange> {
