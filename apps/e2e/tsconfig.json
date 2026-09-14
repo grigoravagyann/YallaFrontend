@@ -1,0 +1,8 @@
+{
+  "extends": "@yalla/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["playwright.config.ts", "support", "specs"]
+}
