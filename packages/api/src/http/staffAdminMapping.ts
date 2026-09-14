@@ -18,8 +18,9 @@ type WireSignInLink = Schemas['Yalla.Application.Staff.StaffSignInLink'];
 /**
  * Staff and device wire shapes to screen shapes.
  *
- * `Yalla.Domain.Enums.StaffRole` is an integer on the wire — 0 PlatformAdmin,
- * 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen — and the console speaks in names.
+ * `Yalla.Domain.Enums.StaffRole` is an integer on the wire — 0 Unknown,
+ * 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin — and the console
+ * speaks in names.
  * The conversion lives here and in `auth/endpoints`, and nowhere else.
  */
 

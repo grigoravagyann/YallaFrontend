@@ -2398,6 +2398,16 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
               ? review.hidden
               : true,
         );
+      // The server orders the reported filter by the newest report, then the
+      // newest written, then the id, all descending.
+      if (filter === 'reported') {
+        rows.sort(
+          (a, b) =>
+            (b.lastReportedAtUtc ?? '').localeCompare(a.lastReportedAtUtc ?? '') ||
+            b.createdAtUtc.localeCompare(a.createdAtUtc) ||
+            b.reviewId.localeCompare(a.reviewId),
+        );
+      }
       return pageOf(rows, page, pageSize);
     },
 

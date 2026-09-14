@@ -36,6 +36,18 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
 - `diner` — the delete-account refusals (2026-09-14), provisional and **not**
   reviewed: `profile.deleteAccount.wrongPassword` and `.wrongCode` (both must
   keep saying **nothing was deleted**) and `.tooManyAttempts`.
+- Review round 2 (2026-09-15), provisional and **not** reviewed:
+  - `diner` `profile.deleteAccount.codeLabel`, `.sendCode` and `.codeSent`,
+    reworded so none promises an SMS (no backend sends one yet), and the new
+    `.noCodeHint`, which must name the Edit profile screen where a password is
+    set. `booking.note.hint` now says the venue sees the note only while the
+    booking waits for its approval; widen it again once venue screens show
+    notes on confirmed bookings.
+  - `admin` `reviews.hiddenReasonLine` and `platform.reviews.hiddenReasonLine`,
+    the recorded reason as one line (hy joins with `՝`, not a colon);
+    `floorPlan.conflict.body` in hy now uses `պահպանել` and `կկորչեն`; ru
+    `publicPage.listing.save` / `.saved` / `.failed` say `карточка`, keeping
+    `описание` for the About field alone.
 - `diner` — the whole browse flow: Explore header and filters, venue cards,
   branch rows, the booking bar and the floor plan screen. Added with the browse
   flow and **not** reviewed.
@@ -317,7 +329,7 @@ screen.
     a reviewer should decide whether it needs plural forms), `.needsVisit`
     (must keep the 180 days and both kinds of visit), `.hidden`; `place.review.report.*` (five reasons, the note,
     `own`, `failed`); `place.bookingsOff.*`; `booking.note.*` (the hint must
-    keep saying the **venue** sees it); `profile.deleteAccount.*` (the body
+    say the **venue** sees it, and only as far as a venue screen shows it); `profile.deleteAccount.*` (the body
     must keep saying what is deleted and that venues keep their booking and
     order records); `auth.sessionRevoked.*`; `tab.name.*`; `notifications.*`,
     where `kind.*` holds a title and body per notification kind and uses only

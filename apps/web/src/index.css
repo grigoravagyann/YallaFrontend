@@ -4235,6 +4235,15 @@ kbd {
   opacity: 0.62;
 }
 
+/* A hidden review is still acted on (its reason is read, it is shown again),
+   so it is marked by its badge and a ground tint, at full opacity: fading it
+   would take its date, badges, reason and button below readable contrast. */
+.review-row.is-hidden {
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+  background: var(--color-paper);
+}
+
 .block {
   display: block;
 }

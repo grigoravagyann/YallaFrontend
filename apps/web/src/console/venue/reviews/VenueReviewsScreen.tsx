@@ -49,6 +49,7 @@ export function VenueReviewsScreen() {
     hide: t('reviews.hide'),
     unhide: t('reviews.unhide'),
     reason: t('reviews.reason'),
+    reasonLine: (reason: string) => t('reviews.hiddenReasonLine', { reason }),
     reasonRequired: t('reviews.reasonRequired'),
     hiddenBadge: t('reviews.hiddenBadge'),
   };

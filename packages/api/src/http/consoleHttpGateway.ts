@@ -178,6 +178,15 @@ const RESERVATIONS = '/api/reservations';
 /** Both moderation lists page by 20, the public reviews route's size. */
 const REVIEW_PAGE_SIZE = 20;
 
+/** `Yalla.Domain.Enums.StaffRole.PlatformAdmin` on the wire. */
+const PLATFORM_ADMIN_ROLE_CODE = 5;
+
+/** The role a `StaffPermissionException` 403 says was needed, when it says one. */
+function requiredRoleOf(error: ApiError): number | undefined {
+  const context = error.problem?.context as { requiredRole?: unknown } | undefined;
+  return typeof context?.requiredRole === 'number' ? context.requiredRole : undefined;
+}
+
 type WireReservation = components['schemas']['Yalla.Application.Reservations.ReservationView'];
 type WireDecision = components['schemas']['Yalla.Api.Endpoints.DecideReservationRequest'];
 
@@ -975,12 +984,17 @@ export function createConsoleHttpGateway(
         return venueReviewFromWire(data);
       } catch (error) {
         /*
-         * Restoring is refused with a plain 403 when the platform hid the
-         * review. The route is otherwise guarded before the handler runs, and a
-         * screen only offers "restore" on a review it could list, so a 403 on a
-         * restore is that refusal. A 403 on a hide stays a `ForbiddenError`.
+         * Restoring a review the platform hid is refused with a 403 whose
+         * `context.requiredRole` is PlatformAdmin. Other 403s on the same route
+         * name another role, e.g. Manager, when the staff guard finds this person
+         * moved, demoted or deactivated after the token was issued. Those stay a
+         * `ForbiddenError`, as does any 403 on a hide.
          */
-        if (error instanceof ForbiddenError && !command.hidden) {
+        if (
+          error instanceof ForbiddenError &&
+          !command.hidden &&
+          requiredRoleOf(error) === PLATFORM_ADMIN_ROLE_CODE
+        ) {
           throw new ReviewHiddenByPlatformError({
             url: error.url,
             requestId: error.requestId,

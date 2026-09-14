@@ -49,7 +49,14 @@ function webSocketOriginOf(origin: string): string {
 export function contentSecurityPolicy(options: ContentSecurityPolicyOptions = {}): string {
   const api = originOf(options.apiUrl);
   const connect = api ? ["'self'", api, webSocketOriginOf(api)] : ["'self'"];
-  const images = ["'self'", 'data:', 'blob:', ...(api ? [api] : [])];
+  /*
+   * `https:` for images, on purpose. Photos migrated from the old
+   * `MenuItems.PhotoUrl` column are rows marked externally hosted, and the API
+   * hands their absolute URLs (any CDN a venue once pasted) out unchanged. An
+   * image cannot run script or read the token store, so allowing any https
+   * image host costs little, and leaving it out blanks every legacy dish photo.
+   */
+  const images = ["'self'", 'data:', 'blob:', ...(api ? [api] : []), 'https:'];
 
   const directives: readonly (readonly [string, readonly string[]])[] = [
     ['default-src', ["'self'"]],

@@ -551,13 +551,19 @@ function ListingForm({
           </span>
         ) : null}
         {outcome === 'failed' ? (
-          <span className="error">{t('publicPage.listing.failed')}</span>
+          <span className="error" role="alert">
+            {t('publicPage.listing.failed')}
+          </span>
         ) : null}
         {outcome === 'photoMissing' ? (
-          <span className="error">{t('publicPage.listing.photoMissing')}</span>
+          <span className="error" role="alert">
+            {t('publicPage.listing.photoMissing')}
+          </span>
         ) : null}
         {outcome === 'relocateOwnerOnly' ? (
-          <span className="error">{t('publicPage.listing.relocateOwnerOnly')}</span>
+          <span className="error" role="alert">
+            {t('publicPage.listing.relocateOwnerOnly')}
+          </span>
         ) : null}
       </div>
     </form>

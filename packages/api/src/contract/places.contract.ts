@@ -36,6 +36,9 @@ export function describePlacesContract(subject: ContractSubject): void {
         position: { latitude: 40.1792, longitude: 44.4991 },
       });
       const located = listings.filter((listing) => listing.latitude !== null);
+      // The fixture branch has coordinates. Without this, a listing that lost
+      // them all would leave the distance check below with nothing to check.
+      expect(located.map((listing) => listing.branchId)).toContain(fixtures.branchId);
       for (const listing of located) expect(listing.distanceKm).not.toBeNull();
       const distances = located.map((listing) => listing.distanceKm ?? 0);
       expect(distances).toEqual([...distances].sort((a, b) => a - b));

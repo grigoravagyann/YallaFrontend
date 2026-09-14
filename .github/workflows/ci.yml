@@ -169,8 +169,10 @@ jobs:
           fi
 
           if [ -z "$ref" ] && [ -n "$PR_NUMBER" ]; then
-            # The live description rather than the event's copy, so re-running
-            # the jobs after editing the description picks up the edit.
+            # The live description rather than the event's copy, so a re-run
+            # after editing the description picks up the edit. It has to be
+            # "Re-run all jobs": "Re-run failed jobs" skips this job, which
+            # succeeded, and hands the live jobs its old output.
             body="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body 2>/dev/null)" \
               || body="$EVENT_PR_BODY"
             line_ref="$(printf '%s\n' "$body" | tr -d '\r' \

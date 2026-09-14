@@ -10,7 +10,9 @@ backend branch, put a line of its own in this description that reads
 backend-ref, a colon, and the branch, tag or commit — for example the line
 "backend-ref: feat/some-branch" without the quotes. Without that line the job
 uses a backend branch with the same name as this one if there is one, and
-master otherwise. Say here if the backend pull request has to merge first.
+master otherwise. After adding or changing the line, use "Re-run all jobs":
+"Re-run failed jobs" keeps the backend ref already picked. Say here if the
+backend pull request has to merge first.
 -->
 
 ## Checks

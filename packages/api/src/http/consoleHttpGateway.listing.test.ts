@@ -499,20 +499,35 @@ describe('review moderation over HTTP', () => {
 
   it("reads a venue's refused restore as the platform's takedown, and a refused hide as a plain 403", async () => {
     const restore = await caught(
-      gatewayOver(vi.fn().mockResolvedValue(problem(403, 'forbidden'))).setVenueReviewVisibility(
-        'b-1',
-        'rv-1',
-        { hidden: false, reason: null },
-      ),
+      gatewayOver(
+        vi.fn().mockResolvedValue(
+          problem(403, 'forbidden', {
+            operation: 'Showing a review the platform hid',
+            requiredRole: 5,
+          }),
+        ),
+      ).setVenueReviewVisibility('b-1', 'rv-1', { hidden: false, reason: null }),
     );
     expect(restore).toBeInstanceOf(ReviewHiddenByPlatformError);
 
-    const fetchImpl = vi.fn().mockResolvedValue(problem(403, 'forbidden'));
+    const fetchImpl = vi.fn().mockResolvedValue(problem(403, 'forbidden', { requiredRole: 5 }));
     const hide = await caught(
       gatewayOver(fetchImpl).setVenueReviewVisibility('b-1', 'rv-1', { hidden: true, reason: 'x' }),
     );
     expect(sent(fetchImpl)).toBe(`PUT ${BASE}/api/branches/b-1/reviews/rv-1/visibility`);
     expect(hide).toBeInstanceOf(ForbiddenError);
     expect(hide).not.toBeInstanceOf(ReviewHiddenByPlatformError);
+  });
+
+  it('keeps a restore refused for another role a plain 403: the person can no longer act at the branch', async () => {
+    for (const context of [{ requiredRole: 2 }, undefined]) {
+      const restore = await caught(
+        gatewayOver(
+          vi.fn().mockResolvedValue(problem(403, 'forbidden', context)),
+        ).setVenueReviewVisibility('b-1', 'rv-1', { hidden: false, reason: null }),
+      );
+      expect(restore).toBeInstanceOf(ForbiddenError);
+      expect(restore).not.toBeInstanceOf(ReviewHiddenByPlatformError);
+    }
   });
 });

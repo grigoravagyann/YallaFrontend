@@ -24,6 +24,7 @@ export function BranchReviewsRoute() {
     hide: t('platform.reviews.hide'),
     unhide: t('platform.reviews.unhide'),
     reason: t('platform.reviews.reason'),
+    reasonLine: (reason: string) => t('platform.reviews.hiddenReasonLine', { reason }),
     reasonRequired: t('platform.reviews.reasonRequired'),
     hiddenBadge: t('platform.reviews.hiddenBadge'),
   };

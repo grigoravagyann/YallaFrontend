@@ -8,6 +8,8 @@ export interface ReviewModerationCopy {
   readonly hide: string;
   readonly unhide: string;
   readonly reason: string;
+  /** The recorded reason as a whole line, punctuated by the translator. */
+  readonly reasonLine: (reason: string) => string;
   readonly reasonRequired: string;
   readonly hiddenBadge: string;
 }
@@ -96,7 +98,9 @@ export function ReviewModerationRow({
   }
 
   return (
-    <li className={review.hidden ? 'row review-row is-inactive' : 'row review-row'}>
+    // A hidden review is tinted, not faded: its date, badges, reason and
+    // Show again button must stay readable.
+    <li className={review.hidden ? 'row review-row is-hidden' : 'row review-row'}>
       <div className="review-body">
         <div className="row-title">
           {review.authorName}{' '}
@@ -125,9 +129,7 @@ export function ReviewModerationRow({
         </div>
         {review.text ? <p>{review.text}</p> : null}
         {review.hidden && review.hiddenReason ? (
-          <p className="muted small">
-            {copy.reason}: {review.hiddenReason}
-          </p>
+          <p className="muted small">{copy.reasonLine(review.hiddenReason)}</p>
         ) : null}
       </div>
 

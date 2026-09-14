@@ -8,6 +8,10 @@ import { QueryClient } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { accountKeys } from '../data/accountQueries';
 import { myReviewKey } from '../data/dinerScope';
+import { bookingKeys } from '../data/bookingKeys';
+import { favoriteKeys } from '../data/favoriteKeys';
+import { notificationKeys } from '../data/notifications';
+import { dinerOrderKeys } from '../orders/keys';
 import { useSession } from '../stores/session';
 import { signOut } from './signOut';
 
@@ -29,13 +33,21 @@ const PROFILE = {
   photo: null,
 } as DinerProfileView;
 
-/** Every per-diner key the app has, and one public one that must survive. */
+/**
+ * Every per-diner key the app has, and one public one that must survive. Built
+ * from the key factories the screens use, so a per-diner key that sign-out
+ * forgets cannot also be forgotten here.
+ */
 const DINER_KEYS = [
-  ['dinerOrders', 'list'],
+  dinerOrderKeys.list(),
+  dinerOrderKeys.detail('order-1'),
   myReviewKey('b1'),
-  ['favorites', 'list'],
-  ['notifications', 'feed'],
-  ['notifications', 'unread'],
+  favoriteKeys.list(),
+  notificationKeys.feed(),
+  notificationKeys.unread(),
+  bookingKeys.bookings,
+  bookingKeys.booking('booking-1'),
+  bookingKeys.reservationState('reservation-1'),
   accountKeys.profile,
 ] as const;
 const PUBLIC_KEY = ['places', 'detail', 'b1'] as const;

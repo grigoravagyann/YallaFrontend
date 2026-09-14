@@ -5,16 +5,22 @@ import { useSession } from '../stores/session';
  * Queries whose answer belongs to whoever is signed in, and so must not outlive
  * them on a shared phone.
  *
- * The keys are written out rather than imported from `orders/hooks` and the
- * review composer: both pull in the gateway, and this module is tested without
- * a phone. `['dinerOrders']` is `dinerOrderKeys.all`, `['favorites']` is
- * `favoriteKeys.all` and `['notifications']` is `notificationKeys.all`.
+ * The prefixes are written out, so this module imports nothing but the session
+ * store. `['dinerOrders']` is `dinerOrderKeys.all` (`orders/keys`),
+ * `['favorites']` is `favoriteKeys.all` (`data/favoriteKeys`),
+ * `['notifications']` is `notificationKeys.all`, and `['bookings']`,
+ * `['booking']` and `['reservationState']` are `bookingKeys`
+ * (`data/bookingKeys`, spread into `keys`). The sign-out and scope tests seed
+ * keys built by those factories, so a prefix missing here fails there.
  */
-const DINER_SCOPED_KEYS = [
+export const DINER_SCOPED_KEYS = [
   ['dinerOrders'],
   ['places', 'myReview'],
   ['favorites'],
   ['notifications'],
+  ['bookings'],
+  ['booking'],
+  ['reservationState'],
 ] as const;
 
 /** This diner's own review of one place — `GET /api/diner/branches/{id}/review`. */

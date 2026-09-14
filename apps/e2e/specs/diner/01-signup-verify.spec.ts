@@ -11,22 +11,32 @@ test('A new diner signs up, confirms the number with the code, and Profile shows
   page,
 }) => {
   const api = await newApi();
-  const fields = dinerFields();
-  const localNumber = fields.phoneE164.replace(/^\+374/, '');
+  let fields = dinerFields();
+  let status = 0;
 
   await page.goto('/auth/signup');
-  await page.getByLabel('Your name').fill(fields.displayName);
-  await page.getByLabel('Username', { exact: true }).fill(fields.username);
-  await page.getByLabel('Email', { exact: true }).fill(fields.email);
-  await page.getByLabel('Phone number').fill(localNumber);
-  await page.getByLabel('Password', { exact: true }).fill(fields.password);
+  // The test ranges are shared with earlier runs on the same database and with
+  // the contract suite's diners, so a number can already be taken. A 409 draws
+  // another, as `registerDiner` does; anything else is the answer.
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    if (attempt > 0) fields = dinerFields();
+    await page.getByLabel('Your name').fill(fields.displayName);
+    await page.getByLabel('Username', { exact: true }).fill(fields.username);
+    await page.getByLabel('Email', { exact: true }).fill(fields.email);
+    await page.getByLabel('Phone number').fill(fields.phoneE164.replace(/^\+374/, ''));
+    await page.getByLabel('Password', { exact: true }).fill(fields.password);
 
-  const registered = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/api/auth/diner/register') && response.request().method() === 'POST',
-  );
-  await page.getByRole('button', { name: 'Create account' }).click();
-  expect((await registered).status(), 'register answers 2xx').toBeLessThan(300);
+    const registered = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/auth/diner/register') &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Create account' }).click();
+    status = (await registered).status();
+    if (status !== 409) break;
+  }
+  expect(status, 'register answers 2xx').toBeLessThan(300);
+  const localNumber = fields.phoneE164.replace(/^\+374/, '');
 
   await expect(page.getByText(fields.displayName, { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/Not verified/)).toBeVisible();

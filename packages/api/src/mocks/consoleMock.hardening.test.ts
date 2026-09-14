@@ -362,6 +362,29 @@ describe('review moderation in the mock', () => {
     expect(await caught(manager.listVenueBranchReviews(BRANCH))).toBeInstanceOf(ForbiddenError);
   });
 
+  it('orders the reported filter by the most recent report, as the server does', async () => {
+    const reviews = createMockReviewStore({ seed: true });
+    const manager = createConsoleMockGateway({ role: 'manager', reviews });
+    // The oldest review, reported a moment ago; seed-2 was written later and last reported two days ago.
+    reviews.report({
+      reviewId: 'review-seed-1',
+      dinerUserId: 'diner-reporter',
+      reason: 'spam',
+      note: null,
+      createdAtUtc: new Date().toISOString(),
+    });
+
+    const reported = await manager.listVenueBranchReviews('b-lumen-north', { filter: 'reported' });
+    expect(reported.items.map((r) => r.reviewId)).toEqual(['review-seed-1', 'review-seed-2']);
+
+    const first = await manager.listVenueBranchReviews('b-lumen-north', {
+      filter: 'reported',
+      pageSize: 1,
+    });
+    expect(first.items.map((r) => r.reviewId)).toEqual(['review-seed-1']);
+    expect(first.total).toBe(2);
+  });
+
   it('hides with a reason and restores, and refuses a hide with no reason', async () => {
     const manager = createConsoleMockGateway({ role: 'manager' });
 

@@ -11,6 +11,7 @@ import {
 } from '@yalla/api';
 import { queryKeys, useGateway } from '@yalla/api/react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { bookingKeys } from './bookingKeys';
 import { orderKeys } from './orderQueries';
 
 /**
@@ -23,10 +24,8 @@ export { useSlotFloor, useTableAvailability, useVenue, useVenues } from '@yalla/
 /** Query keys in one place, so an invalidation cannot miss a cache entry. */
 export const keys = {
   ...queryKeys,
-  bookings: ['bookings'] as const,
-  booking: (bookingId: string) => ['booking', bookingId] as const,
-  /** What a notification screen read about one booking. Invalidated with it. */
-  reservationState: (reservationId: string) => ['reservationState', reservationId] as const,
+  /** `bookings`, `booking` and `reservationState`: per diner, reset on sign-out. */
+  ...bookingKeys,
   bookingRules: (venueSlug: string, branchSlug: string) =>
     ['bookingRules', venueSlug, branchSlug] as const,
   /**

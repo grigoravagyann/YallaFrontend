@@ -224,7 +224,10 @@ export function describeDinerJourneyContract(subject: ContractSubject): void {
         longitude: 44.4991,
       });
       expect(favorite?.branchId).toBe(branchId);
-      if (favorite!.listing.latitude !== null) expect(favorite!.listing.distanceKm).not.toBeNull();
+      // The fixture branch is located, so a null here is a projection that
+      // dropped the coordinates, not a branch without any.
+      expect(favorite!.listing.latitude).not.toBeNull();
+      expect(favorite!.listing.distanceKm).not.toBeNull();
       await diner.gateway.removeFavorite(branchId);
     });
 

@@ -131,6 +131,13 @@ describe("the shell's Content-Security-Policy", () => {
     expect(directive(shellPolicy(), 'img-src')).toContain(origin);
   });
 
+  it('shows photos hosted outside the API, which every legacy menu photo is', () => {
+    // Migrated `MenuItems.PhotoUrl` values are absolute URLs on whatever host
+    // a venue once used. Without this the console and the public page draw
+    // them as blocked images.
+    expect(directive(shellPolicy(), 'img-src')).toContain('https:');
+  });
+
   it('writes the same policy beside the bundle, for the hosting header', () => {
     const header = readFileSync(join(DIST, 'content-security-policy.txt'), 'utf8').trim();
     expect(header).toBe(shellPolicy());

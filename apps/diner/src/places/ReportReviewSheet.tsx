@@ -8,7 +8,15 @@ import { useGateway } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../components/Button';
 import { Chip } from '../components/Chip';
@@ -79,7 +87,11 @@ function ReportForm({
     : null;
 
   return (
-    <>
+    // On iOS the keyboard would otherwise cover the note and Send report.
+    <KeyboardAvoidingView
+      style={styles.fill}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <Pressable
         style={styles.backdrop}
         accessibilityLabel={t('action.cancel', { ns: 'common' })}
@@ -144,11 +156,12 @@ function ReportForm({
           </View>
         </ScrollView>
       </View>
-    </>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   backdrop: { flex: 1, backgroundColor: colors.overlayDark },
   sheet: {
     position: 'absolute',

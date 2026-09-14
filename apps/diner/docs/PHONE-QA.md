@@ -17,11 +17,20 @@ the pull request's `Phone QA:` line, for example
   phone: `pnpm dev:real --only api`, or `dotnet run --project src/Yalla.Api`
   in the backend repo. Check by opening `http://<laptop LAN address>:5086/swagger`
   in the phone's browser.
-- The console runs (`pnpm dev:real --only console`) and you are signed in as a
-  manager or owner of **Yalla Demo Cafe**, so you can show a table's QR code.
-- For step 6 you need a **development build** with an EAS project id. Expo Go
-  does the other steps. Without a project id, mark step 6 "not run: no EAS
-  project" rather than "pass".
+- The console runs (`pnpm dev:real --only console`) and you are signed in with
+  the backend's platform admin (`PlatformAdmin:Email` and
+  `PlatformAdmin:Password` from its user secrets), so you can show a table's QR
+  code. The dev seed gives the demo manager and owner no console sign-in.
+- For step 6 you need two things. First, a **development build** with an EAS
+  project id; Expo Go does the other steps. Second, a backend that really sends
+  pushes: by default it is on the `Log` channel, which writes the reminder to
+  the server log and the in-app feed and sends nothing to the phone. Start it
+  with `Notifications__Channel=Expo` in its environment, for example
+  `Notifications__Channel=Expo pnpm dev:real --only api`, plus
+  `Notifications__ExpoAccessToken` if push security is on for the Expo
+  project. Without a project id, mark step 6 "not run: no EAS project"; with
+  the backend on `Log`, mark it "not run: backend on Log channel". Neither is a
+  pass.
 - A test phone number from the `+37499000xxx` range. In Development the
   verification code is shown on the code screen.
 
@@ -47,8 +56,9 @@ note the step number and take a screenshot.
    in about five minutes. (If the venue is closed three hours from now, run step
    6 another time.)
 
-2. **Scan the seeded QR.** In the console, Floor plan, select a table: its QR
-   code is in the side panel. On the phone, open the Scan tab and point the
+2. **Scan the seeded QR.** In the console, open Venues, Yalla Demo Cafe, the
+   Yerevan Centre branch, then Floor plan, and select a table: its QR code is
+   in the side panel. On the phone, open the Scan tab and point the
    camera at the laptop screen.
    **Expect:** the tab screen for that table opens, with you as the host. If the
    camera permission was declined, typing the code printed under the QR must

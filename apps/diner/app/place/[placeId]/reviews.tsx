@@ -11,7 +11,7 @@ import { Skeleton } from '../../../src/components/Skeleton';
 import { Text } from '../../../src/components/Text';
 import { usePlace, useReviewPages } from '../../../src/places/hooks';
 import { ReviewCard, useReviewReporting } from '../../../src/places/ReviewList';
-import { actionIcon, colors, layout, radius, space, typography } from '../../../src/theme';
+import { actionIcon, colors, layout, radius, shadows, space, typography } from '../../../src/theme';
 
 /**
  * Every review of one place, newest first, twenty at a time as the list is
@@ -101,6 +101,9 @@ export default function PlaceReviewsScreen() {
         renderItem={({ item }) => (
           <ReviewCard
             review={item}
+            // Straight on the page, so drawn as a white card; the muted fill is
+            // for the place page, where the list already sits inside one.
+            style={styles.card}
             onReport={reporting.canReport(item) ? () => reporting.open(item.id) : undefined}
           />
         )}
@@ -148,6 +151,7 @@ const styles = StyleSheet.create({
     paddingBottom: space.xxl,
     gap: space.md,
   },
+  card: { backgroundColor: colors.surface, ...shadows.card },
   state: { paddingHorizontal: layout.screenPadding, paddingTop: space.lg, gap: space.md },
   stateText: { ...typography.body, color: colors.textMuted },
   footer: { marginVertical: space.lg },

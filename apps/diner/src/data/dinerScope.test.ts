@@ -1,8 +1,12 @@
 import type { DinerProfileView } from '@yalla/api';
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { dinerOrderKeys } from '../orders/keys';
 import { useSession } from '../stores/session';
+import { bookingKeys } from './bookingKeys';
 import { myReviewKey, resetDinerQueriesOnSessionChange } from './dinerScope';
+import { favoriteKeys } from './favoriteKeys';
+import { notificationKeys } from './notifications';
 
 /**
  * One phone, two diners. Whatever the first one's orders and review were, the
@@ -24,6 +28,23 @@ function profileOf(dinerUserId: string, phoneE164: string): DinerProfileView {
 }
 
 const ORDERS = ['dinerOrders', 'list'] as const;
+
+/**
+ * Every per-diner key, built by the factories the screens use rather than
+ * copied by hand, so a key the scope list forgets fails here instead of
+ * passing because the test forgot it too.
+ */
+const PER_DINER_KEYS = [
+  dinerOrderKeys.list(),
+  dinerOrderKeys.detail('order-1'),
+  myReviewKey('b1'),
+  favoriteKeys.list(),
+  notificationKeys.feed(),
+  notificationKeys.unread(),
+  bookingKeys.bookings,
+  bookingKeys.booking('booking-1'),
+  bookingKeys.reservationState('reservation-1'),
+] as const;
 
 let queryClient: QueryClient;
 let stop: () => void = () => undefined;
@@ -57,6 +78,20 @@ describe('per-diner answers when the session changes hands', () => {
     expect(queryClient.getQueryData(ORDERS)).toBeUndefined();
     expect(queryClient.getQueryData(myReviewKey('b1'))).toBeUndefined();
     expect(queryClient.getQueryData(['places', 'detail', 'b1'])).toEqual({ id: 'b1' });
+  });
+
+  it('forgets every per-diner answer, the bookings included, when a different diner signs in', () => {
+    useSession.setState({ signedIn: true });
+    stop = resetDinerQueriesOnSessionChange(queryClient);
+    useSession.getState().setProfile(profileOf('diner-a', '+37491000001'));
+    for (const key of PER_DINER_KEYS) queryClient.setQueryData(key, { of: 'diner-a' });
+
+    useSession.getState().setVerified({ phoneE164: '+37491000002' });
+    useSession.getState().setProfile(profileOf('diner-b', '+37491000002'));
+
+    for (const key of PER_DINER_KEYS) {
+      expect(queryClient.getQueryData(key), JSON.stringify(key)).toBeUndefined();
+    }
   });
 
   it('forgets an answer cached while signed out once somebody signs in', () => {

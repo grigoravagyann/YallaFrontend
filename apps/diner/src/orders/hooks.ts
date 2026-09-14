@@ -1,17 +1,13 @@
 import { staleTime } from '@yalla/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../stores/session';
+import { dinerOrderKeys } from './keys';
 import { ACTIVE_WINDOW_MS, isActiveStatus, type Order } from './model';
 import { orderRepository } from './repository';
 
 /** The Orders tab's only way to an order. See `places/hooks.ts` for the pattern. */
 
-/** Named apart from `data/orderQueries.ts`'s `orderKeys`, which are the tab's kitchen orders. */
-export const dinerOrderKeys = {
-  all: ['dinerOrders'] as const,
-  list: () => ['dinerOrders', 'list'] as const,
-  detail: (orderId: string) => ['dinerOrders', 'detail', orderId] as const,
-};
+export { dinerOrderKeys };
 
 /** How often an order the kitchen still owes is read again while the app is open. */
 export const ORDER_REFRESH_MS = 15_000;

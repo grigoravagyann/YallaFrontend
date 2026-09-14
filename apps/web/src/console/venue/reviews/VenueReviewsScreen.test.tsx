@@ -61,8 +61,12 @@ describe('the venue reviews screen', () => {
     await user.click(filter(/^hidden$/i));
     await screen.findByText(/hidden by the venue/i);
     expect(screen.queryByText(/a long wait/i)).toBeNull();
-    // Why it was hidden is on the row.
-    expect(within(rowOf(/hidden by the venue/i)).getByText(/not about this venue/i)).toBeTruthy();
+    // Why it was hidden is on the row, as one translated line.
+    expect(
+      within(rowOf(/hidden by the venue/i)).getByText('Reason: Not about this venue.'),
+    ).toBeTruthy();
+    // Tinted, not faded: nothing on a hidden row drops below readable contrast.
+    expect(rowOf(/hidden by the venue/i).className).not.toMatch(/is-inactive/u);
   });
 
   it('asks for a reason before hiding, and sends it', async () => {

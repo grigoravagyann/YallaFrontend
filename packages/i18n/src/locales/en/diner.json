@@ -57,7 +57,7 @@
     "note": {
       "title": "Note for the venue",
       "placeholder": "For example, a high chair or a birthday",
-      "hint": "The venue sees this with your booking.",
+      "hint": "The venue sees this if your booking waits for their approval.",
       "tooLong": "Keep the note to {{max}} characters."
     }
   },
@@ -139,9 +139,10 @@
       "title": "Delete your account?",
       "body": "This cannot be undone. Your reviews, profile photo, favorites and notifications are deleted, and you are logged out on every phone. Venues keep their own record of your past bookings and orders, no longer linked to an account.",
       "passwordLabel": "Your password",
-      "codeLabel": "Code from the SMS",
-      "sendCode": "Text me a code",
-      "codeSent": "We sent a code to {{phone}}.",
+      "codeLabel": "Verification code",
+      "sendCode": "Get a code",
+      "codeSent": "A code for {{phone}} was requested. Enter it below.",
+      "noCodeHint": "No code arriving? Set a password in Edit profile, then delete your account with it.",
       "confirm": "Delete my account",
       "cancel": "Keep my account",
       "done": "Your account is deleted.",

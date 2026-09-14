@@ -7,6 +7,7 @@ import {
 import { QueryObserver, type QueryClient } from '@tanstack/react-query';
 import { registerRemoteToggle, useFavorites } from '../stores/favorites';
 import { useSession } from '../stores/session';
+import { favoriteKeys } from './favoriteKeys';
 
 /**
  * Favourites, synced to the diner's account (K11).
@@ -25,10 +26,7 @@ import { useSession } from '../stores/session';
  * for a place it has only just saved.
  */
 
-export const favoriteKeys = {
-  all: ['favorites'] as const,
-  list: () => ['favorites', 'list'] as const,
-};
+export { favoriteKeys };
 
 type Position = NonNullable<BranchSearchQuery['position']>;
 

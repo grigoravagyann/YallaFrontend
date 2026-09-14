@@ -1052,7 +1052,9 @@ The first of these that applies:
 | 3     | a backend branch with the same name as this branch                                       | —                                     |
 | 4     | `master`                                                                                 | —                                     |
 
-The description is read live, so after adding the line, re-run the job.
+The description is read live, so after adding the line use **Re-run all jobs**.
+"Re-run failed jobs" does not re-run `pick the backend ref`, which succeeded,
+so the live jobs get its old answer and check out the same backend again.
 
 **Credentials.** The JWT signing key is generated for each run with
 `openssl rand` and masked. The platform admin's email and password
@@ -1232,7 +1234,10 @@ the backend running, as described below.
 - **The console.** Sign in at http://localhost:5173 with the
   `PlatformAdmin:Email` and `PlatformAdmin:Password` you set. That account sees
   every venue. A venue's own screens — floor plan, public page with its cover
-  and pins, staff — are its owner's and managers'.
+  and pins, staff — are its owner's and managers', and the platform admin
+  reaches the same screens through Venues, the venue, then the branch
+  (`/platform/venues/{venueId}/branches/{branchId}/…`). The dev seed gives its
+  manager no console sign-in, so on a fresh database that is the way in.
 - **Photos.** Uploads are written on the backend machine under
   `PhotoStorage:RootPath`. In Development that is `~/photos`, which resolves to
   `%LOCALAPPDATA%\Yalla\photos` on Windows (`~/.local/share/Yalla/photos` on

@@ -32,9 +32,10 @@ export interface DeleteAccountSheetProps {
  * "Delete your account?" — what goes, what the venues keep, and one proof that
  * it is really the owner asking (K2).
  *
- * An account with a password confirms with it. One made by SMS, with none,
- * asks for a fresh code sent to its own number. Either way the server checks,
- * and a wrong answer deletes nothing.
+ * An account with a password confirms with it. One made by phone code, with
+ * none, asks for a fresh code for its own number, and says how to set a
+ * password instead when no code arrives. Either way the server checks, and a
+ * wrong answer deletes nothing.
  */
 export function DeleteAccountSheet({
   visible,
@@ -66,6 +67,12 @@ function DeleteForm({ profile, onClose, onDeleted }: Omit<DeleteAccountSheetProp
   const busy = deletion.isPending;
   const canConfirm = secret.trim().length > 0 && !busy;
   const failure = deletion.error ?? requestCode.error;
+  /*
+   * No SMS is sent anywhere yet: Development hands the code back instead. Shown
+   * the way the code screen shows it, and only in a dev build, so a production
+   * bundle cannot print a code even if a misconfigured server returns one.
+   */
+  const devCode = __DEV__ ? requestCode.data?.devCode : undefined;
 
   return (
     <KeyboardAvoidingView
@@ -118,6 +125,10 @@ function DeleteForm({ profile, onClose, onDeleted }: Omit<DeleteAccountSheetProp
                   {t('profile.deleteAccount.codeSent', { phone: profile.phoneE164 })}
                 </Text>
               ) : null}
+              {devCode ? (
+                <Text style={styles.text}>{t('verify.devBanner', { code: devCode })}</Text>
+              ) : null}
+              <Text style={styles.text}>{t('profile.deleteAccount.noCodeHint')}</Text>
               <Field label={t('profile.deleteAccount.codeLabel')}>
                 <FieldInput
                   value={secret}
