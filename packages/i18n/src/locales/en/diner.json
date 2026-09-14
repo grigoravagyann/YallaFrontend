@@ -933,6 +933,7 @@
     "emptyBody": "Booking updates and ready orders will show up here.",
     "markAllRead": "Mark all as read",
     "loadFailed": "We could not load your notifications. Try again.",
+    "unread": "Unread",
     "kind": {
       "bookingReminder": {
         "title": "Booking reminder",
@@ -970,7 +971,7 @@
     "faq": {
       "booking": {
         "question": "How do I book a table?",
-        "answer": "Open a place, tap Book a Table, then pick the day, time, number of guests and a table. You need to be logged in with a confirmed phone number. Some places do not take bookings in the app."
+        "answer": "Open a place, tap Book a Table, then pick the day, time and number of guests. To choose a table yourself, tap it on the place's photo first; otherwise the venue assigns one. You need to be logged in with a confirmed phone number. Some places do not take bookings in the app."
       },
       "code": {
         "question": "Why do I get a code by SMS?",

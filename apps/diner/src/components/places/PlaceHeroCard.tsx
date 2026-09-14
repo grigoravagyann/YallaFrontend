@@ -97,11 +97,13 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
         icon={favorited ? actionIcon.favorited : actionIcon.favorite}
         size="sm"
         // A glass circle, not a bare glyph: a white heart on a pale photo
-        // vanished, and the backing is what keeps it at 3:1 on any image.
+        // vanished, and the backing is what keeps it at 3:1 on any image. The
+        // glyph stays white when saved — the filled heart carries the state, and
+        // red on the glass is about 1.3:1 over a light photo.
         variant="translucent"
         accessibilityLabel={t(favorited ? 'place.unfavorite' : 'place.favorite')}
         onPress={() => toggleFavorite(place.id)}
-        iconColor={favorited ? colors.error : colors.onImage}
+        iconColor={colors.onImage}
         style={styles.heart}
       />
     </Card>

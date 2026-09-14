@@ -60,7 +60,11 @@ note the step number and take a screenshot.
 
 4. **The map marker shows.** Explore, open the map.
    **Expect:** a marker for Yalla Demo Cafe at its address in Yerevan. Tapping it
-   shows the place's card.
+   shows the place's card. On an **Android development or store build** the map
+   is Google Maps and needs an API key in `android.config.googleMaps.apiKey`
+   (see "Needs something outside the code" in the app README); without one it is
+   an empty grey map. Mark that "not run: no Android Maps key" rather than
+   "fail". Expo Go and iOS need no key.
 
 5. **Kill and relaunch.** Swipe the app away from the app switcher and open it
    again.

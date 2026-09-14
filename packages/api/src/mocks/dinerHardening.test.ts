@@ -241,6 +241,37 @@ describe('reviews in the mock (K8)', () => {
     ]);
     expect(feed.unreadCount).toBe(1);
   });
+
+  it('writes one review-hidden row per takedown, not one per change to a hidden review', async () => {
+    const time = clock(new Date().toISOString());
+    const reviews = createMockReviewStore({ now: time.now });
+    const gateway = createMockGateway({ reviews, now: time.now });
+    const consoleGateway = createConsoleMockGateway({ reviews, now: time.now });
+    await signInSeeded(gateway);
+    const mine = await gateway.saveMyBranchReview({ branchId: NORTH, rating: 1, text: 'Awful.' });
+    const hiddenRows = async () =>
+      (await gateway.listNotifications()).items.filter((n) => n.kind === 'review-hidden');
+
+    await consoleGateway.setReviewVisibility(mine.reviewId, { hidden: true, reason: 'Spam.' });
+    expect(await hiddenRows()).toHaveLength(1);
+
+    // Hidden again with a new reason, later: the server writes nothing, as the
+    // review never went back to shown.
+    time.advance(60_000);
+    await consoleGateway.setReviewVisibility(mine.reviewId, {
+      hidden: true,
+      reason: 'Personal information.',
+    });
+    expect(await hiddenRows()).toHaveLength(1);
+    expect(await gateway.getUnreadNotificationCount()).toBe(1);
+
+    // Shown, then taken down again: a second takedown, and a second row.
+    time.advance(60_000);
+    await consoleGateway.setReviewVisibility(mine.reviewId, { hidden: false, reason: null });
+    time.advance(60_000);
+    await consoleGateway.setReviewVisibility(mine.reviewId, { hidden: true, reason: 'Spam.' });
+    expect(await hiddenRows()).toHaveLength(2);
+  });
 });
 
 describe('the app booking gate and the note in the mock (K9)', () => {

@@ -384,7 +384,9 @@ function MarkerEditor({
           </span>
         ) : null}
         {outcome === 'failed' ? (
-          <span className="error">{t('publicPage.markers.failed')}</span>
+          <span className="error" role="alert">
+            {t('publicPage.markers.failed')}
+          </span>
         ) : null}
       </div>
     </div>

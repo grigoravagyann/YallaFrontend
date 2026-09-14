@@ -125,7 +125,7 @@ export default function SuccessScreen() {
           A booking has just been made and the question answers itself; asked on
           launch it is a prompt nobody understands and therefore declines.
         */}
-        <ReminderOptIn />
+        <ReminderOptIn startUtc={booking.slotUtc} />
 
         {/*
           Large and legible: staff ask for this at the door and it gets read

@@ -34,6 +34,12 @@ export interface StoredReview {
   hiddenAtUtc: string | null;
   /** Who hid it, which decides who may restore it. `null` while visible. */
   hiddenBy: HiddenBy | null;
+  /**
+   * How many times it went from shown to hidden. The server writes the
+   * author's `review-hidden` notice on that transition only, so re-hiding a
+   * hidden review — a new reason, or the platform taking over — counts nothing.
+   */
+  hideCount: number;
   /** Insertion order, to order two reviews written in the same millisecond. */
   readonly sequence: number;
 }
@@ -101,11 +107,14 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
     b.createdAtUtc.localeCompare(a.createdAtUtc) || b.sequence - a.sequence;
 
   function insert(
-    input: Omit<StoredReview, 'sequence' | 'authorName'> & { displayName: string | null },
+    input: Omit<StoredReview, 'sequence' | 'authorName' | 'hideCount'> & {
+      displayName: string | null;
+    },
   ): StoredReview {
     const { displayName, ...rest } = input;
     const stored: StoredReview = {
       ...rest,
+      hideCount: rest.hidden ? 1 : 0,
       authorName: publicAuthorName(displayName),
       sequence: (sequence += 1),
     };
@@ -260,6 +269,7 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
     setVisibility({ reviewId, hidden, reason, by, atUtc }) {
       const review = reviews.get(reviewId);
       if (!review) throw new Error(`No review ${reviewId}.`);
+      if (hidden && !review.hidden) review.hideCount += 1;
       review.hidden = hidden;
       review.hiddenReason = hidden ? reason : null;
       review.hiddenAtUtc = hidden ? atUtc : null;

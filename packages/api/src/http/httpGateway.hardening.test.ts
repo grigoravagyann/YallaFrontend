@@ -466,11 +466,13 @@ describe('deleting the account (K2)', () => {
     return { backend, gateway, refreshTokens };
   }
 
-  it('sends the password in the body, and the next call answers as a revoked session with no refresh', async () => {
+  it('sends the password in the body, and the next call answers as a revoked session once the refresh is refused too', async () => {
     const { backend, gateway, refreshTokens } = await signedIn({
       'DELETE /api/diner/me': { status: 204 },
       'GET /api/diner/me': problemReply(401, 'session-revoked'),
     });
+    // A deletion revokes every refresh token with the account.
+    refreshTokens.mockRejectedValueOnce(new Error('refresh-token-revoked'));
 
     await gateway.deleteDinerAccount({ password: 'correct horse' });
 
@@ -481,7 +483,7 @@ describe('deleting the account (K2)', () => {
     });
     expect(backend.requests[0]?.headers.get('authorization')).toBe('Bearer access-1');
     expect(await caught(gateway.getDinerProfile())).toBeInstanceOf(SessionRevokedError);
-    expect(refreshTokens).not.toHaveBeenCalled();
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
   });
 
   it('sends a code for an account with no password', async () => {

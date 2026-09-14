@@ -148,9 +148,12 @@ describe('screens', () => {
 
   /** `color: colors.warning` in a style. `borderColor` and `backgroundColor` are fills, and fine. */
   const TEXT_RE = new RegExp(`(?<![\\w$])color\\s*:\\s*${fill}`, 'gu');
-  /** An icon's colour: `color={colors.error}`, `iconColor={colors.error}`, `{ iconColor: colors.error }`. */
+  /**
+   * An icon's colour: `color={colors.error}`, `iconColor={saved ? colors.error : colors.onImage}`
+   * (any fill inside the prop's braces), `{ iconColor: colors.error }`.
+   */
   const GLYPH_RE = new RegExp(
-    `(?<![\\w$])(?:color|iconColor|tintColor)=\\{\\s*${fill}|(?<![\\w$])(?:iconColor|tintColor)\\s*:\\s*${fill}`,
+    `(?<![\\w$])(?:color|iconColor|tintColor)=\\{[^{}]*?${fill}|(?<![\\w$])(?:iconColor|tintColor)\\s*:\\s*${fill}`,
     'gu',
   );
 
@@ -192,5 +195,36 @@ describe('screens', () => {
       Object.values(grounds).some((ground) => contrastRatio(colors[use.fill], ground) < AA_GLYPH),
     );
     expect(faint.map((use) => `${use.at} colors.${use.fill}`)).toEqual([]);
+  });
+
+  /**
+   * A button on the glass circle stands on a photo, not on one of the grounds
+   * above, so its glyph is checked where the glass sits over a white, a mid-grey
+   * and a black picture. A red saved-heart cleared 3:1 on every ground and was
+   * about 1.3:1 over a pale cover.
+   */
+  it('give a glyph on the glass circle a colour that clears 3:1 over any photo', () => {
+    const photos = ['#FFFFFF', '#808080', '#000000'];
+    const palette = colors as Readonly<Record<string, unknown>>;
+    const faint = files.flatMap((file) => {
+      const source = readFileSync(file, 'utf8');
+      return [...source.matchAll(/<IconButton\b[\s\S]*?\/>/gu)]
+        .filter((element) => /variant="translucent"/u.test(element[0]))
+        .flatMap((element) => {
+          const at = `${relative(dinerRoot, file).replaceAll('\\', '/')}:${source.slice(0, element.index).split('\n').length}`;
+          return [...element[0].matchAll(/(?:iconColor|tintColor)(?:=\{|\s*:)([^}\n]*)/gu)]
+            .flatMap((prop) => [...prop[1]!.matchAll(/colors\.(\w+)/gu)].map((name) => name[1]!))
+            .filter((name) => {
+              const value = palette[name];
+              return (
+                typeof value === 'string' &&
+                value.startsWith('#') &&
+                photos.some((photo) => contrastRatio(value, over(colors.glass, photo)) < AA_GLYPH)
+              );
+            })
+            .map((name) => `${at} colors.${name}`);
+        });
+    });
+    expect(faint).toEqual([]);
   });
 });

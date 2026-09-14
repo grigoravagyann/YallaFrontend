@@ -1,7 +1,7 @@
 import { MAX_MODERATION_TEXT, type ModeratedReview } from '@yalla/api';
 import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useId, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 
 /** Already-translated words for one audience: the venue's screen or the platform's. */
 export interface ReviewModerationCopy {
@@ -55,6 +55,30 @@ export function ReviewModerationRow({
   const [reason, setReason] = useState('');
   const [missingReason, setMissingReason] = useState(false);
 
+  /*
+   * Keyboard focus. Every action here replaces the button that was pressed —
+   * Hide becomes the reason form, the form becomes Show again, Show again
+   * becomes Hide — and a focused element that unmounts drops focus to the page.
+   * So the control that replaces it takes focus as it mounts: the reason box
+   * always (it appears only when somebody pressed Hide), and an action button
+   * only when it is the one this row's last action was heading for, not when it
+   * merely re-renders.
+   */
+  const focusNext = useRef<'hide' | 'unhide' | null>(null);
+  const focusOnMount = useCallback((element: HTMLElement | null) => element?.focus(), []);
+  const focusHideButton = useCallback((element: HTMLButtonElement | null) => {
+    if (element && focusNext.current === 'hide') {
+      focusNext.current = null;
+      element.focus();
+    }
+  }, []);
+  const focusUnhideButton = useCallback((element: HTMLButtonElement | null) => {
+    if (element && focusNext.current === 'unhide') {
+      focusNext.current = null;
+      element.focus();
+    }
+  }, []);
+
   async function confirmHide() {
     const typed = reason.trim();
     if (typed === '') {
@@ -62,9 +86,12 @@ export function ReviewModerationRow({
       return;
     }
     setMissingReason(false);
+    focusNext.current = 'unhide';
     if (await onHide(typed)) {
       setHiding(false);
       setReason('');
+    } else {
+      focusNext.current = null;
     }
   }
 
@@ -108,7 +135,16 @@ export function ReviewModerationRow({
         {locked ? (
           <p className="muted small">{lockedText}</p>
         ) : review.hidden ? (
-          <button type="button" className="button button-small" disabled={busy} onClick={onUnhide}>
+          <button
+            ref={focusUnhideButton}
+            type="button"
+            className="button button-small"
+            disabled={busy}
+            onClick={() => {
+              focusNext.current = 'hide';
+              onUnhide();
+            }}
+          >
             {copy.unhide}
           </button>
         ) : hiding ? (
@@ -117,6 +153,7 @@ export function ReviewModerationRow({
               {copy.reason}
             </label>
             <textarea
+              ref={focusOnMount}
               id={reasonId}
               className="field"
               rows={2}
@@ -137,6 +174,7 @@ export function ReviewModerationRow({
                 className="button"
                 disabled={busy}
                 onClick={() => {
+                  focusNext.current = 'hide';
                   setHiding(false);
                   setMissingReason(false);
                 }}
@@ -155,6 +193,7 @@ export function ReviewModerationRow({
           </div>
         ) : (
           <button
+            ref={focusHideButton}
             type="button"
             className="button button-small button-ghost"
             disabled={busy}

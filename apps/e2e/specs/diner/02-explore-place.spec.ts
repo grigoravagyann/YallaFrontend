@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import {
   branchDetail,
+  branchMenu,
   demoBranch,
   newApi,
   publicBranches,
@@ -40,9 +41,15 @@ test('Explore lists the demo branch with the API id, and its place page is real'
     markers.tables.length,
   );
 
-  // Menu: whatever the branch has, never the load failure.
+  // Menu: a seeded dish, as the API lists it, on screen. Only once it is there do
+  // the failure and empty texts mean anything: while the menu loads, neither is.
+  const menu = await branchMenu(api, demo.branchId);
+  const dish = menu.categories.flatMap((category) => category.items)[0];
+  expect(dish, 'GET /api/branches/{id}/menu has items for the demo branch').toBeTruthy();
   await page.getByRole('tab', { name: 'Menu' }).click();
+  await expect(page.getByText(dish!.name, { exact: true }).first()).toBeVisible();
   await expect(page.getByText('We could not load the menu.')).toHaveCount(0);
+  await expect(page.getByText('This place has not published a menu yet.')).toHaveCount(0);
 
   // Reviews: the seeded ones, as the public API returns them.
   await page.getByRole('tab', { name: 'Reviews' }).click();

@@ -116,7 +116,11 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  // No retries, in CI included. The flows these specs guard are races (an
+  // optimistic heart, the badge count, a pin save then a cover change), and a
+  // retry that passes marks a real intermittent failure "flaky" with exit 0.
+  // A failure keeps its trace and screenshot without one.
+  retries: 0,
   timeout: 120_000,
   expect: { timeout: 15_000 },
   outputDir: 'test-results',

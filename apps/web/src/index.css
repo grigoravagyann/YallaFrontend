@@ -2838,11 +2838,12 @@ kbd {
   color: var(--color-primary-ink);
 }
 
-/* The house treatment for a warning: the colour on the border and the text,
-   never a tint nobody defined. */
+/* The house treatment for a warning: the colour on the border, its ink on the
+   text, never a tint nobody defined. The warning fill itself is about 2.9:1 on
+   a white card, under AA for small text; the ink clears 4.5:1. */
 .badge-warn {
   border: 1px solid var(--color-warning);
-  color: var(--color-warning);
+  color: var(--color-warning-ink);
 }
 
 .switch {

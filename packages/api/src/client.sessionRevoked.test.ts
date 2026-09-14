@@ -36,14 +36,42 @@ async function signedInSession() {
   return { auth, refreshTokens };
 }
 
+function ok(): Response {
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 /**
- * K1: a revoked diner session is refused with `session-revoked`, and every
- * refresh token went with it — so the client must not spend a round trip, or
- * the rotating token, trying.
+ * K1: a diner session the server ended is refused with `session-revoked`. The
+ * server's rule is "refresh once, and sign out if the refresh is refused too":
+ * a password set or changed moves the session on but keeps the refresh tokens,
+ * while a deletion or a displacement revokes them.
  */
 describe('a revoked session', () => {
-  it('rejects with SessionRevokedError at once, with no refresh and no retry', async () => {
+  it('refreshes once and carries on when the refresh is accepted, as after a password change', async () => {
     const { auth, refreshTokens } = await signedInSession();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(problem(401, 'session-revoked'))
+      .mockResolvedValueOnce(ok());
+
+    const response = await createApiClient({ baseUrl: BASE, fetch: fetchImpl, auth }).get(
+      '/api/diner/me',
+    );
+
+    expect(response.data).toEqual({ ok: true });
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const retried = fetchImpl.mock.calls[1]?.[1] as RequestInit;
+    expect(new Headers(retried.headers).get('authorization')).toBe('Bearer access-2');
+    expect(auth.getState()).toBe('signedIn');
+  });
+
+  it('rejects with SessionRevokedError and signs out when the refresh is refused too, as after a deletion', async () => {
+    const { auth, refreshTokens } = await signedInSession();
+    refreshTokens.mockRejectedValueOnce(new Error('refresh-token-revoked'));
     const fetchImpl = vi.fn().mockResolvedValue(problem(401, 'session-revoked'));
 
     const error = await createApiClient({ baseUrl: BASE, fetch: fetchImpl, auth })
@@ -55,8 +83,24 @@ describe('a revoked session', () => {
     expect(error).toBeInstanceOf(UnauthorizedError);
     expect(isSessionRevoked(error)).toBe(true);
     expect(describeFailure(error)).toBe('unauthorized');
-    expect(refreshTokens).not.toHaveBeenCalled();
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
+    // No retry with nothing to retry with.
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(auth.getState()).toBe('signedOut');
+  });
+
+  it('rejects with SessionRevokedError when the retry after a refresh is refused again', async () => {
+    const { auth, refreshTokens } = await signedInSession();
+    // A fresh response per call: a body can be read once.
+    const fetchImpl = vi.fn().mockImplementation(async () => problem(401, 'session-revoked'));
+
+    const error = await createApiClient({ baseUrl: BASE, fetch: fetchImpl, auth })
+      .get('/api/diner/me')
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(SessionRevokedError);
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it('still refreshes and retries for an ordinary 401', async () => {
@@ -64,12 +108,7 @@ describe('a revoked session', () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(problem(401, 'unauthenticated'))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
-      );
+      .mockResolvedValueOnce(ok());
 
     await createApiClient({ baseUrl: BASE, fetch: fetchImpl, auth }).get('/api/diner/me');
 

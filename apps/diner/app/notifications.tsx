@@ -191,7 +191,9 @@ function NotificationRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${title}. ${body}. ${when}`}
+      // The dot and the bold title are the only unread signs on screen, and the
+      // dot is hidden from a screen reader, so the label says it.
+      accessibilityLabel={`${notification.read ? '' : `${t('notifications.unread')}. `}${title}. ${body}. ${when}`}
       onPress={() => onPress(notification)}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >

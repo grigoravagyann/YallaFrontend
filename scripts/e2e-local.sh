@@ -417,10 +417,14 @@ if [ "$run_contract" -eq 1 ]; then
         .flatMap((file) => file.assertionResults)
         .filter((test) => test.fullName.includes("HTTP client"));
       const passed = live.filter((test) => test.status === "passed").length;
-      console.log(`e2e-local: HTTP client: ${passed} passed of ${live.length}.`);
-      process.exit(passed === 0 ? 1 : 0);
+      // The live subject declares no gaps: a skipped live test is a suite that
+      // silently stopped checking, not an excused one.
+      const skipped = live.filter((test) => ["skipped", "pending", "todo"].includes(test.status));
+      console.log(`e2e-local: HTTP client: ${passed} passed, ${skipped.length} skipped, of ${live.length}.`);
+      for (const test of skipped) console.log(`  skipped: ${test.fullName}`);
+      process.exit(passed === 0 || skipped.length > 0 ? 1 : 0);
     ' "$(native_path "$contract_results")" \
-      || failed+=("contract suite (no test against the HTTP client passed)")
+      || failed+=("contract suite (no test against the HTTP client passed, or one was skipped)")
   else
     failed+=("contract suite")
   fi

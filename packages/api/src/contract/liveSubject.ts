@@ -7,7 +7,7 @@ import { createConsoleHttpGateway, createMemoryIdentityStore } from '../http/con
 import { createHttpGateway } from '../http/httpGateway';
 
 import { installFetchBackedXhr } from './fetchXhr';
-import type { ContractCapability, ContractSubject } from './subject';
+import type { ContractSubject } from './subject';
 import { randomUuid } from './subject';
 import { httpSubject, staticSession } from './subjects';
 
@@ -49,10 +49,10 @@ function randomPin(): string {
  * Diners are made per suite by `newDiner` — register, request-code with the
  * `developmentCode` Development returns, verify-code.
  *
- * A missing credential or a missing seeded person fails here, naming what is
- * missing, rather than turning a third of the live run into skips. The one gap
- * declared is about data the seed does not have: a branch with no menu at all
- * gives the menu contract nothing to compare, and says so in its test name.
+ * A missing credential, a missing seeded person or a seeded branch with no menu
+ * fails here, naming what is missing, rather than turning part of the live run
+ * into skips. The live subject declares no gaps, and CI fails on any live test
+ * that skipped.
  */
 export async function resolveLiveSubject(baseUrl: string): Promise<ContractSubject> {
   installFetchBackedXhr();
@@ -149,13 +149,20 @@ export async function resolveLiveSubject(baseUrl: string): Promise<ContractSubje
     pin,
   });
 
-  // --- 4. What the seeded data cannot exercise ------------------------------------
-  const menu = await admin.getAdminMenu(branchId);
-  const gaps: Partial<Record<ContractCapability, string>> = menu.some(
-    (category) => category.items.length > 0,
-  )
-    ? {}
-    : { menu: 'the seeded branch has no menu items, so there is nothing to compare' };
+  // --- 4. A menu to compare ---------------------------------------------------------
+  // Read raw and anonymously, as the diner app reads it — not through the console
+  // gateway under test. Asked through that gateway, a mapping that dropped every
+  // item turned the whole menu contract into a skip, and CI stayed green.
+  const { data: menu } = await anonymous.get<Schemas['Yalla.Application.Menus.BranchMenuView']>(
+    `/api/branches/${branchId}/menu`,
+    { skipAuth: true },
+  );
+  if (!menu.categories.some((category) => category.items.length > 0)) {
+    throw new Error(
+      `GET /api/branches/${branchId}/menu has no items. The development seed gives the demo ` +
+        'branch a menu; start the backend with DevSeed on, so the menu contract has something to compare.',
+    );
+  }
 
   return httpSubject({
     baseUrl,
@@ -164,6 +171,5 @@ export async function resolveLiveSubject(baseUrl: string): Promise<ContractSubje
     adminToken,
     managerToken: managerSession.tokens.accessToken,
     waiterToken: waiterSession.tokens.accessToken,
-    gaps,
   });
 }

@@ -1234,11 +1234,15 @@ the backend running, as described below.
   every venue. A venue's own screens — floor plan, public page with its cover
   and pins, staff — are its owner's and managers'.
 - **Photos.** Uploads are written on the backend machine under
-  `PhotoStorage:RootPath`, default `.photos`, relative to the directory the API
-  was started from — for `pnpm dev:real` that is the backend checkout. Delete the
-  folder along with the database to start clean. Photo links in API responses are
-  root-relative (`/api/photos/{id}/{variant}`), and both apps resolve them
-  against the API origin.
+  `PhotoStorage:RootPath`. In Development that is `~/photos`, which resolves to
+  `%LOCALAPPDATA%\Yalla\photos` on Windows (`~/.local/share/Yalla/photos` on
+  Linux) — outside the checkout, and one folder for every worktree of the
+  backend, because they share the local database. The API logs the absolute
+  folder at startup ("Photo storage root is …"). To start clean, empty that
+  folder along with dropping the database; see "Photos" in the
+  [backend README](https://github.com/grigoravagyann/Yalla#photos). Photo links
+  in API responses are root-relative (`/api/photos/{id}/{variant}`), and both
+  apps resolve them against the API origin.
 
 ## Running against the real backend
 
@@ -1318,44 +1322,47 @@ from `mocks/`; the switch is `resolveGateway` and `resolveConsoleGateway` in
 Built from the HTTP gateways in `packages/api/src/http`. Every endpoint marked
 real is in the backend's swagger document (`packages/api/src/generated/swagger.json`).
 
-| Screen                                      | Source | Endpoint                                                                                              |
-| ------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
-| Diner: places near me                       | real   | `GET /api/public/branches?lat=&lng=`                                                                  |
-| Diner: search                               | real   | `GET /api/public/branches/search?q=&category=`                                                        |
-| Diner: place details                        | real   | `GET /api/public/branches/{branchId}`                                                                 |
-| Diner: reviews                              | real   | `GET /api/public/branches/{branchId}/reviews`                                                         |
-| Diner: pins on the table photo              | real   | `GET /api/public/branches/{branchId}/table-markers`                                                   |
-| Diner: writing a review                     | real   | `GET`/`POST`/`PUT /api/diner/branches/{branchId}/review`                                              |
-| Diner: orders                               | real   | `GET /api/diner/orders`, `GET /api/diner/orders/{orderId}`                                            |
-| Diner: bookings                             | real   | `POST /api/reservations`, `GET /api/reservations/mine`, `POST /api/reservations/{id}/cancel`          |
-| Diner: account and profile photo            | real   | `GET`/`PUT /api/diner/me`, `PUT /api/diner/me/password`, `POST`/`DELETE /api/diner/me/photo`          |
-| Console: the diner app listing              | real   | `GET`/`PUT /api/branches/{branchId}/listing`                                                          |
-| Console: onboarding checklist               | real   | `GET /api/branches/{branchId}/readiness`                                                              |
-| Console: table pins on the cover photo      | client | `PUT /api/branches/{branchId}/table-photo-positions` — the backend route is K7 and not yet in swagger |
-| Console venue list                          | real   | `GET /api/platform/venues` (platform admin)                                                           |
-| Console venue and branches (owner, manager) | real   | `GET /api/venues/{id}/manage` — the branches the caller's staff row covers                            |
-| Diner floor plan                            | real   | `GET /api/branches/{id}/availability`                                                                 |
-| Staff device enrolment and PIN sign-in      | real   | `POST /api/auth/staff/{enrol,pin,renew,sign-out}`                                                     |
-| Staff floor plan                            | real   | `GET /api/branches/{id}/tables/floor`                                                                 |
-| Staff table actions                         | real   | the eight `POST /api/branches/{id}/tables/{id}/…`                                                     |
-| Floor change stream                         | real   | `GET /api/branches/{id}/tables/changes`                                                               |
-| Order entry and the kitchen rail            | real   | `POST /api/tabs/{id}/staff-orders`, `GET /api/branches/{id}/orders`, `POST /api/orders/{id}/status`   |
-| Service requests                            | real   | `GET /api/branches/{id}/service-requests`, `POST /api/service-requests/{id}/acknowledge`              |
-| Tab totals and participants                 | real   | `GET /api/tabs/{id}/participants`                                                                     |
-| Voids, comps and discounts                  | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                              |
-| Cash, closing, abandon, reassign host       | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                   |
-| Releasing a late booking                    | real   | `POST /api/reservations/{id}/release`                                                                 |
-| Diner menu, tab, shares, events             | real   | `GET /api/branches/{id}/menu`, `/api/tabs/{id}`, `/shares`, `/events`                                 |
-| Diner ordering                              | real   | `POST /api/tabs/{id}/orders` — wired, and **refused by the server**; see below                        |
-| Settlement mode, calling a waiter           | real   | `POST /api/tabs/{id}/settlement-mode`, `/service-requests`                                            |
-| Push registration and the two actions       | real   | `POST /api/diner/devices`, `/api/reservations/{id}/{cancel,extend-hold}`                              |
-| Branch time zone                            | real   | `GET /api/branches/{id}/availability`                                                                 |
+| Screen                                      | Source | Endpoint                                                                                             |
+| ------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| Diner: places near me                       | real   | `GET /api/public/branches?lat=&lng=`                                                                 |
+| Diner: search                               | real   | `GET /api/public/branches/search?q=&category=`                                                       |
+| Diner: place details                        | real   | `GET /api/public/branches/{branchId}`                                                                |
+| Diner: reviews                              | real   | `GET /api/public/branches/{branchId}/reviews`                                                        |
+| Diner: pins on the table photo              | real   | `GET /api/public/branches/{branchId}/table-markers`                                                  |
+| Diner: writing a review                     | real   | `GET`/`POST`/`PUT /api/diner/branches/{branchId}/review`                                             |
+| Diner: orders                               | real   | `GET /api/diner/orders`, `GET /api/diner/orders/{orderId}`                                           |
+| Diner: bookings                             | real   | `POST /api/reservations`, `GET /api/reservations/mine`, `POST /api/reservations/{id}/cancel`         |
+| Diner: account and profile photo            | real   | `GET`/`PUT /api/diner/me`, `PUT /api/diner/me/password`, `POST`/`DELETE /api/diner/me/photo`         |
+| Diner: deleting the account                 | real   | `DELETE /api/diner/me`                                                                               |
+| Diner: favourites synced to the account     | real   | `GET`/`PUT /api/diner/favorites`, `PUT`/`DELETE /api/diner/favorites/{branchId}`                     |
+| Diner: notifications feed                   | real   | `GET /api/diner/notifications`, `POST /api/diner/notifications/read`                                 |
+| Diner: reporting a review                   | real   | `POST /api/diner/reviews/{reviewId}/report`                                                          |
+| Console: the diner app listing              | real   | `GET`/`PUT /api/branches/{branchId}/listing`                                                         |
+| Console: onboarding checklist               | real   | `GET /api/branches/{branchId}/readiness`                                                             |
+| Console: table pins on the cover photo      | real   | `PUT /api/branches/{branchId}/table-photo-positions`                                                 |
+| Console: a venue's review moderation        | real   | `GET /api/branches/{branchId}/reviews`, `PUT /api/branches/{branchId}/reviews/{reviewId}/visibility` |
+| Console: the platform's review moderation   | real   | `GET /api/platform/branches/{branchId}/reviews`, `PUT /api/platform/reviews/{reviewId}/visibility`   |
+| Console venue list                          | real   | `GET /api/platform/venues` (platform admin)                                                          |
+| Console venue and branches (owner, manager) | real   | `GET /api/venues/{id}/manage` — the branches the caller's staff row covers                           |
+| Diner floor plan                            | real   | `GET /api/branches/{id}/availability`                                                                |
+| Staff device enrolment and PIN sign-in      | real   | `POST /api/auth/staff/{enrol,pin,renew,sign-out}`                                                    |
+| Staff floor plan                            | real   | `GET /api/branches/{id}/tables/floor`                                                                |
+| Staff table actions                         | real   | the eight `POST /api/branches/{id}/tables/{id}/…`                                                    |
+| Floor change stream                         | real   | `GET /api/branches/{id}/tables/changes`                                                              |
+| Order entry and the kitchen rail            | real   | `POST /api/tabs/{id}/staff-orders`, `GET /api/branches/{id}/orders`, `POST /api/orders/{id}/status`  |
+| Service requests                            | real   | `GET /api/branches/{id}/service-requests`, `POST /api/service-requests/{id}/acknowledge`             |
+| Tab totals and participants                 | real   | `GET /api/tabs/{id}/participants`                                                                    |
+| Voids, comps and discounts                  | real   | `POST /api/tabs/{id}/lines/{id}/void`, `POST /api/tabs/{id}/adjustments`                             |
+| Cash, closing, abandon, reassign host       | real   | `POST /api/tabs/{id}/{payments/cash,closing,abandon,reassign-host}`                                  |
+| Releasing a late booking                    | real   | `POST /api/reservations/{id}/release`                                                                |
+| Diner menu, tab, shares, events             | real   | `GET /api/branches/{id}/menu`, `/api/tabs/{id}`, `/shares`, `/events`                                |
+| Diner ordering                              | real   | `POST /api/tabs/{id}/orders`                                                                         |
+| Settlement mode, calling a waiter           | real   | `POST /api/tabs/{id}/settlement-mode`, `/service-requests`                                           |
+| Push registration and the two actions       | real   | `POST /api/diner/devices`, `/api/reservations/{id}/{cancel,extend-hold}`                             |
+| Branch time zone                            | real   | `GET /api/branches/{id}/availability`                                                                |
 
 Nothing on the counter screen says "not available yet" any more, and the staff
-gateway raises `EndpointNotWiredError` nowhere. Favourites synced to the account
-and the diner notifications feed are specified for the diner app — see
-[`apps/diner/README.md`](apps/diner/README.md) — and join this table when their
-routes are in swagger.
+gateway raises `EndpointNotWiredError` nowhere.
 
 ### Four things a staff token cannot do, and how the screens handle it
 
@@ -1469,33 +1476,22 @@ pins the realistic case rather than the tidy one: a type 21 arriving _in the
 middle_ of a page the client does understand, where the known events must still
 apply and the cursor must end past all three.
 
-### One thing that stops the ordering loop, and it is not in this repo
+### The ordering refusal, fixed in the backend
 
-`POST /api/tabs/{tabId}/orders` **refuses every diner**, with
-`403 forbidden`, `"Ordering is allowed only for somebody on this tab."`
+`POST /api/tabs/{tabId}/orders` used to **refuse every diner** with
+`403 forbidden`, `"Ordering is allowed only for somebody on this tab."` The
+client and the authorization were correct; the service was not.
+`IssueTabParticipantToken` mints a `TabParticipant` principal with
+`ParticipantId` and `TabId` claims and no `DinerUserId`, and `TabOrderService`
+read `actor.DinerUserId`, which is null for every scanned-QR token — so the
+order was refused after passing the gate that exists to allow it.
 
-The client is correct and the authorization is correct. The service is not:
-
-- `IssueTabParticipantToken` mints `PrincipalType = TabParticipant` with
-  `ParticipantId` and `TabId` claims, and **no `DinerUserId`**.
-- `TabParticipantHandler` reads exactly those claims, checks the participant's
-  standing, and lets the request through — it even computes `canOrderNow`, which
-  the tab read reports as `true`.
-- `TabOrderService` then does
-  `var participantId = actor.DinerUserId ?? throw new TabPermissionException("Ordering", "somebody on this tab")`.
-  `ClaimsCurrentActor.DinerUserId` returns a value only when
-  `PrincipalType == Diner`, so for a scanned QR it is null and the order is
-  refused after passing the gate that exists to allow it.
-
-There is no token that satisfies both: a `Diner` principal fails the policy at
-`PrincipalType() != PrincipalType.TabParticipant`, and even if it did not,
-`DinerUserId` is a user id being compared against `TabParticipant.Id`, which is
-a participant row id.
-
-`ServiceRequestService` is the working pattern in the same codebase — it takes
-`actingParticipantId` as a parameter, passed from the claim, and calling a
-waiter works. The fix is to give `ICurrentActor` a `TabParticipantId` and have
-`TabOrderService` read it. Nothing in this repo changes when it lands.
+The backend fixed it the way `ServiceRequestService` already worked:
+`ICurrentActor` gained a `ParticipantId`, read from the token's `ParticipantId`
+claim, and `TabOrderService` reads that. Nothing in this repo changed. The
+backend's `DinerJourneyEndToEndTests` post an order to
+`/api/tabs/{tabId}/orders` and read it back from `/api/diner/orders`, and
+ordering is `real` in the table above.
 
 ### Where the wire shapes live
 

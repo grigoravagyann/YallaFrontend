@@ -801,6 +801,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   // --- The notifications feed (K12) ---------------------------------------------
 
   const feeds = new Map<string, DinerNotification[]>();
+  /** `account:review` → the review's `hideCount` its last `review-hidden` row announced. */
+  const announcedHides = new Map<string, number>();
   let notificationOrder = 0;
 
   /**
@@ -852,16 +854,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         const review = reviewStore.mine(branch.id, accountId);
         if (!review?.hidden || !review.hiddenAtUtc) continue;
         const hiddenAt = review.hiddenAtUtc;
-        if (
-          feed.some(
-            (row) =>
-              row.kind === 'review-hidden' &&
-              row.params['reviewId'] === review.reviewId &&
-              row.createdAtUtc === hiddenAt,
-          )
-        ) {
-          continue;
-        }
+        // One row per takedown, as the server writes it on the shown → hidden
+        // transition only. A new reason or the platform taking over changes
+        // `hiddenAtUtc` but is not a second takedown.
+        const key = `${accountId}:${review.reviewId}`;
+        if ((announcedHides.get(key) ?? 0) >= review.hideCount) continue;
+        announcedHides.set(key, review.hideCount);
         add({
           kind: 'review-hidden',
           params: { reviewId: review.reviewId, venueName: venue.name, branchName: branch.name },

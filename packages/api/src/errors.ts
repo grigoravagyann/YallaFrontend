@@ -98,9 +98,11 @@ export const SESSION_REVOKED_CODE = 'session-revoked';
  *
  * The account was deactivated or deleted, or its session generation moved on —
  * the number's owner proved it and displaced whoever held it, or the password
- * changed. Refreshing cannot help (every refresh token was revoked with it), so
- * the client **never tries**: it rejects with this at once. A screen signs the
- * diner out and says why, rather than routing to sign-in as if a token had
+ * changed. The client refreshes once first, as the server asks: after a
+ * password change the refresh token is still good and the request goes
+ * through, so this reaches a caller only when the refresh was refused too (a
+ * deletion or a displacement revokes every refresh token). A screen then signs
+ * the diner out and says why, rather than routing to sign-in as if a token had
  * merely aged out.
  *
  * A subclass of {@link UnauthorizedError}, so everything that already treats a

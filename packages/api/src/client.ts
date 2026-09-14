@@ -65,16 +65,17 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 /**
  * 401 codes a refresh cannot fix, so none is attempted.
  *
- * `session-revoked` (K1): the session was ended and every refresh token with
- * it. `invalid-credentials`: the token was accepted and a password or code in
- * the body was wrong — refreshing spends the rotating refresh token for
- * nothing, on every mistyped password in a change-password or delete-account
- * form.
+ * `invalid-credentials`: the token was accepted and a password or code in the
+ * body was wrong — refreshing spends the rotating refresh token for nothing, on
+ * every mistyped password in a change-password or delete-account form.
+ *
+ * `session-revoked` (K1) is deliberately **not** here. The server's rule is
+ * "refresh once, and sign out if the refresh is refused too": setting or
+ * changing a password moves the session generation on but keeps the refresh
+ * tokens, so the refresh succeeds and the diner carries on. Only after a
+ * deletion or a displacement is the refresh refused as well.
  */
-const NO_REFRESH_CODES: ReadonlySet<string> = new Set([
-  SESSION_REVOKED_CODE,
-  'invalid-credentials',
-]);
+const NO_REFRESH_CODES: ReadonlySet<string> = new Set(['invalid-credentials']);
 
 function buildUrl(baseUrl: string, path: string, query: RequestOptions['query']): string {
   const base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -276,9 +277,10 @@ export class ApiClient {
     // same refresh inside the session, so the rotating token is spent exactly
     // once — spending it twice is what gets a user signed out.
     //
-    // Except for `session-revoked` (K1): the server ended the session and
-    // revoked every refresh token with it, so a refresh is a wasted round trip
-    // that can only fail. It rejects straight away as `SessionRevokedError`.
+    // `session-revoked` (K1) refreshes too. After a password change the refresh
+    // token is still good and the retry goes through; after a deletion the
+    // refresh is refused, the session signs out, and the original answer
+    // rejects as `SessionRevokedError`. A retry refused again rejects the same way.
     if (
       response.status === 401 &&
       this.#config.auth &&

@@ -1126,6 +1126,7 @@
       "reported": "Reported",
       "hidden": "Hidden"
     },
+    "hiddenBadge": "Hidden",
     "hide": "Hide",
     "unhide": "Show again",
     "reason": "Reason",

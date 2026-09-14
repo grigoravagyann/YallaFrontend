@@ -50,7 +50,7 @@ export function VenueReviewsScreen() {
     unhide: t('reviews.unhide'),
     reason: t('reviews.reason'),
     reasonRequired: t('reviews.reasonRequired'),
-    hiddenBadge: t('reviews.filter.hidden'),
+    hiddenBadge: t('reviews.hiddenBadge'),
   };
 
   async function change(reviewId: string, hidden: boolean, reason: string | null) {

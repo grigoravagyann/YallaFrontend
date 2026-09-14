@@ -280,6 +280,18 @@ export async function publicBranches(api: APIRequestContext): Promise<PublicList
   return body(await api.get('/api/public/branches'), 'GET /api/public/branches');
 }
 
+export interface BranchMenu {
+  readonly categories: readonly {
+    readonly name: string;
+    readonly items: readonly { readonly name: string }[];
+  }[];
+}
+
+/** The menu the diner app reads, anonymously: `GET /api/branches/{id}/menu`. */
+export async function branchMenu(api: APIRequestContext, branchId: string): Promise<BranchMenu> {
+  return body(await api.get(`/api/branches/${branchId}/menu`), 'GET /api/branches/{id}/menu');
+}
+
 export async function branchDetail(
   api: APIRequestContext,
   branchId: string,

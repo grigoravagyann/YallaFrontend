@@ -1,3 +1,4 @@
+import type { YallaGateway } from '@yalla/api';
 import { useGateway } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useState } from 'react';
@@ -31,24 +32,90 @@ import { permissionState, registerDevice, requestPermission } from './registrati
 
 type State = 'checking' | 'offer' | 'granted' | 'declined' | 'unavailable';
 
-export function ReminderOptIn({ style }: { readonly style?: StyleProp<ViewStyle> }) {
+/**
+ * How long before the start the server queues the reminder:
+ * `ReservationPolicy.ReminderHoursBefore`, three hours on every branch. No API
+ * response carries it, so it is written down here; if it ever becomes a
+ * setting the API returns, read it from there instead.
+ */
+export const REMINDER_HOURS_BEFORE = 3;
+
+const HOUR_MS = 60 * 60_000;
+
+/**
+ * Whether the server queued a reminder for a booking starting at `startUtc`.
+ *
+ * It queues one only while the reminder time is still ahead
+ * (`ReservationService.ScheduleRemindersAsync`: `remindAt > now`), so a table
+ * booked two hours out gets no reminder push and no feed row, whatever the
+ * phone's permission says.
+ */
+export function reminderWillBeSent(
+  startUtc: string,
+  nowMs: number = Date.now(),
+  hoursBefore: number = REMINDER_HOURS_BEFORE,
+): boolean {
+  const start = Date.parse(startUtc);
+  return Number.isFinite(start) && start - hoursBefore * HOUR_MS > nowMs;
+}
+
+/**
+ * Send this device's token up, and say what that means for the reminder. No
+ * token means no EAS project or a simulator: permission was granted and nothing
+ * will arrive anyway, so it reads the same as a decline rather than claiming a
+ * reminder is coming.
+ */
+async function register(gateway: YallaGateway, locale: string): Promise<'granted' | 'unavailable'> {
+  try {
+    const deviceId = await registerDevice(gateway, { projectId, locale });
+    return deviceId ? 'granted' : 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+export function ReminderOptIn({
+  startUtc,
+  style,
+}: {
+  /** The booking's start, to tell whether any reminder is coming at all. */
+  readonly startUtc: string;
+  readonly style?: StyleProp<ViewStyle>;
+}) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const gateway = useGateway();
   const [state, setState] = useState<State>('checking');
+  // Decided once, when the booking has just been made — the moment the server decided.
+  const [willRemind] = useState(() => reminderWillBeSent(startUtc));
 
   useEffect(() => {
+    if (!willRemind) return;
     let cancelled = false;
-    void permissionState().then((current) => {
+    void (async () => {
+      let current: Awaited<ReturnType<typeof permissionState>>;
+      try {
+        current = await permissionState();
+      } catch {
+        // No notifications API here (the web build): say nothing either way.
+        return;
+      }
       if (cancelled) return;
-      setState(
-        current === 'granted' ? 'granted' : current === 'undetermined' ? 'offer' : 'declined',
-      );
-    });
+      if (current !== 'granted') {
+        setState(current === 'undetermined' ? 'offer' : 'declined');
+        return;
+      }
+      // Granted on an earlier booking, or by default on older Android. The OS
+      // permission says nothing about a token: with no EAS project there is
+      // none, and "we will remind you" would be a promise nothing keeps. So the
+      // device is registered now, and only a registered device is promised one.
+      const outcome = await register(gateway, locale);
+      if (!cancelled) setState(outcome);
+    })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [willRemind, gateway, locale]);
 
   /**
    * Registration follows the grant immediately.
@@ -66,18 +133,12 @@ export function ReminderOptIn({ style }: { readonly style?: StyleProp<ViewStyle>
       return;
     }
 
-    try {
-      const deviceId = await registerDevice(gateway, { projectId, locale });
-      // No token means no EAS project or a simulator. Permission was granted and
-      // nothing will arrive anyway, so say the same thing as a decline rather
-      // than claiming a reminder is coming.
-      setState(deviceId ? 'granted' : 'unavailable');
-    } catch {
-      setState('unavailable');
-    }
+    setState(await register(gateway, locale));
   }
 
-  if (state === 'checking') return null;
+  // No reminder is coming for a booking this close, so there is nothing to
+  // offer and nothing to promise; the booking screen says the rest.
+  if (!willRemind || state === 'checking') return null;
 
   if (state === 'granted' || state === 'declined' || state === 'unavailable') {
     // Said once, plainly, and never again. The booking is fine; this is the one

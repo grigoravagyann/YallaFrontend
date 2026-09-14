@@ -96,6 +96,38 @@ describe('the venue reviews screen', () => {
     );
   });
 
+  it('keeps keyboard focus in the row as each action replaces its button', async () => {
+    const user = userEvent.setup();
+    renderReviews(createConsoleMockGateway({ latencyMs: 0, role: 'owner' }));
+
+    await screen.findByText(/quick coffee/i);
+    await user.click(within(rowOf(/quick coffee/i)).getByRole('button', { name: /^hide$/i }));
+    // The reason box, not the page.
+    expect(document.activeElement).toBe(within(rowOf(/quick coffee/i)).getByLabelText(/reason/i));
+
+    // Cancel puts it back on Hide.
+    await user.click(within(rowOf(/quick coffee/i)).getByRole('button', { name: /cancel/i }));
+    expect(document.activeElement).toBe(
+      within(rowOf(/quick coffee/i)).getByRole('button', { name: /^hide$/i }),
+    );
+
+    await user.keyboard('{Enter}');
+    await user.keyboard('Spam');
+    await user.click(within(rowOf(/quick coffee/i)).getByRole('button', { name: /^hide$/i }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(rowOf(/quick coffee/i)).getByRole('button', { name: /show again/i }),
+      ),
+    );
+
+    await user.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(rowOf(/quick coffee/i)).getByRole('button', { name: /^hide$/i }),
+      ),
+    );
+  });
+
   it('restores a review the venue hid', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
     const visibility = vi.spyOn(gateway, 'setVenueReviewVisibility');

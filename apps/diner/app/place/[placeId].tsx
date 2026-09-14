@@ -301,7 +301,8 @@ function PlaceDetails({
                 icon={favorite ? actionIcon.favorited : actionIcon.favorite}
                 accessibilityLabel={favorite ? t('place.unfavorite') : t('place.favorite')}
                 variant="translucent"
-                {...(favorite ? { iconColor: colors.error } : {})}
+                // White on the glass either way: the filled heart says saved,
+                // and red on the glass fails 3:1 over a light photo.
                 onPress={() => toggleFavorite(place.id)}
               />
               <IconButton

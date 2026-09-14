@@ -46,14 +46,6 @@ done
 
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
-# --live starts a backend at the very end, after minutes of gates. Its
-# pre-flight — the backend checkout, SQL Server, sqlcmd, free ports, Chromium —
-# runs first, so a missing prerequisite fails now rather than after the build.
-if [ "$RUN_LIVE" -eq 1 ]; then
-  step "Pre-flight for --live"
-  bash scripts/e2e-local.sh --preflight
-fi
-
 # The workflow takes the Node version from .nvmrc so that "a developer's shell
 # and CI cannot drift". This is the half of that sentence the workflow cannot
 # enforce. A warning rather than a failure: a mismatched minor is usually fine,
@@ -76,6 +68,16 @@ fi
 if [ "$RUN_INSTALL" -eq 1 ]; then
   step "Install (--frozen-lockfile)"
   pnpm install --frozen-lockfile
+fi
+
+# --live starts a backend at the very end, after minutes of gates. Its
+# pre-flight — the backend checkout, SQL Server, sqlcmd, free ports, Chromium —
+# runs before the gates, so a missing prerequisite fails now rather than after
+# the build. After the install, though: it needs node_modules (and the
+# Playwright it finds Chromium with), which a fresh clone has only from here.
+if [ "$RUN_LIVE" -eq 1 ]; then
+  step "Pre-flight for --live"
+  bash scripts/e2e-local.sh --preflight
 fi
 
 step "Typecheck"

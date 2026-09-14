@@ -8552,7 +8552,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `verification-code-invalid`: the code was wrong, with `context.attemptsRemaining` - zero when nothing is live for the number, which means ask for a new code rather than try again. `verification-code-expired`, with no context: codes last five minutes. */
+            /** @description `verification-code-invalid`: the code was wrong, with `context.attemptsRemaining` - zero when nothing is live for the number, which means ask for a new code rather than try again. `verification-code-expired`, with no context: codes last five minutes. `invalid-credentials`: the code was right but the number's account is deactivated - the password sign-in's answer; the code is spent and no token is issued. */
             401: {
                 headers: {
                     [name: string]: unknown;

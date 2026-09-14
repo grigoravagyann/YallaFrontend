@@ -182,9 +182,11 @@ jobs:
           fi
 
           if [ -n "$ref" ]; then
-            if ! [[ "$ref" =~ ^[0-9a-f]{7,40}$ ]] \
+            # A commit only as a full 40-character SHA: actions/checkout fetches
+            # by SHA only then, and reads anything shorter as a branch or tag name.
+            if ! [[ "$ref" =~ ^[0-9a-f]{40}$ ]] \
               && ! git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$ref" "refs/tags/$ref" >/dev/null; then
-              echo "::error title=Backend ref not found::$reason names '$ref', which is not a branch, tag or commit of grigoravagyann/Yalla."
+              echo "::error title=Backend ref not found::$reason names '$ref', which is not a branch or tag of grigoravagyann/Yalla, nor a full 40-character commit SHA."
               exit 1
             fi
           elif git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$BRANCH" >/dev/null; then
@@ -358,7 +360,9 @@ jobs:
 
       # The suite switches its live half on from YALLA_CONTRACT_BASE_URL and says
       # so in a skipped test when it is off. A run where nothing against the HTTP
-      # client passed is green and proves nothing, so it is a failure here.
+      # client passed is green and proves nothing, so it is a failure here. So is
+      # any live test that skipped: the live subject declares no gaps, and a
+      # suite that quietly became describe.skip has stopped checking anything.
       - name: Check the live half ran
         run: |
           node -e '
@@ -367,9 +371,15 @@ jobs:
               .flatMap((file) => file.assertionResults)
               .filter((test) => test.fullName.includes("HTTP client"));
             const passed = live.filter((test) => test.status === "passed").length;
-            console.log(`HTTP client: ${passed} passed of ${live.length}.`);
+            const skipped = live.filter((test) => ["skipped", "pending", "todo"].includes(test.status));
+            console.log(`HTTP client: ${passed} passed, ${skipped.length} skipped, of ${live.length}.`);
             if (passed === 0) {
               console.log("::error title=The live half did not run::No contract test against the HTTP client passed.");
+              process.exit(1);
+            }
+            if (skipped.length > 0) {
+              for (const test of skipped) console.log(`  skipped: ${test.fullName}`);
+              console.log("::error title=Live contract tests skipped::A contract test against the HTTP client was skipped.");
               process.exit(1);
             }
           ' "$GITHUB_WORKSPACE/contract-results.json"
