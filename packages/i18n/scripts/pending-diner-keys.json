@@ -13,7 +13,6 @@
     "booking.note.*": "D1 — the booking note field, success screen and booking detail",
     "profile.deleteAccount.*": "D1 — Profile > Delete account",
     "auth.sessionRevoked.*": "D1 — sign-out on SessionRevokedError",
-    "tab.name.*": "D2 — the optional name prompt on pending and tab screens",
     "notifications.*": "D1 — app/notifications.tsx",
     "help.*": "D1 — app/help.tsx",
     "about.*": "D1 — app/about.tsx"

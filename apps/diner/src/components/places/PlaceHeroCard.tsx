@@ -10,6 +10,7 @@ import { IconButton } from '../IconButton';
 import { PhotoImage } from '../PhotoImage';
 import { Text } from '../Text';
 import { PlaceMetaRow, usePlaceCopy } from './placeCopy';
+import { placeTitle } from './placeTitle';
 
 export { PlaceMetaRow, usePlaceCopy } from './placeCopy';
 export type { PlaceCopy, PlaceMetaRowProps } from './placeCopy';
@@ -48,9 +49,10 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
   const contentBadge = place.badges[0];
   const status = place.openState.isOpen ? 'open' : 'closed';
   const photo = place.photos[0];
+  const title = placeTitle(place);
 
   const summary = [
-    place.name,
+    title.label,
     copy.typeLine,
     copy.rating,
     copy.distance,
@@ -68,8 +70,13 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
 
         <View style={styles.caption} pointerEvents="none">
           <Text numberOfLines={1} style={styles.name}>
-            {place.name}
+            {title.venue}
           </Text>
+          {title.branch ? (
+            <Text numberOfLines={1} style={styles.branch}>
+              {title.branch}
+            </Text>
+          ) : null}
           <Text numberOfLines={1} style={styles.typeLine}>
             {copy.typeLine}
           </Text>
@@ -115,6 +122,13 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   name: { fontSize: 21, lineHeight: 26, fontWeight: fontWeight.bold, color: colors.onImage },
+  branch: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: fontWeight.medium,
+    color: colors.onImage,
+    marginTop: -2,
+  },
   typeLine: { fontSize: 14, lineHeight: 18, color: colors.onImageMuted },
   status: { position: 'absolute', right: space.md, bottom: space.md },
 });

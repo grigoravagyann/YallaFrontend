@@ -15,6 +15,7 @@ import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { LiveBill } from '../../../src/components/LiveBill';
 import { AvatarRow, useParticipantSummary } from '../../../src/components/Participants';
+import { TabNamePrompt } from '../../../src/components/TabNamePrompt';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useLeaveTab } from '../../../src/data/queries';
@@ -189,6 +190,9 @@ export default function TabScreen() {
             </View>
           </Pressable>
         </View>
+
+        {/* Somebody the tab only knows as "Guest 2" is offered a name, once. */}
+        <TabNamePrompt tabId={view.tabId} currentName={view.me.displayName} />
 
         {/* A stale list that looks live is the failure mode here, so say when
             the last refresh did not land rather than showing nothing. */}

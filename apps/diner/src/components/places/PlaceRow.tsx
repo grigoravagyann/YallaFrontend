@@ -7,6 +7,7 @@ import { Button } from '../Button';
 import { PhotoImage } from '../PhotoImage';
 import { Text } from '../Text';
 import { PlaceMetaRow, usePlaceCopy } from './placeCopy';
+import { placeTitle } from './placeTitle';
 
 const THUMB = 72;
 
@@ -29,6 +30,7 @@ export function PlaceRow({ place, onViewDetails, onDirections, style }: PlaceRow
   const contentBadge = place.badges[0];
   const status = place.openState.isOpen ? 'open' : 'closed';
   const photo = place.photos[0];
+  const title = placeTitle(place);
 
   return (
     <View style={style}>
@@ -36,11 +38,22 @@ export function PlaceRow({ place, onViewDetails, onDirections, style }: PlaceRow
         <PhotoImage source={photo} style={styles.thumb} />
         <View style={styles.body}>
           <View style={styles.titleRow}>
-            <Text numberOfLines={1} style={styles.name}>
-              {place.name}
+            <Text numberOfLines={1} style={styles.name} accessibilityLabel={title.label}>
+              {title.venue}
             </Text>
             {contentBadge ? <Badge variant={contentBadge} tone="soft" size="sm" /> : null}
           </View>
+          {title.branch ? (
+            // Read as part of the name above, so it is not announced twice.
+            <Text
+              numberOfLines={1}
+              style={styles.branch}
+              importantForAccessibility="no"
+              accessibilityElementsHidden
+            >
+              {title.branch}
+            </Text>
+          ) : null}
           <Text numberOfLines={1} style={styles.typeLine}>
             {copy.typeLine}
           </Text>
@@ -77,6 +90,7 @@ const styles = StyleSheet.create({
   body: { flex: 1, justifyContent: 'center', gap: space.xs },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   name: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text, flexShrink: 1 },
+  branch: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
   typeLine: { ...typography.caption, color: colors.textMuted },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   meta: { flex: 1 },

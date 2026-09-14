@@ -1,6 +1,7 @@
 import { parseScannedCode, type ScanResult, type ScannedCode } from '@yalla/api';
 import { useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
+import { nameForTab } from '../components/tabName';
 import { useJoinTab, useOpenTabByBooking, useScanTableCode } from '../data/queries';
 import { newCommandId } from '../lib/commandId';
 import {
@@ -49,7 +50,17 @@ export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
   const joinByInvite = useJoinTab();
   const openByBooking = useOpenTabByBooking();
   const signedIn = useSession((s) => s.signedIn);
+  const profileName = useSession((s) => s.profile?.displayName ?? null);
+  const rememberedName = useSession((s) => s.guestName);
   const join = useActiveTab((s) => s.join);
+
+  /*
+   * The name the host sees, sent on the way in rather than asked for after:
+   * the account's name, or the one typed on this phone before. With neither the
+   * field is left off and the server says "Guest 2"; the tab screens then offer
+   * to put a name on it.
+   */
+  const displayName = nameForTab(profileName, rememberedName);
 
   const [failure, setFailure] = useState<ScanFailure | null>(null);
   /** The offer to verify is on screen, waiting on the diner rather than taking them. */
@@ -95,10 +106,12 @@ export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
       setFailure(null);
       setSignInNeeded(false);
 
+      const named = displayName ? { displayName } : {};
+
       try {
         let result: ScanResult;
         if (code.kind === 'invite') {
-          result = await joinByInvite.mutateAsync({ joinToken: code.token });
+          result = await joinByInvite.mutateAsync({ joinToken: code.token, ...named });
         } else {
           let commandId = commandIds.current.get(code.code);
           if (!commandId) {
@@ -108,8 +121,12 @@ export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
           try {
             result =
               code.kind === 'table'
-                ? await scan.mutateAsync({ tableCode: code.code, commandId })
-                : await openByBooking.mutateAsync({ bookingCode: code.code, commandId });
+                ? await scan.mutateAsync({ tableCode: code.code, commandId, ...named })
+                : await openByBooking.mutateAsync({
+                    bookingCode: code.code,
+                    commandId,
+                    ...named,
+                  });
           } catch (error) {
             if (scanWasRefused(error)) commandIds.current.delete(code.code);
             throw error;
@@ -134,7 +151,7 @@ export function useJoinByCode({ at }: JoinByCodeOptions = {}) {
         return null;
       }
     },
-    [scan, joinByInvite, openByBooking, join, router, signedIn, zone, locale],
+    [scan, joinByInvite, openByBooking, join, router, signedIn, zone, locale, displayName],
   );
 
   /** Whatever the camera read or the diner typed: a table code, a booking code or an invite link. */

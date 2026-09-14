@@ -163,14 +163,20 @@ export default function SettleScreen() {
             // and on the screen for "what do I owe" it is the thing to show.
             <View style={styles.shares}>
               {shares.yourShare ? (
-                <ShareRow share={shares.yourShare} locale={locale} first />
+                <ShareRow share={shares.yourShare} locale={locale} first isYou />
               ) : null}
               <Text style={styles.muted}>{t('settle.shares.hidden')}</Text>
             </View>
           ) : (
             <View style={styles.shares}>
               {shares.shares.map((share, i) => (
-                <ShareRow key={share.participantId} share={share} locale={locale} first={i === 0} />
+                <ShareRow
+                  key={share.participantId}
+                  share={share}
+                  locale={locale}
+                  first={i === 0}
+                  isYou={share.participantId === view?.me.participantId}
+                />
               ))}
               <View style={styles.shareTotal}>
                 <Text style={styles.shareTotalLabel}>{t('settle.shares.total')}</Text>
@@ -238,17 +244,23 @@ function ShareRow({
   share,
   locale,
   first,
+  isYou = false,
 }: {
   share: ParticipantShare;
   locale: Locale;
   first: boolean;
+  /** This phone's own share: an unnamed one reads "You", not "Someone at the table". */
+  isYou?: boolean;
 }) {
   const { t } = useTranslation('diner');
+  // The name the person gave on the way in or on the tab; the table reads the
+  // rows by who is sitting there, not by a participant id.
+  const name = share.displayName.trim() || (isYou ? t('tab.youName') : t('settle.unnamed'));
   return (
     <View style={[styles.shareRow, !first && styles.shareRowRuled]}>
       <View style={styles.shareWho}>
         <Text style={styles.shareName}>
-          {share.displayName || t('settle.unnamed')}
+          {name}
           {share.isHost ? `, ${t('settle.host')}` : ''}
         </Text>
         {/* Shared items and the service charge are already in the number;

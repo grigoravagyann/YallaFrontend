@@ -6,6 +6,7 @@ import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View } from 'r
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
+import { TabNamePrompt } from '../../../src/components/TabNamePrompt';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useLeaveTab } from '../../../src/data/queries';
@@ -113,6 +114,10 @@ export default function PendingScreen() {
             <Text style={styles.lead}>
               {hostName ? t('pending.body', { name: hostName }) : t('pending.bodyNoName')}
             </Text>
+
+            {/* The host is deciding right now whether to let this person on;
+                "Tigran" is an easier yes than "Guest 2". Optional. */}
+            {tab ? <TabNamePrompt tabId={tab.tabId} currentName={tab.me.displayName} /> : null}
 
             {/* Where you actually are, so a wrong sticker is caught here rather
                 than after the food arrives at someone else's table. */}
