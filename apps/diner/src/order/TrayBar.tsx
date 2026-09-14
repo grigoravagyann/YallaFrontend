@@ -1,9 +1,10 @@
 import { formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Button } from '../components/Button';
 import { Text } from '../components/Text';
 import { useNow } from '../hooks/useNow';
+import { colors, fontWeight, radius, space, tabularNumbers, typography } from '../theme';
 import { trayBarState } from './tray';
 import { useTray } from './TrayProvider';
 
@@ -12,10 +13,10 @@ import { useTray } from './TrayProvider';
  *
  * **This bar's only job is that it cannot be read as "sent".**
  *
- * It used to be a single green pill: a count, a total, and the word *Review*.
+ * It used to be a single filled pill: a count, a total, and the word *Review*.
  * Every part of that reads like an order that exists. "Review" describes looking
  * at something already done; a total beside it looks like a bill; and the only
- * other green pill on this flow is the one that confirms things. A diner who
+ * other filled pill on this flow is the one that confirms things. A diner who
  * reads it that way puts the phone down and waits twenty minutes for food nobody
  * is cooking — the worst failure in the app, and the one Prompt 9 flagged and
  * could not test.
@@ -76,16 +77,16 @@ export function TrayBar({ onReview, onSeeBill, timeZoneId }: TrayBarProps) {
               : t('tray.bar.sentNoEstimate')}
           </Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={t('tray.bar.seeBill')}
+          variant="secondary"
+          fullWidth={false}
           onPress={() => {
             dispatch({ type: 'dismissSent' });
             onSeeBill();
           }}
-          style={({ pressed }) => [styles.sentAction, pressed && styles.pressed]}
-        >
-          <Text style={styles.sentActionText}>{t('tray.bar.seeBill')}</Text>
-        </Pressable>
+          style={styles.action}
+        />
       </View>
     );
   }
@@ -106,21 +107,20 @@ export function TrayBar({ onReview, onSeeBill, timeZoneId }: TrayBarProps) {
         </Text>
       </View>
 
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={t('tray.bar.send')}
         accessibilityLabel={t('tray.bar.send')}
         onPress={onReview}
-        style={({ pressed }) => [styles.sendAction, pressed && styles.pressed]}
-      >
-        <Text style={styles.sendActionText}>{t('tray.bar.send')}</Text>
-      </Pressable>
+        fullWidth={false}
+        style={styles.action}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // The tray: an outlined surface, not a filled pill. Filled green is reserved
-  // for the confirmed state below, so the two never read as the same object.
+  // The tray: a dashed outline on white, not a filled bar. The green fill is
+  // reserved for the confirmed state below, so the two never read as the same object.
   holdingBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -129,56 +129,37 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: color.borderStrong,
-    backgroundColor: color.surface,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
   },
   holdingText: { flex: 1, gap: 2 },
-  holdingCount: { fontSize: fontSize.md, lineHeight: lineHeight.md, fontWeight: fontWeight.bold },
+  holdingCount: {
+    ...typography.bodyLg,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    ...tabularNumbers,
+  },
   holdingNotSent: {
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    // Ink, not amber. Amber on white does not clear AA at body size, and
+    ...typography.bodyLg,
+    // Ink, not orange. Orange on white does not clear AA at body size, and
     // this is the one sentence on the bar that must be read.
-    color: color.foreground,
+    color: colors.text,
     fontWeight: fontWeight.medium,
   },
-  sendAction: {
-    minHeight: touchTarget.minimum,
-    justifyContent: 'center',
-    paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  sendActionText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
+  action: { paddingHorizontal: space.lg },
 
-  // The confirmation: filled, solid, no count and no money on it.
+  // The confirmation: a green tint with a green edge, no count and no money on it.
   sentBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
     padding: space.md,
     borderRadius: radius.card,
-    backgroundColor: color.greenTint,
+    backgroundColor: colors.successSoft,
     borderWidth: 1,
-    borderColor: color.success,
+    borderColor: colors.success,
   },
   sentText: { flex: 1, gap: 2 },
-  sentTitle: {
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  sentBody: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.foreground },
-  sentAction: {
-    minHeight: touchTarget.minimum,
-    justifyContent: 'center',
-    paddingHorizontal: space.lg,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.success,
-  },
-  sentActionText: { color: color.foreground, fontWeight: fontWeight.bold },
-
-  pressed: { opacity: 0.85 },
+  sentTitle: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text },
+  sentBody: { ...typography.body, color: colors.text },
 });

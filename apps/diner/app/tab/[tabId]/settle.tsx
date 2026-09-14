@@ -6,16 +6,6 @@ import {
 } from '@yalla/api';
 import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import {
-  color,
-  elevation,
-  fontSize,
-  fontWeight,
-  lineHeight,
-  radius,
-  space,
-  typeScale,
-} from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -25,15 +15,16 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  type TextStyle,
 } from 'react-native';
 import { Button } from '../../../src/components/Button';
 import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
+import { Card } from '../../../src/components/Card';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab, useSetSettlementMode, useTabShares } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { settleLead } from '../../../src/lib/settleLead';
 import { settlementModeFailureKey, withHost } from '../../../src/tab/settle';
+import { colors, fontWeight, radius, space, tabularNumbers, typography } from '../../../src/theme';
 
 /**
  * Settling up, as far as it goes today.
@@ -108,11 +99,11 @@ export default function SettleScreen() {
             has been read: a default drawn while loading named a mode this tab
             may not use. */}
         {!view ? (
-          <View style={styles.card}>
-            <ActivityIndicator color={color.primaryInk} />
-          </View>
+          <Card style={styles.card}>
+            <ActivityIndicator color={colors.primary} />
+          </Card>
         ) : isHost ? (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             <Text style={styles.cardTitle}>{t('settle.mode.title')}</Text>
             {SETTLEMENT_MODES.map((option: SettlementMode) => {
               const selected = option === view.settlementMode;
@@ -153,15 +144,15 @@ export default function SettleScreen() {
             {setMode.error ? (
               <Text style={styles.error}>{t(settlementModeFailureKey(setMode.error))}</Text>
             ) : null}
-          </View>
+          </Card>
         ) : null}
 
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.cardTitle}>{t('settle.shares.title')}</Text>
           <Text style={styles.muted}>{t('settle.shares.body')}</Text>
 
           {isLoading ? (
-            <ActivityIndicator color={color.primaryInk} />
+            <ActivityIndicator color={colors.primary} />
           ) : isError || !shares ? (
             <Text style={styles.muted}>
               {isTabAccessEnded(error) ? t('tab.accessEnded.body') : t('settle.error')}
@@ -207,11 +198,11 @@ export default function SettleScreen() {
               ) : null}
             </View>
           )}
-        </View>
+        </Card>
 
         {/* Not a fallback. Cash is a first-class way to pay here, and the app's
             job is to make the numbers clear and then get somebody to the table. */}
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.cardTitle}>{t('settle.pay.title')}</Text>
           <Text style={styles.payBody}>{t('settle.pay.body')}</Text>
           <Button
@@ -220,7 +211,7 @@ export default function SettleScreen() {
             onPress={() => setWaiterOpen(true)}
             style={styles.askForBill}
           />
-        </View>
+        </Card>
 
         {isHost ? (
           <Button
@@ -289,63 +280,34 @@ function ShareRow({
   );
 }
 
-const tabular: TextStyle = { fontVariant: ['tabular-nums'] };
-
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   body: { padding: space.lg, gap: space.md, paddingBottom: space.xxxl },
-  title: {
-    fontSize: fontSize.xl,
-    lineHeight: lineHeight.xl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  // The hero number, in the diner's metric size: the one figure read from
-  // further away than anything else on the screen.
+  title: { ...typography.title, color: colors.text },
+  // The hero number: the one figure read from further away than anything
+  // else on the screen.
   lead: { gap: 2, paddingBottom: space.xs },
-  leadLabel: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  leadAmount: {
-    fontSize: typeScale.diner.metric.size,
-    lineHeight: typeScale.diner.metric.lineHeight,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-    ...tabular,
-  },
-  leadOf: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
-    ...tabular,
-  },
-  card: {
-    gap: space.sm,
-    padding: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: color.surface,
-    ...elevation.soft.native,
-  },
-  cardTitle: {
-    fontSize: fontSize.lg,
-    lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  muted: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
-  error: { color: color.danger, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
+  leadLabel: { ...typography.body, color: colors.textMuted },
+  leadAmount: { ...typography.metric, color: colors.text, ...tabularNumbers },
+  leadOf: { ...typography.body, color: colors.textMuted, ...tabularNumbers },
+  card: { gap: space.sm },
+  cardTitle: { ...typography.h3, color: colors.text },
+  muted: { ...typography.body, color: colors.textMuted },
+  error: { ...typography.body, color: colors.errorInk },
 
   option: {
     gap: 2,
     padding: space.md,
-    borderRadius: radius.soft,
+    borderRadius: radius.chip,
     borderWidth: 2,
-    borderColor: color.borderInteractive,
+    borderColor: colors.borderStrong,
   },
-  optionOn: { borderColor: color.primaryInk, backgroundColor: color.greenTint },
+  optionOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   optionLocked: { opacity: 0.6 },
-  optionTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: color.foreground },
-  optionTitleOn: { color: color.primaryInk },
-  optionBody: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
-  optionBodyOn: { color: color.foreground },
+  optionTitle: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text },
+  optionTitleOn: { color: colors.primary },
+  optionBody: { ...typography.body, color: colors.textMuted },
+  optionBodyOn: { color: colors.text },
 
   shares: { paddingTop: space.xs },
   shareRow: {
@@ -354,58 +316,34 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingVertical: space.md,
   },
-  shareRowRuled: { borderTopWidth: 1, borderTopColor: color.border },
+  shareRowRuled: { borderTopWidth: 1, borderTopColor: colors.border },
   shareWho: { flex: 1, gap: 2 },
-  shareName: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  shareBreakdown: {
-    color: color.subtleForeground,
-    fontSize: fontSize.xs,
-    lineHeight: lineHeight.xs,
-    ...tabular,
-  },
-  sharePaid: {
-    color: color.successInk,
-    fontSize: fontSize.xs,
-    lineHeight: lineHeight.xs,
-    ...tabular,
-  },
-  shareAmount: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-    ...tabular,
-  },
+  shareName: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
+  shareBreakdown: { ...typography.caption, color: colors.textMuted, ...tabularNumbers },
+  sharePaid: { ...typography.caption, color: colors.successInk, ...tabularNumbers },
+  shareAmount: { ...typography.h3, color: colors.text, ...tabularNumbers },
   shareTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingTop: space.md,
     borderTopWidth: 1,
-    borderTopColor: color.borderStrong,
+    borderTopColor: colors.borderStrong,
   },
   shareTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: space.xs },
   shareTotalLabel: {
-    fontSize: fontSize.md,
+    ...typography.bodyLg,
     fontWeight: fontWeight.medium,
-    color: color.foreground,
-    ...tabular,
+    color: colors.text,
+    ...tabularNumbers,
   },
   shareTotalValue: {
-    fontSize: fontSize.md,
+    ...typography.bodyLg,
     fontWeight: fontWeight.bold,
-    color: color.foreground,
-    ...tabular,
+    color: colors.text,
+    ...tabularNumbers,
   },
-  remaining: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-    ...tabular,
-  },
+  remaining: { ...typography.h3, color: colors.text, ...tabularNumbers },
 
-  payBody: {
-    color: color.foreground,
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-  },
+  payBody: { ...typography.bodyLg, color: colors.text },
   askForBill: { marginTop: space.xs },
 });

@@ -27,7 +27,7 @@ export function PlaceSummaryCard({ place, onPress, style }: PlaceSummaryCardProp
       padded={false}
       style={[styles.card, style]}
     >
-      <PhotoImage source={place.photos[0] ?? ''} style={styles.thumb} />
+      <PhotoImage source={place.photos[0]} style={styles.thumb} />
       <View style={styles.body}>
         <Text numberOfLines={1} style={styles.name}>
           {place.name}

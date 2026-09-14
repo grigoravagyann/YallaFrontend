@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   title: { ...typography.h3, color: colors.text, flexShrink: 1 },
   body: { ...typography.body, color: colors.textMuted },
-  error: { ...typography.body, color: colors.error },
+  error: { ...typography.body, color: colors.errorInk },
   actions: { marginTop: space.md, gap: space.sm },
   // The red label sits on a thin neutral border so it still reads as a button.
   destructive: { borderWidth: 1, borderColor: colors.border },

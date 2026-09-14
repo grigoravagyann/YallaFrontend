@@ -1,9 +1,10 @@
 import type { ScannedCode } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, SafeAreaView, StyleSheet, View } from 'react-native';
+import { colors, layout, space, typography } from '../theme';
+import { Button } from './Button';
 import { Text } from './Text';
 import { useJoinByCode } from '../hooks/useJoinByCode';
 
@@ -46,21 +47,22 @@ export function JoinByLink({ code }: JoinByLinkProps) {
       <View style={styles.centered}>
         {isWorking || !failure ? (
           <>
-            <ActivityIndicator color={color.primaryInk} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.muted}>{t('join.working')}</Text>
           </>
         ) : (
           <>
-            <Text style={styles.title}>{t('join.failedTitle')}</Text>
+            <Text display style={styles.title}>
+              {t('join.failedTitle')}
+            </Text>
             <Text style={styles.body}>{t(failure.key, failure.params ?? {})}</Text>
             <Text style={styles.muted}>{t('join.failedBody')}</Text>
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label={t('scan.scanAgain')}
               onPress={() => router.replace('/(tabs)/scan')}
-              style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-            >
-              <Text style={styles.primaryText}>{t('scan.scanAgain')}</Text>
-            </Pressable>
+              fullWidth={false}
+              style={styles.primary}
+            />
           </>
         )}
       </View>
@@ -69,7 +71,7 @@ export function JoinByLink({ code }: JoinByLinkProps) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -77,31 +79,18 @@ const styles = StyleSheet.create({
     gap: space.md,
     padding: space.xl,
   },
-  title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: color.foreground },
+  title: { ...typography.heading, color: colors.text, textAlign: 'center' },
   body: {
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    color: color.danger,
+    ...typography.bodyLg,
+    color: colors.errorInk,
     textAlign: 'center',
+    maxWidth: layout.readableWidth,
   },
   muted: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
+    ...typography.body,
+    color: colors.textMuted,
     textAlign: 'center',
+    maxWidth: layout.readableWidth,
   },
-  primary: {
-    marginTop: space.md,
-    minHeight: touchTarget.minimum,
-    justifyContent: 'center',
-    paddingHorizontal: space.xl,
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  primaryPressed: { backgroundColor: color.primaryPressed },
-  primaryText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
+  primary: { marginTop: space.md, alignSelf: 'center' },
 });

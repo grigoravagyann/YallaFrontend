@@ -1,21 +1,16 @@
 import { isTabAccessEnded } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { Text } from '../../../src/components/Text';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { Button } from '../../../src/components/Button';
+import { Card } from '../../../src/components/Card';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
+import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useLeaveTab } from '../../../src/data/queries';
 import { useActiveTab } from '../../../src/stores/tab';
+import { colors, space, typography } from '../../../src/theme';
 
 /**
  * Fast, because this is a person standing still waiting for something that
@@ -88,29 +83,31 @@ export default function PendingScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         {isLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={color.primaryInk} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.muted}>{t('tab.loading')}</Text>
           </View>
         ) : ended ? (
           <>
-            <Text style={styles.title}>{t('pending.endedTitle')}</Text>
+            <Text display style={styles.title}>
+              {t('pending.endedTitle')}
+            </Text>
             <Text style={styles.bodyText}>{t('pending.endedBody')}</Text>
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label={t('scan.scanAgain')}
               onPress={() => {
                 clearActive();
                 router.replace('/(tabs)/scan');
               }}
-              style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-            >
-              <Text style={styles.primaryText}>{t('scan.scanAgain')}</Text>
-            </Pressable>
+              style={styles.cardAction}
+            />
           </>
         ) : (
           <>
             <View style={styles.spinnerRow}>
-              <ActivityIndicator color={color.primaryInk} />
-              <Text style={styles.title}>{t('pending.title')}</Text>
+              <ActivityIndicator color={colors.primary} />
+              <Text display style={[styles.title, styles.titleInRow]}>
+                {t('pending.title')}
+              </Text>
             </View>
 
             <Text style={styles.lead}>
@@ -120,47 +117,40 @@ export default function PendingScreen() {
             {/* Where you actually are, so a wrong sticker is caught here rather
                 than after the food arrives at someone else's table. */}
             {tab ? (
-              <View style={styles.card}>
+              <Card style={styles.card}>
                 <Text style={styles.where}>
                   {t('tab.where', { venue: tab.venueName, branch: tab.branchName })}
                 </Text>
                 <Text style={styles.table}>{t('tab.title', { label: tab.tableLabel })}</Text>
                 <Text style={styles.muted}>{t('pending.rightTable')}</Text>
-              </View>
+              </Card>
             ) : null}
 
-            <View style={styles.card}>
+            <Card style={styles.card}>
               <Text style={styles.muted}>{t('pending.menuNote')}</Text>
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label={t('pending.openMenu')}
                 disabled={!tab}
                 onPress={() =>
                   tab &&
                   router.push({ pathname: '/tab/[tabId]/menu', params: { tabId: tab.tabId } })
                 }
-                style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-              >
-                <Text style={styles.primaryText}>{t('pending.openMenu')}</Text>
-              </Pressable>
-            </View>
+                style={styles.cardAction}
+              />
+            </Card>
 
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label={isFetching ? t('pending.checking') : t('pending.refresh')}
+              variant="secondary"
+              busy={isFetching}
               onPress={() => void refetch()}
-              style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-            >
-              <Text style={styles.secondaryText}>
-                {isFetching ? t('pending.checking') : t('pending.refresh')}
-              </Text>
-            </Pressable>
+            />
 
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label={t('pending.leave')}
+              variant="destructive"
               onPress={() => setLeaveOpen(true)}
-              style={({ pressed }) => [styles.leave, pressed && styles.pressed]}
-            >
-              <Text style={styles.leaveText}>{t('pending.leave')}</Text>
-            </Pressable>
+            />
           </>
         )}
       </ScrollView>
@@ -185,54 +175,17 @@ export default function PendingScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   body: { padding: space.xl, gap: space.md },
-  bodyText: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
+  bodyText: { ...typography.bodyLg, color: colors.textMuted },
   spinnerRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  title: {
-    flex: 1,
-    fontSize: fontSize.xl,
-    lineHeight: lineHeight.xl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
-  card: {
-    padding: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: color.surface,
-    gap: space.xs,
-  },
-  where: { fontSize: fontSize.sm, color: color.mutedForeground },
-  table: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
-  muted: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  primary: {
-    marginTop: space.sm,
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  primaryPressed: { backgroundColor: color.primaryPressed },
-  primaryText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  secondary: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.surface,
-  },
-  secondaryPressed: { backgroundColor: color.greenTint },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  leave: { minHeight: touchTarget.minimum, alignItems: 'center', justifyContent: 'center' },
-  leaveText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: color.danger },
+  title: { ...typography.heading, color: colors.text },
+  titleInRow: { flex: 1 },
+  lead: { ...typography.bodyLg, color: colors.textMuted },
+  card: { gap: space.xs },
+  where: { ...typography.body, color: colors.textMuted },
+  table: { ...typography.h3, color: colors.text },
+  muted: { ...typography.body, color: colors.textMuted },
+  cardAction: { marginTop: space.sm },
   centered: { alignItems: 'center', gap: space.sm, paddingTop: space.xxl },
-  pressed: { opacity: 0.75 },
 });

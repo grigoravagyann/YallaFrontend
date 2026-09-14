@@ -1,5 +1,7 @@
-import { fontWeight } from '@yalla/tokens';
+import { displayWeight, fontWeight, nativeDisplayFontFace, nativeFontFace } from '@yalla/tokens';
 import type { TextStyle } from 'react-native';
+
+export type { DisplayWeightValue, FontWeightValue } from '@yalla/tokens';
 
 /**
  * The type scale of the reference design.
@@ -24,6 +26,11 @@ export const typography = {
   buttonMedium: { fontSize: 16, lineHeight: 20, fontWeight: fontWeight.medium },
   /** Tab bar labels, always visible. */
   navLabel: { fontSize: 11, lineHeight: 14, fontWeight: fontWeight.medium },
+  /**
+   * The one figure read from further away than anything else — what is left
+   * to pay, on the settle screen. Set with `tabularNumbers`.
+   */
+  metric: { fontSize: 40, lineHeight: 44, fontWeight: fontWeight.bold },
 } as const satisfies Record<string, TextStyle>;
 
 export type TypographyStep = keyof typeof typography;
@@ -34,4 +41,9 @@ export type TypographyStep = keyof typeof typography;
  */
 export const tabularNumbers = { fontVariant: ['tabular-nums'] } as const satisfies TextStyle;
 
-export { fontWeight };
+/**
+ * Weights, and the exact face names each weight ships as. `Text` resolves a
+ * style's weight to a face; `app/_layout.tsx` registers the font files under
+ * the same names. Shared with the other apps, so they come from the tokens.
+ */
+export { displayWeight, fontWeight, nativeDisplayFontFace, nativeFontFace };

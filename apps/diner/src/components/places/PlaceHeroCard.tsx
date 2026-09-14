@@ -47,7 +47,7 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
   const toggleFavorite = useFavorites((state) => state.toggle);
   const contentBadge = place.badges[0];
   const status = place.openState.isOpen ? 'open' : 'closed';
-  const photo = place.photos[0] ?? '';
+  const photo = place.photos[0];
 
   const summary = [
     place.name,
@@ -89,7 +89,9 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
       <IconButton
         icon={favorited ? actionIcon.favorited : actionIcon.favorite}
         size="sm"
-        variant="ghost"
+        // A glass circle, not a bare glyph: a white heart on a pale photo
+        // vanished, and the backing is what keeps it at 3:1 on any image.
+        variant="translucent"
         accessibilityLabel={t(favorited ? 'place.unfavorite' : 'place.favorite')}
         onPress={() => toggleFavorite(place.id)}
         iconColor={favorited ? colors.error : colors.onImage}

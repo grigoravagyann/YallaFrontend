@@ -1,7 +1,7 @@
 import { formatNameList, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { StyleSheet, View } from 'react-native';
+import { colors, fontWeight, radius, space, typography } from '../theme';
 import { Text } from './Text';
 import { onTab, type RosterPerson } from '../tab/roster';
 
@@ -66,9 +66,10 @@ export function ParticipantRow({ person, children }: ParticipantRowProps) {
             <Badge label={t('tab.waiting')} tone="waiting" />
           ) : null}
         </View>
+        {/* Under the name, not beside it: two buttons on the right of a 375pt
+            row left the name two letters wide and pushed the badges under them. */}
+        {children ? <View style={styles.actions}>{children}</View> : null}
       </View>
-
-      {children ? <View style={styles.actions}>{children}</View> : null}
     </View>
   );
 }
@@ -97,7 +98,7 @@ const MAX_AVATARS = 5;
  * Everyone on the tab as a row of overlapping initials.
  *
  * The tab screen leads with the bill, so the people become a glance rather
- * than a list: you in beige, everyone else on the neutral tint, anonymous
+ * than a list: you in the brown, everyone else on the neutral fill, anonymous
  * guests folded into a "+n". The full list with badges and host controls is
  * one tap away on the people screen.
  */
@@ -127,7 +128,9 @@ export function AvatarRow({ people }: AvatarRowProps) {
               person.isYou && styles.avatarYou,
             ]}
           >
-            <Text style={styles.avatarText}>{initial(name)}</Text>
+            <Text style={[styles.avatarText, person.isYou && styles.avatarTextYou]}>
+              {initial(name)}
+            </Text>
           </View>
         );
       })}
@@ -155,28 +158,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: color.greenTint,
+    backgroundColor: colors.surfaceMuted,
   },
-  avatarText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
+  avatarText: { ...typography.buttonMedium, color: colors.text },
+  avatarTextYou: { color: colors.onPrimary },
   avatarRow: { flexDirection: 'row', alignItems: 'center' },
-  avatarStacked: { borderWidth: 2, borderColor: color.paper },
+  // The ring is the ground the row sits on, so overlapping circles read as cut out.
+  avatarStacked: { borderWidth: 2, borderColor: colors.background },
   avatarOverlap: { marginLeft: -space.sm },
-  avatarYou: { backgroundColor: color.primary },
+  avatarYou: { backgroundColor: colors.primary },
   who: { flex: 1, gap: space.xs },
-  name: {
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    fontWeight: fontWeight.medium,
-    color: color.foreground,
-  },
+  name: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   badge: { paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.pill },
-  badgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.medium },
-  youBadge: { backgroundColor: color.greenTint },
-  youBadgeText: { color: color.primaryInk },
-  hostBadge: { backgroundColor: color.greenTint },
-  hostBadgeText: { color: color.foreground },
-  waitingBadge: { backgroundColor: color.greenTint },
-  waitingBadgeText: { color: color.warningInk },
-  actions: { flexDirection: 'row', gap: space.sm },
+  badgeText: { ...typography.caption, fontWeight: fontWeight.medium },
+  youBadge: { backgroundColor: colors.primarySoft },
+  youBadgeText: { color: colors.primary },
+  hostBadge: { backgroundColor: colors.surfaceMuted },
+  hostBadgeText: { color: colors.text },
+  waitingBadge: { backgroundColor: colors.warningSoft },
+  waitingBadgeText: { color: colors.warningInk },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.xs },
 });

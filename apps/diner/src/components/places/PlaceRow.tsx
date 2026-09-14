@@ -28,7 +28,7 @@ export function PlaceRow({ place, onViewDetails, onDirections, style }: PlaceRow
   const copy = usePlaceCopy(place);
   const contentBadge = place.badges[0];
   const status = place.openState.isOpen ? 'open' : 'closed';
-  const photo = place.photos[0] ?? '';
+  const photo = place.photos[0];
 
   return (
     <View style={style}>

@@ -5,7 +5,7 @@ import {
   nativeFontFace,
   type DisplayWeightValue,
   type FontWeightValue,
-} from '@yalla/tokens';
+} from '../theme/typography';
 import type { Ref } from 'react';
 import {
   Text as RNText,

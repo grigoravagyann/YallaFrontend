@@ -1,16 +1,7 @@
 import { useTranslation } from '@yalla/i18n';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { space, type IoniconName } from '../../theme';
+import { amenityIcon, space } from '../../theme';
 import { Chip } from '../Chip';
-
-/** A glyph for the amenities the venues name; an unknown key gets no icon. */
-const amenityIcon: Record<string, IoniconName> = {
-  outdoorSeating: 'leaf-outline',
-  wifi: 'wifi',
-  parking: 'car-outline',
-  cardPayment: 'card-outline',
-  vegan: 'nutrition-outline',
-};
 
 export interface AmenityChipsProps {
   /** Keys under `place.amenity.*`. */
@@ -25,7 +16,8 @@ export function AmenityChips({ amenities, style }: AmenityChipsProps) {
   return (
     <View style={[styles.wrap, style]}>
       {amenities.map((amenity) => {
-        const icon = amenityIcon[amenity] as IoniconName | undefined;
+        // An amenity the app has no glyph for still gets its chip, without one.
+        const icon = amenityIcon[amenity];
         return (
           <Chip
             key={amenity}

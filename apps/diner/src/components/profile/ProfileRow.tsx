@@ -124,7 +124,8 @@ const styles = StyleSheet.create({
     height: 22,
     paddingHorizontal: space.xs + 2,
     borderRadius: radius.pill,
-    backgroundColor: colors.error,
+    // The ink as a fill: white on the bright red is 4.3:1, on this 6.5.
+    backgroundColor: colors.errorInk,
     alignItems: 'center',
     justifyContent: 'center',
   },

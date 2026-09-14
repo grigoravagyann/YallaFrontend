@@ -78,6 +78,30 @@ export default tseslint.config(
     },
   },
 
+  // The diner app has its own theme. The shared colour, elevation and type-size
+  // tokens describe the console's palette; a diner screen reaching past
+  // `src/theme` for them is how the shared-tab flow ended up on the wrong one.
+  // Spacing, radius, touch targets and font weights stay shared.
+  {
+    files: ['apps/diner/**/*.{ts,tsx}'],
+    ignores: ['apps/diner/src/theme/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@yalla/tokens',
+              importNames: ['color', 'elevation', 'fontSize', 'lineHeight'],
+              message:
+                'Diner colours, shadows and type sizes come from src/theme (colors, shadows, typography), not @yalla/tokens.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Metro reads its config with `require`, so these files are CommonJS whether
   // or not the rest of the workspace is ESM.
   {

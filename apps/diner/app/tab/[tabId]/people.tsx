@@ -6,21 +6,21 @@ import {
   type TabPermissions,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
   View,
 } from 'react-native';
-import { Text } from '../../../src/components/Text';
+import { Button } from '../../../src/components/Button';
+import { Card } from '../../../src/components/Card';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { ParticipantRow } from '../../../src/components/Participants';
+import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import {
   useApproveJoin,
@@ -37,6 +37,7 @@ import {
   waitingToJoin,
   type RosterPerson,
 } from '../../../src/tab/roster';
+import { colors, layout, radius, space, typography } from '../../../src/theme';
 
 const POLL_MS = 5_000;
 
@@ -129,7 +130,7 @@ export default function PeopleScreen() {
       <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primaryInk} />
+          <ActivityIndicator color={colors.primary} />
           <Text style={styles.muted}>{t('tab.loading')}</Text>
         </View>
       </SafeAreaView>
@@ -146,13 +147,12 @@ export default function PeopleScreen() {
           <Text style={styles.emptyTitle}>
             {isTabAccessEnded(readError) ? t('tab.accessEnded.body') : t('people.hostOnly')}
           </Text>
-          <Pressable
-            accessibilityRole="button"
+          <Button
+            label={t('floorPlan.back')}
+            variant="secondary"
+            fullWidth={false}
             onPress={() => router.back()}
-            style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
-          >
-            <Text style={styles.secondaryText}>{t('floorPlan.back')}</Text>
-          </Pressable>
+          />
         </View>
       </SafeAreaView>
     );
@@ -168,7 +168,9 @@ export default function PeopleScreen() {
       <Stack.Screen options={{ headerShown: true, title: '' }} />
 
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>{t('people.title')}</Text>
+        <Text display style={styles.title}>
+          {t('people.title')}
+        </Text>
 
         {/* Stated up front, before any toggle: hiding the total never hides
             someone's own order. This is the sentence that stops a guest asking
@@ -181,12 +183,13 @@ export default function PeopleScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {pending.length > 0 ? (
-          <View style={styles.card}>
+          <Card style={styles.card}>
             <Text style={styles.cardTitle}>{t('people.pendingSection')}</Text>
             {pending.map((person) => (
               <ParticipantRow key={person.participantId} person={person}>
-                <Pressable
-                  accessibilityRole="button"
+                <Button
+                  label={t('people.approve')}
+                  fullWidth={false}
                   disabled={busy}
                   onPress={() =>
                     void run(() =>
@@ -197,12 +200,12 @@ export default function PeopleScreen() {
                       }),
                     )
                   }
-                  style={({ pressed }) => [styles.approve, pressed && styles.pressed]}
-                >
-                  <Text style={styles.approveText}>{t('people.approve')}</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
+                  size="small"
+                />
+                <Button
+                  label={t('people.reject')}
+                  variant="secondary"
+                  fullWidth={false}
                   disabled={busy}
                   onPress={() =>
                     void run(() =>
@@ -213,16 +216,14 @@ export default function PeopleScreen() {
                       }),
                     )
                   }
-                  style={({ pressed }) => [styles.rejectBtn, pressed && styles.pressed]}
-                >
-                  <Text style={styles.rejectText}>{t('people.reject')}</Text>
-                </Pressable>
+                  size="small"
+                />
               </ParticipantRow>
             ))}
-          </View>
+          </Card>
         ) : null}
 
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Text style={styles.cardTitle}>{t('people.activeSection')}</Text>
 
           {active.length === 0 ? (
@@ -231,13 +232,13 @@ export default function PeopleScreen() {
             active.map((person) => (
               <View key={person.participantId} style={styles.personBlock}>
                 <ParticipantRow person={person}>
-                  <Pressable
-                    accessibilityRole="button"
+                  <Button
+                    label={t('people.remove')}
+                    variant="secondary"
+                    fullWidth={false}
                     onPress={() => setRemoving(person)}
-                    style={({ pressed }) => [styles.rejectBtn, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.rejectText}>{t('people.remove')}</Text>
-                  </Pressable>
+                    size="small"
+                  />
                 </ParticipantRow>
 
                 <PersonPermissions
@@ -252,7 +253,7 @@ export default function PeopleScreen() {
               </View>
             ))
           )}
-        </View>
+        </Card>
       </ScrollView>
 
       <ConfirmSheet
@@ -317,8 +318,11 @@ function PersonPermissions({
             value={draft[key]}
             disabled={busy}
             onValueChange={(value) => toggle(key, value)}
-            trackColor={{ true: color.greenTint, false: color.greenTint }}
-            thumbColor={draft[key] ? color.primaryInk : color.border}
+            // On is the brown thumb on a firmer track; off is a white thumb
+            // on the muted one. Position and colour both say which.
+            trackColor={{ true: colors.borderStrong, false: colors.surfaceMuted }}
+            ios_backgroundColor={colors.surfaceMuted}
+            thumbColor={draft[key] ? colors.primary : colors.surface}
             accessibilityLabel={t(`people.${key}`)}
           />
         </View>
@@ -332,114 +336,50 @@ function PersonPermissions({
       ) : null}
 
       {start.known ? null : (
-        <Pressable
-          accessibilityRole="button"
+        <Button
+          label={t('people.savePermissions')}
+          fullWidth={false}
           disabled={busy}
           onPress={() => void onSave(draft)}
-          style={({ pressed }) => [styles.save, pressed && styles.pressed]}
-        >
-          <Text style={styles.saveText}>{t('people.savePermissions')}</Text>
-        </Pressable>
+          size="small"
+        />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   body: { padding: space.lg, paddingBottom: space.xxxl, gap: space.md },
-  title: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
+  title: { ...typography.title, color: colors.text },
   notice: {
     padding: space.md,
     borderRadius: radius.card,
-    backgroundColor: color.greenTint,
+    backgroundColor: colors.surfaceMuted,
     gap: space.xs,
   },
-  noticeText: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.foreground },
-  noticeWhy: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  card: {
-    padding: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: color.surface,
-    gap: space.sm,
-  },
-  cardTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  noticeText: { ...typography.body, color: colors.text },
+  noticeWhy: { ...typography.body, color: colors.textMuted },
+  card: { gap: space.sm },
+  cardTitle: { ...typography.h3, color: colors.text },
   personBlock: {
     paddingBottom: space.sm,
     borderBottomWidth: 1,
-    borderBottomColor: color.border,
+    borderBottomColor: colors.border,
   },
   toggles: { gap: space.xs, paddingLeft: space.xxl },
   toggleRow: {
-    minHeight: touchTarget.minimum,
+    minHeight: layout.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.md,
   },
-  toggleLabel: { flex: 1, fontSize: fontSize.sm, color: color.foreground },
-  explain: {
-    fontSize: fontSize.xs,
-    lineHeight: lineHeight.xs,
-    color: color.info,
-    paddingBottom: space.xs,
-  },
-  save: {
-    minHeight: touchTarget.minimum - 8,
-    alignSelf: 'flex-start',
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  saveText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  approve: {
-    minHeight: touchTarget.minimum - 8,
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  approveText: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  rejectBtn: {
-    minHeight: touchTarget.minimum - 8,
-    justifyContent: 'center',
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.border,
-  },
-  rejectText: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: color.foreground },
-  secondary: {
-    minHeight: touchTarget.minimum,
-    justifyContent: 'center',
-    paddingHorizontal: space.xl,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.border,
-  },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  error: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.danger },
-  muted: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  emptyTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-    textAlign: 'center',
-  },
+  toggleLabel: { flex: 1, ...typography.body, color: colors.text },
+  explain: { ...typography.caption, color: colors.infoInk, paddingBottom: space.xs },
+  error: { ...typography.body, color: colors.errorInk },
+  muted: { ...typography.body, color: colors.textMuted },
+  emptyTitle: { ...typography.h3, color: colors.text, textAlign: 'center' },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -447,5 +387,4 @@ const styles = StyleSheet.create({
     gap: space.md,
     padding: space.xl,
   },
-  pressed: { opacity: 0.75 },
 });

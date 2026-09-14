@@ -3,7 +3,6 @@ import '../src/intlPolyfills';
 import { createQueryClient } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
-import { color, nativeDisplayFontFace, nativeFontFace } from '@yalla/tokens';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -21,6 +20,7 @@ import { bootstrapI18n } from '../src/i18n';
 import { wireQueryManagers } from '../src/lib/queryManagers';
 import { configureProfileStorage, useSession } from '../src/stores/session';
 import { usePushNotifications } from '../src/push/usePushNotifications';
+import { colors, nativeDisplayFontFace, nativeFontFace } from '../src/theme';
 
 /**
  * `'always'`: an offline send fails rather than pausing.
@@ -57,8 +57,8 @@ configureProfileStorage(profileStorage);
 
 /**
  * Two families for Armenian, Cyrillic and Latin — Yalla Sans for body, Yalla
- * Serif for display — registered under the exact face names `@yalla/tokens`
- * hands to `Text`. Loaded before the first frame: a screen that paints in the
+ * Serif for display — registered under the exact face names the theme hands
+ * to `Text`. Loaded before the first frame: a screen that paints in the
  * system font and then reflows into Yalla Sans half a second later looks
  * broken, not fast.
  */
@@ -124,16 +124,18 @@ export default function RootLayout() {
   if (fontError) console.warn('[fonts] Yalla fonts failed to load', fontError);
 
   if (!ready || (!fontsLoaded && !fontError)) {
+    // The boot screen is the first frame anybody sees, so it is already the
+    // app's ground and brown, not a neutral placeholder that changes a moment later.
     return (
       <View
         style={{
           flex: 1,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: color.paper,
+          backgroundColor: colors.background,
         }}
       >
-        <ActivityIndicator color={color.primaryInk} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -170,12 +172,9 @@ export default function RootLayout() {
             <Stack.Screen name="order/[orderId]" />
             <Stack.Screen name="favorites" />
             <Stack.Screen name="settings" />
-            {/* Scanning in and the shared tab. */}
-            <Stack.Screen name="tab/[tabId]/index" />
-            <Stack.Screen name="tab/[tabId]/pending" />
-            <Stack.Screen name="tab/[tabId]/invite" />
-            <Stack.Screen name="tab/[tabId]/people" />
-            <Stack.Screen name="tab/[tabId]/menu" />
+            {/* Scanning in and the shared tab. One entry: `tab/[tabId]` has its
+                own layout (the tray provider), which declares the screens under it. */}
+            <Stack.Screen name="tab/[tabId]" />
             {/* Deep links. Expo Router derives the linking config from these
                 paths, so `https://yalla.am/join/<token>` and the `yalla://`
                 scheme both resolve without a hand-written linking map. */}

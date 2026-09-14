@@ -6,15 +6,18 @@ import {
   StyleSheet,
   View,
   type ImageResizeMode,
-  type ImageSourcePropType,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { actionIcon, colors, iconSize } from '../theme';
+import { hasPhotoSource, type PhotoSource } from './photoSource';
 
 export interface PhotoImageProps {
-  /** A remote URL, or any React Native image source. */
-  readonly source: string | ImageSourcePropType;
+  /**
+   * A remote URL, any React Native image source, or nothing. Missing or blank
+   * draws the fallback from the first frame.
+   */
+  readonly source?: PhotoSource;
   /** Size and corners live here; the image fills the box and is clipped to it. */
   readonly style?: StyleProp<ViewStyle>;
   /**
@@ -29,8 +32,9 @@ export interface PhotoImageProps {
 }
 
 /**
- * A photo that is never blank: cream while it loads, cream with a glyph if it
- * never arrives, and optionally a scrim so the card's text reads on any image.
+ * A photo that is never blank: a muted fill while it loads, the same fill with
+ * a glyph if it never arrives or there was never one to load, and optionally a
+ * scrim so the card's text reads on any image.
  */
 export function PhotoImage({
   source,
@@ -40,23 +44,29 @@ export function PhotoImage({
   accessibilityLabel,
   children,
 }: PhotoImageProps) {
-  const [failed, setFailed] = useState(false);
-  const resolved: ImageSourcePropType = typeof source === 'string' ? { uri: source } : source;
+  // The source that failed rather than a flag, so a recycled card showing a
+  // different place's photo gets its own attempt.
+  const [failedSource, setFailedSource] = useState<PhotoSource>(undefined);
   const scrim = gradient === true ? 0.6 : gradient === false ? 0 : gradient;
+  const usable = hasPhotoSource(source) && failedSource !== source;
 
   return (
     <View style={[styles.frame, style]}>
-      {failed ? (
-        <View style={styles.fallback}>
+      {!usable || source === null || source === undefined ? (
+        <View
+          style={styles.fallback}
+          accessible={accessibilityLabel !== undefined}
+          {...(accessibilityLabel ? { accessibilityLabel } : {})}
+        >
           <Ionicons name={actionIcon.imageFallback} size={iconSize.xl} color={colors.textSubtle} />
         </View>
       ) : (
         <Image
-          source={resolved}
+          source={typeof source === 'string' ? { uri: source } : source}
           resizeMode={resizeMode}
           accessible={accessibilityLabel !== undefined}
           {...(accessibilityLabel ? { accessibilityLabel } : {})}
-          onError={() => setFailed(true)}
+          onError={() => setFailedSource(source)}
           style={StyleSheet.absoluteFill}
         />
       )}

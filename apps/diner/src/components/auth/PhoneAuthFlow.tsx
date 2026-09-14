@@ -609,8 +609,8 @@ const styles = StyleSheet.create({
     borderColor: colors.warning,
     backgroundColor: colors.warningSoft,
   },
-  devBannerText: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.warning },
-  error: { ...typography.body, color: colors.error },
+  devBannerText: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.warningInk },
+  error: { ...typography.body, color: colors.errorInk },
   primary: { marginTop: space.lg },
   secondary: { marginTop: space.sm },
   footer: {

@@ -23,6 +23,11 @@ export interface ChipProps {
   readonly shape?: 'pill' | 'rounded';
   readonly size?: 'sm' | 'md';
   readonly disabled?: boolean;
+  /**
+   * What a pressable chip is to a screen reader. `button` by default; a
+   * category strip is a row of `tab`s. Ignored without `onPress`.
+   */
+  readonly accessibilityRole?: 'button' | 'tab' | 'radio';
   readonly accessibilityLabel?: string;
   readonly style?: StyleProp<ViewStyle>;
 }
@@ -32,7 +37,8 @@ export const chipHeight = { sm: 36, md: layout.touchTarget - 4 } as const;
 
 /**
  * A selectable token: filters on Explore, the map legend, dates, times and
- * party sizes on Booking, amenities on the details screen (no `onPress`).
+ * party sizes on Booking, amenities on the details screen (no `onPress`), the
+ * menu's categories and the waiter presets at the table.
  *
  * Both sizes are drawn under the 44pt minimum and make it up with `hitSlop`,
  * so a chip looks as light as the reference and still takes a thumb.
@@ -45,6 +51,7 @@ export function Chip({
   shape = 'pill',
   size = 'md',
   disabled = false,
+  accessibilityRole = 'button',
   accessibilityLabel,
   style,
 }: ChipProps) {
@@ -52,7 +59,7 @@ export function Chip({
   const interactive = onPress !== undefined && !disabled;
   return (
     <Pressable
-      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityRole={onPress ? accessibilityRole : 'text'}
       accessibilityState={{ selected, disabled }}
       {...(accessibilityLabel ? { accessibilityLabel } : {})}
       disabled={!interactive}

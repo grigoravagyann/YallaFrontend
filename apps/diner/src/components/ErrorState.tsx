@@ -30,7 +30,7 @@ export function ErrorState({ offline = false, title, body, onRetry, style }: Err
         <Ionicons
           name={offline ? actionIcon.offline : actionIcon.error}
           size={iconSize.xl}
-          color={offline ? colors.textMuted : colors.error}
+          color={offline ? colors.textMuted : colors.errorInk}
         />
       </View>
       <Text style={styles.title}>{heading}</Text>

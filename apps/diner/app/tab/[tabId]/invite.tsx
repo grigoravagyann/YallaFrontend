@@ -1,24 +1,18 @@
 import { minutesBetween } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import * as Clipboard from 'expo-clipboard';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  Share,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { Text } from '../../../src/components/Text';
+import { ActivityIndicator, SafeAreaView, ScrollView, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { Button } from '../../../src/components/Button';
+import { Card } from '../../../src/components/Card';
+import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useTabInvite } from '../../../src/data/queries';
 import { useNow } from '../../../src/hooks/useNow';
 import { inviteFailure } from '../../../src/tab/invite';
+import { colors, fontWeight, space, typography } from '../../../src/theme';
 
 /** The QR is read across a table, in a dim room, off a phone held at an angle. */
 const QR_SIZE = 220;
@@ -91,42 +85,44 @@ export default function InviteScreen() {
       <Stack.Screen options={{ headerShown: true, title: '' }} />
 
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>{t('invite.title')}</Text>
+        <Text display style={styles.title}>
+          {t('invite.title')}
+        </Text>
         <Text style={styles.lead}>{t('invite.body')}</Text>
 
         {isLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={color.primaryInk} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.muted}>{t('invite.loading')}</Text>
           </View>
         ) : isError || !invite ? (
           <View style={styles.centered}>
             <Text style={failure.retry ? styles.error : styles.refusal}>{t(failure.key)}</Text>
             {failure.retry ? (
-              <Pressable
-                accessibilityRole="button"
+              <Button
+                label={t('net.retry')}
+                variant="secondary"
+                fullWidth={false}
                 onPress={() => void refetch()}
-                style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-              >
-                <Text style={styles.secondaryText}>{t('net.retry')}</Text>
-              </Pressable>
+                style={styles.retry}
+              />
             ) : null}
           </View>
         ) : (
           <>
-            <View style={styles.qrCard}>
+            <Card style={styles.qrCard}>
               <View style={styles.qrFrame}>
                 <QRCode
                   value={invite.url}
                   size={QR_SIZE}
-                  backgroundColor={color.surface}
-                  color={color.foreground}
+                  backgroundColor={colors.surface}
+                  color={colors.text}
                 />
               </View>
               <Text style={styles.url} numberOfLines={2}>
                 {invite.url}
               </Text>
-            </View>
+            </Card>
 
             {/* Expiry stated plainly, not implied by a link that quietly stops
                 working in someone's chat an hour later. */}
@@ -134,35 +130,24 @@ export default function InviteScreen() {
               {expired ? t('invite.expired') : t('invite.expiresIn', { count: minutesLeft })}
             </Text>
 
-            <Pressable
-              accessibilityRole="button"
+            <Button
+              label={t('invite.share')}
+              size="large"
               onPress={() => void share()}
-              style={({ pressed }) => [styles.primary, pressed && styles.primaryPressed]}
-            >
-              <Text style={styles.primaryText}>{t('invite.share')}</Text>
-            </Pressable>
+              style={styles.share}
+            />
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void copy()}
-              style={({ pressed }) => [styles.secondary, pressed && styles.secondaryPressed]}
-            >
-              <Text style={styles.secondaryText}>{t('invite.copy')}</Text>
-            </Pressable>
+            <Button label={t('invite.copy')} variant="secondary" onPress={() => void copy()} />
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ busy: isFetching }}
+            <Button
+              label={isFetching ? t('invite.loading') : t('invite.refresh')}
+              variant="text"
+              busy={isFetching}
               onPress={() => {
                 setNotice(null);
                 setNonce((n) => n + 1);
               }}
-              style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
-            >
-              <Text style={styles.linkText}>
-                {isFetching ? t('invite.loading') : t('invite.refresh')}
-              </Text>
-            </Pressable>
+            />
 
             {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           </>
@@ -173,68 +158,25 @@ export default function InviteScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   body: { padding: space.xl, paddingBottom: space.xxxl, gap: space.sm, alignItems: 'stretch' },
-  title: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
-  lead: { fontSize: fontSize.md, lineHeight: lineHeight.md, color: color.mutedForeground },
-  qrCard: {
-    marginTop: space.lg,
-    padding: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: color.surface,
-    alignItems: 'center',
-    gap: space.md,
-  },
-  qrFrame: { padding: space.md, backgroundColor: color.surface, borderRadius: radius.card },
-  url: { fontSize: fontSize.xs, color: color.mutedForeground, textAlign: 'center' },
-  expiry: { marginTop: space.sm, fontSize: fontSize.sm, color: color.mutedForeground },
+  title: { ...typography.title, color: colors.text },
+  lead: { ...typography.bodyLg, color: colors.textMuted },
+  qrCard: { marginTop: space.lg, alignItems: 'center', gap: space.md },
+  qrFrame: { padding: space.md, backgroundColor: colors.surface },
+  url: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
+  expiry: { marginTop: space.sm, ...typography.body, color: colors.textMuted },
   expired: {
     marginTop: space.sm,
-    fontSize: fontSize.sm,
-    color: color.warning,
+    ...typography.body,
     fontWeight: fontWeight.medium,
+    color: colors.warningInk,
   },
-  primary: {
-    marginTop: space.sm,
-    minHeight: touchTarget.minimum + 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  primaryPressed: { backgroundColor: color.primaryPressed },
-  primaryText: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.medium,
-    color: color.primaryForeground,
-  },
-  secondary: {
-    minHeight: touchTarget.minimum,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.surface,
-  },
-  secondaryPressed: { backgroundColor: color.greenTint },
-  secondaryText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.foreground },
-  linkRow: { minHeight: touchTarget.minimum, alignItems: 'center', justifyContent: 'center' },
-  linkText: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.primaryInk },
-  notice: { fontSize: fontSize.sm, color: color.success, textAlign: 'center' },
-  error: { fontSize: fontSize.sm, color: color.danger, textAlign: 'center' },
-  refusal: {
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    color: color.foreground,
-    textAlign: 'center',
-  },
+  share: { marginTop: space.sm },
+  retry: { alignSelf: 'center' },
+  notice: { ...typography.body, color: colors.successInk, textAlign: 'center' },
+  error: { ...typography.body, color: colors.errorInk, textAlign: 'center' },
+  refusal: { ...typography.bodyLg, color: colors.text, textAlign: 'center' },
   centered: { alignItems: 'center', gap: space.md, paddingTop: space.xxl },
-  muted: { fontSize: fontSize.sm, color: color.mutedForeground },
-  pressed: { opacity: 0.75 },
+  muted: { ...typography.body, color: colors.textMuted },
 });

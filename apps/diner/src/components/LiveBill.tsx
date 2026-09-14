@@ -1,8 +1,9 @@
 import { isTabAccessEnded } from '@yalla/api';
 import { formatDram, formatRelativeMinutes, minutesBetween } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space } from '@yalla/tokens';
 import { StyleSheet, View } from 'react-native';
+import { colors, fontWeight, space, tabularNumbers, typography } from '../theme';
+import { Card } from './Card';
 import { Text } from './Text';
 import { useDinerTab, useTabShares, useTabStream } from '../data/orderQueries';
 import { useNow } from '../hooks/useNow';
@@ -59,16 +60,16 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
 
   if (isLoading && !tab) {
     return (
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.title}>{t('bill.title')}</Text>
         <Text style={styles.muted}>{t('bill.loading')}</Text>
-      </View>
+      </Card>
     );
   }
 
   if (!tab) {
     return (
-      <View style={styles.card}>
+      <Card style={styles.card}>
         <Text style={styles.title}>{t('bill.title')}</Text>
         <Text style={styles.muted}>
           {isTabAccessEnded(error)
@@ -77,7 +78,7 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
               ? t('bill.error')
               : t('bill.empty')}
         </Text>
-      </View>
+      </Card>
     );
   }
 
@@ -95,7 +96,7 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
   const additions = live.markers.filter((marker) => marker.type !== 'lineVoided');
 
   return (
-    <View style={styles.card}>
+    <Card style={styles.card}>
       <View style={styles.head}>
         <Text style={styles.title}>{t('bill.title')}</Text>
         {/* Honest about whether this is live: "Up to date" only once a page of
@@ -225,7 +226,7 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
           <Text style={styles.hidden}>{t('bill.hiddenTotal')}</Text>
         </View>
       )}
-    </View>
+    </Card>
   );
 }
 
@@ -297,66 +298,74 @@ function Adjustment({ adjustment }: { readonly adjustment: RenderedAdjustment })
 }
 
 const styles = StyleSheet.create({
-  card: {
-    gap: space.md,
-    padding: space.lg,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: color.borderSoft,
-    backgroundColor: color.surface,
-  },
+  card: { gap: space.md },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.md,
   },
-  title: { fontSize: fontSize.lg, lineHeight: lineHeight.lg, fontWeight: fontWeight.bold },
-  status: { color: color.mutedForeground, fontSize: fontSize.xs },
-  statusStale: { color: color.danger, fontWeight: fontWeight.bold },
-  muted: { color: color.mutedForeground, fontSize: fontSize.md, lineHeight: lineHeight.md },
+  title: { ...typography.h3, color: colors.text },
+  status: { ...typography.caption, color: colors.textMuted },
+  statusStale: { color: colors.errorInk, fontWeight: fontWeight.bold },
+  muted: { ...typography.bodyLg, color: colors.textMuted },
 
   lines: { gap: space.md },
   removals: { gap: 2 },
-  removed: { color: color.danger, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
+  removed: { ...typography.body, color: colors.errorInk },
   line: { gap: 2 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
-  lineName: { flex: 1, fontSize: fontSize.md, lineHeight: lineHeight.md },
-  lineAmount: { fontSize: fontSize.md, fontWeight: fontWeight.medium },
-  struck: { textDecorationLine: 'line-through', color: color.mutedForeground },
-  lineMeta: { color: color.subtleForeground, fontSize: fontSize.xs, lineHeight: lineHeight.xs },
-  lineNote: { color: color.mutedForeground, fontSize: fontSize.xs, fontStyle: 'italic' },
-  voided: { color: color.danger, fontSize: fontSize.xs, lineHeight: lineHeight.xs },
+  lineName: { flex: 1, ...typography.bodyLg, color: colors.text },
+  lineAmount: {
+    ...typography.bodyLg,
+    fontWeight: fontWeight.medium,
+    color: colors.text,
+    ...tabularNumbers,
+  },
+  struck: { textDecorationLine: 'line-through', color: colors.textMuted },
+  lineMeta: { ...typography.caption, color: colors.textMuted },
+  lineNote: { ...typography.caption, color: colors.textMuted, fontStyle: 'italic' },
+  voided: { ...typography.caption, color: colors.errorInk },
   marker: {
     marginTop: 2,
-    color: color.info,
-    fontSize: fontSize.xs,
+    ...typography.caption,
     fontWeight: fontWeight.bold,
+    color: colors.infoInk,
   },
 
   adjustment: {
     gap: 2,
     paddingTop: space.sm,
     borderTopWidth: 1,
-    borderTopColor: color.borderSoft,
+    borderTopColor: colors.border,
   },
-  adjustmentName: { fontSize: fontSize.md, fontWeight: fontWeight.medium },
-  adjustmentAmount: { fontSize: fontSize.md, fontWeight: fontWeight.medium, color: color.success },
-  reason: { color: color.mutedForeground, fontSize: fontSize.xs, lineHeight: lineHeight.xs },
+  adjustmentName: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
+  adjustmentAmount: {
+    ...typography.bodyLg,
+    fontWeight: fontWeight.medium,
+    color: colors.successInk,
+    ...tabularNumbers,
+  },
+  reason: { ...typography.caption, color: colors.textMuted },
 
   totals: {
     gap: space.xs,
     paddingTop: space.md,
     borderTopWidth: 1,
-    borderTopColor: color.borderStrong,
+    borderTopColor: colors.borderStrong,
   },
-  totalLabel: { color: color.mutedForeground, fontSize: fontSize.md },
-  totalValue: { fontSize: fontSize.md },
-  paidValue: { fontSize: fontSize.md, color: color.success },
+  totalLabel: { ...typography.bodyLg, color: colors.textMuted },
+  totalValue: { ...typography.bodyLg, color: colors.text, ...tabularNumbers },
+  paidValue: { ...typography.bodyLg, color: colors.successInk, ...tabularNumbers },
   grandRow: { paddingTop: space.xs },
-  grandLabel: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  grandValue: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  yourShareLabel: { color: color.primaryInk, fontSize: fontSize.md, fontWeight: fontWeight.medium },
-  yourShareValue: { color: color.primaryInk, fontSize: fontSize.md, fontWeight: fontWeight.bold },
-  hidden: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
+  grandLabel: { ...typography.h3, color: colors.text },
+  grandValue: { ...typography.h3, color: colors.text, ...tabularNumbers },
+  yourShareLabel: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.primary },
+  yourShareValue: {
+    ...typography.bodyLg,
+    fontWeight: fontWeight.bold,
+    color: colors.primary,
+    ...tabularNumbers,
+  },
+  hidden: { ...typography.body, color: colors.textMuted },
 });
