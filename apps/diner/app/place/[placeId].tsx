@@ -478,7 +478,7 @@ function Stars({ rating }: { rating: number }) {
       {[1, 2, 3, 4, 5].map((step) => (
         <Ionicons
           key={step}
-          name={step <= Math.round(rating) ? actionIcon.star : 'star-outline'}
+          name={step <= Math.round(rating) ? 'star' : 'star-outline'}
           size={iconSize.sm}
           color={colors.warning}
         />

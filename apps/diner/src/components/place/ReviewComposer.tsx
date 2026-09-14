@@ -9,7 +9,7 @@ import { useDinerProfile } from '../../data/accountQueries';
 import { myReviewKey } from '../../data/dinerScope';
 import { placeKeys } from '../../places/hooks';
 import { useSession } from '../../stores/session';
-import { actionIcon, colors, fontWeight, iconSize, radius, space, typography } from '../../theme';
+import { colors, fontWeight, iconSize, radius, space, typography } from '../../theme';
 import { Button } from '../Button';
 import { Text, TextInput } from '../Text';
 import { reviewForm, type ReviewDraft } from './reviewDraft';
@@ -136,7 +136,7 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
             }}
           >
             <Ionicons
-              name={step <= rating ? actionIcon.star : 'star-outline'}
+              name={step <= rating ? 'star' : 'star-outline'}
               size={iconSize.lg}
               color={colors.warning}
             />
