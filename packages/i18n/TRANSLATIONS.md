@@ -303,8 +303,11 @@ screen.
   - **New `diner` keys.** `scripts/pending-diner-keys.json` names the screen
     that renders each one. `place.reviews.seeAll_*`, `reviews.*`,
     `place.menu.empty` / `.error`; `place.review.postedAs` (must say the
-    review is **public**), `.needsVisit` (must keep the 180 days and both kinds
-    of visit), `.hidden`; `place.review.report.*` (five reasons, the note,
+    review is **public**), `.starLabel` ("{{rating}} of 5 stars" — the rating
+    comes first and 5 is the fixed maximum; hy "{{rating}} աստղ 5-ից", ru
+    "{{rating}} из 5 звёзд", where ru "звёзд" is not agreed with the number, so
+    a reviewer should decide whether it needs plural forms), `.needsVisit`
+    (must keep the 180 days and both kinds of visit), `.hidden`; `place.review.report.*` (five reasons, the note,
     `own`, `failed`); `place.bookingsOff.*`; `booking.note.*` (the hint must
     keep saying the **venue** sees it); `profile.deleteAccount.*` (the body
     must keep saying what is deleted and that venues keep their booking and

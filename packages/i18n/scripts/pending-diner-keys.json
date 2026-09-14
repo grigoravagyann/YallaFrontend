@@ -5,6 +5,7 @@
     "reviews.*": "D1 — app/place/[placeId]/reviews.tsx",
     "place.menu.*": "D1 — the place screen's menu empty and error states",
     "place.review.postedAs": "D1 — ReviewComposer, from publicAuthorName",
+    "place.review.starLabel": "D1 — the labelled star buttons in ReviewComposer and the read-only stars in ReviewList",
     "place.review.needsVisit": "D1 — ReviewComposer on ReviewNeedsVisitError",
     "place.review.hidden": "D1 — ReviewComposer when the diner's own review is hidden",
     "place.review.report.*": "D1 — the report sheet on each review",
