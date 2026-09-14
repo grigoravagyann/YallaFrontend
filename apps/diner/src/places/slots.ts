@@ -1,6 +1,6 @@
 import { branchDayKey } from '@yalla/format';
 import {
-  hoursOn,
+  hoursBlocksOn,
   instantAt,
   serviceWindow,
   shiftDateKey,
@@ -76,28 +76,33 @@ function clockOf(instant: Date, timeZoneId: string): ClockTime {
 /**
  * The bookable half-hour slots of one day.
  *
- * Inside the place's hours for that weekday (a close after midnight counts as
- * the same service day), at least `LEAD_MINUTES` ahead of `now`, and never the
- * closing time itself. A day the place is shut yields nothing.
+ * Inside any of the place's opening blocks for that weekday — a split lunch
+ * and dinner service offers both, and nothing in the gap — (a close after
+ * midnight counts as the same service day), at least `LEAD_MINUTES` ahead of
+ * `now`, and never a closing time itself. A day the place is shut yields nothing.
  */
 export function timeSlots(
   place: Pick<Place, 'hours' | 'timeZoneId'>,
   dateKey: string,
   now: Date,
 ): readonly TimeSlot[] {
-  const hours = hoursOn(place.hours, dateKey);
-  if (!hours) return [];
+  const blocks = hoursBlocksOn(place.hours, dateKey);
+  if (blocks.length === 0) return [];
 
-  const { opens, closes } = serviceWindow(hours, dateKey, place.timeZoneId);
   const earliest = now.getTime() + LEAD_MINUTES * MINUTE_MS;
+  const taken = new Set<number>();
   const slots: TimeSlot[] = [];
 
-  for (let t = opens.getTime(); t < closes.getTime(); t += SLOT_MINUTES * MINUTE_MS) {
-    if (t < earliest) continue;
-    const at = new Date(t);
-    slots.push({ key: clockOf(at, place.timeZoneId), at });
+  for (const block of blocks) {
+    const { opens, closes } = serviceWindow(block, dateKey, place.timeZoneId);
+    for (let t = opens.getTime(); t < closes.getTime(); t += SLOT_MINUTES * MINUTE_MS) {
+      if (t < earliest || taken.has(t)) continue;
+      taken.add(t);
+      const at = new Date(t);
+      slots.push({ key: clockOf(at, place.timeZoneId), at });
+    }
   }
-  return slots;
+  return slots.sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 
 /** Only a free table can be booked from the photo. */

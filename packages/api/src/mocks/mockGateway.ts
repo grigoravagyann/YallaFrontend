@@ -50,15 +50,16 @@ import type {
   TabShares,
 } from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
-import type {
-  BranchDetail,
-  BranchListing,
-  BranchReview,
-  BranchReviewPage,
-  BranchSearchQuery,
-  BranchTableMarkers,
-  DinerOrder,
-  MyBranchReview,
+import {
+  clampBranchSearch,
+  type BranchDetail,
+  type BranchListing,
+  type BranchReview,
+  type BranchReviewPage,
+  type BranchSearchQuery,
+  type BranchTableMarkers,
+  type DinerOrder,
+  type MyBranchReview,
 } from '../contracts/places';
 import { ValidationError } from '../errors';
 import { parseProblem } from '../problem';
@@ -674,7 +675,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   }
 
   function listings(query: BranchSearchQuery | undefined): BranchListing[] {
-    const needle = query?.query?.trim().toLowerCase() ?? '';
+    // Cut as the HTTP gateway cuts it, so a long search behaves the same in mock mode.
+    const needle = clampBranchSearch(query?.query).toLowerCase();
     const found = mockVenues.flatMap((venue) =>
       venue.branches.flatMap((branch) => {
         const listing = listingFor(venue, branch, query?.position);

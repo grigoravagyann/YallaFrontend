@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { MAX_BRANCH_SEARCH_LENGTH } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { openURL } from 'expo-linking';
@@ -180,6 +181,8 @@ export default function MapScreen() {
             placeholderTextColor={colors.textSubtle}
             autoCorrect={false}
             returnKeyType="search"
+            // The server refuses a longer search outright.
+            maxLength={MAX_BRANCH_SEARCH_LENGTH}
             accessibilityLabel={t('map.searchArea')}
           />
           {query ? (

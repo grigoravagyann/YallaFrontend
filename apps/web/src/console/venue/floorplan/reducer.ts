@@ -628,6 +628,29 @@ export function toSaveCommand(state: EditorState): ReplaceFloorPlanCommand {
 }
 
 /**
+ * `command` with each known table's photo position taken from `current`, the
+ * floor plan as the server holds it at the moment of saving.
+ *
+ * The editor never moves a pin — the Public page does, through the same `PUT` —
+ * so the positions it loaded can be out of date by the time the room is saved,
+ * and sending them back would take off the photo every pin placed since. A
+ * table `current` does not have (a new one) keeps what the command carries.
+ */
+export function withCurrentPhotoPositions(
+  command: ReplaceFloorPlanCommand,
+  current: EditorFloorPlan,
+): ReplaceFloorPlanCommand {
+  const byId = new Map(current.tables.map((table) => [table.id, table]));
+  return {
+    ...command,
+    tables: command.tables.map((table) => {
+      const live = table.id ? byId.get(table.id) : undefined;
+      return live ? { ...table, photoX: live.photoX ?? null, photoY: live.photoY ?? null } : table;
+    }),
+  };
+}
+
+/**
  * Has the server seen this id?
  *
  * A table the editor invented carries a `new-` id the server has no row for.

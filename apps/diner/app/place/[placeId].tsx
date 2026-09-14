@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatDram, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   ScrollView,
@@ -33,9 +34,10 @@ import { PlaceTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
 import { PlaceMetaRow, usePlaceCopy } from '../../src/components/places/placeCopy';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { TablePhotoView } from '../../src/components/tables/TablePhotoView';
-import { usePlace, usePlaceTables } from '../../src/places/hooks';
+import { placeKeys, usePlace, usePlaceTables } from '../../src/places/hooks';
 import {
   formatClock,
+  tablePhotoOf,
   type Place,
   type Review,
   type TablePhotoMarker,
@@ -75,6 +77,20 @@ export default function PlaceDetailsScreen() {
 
   const placeQuery = usePlace(placeId);
   const tablesQuery = usePlaceTables(placeId);
+
+  // The markers are read every few seconds, the place every few minutes. When
+  // the markers name a different cover than the place holds, the cover has
+  // changed: read the place again — once per new cover — so the hero agrees.
+  const queryClient = useQueryClient();
+  const markersPhoto = tablesQuery.data?.photo;
+  const placeCover = placeQuery.data ? tablePhotoOf(placeQuery.data) : undefined;
+  const refreshedFor = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!placeId || markersPhoto === undefined || placeCover === undefined) return;
+    if (markersPhoto === placeCover || refreshedFor.current === markersPhoto) return;
+    refreshedFor.current = markersPhoto;
+    void queryClient.invalidateQueries({ queryKey: placeKeys.detail(placeId) });
+  }, [placeId, markersPhoto, placeCover, queryClient]);
 
   const openBooking = useCallback(
     (table?: TablePhotoMarker) => {
@@ -151,7 +167,9 @@ export default function PlaceDetailsScreen() {
   return (
     <PlaceDetails
       place={place}
-      tables={tablesQuery.data ?? place.tables}
+      tables={tablesQuery.data?.tables ?? place.tables}
+      // The markers' own photo once they have answered: their positions refer to it.
+      tablePhoto={tablesQuery.data ? tablesQuery.data.photo : tablePhotoOf(place)}
       heroHeight={heroHeight}
       onBack={back}
       onBook={openBooking}
@@ -162,12 +180,21 @@ export default function PlaceDetailsScreen() {
 interface PlaceDetailsProps {
   readonly place: Place;
   readonly tables: readonly TablePhotoMarker[];
+  /** The cover the markers sit on; `null` when there is none. */
+  readonly tablePhoto: string | null;
   readonly heroHeight: number;
   readonly onBack: () => void;
   readonly onBook: (table?: TablePhotoMarker) => void;
 }
 
-function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetailsProps) {
+function PlaceDetails({
+  place,
+  tables,
+  tablePhoto,
+  heroHeight,
+  onBack,
+  onBook,
+}: PlaceDetailsProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
@@ -193,7 +220,6 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
   );
 
   const photos = place.photos.length > 0 ? place.photos : [''];
-  const heroPhoto = photos[0] ?? '';
 
   const onHeroScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -344,16 +370,25 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
             }
             style={styles.tablesHeader}
           />
-          <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
-          <TablePhotoView
-            photo={heroPhoto}
-            tables={tables}
-            selectedTableId={selectedTableId}
-            onSelect={setSelectedTableId}
-            onBook={onBook}
-            style={styles.tablePhoto}
-          />
-          <TableLegend style={styles.legend} />
+          {tablePhoto && tables.length > 0 ? (
+            <>
+              <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
+              <TablePhotoView
+                photo={tablePhoto}
+                tables={tables}
+                selectedTableId={selectedTableId}
+                onSelect={setSelectedTableId}
+                onBook={onBook}
+                style={styles.tablePhoto}
+              />
+              <TableLegend style={styles.legend} />
+            </>
+          ) : (
+            // No cover, or no table placed on it yet: say so, rather than draw
+            // a gallery picture or an empty frame the diner is told to tap
+            // tables on. The floor plan link above and Book below still work.
+            <Text style={[styles.subtitle, styles.noTablePhoto]}>{t('tables.notOnPhoto')}</Text>
+          )}
 
           <PlaceTabs value={tab} onChange={setTab} style={styles.tabs} />
           <View style={styles.tabBody}>
@@ -421,7 +456,7 @@ function ReviewList({ reviews }: { reviews: readonly Review[] }) {
         const parsed = new Date(review.date);
         const date = Number.isNaN(parsed.getTime()) ? review.date : dateFormat.format(parsed);
         return (
-          <View key={`${review.author}-${review.date}`} style={styles.review}>
+          <View key={review.id} style={styles.review}>
             <View style={styles.reviewHead}>
               <Text numberOfLines={1} style={styles.reviewAuthor}>
                 {review.author}
@@ -607,6 +642,7 @@ const styles = StyleSheet.create({
   subtitle: { ...typography.caption, color: colors.textMuted, marginTop: space.xs },
   tablePhoto: { marginTop: space.md },
   legend: { marginTop: space.md, marginBottom: space.lg },
+  noTablePhoto: { marginBottom: space.lg },
 
   footer: {
     paddingHorizontal: layout.screenPadding,

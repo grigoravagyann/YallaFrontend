@@ -15,6 +15,7 @@ import { createSecureProfileStorage } from '../src/auth/profileStorage';
 import { restoreDinerSession } from '../src/auth/restore';
 import { authSession } from '../src/auth/session';
 import { projectId } from '../src/config';
+import { resetDinerQueriesOnSessionChange } from '../src/data/dinerScope';
 import { gateway } from '../src/data/gateway';
 import { bootstrapI18n } from '../src/i18n';
 import { wireQueryManagers } from '../src/lib/queryManagers';
@@ -33,6 +34,13 @@ import { usePushNotifications } from '../src/push/usePushNotifications';
  * `createQueryClient`.
  */
 const queryClient = createQueryClient({ mutationNetworkMode: 'always' });
+
+/**
+ * Orders and "your review" belong to whoever is signed in. Module scope, once:
+ * a sign-out, a refused refresh or another account signing in forgets them,
+ * whichever screen caused it.
+ */
+resetDinerQueriesOnSessionChange(queryClient);
 
 /**
  * Coming back to the app and losing signal, told to TanStack Query.

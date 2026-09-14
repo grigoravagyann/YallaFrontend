@@ -1,11 +1,14 @@
 import { describeFailure, isFloorPlanInvalid } from '@yalla/api';
 import {
   isOfflinePaused,
+  queryKeys,
+  useConsoleGateway,
   useEditorFloorPlan,
   useRegenerateTableQr,
   useSaveFloorPlan,
 } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useElementSize } from '../../../useElementSize';
@@ -23,6 +26,7 @@ import {
   reducer,
   tablesOutsideCanvas,
   toSaveCommand,
+  withCurrentPhotoPositions,
   type EditorAction,
   type EditorTable,
 } from './reducer';
@@ -49,6 +53,8 @@ export interface FloorPlanEditorRouteProps {
 export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRouteProps) {
   const { t } = useTranslation(['admin', 'common']);
   const query = useEditorFloorPlan(branchId);
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
   const save = useSaveFloorPlan();
   const regenerate = useRegenerateTableQr();
 
@@ -157,7 +163,21 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
     if (!branchId) return;
     setSaveResult(null);
     try {
-      const result = await save.mutateAsync({ branchId, command: toSaveCommand(state) });
+      // The Public page places tables on the cover photo through this same
+      // `PUT`, so the positions come from the room as the server holds it now:
+      // a draft opened before someone placed the pins must not take them off.
+      // If the read fails, the draft's own positions are still the best there is.
+      const current = await queryClient
+        .fetchQuery({
+          queryKey: queryKeys.editorFloorPlan(branchId),
+          queryFn: () => gateway.getFloorPlan(branchId),
+          staleTime: 0,
+        })
+        .catch(() => null);
+      const command = current
+        ? withCurrentPhotoPositions(toSaveCommand(state), current)
+        : toSaveCommand(state);
+      const result = await save.mutateAsync({ branchId, command });
       dispatch({ type: 'saved', result });
       setSaveResult({
         warnings: result.warnings,
@@ -167,7 +187,7 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
     } catch {
       // Rendered below from the mutation's own error; nothing to do here.
     }
-  }, [branchId, save, state, dispatch]);
+  }, [branchId, save, state, dispatch, queryClient, gateway]);
 
   const serverInvalid = isFloorPlanInvalid(save.error) ? save.error : null;
   // The server names the offenders, so the canvas can highlight exactly those.

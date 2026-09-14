@@ -67,7 +67,9 @@
         "latitude": "Latitude",
         "longitude": "Longitude",
         "bothOrNeither": "Enter both latitude and longitude, or leave both empty to keep the current pin.",
-        "openMap": "Check this pin on OpenStreetMap"
+        "openMap": "Check this pin on OpenStreetMap",
+        "notANumber": "Enter each coordinate as a decimal number, like 40.1843.",
+        "outOfRange": "Latitude must be between -90 and 90, and longitude between -180 and 180. Check they are not swapped."
       },
       "gallery": {
         "title": "Gallery",
@@ -104,7 +106,10 @@
       "save": "Save positions",
       "saving": "Saving…",
       "saved": "Positions saved.",
-      "failed": "The positions did not save. Nothing changed — try again."
+      "failed": "The positions did not save. Nothing changed — try again.",
+      "selectedUnplaced": "Table {{label}} is not on the photo yet. Click where it is in the picture, or place it in the middle and move its pin with the arrow keys.",
+      "placeInMiddle": "Place table {{label}} on the photo",
+      "refused": "The floor plan was refused — a table in use is missing, or two tables share a label. Fix it in the floor plan editor, then save the positions again."
     }
   },
   "shell": {

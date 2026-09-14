@@ -119,18 +119,21 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     reviews: [
       {
+        id: 'mock-review-1',
         author: 'Anahit S.',
         rating: 5,
         text: 'The terrace is the best spot in the centre for a slow breakfast. Lavash comes out warm.',
         date: '2026-09-06',
       },
       {
+        id: 'mock-review-2',
         author: 'Marco T.',
         rating: 5,
         text: 'Great coffee and a proper vegan menu, which is rarer here than you would think.',
         date: '2026-08-28',
       },
       {
+        id: 'mock-review-3',
         author: 'Narek H.',
         rating: 4,
         text: 'Lovely room, friendly staff. Gets loud around noon on weekends.',
@@ -203,18 +206,21 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     reviews: [
       {
+        id: 'mock-review-4',
         author: 'Lilit A.',
         rating: 5,
         text: 'The only place in town I trust with a filter coffee. Staff know their beans.',
         date: '2026-09-09',
       },
       {
+        id: 'mock-review-5',
         author: 'Daniel K.',
         rating: 4,
         text: 'Excellent espresso, good Wi-Fi. Cramped at the counter when it gets busy.',
         date: '2026-09-01',
       },
       {
+        id: 'mock-review-6',
         author: 'Sona G.',
         rating: 5,
         text: 'Cardamom bun and a cappuccino. That is the order.',
@@ -289,18 +295,21 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     reviews: [
       {
+        id: 'mock-review-7',
         author: 'Hasmik P.',
         rating: 5,
         text: 'Brought visiting friends and they still talk about the dolma. The courtyard at dusk is magic.',
         date: '2026-09-07',
       },
       {
+        id: 'mock-review-8',
         author: 'James W.',
         rating: 5,
         text: 'The best meal of our trip. Book ahead — we were turned away the first night.',
         date: '2026-08-30',
       },
       {
+        id: 'mock-review-9',
         author: 'Armen M.',
         rating: 4,
         text: 'Faithful, generous cooking. Prices are at the top end for Yerevan, but fair for what you get.',
@@ -381,18 +390,21 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     reviews: [
       {
+        id: 'mock-review-10',
         author: 'Gor V.',
         rating: 5,
         text: 'The khorovats is the reason you come. The band is the reason you stay.',
         date: '2026-09-05',
       },
       {
+        id: 'mock-review-11',
         author: 'Elena R.',
         rating: 4,
         text: 'Huge portions, fair prices, very busy on Saturday. Ask for the terrace.',
         date: '2026-08-24',
       },
       {
+        id: 'mock-review-12',
         author: 'Tigran K.',
         rating: 4,
         text: 'Solid tavern food. Service slowed down once the music started.',
@@ -466,18 +478,21 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     reviews: [
       {
+        id: 'mock-review-13',
         author: 'Mariam D.',
         rating: 5,
         text: 'The view alone is worth it, and then the food turns out to be serious too.',
         date: '2026-09-08',
       },
       {
+        id: 'mock-review-14',
         author: 'Oliver B.',
         rating: 4,
         text: 'Inventive cooking, polished service. Still finding its feet on a busy Friday.',
         date: '2026-08-31',
       },
       {
+        id: 'mock-review-15',
         author: 'Ani T.',
         rating: 4,
         text: 'Book a table by the rail for sunset. The wine flight is a lovely way in.',
@@ -548,18 +563,21 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     reviews: [
       {
+        id: 'mock-review-16',
         author: 'Karen A.',
         rating: 5,
         text: 'My regular work spot. Good Wi-Fi, good light, nobody hurries you.',
         date: '2026-09-04',
       },
       {
+        id: 'mock-review-17',
         author: 'Zara M.',
         rating: 4,
         text: 'Lovely brunch. A little slow on Sunday, but the staff are sweet about it.',
         date: '2026-08-27',
       },
       {
+        id: 'mock-review-18',
         author: 'Levon S.',
         rating: 4,
         text: 'Genuinely good vegan options and the lentil bowl is filling.',

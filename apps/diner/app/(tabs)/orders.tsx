@@ -1,3 +1,4 @@
+import { UnauthorizedError } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useRouter } from 'expo-router';
@@ -12,6 +13,7 @@ import { Text } from '../../src/components/Text';
 import { useNow } from '../../src/hooks/useNow';
 import { useOrders } from '../../src/orders/hooks';
 import { splitOrders, type Order } from '../../src/orders/model';
+import { useSession } from '../../src/stores/session';
 import { colors, layout, navIcons, space, typography } from '../../src/theme';
 
 type Segment = 'active' | 'history';
@@ -39,6 +41,7 @@ export default function OrdersScreen() {
   const paddingBottom = useNavClearance();
   const [segment, setSegment] = useState<Segment>('active');
   const now = useNow();
+  const signedIn = useSession((s) => s.signedIn);
 
   const ordersQuery = useOrders();
   const { data, isLoading, isError, error, refetch, isRefetching } = ordersQuery;
@@ -66,6 +69,23 @@ export default function OrdersScreen() {
       />
     </View>
   );
+
+  // Orders are kept on the account. With no session, or one the server no
+  // longer takes, the way on is signing in — not an empty tab that reads as if
+  // the order had been lost.
+  if (!signedIn || error instanceof UnauthorizedError) {
+    return (
+      <Screen>
+        {header}
+        <EmptyState
+          icon="receipt-outline"
+          title={t('orders.signedOut.title')}
+          body={t('orders.signedOut.body')}
+          action={{ label: t('orders.signedOut.action'), onPress: () => router.push('/auth') }}
+        />
+      </Screen>
+    );
+  }
 
   if (isLoading && !offline) {
     return (

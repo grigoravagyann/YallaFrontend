@@ -129,7 +129,20 @@ export interface SubmitBranchReviewCommand {
   readonly text?: string | null | undefined;
 }
 
+/** The server's cap on `q`, after trimming; a longer one is refused with a 400. */
+export const MAX_BRANCH_SEARCH_LENGTH = 100;
+
+/**
+ * A search as the server will take it: trimmed, then cut to
+ * {@link MAX_BRANCH_SEARCH_LENGTH}, so a pasted paragraph searches on its start
+ * instead of failing the whole list.
+ */
+export function clampBranchSearch(query: string | undefined): string {
+  return (query ?? '').trim().slice(0, MAX_BRANCH_SEARCH_LENGTH).trim();
+}
+
 export interface BranchSearchQuery {
+  /** Trimmed and cut to {@link MAX_BRANCH_SEARCH_LENGTH} before it is sent. */
   readonly query?: string | undefined;
   readonly venueType?: VenueType | undefined;
   /** Both or neither: adds `distanceKm` and sorts nearest first. */

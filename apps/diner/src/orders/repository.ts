@@ -1,4 +1,4 @@
-import { UnauthorizedError, type YallaGateway } from '@yalla/api';
+import type { YallaGateway } from '@yalla/api';
 import { gateway, usingMockData } from '../data/gateway';
 import { orderFromApi } from './httpMapping';
 import { createMockOrders } from './mockOrders';
@@ -94,24 +94,15 @@ export function createHttpOrderRepository(
   source: Pick<YallaGateway, 'listDinerOrders' | 'getDinerOrder'> = gateway,
 ): OrderRepository {
   return {
+    // A 401 is passed on, not turned into "no orders" or "not found": orders
+    // live on the account, so the screen's answer to it is a way to sign in.
     async list() {
-      try {
-        // Both segments: `splitOrders` applies the 24-hour window itself.
-        return (await source.listDinerOrders()).map(orderFromApi);
-      } catch (error) {
-        // Nobody signed in has no orders, which is an empty tab, not a failure.
-        if (error instanceof UnauthorizedError) return [];
-        throw error;
-      }
+      // Both segments: `splitOrders` applies the 24-hour window itself.
+      return (await source.listDinerOrders()).map(orderFromApi);
     },
     async getById(orderId) {
-      try {
-        const order = await source.getDinerOrder(orderId);
-        return order ? orderFromApi(order) : null;
-      } catch (error) {
-        if (error instanceof UnauthorizedError) return null;
-        throw error;
-      }
+      const order = await source.getDinerOrder(orderId);
+      return order ? orderFromApi(order) : null;
     },
     // The domain has no diner cancel — voiding is staff-only — so there is no
     // endpoint to call and no request is made.

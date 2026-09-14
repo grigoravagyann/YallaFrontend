@@ -740,7 +740,8 @@
       "update": "Update review",
       "saved": "Thanks, your review is posted.",
       "failed": "We could not post your review. Try again.",
-      "verifyHint": "Verify your phone number in your profile to leave a review."
+      "verifyHint": "Verify your phone number in your profile to leave a review.",
+      "loadFailed": "We could not load your review. Try again before writing a new one."
     },
     "favorite": "Save to favorites",
     "unfavorite": "Remove from favorites",
@@ -789,7 +790,8 @@
     "zoomOut": "Zoom out",
     "fullscreen": "Full screen",
     "close": "Close",
-    "floorPlan": "Floor plan"
+    "floorPlan": "Floor plan",
+    "notOnPhoto": "This place has not put its tables on a photo yet. Book a table, or open the floor plan."
   },
   "map": {
     "searchArea": "Search this area",
@@ -865,7 +867,12 @@
     },
     "cancelTitle": "Cancel this order?",
     "cancelBody": "The kitchen has not started on it yet, so nothing will be charged.",
-    "cancelFailed": "We could not cancel that order. Try again."
+    "cancelFailed": "We could not cancel that order. Try again.",
+    "signedOut": {
+      "title": "Your orders are kept on your account",
+      "body": "Log in to see what you ordered.",
+      "action": "Log in"
+    }
   },
   "favorites": {
     "title": "Favorites",

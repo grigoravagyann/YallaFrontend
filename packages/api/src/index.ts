@@ -106,6 +106,7 @@ export type {
   SubmitBranchReviewCommand,
 } from './contracts/places';
 export { haversineKm } from './mocks/mockGateway';
+export { clampBranchSearch, MAX_BRANCH_SEARCH_LENGTH } from './contracts/places';
 
 export { isKnownUnavailableReason, KNOWN_UNAVAILABLE_REASONS } from './contracts/booking';
 

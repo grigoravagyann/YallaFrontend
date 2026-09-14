@@ -127,6 +127,8 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
   // The place the diner browsed when the browse data knows the branch; the
   // server's venue name otherwise.
   const where = place?.name ?? booking.venueName ?? booking.branchName;
+  // What the browse data already calls a branch with a name of its own.
+  const venueAndBranch = `${booking.venueName} · ${booking.branchName}`;
   const photo = place?.photos[0];
   const pending = booking.status === 'pendingApproval';
   const isCancelled =
@@ -176,9 +178,11 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
               <Text display numberOfLines={2} style={styles.placeName}>
                 {where}
               </Text>
-              {place?.name && booking.venueName && place.name !== booking.venueName ? (
+              {where === venueAndBranch ? null : place?.name &&
+                booking.venueName &&
+                place.name !== booking.venueName ? (
                 <Text numberOfLines={1} style={styles.detail}>
-                  {`${booking.venueName} · ${booking.branchName}`}
+                  {venueAndBranch}
                 </Text>
               ) : (
                 <Text numberOfLines={1} style={styles.detail}>

@@ -87,6 +87,22 @@ describe('the branch listing in the mock', () => {
       'latitude',
     ]);
   });
+
+  it('refuses a coordinate out of range as the server does: a 400 naming one field', async () => {
+    const caught = await gateway
+      .updateBranchListing({
+        branchId: BRANCH,
+        listing: { ...EMPTY, latitude: 40.18, longitude: 200 },
+      })
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(ValidationError);
+    const refusal = caught as ValidationError;
+    expect(refusal.status).toBe(400);
+    expect(refusal.field).toBe('longitude');
+    // No collected list: that is what the form has to cope with.
+    expect(refusal.violations).toEqual([]);
+  });
 });
 
 describe('table photo positions in the mock floor plan', () => {

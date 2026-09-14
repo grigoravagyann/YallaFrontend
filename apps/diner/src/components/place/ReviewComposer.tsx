@@ -5,11 +5,14 @@ import { useTranslation } from '@yalla/i18n';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useDinerProfile } from '../../data/accountQueries';
+import { myReviewKey } from '../../data/dinerScope';
 import { placeKeys } from '../../places/hooks';
 import { useSession } from '../../stores/session';
 import { actionIcon, colors, fontWeight, iconSize, radius, space, typography } from '../../theme';
 import { Button } from '../Button';
 import { Text, TextInput } from '../Text';
+import { reviewForm, type ReviewDraft } from './reviewDraft';
 
 /** The server's cap on review text. */
 const MAX_TEXT = 1000;
@@ -34,8 +37,20 @@ export function ReviewComposer({ placeId, style }: ReviewComposerProps) {
   const { t } = useTranslation('diner');
   const signedIn = useSession((state) => state.signedIn);
   const profile = useSession((state) => state.profile);
+  // Read here too, not only on the Profile tab: a session restored at launch
+  // has no profile until something asks, and without it this form never shows.
+  const profileQuery = useDinerProfile();
 
-  if (!signedIn || !profile) return null;
+  if (!signedIn) return null;
+  if (!profile) {
+    // An account that cannot be read is not one to offer a form to.
+    if (profileQuery.isError) return null;
+    return (
+      <View style={style}>
+        <Text style={styles.hint}>{t('net.loading')}</Text>
+      </View>
+    );
+  }
   if (!profile.phoneVerified) {
     return (
       <View style={style}>
@@ -52,26 +67,49 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
   const queryClient = useQueryClient();
 
   const mine = useQuery({
-    queryKey: ['places', 'myReview', placeId],
+    queryKey: myReviewKey(placeId),
     queryFn: () => gateway.getMyBranchReview(placeId),
     staleTime: staleTime.frequent,
   });
 
-  // A draft the diner has touched; until then the saved review shows through.
-  const [draft, setDraft] = useState<{ rating: number; text: string } | null>(null);
-  const rating = draft?.rating ?? mine.data?.rating ?? 0;
-  const text = draft?.text ?? mine.data?.text ?? '';
+  // What the diner has touched; every other field shows the saved review.
+  const [draft, setDraft] = useState<ReviewDraft>({});
+  const { rating, text, touched } = reviewForm(draft, mine.data ?? null);
 
   const save = useMutation({
     mutationFn: () => gateway.saveMyBranchReview({ branchId: placeId, rating, text }),
     onSuccess: (saved) => {
-      queryClient.setQueryData(['places', 'myReview', placeId], saved);
-      setDraft(null);
+      queryClient.setQueryData(myReviewKey(placeId), saved);
+      setDraft({});
       // The page's rating, count and newest reviews all moved.
       void queryClient.invalidateQueries({ queryKey: placeKeys.detail(placeId) });
       void queryClient.invalidateQueries({ queryKey: ['places', 'list'] });
     },
   });
+
+  // Nothing is editable until the saved review is known. The save replaces the
+  // rating and text together, so a form filled in over a review that has not
+  // arrived — or failed to — would post over what the diner wrote.
+  if (mine.isPending) {
+    return (
+      <View style={[styles.card, style]}>
+        <Text style={styles.hint}>{t('net.loading')}</Text>
+      </View>
+    );
+  }
+  if (mine.isError) {
+    return (
+      <View style={[styles.card, style]}>
+        <Text style={styles.error}>{t('place.review.loadFailed')}</Text>
+        <Button
+          label={t('net.retry')}
+          variant="text"
+          fullWidth={false}
+          onPress={() => void mine.refetch()}
+        />
+      </View>
+    );
+  }
 
   const failure = save.error
     ? save.error.name === 'PhoneNotVerifiedError'
@@ -94,7 +132,7 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
             hitSlop={6}
             onPress={() => {
               save.reset();
-              setDraft({ rating: step, text });
+              setDraft((current) => ({ ...current, rating: step }));
             }}
           >
             <Ionicons
@@ -110,7 +148,7 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
         value={text}
         onChangeText={(value) => {
           save.reset();
-          setDraft({ rating, text: value });
+          setDraft((current) => ({ ...current, text: value }));
         }}
         placeholder={t('place.review.placeholder')}
         placeholderTextColor={colors.textSubtle}
@@ -119,12 +157,12 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
         accessibilityLabel={t('place.review.placeholder')}
       />
       {failure ? <Text style={styles.error}>{failure}</Text> : null}
-      {save.isSuccess && !draft ? (
+      {save.isSuccess && !touched ? (
         <Text style={styles.saved}>{t('place.review.saved')}</Text>
       ) : null}
       <Button
         label={mine.data ? t('place.review.update') : t('place.review.submit')}
-        disabled={rating < 1 || save.isPending || draft === null}
+        disabled={rating < 1 || save.isPending || !touched}
         onPress={() => save.mutate()}
         style={styles.submit}
       />

@@ -3,6 +3,7 @@ import { currentLocale } from '@yalla/i18n';
 import { gateway, usingMockData } from '../data/gateway';
 import { readDevicePosition } from './devicePosition';
 import {
+  coverUrl,
   markerFromApi,
   placeFromDetail,
   placeFromListing,
@@ -11,11 +12,12 @@ import {
 import { mockPlaces, type PlaceSeed } from './mockPlaces';
 import {
   openStateFor,
+  tablePhotoOf,
   type Coordinates,
   type Place,
   type PlaceBadge,
+  type PlaceTables,
   type PlaceType,
-  type TablePhotoMarker,
 } from './model';
 
 /**
@@ -41,8 +43,12 @@ export interface PlaceRepository {
   getById(placeId: string): Promise<Place | null>;
   /** Name, cuisine and address match, case-insensitive, then `filter` narrows. */
   search(query: string, filter?: PlaceFilter): Promise<readonly Place[]>;
-  /** Live table markers. Refetched more often than the place itself. */
-  tables(placeId: string): Promise<readonly TablePhotoMarker[]>;
+  /**
+   * Live table markers, with the photo they sit on. Refetched more often than
+   * the place itself, so the screen draws them on this photo rather than on a
+   * cover the place's older read may still hold.
+   */
+  tables(placeId: string): Promise<PlaceTables>;
 }
 
 /** Thrown by the HTTP repository until the backend publishes these endpoints. */
@@ -120,7 +126,8 @@ export function createMockPlaceRepository(
     },
     async tables(placeId) {
       await wait(latencyMs);
-      return seeds.find((place) => place.id === placeId)?.tables ?? [];
+      const seed = seeds.find((place) => place.id === placeId);
+      return { photo: seed ? tablePhotoOf(seed) : null, tables: seed?.tables ?? [] };
     },
   };
 }
@@ -194,9 +201,9 @@ export function createHttpPlaceRepository(
 
     async tables(placeId) {
       const markers = await source.getBranchTableMarkers(placeId);
+      const photo = coverUrl(markers?.photo);
       // No cover photo means nothing to draw the markers on.
-      if (!markers?.photo) return [];
-      return markers.tables.map(markerFromApi);
+      return { photo, tables: photo && markers ? markers.tables.map(markerFromApi) : [] };
     },
   };
 }

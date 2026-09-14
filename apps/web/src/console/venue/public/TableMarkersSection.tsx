@@ -1,10 +1,17 @@
-import type { EditorFloorPlan, Photo } from '@yalla/api';
-import { useEditorFloorPlan, useSaveFloorPlan } from '@yalla/api/react';
+import { isFloorPlanInvalid, type EditorFloorPlan, type Photo } from '@yalla/api';
+import {
+  queryKeys,
+  useConsoleGateway,
+  useEditorFloorPlan,
+  useSaveFloorPlan,
+} from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import {
+  changedPositions,
   positionsFromPlan,
   toFraction,
   withPhotoPositions,
@@ -15,8 +22,10 @@ import {
  * Where each table is on the cover photo, for the diner app's tap-to-book view.
  *
  * Positions are 0–1 fractions of the photo and are saved through the floor
- * plan's `PUT`, which replaces the whole room — so the save sends the plan back
- * as it was read and changes only `photoX`/`photoY`. The picture is the
+ * plan's `PUT`, which replaces the whole room — so the save reads the room
+ * again at that moment and sends it back with only the pins moved here
+ * changed. A copy read when the page opened could be minutes old, and sending
+ * it would undo, delete or bring back tables edited since. The picture is the
  * **saved** cover: placing tables on a photo nobody has saved yet would put
  * them on the wrong picture in the app.
  */
@@ -42,7 +51,8 @@ export function TableMarkersSection({
   } else if (!query.data.tables.some((table) => table.isActive)) {
     body = <p className="muted">{t('publicPage.markers.noTables')}</p>;
   } else {
-    // Keyed on what was loaded, so a save or a floor-plan edit elsewhere starts a fresh draft.
+    // Keyed on the branch and the saved cover: a new cover starts a fresh draft.
+    // A floor-plan edit elsewhere does not — the save reads the room again instead.
     body = (
       <MarkerEditor
         key={`${branchId}:${cover.photoId}`}
@@ -76,9 +86,15 @@ function MarkerEditor({
   readonly plan: EditorFloorPlan;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
   const save = useSaveFloorPlan();
   const stageRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<string | null>(null);
+  // The pin to move focus to once it has been drawn: a keyboard user who places
+  // a table goes straight on to nudging it with the arrow keys.
+  const pendingFocus = useRef<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const tables = plan.tables.filter((table) => table.isActive);
   const [savedPositions, setSavedPositions] = useState(() => positionsFromPlan(plan));
@@ -86,7 +102,18 @@ function MarkerEditor({
   const [selected, setSelected] = useState<string | null>(
     () => tables.find((table) => !positionsFromPlan(plan).get(table.id))?.id ?? null,
   );
-  const [outcome, setOutcome] = useState<'saved' | 'failed' | null>(null);
+  const [outcome, setOutcome] = useState<'saved' | 'failed' | 'refused' | null>(null);
+
+  useEffect(() => {
+    const tableId = pendingFocus.current;
+    if (!tableId) return;
+    const pin = Array.from(
+      stageRef.current?.querySelectorAll<HTMLButtonElement>('button[data-table-id]') ?? [],
+    ).find((button) => button.dataset['tableId'] === tableId);
+    if (!pin) return;
+    pendingFocus.current = null;
+    pin.focus();
+  });
 
   const dirty = tables.some((table) => {
     const a = positions.get(table.id) ?? null;
@@ -166,19 +193,39 @@ function MarkerEditor({
     place(tableId, { x: current.x + step[0], y: current.y + step[1] });
   }
 
+  /** Without a mouse: the selected table goes to the middle of the photo, and its pin takes focus. */
+  function placeInMiddle(tableId: string) {
+    pendingFocus.current = tableId;
+    place(tableId, { x: 0.5, y: 0.5 });
+  }
+
   async function submit() {
     setOutcome(null);
+    setBusy(true);
     try {
+      // The room as the server holds it now, not the copy this page opened
+      // with: a table added, moved or retired since must survive a save that
+      // only moves pins. Only the pins moved here are applied to it.
+      const current = await queryClient.fetchQuery({
+        queryKey: queryKeys.editorFloorPlan(branchId),
+        queryFn: () => gateway.getFloorPlan(branchId),
+        staleTime: 0,
+      });
       const result = await save.mutateAsync({
         branchId,
-        command: withPhotoPositions(plan, positions),
+        command: withPhotoPositions(current, changedPositions(positions, savedPositions)),
       });
       const fresh = positionsFromPlan(result.plan);
       setSavedPositions(fresh);
       setPositions(fresh);
       setOutcome('saved');
-    } catch {
-      setOutcome('failed');
+    } catch (error) {
+      // Refused (a seated table, a repeated label) or failed: either way the
+      // room is read again, so the list and the next try start from it.
+      setOutcome(isFloorPlanInvalid(error) ? 'refused' : 'failed');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(branchId) });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -202,6 +249,7 @@ function MarkerEditor({
                 <button
                   key={table.id}
                   type="button"
+                  data-table-id={table.id}
                   className={`marker-pin${table.id === selected ? ' is-selected' : ''}`}
                   style={{ left: `${position.x * 100}%`, top: `${position.y * 100}%` }}
                   aria-label={t('publicPage.markers.pin', { label: table.label })}
@@ -220,9 +268,20 @@ function MarkerEditor({
           </div>
           <p className="muted small" role="status">
             {selectedTable
-              ? t('publicPage.markers.selected', { label: selectedTable.label })
+              ? positions.get(selectedTable.id)
+                ? t('publicPage.markers.selected', { label: selectedTable.label })
+                : t('publicPage.markers.selectedUnplaced', { label: selectedTable.label })
               : t('publicPage.markers.pickTable')}
           </p>
+          {selectedTable && !positions.get(selectedTable.id) ? (
+            <button
+              type="button"
+              className="button button-small"
+              onClick={() => placeInMiddle(selectedTable.id)}
+            >
+              {t('publicPage.markers.placeInMiddle', { label: selectedTable.label })}
+            </button>
+          ) : null}
         </div>
 
         <div className="field-group">
@@ -264,10 +323,10 @@ function MarkerEditor({
         <button
           type="button"
           className="button button-primary"
-          disabled={save.isPending || !dirty}
+          disabled={busy || !dirty}
           onClick={() => void submit()}
         >
-          {save.isPending ? t('publicPage.markers.saving') : t('publicPage.markers.save')}
+          {busy ? t('publicPage.markers.saving') : t('publicPage.markers.save')}
         </button>
         {outcome === 'saved' ? (
           <span className="muted" role="status">
@@ -276,6 +335,9 @@ function MarkerEditor({
         ) : null}
         {outcome === 'failed' ? (
           <span className="error">{t('publicPage.markers.failed')}</span>
+        ) : null}
+        {outcome === 'refused' ? (
+          <span className="error">{t('publicPage.markers.refused')}</span>
         ) : null}
       </div>
     </div>

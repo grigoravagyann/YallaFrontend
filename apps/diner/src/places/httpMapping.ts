@@ -5,6 +5,7 @@ import {
   type BranchMenu,
   type BranchReview,
   type BranchTableMarker,
+  type Photo,
 } from '@yalla/api';
 import type { Locale } from '@yalla/format';
 import {
@@ -46,6 +47,28 @@ export function distanceFor(listing: BranchListing, position: Coordinates | null
   return Math.round(haversineKm(position, coords) * 10) / 10;
 }
 
+/**
+ * The large rendition of a photo: the hero, and the picture table markers are
+ * placed on. The detail and the markers both name the cover this way, so the
+ * two can be compared to tell whether the cover changed between their reads.
+ */
+export function coverUrl(photo: Photo | null | undefined): string | null {
+  return photo ? photo.fullUrl || photo.cardUrl || null : null;
+}
+
+/**
+ * "Venue · Branch" whenever the branch has a name of its own, so two branches
+ * of one venue can be told apart on a card, a pin or a favourite — the way the
+ * Orders tab already writes it.
+ */
+export function placeName(listing: Pick<BranchListing, 'venueName' | 'branchName'>): string {
+  const branch = (listing.branchName ?? '').trim();
+  const venue = listing.venueName.trim();
+  return branch && branch.toLocaleLowerCase() !== venue.toLocaleLowerCase()
+    ? `${listing.venueName} · ${branch}`
+    : listing.venueName;
+}
+
 export function markerFromApi(marker: BranchTableMarker): TablePhotoMarker {
   return {
     tableId: marker.tableId,
@@ -61,6 +84,7 @@ export function markerFromApi(marker: BranchTableMarker): TablePhotoMarker {
 
 export function reviewFromApi(review: BranchReview): Review {
   return {
+    id: review.reviewId,
     author: review.authorName,
     rating: review.rating,
     text: review.text ?? '',
@@ -68,7 +92,10 @@ export function reviewFromApi(review: BranchReview): Review {
   };
 }
 
-/** Several blocks a day are allowed on the wire; `hoursOn` reads the first. */
+/**
+ * Several blocks a day are allowed on the wire, and every one is kept:
+ * `openStateFor` and the slot picker read them all.
+ */
 export function hoursFromApi(detail: BranchDetail): OpeningHours[] {
   return detail.openingHours.map((block) => ({
     day: block.day,
@@ -98,7 +125,7 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
   return {
     id: listing.branchId,
     venueId: listing.venueId,
-    name: listing.venueName,
+    name: placeName(listing),
     type: listing.venueType,
     cuisine: listing.cuisine ?? '',
     distanceKm: distanceFor(listing, context.position),
@@ -108,6 +135,7 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
     // The list carries no hours, so the server's own "open now" is the answer.
     openState: { isOpen: listing.isOpenNow, todayLabel: '' },
     photos: cover ? [cover] : [],
+    coverPhoto: coverUrl(listing.coverPhoto),
     coords: coordsOf(listing),
     address: listing.address,
     timeZoneId: listing.timeZoneId,
@@ -128,7 +156,7 @@ export function placeFromDetail(
 ): Place {
   const base = placeFromListing(detail.listing, context);
   const hours = hoursFromApi(detail);
-  const cover = detail.listing.coverPhoto?.fullUrl ?? detail.listing.coverPhoto?.cardUrl;
+  const cover = coverUrl(detail.listing.coverPhoto);
   return {
     ...base,
     // Hours are known here, so "open" and today's label come from them; with
@@ -138,6 +166,8 @@ export function placeFromDetail(
         ? openStateFor(hours, context.now, base.timeZoneId, context.locale)
         : base.openState,
     photos: [...(cover ? [cover] : []), ...detail.gallery.map((photo) => photo.fullUrl)],
+    // Said outright: with no cover, the first photo is a gallery picture.
+    coverPhoto: cover,
     ...(detail.phoneE164 ? { phone: detail.phoneE164 } : {}),
     ...(detail.websiteUrl ? { website: detail.websiteUrl } : {}),
     hours,

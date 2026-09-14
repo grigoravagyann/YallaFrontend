@@ -1,5 +1,6 @@
 import { staleTime } from '@yalla/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSession } from '../stores/session';
 import type { Order } from './model';
 import { orderRepository } from './repository';
 
@@ -12,20 +13,27 @@ export const dinerOrderKeys = {
   detail: (orderId: string) => ['dinerOrders', 'detail', orderId] as const,
 };
 
+/**
+ * This diner's orders. Only asked for while signed in: the endpoint answers a
+ * diner session and nothing else, and with none the screen offers a way in.
+ */
 export function useOrders() {
+  const signedIn = useSession((state) => state.signedIn);
   return useQuery({
     queryKey: dinerOrderKeys.list(),
     queryFn: () => orderRepository.list(),
+    enabled: signedIn,
     staleTime: staleTime.frequent,
   });
 }
 
 /** `null` data means the id is unknown — render the not-found state. */
 export function useOrder(orderId: string | undefined) {
+  const signedIn = useSession((state) => state.signedIn);
   return useQuery({
     queryKey: dinerOrderKeys.detail(orderId ?? ''),
     queryFn: () => orderRepository.getById(orderId!),
-    enabled: Boolean(orderId),
+    enabled: Boolean(orderId) && signedIn,
     staleTime: staleTime.frequent,
   });
 }

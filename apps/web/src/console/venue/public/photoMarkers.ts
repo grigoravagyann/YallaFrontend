@@ -28,6 +28,27 @@ export function positionsFromPlan(plan: EditorFloorPlan): Map<string, PhotoPosit
 }
 
 /**
+ * The entries of `positions` that differ from `saved`: the pins this page moved.
+ *
+ * The save applies only these to the floor plan as it is at the moment of
+ * saving, so every other table keeps whatever position the server holds then —
+ * including one placed from another tab since this page loaded.
+ */
+export function changedPositions(
+  positions: PhotoPositions,
+  saved: PhotoPositions,
+): Map<string, PhotoPosition | null> {
+  const changed = new Map<string, PhotoPosition | null>();
+  for (const [tableId, position] of positions) {
+    const before = saved.get(tableId) ?? null;
+    if (position?.x !== before?.x || position?.y !== before?.y) {
+      changed.set(tableId, position ?? null);
+    }
+  }
+  return changed;
+}
+
+/**
  * The floor-plan `PUT` that changes nothing but where tables sit on the photo.
  *
  * The endpoint replaces the whole room, so the rest of the plan is sent back

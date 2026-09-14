@@ -1,6 +1,11 @@
 import type { EditorFloorPlan, EditorFloorTable } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { positionsFromPlan, toFraction, withPhotoPositions } from './photoMarkers';
+import {
+  changedPositions,
+  positionsFromPlan,
+  toFraction,
+  withPhotoPositions,
+} from './photoMarkers';
 
 function table(over: Partial<EditorFloorTable>): EditorFloorTable {
   return {
@@ -70,6 +75,45 @@ describe('table photo positions', () => {
   it('keeps the stored position of a table the draft does not mention', () => {
     const command = withPhotoPositions(PLAN, new Map());
     expect(command.tables[0]).toMatchObject({ photoX: 0.2, photoY: 0.3 });
+  });
+
+  it('names only the pins that moved, placed or cleared since the last save', () => {
+    const saved = new Map([
+      ['t1', { x: 0.2, y: 0.3 }],
+      ['t2', null],
+      ['t4', { x: 0.5, y: 0.5 }],
+    ]);
+    const draft = new Map([
+      ['t1', { x: 0.2, y: 0.3 }],
+      ['t2', { x: 0.6, y: 0.1 }],
+      ['t4', null],
+    ]);
+    expect([...changedPositions(draft, saved).entries()]).toEqual([
+      ['t2', { x: 0.6, y: 0.1 }],
+      ['t4', null],
+    ]);
+  });
+
+  it('applies the draft to the room as it is now, keeping what another tab changed', () => {
+    // Since the page loaded: table 1 was moved on the floor and its pin taken
+    // off in another tab, and table 5 was added.
+    const current: EditorFloorPlan = {
+      ...PLAN,
+      tables: [
+        table({ id: 't1', label: '1', x: 300, photoX: null, photoY: null }),
+        table({ id: 't2', label: '2', floorAreaId: null }),
+        table({ id: 't5', label: '5' }),
+      ],
+    };
+    const draft = new Map([
+      ['t1', { x: 0.2, y: 0.3 }],
+      ['t2', { x: 0.4, y: 0.4 }],
+    ]);
+    const command = withPhotoPositions(current, changedPositions(draft, positionsFromPlan(PLAN)));
+
+    expect(command.tables.map((t) => t.id)).toEqual(['t1', 't2', 't5']);
+    expect(command.tables[0]).toMatchObject({ x: 300, photoX: null, photoY: null });
+    expect(command.tables[1]).toMatchObject({ photoX: 0.4, photoY: 0.4 });
   });
 
   it('clamps fractions to 0–1', () => {

@@ -82,6 +82,19 @@ describe('places over /api/public/branches', () => {
     expect(query.has('lat')).toBe(false);
   });
 
+  it('cuts a search to the 100 characters the server takes, rather than earning a 400', async () => {
+    const { gateway, backend } = gatewayOver({
+      'GET /api/public/branches/search': { body: [] },
+    });
+
+    await gateway.searchBranches({ query: `  ${'a'.repeat(99)} ${'b'.repeat(40)}` });
+
+    const q = backend.requests[0]!.query.get('q')!;
+    expect(q.length).toBeLessThanOrEqual(100);
+    // Cut at 100, then the trailing space the cut left is trimmed too.
+    expect(q).toBe('a'.repeat(99));
+  });
+
   it('reads a detail, slicing HH:mm:ss and dropping markers that were never placed', async () => {
     const detail: Detail = {
       listing: { ...LISTING, rating: 4.5, reviewCount: 2 } as Listing,

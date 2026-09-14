@@ -1,3 +1,4 @@
+import { UnauthorizedError } from '@yalla/api';
 import { YEREVAN, formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import { useNow } from '../../src/hooks/useNow';
 import { useCancelOrder, useOrder } from '../../src/orders/hooks';
 import { canCancelOrder, type Order, type OrderStatus } from '../../src/orders/model';
 import { usePlace } from '../../src/places/hooks';
+import { useSession } from '../../src/stores/session';
 import {
   actionIcon,
   colors,
@@ -55,7 +57,8 @@ export default function OrderDetailScreen() {
   const router = useRouter();
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const orderQuery = useOrder(orderId);
-  const { data: order, isLoading, isError, refetch } = orderQuery;
+  const { data: order, isLoading, isError, error, refetch } = orderQuery;
+  const signedIn = useSession((s) => s.signedIn);
   const cancel = useCancelOrder();
   const [confirming, setConfirming] = useState(false);
 
@@ -85,6 +88,14 @@ export default function OrderDetailScreen() {
         {header}
         {isLoading ? (
           <DetailSkeleton />
+        ) : !signedIn || error instanceof UnauthorizedError ? (
+          // A push or a link to an order, with no session: sign in, not "not found".
+          <EmptyState
+            icon="receipt-outline"
+            title={t('orders.signedOut.title')}
+            body={t('orders.signedOut.body')}
+            action={{ label: t('orders.signedOut.action'), onPress: () => router.push('/auth') }}
+          />
         ) : isError ? (
           <ErrorState onRetry={() => void refetch()} />
         ) : (

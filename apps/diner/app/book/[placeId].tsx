@@ -145,7 +145,7 @@ export default function BookingScreen() {
   return (
     <BookingForm
       place={place}
-      tables={tablesQuery.data ?? place.tables}
+      tables={tablesQuery.data?.tables ?? place.tables}
       params={params}
       onBack={back}
     />

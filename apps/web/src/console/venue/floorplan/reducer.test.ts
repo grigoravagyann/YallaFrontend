@@ -10,6 +10,7 @@ import {
   reducer,
   tablesOutsideCanvas,
   toSaveCommand,
+  withCurrentPhotoPositions,
   type EditorAction,
   type EditorState,
   type EditorTable,
@@ -551,6 +552,77 @@ describe('the save payload', () => {
       expect(Number.isInteger(table.x)).toBe(true);
       expect(Number.isInteger(table.y)).toBe(true);
     }
+  });
+});
+
+describe('photo positions in the save payload', () => {
+  // The server reads a missing or null position as "take it off the photo", so
+  // a room save that dropped these would wipe every pin the venue placed.
+  const placed: EditorFloorPlan = {
+    ...PLAN,
+    tables: PLAN.tables.map((t) => (t.id === 't1' ? { ...t, photoX: 0.25, photoY: 0.75 } : t)),
+  };
+  const loadedPlaced = () => reducer(initialState('b1'), { type: 'loaded', plan: placed });
+
+  it('sends back the positions it loaded', () => {
+    const tables = toSaveCommand(loadedPlaced()).tables;
+    expect(tables.find((t) => t.id === 't1')).toMatchObject({ photoX: 0.25, photoY: 0.75 });
+    expect(tables.find((t) => t.id === 't2')).toMatchObject({ photoX: null, photoY: null });
+  });
+
+  it('keeps a position through a move, a relabel and a save', () => {
+    const state = run(
+      loadedPlaced(),
+      { type: 'select', ids: ['t1'] },
+      { type: 'move', dx: 40, dy: 0 },
+      { type: 'updateTable', id: 't1', patch: { label: '1A' } },
+    );
+    expect(toSaveCommand(state).tables.find((t) => t.id === 't1')).toMatchObject({
+      label: '1A',
+      photoX: 0.25,
+      photoY: 0.75,
+    });
+
+    const saved = reducer(state, {
+      type: 'saved',
+      result: { plan: placed, warnings: [], deactivatedTables: [], removedTables: [] },
+    });
+    expect(toSaveCommand(saved).tables.find((t) => t.id === 't1')).toMatchObject({
+      photoX: 0.25,
+      photoY: 0.75,
+    });
+  });
+
+  it('puts a new or duplicated table nowhere on the photo', () => {
+    const state = run(
+      loadedPlaced(),
+      { type: 'select', ids: ['t1'] },
+      { type: 'duplicate' },
+      { type: 'addTable' },
+    );
+    const fresh = toSaveCommand(state).tables.filter((t) => t.id === undefined);
+    expect(fresh).toHaveLength(2);
+    for (const table of fresh) expect(table).toMatchObject({ photoX: null, photoY: null });
+  });
+
+  it('takes positions from the room as the server holds it at save time', () => {
+    // Loaded with table 1 on the photo; since then, another tab took table 1
+    // off it and placed table 2.
+    const current: EditorFloorPlan = {
+      ...PLAN,
+      tables: PLAN.tables.map((t) =>
+        t.id === 't2' ? { ...t, photoX: 0.5, photoY: 0.5 } : { ...t, photoX: null, photoY: null },
+      ),
+    };
+    const state = run(loadedPlaced(), { type: 'addTable' });
+    const merged = withCurrentPhotoPositions(toSaveCommand(state), current);
+
+    expect(merged.tables.find((t) => t.id === 't1')).toMatchObject({ photoX: null, photoY: null });
+    expect(merged.tables.find((t) => t.id === 't2')).toMatchObject({ photoX: 0.5, photoY: 0.5 });
+    expect(merged.tables.find((t) => t.id === undefined)).toMatchObject({
+      photoX: null,
+      photoY: null,
+    });
   });
 });
 

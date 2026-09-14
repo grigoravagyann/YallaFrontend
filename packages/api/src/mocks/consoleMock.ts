@@ -1853,14 +1853,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         });
       }
       const oneCoordinate = (listing.latitude === null) !== (listing.longitude === null);
-      if (
-        oneCoordinate ||
-        (listing.latitude !== null && Math.abs(listing.latitude) > 90) ||
-        (listing.longitude !== null && Math.abs(listing.longitude) > 180)
-      ) {
+      if (oneCoordinate) {
         fields.push({
           field: 'latitude',
-          message: 'Latitude and longitude must be sent together and be in range.',
+          message: 'Latitude and longitude must be sent together.',
         });
       }
       if (fields.length > 0) {
@@ -1875,6 +1871,30 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             code: 'validation-failed',
             traceId: 'mock',
             context: { field: fields[0]!.field, fields },
+          },
+        });
+      }
+      // The server's order: a coordinate out of range is not one of the 422's
+      // collected fields but `Branch.Relocate`'s guard — a 400 `invalid-request`
+      // naming the one parameter in `context.field`, with no `fields` list.
+      const outOfRange =
+        listing.latitude !== null && Math.abs(listing.latitude) > 90
+          ? { field: 'latitude', value: listing.latitude }
+          : listing.longitude !== null && Math.abs(listing.longitude) > 180
+            ? { field: 'longitude', value: listing.longitude }
+            : null;
+      if (outOfRange) {
+        throw new ValidationError({
+          url,
+          status: 400,
+          problem: {
+            type: 'about:blank',
+            title: 'Invalid request',
+            status: 400,
+            detail: `${outOfRange.field} is out of range.`,
+            code: 'invalid-request',
+            traceId: 'mock',
+            context: outOfRange,
           },
         });
       }

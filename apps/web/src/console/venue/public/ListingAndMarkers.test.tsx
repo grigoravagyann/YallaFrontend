@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createConsoleMockGateway, type ConsoleGateway } from '@yalla/api';
+import { createConsoleMockGateway, ValidationError, type ConsoleGateway } from '@yalla/api';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
@@ -120,6 +120,68 @@ describe('the listing section', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('says a coordinate is out of range, or not a number, before sending anything', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const update = vi.spyOn(gateway, 'updateBranchListing');
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    const latitude = within(form).getByLabelText(/latitude/i);
+    const longitude = within(form).getByLabelText(/longitude/i);
+    const save = within(form).getByRole('button', { name: /save listing/i });
+
+    // Swapped, as a hurried copy from a map app does.
+    await user.clear(latitude);
+    await user.type(latitude, '144.5129');
+    await user.clear(longitude);
+    await user.type(longitude, '40.1843');
+    await user.click(save);
+    expect((await within(form).findByRole('alert')).textContent).toMatch(/between -90 and 90/i);
+
+    await user.clear(latitude);
+    await user.type(latitude, '40.1.2');
+    await user.click(save);
+    await waitFor(() =>
+      expect(within(form).getByRole('alert').textContent).toMatch(/decimal number/i),
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('puts a 400 that names one coordinate under the pin, not a generic failure', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    // What `Branch.Relocate`'s guard answers: one field, no collected list.
+    vi.spyOn(gateway, 'updateBranchListing').mockRejectedValueOnce(
+      new ValidationError({
+        url: `/api/branches/${BRANCH}/listing`,
+        status: 400,
+        problem: {
+          type: 'about:blank',
+          title: 'Invalid request',
+          status: 400,
+          detail: 'longitude is out of range.',
+          code: 'invalid-request',
+          traceId: 'test',
+          context: { field: 'longitude', value: 200 },
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    await user.click(within(form).getByRole('button', { name: /save listing/i }));
+
+    const refusal = await within(form).findByRole('alert');
+    expect(refusal.textContent).toMatch(/between -90 and 90/i);
+    expect(
+      within(form)
+        .getByLabelText(/latitude/i)
+        .getAttribute('aria-describedby'),
+    ).toBe(refusal.id);
+    expect(within(form).queryByText(/did not save/i)).toBeNull();
+  });
+
   it('puts server refusals under the fields they name', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
     const user = userEvent.setup();
@@ -189,5 +251,97 @@ describe('the table pins on the cover photo', () => {
     // The rest of the room goes back as it was.
     expect(tables).toHaveLength(plan.tables.filter((t) => t.isActive).length);
     await screen.findByText(/positions saved/i);
+  });
+
+  it('saves pins onto the room as it is now, not the copy the page opened with', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const cover = await uploadTo(gateway, 'front.png', 3);
+    await gateway.updatePublicProfile({
+      branchId: BRANCH,
+      profile: { phoneE164: null, acceptsWebBookings: false, coverPhotoId: cover },
+    });
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const stage = await screen.findByTestId('marker-stage');
+    stage.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 }) as DOMRect;
+
+    // Meanwhile, in another tab, the floor plan editor adds table 99 and gives
+    // table 1 another seat.
+    const before = await gateway.getFloorPlan(BRANCH);
+    await gateway.replaceFloorPlan({
+      branchId: BRANCH,
+      command: {
+        floorWidth: before.floorWidth,
+        floorHeight: before.floorHeight,
+        areas: before.areas,
+        tables: [
+          ...before.tables
+            .filter((t) => t.isActive)
+            .map((t) => ({
+              ...t,
+              floorAreaName: null,
+              seats: t.label === '1' ? t.seats + 1 : t.seats,
+            })),
+          {
+            label: '99',
+            seats: 2,
+            x: 0,
+            y: 0,
+            width: 60,
+            height: 60,
+            rotationDegrees: 0,
+            shape: 'round',
+            floorAreaName: null,
+            isBookable: true,
+          },
+        ],
+      },
+    });
+    const now = await gateway.getFloorPlan(BRANCH);
+    const replace = vi.spyOn(gateway, 'replaceFloorPlan');
+
+    await user.click(screen.getByRole('button', { name: /table 3 · not placed/i }));
+    fireEvent.pointerDown(stage, { clientX: 50, clientY: 75, pointerId: 1 });
+    await user.click(screen.getByRole('button', { name: /save positions/i }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    const tables = replace.mock.calls[0]?.[0].command.tables ?? [];
+    expect(tables.find((t) => t.label === '99')).toBeTruthy();
+    expect(tables.find((t) => t.label === '1')?.seats).toBe(
+      now.tables.find((t) => t.label === '1')?.seats,
+    );
+    expect(tables.find((t) => t.label === '3')).toMatchObject({ photoX: 0.25, photoY: 0.75 });
+    await screen.findByText(/positions saved/i);
+  });
+
+  it('lets a keyboard place a table on the photo and nudge its pin', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const cover = await uploadTo(gateway, 'front.png', 3);
+    await gateway.updatePublicProfile({
+      branchId: BRANCH,
+      profile: { phoneE164: null, acceptsWebBookings: false, coverPhotoId: cover },
+    });
+    const user = userEvent.setup();
+    renderScreen(gateway);
+    await screen.findByTestId('marker-stage');
+    const replace = vi.spyOn(gateway, 'replaceFloorPlan');
+
+    screen.getByRole('button', { name: /table 3 · not placed/i }).focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByText(/table 3 is not on the photo yet/i)).toBeTruthy();
+
+    screen.getByRole('button', { name: /place table 3 on the photo/i }).focus();
+    await user.keyboard('{Enter}');
+
+    const pin = await screen.findByRole('button', { name: /^table 3$/i });
+    await waitFor(() => expect(document.activeElement).toBe(pin));
+    await user.keyboard('{ArrowRight}');
+
+    await user.click(screen.getByRole('button', { name: /save positions/i }));
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    const tables = replace.mock.calls[0]?.[0].command.tables ?? [];
+    expect(tables.find((t) => t.label === '3')).toMatchObject({ photoX: 0.51, photoY: 0.5 });
   });
 });

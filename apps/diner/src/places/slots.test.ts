@@ -110,6 +110,32 @@ describe('timeSlots', () => {
     expect(slots[0]?.key).toBe('11:00');
     expect(slots.at(-1)?.key).toBe('14:30');
   });
+
+  it('offers both services of a split day, and nothing in the gap', () => {
+    // Listed dinner first, as nothing guarantees the order blocks arrive in.
+    const split: OpeningHours[] = [
+      { day: 0, open: '18:00', close: '21:00' },
+      { day: 0, open: '12:00', close: '14:00' },
+    ];
+    // 2026-09-20 is a Sunday.
+    const all = timeSlots(place(split), '2026-09-20', new Date('2026-09-01T00:00:00Z'));
+    expect(all.map((slot) => slot.key)).toEqual([
+      '12:00',
+      '12:30',
+      '13:00',
+      '13:30',
+      '18:00',
+      '18:30',
+      '19:00',
+      '19:30',
+      '20:00',
+      '20:30',
+    ]);
+
+    // 15:00 in Yerevan: lunch is over, dinner is still to come.
+    const afterLunch = timeSlots(place(split), '2026-09-20', new Date('2026-09-20T11:00:00Z'));
+    expect(afterLunch[0]?.key).toBe('18:00');
+  });
 });
 
 describe('tables', () => {

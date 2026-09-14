@@ -94,14 +94,15 @@ import {
   reservationStatus,
   settlementModeCode,
 } from './dinerMapping';
-import type {
-  BranchDetail,
-  BranchListing,
-  BranchReviewPage,
-  BranchSearchQuery,
-  BranchTableMarkers,
-  DinerOrder,
-  MyBranchReview,
+import {
+  clampBranchSearch,
+  type BranchDetail,
+  type BranchListing,
+  type BranchReviewPage,
+  type BranchSearchQuery,
+  type BranchTableMarkers,
+  type DinerOrder,
+  type MyBranchReview,
 } from '../contracts/places';
 import {
   branchDetailFromWire,
@@ -153,11 +154,12 @@ export interface HttpGatewayOptions {
 
 /**
  * The browse query string: `q`, `category` (1 Cafe, 2 Restaurant), and `lat`
- * with `lng` — both or neither, which the server enforces with a 400.
+ * with `lng` — both or neither, which the server enforces with a 400. `q` is
+ * cut to the server's 100 characters, which it would otherwise refuse with a 400.
  */
 function branchQuery(query: BranchSearchQuery | undefined): Record<string, string | number> {
   const out: Record<string, string | number> = {};
-  const q = query?.query?.trim();
+  const q = clampBranchSearch(query?.query);
   if (q) out['q'] = q;
   if (query?.venueType) out['category'] = venueTypeCode(query.venueType);
   const position = query?.position;

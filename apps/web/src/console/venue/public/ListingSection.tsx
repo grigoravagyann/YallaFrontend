@@ -39,6 +39,17 @@ export function ListingSection({ branchId }: { readonly branchId: string }) {
 
 const PRICE_LEVELS = [1, 2, 3, 4] as const;
 
+/** The fields this form draws an error under; anything else the server names gets the outcome line. */
+const RENDERED_FIELDS: ReadonlySet<string> = new Set([
+  'cuisine',
+  'about',
+  'priceLevel',
+  'websiteUrl',
+  'amenities',
+  'latitude',
+  'galleryPhotoIds',
+]);
+
 /** Coordinates as typed: strings, so a half-typed "40." is not rewritten under the cursor. */
 function coordinateText(value: number): string {
   return Number.isFinite(value) ? String(value) : '';
@@ -109,8 +120,13 @@ function ListingForm({
   async function submit() {
     setOutcome(null);
     const errors: Record<string, string> = {};
-    if ((lat === null) !== (lng === null) || Number.isNaN(lat) || Number.isNaN(lng)) {
+    if ((lat === null) !== (lng === null)) {
       errors['latitude'] = t('publicPage.listing.location.bothOrNeither');
+    } else if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      errors['latitude'] = t('publicPage.listing.location.notANumber');
+    } else if ((lat !== null && Math.abs(lat) > 90) || (lng !== null && Math.abs(lng) > 180)) {
+      // The server refuses these too, but with a 400 that names one field.
+      errors['latitude'] = t('publicPage.listing.location.outOfRange');
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -139,15 +155,30 @@ function ListingForm({
       setGallery(result.gallery);
       setOutcome('saved');
     } catch (error) {
-      // The 422 names every bad field; each message goes under its control.
-      if (error instanceof ValidationError && error.violations.length > 0) {
+      if (error instanceof ValidationError) {
         const named: Record<string, string> = {};
-        for (const violation of error.violations) {
-          const field = violation.field === 'longitude' ? 'latitude' : violation.field;
-          named[field] ??= violation.message;
+        const blame = (field: string, message: string) => {
+          // Both coordinates share one error line, under the pin.
+          named[field === 'longitude' ? 'latitude' : field] ??= message;
+        };
+        // The 422 names every bad field; each message goes under its control.
+        for (const violation of error.violations) blame(violation.field, violation.message);
+        // A 400 names one field in `context.field` and collects nothing — a
+        // coordinate out of range comes back this way.
+        if (error.violations.length === 0 && error.field) {
+          const coordinate = error.field === 'latitude' || error.field === 'longitude';
+          blame(
+            error.field,
+            coordinate ? t('publicPage.listing.location.outOfRange') : error.message,
+          );
         }
-        setFieldErrors(named);
-        return;
+        const fields = Object.keys(named);
+        if (fields.some((field) => RENDERED_FIELDS.has(field))) {
+          setFieldErrors(named);
+          // A field with no control of its own still says the save failed.
+          if (!fields.every((field) => RENDERED_FIELDS.has(field))) setOutcome('failed');
+          return;
+        }
       }
       setOutcome(error instanceof NotFoundError ? 'photoMissing' : 'failed');
     }

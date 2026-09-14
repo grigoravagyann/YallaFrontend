@@ -12,6 +12,7 @@ import { ProfileRow } from '../../src/components/profile/ProfileRow';
 import { Screen, useNavClearance } from '../../src/components/Screen';
 import { Text } from '../../src/components/Text';
 import { accountKeys, useDinerProfile } from '../../src/data/accountQueries';
+import { resetDinerScopedQueries } from '../../src/data/dinerScope';
 import { useNotificationCount } from '../../src/hooks/useNotificationCount';
 import { initialsOf } from '../../src/lib/initials';
 import { useSession } from '../../src/stores/session';
@@ -53,6 +54,8 @@ export default function ProfileScreen() {
     } finally {
       useSession.getState().clear();
       queryClient.removeQueries({ queryKey: accountKeys.profile });
+      // Their orders and reviews must not greet whoever uses this phone next.
+      resetDinerScopedQueries(queryClient);
       setSigningOut(false);
     }
   };
