@@ -42,19 +42,20 @@ function gatewayOver(routes: Parameters<typeof fakeBackend>[0]) {
 }
 
 describe('places over /api/public/branches', () => {
-  it('lists anonymously, sends the position as lat/lng, and maps the wire honestly', async () => {
+  it('lists anonymously, sends the position as lat/lng rounded to 3 decimals, and maps the wire honestly', async () => {
     const { gateway, backend } = gatewayOver({
       'GET /api/public/branches': { body: [{ ...LISTING, distanceKm: 0.3 }] },
     });
 
     const [listing] = await gateway.listBranches({
-      position: { latitude: 40.18, longitude: 44.51 },
+      position: { latitude: 40.1843, longitude: 44.5129 },
     });
 
     const request = backend.requests[0]!;
     expect(request.headers.get('authorization')).toBeNull();
-    expect(request.query.get('lat')).toBe('40.18');
-    expect(request.query.get('lng')).toBe('44.51');
+    expect(`lat=${request.query.get('lat')}&lng=${request.query.get('lng')}`).toBe(
+      'lat=40.184&lng=44.513',
+    );
     expect(listing).toMatchObject({
       branchId: BRANCH,
       venueType: 'cafe',
