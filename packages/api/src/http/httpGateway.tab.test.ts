@@ -299,7 +299,7 @@ describe('scanning a table', () => {
       deviceId: 'device-1',
       clientCommandId: 'cmd-open',
     });
-    // Anonymous: the scan is how a token is obtained, not something one needs.
+    // No diner signed in, so nothing to send: the scan is how a token is obtained.
     expect(backend.requests[0]?.headers.get('authorization')).toBeNull();
     expect(result.kind).toBe('tabOpened');
     expect(result.tab.tabId).toBe(TAB);
@@ -308,6 +308,32 @@ describe('scanning a table', () => {
     await gateway.getDinerTab(TAB);
     // The tab's own token, never the phone's diner session.
     expect(backend.requests[1]?.headers.get('authorization')).toBe('Bearer participant-token');
+  });
+
+  it("carries a signed-in diner's token, so the place is linked to the account (K8)", async () => {
+    const backend = fakeBackend({
+      'POST /api/tabs/open': { body: access(1) },
+      'POST /api/tabs/join': { body: access(2, 1) },
+      [`GET /api/tabs/${TAB}`]: { body: tabView() },
+    });
+    const refreshTokens = vi.fn(() => Promise.reject(new Error('the diner refresh must not run')));
+    const auth = createAuthSession({ storage: createMemoryTokenStorage(null), refreshTokens });
+    await auth.signIn({ accessToken: 'diner-access', refreshToken: 'r1', expiresInSeconds: 900 });
+    const gateway = createHttpGateway(backend.client({ auth }), {
+      audience: 'diner',
+      auth,
+      deviceId: () => Promise.resolve('device-1'),
+    });
+
+    await gateway.scanTableCode({ tableCode: 'a3f09c1e5b7d42e8', commandId: 'cmd-open' });
+    await gateway.joinTab({ joinToken: 'invite-1' });
+    await gateway.getDinerTab(TAB);
+
+    expect(backend.requests[0]?.headers.get('authorization')).toBe('Bearer diner-access');
+    expect(backend.requests[1]?.headers.get('authorization')).toBe('Bearer diner-access');
+    // Every call on the tab still goes out under the participant token.
+    expect(backend.requests[2]?.headers.get('authorization')).toBe('Bearer participant-token');
+    expect(refreshTokens).not.toHaveBeenCalled();
   });
 
   it('reads pending and already-on from the outcome and my own status', async () => {

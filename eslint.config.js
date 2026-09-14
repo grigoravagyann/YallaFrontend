@@ -14,6 +14,11 @@ export default tseslint.config(
       '**/build/**',
       '**/.expo/**',
       '**/expo-env.d.ts',
+      // Playwright's output from a local e2e run (gitignored in apps/e2e).
+      'apps/e2e/test-results/**',
+      'apps/e2e/test-results-*/**',
+      'apps/e2e/playwright-report/**',
+      'apps/e2e/blob-report/**',
       // Generated from the backend's OpenAPI document; not ours to lint.
       'packages/api/src/generated/**',
     ],

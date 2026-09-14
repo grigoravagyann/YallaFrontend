@@ -263,6 +263,23 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
   }
 
   /**
+   * The table scan and the invitation: anonymous routes, but a signed-in diner's
+   * token goes with them, because the server links the tab place to the account
+   * that carried one — and review eligibility (K8) counts only a linked place.
+   *
+   * Still `skipAuth` with the header set by hand, so a refused token can never
+   * spend the rotating refresh token, and a session that cannot produce a token
+   * scans anonymously rather than not at all.
+   */
+  async function openingAuth(): Promise<Omit<RequestOptions, 'method' | 'body'>> {
+    if (auth?.getState() !== 'signedIn') return { skipAuth: true };
+    const token = await auth.getAccessToken().catch(() => null);
+    return token
+      ? { skipAuth: true, headers: { authorization: `Bearer ${token}` } }
+      : { skipAuth: true };
+  }
+
+  /**
    * A refused participant token, said as what it means.
    *
    * The server answers a token for a closed tab, or for somebody taken off it,
@@ -1230,12 +1247,15 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     // --- The shared tab ---------------------------------------------------------
     //
-    // Real, all of it. The table scan and the invitation are anonymous and hand
-    // back a participant token scoped to that one tab; every call on the tab
-    // after that carries that token, never the phone's diner session. These
+    // Real, all of it. The table scan and the invitation need no account and
+    // hand back a participant token scoped to that one tab; every call on the
+    // tab after that carries that token, never the phone's diner session. These
     // were all answered by the mock, which is why no real tab was ever reached.
 
-    /** `POST /api/tabs/open`: the table's QR, this device, and the scan's command id. */
+    /**
+     * `POST /api/tabs/open`: the table's QR, this device, and the scan's command
+     * id — plus the diner's token when signed in, see {@link openingAuth}.
+     */
     async scanTableCode(command): Promise<ScanResult> {
       try {
         const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabAccessResult']>(
@@ -1246,7 +1266,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
             clientCommandId: command.commandId,
             ...(command.displayName ? { displayName: command.displayName } : {}),
           } satisfies Schemas['Yalla.Api.Endpoints.OpenTabRequest'],
-          { skipAuth: true },
+          await openingAuth(),
         );
         return admitted(data);
       } catch (error) {
@@ -1258,8 +1278,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      * `POST /api/tabs/open-by-booking`: the diner's booking code, this device,
      * and the same command id semantics as the scan.
      *
-     * The one opening that is **not** anonymous. The scan deliberately carries
-     * no session; this route answers only to the account that made the booking,
+     * The one opening that **requires** an account. The scan works without a
+     * session; this route answers only to the account that made the booking,
      * so it goes out under the diner's own token — and must never be given
      * `skipAuth`, which would turn every attempt into a 401.
      */
@@ -1290,7 +1310,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
             deviceId: await deviceId(),
             ...(command.displayName ? { displayName: command.displayName } : {}),
           } satisfies Schemas['Yalla.Api.Endpoints.JoinTabRequest'],
-          { skipAuth: true },
+          await openingAuth(),
         );
         return admitted(data);
       } catch (error) {
