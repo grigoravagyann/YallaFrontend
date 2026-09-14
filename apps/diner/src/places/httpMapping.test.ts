@@ -85,6 +85,7 @@ describe('placeFromDetail', () => {
     gallery: [],
     tableCount: 1,
     acceptsWebBookings: false,
+    acceptsAppBookings: false,
     recentReviews: [
       {
         reviewId: 'r',
@@ -93,6 +94,7 @@ describe('placeFromDetail', () => {
         text: null,
         createdAtUtc: '2026-09-01T10:00:00Z',
         updatedAtUtc: '2026-09-02T10:00:00Z',
+        edited: true,
       },
     ],
     tableMarkers: [
