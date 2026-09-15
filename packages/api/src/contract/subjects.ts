@@ -234,22 +234,7 @@ export function httpSubject(options: HttpSubjectOptions): ContractSubject {
  * outlive the bug.
  */
 const LIVE_DEFECTS: Readonly<Record<string, string>> = {
-  /*
-   * `MenuItemCompleteness.Rule` tests `item.Allergens != null`, and its own
-   * documentation explains why a null check is the whole test:
-   *
-   * > every one of these fields goes through `Guard.OptionalText`, which trims
-   * > and returns null for whitespace, so a stored empty string cannot exist
-   *
-   * A stored empty string does exist. The seeded "Sold Out Tea" has
-   * `allergens: ""`, which is not null, so the item passes the completeness
-   * rule and is published — and a diner is shown a dish with an empty allergen
-   * list, which is the exact outcome that class says the requirement exists to
-   * prevent. The fix belongs on the server: either the guard is being bypassed
-   * on the write path that produced this row, or the rule needs to treat blank
-   * as absent.
-   */
-  'menu.allergensRequired':
-    'backend publishes a menu item with an empty allergens string — MenuItemCompleteness ' +
-    'checks for null and a blank one is reaching the diner menu',
+  // Empty. `menu.allergensRequired` was retired once the backend's completeness
+  // rule treated blank text as missing (rows written around the guard included),
+  // so the allergens contract now asserts for real.
 };

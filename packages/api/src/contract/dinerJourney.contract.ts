@@ -270,8 +270,11 @@ export function describeDinerJourneyContract(subject: ContractSubject): void {
 
       await leaving.gateway.deleteDinerAccount({ password: leaving.password });
 
+      // The first call is refused as revoked; its refused refresh signs the session
+      // out, so every later call is simply not signed in (SessionRevokedError is a
+      // 401 too, which is why the second check is on the status).
       await expect(leaving.gateway.getDinerProfile()).rejects.toBeInstanceOf(SessionRevokedError);
-      await expect(leaving.gateway.listFavorites()).rejects.toBeInstanceOf(SessionRevokedError);
+      await expect(leaving.gateway.listFavorites()).rejects.toMatchObject({ status: 401 });
     });
   });
 }
