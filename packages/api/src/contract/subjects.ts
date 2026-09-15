@@ -234,7 +234,9 @@ export function httpSubject(options: HttpSubjectOptions): ContractSubject {
  * outlive the bug.
  */
 const LIVE_DEFECTS: Readonly<Record<string, string>> = {
-  // Empty. `menu.allergensRequired` was retired once the backend's completeness
-  // rule treated blank text as missing (rows written around the guard included),
-  // so the allergens contract now asserts for real.
+  // Empty. `menu.allergensRequired` was retired: the backend stores menu text
+  // through `Guard.OptionalText`, which turns blank into null, so a blank
+  // allergens string cannot reach the diner menu through the API. The row that
+  // suggested otherwise ("Sold Out Tea") was inserted by hand with SQL into a
+  // local database, around the guard; the allergens contract asserts for real.
 };
