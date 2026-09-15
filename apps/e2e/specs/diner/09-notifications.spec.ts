@@ -47,7 +47,8 @@ test('A booking the venue approves shows in Notifications, and opens that bookin
   await expect(row).toBeVisible();
   await row.click();
 
-  const entry = page.getByRole('button', { name: /^Booking confirmed\./ });
+  // An unread row's label starts with "Unread. ".
+  const entry = page.getByRole('button', { name: /^(Unread\. )?Booking confirmed\./ });
   await expect(entry).toBeVisible();
   await entry.click();
 
