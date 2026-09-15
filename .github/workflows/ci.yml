@@ -1,18 +1,33 @@
 # Continuous integration for the Yalla frontend monorepo.
 #
-# Everything that can say "this is broken" without a phone, a tablet or a
-# backend. Five gates, and the one people are most tempted to drop is the one
-# that matters most in a three-language product — see `i18n:check` below.
+# Three jobs, and a small fourth that two of them share. `build` is everything
+# that can say "this is broken" without a phone, a tablet or a backend — and the
+# one gate people are most tempted to drop is the one that matters most in a
+# three-language product, see `i18n:check` below. `contract` runs the gateway
+# contract suite against a real backend built from source, because a mock that
+# is only ever checked against itself is the failure that suite was written for,
+# and fails when that backend's OpenAPI document has drifted from the committed
+# one. `diner-web-e2e` drives the diner web build and the console in a browser
+# against the same kind of backend. `backend-ref` decides which backend branch
+# both live jobs use, once, so they cannot disagree.
+#
+# None of them needs a secret. The backend repository is public, and every
+# credential the live jobs use is generated or fixed for a database that lives
+# for one job.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-  # The contract job below is the reason this is here: it needs credentials a
-  # fork's pull request does not get, so when it cannot run automatically it
-  # still has to be runnable deliberately.
+  # From the Actions tab, to run the live jobs against a backend branch of your
+  # choosing. `backend_ref` wins over every other way a ref is picked.
   workflow_dispatch:
+    inputs:
+      backend_ref:
+        description: Backend branch, tag or commit for the live jobs. Blank picks one automatically.
+        required: false
+        default: ''
 
 # A second push to the same branch makes the first run pointless. Cancelling it
 # is what keeps the queue short enough that people actually wait for it.
@@ -91,128 +106,237 @@ jobs:
       - name: Build the web console
         run: pnpm build:web
 
+      # Metro, not Vite. Nothing else in this job runs the bundler the phone app
+      # ships with: typecheck does not resolve assets, and the diner's tests run
+      # under Vitest. An import, or a `require` of an image, that only Metro fails
+      # to resolve would otherwise first fail on a phone. The web export is the
+      # one a Linux runner can produce, and it is pinned to real data so the
+      # bundle checked is the one that talks to a backend.
+      - name: Bundle the diner app
+        env:
+          EXPO_PUBLIC_DATA_SOURCE: real
+          EXPO_PUBLIC_API_URL: http://localhost:5086
+          EXPO_NO_TELEMETRY: '1'
+        run: pnpm --filter @yalla/diner exec expo export --platform web --output-dir dist-web
+
       - name: Test
         run: pnpm test
 
-  # Can the contract suite run on this trigger at all?
+  # Which backend the two live jobs run against, decided once. In this order:
+  #   1. the `backend_ref` input of a manual run
+  #   2. a `backend-ref: <ref>` line on its own in the pull request description
+  #   3. a backend branch with the same name as this branch
+  #   4. master
+  # A ref named by 1 or 2 has to exist. Falling back to master there would run
+  # the live jobs against a backend nobody asked for and report their answer as
+  # if it were the right one.
   #
-  # Its own job because the `secrets` context is not available in a job-level
-  # `if`, only inside a step — so answering the question needs a step, and
-  # gating on the answer needs the job below to depend on this one.
-  #
-  # The alternative was leaving `contract` to fail at the backend checkout with
-  # "Input required and not supplied: token" on every push from anyone without
-  # the credentials, including every fork. A job that is always red is a job
-  # everybody learns to scroll past, and it takes the rest of the workflow's
-  # credibility with it.
-  contract-preflight:
-    name: is a live contract run configured?
+  # Skipped for a pull request from a fork, and both live jobs with it: its
+  # branch name means nothing to the backend repository and its author cannot
+  # re-run the jobs with a chosen `backend_ref`, so they would run against a
+  # guess. Skipped, not run and reported green. Every other trigger runs them,
+  # and they fail rather than skip.
+  backend-ref:
+    name: pick the backend ref
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    outputs:
-      configured: ${{ steps.secrets.outputs.configured }}
-    steps:
-      - name: Look for the credentials the contract run needs
-        id: secrets
-        env:
-          BACKEND_REPO_TOKEN: ${{ secrets.BACKEND_REPO_TOKEN }}
-          CONTRACT_VENUE_EMAIL: ${{ secrets.CONTRACT_VENUE_EMAIL }}
-          CONTRACT_VENUE_PASSWORD: ${{ secrets.CONTRACT_VENUE_PASSWORD }}
-          CONTRACT_JWT_KEY: ${{ secrets.CONTRACT_JWT_KEY }}
-        run: |
-          missing=()
-          for name in BACKEND_REPO_TOKEN CONTRACT_VENUE_EMAIL CONTRACT_VENUE_PASSWORD CONTRACT_JWT_KEY; do
-            [ -n "${!name}" ] || missing+=("$name")
-          done
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
-          if [ ${#missing[@]} -eq 0 ]; then
-            echo 'configured=true' >> "$GITHUB_OUTPUT"
-            exit 0
+    permissions:
+      contents: read
+      # To read the live pull request description for a `backend-ref:` line.
+      pull-requests: read
+
+    outputs:
+      ref: ${{ steps.backend.outputs.ref }}
+
+    steps:
+      - name: Pick the backend ref
+        id: backend
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BACKEND_REPO: https://github.com/grigoravagyann/Yalla.git
+          INPUT_REF: ${{ inputs.backend_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_PR_BODY: ${{ github.event.pull_request.body }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          ref='' reason=''
+
+          if [ -n "$INPUT_REF" ]; then
+            ref="$INPUT_REF"
+            reason='the backend_ref input'
           fi
 
-          echo 'configured=false' >> "$GITHUB_OUTPUT"
-          # A notice rather than a warning: on a fork's pull request this is the
-          # expected state, not a problem with the change under test.
-          echo "::notice title=Contract suite skipped::Missing ${missing[*]}. The mock adapter is still checked by the build job; the live half needs these secrets and a backend, and can be run from the Actions tab once they are set."
+          if [ -z "$ref" ] && [ -n "$PR_NUMBER" ]; then
+            # The live description rather than the event's copy, so a re-run
+            # after editing the description picks up the edit. It has to be
+            # "Re-run all jobs": "Re-run failed jobs" skips this job, which
+            # succeeded, and hands the live jobs its old output.
+            body="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body 2>/dev/null)" \
+              || body="$EVENT_PR_BODY"
+            line_ref="$(printf '%s\n' "$body" | tr -d '\r' \
+              | sed -nE 's/^[[:space:]]*backend-ref:[[:space:]]*([^[:space:]]+).*$/\1/Ip' | head -n 1)"
+            if [ -n "$line_ref" ]; then
+              ref="$line_ref"
+              reason="the backend-ref line in pull request #$PR_NUMBER"
+            fi
+          fi
+
+          if [ -n "$ref" ]; then
+            # A commit only as a full 40-character SHA: actions/checkout fetches
+            # by SHA only then, and reads anything shorter as a branch or tag name.
+            if ! [[ "$ref" =~ ^[0-9a-f]{40}$ ]] \
+              && ! git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$ref" "refs/tags/$ref" >/dev/null; then
+              echo "::error title=Backend ref not found::$reason names '$ref', which is not a branch or tag of grigoravagyann/Yalla, nor a full 40-character commit SHA."
+              exit 1
+            fi
+          elif git ls-remote --exit-code "$BACKEND_REPO" "refs/heads/$BRANCH" >/dev/null; then
+            ref="$BRANCH"
+            reason="the backend branch named like this one"
+          else
+            ref=master
+            reason='the default: no input, no backend-ref line, no backend branch with this name'
+          fi
+
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Backend ref: $ref ($reason)"
+          echo "Live jobs against backend \`$ref\`, chosen by $reason." >> "$GITHUB_STEP_SUMMARY"
 
   # The half of the contract suite that makes the other half mean anything.
   #
   # `packages/api/src/contract` is one set of assertions run against both
-  # implementations of the gateway interfaces. The `build` job above runs it
-  # against the mock adapter, which is fast and offline — and on its own is
-  # exactly the problem it was written to fix. The mock is only trustworthy
-  # while something checks it against the real thing.
-  #
-  # Its own job because it needs a database and a backend container, and because
-  # a failure here means something different from a failure above: the two
-  # implementations disagree, and one of them is lying to every test that uses
-  # it.
+  # implementations of the gateway interfaces. The `build` job runs it against
+  # the mock adapter, which is fast and offline — and on its own is exactly the
+  # problem it was written to fix. The mock is only trustworthy while something
+  # checks it against the real thing, and a failure here means something
+  # different from a failure above: the two implementations disagree, and one of
+  # them is lying to every test that uses it.
   contract:
     name: contract suite against a live backend
+    needs: backend-ref
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    needs: contract-preflight
-    # Skipped, not failed, when the credentials are not here. The suite is
-    # exactly as valuable as before on the repository that has them.
-    if: needs.contract-preflight.outputs.configured == 'true'
+    timeout-minutes: 30
+
+    env:
+      # Only ever in a throwaway container that lives for one job. It still has
+      # to satisfy SQL Server's complexity rule or the container exits on start.
+      SA_PASSWORD: 'Yalla-Contract-p4ssw0rd!'
+      API_URL: http://127.0.0.1:5086
+      # Read by packages/api/src/contract. The API seeds this platform admin on
+      # start; the address is on the reserved .test domain and the password
+      # guards a database that is deleted with the runner.
+      YALLA_CONTRACT_BASE_URL: http://127.0.0.1:5086
+      YALLA_CONTRACT_ADMIN_EMAIL: contract-admin@yalla.test
+      YALLA_CONTRACT_ADMIN_PASSWORD: contract-run-only-0000
+      # The name the suite reads for its console sign-in today. Same account.
+      YALLA_CONTRACT_VENUE_EMAIL: contract-admin@yalla.test
+      YALLA_CONTRACT_VENUE_PASSWORD: contract-run-only-0000
 
     services:
-      # The backend's own dependency. `sqlcmd` is not needed: the API migrates
-      # and seeds on startup.
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: 'Y'
-          MSSQL_SA_PASSWORD: ${{ secrets.CONTRACT_SQL_PASSWORD || 'Yalla!Contract1' }}
+          # Must equal SA_PASSWORD above; the `env` context is not available here.
+          MSSQL_SA_PASSWORD: 'Yalla-Contract-p4ssw0rd!'
+          MSSQL_PID: Developer
         ports:
           - 1433:1433
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -Q 'SELECT 1'"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Yalla-Contract-p4ssw0rd!' -Q 'SELECT 1'"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 20
+          --health-retries 15
+          --health-start-period 30s
 
     steps:
       - uses: actions/checkout@v7
 
-      # The backend lives in its own repository. Checked out beside this one and
-      # run from source rather than from a published image, so the contract runs
-      # against the branch that is actually shipping.
+      # Checked out beside this repository and run from source rather than from a
+      # published image, so the contract runs against the branch actually shipping.
+      # The repository is public: no token beyond the job's own.
       - name: Check out the backend
         uses: actions/checkout@v7
         with:
           repository: grigoravagyann/Yalla
-          ref: master
+          ref: ${{ needs.backend-ref.outputs.ref }}
           path: backend
-          token: ${{ secrets.BACKEND_REPO_TOKEN }}
 
-      - uses: actions/setup-dotnet@v6
+      - name: Install .NET
+        uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          # The backend's own pin, so this job builds it with the SDK its CI uses.
+          global-json-file: backend/global.json
 
+      # The API refuses to start without a signing key. A fresh one per run,
+      # masked, rather than a secret: nothing signed with it outlives the job.
+      - name: Generate a signing key
+        run: |
+          key="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$key"
+          echo "Jwt__SigningKey=$key" >> "$GITHUB_ENV"
+
+      # A loop on a real query, not a sleep: SQL Server accepts TCP before it
+      # accepts logins. `sqlcmd` runs inside the container because the runner
+      # image is not guaranteed to carry it.
+      - name: Wait for SQL Server
+        env:
+          CONTAINER: ${{ job.services.sqlserver.id }}
+        run: |
+          for attempt in $(seq 1 60); do
+            if docker exec "$CONTAINER" /opt/mssql-tools18/bin/sqlcmd \
+                 -C -S localhost -U sa -P "$SA_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1; then
+              echo "SQL Server answered on attempt $attempt."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error title=SQL Server never answered::The API would fail to migrate."
+          docker logs "$CONTAINER" | tail -50
+          exit 1
+
+      # Its own step so a compile error reads as one, not as "the API never came up".
+      - name: Build the API
+        run: dotnet build backend/src/Yalla.Api/Yalla.Api.csproj -c Release
+
+      # Development, because that is what migrates the database on start, seeds
+      # the demo branch the suite discovers, and returns the diner verification
+      # code in the response. `--no-launch-profile` so the address comes from
+      # ASPNETCORE_URLS and no https port wants a certificate.
       - name: Start the API
+        id: api
         working-directory: backend
         env:
           ASPNETCORE_ENVIRONMENT: Development
-          ConnectionStrings__Yalla: >-
-            Server=localhost,1433;Database=Yalla;User Id=sa;Password=${{ secrets.CONTRACT_SQL_PASSWORD || 'Yalla!Contract1' }};TrustServerCertificate=True;MultipleActiveResultSets=True
-          # It refuses to start without these, and the contract run signs in as
-          # this account to reach the console reads.
-          PlatformAdmin__Email: ${{ secrets.CONTRACT_VENUE_EMAIL }}
-          PlatformAdmin__Password: ${{ secrets.CONTRACT_VENUE_PASSWORD }}
-          Jwt__SigningKey: ${{ secrets.CONTRACT_JWT_KEY }}
-          # Off, or every request acts as the seeded waiter regardless of the
-          # token and the suite would be testing a role nobody signs in as.
+          ASPNETCORE_URLS: ${{ env.API_URL }}
+          ConnectionStrings__Yalla: Server=localhost,1433;Database=YallaContract;User Id=sa;Password=${{ env.SA_PASSWORD }};TrustServerCertificate=True;MultipleActiveResultSets=True
+          PlatformAdmin__Email: ${{ env.YALLA_CONTRACT_ADMIN_EMAIL }}
+          PlatformAdmin__Password: ${{ env.YALLA_CONTRACT_ADMIN_PASSWORD }}
+          DevSeed__Enabled: 'true'
+          # Off, or an untokened request is attributed to the seeded waiter and
+          # the suite tests a role nobody signs in as.
           DevActor__Enabled: 'false'
         run: |
-          dotnet run --project src/Yalla.Api/Yalla.Api.csproj &
-          for i in $(seq 1 60); do
-            if curl -fsS http://localhost:5086/api/public/venues >/dev/null 2>&1; then
-              echo "API up after ${i}s"; exit 0
+          nohup dotnet run --project src/Yalla.Api/Yalla.Api.csproj -c Release --no-build --no-launch-profile \
+            > "$GITHUB_WORKSPACE/api.log" 2>&1 &
+          pid=$!
+
+          for i in $(seq 1 120); do
+            if curl -fsS -o /dev/null "$API_URL/api/public/venues"; then
+              echo "API up after ${i}s"
+              exit 0
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo "::error title=The API exited::It stopped before answering. Its log follows."
+              cat "$GITHUB_WORKSPACE/api.log"
+              exit 1
             fi
             sleep 1
           done
-          echo "The API never came up; the contract suite has nothing to run against." >&2
+
+          echo "::error title=The API never came up::No answer from $API_URL/api/public/venues after 120s. Its log follows."
+          cat "$GITHUB_WORKSPACE/api.log"
           exit 1
 
       - name: Install pnpm
@@ -231,8 +355,175 @@ jobs:
       # for prints its reason in the test name rather than passing quietly — see
       # `ContractSubject.unsupported`.
       - name: Contract suite
+        run: >-
+          pnpm --filter @yalla/api exec vitest run src/contract/
+          --reporter=default --reporter=json
+          --outputFile.json="$GITHUB_WORKSPACE/contract-results.json"
+
+      # The suite switches its live half on from YALLA_CONTRACT_BASE_URL and says
+      # so in a skipped test when it is off. A run where nothing against the HTTP
+      # client passed is green and proves nothing, so it is a failure here. So is
+      # any live test that skipped: the live subject declares no gaps, and a
+      # suite that quietly became describe.skip has stopped checking anything.
+      - name: Check the live half ran
+        run: |
+          node -e '
+            const results = require(process.argv[1]);
+            const live = results.testResults
+              .flatMap((file) => file.assertionResults)
+              .filter((test) => test.fullName.includes("HTTP client"));
+            const passed = live.filter((test) => test.status === "passed").length;
+            const skipped = live.filter((test) => ["skipped", "pending", "todo"].includes(test.status));
+            console.log(`HTTP client: ${passed} passed, ${skipped.length} skipped, of ${live.length}.`);
+            if (passed === 0) {
+              console.log("::error title=The live half did not run::No contract test against the HTTP client passed.");
+              process.exit(1);
+            }
+            if (skipped.length > 0) {
+              for (const test of skipped) console.log(`  skipped: ${test.fullName}`);
+              console.log("::error title=Live contract tests skipped::A contract test against the HTTP client was skipped.");
+              process.exit(1);
+            }
+          ' "$GITHUB_WORKSPACE/contract-results.json"
+
+      # The committed swagger.json and schema.ts are what every app compiles
+      # against. A backend DTO renamed without `pnpm api:generate` still compiles
+      # here, and the suite above only notices the fields it reads, so the whole
+      # document is compared: object keys sorted at every depth, array order kept.
+      # It runs whenever the API came up, even after a red contract suite, so one
+      # run reports both. The fetched document is uploaded as swagger.live.json.
+      - name: OpenAPI drift gate
+        if: ${{ !cancelled() && steps.api.outcome == 'success' }}
+        run: >-
+          node scripts/check-swagger-drift.mjs
+          --url "$API_URL/swagger/v1/swagger.json"
+          --save "$GITHUB_WORKSPACE/swagger.live.json"
+
+      - name: Show the end of the API log
+        if: failure()
+        run: tail -n 200 "$GITHUB_WORKSPACE/api.log" || true
+
+      - name: Upload the API log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-log
+          path: |
+            api.log
+            contract-results.json
+            swagger.live.json
+          if-no-files-found: ignore
+
+  # The diner app and the console, in a browser, against a real backend.
+  #
+  # The specs are `apps/e2e`. What runs them is `scripts/e2e-local.sh`, here and
+  # on a laptop, so the two cannot drift: it builds the API out of the checkout,
+  # starts it in Development on a database of its own with the dev seed (photos
+  # included), exports the diner web app and builds the console against that API,
+  # serves both, and runs Playwright with E2E_REQUIRED=1 so a missing stack fails
+  # instead of passing. `--no-contract` because the job above runs the contract
+  # suite and the drift gate. The script generates the platform admin and the JWT
+  # signing key for the run and masks them.
+  #
+  # The web build is the phone app's stand-in. Camera scanning, native push and
+  # the native photo picker stay on apps/diner/docs/PHONE-QA.md.
+  diner-web-e2e:
+    name: diner-web-e2e
+    needs: backend-ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      YALLA_BACKEND_DIR: ${{ github.workspace }}/backend
+      # A throwaway container's sa, like the contract job's.
+      E2E_SQL_SERVER: localhost,1433
+      E2E_SQL_USER: sa
+      E2E_SQL_PASSWORD: 'Yalla-E2E-p4ssw0rd!'
+      E2E_API_PORT: '5199'
+      E2E_DINER_PORT: '8095'
+      E2E_CONSOLE_PORT: '5198'
+      E2E_ARTIFACTS_DIR: ${{ github.workspace }}/e2e-artifacts
+      EXPO_NO_TELEMETRY: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
         env:
-          YALLA_CONTRACT_BASE_URL: http://localhost:5086
-          YALLA_CONTRACT_VENUE_EMAIL: ${{ secrets.CONTRACT_VENUE_EMAIL }}
-          YALLA_CONTRACT_VENUE_PASSWORD: ${{ secrets.CONTRACT_VENUE_PASSWORD }}
-        run: pnpm --filter @yalla/api exec vitest run src/contract
+          ACCEPT_EULA: 'Y'
+          # Must equal E2E_SQL_PASSWORD above; the `env` context is not available here.
+          MSSQL_SA_PASSWORD: 'Yalla-E2E-p4ssw0rd!'
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Yalla-E2E-p4ssw0rd!' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out the backend
+        uses: actions/checkout@v7
+        with:
+          repository: grigoravagyann/Yalla
+          ref: ${{ needs.backend-ref.outputs.ref }}
+          path: backend
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: backend/global.json
+
+      - name: Wait for SQL Server
+        env:
+          CONTAINER: ${{ job.services.sqlserver.id }}
+        run: |
+          for attempt in $(seq 1 60); do
+            if docker exec "$CONTAINER" /opt/mssql-tools18/bin/sqlcmd \
+                 -C -S localhost -U sa -P "$E2E_SQL_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1; then
+              echo "SQL Server answered on attempt $attempt."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error title=SQL Server never answered::The API would fail to migrate."
+          docker logs "$CONTAINER" | tail -50
+          exit 1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Chromium only, with the system libraries it needs on a bare runner.
+      - name: Install Chromium
+        run: pnpm --filter @yalla/e2e exec playwright install --with-deps chromium
+
+      # sqlcmd from inside the container, as above; the script uses it to check
+      # the run's database name is free and to drop the database at the end.
+      - name: Diner web and console, end to end
+        env:
+          E2E_SQLCMD: docker exec -e SQLCMDPASSWORD ${{ job.services.sqlserver.id }} /opt/mssql-tools18/bin/sqlcmd
+        run: bash scripts/e2e-local.sh --no-contract
+
+      - name: Upload the Playwright report, traces and API log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diner-web-e2e
+          path: |
+            apps/e2e/playwright-report
+            apps/e2e/test-results
+            e2e-artifacts
+          if-no-files-found: ignore

@@ -340,6 +340,7 @@ describe('deciding a pending booking over HTTP', () => {
           localStartTime: '19:30:00',
           status: 1,
           awaitingApprovalBecause: 2,
+          note: 'Window seat, please.',
         },
       ]),
     );
@@ -362,6 +363,7 @@ describe('deciding a pending booking over HTTP', () => {
         localStartTime: '19:30:00',
         status: 'pendingApproval',
         awaitingApprovalBecause: 'largeParty',
+        note: 'Window seat, please.',
       },
     ]);
   });

@@ -12,13 +12,30 @@
  * two, so `freeNow_many` existing only in `ru` is correct CLDR, not key drift.
  * Each language is instead checked against the categories `Intl.PluralRules`
  * says that language actually needs.
+ *
+ * Two rules about the *wording*, not just the keys, ride along:
+ *
+ * - **Amenity names are one wording per language.** An owner ticks
+ *   `admin:publicPage.listing.amenities.*` in the console and a diner reads
+ *   `diner:place.amenity.*` in the app. They drifted apart once — the console
+ *   said "Летняя веранда" (a veranda) while diners read "Столики на улице" — so
+ *   the two are compared string for string.
+ * - **No suffix glued onto an interpolation in hy or ru.** `{{name}}-ը` renders
+ *   "Աննա-ը" for a name ending in a vowel and "Anna-ը" for a Latin one, and
+ *   `{{date}}-ին` renders "20 սեպ, 2026 թ.-ին". Rephrase so the runtime value
+ *   stands on its own (`«{{item}}»-ն`, `{{name}}՝ …`, `… որպես {{name}}`).
+ *
+ * `YALLA_I18N_LOCALES_DIR` points the check at a copy of the bundles; the
+ * package's tests (`checks.test.mjs`) use it to prove each rule really fails.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const LOCALES_DIR = resolve(HERE, '..', 'src', 'locales');
+const LOCALES_DIR = process.env.YALLA_I18N_LOCALES_DIR
+  ? resolve(process.env.YALLA_I18N_LOCALES_DIR)
+  : resolve(HERE, '..', 'src', 'locales');
 
 const REFERENCE = 'hy';
 
@@ -161,6 +178,68 @@ for (const locale of locales) {
       const value = valueAt(bundle, key);
       if (typeof value === 'string' && value.trim() === '') {
         problems.push(`${locale}/${namespace}.json has an empty value for "${key}"`);
+      }
+    }
+  }
+}
+
+// Amenity names: the console's checkbox and the diner's chip must say the same
+// thing, or an owner ticks one feature and diners read about another.
+const AMENITY_PATHS = { diner: 'place.amenity', admin: 'publicPage.listing.amenities' };
+/** Keys under the console's amenity section that are form chrome, not amenity names. */
+const AMENITY_CHROME = new Set(['label']);
+
+if (namespaces.includes('diner') && namespaces.includes('admin')) {
+  for (const locale of locales) {
+    const diner = valueAt(readNamespace(locale, 'diner'), AMENITY_PATHS.diner);
+    const admin = valueAt(readNamespace(locale, 'admin'), AMENITY_PATHS.admin);
+    if (!diner || !admin) {
+      problems.push(
+        `${locale}: amenity names must exist at diner "${AMENITY_PATHS.diner}" and admin "${AMENITY_PATHS.admin}"`,
+      );
+      continue;
+    }
+    const names = new Set([
+      ...Object.keys(diner),
+      ...Object.keys(admin).filter((key) => !AMENITY_CHROME.has(key)),
+    ]);
+    for (const name of names) {
+      if (diner[name] !== admin[name]) {
+        problems.push(
+          `${locale}: amenity "${name}" reads ${JSON.stringify(diner[name])} in diner ` +
+            `${AMENITY_PATHS.diner} but ${JSON.stringify(admin[name])} in admin ` +
+            `${AMENITY_PATHS.admin} — write one wording to both`,
+        );
+      }
+    }
+  }
+}
+
+// A suffix glued onto a runtime value. Armenian case endings change with the
+// word they attach to, so they cannot follow an interpolation.
+const GLUED_SUFFIX_RE = /\}\}-(?:ը|ն|ին)/u;
+const GLUED_SUFFIX_LOCALES = new Set(['hy', 'ru']);
+/**
+ * Namespaces not held to the rule yet, with the reason. `staff` still carries a
+ * dozen of these (`Սեղան {{label}}-ը …`) on the floor screen; it is not part of
+ * the diner/console copy pass that introduced this check. Remove the entry once
+ * it is rephrased.
+ */
+const GLUED_SUFFIX_EXEMPT = new Set(['staff']);
+
+for (const locale of locales) {
+  if (!GLUED_SUFFIX_LOCALES.has(locale)) continue;
+  for (const namespace of namespaces) {
+    if (GLUED_SUFFIX_EXEMPT.has(namespace)) continue;
+    const bundle = readNamespace(locale, namespace);
+    if (!bundle) continue;
+    for (const key of leafKeys(bundle)) {
+      const value = valueAt(bundle, key);
+      if (typeof value === 'string' && GLUED_SUFFIX_RE.test(value)) {
+        problems.push(
+          `${locale}/${namespace}.json "${key}" glues a suffix onto an interpolation ` +
+            `(${JSON.stringify(value)}) — rephrase so the value stands on its own`,
+        );
       }
     }
   }

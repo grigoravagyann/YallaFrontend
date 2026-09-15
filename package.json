@@ -10,6 +10,8 @@
   "scripts": {
     "dev:diner": "pnpm --filter @yalla/diner start",
     "dev:web": "pnpm --filter @yalla/web dev",
+    "dev:real": "node scripts/bash.mjs scripts/dev-real.sh",
+    "e2e:local": "node scripts/bash.mjs scripts/e2e-local.sh",
     "build:web": "pnpm --filter @yalla/web build",
     "typecheck": "pnpm -r --no-bail typecheck",
     "test": "pnpm -r test",

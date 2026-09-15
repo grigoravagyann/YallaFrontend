@@ -276,6 +276,48 @@ describe('the password', () => {
     });
     expect(error.name).toBe('InvalidCredentialsError');
   });
+
+  it('keeps the diner signed in: the next read refreshes past session-revoked and succeeds', async () => {
+    // The server moves the session generation on and keeps the refresh tokens,
+    // so the old access token is refused and a refreshed one is not.
+    let profileReads = 0;
+    const backend = fakeBackend({
+      'PUT /api/diner/me/password': { status: 204 },
+      'GET /api/diner/me': (request) => {
+        profileReads += 1;
+        return request.headers.get('authorization') === 'Bearer access-2'
+          ? { body: WIRE_PROFILE }
+          : problemReply(401, 'session-revoked');
+      },
+    });
+    const refreshTokens = vi.fn(async () => ({
+      accessToken: 'access-2',
+      refreshToken: 'refresh-2',
+      expiresInSeconds: 900,
+    }));
+    const revoke = vi.fn(async () => undefined);
+    const auth = createAuthSession({
+      storage: createMemoryTokenStorage('refresh-1'),
+      refreshTokens,
+      revoke,
+    });
+    await auth.signIn({
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      expiresInSeconds: 900,
+    });
+    const gateway = createHttpGateway(backend.client({ auth }), { audience: 'diner', auth });
+
+    await gateway.setDinerPassword({ currentPassword: 'old one', newPassword: 'password123' });
+    const profile = await gateway.getDinerProfile();
+
+    expect(profile.dinerUserId).toBe('diner-1');
+    expect(profileReads).toBe(2);
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
+    expect(refreshTokens).toHaveBeenCalledWith('refresh-1');
+    expect(revoke).not.toHaveBeenCalled();
+    expect(auth.getState()).toBe('signedIn');
+  });
 });
 
 describe('the avatar', () => {

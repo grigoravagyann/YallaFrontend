@@ -4,6 +4,7 @@ import { colors, fontWeight, radius, space, typography } from '../../theme';
 import { Card } from '../Card';
 import { PhotoImage } from '../PhotoImage';
 import { PlaceMetaRow, usePlaceCopy } from '../places/placeCopy';
+import { placeTitle } from '../places/placeTitle';
 import { Text } from '../Text';
 
 export { PlaceMetaRow, usePlaceCopy } from '../places/placeCopy';
@@ -21,17 +22,29 @@ export interface PlaceSummaryCardProps {
  */
 export function PlaceSummaryCard({ place, onPress, style }: PlaceSummaryCardProps) {
   const copy = usePlaceCopy(place);
+  const title = placeTitle(place);
   return (
     <Card
-      {...(onPress ? { onPress, accessibilityLabel: place.name } : {})}
+      {...(onPress ? { onPress, accessibilityLabel: title.label } : {})}
       padded={false}
       style={[styles.card, style]}
     >
-      <PhotoImage source={place.photos[0] ?? ''} style={styles.thumb} />
+      <PhotoImage source={place.photos[0]} style={styles.thumb} />
       <View style={styles.body}>
-        <Text numberOfLines={1} style={styles.name}>
-          {place.name}
+        <Text numberOfLines={1} style={styles.name} accessibilityLabel={title.label}>
+          {title.venue}
         </Text>
+        {title.branch ? (
+          // Read as part of the name above, so it is not announced twice.
+          <Text
+            numberOfLines={1}
+            style={styles.branch}
+            importantForAccessibility="no"
+            accessibilityElementsHidden
+          >
+            {title.branch}
+          </Text>
+        ) : null}
         <Text numberOfLines={1} style={styles.typeLine}>
           {copy.typeLine}
         </Text>
@@ -53,6 +66,7 @@ const styles = StyleSheet.create({
   thumb: { width: THUMB, height: THUMB, borderRadius: radius.chip },
   body: { flex: 1, gap: 2 },
   name: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text },
+  branch: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
   typeLine: { ...typography.caption, color: colors.textMuted },
   meta: { marginTop: 2 },
 });

@@ -471,7 +471,11 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
           <Text style={styles.phone}>{profile.phoneE164}</Text>
           {profile.phoneVerified ? (
             <View style={styles.statusRow}>
-              <Ionicons name="checkmark-circle" size={iconSize.md} color={colors.success} />
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={iconSize.md}
+                color={colors.successInk}
+              />
               <Text style={styles.verified}>{t('editProfile.phone.verified')}</Text>
             </View>
           ) : (
@@ -589,12 +593,12 @@ const styles = StyleSheet.create({
   section: { gap: space.md },
   sectionTitle: { ...typography.h3, color: colors.text },
   muted: { ...typography.body, color: colors.textMuted },
-  error: { ...typography.body, color: colors.error, textAlign: 'center' },
-  success: { ...typography.body, color: colors.success, fontWeight: fontWeight.medium },
+  error: { ...typography.body, color: colors.errorInk, textAlign: 'center' },
+  success: { ...typography.body, color: colors.successInk, fontWeight: fontWeight.medium },
   phone: { ...typography.bodyLg, color: colors.text },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  verified: { ...typography.body, color: colors.success },
-  unverified: { ...typography.body, color: colors.warning },
+  verified: { ...typography.body, color: colors.successInk },
+  unverified: { ...typography.body, color: colors.warningInk },
   inlineButton: { paddingHorizontal: space.xs },
   sheetRoot: { flex: 1, justifyContent: 'flex-end' },
   backdrop: {

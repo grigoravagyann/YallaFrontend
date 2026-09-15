@@ -14,6 +14,7 @@ import { useGateway } from '@yalla/api/react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useSession } from '../stores/session';
+import { resetDinerScopedQueries } from './dinerScope';
 
 export const accountKeys = {
   /** `GET /api/diner/me` — one per device, dropped on sign-out. */
@@ -64,8 +65,9 @@ async function signInWith(
   const profile = await gateway.getDinerProfile();
   useSession.getState().setVerified({ phoneE164: profile.phoneE164 });
   storeProfile(queryClient, profile);
-  // Bookings belong to whoever was signed in before.
+  // Bookings belong to whoever was signed in before; so do orders and reviews.
   void queryClient.invalidateQueries({ queryKey: ['bookings'] });
+  resetDinerScopedQueries(queryClient);
   return result;
 }
 

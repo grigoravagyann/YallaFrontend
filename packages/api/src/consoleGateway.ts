@@ -1,11 +1,21 @@
 import type { ConsoleBooking, DecideReservationCommand } from './contracts/approvals';
+import type { VenueListing, VenueListingInput } from './contracts/listing';
 import type {
   EditorFloorArea,
   EditorFloorPlan,
   FloorPlanSaveResult,
   ReplaceFloorPlanCommand,
+  SaveTablePhotoPositionsCommand,
   TableDeletionResult,
+  TablePhotoPositions,
 } from './contracts/floorPlan';
+import type { BranchReadiness } from './contracts/readiness';
+import type {
+  ModeratedReview,
+  SetReviewVisibilityCommand,
+  VenueModeratedReview,
+  VenueReviewQuery,
+} from './contracts/reviews';
 import type {
   AdminMenuCategory,
   AdminMenuItem,
@@ -129,19 +139,51 @@ export interface ConsoleGateway {
 
   // --- The floor plan editor ------------------------------------------------
 
-  /** Canvas, areas and every table with its geometry and QR token. */
+  /** Canvas, areas, every table with its geometry and QR token, and the plan's `version`. */
   getFloorPlan(branchId: string): Promise<EditorFloorPlan>;
 
   /**
-   * Replace the whole plan in one call.
+   * Replace the whole plan in one call, against the `version` the editor loaded
+   * (K6). Pins on the cover photo are not part of it: kept tables keep theirs,
+   * new tables have none.
    *
-   * @throws {FloorPlanInvalidError} a table outside the canvas or a repeated
-   * label; the error names them so the editor can highlight both.
+   * @throws {FloorPlanChangedError} somebody saved the plan since it was
+   * loaded; nothing was written. Carries the server's `currentVersion`.
+   * @throws {FloorPlanInvalidError} `floor-plan-invalid`: a table outside the
+   * canvas or a repeated label; the error names them so the editor can
+   * highlight both.
+   * @throws {ValidationError} `validation-failed`: a malformed request, such as
+   * a missing `expectedVersion`. Not a plan problem, so not the error above.
    */
   replaceFloorPlan(input: {
     branchId: string;
     command: ReplaceFloorPlanCommand;
   }): Promise<FloorPlanSaveResult>;
+
+  /**
+   * Place, move or remove tables on the cover photo (K7), without touching the
+   * plan. One call for every changed pin; a table left out of `positions` keeps
+   * its pin.
+   *
+   * @throws {CoverChangedError} the cover is no longer `coverPhotoId`; nothing
+   * was written. Carries the cover the branch has now.
+   * @throws {NotFoundError} a table that is not an active table at this branch.
+   * @throws {ValidationError} half a position (`positions[i].photoX`/`photoY`,
+   * bound `required`), a value outside 0–1 (bound `range`), or one table twice
+   * (`positions`, bound `conflict`).
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  saveTablePhotoPositions(
+    branchId: string,
+    command: SaveTablePhotoPositionsCommand,
+  ): Promise<TablePhotoPositions>;
+
+  /**
+   * What the branch still needs before it can take diners,
+   * `GET /api/branches/{branchId}/readiness`. The onboarding checklist renders
+   * this answer and derives nothing on its own.
+   */
+  getBranchReadiness(branchId: string): Promise<BranchReadiness>;
 
   createFloorArea(input: {
     branchId: string;
@@ -286,6 +328,31 @@ export interface ConsoleGateway {
     profile: BranchPublicProfileInput;
   }): Promise<BranchPublicProfile>;
 
+  // --- The diner app listing ------------------------------------------------------
+
+  getBranchListing(branchId: string): Promise<VenueListing>;
+
+  /**
+   * Replace the listing: cuisine, about, price level, website, amenities, the
+   * map pin with its street address, and the ordered gallery. Table positions
+   * on the cover photo are {@link saveTablePhotoPositions}'s.
+   *
+   * Refused in the server's order, and nothing is written for any refusal:
+   * half a coordinate or an address without coordinates (422), more than 12 or
+   * repeated gallery photos (422 `galleryPhotoIds`), a gallery photo not
+   * uploaded for this branch (404), the other fields (422, all at once), then a
+   * move by somebody who may not move the branch (403).
+   *
+   * @throws {ValidationError} 422 naming the bad fields in `violations`, each with its `bound`.
+   * @throws {NotFoundError} a gallery photo was not uploaded for this branch.
+   * @throws {RelocationNotAllowedError} a manager changed the pin or the
+   * address; only an owner or a platform admin may (K5).
+   */
+  updateBranchListing(input: {
+    branchId: string;
+    listing: VenueListingInput;
+  }): Promise<VenueListing>;
+
   // --- The reservation policy ---------------------------------------------------
 
   getReservationPolicy(branchId: string): Promise<ReservationPolicy>;
@@ -307,15 +374,15 @@ export interface ConsoleGateway {
   // --- Bookings waiting for approval ------------------------------------------
 
   /**
-   * The branch's bookings in `PendingApproval`, soonest first.
+   * The branch's bookings in `PendingApproval`, soonest first, each with the
+   * diner's `note` for the venue.
    *
-   * **The server has no route for this yet.** The two decisions below are
-   * real; the list a manager would decide *from* is not, so the HTTP gateway
-   * raises {@link EndpointNotWiredError} and the panel says so rather than
-   * showing an empty list as "nothing is waiting". The mock answers from its
-   * fixture so the panel can be built and tested against the decisions.
+   * `GET /api/branches/{branchId}/reservations?status=1` — `ManagerOrAbove`
+   * and `BranchScoped`, so a manager whose home branch is another one is
+   * refused (K4). The server caps the list at 200 and orders it by the
+   * branch's own day and start time; the order is kept.
    *
-   * @throws {EndpointNotWiredError} over HTTP, until the backend lists them.
+   * @throws {ForbiddenError} not a manager of this branch.
    */
   listPendingReservations(branchId: string): Promise<readonly ConsoleBooking[]>;
 
@@ -337,6 +404,56 @@ export interface ConsoleGateway {
    * the reason recorded, and the diner is told. Same guards as approve.
    */
   rejectReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
+
+  // --- Review moderation ------------------------------------------------------
+
+  /**
+   * A branch's reviews for the platform team, hidden ones included,
+   * `GET /api/platform/branches/{branchId}/reviews`. 20 a page.
+   *
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  listPlatformBranchReviews(branchId: string, page?: number): Promise<Page<ModeratedReview>>;
+
+  /**
+   * The platform's takedown, `PUT /api/platform/reviews/{reviewId}/visibility`.
+   * Audited. A review the platform hides cannot be restored by the venue; one
+   * the venue hid can be restored here.
+   *
+   * @throws {ValidationError} hiding with no reason, or one over 500 characters.
+   * @throws {NotFoundError} no such review.
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  setReviewVisibility(
+    reviewId: string,
+    command: SetReviewVisibilityCommand,
+  ): Promise<ModeratedReview>;
+
+  /**
+   * A branch's reviews for its owner or manager, with how often diners reported
+   * each — `GET /api/branches/{branchId}/reviews?filter=all|reported|hidden`.
+   *
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  listVenueBranchReviews(
+    branchId: string,
+    query?: VenueReviewQuery,
+  ): Promise<Page<VenueModeratedReview>>;
+
+  /**
+   * The venue's own hide or restore, with a reason,
+   * `PUT /api/branches/{branchId}/reviews/{reviewId}/visibility`. Audited.
+   *
+   * @throws {ReviewHiddenByPlatformError} restoring a review the platform hid.
+   * @throws {ValidationError} hiding with no reason, or one over 500 characters.
+   * @throws {NotFoundError} no such review at this branch.
+   * @throws {ForbiddenError} not a manager of this branch.
+   */
+  setVenueReviewVisibility(
+    branchId: string,
+    reviewId: string,
+    command: SetReviewVisibilityCommand,
+  ): Promise<VenueModeratedReview>;
 
   // --- Staff ----------------------------------------------------------------
 

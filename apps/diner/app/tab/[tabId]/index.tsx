@@ -1,6 +1,5 @@
 import { HostCannotLeaveError, isTabAccessEnded } from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -16,6 +15,7 @@ import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { LiveBill } from '../../../src/components/LiveBill';
 import { AvatarRow, useParticipantSummary } from '../../../src/components/Participants';
+import { TabNamePrompt } from '../../../src/components/TabNamePrompt';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useLeaveTab } from '../../../src/data/queries';
@@ -23,6 +23,7 @@ import { useActiveTab } from '../../../src/stores/tab';
 import { canInvite } from '../../../src/tab/invite';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
 import { onTab, roster } from '../../../src/tab/roster';
+import { colors, fontWeight, layout, radius, space, typography } from '../../../src/theme';
 
 /** Slow enough not to be a battery problem, quick enough to feel current. */
 const POLL_MS = 8_000;
@@ -33,7 +34,7 @@ const POLL_MS = 8_000;
  * The bill leads, because it is the thing that changes while you sit here.
  * The people on the tab are a row of initials under the table name rather
  * than a list: who is here is a glance, and the full roster with host
- * controls lives one tap away. Ordering is the one beige press; calling a
+ * controls lives one tap away. Ordering is the one brown press; calling a
  * waiter never leaves the bottom edge.
  *
  * Everything here is read from the diner's own tab read (`GET /api/tabs/{id}`
@@ -103,7 +104,7 @@ export default function TabScreen() {
     return (
       <Shell>
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primaryInk} />
+          <ActivityIndicator color={colors.primary} />
           <Text style={styles.muted}>{t('tab.loading')}</Text>
         </View>
       </Shell>
@@ -190,6 +191,9 @@ export default function TabScreen() {
           </Pressable>
         </View>
 
+        {/* Somebody the tab only knows as "Guest 2" is offered a name, once. */}
+        <TabNamePrompt tabId={view.tabId} currentName={view.me.displayName} />
+
         {/* A stale list that looks live is the failure mode here, so say when
             the last refresh did not land rather than showing nothing. */}
         {isError ? <Text style={styles.offline}>{t('tab.offline')}</Text> : null}
@@ -228,6 +232,7 @@ export default function TabScreen() {
           <Button
             label={isFetching ? t('pending.checking') : t('tab.refresh')}
             variant="text"
+            busy={isFetching}
             onPress={() => void refetch()}
           />
 
@@ -281,63 +286,50 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   body: { padding: space.lg, paddingBottom: space.huge + space.xl, gap: space.md },
   header: { gap: space.xs },
-  where: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
-  table: {
-    fontSize: fontSize.xxl,
-    lineHeight: lineHeight.xxl,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-  },
+  where: { ...typography.body, color: colors.textMuted },
+  table: { ...typography.title, color: colors.text },
   people: {
     marginTop: space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    minHeight: touchTarget.minimum,
+    minHeight: layout.touchTarget,
   },
   peopleText: { flex: 1 },
-  count: {
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    fontWeight: fontWeight.medium,
-    color: color.foreground,
-  },
-  summary: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.mutedForeground },
+  count: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
+  summary: { ...typography.body, color: colors.textMuted },
   offline: {
     padding: space.sm,
-    borderRadius: radius.soft,
-    backgroundColor: color.greenTint,
-    fontSize: fontSize.sm,
-    color: color.mutedForeground,
+    borderRadius: radius.small,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceMuted,
+    ...typography.body,
+    color: colors.textMuted,
   },
   closing: {
     padding: space.md,
-    borderRadius: radius.soft,
+    borderRadius: radius.chip,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: color.warning,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.foreground,
+    borderColor: colors.warning,
+    backgroundColor: colors.warningSoft,
+    ...typography.body,
+    color: colors.text,
   },
   actions: { gap: space.sm, marginTop: space.xs },
-  blocked: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
-    textAlign: 'center',
-  },
+  blocked: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   footer: {
     padding: space.lg,
     borderTopWidth: 1,
-    borderTopColor: color.border,
-    backgroundColor: color.surface,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
   // Filled, not just outlined: this one stays on screen under everything
-  // else, and a hollow pill over the paper reads as a leftover.
-  waiter: { backgroundColor: color.greenTint },
+  // else, and a hollow pill over the white footer reads as a leftover.
+  waiter: { backgroundColor: colors.primarySoft },
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -345,17 +337,7 @@ const styles = StyleSheet.create({
     gap: space.sm,
     padding: space.xl,
   },
-  emptyTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: color.foreground,
-    textAlign: 'center',
-  },
-  muted: {
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
-    color: color.mutedForeground,
-    textAlign: 'center',
-  },
+  emptyTitle: { ...typography.h3, color: colors.text, textAlign: 'center' },
+  muted: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   pressed: { opacity: 0.75 },
 });

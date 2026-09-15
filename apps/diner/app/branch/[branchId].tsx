@@ -19,8 +19,8 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { TableSheet } from '../../src/components/TableSheet';
 import { Text } from '../../src/components/Text';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
-import { useBookingRules, useSlotFloor, useVenue } from '../../src/data/queries';
-import { branchZoneSource } from '../../src/lib/browse';
+import { useBookingRules, useSlotFloor } from '../../src/data/queries';
+import { bookingRulesInput, type FloorPlanParams } from '../../src/places/navigation';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
 import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../src/theme';
@@ -35,15 +35,19 @@ import { actionIcon, colors, fontWeight, layout, radius, space, typography } fro
  * This screen stays mounted while verification and confirmation are pushed on
  * top of it — that is what preserves the diner's selected table across the
  * whole round trip, including Android hardware back.
+ *
+ * The place page hands over everything this needs (`floorPlanParams`): the
+ * branch's slugs for its booking rules, its names for the header and its zone.
+ * A bare deep link with only an id still works — the zone is asked of the
+ * branch, the name comes back with the room, and the pickers use their
+ * defaults while the server keeps refusing what is outside the real window.
  */
 export default function BranchFloorPlanScreen() {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
-  const { branchId, venueId } = useLocalSearchParams<{
-    branchId: string;
-    venueId?: string;
-  }>();
+  const params = useLocalSearchParams<Partial<FloorPlanParams>>();
+  const { branchId, venueId } = params;
 
   // Set by the confirm screen when it pops back after a 409.
   const conflictLabel = useConflict((c) => c.takenTableLabel);
@@ -60,30 +64,19 @@ export default function BranchFloorPlanScreen() {
 
   const slotIso = useMemo(() => booking.slotUtc.toISOString(), [booking.slotUtc]);
 
-  const venueQuery = useVenue(venueId);
-  const branchSummary = venueQuery.data?.branches.find((b) => b.id === branchId) ?? null;
-
   /*
-   * The branch's zone, and never a guess.
-   *
-   * From the browse card when this branch was reached from its venue. Reached
-   * any other way — a deep link with no `venueId`, or a venue that no longer
-   * lists it — the branch is asked directly. Every read below that turns the
-   * slot into wall-clock time waits until one of the two has answered.
+   * The branch's zone, and never a guess: from the place that opened this
+   * screen, or asked of the branch when a deep link brought only its id. Every
+   * read below that turns the slot into wall-clock time waits for it.
    */
-  const zoneSource = branchZoneSource({
-    venueId,
-    venueStatus: venueQuery.isSuccess ? 'success' : venueQuery.isError ? 'error' : 'pending',
-    zoneFromVenue: branchSummary?.timeZoneId ?? null,
-    zoneFromBranch: undefined,
-  });
-  const zoneQuery = useBranchTimeZone(zoneSource.lookup ? branchId : undefined);
-  const timeZoneId = zoneSource.zone ?? zoneQuery.data ?? null;
+  const zoneFromParams = params.timeZoneId?.trim() || null;
+  const zoneQuery = useBranchTimeZone(zoneFromParams ? undefined : branchId);
+  const timeZoneId = zoneFromParams ?? zoneQuery.data ?? null;
 
-  // How far ahead and how soon, so the pickers offer only what the branch takes.
-  const rulesQuery = useBookingRules(
-    branchSummary ? { venueSlug: branchSummary.venueId, branchSlug: branchSummary.slug } : null,
-  );
+  // How far ahead and how soon, so the pickers offer only what the branch
+  // takes — read by slug, which is how the public page is addressed.
+  const rulesQuery = useBookingRules(bookingRulesInput(params));
+  const bookingsOff = rulesQuery.data?.acceptsAppBookings === false;
 
   /*
    * One question, one answer: the room **as it will be at the slot**, and every
@@ -102,7 +95,7 @@ export default function BranchFloorPlanScreen() {
     partySize: booking.partySize,
     timeZoneId: timeZoneId ?? undefined,
   });
-  const waitingForZone = !timeZoneId && (venueQuery.isLoading || zoneQuery.isLoading);
+  const waitingForZone = !timeZoneId && zoneQuery.isLoading;
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -135,6 +128,10 @@ export default function BranchFloorPlanScreen() {
   const handleReserve = useCallback(
     (tableId: string) => {
       setSheetTableId(null);
+      // The branch does not take app bookings: the line above the plan already
+      // says so, and sending the diner through sign-in first would only end in
+      // the same refusal.
+      if (bookingsOff) return;
       // A restored session counts: a returning diner is not sent through an
       // SMS code again for a number the keychain still vouches for.
       const verified = useSession.getState().signedIn;
@@ -152,13 +149,17 @@ export default function BranchFloorPlanScreen() {
           : { pathname: '/auth/login', params: forward },
       );
     },
-    [router, branchId, venueId, slotIso, booking.partySize],
+    [router, branchId, venueId, slotIso, booking.partySize, bookingsOff],
   );
 
   const back = useCallback(() => {
     if (router.canGoBack()) router.back();
     else router.replace('/');
   }, [router]);
+
+  const venueName = params.venueName?.trim() || null;
+  const branchName =
+    params.branchName?.trim() || slotFloorQuery.data?.plan.branchName || t('floorPlan.title');
 
   const header = (
     <View style={styles.header}>
@@ -169,15 +170,13 @@ export default function BranchFloorPlanScreen() {
         onPress={back}
       />
       <View style={styles.headerBody}>
-        {/* The branch name comes back with the room, so a deep link that never
-            read its venue still says where it is. */}
-        {venueQuery.data?.name ? (
+        {venueName && venueName !== branchName ? (
           <Text numberOfLines={1} style={styles.venue}>
-            {venueQuery.data.name}
+            {venueName}
           </Text>
         ) : null}
         <Text display numberOfLines={1} style={styles.branch} accessibilityRole="header">
-          {branchSummary?.name ?? slotFloorQuery.data?.plan.branchName ?? t('floorPlan.title')}
+          {branchName}
         </Text>
       </View>
     </View>
@@ -282,7 +281,11 @@ export default function BranchFloorPlanScreen() {
 
       {/* A lost table is information with the next action attached, not an
           error and not a coloured banner beside the plan. */}
-      {conflictLabel ? (
+      {bookingsOff ? (
+        <Text style={styles.conflict} accessibilityRole="alert">
+          {t('place.bookingsOff.body')}
+        </Text>
+      ) : conflictLabel ? (
         <Text style={styles.conflict}>
           {t(
             conflictReason === 'occupied'

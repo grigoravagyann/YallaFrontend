@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   noAccount: {
     ...typography.body,
     fontWeight: fontWeight.medium,
-    color: colors.success,
+    color: colors.successInk,
     marginBottom: space.sm,
   },
   viewfinder: {
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     backgroundColor: colors.errorSoft,
   },
-  errorText: { ...typography.body, color: colors.error },
+  errorText: { ...typography.body, color: colors.errorInk },
   dev: {
     marginTop: space.xl,
     padding: space.md,
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     borderColor: colors.warning,
     gap: space.xs,
   },
-  devTitle: { ...typography.caption, fontWeight: fontWeight.bold, color: colors.warning },
+  devTitle: { ...typography.caption, fontWeight: fontWeight.bold, color: colors.warningInk },
   devRow: {
     minHeight: layout.touchTarget - 8,
     flexDirection: 'row',

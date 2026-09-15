@@ -10,6 +10,9 @@ import { SignInRoute } from './auth/SignInRoute';
 import { PLATFORM_ROLES, VENUE_ROLES, landingPathFor, useCurrentUser } from './auth/useCurrentUser';
 import { QueryFailureNotice } from './components/QueryFailureNotice';
 import { ConsoleLayout } from './console/ConsoleLayout';
+import { BranchFloorPlanRoute } from './console/platform/BranchFloorPlanRoute';
+import { BranchPublicPageRoute } from './console/platform/BranchPublicPageRoute';
+import { BranchReviewsRoute } from './console/platform/BranchReviewsRoute';
 import { CreateVenueRoute } from './console/platform/CreateVenueRoute';
 import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
@@ -19,6 +22,7 @@ import { MenuEditorScreen } from './console/venue/menu/MenuEditorScreen';
 import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
 import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolicyScreen';
 import { PublicPageScreen } from './console/venue/public/PublicPageScreen';
+import { VenueReviewsScreen } from './console/venue/reviews/VenueReviewsScreen';
 import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
 import { StaffScreen } from './console/venue/staff/StaffScreen';
 
@@ -165,7 +169,8 @@ function useSignedOutRedirect() {
   );
 }
 
-function AppRoutes({ user }: { user: ConsoleUser }) {
+/** Exported for the route test: which paths exist is a function of the role, and nothing else. */
+export function AppRoutes({ user }: { user: ConsoleUser }) {
   const { role } = user;
   const home = landingPathFor(role);
 
@@ -204,6 +209,34 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
                 </RequireRole>
               }
             />
+            {/* One branch's public page, floor plan and reviews. The venue
+                section reads its branch from the token; a platform admin's
+                token covers every branch, so here the branch is in the URL and
+                the server checks it on every read. */}
+            <Route
+              path="/platform/venues/:venueId/branches/:branchId/public"
+              element={
+                <RequireRole allow={PLATFORM_ROLES}>
+                  <BranchPublicPageRoute />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/platform/venues/:venueId/branches/:branchId/floorplan"
+              element={
+                <RequireRole allow={PLATFORM_ROLES}>
+                  <BranchFloorPlanRoute />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/platform/venues/:venueId/branches/:branchId/reviews"
+              element={
+                <RequireRole allow={PLATFORM_ROLES}>
+                  <BranchReviewsRoute />
+                </RequireRole>
+              }
+            />
           </>
         ) : null}
 
@@ -218,6 +251,7 @@ function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="hours" element={<OpeningHoursScreen />} />
             <Route path="policy" element={<ReservationPolicyScreen />} />
             <Route path="public" element={<PublicPageScreen />} />
+            <Route path="reviews" element={<VenueReviewsScreen />} />
             <Route path="staff" element={<StaffScreen />} />
             {/* Lazy: the reports screen is the only thing in the console
                 that needs a charting library, and an owner who opens the floor

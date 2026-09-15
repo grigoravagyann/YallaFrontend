@@ -1,4 +1,4 @@
-import { describeFailure, isFloorPlanInvalid } from '@yalla/api';
+import { FloorPlanChangedError, describeFailure, isFloorPlanInvalid } from '@yalla/api';
 import {
   isOfflinePaused,
   useEditorFloorPlan,
@@ -44,7 +44,9 @@ export interface FloorPlanEditorRouteProps {
  *
  * It saves **explicitly**. The `PUT` replaces the whole plan atomically, so a
  * partially applied plan is a broken room and an autosave mid-drag would
- * produce exactly one.
+ * produce exactly one. And it saves against the `version` it loaded (K6): a
+ * plan somebody else saved in the meantime is refused, not overwritten, and the
+ * person is offered the newer one rather than a silent last-writer-wins.
  */
 export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRouteProps) {
   const { t } = useTranslation(['admin', 'common']);
@@ -157,6 +159,8 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
     if (!branchId) return;
     setSaveResult(null);
     try {
+      // The pins on the cover photo are not in this save (K6): the server keeps
+      // them on every table it keeps, so there is nothing to read first.
       const result = await save.mutateAsync({ branchId, command: toSaveCommand(state) });
       dispatch({ type: 'saved', result });
       setSaveResult({
@@ -169,6 +173,20 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
     }
   }, [branchId, save, state, dispatch]);
 
+  /**
+   * After a conflict: the plan as it is now replaces the working copy. The
+   * person was told their unsaved changes go with it, and the button says so.
+   */
+  const onReload = useCallback(async () => {
+    const fresh = await query.refetch();
+    if (!fresh.data) return;
+    loadedFor.current = fresh.data.branchId;
+    dispatch({ type: 'loaded', plan: fresh.data });
+    save.reset();
+    setSaveResult(null);
+  }, [query, dispatch, save]);
+
+  const conflict = save.error instanceof FloorPlanChangedError ? save.error : null;
   const serverInvalid = isFloorPlanInvalid(save.error) ? save.error : null;
   // The server names the offenders, so the canvas can highlight exactly those.
   const invalidLabels = serverInvalid
@@ -254,7 +272,16 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
 
       {/* Every server answer surfaced precisely. Errors name the tables, and
           warnings do not block: real rooms have stools under bars. */}
-      {serverInvalid ? (
+      {conflict ? (
+        <div className="notice notice-error" role="alert">
+          <p>
+            <strong>{t('floorPlan.conflict.title')}</strong> {t('floorPlan.conflict.body')}
+          </p>
+          <button type="button" className="button button-small" onClick={() => void onReload()}>
+            {t('floorPlan.conflict.reload')}
+          </button>
+        </div>
+      ) : serverInvalid ? (
         <div className="notice notice-error" role="alert">
           <p>
             {serverInvalid.errors.join(' ')}

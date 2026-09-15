@@ -52,10 +52,12 @@ describe('the mock places', () => {
         expect(table.tableId.startsWith(`${place.id}-`)).toBe(true);
       }
 
-      expect(place.coords.latitude).toBeGreaterThan(40.1);
-      expect(place.coords.latitude).toBeLessThan(40.25);
-      expect(place.coords.longitude).toBeGreaterThan(44.45);
-      expect(place.coords.longitude).toBeLessThan(44.6);
+      // Every mock place is located; only the real backend may lack coordinates.
+      expect(place.coords).not.toBeNull();
+      expect(place.coords!.latitude).toBeGreaterThan(40.1);
+      expect(place.coords!.latitude).toBeLessThan(40.25);
+      expect(place.coords!.longitude).toBeGreaterThan(44.45);
+      expect(place.coords!.longitude).toBeLessThan(44.6);
     },
   );
 

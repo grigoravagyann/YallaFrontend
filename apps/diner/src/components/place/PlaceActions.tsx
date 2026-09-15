@@ -68,7 +68,10 @@ export function PlaceActions({ place, saved, onToggleSave, style }: PlaceActions
       <Tile
         icon={actionIcon.directions}
         label={t('place.action.directions')}
-        onPress={() => open(directionsUrl(place.coords, place.name))}
+        disabled={place.coords === null}
+        onPress={() => {
+          if (place.coords) open(directionsUrl(place.coords, place.name));
+        }}
       />
       <Tile
         icon={actionIcon.website}

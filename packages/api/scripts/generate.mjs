@@ -32,7 +32,7 @@ const OUTPUT = resolve(HERE, '..', 'src', 'generated', 'schema.ts');
  */
 const RAW_OUTPUT = resolve(HERE, '..', 'src', 'generated', 'swagger.json');
 
-const DEFAULT_URL = 'https://localhost:7188/swagger/v1/swagger.json';
+const DEFAULT_URL = 'http://localhost:5086/swagger/v1/swagger.json';
 
 function readUrl() {
   const flagIndex = process.argv.indexOf('--url');
@@ -52,12 +52,25 @@ if (isLocalhost) {
 console.log(`api:generate — reading ${url}`);
 
 try {
-  const document = await fetch(url).then((response) => {
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    return response.json();
-  });
+  // The backend copies its source files' line endings into descriptions, so a
+  // Windows checkout and a Linux runner would disagree. Commit LF only.
+  const unixNewlines = (value) =>
+    typeof value === 'string'
+      ? value.replace(/\r\n?/g, '\n')
+      : Array.isArray(value)
+        ? value.map(unixNewlines)
+        : value && typeof value === 'object'
+          ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, unixNewlines(v)]))
+          : value;
 
-  const ast = await openapiTS(new URL(url), {
+  const document = unixNewlines(
+    await fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      return response.json();
+    }),
+  );
+
+  const ast = await openapiTS(document, {
     additionalProperties: false,
     // The backend sends dram as integers and timestamps as ISO strings; leaving
     // these as `string`/`number` keeps the generated types honest.

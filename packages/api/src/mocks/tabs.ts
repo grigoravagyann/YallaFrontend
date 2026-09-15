@@ -434,6 +434,18 @@ export function createTabWorld(options: TabWorldOptions) {
       you.status = 'left';
     },
 
+    /**
+     * `POST /api/tabs/{tabId}/display-name` for this device's participant. Not a
+     * host action: anybody on the tab names themselves. The caller has already
+     * checked that this device can still read the tab.
+     */
+    setDisplayName(input: { tabId: string; displayName: string }): TableTab {
+      const record = requireTab(input.tabId);
+      const you = record.participants.find((p) => p.id === DEVICE_PARTICIPANT_ID);
+      if (you) you.displayName = input.displayName;
+      return project(record);
+    },
+
     invite(input: { tabId: string; commandId: string }): TabInvite {
       const record = requireTab(input.tabId);
       // Host-only, as the server is (`RequireHost(..., "Inviting others")`).

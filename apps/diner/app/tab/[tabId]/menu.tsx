@@ -2,24 +2,34 @@ import type { MenuItemDetail } from '@yalla/api';
 import { isOffline } from '@yalla/api';
 import { formatDram } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { color, fontSize, fontWeight, lineHeight, radius, space, touchTarget } from '@yalla/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
-import { Text } from '../../../src/components/Text';
+import { Button } from '../../../src/components/Button';
+import { Card } from '../../../src/components/Card';
+import { Chip } from '../../../src/components/Chip';
+import { PhotoImage } from '../../../src/components/PhotoImage';
+import { Text, TextInput } from '../../../src/components/Text';
 import { useDinerTab, useMenuDetail } from '../../../src/data/orderQueries';
 import { TrayBar } from '../../../src/order/TrayBar';
 import { useTray } from '../../../src/order/TrayProvider';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
+import {
+  colors,
+  fontWeight,
+  layout,
+  radius,
+  space,
+  tabularNumbers,
+  typography,
+} from '../../../src/theme';
 
 /** A photo this phone can load: the gateway resolves the server's relative paths. */
 function loadablePhoto(url: string): string | null {
@@ -102,7 +112,7 @@ export default function MenuScreen() {
         </View>
       ) : isLoading ? (
         <View style={styles.centered}>
-          <ActivityIndicator color={color.primaryInk} />
+          <ActivityIndicator color={colors.primary} />
           <Text style={styles.muted}>{t('menu.loading')}</Text>
         </View>
       ) : isError ? (
@@ -110,9 +120,7 @@ export default function MenuScreen() {
           <Text style={styles.muted}>
             {isOffline(error) ? t('menu.offlineNoCache') : t('menu.error')}
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => void refetch()} style={styles.retry}>
-            <Text style={styles.retryText}>{t('common.retry')}</Text>
-          </Pressable>
+          <Button label={t('common.retry')} onPress={() => void refetch()} fullWidth={false} />
         </View>
       ) : isSuccess && menu === null ? (
         // The branch has no published menu: the server's 404, said as such.
@@ -125,24 +133,24 @@ export default function MenuScreen() {
           {/* Sticky category strip. Search is below it and half the width: a
               diner who has to type has been failed by the categories. */}
           <View style={styles.strip}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.stripRow}
+            >
               {categories.map((category) => {
                 const active = category.id === activeCategory && search === '';
                 return (
-                  <Pressable
+                  <Chip
                     key={category.id}
+                    label={category.name}
+                    selected={active}
                     accessibilityRole="tab"
-                    accessibilityState={{ selected: active }}
                     onPress={() => {
                       setSearch('');
                       setCategoryId(category.id);
                     }}
-                    style={[styles.chip, active && styles.chipActive]}
-                  >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {category.name}
-                    </Text>
-                  </Pressable>
+                  />
                 );
               })}
             </ScrollView>
@@ -154,7 +162,7 @@ export default function MenuScreen() {
               value={search}
               onChangeText={setSearch}
               placeholder={t('menu.search')}
-              placeholderTextColor={color.subtleForeground}
+              placeholderTextColor={colors.textSubtle}
               accessibilityLabel={t('menu.search')}
             />
           </View>
@@ -181,7 +189,7 @@ export default function MenuScreen() {
           {/*
             The tray bar. It renders three states and only one of them is a
             tray — see `TrayBar`, which exists because this used to be a single
-            green pill reading "Review" and a diner could read that as an order
+            filled pill reading "Review" and a diner could read that as an order
             that had been placed.
           */}
           {tab ? (
@@ -226,16 +234,9 @@ function ItemCard({ item, locale, expanded, canAdd, onToggle, onAdd }: ItemCardP
   const photo = loadablePhoto(item.photo.cardUrl);
 
   return (
-    <View style={[styles.card, !item.isAvailable && styles.cardOut]}>
+    <Card padded={false} style={!item.isAvailable && styles.cardOut}>
       {/* The card-size variant: what a diner looks at, never the full one. */}
-      {photo ? (
-        <Image
-          source={{ uri: photo }}
-          style={styles.photo}
-          resizeMode="cover"
-          accessibilityIgnoresInvertColors
-        />
-      ) : null}
+      {photo ? <PhotoImage source={photo} style={styles.photo} /> : null}
       <Pressable accessibilityRole="button" onPress={onToggle} style={styles.cardMain}>
         <View style={styles.cardHead}>
           <Text style={styles.itemName}>{item.name}</Text>
@@ -279,21 +280,19 @@ function ItemCard({ item, locale, expanded, canAdd, onToggle, onAdd }: ItemCardP
           screen exists to remove. */}
       {item.isAvailable ? (
         canAdd ? (
-          <Pressable accessibilityRole="button" onPress={onAdd} style={styles.add}>
-            <Text style={styles.addText}>{t('menu.add')}</Text>
-          </Pressable>
+          <Button label={t('menu.add')} onPress={onAdd} style={styles.add} />
         ) : null
       ) : (
         <View style={styles.outBadge}>
           <Text style={styles.outText}>{t('menu.unavailable')}</Text>
         </View>
       )}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: color.paper },
+  safeArea: { flex: 1, backgroundColor: colors.background },
   body: { padding: space.lg, gap: space.md, paddingBottom: space.xxxl },
   centered: {
     flex: 1,
@@ -302,106 +301,72 @@ const styles = StyleSheet.create({
     gap: space.md,
     padding: space.xl,
   },
-  muted: {
-    color: color.mutedForeground,
-    fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    textAlign: 'center',
-  },
-  retry: {
-    minHeight: touchTarget.regular,
-    justifyContent: 'center',
-    paddingHorizontal: space.xl,
-    borderRadius: radius.pill,
-    backgroundColor: color.primary,
-  },
-  retryText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: color.foreground },
+  muted: { ...typography.bodyLg, color: colors.textMuted, textAlign: 'center' },
+  emptyTitle: { ...typography.h3, color: colors.text },
   blocked: {
     padding: space.md,
     borderRadius: radius.card,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: color.borderStrong,
-    color: color.foreground,
-    fontSize: fontSize.sm,
-    lineHeight: lineHeight.sm,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    ...typography.body,
+    color: colors.text,
   },
-  photo: { width: '100%', aspectRatio: 16 / 9, backgroundColor: color.greenTint },
+  photo: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
+  },
 
   strip: {
     paddingVertical: space.sm,
-    paddingHorizontal: space.lg,
     borderBottomWidth: 1,
-    borderBottomColor: color.borderSoft,
-    backgroundColor: color.surface,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
-  chip: {
-    minHeight: touchTarget.regular,
-    justifyContent: 'center',
-    paddingHorizontal: space.lg,
-    marginRight: space.sm,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: color.borderStrong,
-  },
-  chipActive: { backgroundColor: color.primary, borderColor: color.primary },
-  chipText: { color: color.foreground, fontWeight: fontWeight.medium },
-  chipTextActive: { color: color.primaryForeground },
+  stripRow: { gap: space.sm, paddingHorizontal: space.lg },
 
   searchRow: { paddingHorizontal: space.lg, paddingTop: space.sm },
   search: {
-    minHeight: touchTarget.regular,
+    minHeight: layout.controlHeight,
     maxWidth: 280,
-    paddingHorizontal: space.md,
-    borderRadius: radius.soft,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.search,
     borderWidth: 1,
-    borderColor: color.border,
-    backgroundColor: color.surface,
-    color: color.foreground,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    ...typography.body,
+    color: colors.text,
   },
 
-  card: {
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: color.borderSoft,
-    backgroundColor: color.surface,
-    overflow: 'hidden',
-  },
   cardOut: { opacity: 0.7 },
   cardMain: { padding: space.lg, gap: space.xs },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
-  itemName: {
-    flex: 1,
-    fontSize: fontSize.lg,
-    lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.medium,
-  },
-  itemPrice: { fontSize: fontSize.lg, fontWeight: fontWeight.bold },
-  itemDesc: { color: color.mutedForeground, fontSize: fontSize.sm, lineHeight: lineHeight.sm },
-  itemMeta: { color: color.subtleForeground, fontSize: fontSize.xs, lineHeight: lineHeight.xs },
+  itemName: { flex: 1, ...typography.h3, fontWeight: fontWeight.medium, color: colors.text },
+  itemPrice: { ...typography.h3, color: colors.text, ...tabularNumbers },
+  itemDesc: { ...typography.body, color: colors.textMuted },
+  itemMeta: { ...typography.caption, color: colors.textMuted },
   detail: { gap: space.xs, paddingTop: space.sm },
-  detailLine: { fontSize: fontSize.sm, lineHeight: lineHeight.sm, color: color.foreground },
+  detailLine: { ...typography.body, color: colors.text },
   detailLabel: { fontWeight: fontWeight.bold },
 
-  add: {
-    minHeight: touchTarget.regular,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: color.primary,
-  },
-  addText: { color: color.primaryForeground, fontWeight: fontWeight.bold },
+  add: { marginHorizontal: space.lg, marginBottom: space.lg },
   outBadge: {
-    minHeight: touchTarget.small,
+    minHeight: layout.touchTarget - 4,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: color.greenTint,
+    backgroundColor: colors.surfaceMuted,
+    borderBottomLeftRadius: radius.card,
+    borderBottomRightRadius: radius.card,
   },
-  outText: { color: color.mutedForeground, fontWeight: fontWeight.medium, fontSize: fontSize.sm },
+  outText: { ...typography.body, fontWeight: fontWeight.medium, color: colors.textMuted },
 
   /**
    * The bar sits above the safe area with its own padding rather than being
-   * edge-to-edge. The old full-bleed green bar read as a system affordance —
-   * part of the app chrome — which is half of why "Review" on it looked like a
+   * edge-to-edge. The old full-bleed bar read as a system affordance — part of
+   * the app chrome — which is half of why "Review" on it looked like a
    * confirmation rather than a step.
    */
   barSlot: { padding: space.md, paddingTop: 0 },

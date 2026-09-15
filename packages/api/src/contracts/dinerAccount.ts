@@ -93,6 +93,16 @@ export interface SetDinerPasswordCommand {
 }
 
 /**
+ * `DELETE /api/diner/me` (K2). One of the two, by the account: `password` when
+ * it has one, otherwise `code` — six digits from a code requested for the
+ * account's own number.
+ */
+export interface DeleteDinerAccountCommand {
+  readonly password?: string | undefined;
+  readonly code?: string | undefined;
+}
+
+/**
  * A file as React Native's `FormData` takes it: a local `uri`, a `name` for
  * the part's filename and its MIME `type`. This is what `expo-image-picker`
  * hands back, and RN's `FormData` reads the bytes from the uri itself.

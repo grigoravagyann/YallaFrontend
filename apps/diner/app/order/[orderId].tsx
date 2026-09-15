@@ -1,9 +1,10 @@
+import { UnauthorizedError } from '@yalla/api';
 import { YEREVAN, formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
@@ -21,6 +22,7 @@ import { useNow } from '../../src/hooks/useNow';
 import { useCancelOrder, useOrder } from '../../src/orders/hooks';
 import { canCancelOrder, type Order, type OrderStatus } from '../../src/orders/model';
 import { usePlace } from '../../src/places/hooks';
+import { useSession } from '../../src/stores/session';
 import {
   actionIcon,
   colors,
@@ -55,9 +57,13 @@ export default function OrderDetailScreen() {
   const router = useRouter();
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const orderQuery = useOrder(orderId);
-  const { data: order, isLoading, isError, refetch } = orderQuery;
+  const { data: order, isLoading, isError, error, refetch } = orderQuery;
+  const signedIn = useSession((s) => s.signedIn);
   const cancel = useCancelOrder();
   const [confirming, setConfirming] = useState(false);
+  // Its own flag, not `isRefetching`: the fifteen-second refresh of a live
+  // order must not spin the pull indicator nobody pulled.
+  const [pulling, setPulling] = useState(false);
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -85,6 +91,14 @@ export default function OrderDetailScreen() {
         {header}
         {isLoading ? (
           <DetailSkeleton />
+        ) : !signedIn || error instanceof UnauthorizedError ? (
+          // A push or a link to an order, with no session: sign in, not "not found".
+          <EmptyState
+            icon="receipt-outline"
+            title={t('orders.signedOut.title')}
+            body={t('orders.signedOut.body')}
+            action={{ label: t('orders.signedOut.action'), onPress: () => router.push('/auth') }}
+          />
         ) : isError ? (
           <ErrorState onRetry={() => void refetch()} />
         ) : (
@@ -106,7 +120,19 @@ export default function OrderDetailScreen() {
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       {header}
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={pulling}
+            tintColor={colors.primary}
+            onRefresh={() => {
+              setPulling(true);
+              void refetch().finally(() => setPulling(false));
+            }}
+          />
+        }
+      >
         <PlaceSummary order={order} />
 
         <Card>
@@ -310,7 +336,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: space.md,
   },
-  orderId: { ...typography.caption, ...tabularNumbers, color: colors.textSubtle },
+  orderId: { ...typography.caption, ...tabularNumbers, color: colors.textMuted },
   items: { marginTop: space.md, gap: space.md },
   item: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
   quantity: {
@@ -354,6 +380,6 @@ const styles = StyleSheet.create({
   stepBody: { flex: 1, paddingBottom: space.lg, paddingTop: 1 },
   stepLabel: { ...typography.body, fontWeight: fontWeight.medium, color: colors.textMuted },
   stepLabelCurrent: { color: colors.text, fontWeight: fontWeight.bold },
-  stepTime: { ...typography.caption, ...tabularNumbers, color: colors.textSubtle },
+  stepTime: { ...typography.caption, ...tabularNumbers, color: colors.textMuted },
   skeletonGap: { gap: space.sm },
 });

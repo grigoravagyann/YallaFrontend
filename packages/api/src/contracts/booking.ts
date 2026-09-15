@@ -288,6 +288,9 @@ export interface Booking {
   readonly cancelledAtUtc: string | null;
   readonly cancelledAfterDeadline: boolean;
 
+  /** What the diner asked the venue, as the venue sees it (K9). `null` when they wrote nothing. */
+  readonly note: string | null;
+
   /**
    * An opaque token granting sight of, and the power to cancel, **this booking
    * alone** — with no account and no session.
@@ -329,7 +332,12 @@ export interface MyBookings {
 export interface BookingRules {
   readonly bookingWindowDays: number;
   readonly minLeadMinutes: number;
+  /** The K9 gate, from the same page: false means the app cannot book here. */
+  readonly acceptsAppBookings: boolean;
 }
+
+/** The longest booking note the server keeps, after trimming (K9). */
+export const MAX_BOOKING_NOTE = 500;
 
 /** Where a booking was made. The server pushes reminders only to the app. */
 export type BookingChannel = 'app' | 'web';
@@ -355,6 +363,11 @@ export interface CreateBookingCommand {
   /** The verified number, so the venue can reach them. Required by the server. */
   readonly guestPhone: string;
   readonly channel: BookingChannel;
+  /**
+   * A note that reaches the venue with the booking (K9). Trimmed; blank is no
+   * note; at most {@link MAX_BOOKING_NOTE} characters, or a 422 naming `note`.
+   */
+  readonly note?: string | null | undefined;
 }
 
 // ---------------------------------------------------------------------------

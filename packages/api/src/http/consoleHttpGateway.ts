@@ -26,6 +26,7 @@ import type {
 } from '../contracts/branchSettings';
 import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../contracts/menuAdmin';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
+import type { VenueListing } from '../contracts/listing';
 import { photoRejection } from './photoErrors';
 import { absolutePhoto } from './photoUrl';
 import type { PhotoUpload } from '../consoleGateway';
@@ -34,7 +35,11 @@ import type { ReportExport, ReportQuery } from '../contracts/reports';
 import {
   BranchNotReadyError,
   CategoryInUseError,
+  CoverChangedError,
+  FloorPlanChangedError,
+  RelocationNotAllowedError,
   ReportRangeTooLongError,
+  ReviewHiddenByPlatformError,
   StaffPermissionError,
   FloorPlanInvalidError,
   OverlappingHoursError,
@@ -47,8 +52,13 @@ import { parseProblem } from '../problem';
 import {
   consoleBookingFromWire,
   managedVenueFromWire,
+  moderatedReviewFromWire,
+  readinessFromWire,
+  reviewPageFromWire,
+  tablePhotoPositionsFromWire,
   venueDetailFromWire,
   venuePageFromWire,
+  venueReviewFromWire,
   type WireManagedVenue,
 } from './consoleMapping';
 import {
@@ -101,6 +111,23 @@ function publicProfile(view: WirePublicProfile, baseUrl: string): BranchPublicPr
     coverPhoto: view.coverPhoto ? absolutePhoto(baseUrl, photo(view.coverPhoto)) : null,
   };
 }
+type WireListing = Schemas['Yalla.Application.BranchSettings.BranchListingView'];
+type WireListingCommand = Schemas['Yalla.Application.BranchSettings.BranchListingCommand'];
+
+/** The listing with absent fields made explicit and gallery links made absolute. */
+function branchListing(view: WireListing, baseUrl: string): VenueListing {
+  return {
+    cuisine: view.cuisine ?? null,
+    about: view.about ?? null,
+    priceLevel: view.priceLevel ?? null,
+    websiteUrl: view.websiteUrl ?? null,
+    amenities: view.amenities ?? [],
+    address: view.address,
+    latitude: view.latitude,
+    longitude: view.longitude,
+    gallery: (view.gallery ?? []).map((item) => absolutePhoto(baseUrl, photo(item))),
+  };
+}
 type WirePolicy = Schemas['Yalla.Application.BranchSettings.ReservationPolicyView'];
 type WirePolicyResult = Schemas['Yalla.Application.BranchSettings.ReservationPolicyChangeResult'];
 type WirePage =
@@ -147,6 +174,18 @@ const PLATFORM = '/api/platform';
 const BRANCHES = '/api/branches';
 const VENUES = '/api/venues';
 const RESERVATIONS = '/api/reservations';
+
+/** Both moderation lists page by 20, the public reviews route's size. */
+const REVIEW_PAGE_SIZE = 20;
+
+/** `Yalla.Domain.Enums.StaffRole.PlatformAdmin` on the wire. */
+const PLATFORM_ADMIN_ROLE_CODE = 5;
+
+/** The role a `StaffPermissionException` 403 says was needed, when it says one. */
+function requiredRoleOf(error: ApiError): number | undefined {
+  const context = error.problem?.context as { requiredRole?: unknown } | undefined;
+  return typeof context?.requiredRole === 'number' ? context.requiredRole : undefined;
+}
 
 type WireReservation = components['schemas']['Yalla.Application.Reservations.ReservationView'];
 type WireDecision = components['schemas']['Yalla.Api.Endpoints.DecideReservationRequest'];
@@ -209,7 +248,7 @@ function shapeFromWire(value: number): 'rectangle' | 'round' {
   return value === 2 ? 'round' : 'rectangle';
 }
 
-function shapeToWire(shape: 'rectangle' | 'round'): number {
+function shapeToWire(shape: 'rectangle' | 'round'): 1 | 2 {
   return shape === 'round' ? 2 : 1;
 }
 
@@ -448,30 +487,37 @@ export function createConsoleHttpGateway(
 
     async replaceFloorPlan({ branchId, command }): Promise<FloorPlanSaveResult> {
       try {
+        // Inline, so check-gateway-schema reads every key against the request shape.
         const { data } = await client.put<WireSaveResult>(`${BRANCHES}/${branchId}/floor-plan`, {
           floorWidth: command.floorWidth,
           floorHeight: command.floorHeight,
-          areas: command.areas.map((area) => ({
-            id: area.id ?? null,
-            name: area.name,
-            displayOrder: area.displayOrder,
-          })),
-          tables: command.tables.map((table) => ({
-            id: table.id ?? null,
-            label: table.label,
-            seats: table.seats,
-            x: Math.round(table.x),
-            y: Math.round(table.y),
-            width: Math.round(table.width),
-            height: Math.round(table.height),
-            rotationDegrees: table.rotationDegrees,
-            shape: shapeToWire(table.shape),
-            floorAreaName: table.floorAreaName ?? null,
-            isBookable: table.isBookable,
-            // `qrToken` is deliberately absent. The sticker on the table has to
-            // keep working, and the only way it changes is the explicit
-            // regenerate action.
-          })),
+          expectedVersion: command.expectedVersion,
+          areas: command.areas.map(
+            (area): Schemas['Yalla.Application.BranchSettings.FloorAreaInput'] => ({
+              id: area.id ?? null,
+              name: area.name,
+              displayOrder: area.displayOrder,
+            }),
+          ),
+          tables: command.tables.map(
+            (table): Schemas['Yalla.Application.BranchSettings.FloorTableInput'] => ({
+              id: table.id ?? null,
+              label: table.label,
+              seats: table.seats,
+              x: Math.round(table.x),
+              y: Math.round(table.y),
+              width: Math.round(table.width),
+              height: Math.round(table.height),
+              rotationDegrees: table.rotationDegrees,
+              shape: shapeToWire(table.shape),
+              floorAreaName: table.floorAreaName ?? null,
+              isBookable: table.isBookable,
+              // No `photoX`/`photoY` (K6): pins are saved on their own route, and
+              // a plan save that carried them wiped pins placed meanwhile.
+              // `qrToken` is deliberately absent too. The sticker on the table has
+              // to keep working, and only the explicit regenerate action changes it.
+            }),
+          ),
         });
         return {
           plan: floorPlanFromWire(data.plan),
@@ -480,7 +526,19 @@ export function createConsoleHttpGateway(
           removedTables: data.removedTables ?? [],
         };
       } catch (error) {
-        if (error instanceof ApiError && error.status === 422) {
+        if (error instanceof ApiError && error.code === 'floor-plan-changed') {
+          const current = error.problem?.context?.['currentVersion'];
+          throw new FloorPlanChangedError({
+            url: error.url,
+            requestId: error.requestId,
+            currentVersion: typeof current === 'string' ? current : null,
+          });
+        }
+        // Only the plan's own refusal is a plan error. A `validation-failed`
+        // 422 — a missing `expectedVersion`, say — is already the client's
+        // `ValidationError`, and dressing it as "these tables are wrong" named
+        // no table and hid the field that was.
+        if (error instanceof ApiError && error.code === 'floor-plan-invalid') {
           const context = error.problem?.context ?? {};
           throw new FloorPlanInvalidError({
             url: error.url,
@@ -494,6 +552,39 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    async saveTablePhotoPositions(branchId, command) {
+      try {
+        const { data } = await client.put<
+          Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsView']
+        >(`${BRANCHES}/${branchId}/table-photo-positions`, {
+          coverPhotoId: command.coverPhotoId,
+          positions: command.positions.map((position) => ({
+            tableId: position.tableId,
+            photoX: position.photoX,
+            photoY: position.photoY,
+          })),
+        } satisfies Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsCommand']);
+        return tablePhotoPositionsFromWire(data);
+      } catch (error) {
+        if (error instanceof ApiError && error.code === 'cover-changed') {
+          const current = error.problem?.context?.['currentCoverPhotoId'];
+          throw new CoverChangedError({
+            url: error.url,
+            requestId: error.requestId,
+            currentCoverPhotoId: typeof current === 'string' ? current : null,
+          });
+        }
+        throw error;
+      }
+    },
+
+    async getBranchReadiness(branchId) {
+      const { data } = await client.get<
+        Schemas['Yalla.Application.BranchSettings.BranchReadinessView']
+      >(`${BRANCHES}/${branchId}/readiness`);
+      return readinessFromWire(data);
     },
 
     async createFloorArea({ branchId, name, displayOrder }): Promise<EditorFloorArea> {
@@ -782,6 +873,38 @@ export function createConsoleHttpGateway(
       return publicProfile(data, client.baseUrl);
     },
 
+    // --- The diner app listing ------------------------------------------------------
+
+    async getBranchListing(branchId: string): Promise<VenueListing> {
+      const { data } = await client.get<WireListing>(`${BRANCHES}/${branchId}/listing`);
+      return branchListing(data, client.baseUrl);
+    },
+
+    async updateBranchListing({ branchId, listing }): Promise<VenueListing> {
+      // Every field is replaced, so blanks travel as explicit nulls. The
+      // address travels with the pin (K5): the server refuses either half alone.
+      const body: WireListingCommand = {
+        cuisine: blankToNull(listing.cuisine),
+        about: blankToNull(listing.about),
+        priceLevel: listing.priceLevel,
+        websiteUrl: blankToNull(listing.websiteUrl),
+        amenities: [...listing.amenities],
+        galleryPhotoIds: listing.galleryPhotoIds === null ? null : [...listing.galleryPhotoIds],
+        address: blankToNull(listing.address),
+        latitude: listing.latitude,
+        longitude: listing.longitude,
+      };
+      try {
+        const { data } = await client.put<WireListing>(`${BRANCHES}/${branchId}/listing`, body);
+        return branchListing(data, client.baseUrl);
+      } catch (error) {
+        if (error instanceof ApiError && error.code === 'relocation-not-allowed') {
+          throw new RelocationNotAllowedError({ url: error.url, requestId: error.requestId });
+        }
+        throw error;
+      }
+    },
+
     async getReservationPolicy(branchId: string): Promise<ReservationPolicy> {
       const { data } = await client.get<WirePolicy>(`${BRANCHES}/${branchId}/reservation-policy`);
       return reservationPolicy(data);
@@ -818,6 +941,68 @@ export function createConsoleHttpGateway(
         { reason: reason ?? null } satisfies WireDecision,
       );
       return consoleBookingFromWire(data);
+    },
+
+    // --- Review moderation ------------------------------------------------------
+
+    async listPlatformBranchReviews(branchId, page = 1) {
+      const { data } = await client.get<Schemas['Yalla.Application.Reviews.ModeratedReviewPage']>(
+        `${PLATFORM}/branches/${branchId}/reviews`,
+        { query: { page, pageSize: REVIEW_PAGE_SIZE } },
+      );
+      return reviewPageFromWire(data, moderatedReviewFromWire);
+    },
+
+    async setReviewVisibility(reviewId, command) {
+      const { data } = await client.put<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+        `${PLATFORM}/reviews/${reviewId}/visibility`,
+        { hidden: command.hidden, reason: command.reason },
+      );
+      return moderatedReviewFromWire(data);
+    },
+
+    async listVenueBranchReviews(branchId, query = {}) {
+      const { data } = await client.get<Schemas['Yalla.Application.Reviews.ModeratedReviewPage']>(
+        `${BRANCHES}/${branchId}/reviews`,
+        {
+          query: {
+            page: query.page ?? 1,
+            pageSize: query.pageSize ?? REVIEW_PAGE_SIZE,
+            filter: query.filter ?? 'all',
+          },
+        },
+      );
+      return reviewPageFromWire(data, venueReviewFromWire);
+    },
+
+    async setVenueReviewVisibility(branchId, reviewId, command) {
+      try {
+        const { data } = await client.put<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+          `${BRANCHES}/${branchId}/reviews/${reviewId}/visibility`,
+          { hidden: command.hidden, reason: command.reason },
+        );
+        return venueReviewFromWire(data);
+      } catch (error) {
+        /*
+         * Restoring a review the platform hid is refused with a 403 whose
+         * `context.requiredRole` is PlatformAdmin. Other 403s on the same route
+         * name another role, e.g. Manager, when the staff guard finds this person
+         * moved, demoted or deactivated after the token was issued. Those stay a
+         * `ForbiddenError`, as does any 403 on a hide.
+         */
+        if (
+          error instanceof ForbiddenError &&
+          !command.hidden &&
+          requiredRoleOf(error) === PLATFORM_ADMIN_ROLE_CODE
+        ) {
+          throw new ReviewHiddenByPlatformError({
+            url: error.url,
+            requestId: error.requestId,
+            reviewId,
+          });
+        }
+        throw error;
+      }
     },
 
     // --- Staff ----------------------------------------------------------------
@@ -1009,9 +1194,18 @@ interface WireTable {
   isBookable: boolean;
   isActive: boolean;
   qrToken: string;
+  photoX?: number | null;
+  photoY?: number | null;
 }
 
-interface WireFloorPlan {
+function blankToNull(value: string | null): string | null {
+  return value === null || value.trim() === '' ? null : value.trim();
+}
+
+interface WireFloorPlan extends Pick<
+  Schemas['Yalla.Application.BranchSettings.FloorPlanView'],
+  'version'
+> {
   branchId: string;
   floorWidth: number;
   floorHeight: number;
@@ -1046,7 +1240,11 @@ function floorPlanFromWire(plan: WireFloorPlan): EditorFloorPlan {
       isBookable: table.isBookable,
       isActive: table.isActive,
       qrToken: table.qrToken,
+      photoX: table.photoX ?? null,
+      photoY: table.photoY ?? null,
     })),
+    // Empty only from a server that predates K6, which ignores what is sent back.
+    version: plan.version ?? '',
   };
 }
 

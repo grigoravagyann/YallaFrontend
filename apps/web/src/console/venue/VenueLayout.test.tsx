@@ -262,7 +262,40 @@ function floorPlan(branchId: string) {
     floorHeight: 600,
     areas: [],
     tables: [],
+    // Opaque to the client (K6); this layout test never saves the plan.
+    version: 'v1',
   } satisfies Schemas['Yalla.Application.BranchSettings.FloorPlanView'];
+}
+
+/**
+ * `GET /api/branches/{id}/readiness` for an empty branch. The overview's
+ * checklist renders this read rather than working its lines out from the
+ * floor plan and four other screens' reads, so it is the branch read a person
+ * landing on `/venue` makes.
+ */
+function readiness(branchId: string) {
+  return {
+    branchId,
+    isReadyForDiners: false,
+    floorPlanDrawn: false,
+    tableCount: 0,
+    tablesLabelled: false,
+    menuCategoriesPresent: false,
+    menuCategoryCount: 0,
+    menuItemCount: 0,
+    menuComplete: false,
+    incompleteMenuItemCount: 0,
+    incompleteMenuItemIds: [],
+    openingHoursSet: false,
+    openingHoursDayCount: 0,
+    reservationPolicyReviewed: false,
+    staffEnrolled: false,
+    staffCount: 0,
+    deviceEnrolled: false,
+    deviceCount: 0,
+    acceptsWebBookings: false,
+    blockers: [],
+  };
 }
 
 // --- The backend, as the probe found it ----------------------------------------
@@ -373,6 +406,35 @@ const BACKEND: Readonly<Record<string, Row>> = {
   [`GET /api/branches/${BX}/floor-plan`]: {
     anonymous: () => bare(401),
     admin: () => json(200, floorPlan(BX)),
+    owner: () => bare(403),
+    manager: () => bare(403),
+    managerNoBranch: () => bare(403),
+    soleOwner: () => bare(403),
+  },
+
+  // Readiness is branch-scoped like the floor plan, so it admits and refuses
+  // exactly the same callers on each branch.
+  [`GET /api/branches/${B1}/readiness`]: {
+    anonymous: () => bare(401),
+    ...toEveryAccount(() => json(200, readiness(B1))),
+    soleOwner: () => bare(403),
+  },
+  [`GET /api/branches/${B2}/readiness`]: {
+    anonymous: () => bare(401),
+    ...toEveryAccount(() => json(200, readiness(B2))),
+    soleOwner: () => bare(403),
+  },
+  [`GET /api/branches/${BS}/readiness`]: {
+    anonymous: () => bare(401),
+    admin: () => json(200, readiness(BS)),
+    owner: () => bare(403),
+    manager: () => bare(403),
+    managerNoBranch: () => bare(403),
+    soleOwner: () => json(200, readiness(BS)),
+  },
+  [`GET /api/branches/${BX}/readiness`]: {
+    anonymous: () => bare(401),
+    admin: () => json(200, readiness(BX)),
     owner: () => bare(403),
     manager: () => bare(403),
     managerNoBranch: () => bare(403),
@@ -846,11 +908,18 @@ ${backend.log()}`,
     fireEvent.change(screen.getByLabelText(/^Password$/u), { target: { value: PASSWORD } });
     fireEvent.click(screen.getByRole('button', { name: /^Sign in$/u }));
 
+    // Sign-in lands on the overview, whose checklist reads the branch's
+    // readiness; the floor plan screen reads the plan. Either read answered
+    // for the manager's own branch is the evidence this is about: the console
+    // acted on the manager's branch, not on the owner's cached one.
     await waitFor(
       () =>
         expect(
-          backend.statuses(`GET /api/branches/${B2}/floor-plan`),
-          `The floor plan was never loaded for the manager's branch.
+          [
+            ...backend.statuses(`GET /api/branches/${B2}/readiness`),
+            ...backend.statuses(`GET /api/branches/${B2}/floor-plan`),
+          ],
+          `Nothing was loaded for the manager's branch.
 ${backend.log()}`,
         ).toContain(200),
       SETTLE,

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Booking } from '../contracts/booking';
 import type { YallaGateway } from '../gateway';
+import { newCommandId } from '../ids';
 import { createMockGateway } from './mockGateway';
 
 /**
@@ -45,7 +46,7 @@ async function book(partySize = 2): Promise<Booking> {
   expect(bookable, 'fixture must contain a bookable table').toBeDefined();
 
   return gateway.createBooking({
-    commandId: `book-${bookable!.tableId}`,
+    commandId: newCommandId(),
     branchId: BRANCH,
     tableId: bookable!.tableId,
     slotUtc: SLOT,
@@ -76,7 +77,10 @@ describe('opening the tab from a booking', () => {
     const booking = await book();
     arrive();
 
-    const result = await gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' });
+    const result = await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+    });
 
     expect(result.kind).toBe('tabOpened');
     // The booked table, not merely some table at the branch.
@@ -88,7 +92,10 @@ describe('opening the tab from a booking', () => {
     const booking = await book();
     arrive();
 
-    await gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' });
+    await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+    });
 
     // Left Confirmed, the floor goes on treating them as not arrived: flagged
     // late, nudged, one tap from a no-show — while they are sitting there.
@@ -101,7 +108,10 @@ describe('opening the tab from a booking', () => {
 
     const typed = `${booking.code.slice(0, 3)}-${booking.code.slice(3)}`.toLowerCase();
     await expect(
-      gateway.openTabByBooking({ bookingCode: ` ${typed} `, commandId: 'c1' }),
+      gateway.openTabByBooking({
+        bookingCode: ` ${typed} `,
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     ).resolves.toMatchObject({ kind: 'tabOpened' });
   });
 
@@ -113,7 +123,10 @@ describe('opening the tab from a booking', () => {
     // bookings — so a stranger's code and a code nobody holds are the same
     // answer, which is the point: a six-character code proves nothing.
     const error = await caught(
-      gateway.openTabByBooking({ bookingCode: 'ZZZZZZ', commandId: 'c1' }),
+      gateway.openTabByBooking({
+        bookingCode: 'ZZZZZZ',
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     );
 
     expect(error.name).toBe('BookingNotFoundError');
@@ -124,7 +137,10 @@ describe('opening the tab from a booking', () => {
     const booking = await book();
     // Hours early: the table is still somebody else's until the holdback.
     const error = await caught(
-      gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' }),
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     );
 
     expect(error.name).toBe('BookingTooEarlyError');
@@ -135,13 +151,19 @@ describe('opening the tab from a booking', () => {
   it('opens the moment the table starts being held, not a minute later', async () => {
     const booking = await book();
     const early = await caught(
-      gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c0' }),
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: 'b0fce403-c178-4a57-804c-1cc4176547a8',
+      }),
     );
 
     clock = new Date(early['earliestUtc'] as string);
 
     await expect(
-      gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' }),
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     ).resolves.toMatchObject({ kind: 'tabOpened' });
   });
 
@@ -150,7 +172,10 @@ describe('opening the tab from a booking', () => {
     clock = BOOKED_UNTIL;
 
     const error = await caught(
-      gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' }),
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     );
 
     expect(error.name).toBe('BookingEndedError');
@@ -161,7 +186,10 @@ describe('opening the tab from a booking', () => {
     clock = new Date('2026-09-04T18:40:00Z');
 
     await expect(
-      gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' }),
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     ).resolves.toMatchObject({ kind: 'tabOpened' });
   });
 
@@ -171,7 +199,10 @@ describe('opening the tab from a booking', () => {
     arrive();
 
     const error = await caught(
-      gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' }),
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
     );
 
     expect(error.name).toBe('BookingNotActiveError');
@@ -182,8 +213,14 @@ describe('opening the tab from a booking', () => {
     const booking = await book();
     arrive();
 
-    const first = await gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'same' });
-    const second = await gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'same' });
+    const first = await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: '51037a4a-3773-4f52-8873-2586d3aaa316',
+    });
+    const second = await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: '51037a4a-3773-4f52-8873-2586d3aaa316',
+    });
 
     expect(second.tab.tabId).toBe(first.tab.tabId);
   });
@@ -192,8 +229,14 @@ describe('opening the tab from a booking', () => {
     const booking = await book();
     arrive();
 
-    await gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c1' });
-    const again = await gateway.openTabByBooking({ bookingCode: booking.code, commandId: 'c2' });
+    await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+    });
+    const again = await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: '9ab62b5e-f34a-4854-88bf-df7ee0102229',
+    });
 
     // Same tab, no second one: this is the scan's own join semantics, reached
     // from a booking instead of a QR.

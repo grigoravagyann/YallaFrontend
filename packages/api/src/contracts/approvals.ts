@@ -30,6 +30,8 @@ export interface ConsoleBooking {
   readonly status: ReservationStatusCode;
   /** Why it is waiting. Null once decided, or when it never waited. */
   readonly awaitingApprovalBecause: ApprovalTrigger | null;
+  /** The diner's note for the venue (K9), or `null`. */
+  readonly note: string | null;
 }
 
 /**

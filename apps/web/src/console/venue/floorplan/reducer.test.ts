@@ -25,6 +25,7 @@ import {
 
 const PLAN: EditorFloorPlan = {
   branchId: 'b1',
+  version: 'v1',
   floorWidth: 1000,
   floorHeight: 800,
   areas: [
@@ -551,6 +552,67 @@ describe('the save payload', () => {
       expect(Number.isInteger(table.x)).toBe(true);
       expect(Number.isInteger(table.y)).toBe(true);
     }
+  });
+});
+
+describe('the save payload and the cover photo pins', () => {
+  /*
+   * Pins are the Public page's, saved through their own route (K7). A room
+   * save that carried them could only put back a pin somebody had since moved
+   * or taken off, so the payload has no such key at all — and the server keeps
+   * the pins of every table the save keeps.
+   */
+  const placed: EditorFloorPlan = {
+    ...PLAN,
+    tables: PLAN.tables.map((t) => (t.id === 't1' ? { ...t, photoX: 0.25, photoY: 0.75 } : t)),
+  };
+  const loadedPlaced = () => reducer(initialState('b1'), { type: 'loaded', plan: placed });
+
+  it('has no photoX or photoY key on any table, placed, moved, new or duplicated', () => {
+    const state = run(
+      loadedPlaced(),
+      { type: 'select', ids: ['t1'] },
+      { type: 'move', dx: 40, dy: 0 },
+      { type: 'duplicate' },
+      { type: 'addTable' },
+    );
+    const command = toSaveCommand(state);
+    expect(command.tables).toHaveLength(4);
+    for (const table of command.tables) {
+      expect(table).not.toHaveProperty('photoX');
+      expect(table).not.toHaveProperty('photoY');
+    }
+    expect(JSON.stringify(command)).not.toContain('photo');
+  });
+});
+
+describe('the version the save is made against', () => {
+  it('sends the version the plan was loaded with', () => {
+    expect(toSaveCommand(loaded()).expectedVersion).toBe('v1');
+  });
+
+  it('keeps it through edits and undo, which change the drawing and not the server', () => {
+    const state = run(
+      loaded(),
+      { type: 'select', ids: ['t1'] },
+      { type: 'move', dx: 20, dy: 0 },
+      { type: 'undo' },
+    );
+    expect(toSaveCommand(state).expectedVersion).toBe('v1');
+  });
+
+  it('takes the new version from a save, so the next save is not refused as stale', () => {
+    const state = run(loaded(), { type: 'addTable' });
+    const saved = reducer(state, {
+      type: 'saved',
+      result: {
+        plan: { ...PLAN, version: 'v2' },
+        warnings: [],
+        deactivatedTables: [],
+        removedTables: [],
+      },
+    });
+    expect(toSaveCommand(saved).expectedVersion).toBe('v2');
   });
 });
 

@@ -126,8 +126,8 @@ const styles = StyleSheet.create({
   eye: { position: 'absolute', right: space.xs },
   field: { gap: space.xs },
   label: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.textMuted },
-  hint: { ...typography.caption, color: colors.textSubtle },
-  error: { ...typography.caption, color: colors.error },
+  hint: { ...typography.caption, color: colors.textMuted },
+  error: { ...typography.caption, color: colors.errorInk },
   input: {
     minHeight: layout.controlHeight,
     paddingHorizontal: space.lg,

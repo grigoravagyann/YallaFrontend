@@ -1,6 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, iconSize, layout, radius, space, typography, type IoniconName } from '../theme';
+import {
+  colors,
+  fontWeight,
+  iconSize,
+  layout,
+  radius,
+  space,
+  typography,
+  type IoniconName,
+} from '../theme';
 import { Text } from './Text';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'text' | 'destructive';
@@ -9,16 +18,24 @@ export interface ButtonProps {
   readonly label: string;
   readonly onPress: () => void;
   readonly variant?: ButtonVariant;
-  /** `large` is the one press a screen is built around — Book a Table, Confirm Booking. */
-  readonly size?: 'regular' | 'large';
+  /**
+   * `large` is the one press a screen is built around — Book a Table, Confirm
+   * Booking. `small` is a row action beside a name (Approve, Remove); it keeps
+   * a 44pt target through `hitSlop`.
+   */
+  readonly size?: 'small' | 'regular' | 'large';
   /** Ionicons glyph drawn before the label, in the label's colour. */
   readonly icon?: IoniconName;
   /** Stretch to the parent's width. Off, the button hugs its label (a row of two). */
   readonly fullWidth?: boolean;
   readonly disabled?: boolean;
+  /** Work this press started is still running — announced, not only drawn. */
+  readonly busy?: boolean;
   readonly style?: StyleProp<ViewStyle>;
   readonly accessibilityLabel?: string;
 }
+
+const SMALL_HEIGHT = 36;
 
 /**
  * The pill every screen presses.
@@ -39,22 +56,31 @@ export function Button({
   icon,
   fullWidth = true,
   disabled = false,
+  busy = false,
   style,
   accessibilityLabel,
 }: ButtonProps) {
   const color = labelColor[variant];
   const quiet = variant === 'text' || variant === 'secondary';
+  const small = size === 'small';
+  const labelStyle = small
+    ? styles.smallLabel
+    : quiet
+      ? typography.buttonMedium
+      : typography.button;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, busy }}
       {...(accessibilityLabel ? { accessibilityLabel } : {})}
       disabled={disabled}
       onPress={onPress}
+      hitSlop={small ? (layout.touchTarget - SMALL_HEIGHT) / 2 : undefined}
       style={({ pressed }) => [
         styles.base,
         styles[variant],
         size === 'large' && styles.large,
+        small && styles.small,
         fullWidth ? styles.fullWidth : styles.hug,
         pressed && pressedStyles[variant],
         disabled && styles.disabled,
@@ -62,11 +88,10 @@ export function Button({
       ]}
     >
       <View style={styles.content}>
-        {icon ? <Ionicons name={icon} size={iconSize.md} color={color} /> : null}
-        <Text
-          numberOfLines={1}
-          style={[quiet ? typography.buttonMedium : typography.button, { color }]}
-        >
+        {icon ? (
+          <Ionicons name={icon} size={small ? iconSize.sm : iconSize.md} color={color} />
+        ) : null}
+        <Text numberOfLines={1} style={[labelStyle, { color }]}>
           {label}
         </Text>
       </View>
@@ -79,7 +104,8 @@ const labelColor: Record<ButtonVariant, string> = {
   secondary: colors.text,
   outline: colors.primary,
   text: colors.primary,
-  destructive: colors.error,
+  // The ink, not the bright red: this is a label, and the fill red is 4.1:1.
+  destructive: colors.errorInk,
 };
 
 const styles = StyleSheet.create({
@@ -94,6 +120,8 @@ const styles = StyleSheet.create({
   fullWidth: { alignSelf: 'stretch' },
   hug: { alignSelf: 'flex-start' },
   large: { minHeight: layout.controlHeightLarge },
+  small: { minHeight: SMALL_HEIGHT, paddingHorizontal: space.md },
+  smallLabel: { ...typography.body, fontWeight: fontWeight.bold },
   disabled: { opacity: 0.35 },
   primary: { backgroundColor: colors.primary },
   secondary: {

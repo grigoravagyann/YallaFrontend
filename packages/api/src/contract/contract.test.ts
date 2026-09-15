@@ -1,10 +1,15 @@
-import { describe, it } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import { describeAvailabilityContract } from './availability.contract';
+import { describeConsoleListingContract } from './consoleListing.contract';
+import { describeDinerJourneyContract } from './dinerJourney.contract';
+import { resolveLiveSubject } from './liveSubject';
 import { describeMenuContract, describeReportContract } from './menuReports.contract';
+import { describePlacesContract } from './places.contract';
 import { describeReservationContract } from './reservation.contract';
+import type { ContractSubject } from './subject';
+import { contractBackendUrl, mockSubject } from './subjects';
 import { describeTabContract } from './tab.contract';
 import { describeTableStateContract } from './tableState.contract';
-import { contractBackendUrl, httpSubject, mockSubject } from './subjects';
 
 /**
  * One suite, run against every implementation of the gateway interfaces.
@@ -24,7 +29,15 @@ import { contractBackendUrl, httpSubject, mockSubject } from './subjects';
  *
  * ## How the live run is switched on
  *
- * `YALLA_CONTRACT_BASE_URL=http://localhost:5086 pnpm --filter @yalla/api test`
+ *     YALLA_CONTRACT_BASE_URL=http://localhost:5086 \
+ *     YALLA_CONTRACT_ADMIN_EMAIL=… YALLA_CONTRACT_ADMIN_PASSWORD=… \
+ *     pnpm --filter @yalla/api exec vitest run src/contract/
+ *
+ * against a backend in Development with `DevSeed__Enabled=true` and
+ * `DevActor__Enabled=false`. The admin pair is the backend's
+ * `PlatformAdmin:Email`/`Password`; `liveSubject.ts` signs in as it, enrols a
+ * tablet for the seeded waiter and manager, and makes diners as the suites need
+ * them.
  *
  * Off by default so `pnpm test` stays fast and offline, and wired into CI as
  * its own job against a backend container. **A contract suite that only ever
@@ -32,14 +45,21 @@ import { contractBackendUrl, httpSubject, mockSubject } from './subjects';
  * absent the suite says so out loud rather than reporting a clean run.
  */
 
+// A live test makes real requests — uploads, sign-ups, bookings — and several
+// chain a dozen of them; the mock run is unaffected.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
+
 /** Every contract, against every subject. One list, so neither run can drift. */
-function describeEveryContract(subject: Parameters<typeof describeAvailabilityContract>[0]): void {
+function describeEveryContract(subject: ContractSubject): void {
   describeAvailabilityContract(subject);
   describeReservationContract(subject);
   describeTabContract(subject);
   describeTableStateContract(subject);
   describeMenuContract(subject);
   describeReportContract(subject);
+  describePlacesContract(subject);
+  describeConsoleListingContract(subject);
+  describeDinerJourneyContract(subject);
 }
 
 describeEveryContract(mockSubject());
@@ -49,53 +69,10 @@ const baseUrl = contractBackendUrl();
 if (baseUrl) {
   describeEveryContract(await resolveLiveSubject(baseUrl));
 } else {
+  console.info(
+    'contract: the live run is off — YALLA_CONTRACT_BASE_URL is not set, so only the mock adapter was checked.',
+  );
   describe('the live run', () => {
     it.skip('is off — set YALLA_CONTRACT_BASE_URL to run this suite against a real backend', () => {});
   });
-}
-
-/**
- * Discover the seeded branch through the public catalogue, then sign in if
- * credentials were supplied.
- *
- * The branch is discovered rather than configured because a backend container's
- * seed generates fresh ids on every boot, and a hard-coded guid would make the
- * CI job fail for a reason that has nothing to do with the contract.
- */
-async function resolveLiveSubject(url: string) {
-  const venues = (await (await fetch(new URL('/api/public/venues', url))).json()) as {
-    branches: { branchId: string }[];
-  }[];
-
-  const branchId = venues[0]?.branches[0]?.branchId;
-  if (!branchId) {
-    throw new Error(
-      `No published venue at ${url}. The contract suite needs a seeded branch to ask about.`,
-    );
-  }
-
-  return httpSubject({
-    baseUrl: url,
-    branchId,
-    // Every Yalla venue is in Yerevan; the branch payload does not carry the
-    // zone, and the contract asserts the availability answer reports it.
-    timeZoneId: 'Asia/Yerevan',
-    venueToken: await venueToken(url),
-  });
-}
-
-async function venueToken(url: string): Promise<string | null> {
-  const email = globalThis.process?.env?.['YALLA_CONTRACT_VENUE_EMAIL'];
-  const password = globalThis.process?.env?.['YALLA_CONTRACT_VENUE_PASSWORD'];
-  if (!email || !password) return null;
-
-  const response = await fetch(new URL('/api/auth/venue/sign-in', url), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!response.ok) return null;
-
-  const body = (await response.json()) as { accessToken?: string };
-  return body.accessToken ?? null;
 }

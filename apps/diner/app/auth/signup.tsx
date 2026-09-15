@@ -284,6 +284,6 @@ const styles = StyleSheet.create({
   phoneRow: { flexDirection: 'row', gap: space.sm },
   prefix: { width: 92 },
   number: { flex: 1 },
-  error: { ...typography.body, color: colors.error },
+  error: { ...typography.body, color: colors.errorInk },
   primary: { marginTop: space.lg },
 });

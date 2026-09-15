@@ -33,9 +33,13 @@ import type { PublicGateway } from '../publicGateway';
  * `generated/schema.ts` and the bodies go through {@link publicBranchFromWire}
  * rather than being cast.
  *
- * Still genuinely absent server-side: the managed-booking pair. A signed link
- * that lets a person with no account cancel has no route yet, so those two keep
- * throwing {@link EndpointNotWiredError} rather than inventing an answer.
+ * The managed-booking pair is real as well: `GET /api/public/bookings/{token}`
+ * reads a booking from its signed link, and `POST /api/public/bookings/{token}/cancel`
+ * cancels it with an optional `reason`. An unknown, expired or spent token is a
+ * 404 with a problem code, read as `null` on the read and rethrown on the cancel,
+ * and the two are indistinguishable on purpose. A 404 with no body means this
+ * build is talking to a backend without the routes, and says so with
+ * {@link EndpointNotWiredError}.
  *
  * `resolveVenue` has no by-slug route either, so it filters the list route. That
  * is a real limitation rather than a guess, and it is written down where it

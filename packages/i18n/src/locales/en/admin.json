@@ -9,7 +9,8 @@
     "venues": "Venues",
     "floor": "Floor",
     "overview": "Overview",
-    "public": "Public page"
+    "public": "Public page",
+    "reviews": "Reviews"
   },
   "publicPage": {
     "intro": "What anybody with your link sees: your picture, your number, and whether they can book.",
@@ -29,7 +30,135 @@
     "save": "Save",
     "saving": "Saving…",
     "saved": "Saved.",
-    "failed": "That did not save. Nothing changed — try again."
+    "failed": "That did not save. Nothing changed — try again.",
+    "listing": {
+      "title": "In the Yalla app",
+      "intro": "What diners read on your card and your page in the app. It has its own save button, apart from the settings above.",
+      "cuisine": {
+        "label": "Cuisine",
+        "help": "One line, like “Armenian & Mediterranean”. Up to 120 characters."
+      },
+      "about": {
+        "label": "About",
+        "help": "A short paragraph about the place. Up to 2000 characters."
+      },
+      "price": {
+        "label": "Price level",
+        "unset": "Not set",
+        "level1": "Budget",
+        "level2": "Moderate",
+        "level3": "Pricey",
+        "level4": "Fine dining"
+      },
+      "website": {
+        "label": "Website",
+        "help": "The full address, starting with https://. Leave empty to show none."
+      },
+      "amenities": {
+        "label": "Amenities",
+        "outdoorSeating": "Outdoor seating",
+        "wifi": "Wi-Fi",
+        "parking": "Parking",
+        "cardPayment": "Card payment",
+        "vegan": "Vegan options"
+      },
+      "location": {
+        "title": "Map pin",
+        "help": "Where the app puts you on the map and measures distance from. Decimal degrees, like 40.1843 and 44.5129.",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "bothOrNeither": "Enter both latitude and longitude, or leave both empty to keep the current pin.",
+        "openMap": "Check this pin on OpenStreetMap",
+        "notANumber": "Enter each coordinate as a decimal number, like 40.1843.",
+        "outOfRange": "Latitude must be between -90 and 90, and longitude between -180 and 180. Check they are not swapped."
+      },
+      "gallery": {
+        "title": "Gallery",
+        "help": "Photos shown after the cover, in this order. Up to {{max}}.",
+        "summary": "{{used}} of {{max}} photos",
+        "empty": "No gallery photos yet.",
+        "full": "The gallery is full. Remove a photo to add another.",
+        "add": "Add a photo",
+        "photoAlt": "Gallery photo {{position}}",
+        "moveEarlier": "Move earlier",
+        "moveLater": "Move later",
+        "remove": "Remove"
+      },
+      "save": "Save listing",
+      "saving": "Saving…",
+      "saved": "Listing saved.",
+      "failed": "The listing did not save. Nothing changed — try again.",
+      "photoMissing": "One of the gallery photos was not uploaded for this branch. Remove it and upload it again.",
+      "address": {
+        "label": "Street address",
+        "help": "Shown to diners with the map pin. Change them together.",
+        "required": "Enter the address together with the map pin."
+      },
+      "relocateOwnerOnly": "Only an owner can move the map pin or change the address.",
+      "errors": {
+        "priceLevel": {
+          "range": "Pick a price level from {{min}} to {{max}}."
+        },
+        "websiteUrl": {
+          "scheme": "The website must start with http:// or https://.",
+          "tooLong": "The website address can be at most {{max}} characters."
+        },
+        "cuisine": {
+          "tooLong": "The cuisine can be at most {{max}} characters."
+        },
+        "about": {
+          "tooLong": "The description can be at most {{max}} characters."
+        },
+        "galleryPhotoIds": {
+          "tooMany": "The gallery can hold at most {{max}} photos.",
+          "duplicate": "The same photo is in the gallery twice."
+        },
+        "amenities": {
+          "unknown": "One of the amenities is not recognised. Reload the page and try again."
+        },
+        "latitude": {
+          "range": "Latitude must be between {{min}} and {{max}}."
+        },
+        "longitude": {
+          "range": "Longitude must be between {{min}} and {{max}}."
+        },
+        "coordinates": {
+          "pair": "Enter both latitude and longitude, or neither."
+        },
+        "photoXY": {
+          "pair": "A table pin is missing one of its two coordinates. Place the table again.",
+          "range": "A table pin is outside the photo. Place the table again."
+        },
+        "address": {
+          "tooLong": "The address can be at most {{max}} characters."
+        },
+        "generic": "Something in the form was not accepted. Check the fields and try again."
+      }
+    },
+    "markers": {
+      "title": "Tables on the cover photo",
+      "intro": "Diners tap a table on your cover photo to book it. Pick a table, then click where it is in the picture. Drag a pin to move it.",
+      "noCover": "Save a cover photo above first — the tables are placed on it.",
+      "noTables": "This branch has no tables yet. Add them in the floor plan editor.",
+      "loading": "Loading tables…",
+      "stage": "Cover photo. Click to place the selected table.",
+      "pin": "Table {{label}}",
+      "selected": "Placing table {{label}}. Click the photo, or use the arrow keys on its pin.",
+      "pickTable": "Pick a table from the list to place it.",
+      "placed": "Placed",
+      "unplaced": "Not placed",
+      "clear": "Take off photo",
+      "summary": "{{placed}} of {{total}} tables placed",
+      "save": "Save positions",
+      "saving": "Saving…",
+      "saved": "Positions saved.",
+      "failed": "The positions did not save. Nothing changed — try again.",
+      "selectedUnplaced": "Table {{label}} is not on the photo yet. Click where it is in the picture, or place it in the middle and move its pin with the arrow keys.",
+      "placeInMiddle": "Place table {{label}} on the photo",
+      "refused": "The floor plan was refused — a table in use is missing, or two tables share a label. Fix it in the floor plan editor, then save the positions again.",
+      "discarded": "The cover photo changed, so the pin changes you had not saved were discarded.",
+      "coverChanged": "The cover photo was changed somewhere else, so these positions were not saved. The new cover is shown now — place the tables on it again."
+    }
   },
   "shell": {
     "title": "Yalla console",
@@ -314,6 +443,11 @@
       "body": "The real viewer at phone width. Check the labels survive, and whether the room is dense enough to split into areas.",
       "partySize": "Party size",
       "busy": "Show a busy floor"
+    },
+    "conflict": {
+      "title": "Someone else changed the floor plan",
+      "body": "A newer version was saved while you were editing, so your changes were not saved. Reload to see it; your unsaved changes here will be lost.",
+      "reload": "Reload the plan"
     }
   },
   "saving": "Saving…",
@@ -945,5 +1079,64 @@
     "keep": "Keep it",
     "failed": "Could not record the decision. Try again.",
     "offline": "You are offline. The decision was not sent."
+  },
+  "onboarding": {
+    "steps": {
+      "acceptsWebBookings": "Online bookings turned on",
+      "acceptsWebBookingsOptional": "Optional. With it off, diners still see the room, the menu and the hours, but cannot book."
+    },
+    "blockers": {
+      "title": "What stops diners using this branch",
+      "ready": "This branch is ready for diners.",
+      "floorPlanEmpty": "The floor plan has no tables on it yet.",
+      "tablesUnlabelled": "Some tables have no label yet.",
+      "menuNoCategories": "The menu has no categories yet.",
+      "menuNoItems": "The menu has categories but no dishes.",
+      "menuIncomplete_one": "{{count}} dish is missing a photo, a description, ingredients, allergens, a portion size or a prep time, and is hidden from diners until it is finished.",
+      "menuIncomplete_other": "{{count}} dishes are missing a photo, a description, ingredients, allergens, a portion size or a prep time, and are hidden from diners until they are finished.",
+      "hoursNotSet": "Opening hours have not been set.",
+      "policyNotReviewed": "Nobody has reviewed the reservation policy yet; it is still on the defaults.",
+      "noStaff": "No staff work at this branch yet.",
+      "noDevice": "No tablet has been enrolled at this branch yet."
+    }
+  },
+  "platform": {
+    "reviews": {
+      "title": "Reviews",
+      "hide": "Hide",
+      "unhide": "Show again",
+      "reason": "Reason for hiding",
+      "hiddenReasonLine": "Reason for hiding: {{reason}}",
+      "reasonRequired": "Give a reason for hiding this review.",
+      "hiddenBadge": "Hidden",
+      "empty": "This branch has no reviews yet.",
+      "failed": "That did not go through. Nothing changed — try again."
+    },
+    "venue": {
+      "publicPageLink": "Public page",
+      "reviewsLink": "Reviews"
+    }
+  },
+  "reservations": {
+    "note": "Note from the diner"
+  },
+  "reviews": {
+    "title": "Reviews",
+    "filter": {
+      "all": "All",
+      "reported": "Reported",
+      "hidden": "Hidden"
+    },
+    "hiddenBadge": "Hidden",
+    "hide": "Hide",
+    "unhide": "Show again",
+    "reason": "Reason",
+    "hiddenReasonLine": "Reason: {{reason}}",
+    "reasonRequired": "Give a reason for hiding this review.",
+    "reports_one": "{{count}} report",
+    "reports_other": "{{count}} reports",
+    "platformHidden": "Hidden by the Yalla team. Only they can show it again.",
+    "empty": "No reviews match this filter.",
+    "failed": "That did not go through. Nothing changed — try again."
   }
 }

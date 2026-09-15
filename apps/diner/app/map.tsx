@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { MAX_BRANCH_SEARCH_LENGTH } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { openURL } from 'expo-linking';
@@ -42,7 +43,11 @@ const NO_EDGES: readonly Edge[] = [];
  * A driving-directions link the phone's own maps app understands: Apple Maps
  * on iOS, the `geo:` intent on Android, Google Maps in a browser tab elsewhere.
  */
-function directionsUrls(place: Place): { readonly preferred: string; readonly fallback: string } {
+function directionsUrls(
+  place: Place,
+): { readonly preferred: string; readonly fallback: string } | null {
+  // A place with no location set has no pin and nowhere to route to.
+  if (!place.coords) return null;
   const { latitude, longitude } = place.coords;
   const label = encodeURIComponent(place.name);
   const fallback = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
@@ -76,10 +81,8 @@ export default function MapScreen() {
     query,
     ...(typeFilter ? { filter: { type: typeFilter } } : {}),
   });
-  const { data, isLoading, isError, error, refetch } = placesQuery;
+  const { data, isLoading, isError, refetch } = placesQuery;
   const offline = isOfflinePaused(placesQuery) && !data;
-  const unavailable =
-    isError && error instanceof Error && error.name === 'PlaceApiNotImplementedError';
   const places: readonly Place[] = useMemo(() => data ?? [], [data]);
 
   // A pin filtered away is no longer selected, whatever `selectedId` says.
@@ -127,7 +130,9 @@ export default function MapScreen() {
   );
 
   const openDirections = useCallback((place: Place) => {
-    const { preferred, fallback } = directionsUrls(place);
+    const urls = directionsUrls(place);
+    if (!urls) return;
+    const { preferred, fallback } = urls;
     void openURL(preferred).catch(() => openURL(fallback).catch(() => undefined));
   }, []);
 
@@ -174,6 +179,8 @@ export default function MapScreen() {
             placeholderTextColor={colors.textSubtle}
             autoCorrect={false}
             returnKeyType="search"
+            // The server refuses a longer search outright.
+            maxLength={MAX_BRANCH_SEARCH_LENGTH}
             accessibilityLabel={t('map.searchArea')}
           />
           {query ? (
@@ -245,12 +252,6 @@ export default function MapScreen() {
       <BottomSheetCard visible={problem} bottomOffset={cardOffset}>
         {offline ? (
           <ErrorState offline onRetry={() => void refetch()} style={styles.problem} />
-        ) : unavailable ? (
-          <ErrorState
-            title={t('net.notAvailable')}
-            body={t('net.notAvailableBody')}
-            style={styles.problem}
-          />
         ) : (
           <ErrorState onRetry={() => void refetch()} style={styles.problem} />
         )}

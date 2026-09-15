@@ -58,6 +58,12 @@ export interface EditorState {
   readonly future: readonly PlanSnapshot[];
   /** The plan as last agreed with the server, for the dirty check. */
   readonly saved: PlanSnapshot | null;
+  /**
+   * The server's `version` of the plan this working copy started from (K6),
+   * sent back as `expectedVersion`. Outside the snapshot on purpose: undo walks
+   * the drawing back, not the server's history.
+   */
+  readonly version: string;
 }
 
 export type EditorAction =
@@ -145,6 +151,7 @@ export function initialState(branchId: string): EditorState {
     past: [],
     future: [],
     saved: null,
+    version: '',
   };
 }
 
@@ -226,7 +233,12 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'loaded': {
       const snapshot = toSnapshot(action.plan);
-      return { ...initialState(action.plan.branchId), plan: snapshot, saved: snapshot };
+      return {
+        ...initialState(action.plan.branchId),
+        plan: snapshot,
+        saved: snapshot,
+        version: action.plan.version,
+      };
     }
 
     case 'saved': {
@@ -236,7 +248,14 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       // be a second opinion about what was stored.
       const history = new Set(action.result.deactivatedTables);
       const snapshot = toSnapshot(action.result.plan, history);
-      return { ...state, plan: snapshot, saved: snapshot, past: [], future: [] };
+      return {
+        ...state,
+        plan: snapshot,
+        saved: snapshot,
+        past: [],
+        future: [],
+        version: action.result.plan.version,
+      };
     }
 
     case 'select': {
@@ -320,6 +339,9 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
             // exactly on top of the original.
             x: table.x + state.gridSize * 2,
             y: table.y + state.gridSize * 2,
+            // Not on the cover photo until somebody places it there.
+            photoX: null,
+            photoY: null,
             // A copy is a new table: it has no QR sticker and no history.
             qrToken: '',
             isActive: true,
@@ -581,18 +603,22 @@ export function isDirty(state: EditorState): boolean {
 }
 
 /**
- * The payload for the atomic `PUT`.
+ * The payload for the atomic `PUT`, against the version the editor loaded.
  *
- * Two things it deliberately never carries. `qrToken`, because the printed
+ * Three things it deliberately never carries. `qrToken`, because the printed
  * sticker on the table has to keep working and only the explicit regenerate
- * action may change it. And deactivated tables, because including one would
- * ask the server to resurrect a table the venue has retired — dropping it is
- * how it stays retired.
+ * action may change it. Deactivated tables, because including one would ask
+ * the server to resurrect a table the venue has retired — dropping it is how
+ * it stays retired. And the pins on the cover photo (`photoX`/`photoY`): they
+ * are the Public page's, saved through their own route, and the server keeps
+ * them on every table this save keeps (K6). A plan save that carried them could
+ * only ever put back pins somebody had since moved.
  */
 export function toSaveCommand(state: EditorState): ReplaceFloorPlanCommand {
   const areaById = new Map(state.plan.areas.map((area) => [area.id, area.name]));
 
   return {
+    expectedVersion: state.version,
     floorWidth: state.plan.floorWidth,
     floorHeight: state.plan.floorHeight,
     areas: state.plan.areas.map((area, index) => ({

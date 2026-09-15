@@ -284,6 +284,7 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     freeCancellationUntilUtc: view.cancellationDeadlineUtc,
     cancelledAtUtc: view.cancelledAtUtc ?? null,
     cancelledAfterDeadline: view.cancelledAfterDeadline,
+    note: view.note ?? null,
     manageToken: view.manageToken ?? null,
   };
 }

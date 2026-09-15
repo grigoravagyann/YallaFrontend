@@ -26,9 +26,16 @@ import type {
   WaiterCall,
   WaiterCallReason,
 } from '../contracts/tab';
+import type { FavoriteBranch } from '../contracts/favorites';
+import { MAX_FAVORITES } from '../contracts/favorites';
+import type { DinerNotificationPage } from '../contracts/notifications';
 import {
   BookingBusyError,
   BookingCommandInUseError,
+  BookingsNotAcceptedError,
+  CannotReportOwnReviewError,
+  ReviewNeedsVisitError,
+  TooManyFavoritesError,
   BookingEndedError,
   BookingNotActiveError,
   BookingNotFoundError,
@@ -65,6 +72,7 @@ import {
   ApiError,
   ForbiddenError,
   NotFoundError,
+  SessionRevokedError,
   TooManyRequestsError,
   UnauthorizedError,
 } from '../errors';
@@ -94,6 +102,35 @@ import {
   reservationStatus,
   settlementModeCode,
 } from './dinerMapping';
+import {
+  clampBranchSearch,
+  type BranchDetail,
+  type BranchListing,
+  type BranchReviewPage,
+  type BranchSearchQuery,
+  type BranchTableMarkers,
+  type DinerOrder,
+  type MyBranchReview,
+} from '../contracts/places';
+import {
+  branchDetailFromWire,
+  branchListingFromWire,
+  favoritesFromWire,
+  notificationPageFromWire,
+  dinerOrderFromWire,
+  myReviewFromWire,
+  reviewPageFromWire,
+  tableMarkersFromWire,
+  venueTypeCode,
+  type WireBranchDetail,
+  type WireBranchListing,
+  type WireDinerOrder,
+  type WireDinerReview,
+  type WireFavoriteList,
+  type WireNotificationPage,
+  type WireReviewPage,
+  type WireTableMarkers,
+} from './placesMapping';
 import { photoRejectionFrom } from './photoErrors';
 import { absolutePhoto } from './photoUrl';
 import { venueSummariesFromCards } from './publicMapping';
@@ -125,6 +162,43 @@ export interface HttpGatewayOptions {
   /** The zone to convert slots in when the caller did not pass one. */
   readonly defaultTimeZoneId?: string | undefined;
   readonly dinerAuth?: DinerAuth | undefined;
+}
+
+/**
+ * A coordinate cut to three decimals — about 110 m — before it leaves the phone.
+ *
+ * Two reasons. The server caches browse answers by query string, and a GPS fix
+ * that wobbles in the sixth decimal made every request a cache miss. And a
+ * diner's exact position is more than a "nearest first" list needs to know;
+ * a hundred metres sorts the same list.
+ */
+function roundCoordinate(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+/**
+ * The browse query string: `q`, `category` (1 Cafe, 2 Restaurant), and `lat`
+ * with `lng` — both or neither, which the server enforces with a 400, rounded
+ * to three decimals. `q` is cut to the server's 100 characters, which it would
+ * otherwise refuse with a 400.
+ */
+function branchQuery(query: BranchSearchQuery | undefined): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  const q = clampBranchSearch(query?.query);
+  if (q) out['q'] = q;
+  if (query?.venueType) out['category'] = venueTypeCode(query.venueType);
+  const position = query?.position;
+  if (position && Number.isFinite(position.latitude) && Number.isFinite(position.longitude)) {
+    out['lat'] = roundCoordinate(position.latitude);
+    out['lng'] = roundCoordinate(position.longitude);
+  }
+  return out;
+}
+
+/** Trimmed, and blank as `null` — the server's own reading of an optional note. */
+function noteOrNull(value: string | null | undefined): string | null {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed === '' ? null : trimmed;
 }
 
 /** Resend is allowed once the backend's code-request window has passed. */
@@ -186,6 +260,23 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     const token = tabTokens.get(tabId);
     if (!token) throw new TabAccessEndedError({ url: `/api/tabs/${tabId}`, tabId });
     return { skipAuth: true, headers: { authorization: `Bearer ${token}` } };
+  }
+
+  /**
+   * The table scan and the invitation: anonymous routes, but a signed-in diner's
+   * token goes with them, because the server links the tab place to the account
+   * that carried one — and review eligibility (K8) counts only a linked place.
+   *
+   * Still `skipAuth` with the header set by hand, so a refused token can never
+   * spend the rotating refresh token, and a session that cannot produce a token
+   * scans anonymously rather than not at all.
+   */
+  async function openingAuth(): Promise<Omit<RequestOptions, 'method' | 'body'>> {
+    if (auth?.getState() !== 'signedIn') return { skipAuth: true };
+    const token = await auth.getAccessToken().catch(() => null);
+    return token
+      ? { skipAuth: true, headers: { authorization: `Bearer ${token}` } }
+      : { skipAuth: true };
   }
 
   /**
@@ -441,6 +532,12 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     switch (code) {
       case 'phone-not-verified':
         throw new PhoneNotVerifiedError(base);
+      case 'bookings-not-accepted':
+        throw new BookingsNotAcceptedError({
+          ...base,
+          branchId:
+            typeof context['branchId'] === 'string' ? context['branchId'] : command.branchId,
+        });
       case 'table-currently-occupied':
       case 'table-already-booked': {
         const room = context['availability'] as
@@ -673,6 +770,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         return {
           bookingWindowDays: data.bookingWindowDays,
           minLeadMinutes: data.policy.minLeadMinutes,
+          // Absent only from a server that predates the K9 gate, which books.
+          acceptsAppBookings: data.acceptsAppBookings ?? true,
         };
       } catch (error) {
         if (error instanceof NotFoundError) return null;
@@ -721,6 +820,221 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         // otherwise book a table three hours from the one they picked.
         const { date, time } = localDateTime(slotUtc, timeZoneId ?? defaultZone);
         return slotFloorFromResponse(await availability(branchId, { date, time, partySize }));
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    // --- Places ---------------------------------------------------------------
+    //
+    // All anonymous reads except the diner's own review. Photo links arrive
+    // root-relative and leave absolute, resolved against this client's origin.
+
+    async listBranches(query): Promise<readonly BranchListing[]> {
+      const { data } = await client.get<WireBranchListing[]>('/api/public/branches', {
+        skipAuth: true,
+        query: branchQuery(query),
+      });
+      return (data ?? []).map((wire) => branchListingFromWire(wire, client.baseUrl));
+    },
+
+    async searchBranches(query): Promise<readonly BranchListing[]> {
+      const { data } = await client.get<WireBranchListing[]>('/api/public/branches/search', {
+        skipAuth: true,
+        query: branchQuery(query),
+      });
+      return (data ?? []).map((wire) => branchListingFromWire(wire, client.baseUrl));
+    },
+
+    async getBranchDetail(branchId, position): Promise<BranchDetail | null> {
+      try {
+        const { data } = await client.get<WireBranchDetail>(
+          `/api/public/branches/${encodeURIComponent(branchId)}`,
+          { skipAuth: true, query: branchQuery({ position }) },
+        );
+        return branchDetailFromWire(data, client.baseUrl);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async getBranchReviews({ branchId, page }): Promise<BranchReviewPage | null> {
+      try {
+        const { data } = await client.get<WireReviewPage>(
+          `/api/public/branches/${encodeURIComponent(branchId)}/reviews`,
+          { skipAuth: true, query: { page: page ?? 1 } },
+        );
+        return reviewPageFromWire(data);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    async getBranchTableMarkers(branchId): Promise<BranchTableMarkers | null> {
+      try {
+        const { data } = await client.get<WireTableMarkers>(
+          `/api/public/branches/${encodeURIComponent(branchId)}/table-markers`,
+          { skipAuth: true },
+        );
+        return tableMarkersFromWire(data, client.baseUrl);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    /** `GET /api/diner/branches/{id}/review`. A 404 is "not written yet". */
+    async getMyBranchReview(branchId): Promise<MyBranchReview | null> {
+      try {
+        const { data } = await client.get<WireDinerReview>(
+          `/api/diner/branches/${encodeURIComponent(branchId)}/review`,
+        );
+        return myReviewFromWire(data);
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    /**
+     * `PUT /api/diner/branches/{id}/review` — the upsert, so a first review and
+     * a revision are one call and a retry after a lost response cannot 409.
+     */
+    async saveMyBranchReview({ branchId, rating, text }): Promise<MyBranchReview> {
+      try {
+        const trimmed = typeof text === 'string' ? text.trim() : '';
+        const { data } = await client.put<WireDinerReview>(
+          `/api/diner/branches/${encodeURIComponent(branchId)}/review`,
+          { rating, text: trimmed === '' ? null : trimmed },
+        );
+        return myReviewFromWire(data);
+      } catch (error) {
+        if (error instanceof ForbiddenError && error.problem?.code === 'phone-not-verified') {
+          throw new PhoneNotVerifiedError({ url: error.url, requestId: error.requestId });
+        }
+        if (error instanceof ForbiddenError && error.problem?.code === 'review-needs-visit') {
+          throw new ReviewNeedsVisitError({ url: error.url, requestId: error.requestId });
+        }
+        throw error;
+      }
+    },
+
+    /**
+     * `POST /api/diner/reviews/{reviewId}/report`. The one 409 the route has is
+     * the diner's own review; a repeat report answers 204 like the first.
+     */
+    async reportReview({ reviewId, reason, note }): Promise<void> {
+      try {
+        await client.post(`/api/diner/reviews/${encodeURIComponent(reviewId)}/report`, {
+          reason,
+          note: noteOrNull(note),
+        } satisfies Schemas['Yalla.Application.Diners.ReportReviewCommand']);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          throw new CannotReportOwnReviewError({ url: error.url, requestId: error.requestId });
+        }
+        throw error;
+      }
+    },
+
+    // --- Favourites (K11) -----------------------------------------------------------
+    //
+    // The diner's own token, `Diner` policy: an unverified account may keep
+    // hearts. The position rides along like the browse list's, rounded the same.
+
+    async listFavorites(position): Promise<readonly FavoriteBranch[]> {
+      const { data } = await client.get<WireFavoriteList>('/api/diner/favorites', {
+        query: branchQuery({ position }),
+      });
+      return favoritesFromWire(data, client.baseUrl);
+    },
+
+    async addFavorite(branchId): Promise<void> {
+      try {
+        await client.put(`/api/diner/favorites/${encodeURIComponent(branchId)}`);
+      } catch (error) {
+        // The route's one 409 is the cap. A 404 (unknown or inactive) passes through.
+        if (error instanceof ApiError && error.status === 409) {
+          throw new TooManyFavoritesError({
+            url: error.url,
+            requestId: error.requestId,
+            max: MAX_FAVORITES,
+          });
+        }
+        throw error;
+      }
+    },
+
+    async removeFavorite(branchId): Promise<void> {
+      await client.delete(`/api/diner/favorites/${encodeURIComponent(branchId)}`);
+    },
+
+    async mergeFavorites(branchIds, position): Promise<readonly FavoriteBranch[]> {
+      try {
+        const { data } = await client.put<WireFavoriteList>(
+          '/api/diner/favorites',
+          {
+            branchIds: [...new Set(branchIds)],
+          } satisfies Schemas['Yalla.Application.Diners.MergeFavoritesCommand'],
+          { query: branchQuery({ position }) },
+        );
+        return favoritesFromWire(data, client.baseUrl);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          throw new TooManyFavoritesError({
+            url: error.url,
+            requestId: error.requestId,
+            max: MAX_FAVORITES,
+          });
+        }
+        throw error;
+      }
+    },
+
+    // --- The notifications feed (K12) ------------------------------------------------
+
+    async listNotifications(query): Promise<DinerNotificationPage> {
+      const { data } = await client.get<WireNotificationPage>('/api/diner/notifications', {
+        query: {
+          ...(query?.before ? { before: query.before } : {}),
+          ...(query?.limit !== undefined ? { limit: query.limit } : {}),
+        },
+      });
+      return notificationPageFromWire(data);
+    },
+
+    async getUnreadNotificationCount(): Promise<number> {
+      const { data } = await client.get<WireNotificationPage>('/api/diner/notifications', {
+        query: { limit: 1 },
+      });
+      return data?.unreadCount ?? 0;
+    },
+
+    async markNotificationsRead(command): Promise<void> {
+      await client.post('/api/diner/notifications/read', {
+        upTo: command.upTo ?? null,
+        ids: command.ids ? [...command.ids] : null,
+      } satisfies Schemas['Yalla.Application.Diners.MarkNotificationsReadCommand']);
+    },
+
+    // --- The diner's orders -----------------------------------------------------
+
+    async listDinerOrders(segment): Promise<readonly DinerOrder[]> {
+      const { data } = await client.get<WireDinerOrder[]>('/api/diner/orders', {
+        ...(segment ? { query: { status: segment } } : {}),
+      });
+      return (data ?? []).map((wire) => dinerOrderFromWire(wire, client.baseUrl));
+    },
+
+    async getDinerOrder(orderId): Promise<DinerOrder | null> {
+      try {
+        const { data } = await client.get<WireDinerOrder>(
+          `/api/diner/orders/${encodeURIComponent(orderId)}`,
+        );
+        return dinerOrderFromWire(data, client.baseUrl);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -785,6 +1099,9 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           phoneE164: challengeId,
         };
       } catch (error) {
+        // A revoked session is not a wrong code: the caller's own token was
+        // refused, and the screen signs out rather than asking for digits again.
+        if (error instanceof SessionRevokedError) throw error;
         // 401 covers both "wrong" and "expired"; the code slug tells them apart.
         if (error instanceof UnauthorizedError) {
           if (error.code?.includes('expired')) throw new ExpiredCodeError({ url: error.url });
@@ -901,14 +1218,44 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       await client.delete('/api/diner/me/photo');
     },
 
+    /**
+     * `DELETE /api/diner/me` (K2), with the password or the code in the body.
+     *
+     * Deliberately does **not** sign the session out: the server has already
+     * revoked it, and the caller's sign-out also clears the diner-scoped cache,
+     * which this layer cannot see. The next diner call answers
+     * `SessionRevokedError` until it does.
+     */
+    async deleteDinerAccount({ password, code }): Promise<void> {
+      try {
+        await client.delete('/api/diner/me', {
+          body: {
+            password: password ?? null,
+            code: code ?? null,
+          } satisfies Schemas['Yalla.Api.Endpoints.DeleteDinerAccountRequest'],
+        });
+      } catch (error) {
+        if (error instanceof TooManyRequestsError) {
+          throw new TooManyAttemptsError({ url: error.url });
+        }
+        if (error instanceof ForbiddenError && error.problem?.code === 'phone-not-verified') {
+          throw new PhoneNotVerifiedError({ url: error.url, requestId: error.requestId });
+        }
+        rethrowAccount(error);
+      }
+    },
+
     // --- The shared tab ---------------------------------------------------------
     //
-    // Real, all of it. The table scan and the invitation are anonymous and hand
-    // back a participant token scoped to that one tab; every call on the tab
-    // after that carries that token, never the phone's diner session. These
+    // Real, all of it. The table scan and the invitation need no account and
+    // hand back a participant token scoped to that one tab; every call on the
+    // tab after that carries that token, never the phone's diner session. These
     // were all answered by the mock, which is why no real tab was ever reached.
 
-    /** `POST /api/tabs/open`: the table's QR, this device, and the scan's command id. */
+    /**
+     * `POST /api/tabs/open`: the table's QR, this device, and the scan's command
+     * id — plus the diner's token when signed in, see {@link openingAuth}.
+     */
     async scanTableCode(command): Promise<ScanResult> {
       try {
         const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabAccessResult']>(
@@ -919,7 +1266,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
             clientCommandId: command.commandId,
             ...(command.displayName ? { displayName: command.displayName } : {}),
           } satisfies Schemas['Yalla.Api.Endpoints.OpenTabRequest'],
-          { skipAuth: true },
+          await openingAuth(),
         );
         return admitted(data);
       } catch (error) {
@@ -931,8 +1278,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      * `POST /api/tabs/open-by-booking`: the diner's booking code, this device,
      * and the same command id semantics as the scan.
      *
-     * The one opening that is **not** anonymous. The scan deliberately carries
-     * no session; this route answers only to the account that made the booking,
+     * The one opening that **requires** an account. The scan works without a
+     * session; this route answers only to the account that made the booking,
      * so it goes out under the diner's own token — and must never be given
      * `skipAuth`, which would turn every attempt into a 401.
      */
@@ -963,7 +1310,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
             deviceId: await deviceId(),
             ...(command.displayName ? { displayName: command.displayName } : {}),
           } satisfies Schemas['Yalla.Api.Endpoints.JoinTabRequest'],
-          { skipAuth: true },
+          await openingAuth(),
         );
         return admitted(data);
       } catch (error) {
@@ -1014,6 +1361,24 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         };
       } catch (error) {
         throw hostError(error, tabId);
+      }
+    },
+
+    /**
+     * `POST /api/tabs/{tabId}/display-name`, under this phone's participant
+     * token. Not a host action: anybody on the tab names themselves. A 400 or
+     * 422 for a blank or overlong name stays the client's `ValidationError`.
+     */
+    async setTabDisplayName(tabId, displayName): Promise<TabParticipantChange> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabParticipantView']>(
+          `/api/tabs/${tabId}/display-name`,
+          { displayName } satisfies Schemas['Yalla.Api.Endpoints.SetDisplayNameRequest'],
+          tabAuth(tabId),
+        );
+        return participantChange(data);
+      } catch (error) {
+        throw ended(error, tabId, [401, 403]);
       }
     },
 
@@ -1095,6 +1460,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     async createBooking(command): Promise<Booking> {
       const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
       try {
+        // Inline, so check-gateway-schema reads every key against the request shape.
         const { data } = await client.post<
           Schemas['Yalla.Application.Reservations.ReservationView']
         >('/api/reservations', {
@@ -1107,7 +1473,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           guestPhone: command.guestPhone,
           clientCommandId: command.commandId,
           channel: CHANNEL_CODE[command.channel],
-        } satisfies Schemas['Yalla.Api.Endpoints.CreateReservationRequest']);
+          note: noteOrNull(command.note),
+        });
         return toBooking(data);
       } catch (error) {
         rethrowBooking(error, command);

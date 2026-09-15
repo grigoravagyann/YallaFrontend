@@ -2,7 +2,7 @@ import { useImperativeHandle, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useTranslation } from '@yalla/i18n';
-import type { Coordinates } from '../../places/model';
+import { isLocated, type Coordinates } from '../../places/model';
 import { colors } from '../../theme';
 import { MARKER_BOX_HEIGHT, MARKER_BOX_WIDTH, PlaceMarker } from './PlaceMarker';
 import { boundsOf, type PlaceMapProps } from './types';
@@ -55,7 +55,7 @@ function projectionFor(points: readonly Coordinates[], size: Size): Projection {
  * the screen says so (`map.webFallback`).
  */
 export function PlaceMap({
-  places,
+  places: allPlaces,
   selectedId,
   onSelect,
   center,
@@ -64,6 +64,8 @@ export function PlaceMap({
   ref,
 }: PlaceMapProps) {
   const { t } = useTranslation('diner');
+  // A place with no location set gets no pin, rather than one at a guess.
+  const places = useMemo(() => allPlaces.filter(isLocated), [allPlaces]);
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
 
   // Nothing to pan on a static canvas; the handle exists so the screen need

@@ -1,10 +1,13 @@
-import { usingMockData } from '../data/gateway';
+import type { YallaGateway } from '@yalla/api';
+import { gateway, usingMockData } from '../data/gateway';
+import { orderFromApi } from './httpMapping';
 import { createMockOrders } from './mockOrders';
 import { canCancelOrder, type Order } from './model';
 
 /**
  * Where the Orders tab gets its orders. Same shape as `places/repository.ts`:
- * a mock that holds state in memory, and an HTTP stub for the backend.
+ * the HTTP implementation over `GET /api/diner/orders` and `/{orderId}`, and a
+ * mock that holds state in memory for `EXPO_PUBLIC_DATA_SOURCE=mock`.
  */
 
 export interface OrderRepository {
@@ -14,13 +17,6 @@ export interface OrderRepository {
   getById(orderId: string): Promise<Order | null>;
   /** Cancels a confirmed order and returns it. Rejects when it is past cancelling. */
   cancel(orderId: string): Promise<Order>;
-}
-
-export class OrderApiNotImplementedError extends Error {
-  constructor(operation: string) {
-    super(`not implemented: orders.${operation}`);
-    this.name = 'OrderApiNotImplementedError';
-  }
 }
 
 /** The kitchen has the order already, or it is already finished. */
@@ -85,17 +81,31 @@ export function createMockOrderRepository(
 }
 
 // ---------------------------------------------------------------------------
-// HTTP — rejects until the backend has order endpoints.
+// HTTP — `GET /api/diner/orders` and `/{id}` through the gateway.
 // ---------------------------------------------------------------------------
 
-export function createHttpOrderRepository(): OrderRepository {
-  const refuse = (operation: string) => Promise.reject(new OrderApiNotImplementedError(operation));
+export function createHttpOrderRepository(
+  source: Pick<YallaGateway, 'listDinerOrders' | 'getDinerOrder'> = gateway,
+): OrderRepository {
   return {
-    list: () => refuse('list'),
-    getById: () => refuse('getById'),
-    cancel: () => refuse('cancel'),
+    // A 401 is passed on, not turned into "no orders" or "not found": orders
+    // live on the account, so the screen's answer to it is a way to sign in.
+    async list() {
+      // Both segments: `splitOrders` applies the 24-hour window itself.
+      return (await source.listDinerOrders()).map(orderFromApi);
+    },
+    async getById(orderId) {
+      const order = await source.getDinerOrder(orderId);
+      return order ? orderFromApi(order) : null;
+    },
+    // The domain has no diner cancel — voiding is staff-only — so there is no
+    // endpoint to call and no request is made.
+    cancel: (orderId) => Promise.reject(new OrderNotCancellableError(orderId)),
   };
 }
+
+/** Which implementation {@link orderRepository} is, for the test that pins the choice. */
+export const orderRepositorySource: 'http' | 'mock' = usingMockData ? 'mock' : 'http';
 
 export const orderRepository: OrderRepository = usingMockData
   ? createMockOrderRepository()

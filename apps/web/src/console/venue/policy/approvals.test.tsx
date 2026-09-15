@@ -60,6 +60,22 @@ async function waitForPanel() {
 }
 
 describe('the awaiting-approval panel', () => {
+  it("shows the diner's note on the booking that has one, and nothing on the one that does not", async () => {
+    const harness = renderPolicy();
+    const panel = await waitForPanel();
+
+    const pending = await harness.gateway.listPendingReservations('b-lumen-north');
+    const withNote = pending.find((booking) => booking.note !== null)!;
+    const without = pending.find((booking) => booking.note === null)!;
+
+    const noted = within(panel).getByText(withNote.code).closest('li')!;
+    expect(within(noted).getByText(/note from the diner/i)).toBeTruthy();
+    expect(within(noted).getByText(withNote.note!)).toBeTruthy();
+
+    const plain = within(panel).getByText(without.code).closest('li')!;
+    expect(within(plain).queryByText(/note from the diner/i)).toBeNull();
+  });
+
   it('approves a booking and it leaves the list', async () => {
     const user = userEvent.setup();
     const harness = renderPolicy();

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { MAX_BRANCH_SEARCH_LENGTH } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useRouter } from 'expo-router';
@@ -48,17 +49,17 @@ export default function ExploreScreen() {
   const navClearance = useNavClearance();
 
   const [query, setQuery] = useState('');
-  // The reference opens on "Popular"; tapping the selected chip clears it.
-  const [badge, setBadge] = useState<PlaceBadge | null>('popular');
+  // Every place nearby to start with. "Popular" is earned — twenty sittings a
+  // month, or strong reviews — and a new city has few that carry it, so opening
+  // on it would greet most diners with "nothing matched". Tapping a selected
+  // chip clears it.
+  const [badge, setBadge] = useState<PlaceBadge | null>(null);
   const activeTabId = useActiveTab((s) => s.activeTabId);
 
   const placesQuery = usePlaces({ query, ...(badge ? { filter: { badge } } : {}) });
-  const { data, isLoading, isError, error, isFetching, isPlaceholderData, refetch } = placesQuery;
+  const { data, isLoading, isError, isFetching, isPlaceholderData, refetch } = placesQuery;
   // An offline query is paused, never failed: without this the screen spins.
   const offline = isOfflinePaused(placesQuery) && !data;
-  // Until the backend publishes browse endpoints, real mode rejects with this.
-  const unavailable =
-    isError && error instanceof Error && error.name === 'PlaceApiNotImplementedError';
   // Stable identity, so `?? []` does not hand FlatList a fresh array per render.
   const places: readonly Place[] = useMemo(() => data ?? [], [data]);
   const filtering = query.trim() !== '' || badge !== null;
@@ -115,6 +116,8 @@ export default function ExploreScreen() {
             placeholderTextColor={colors.textSubtle}
             autoCorrect={false}
             returnKeyType="search"
+            // The server refuses a longer search outright.
+            maxLength={MAX_BRANCH_SEARCH_LENGTH}
             accessibilityLabel={t('explore.searchPlaceholder')}
           />
           {query ? (
@@ -147,8 +150,6 @@ export default function ExploreScreen() {
         <ErrorState offline onRetry={() => void refetch()} />
       ) : isLoading ? (
         <SkeletonList />
-      ) : unavailable ? (
-        <ErrorState title={t('net.notAvailable')} body={t('net.notAvailableBody')} />
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
       ) : (

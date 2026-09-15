@@ -31,10 +31,16 @@ export interface OpeningHours {
 
 export interface OpenState {
   readonly isOpen: boolean;
-  /** Today's opening time, `HH:mm` in the place's zone. Absent when shut all day. */
+  /**
+   * The opening time of today's block serving now, else the next one, else the
+   * last — `HH:mm` in the place's zone. Absent when shut all day.
+   */
   readonly opensAt?: ClockTime;
   readonly closesAt?: ClockTime;
-  /** Today's hours ready to read out — "08:00 – 23:00" — or '' when shut all day. */
+  /**
+   * Every block today ready to read out — "08:00 – 23:00", or "12:00 – 15:00,
+   * 18:00 – 23:00" for a split service — or '' when shut all day.
+   */
   readonly todayLabel: string;
 }
 
@@ -56,12 +62,37 @@ export interface MenuSection {
 }
 
 export interface Review {
+  /** Stable across refetches; the author's shown name and the day are not unique. */
+  readonly id: string;
   readonly author: string;
   /** 1–5. */
   readonly rating: number;
   readonly text: string;
   /** ISO-8601 date, `YYYY-MM-DD`. */
   readonly date: string;
+  /** Revised since it was first written. Absent in the mock seeds, which are never edited. */
+  readonly edited?: boolean;
+}
+
+/** One page of a place's reviews, newest first. */
+export interface ReviewPage {
+  readonly reviews: readonly Review[];
+  /** Every visible review of the place, across all pages. */
+  readonly total: number;
+  /** 1-based. */
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+/** The server's page size for `GET /api/public/branches/{id}/reviews`. */
+export const REVIEW_PAGE_SIZE = 20;
+
+/** The page after `last`, or `undefined` when `last` was the final one. */
+export function nextReviewPage(last: ReviewPage | null | undefined): number | undefined {
+  if (!last) return undefined;
+  if (last.reviews.length < last.pageSize) return undefined;
+  if (last.page * last.pageSize >= last.total) return undefined;
+  return last.page + 1;
 }
 
 /**
@@ -81,22 +112,46 @@ export interface TablePhotoMarker {
   readonly y: number;
 }
 
+/** The live markers, with the photo their positions were placed on. */
+export interface PlaceTables {
+  /** The cover the markers refer to; `null` when the place has none, and so nothing to draw on. */
+  readonly photo: string | null;
+  readonly tables: readonly TablePhotoMarker[];
+}
+
 export interface Place {
   readonly id: string;
   readonly venueId: string;
+  /** The public page's address, `lumen-coffee` — what booking rules are read with. Never an id. */
+  readonly venueSlug: string;
+  /** `cascade`, as above. */
+  readonly branchSlug: string;
+  /** The venue on its own, for a title line. */
+  readonly venueName: string;
+  /** The branch on its own, for the line under the venue. */
+  readonly branchName: string;
+  /** "Venue · Branch" when the branch has a name of its own, else the venue — see `placeName`. */
   readonly name: string;
   readonly type: PlaceType;
   /** "Armenian & Mediterranean" — free text from the venue, not a key. */
   readonly cuisine: string;
-  readonly distanceKm: number;
-  /** 0–5, one decimal. */
-  readonly rating: number;
+  /** `null` when unknown: no position from the phone, or no coordinates for the place. */
+  readonly distanceKm: number | null;
+  /** 0–5, one decimal. `null` until the first review — never a stand-in zero. */
+  readonly rating: number | null;
   readonly ratingCount: number;
   readonly badges: readonly PlaceBadge[];
   readonly openState: OpenState;
-  /** Remote URLs. The first is the hero and carries the table markers. */
+  /** Remote URLs. The first is the hero. */
   readonly photos: readonly string[];
-  readonly coords: Coordinates;
+  /**
+   * The cover the table markers sit on, `null` when the place has none — then
+   * `photos[0]` may be a gallery picture, and no table belongs on it. Absent
+   * in the mock seeds, whose first photo is always the cover.
+   */
+  readonly coverPhoto?: string | null;
+  /** `null` when the venue has not set a location: no pin, no directions. */
+  readonly coords: Coordinates | null;
   readonly address: string;
   readonly phone?: string;
   readonly website?: string;
@@ -106,9 +161,31 @@ export interface Place {
   /** Keys under `place.amenity.*` — `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`. */
   readonly amenities: readonly string[];
   readonly about: string;
-  readonly menu: readonly MenuSection[];
+  /**
+   * Whether the app may book a table here (K9): the venue's online bookings are
+   * on and its reservation policy has been reviewed. `null` on a list card, which
+   * does not carry it; known once the place's own page has been read.
+   */
+  readonly acceptsAppBookings: boolean | null;
+  /**
+   * The newest few, from the place's page. The whole list pages through
+   * `PlaceRepository.reviewPage`; the menu is read on its own through
+   * `PlaceRepository.menu`, so a menu that fails leaves the place standing.
+   */
   readonly reviews: readonly Review[];
   readonly tables: readonly TablePhotoMarker[];
+}
+
+/** A place the map can pin: one whose venue has set a location. */
+export type LocatedPlace = Place & { readonly coords: Coordinates };
+
+export function isLocated(place: Place): place is LocatedPlace {
+  return place.coords !== null;
+}
+
+/** The photo the table markers are drawn on, or `null` when there is no cover. */
+export function tablePhotoOf(place: Pick<Place, 'coverPhoto' | 'photos'>): string | null {
+  return place.coverPhoto !== undefined ? place.coverPhoto : (place.photos[0] ?? null);
 }
 
 // ---------------------------------------------------------------------------
@@ -148,9 +225,20 @@ export function weekdayOf(dateKey: string): Weekday {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay() as Weekday;
 }
 
-export function hoursOn(hours: readonly OpeningHours[], dateKey: string): OpeningHours | null {
+/**
+ * Every opening block on that date's weekday, earliest first. A split service —
+ * lunch 12:00–15:00, dinner 18:00–23:00 — is two blocks on one day.
+ */
+export function hoursBlocksOn(hours: readonly OpeningHours[], dateKey: string): OpeningHours[] {
   const weekday = weekdayOf(dateKey);
-  return hours.find((entry) => entry.day === weekday) ?? null;
+  return hours
+    .filter((entry) => entry.day === weekday)
+    .sort((a, b) => a.open.localeCompare(b.open));
+}
+
+/** The earliest block on that weekday. A split day has more: see {@link hoursBlocksOn}. */
+export function hoursOn(hours: readonly OpeningHours[], dateKey: string): OpeningHours | null {
+  return hoursBlocksOn(hours, dateKey)[0] ?? null;
 }
 
 /**
@@ -195,7 +283,8 @@ export function formatClock(value: ClockTime, locale: Locale): string {
  *
  * Yesterday's service is checked too: at 00:30 a place open "18:00–02:00" is
  * still open on yesterday's hours, and "today" for the label is still the
- * calendar day the clock says.
+ * calendar day the clock says. Every block of a day counts: a place that
+ * closes between lunch and dinner is open again at 19:30.
  */
 export function openStateFor(
   hours: readonly OpeningHours[],
@@ -206,30 +295,44 @@ export function openStateFor(
   const today = branchDayKey(now, timeZoneId);
   const t = now.getTime();
 
-  const isOpenOn = (dateKey: string): boolean => {
-    const entry = hoursOn(hours, dateKey);
-    if (!entry) return false;
-    const { opens, closes } = serviceWindow(entry, dateKey, timeZoneId);
-    return t >= opens.getTime() && t < closes.getTime();
-  };
-  const isOpen = isOpenOn(today) || isOpenOn(shiftDateKey(today, -1));
+  const windowsOn = (dateKey: string) =>
+    hoursBlocksOn(hours, dateKey).map((block) => ({
+      block,
+      ...serviceWindow(block, dateKey, timeZoneId),
+    }));
 
-  const todays = hoursOn(hours, today);
-  if (!todays) return { isOpen, todayLabel: '' };
+  const todays = windowsOn(today);
+  const isOpen = [...todays, ...windowsOn(shiftDateKey(today, -1))].some(
+    ({ opens, closes }) => t >= opens.getTime() && t < closes.getTime(),
+  );
+  if (todays.length === 0) return { isOpen, todayLabel: '' };
+
+  // The block serving now, else the next one today, else the day's last: at
+  // 16:00 a place open 12:00–15:00 and 18:00–23:00 says when dinner starts.
+  const shown = (todays.find(({ closes }) => t < closes.getTime()) ?? todays[todays.length - 1]!)
+    .block;
   return {
     isOpen,
-    opensAt: todays.open,
-    closesAt: todays.close,
-    todayLabel: `${formatClock(todays.open, locale)} – ${formatClock(todays.close, locale)}`,
+    opensAt: shown.open,
+    closesAt: shown.close,
+    todayLabel: todays
+      .map(
+        ({ block }) => `${formatClock(block.open, locale)} – ${formatClock(block.close, locale)}`,
+      )
+      .join(', '),
   };
 }
 
-/** Minutes until the place opens today, or null when it is open or shut all day. */
+/** Minutes until the place next opens today, or null when it is open or opens no more today. */
 export function minutesUntilOpen(place: Place, now: Date): number | null {
   const today = branchDayKey(now, place.timeZoneId);
-  const todays = hoursOn(place.hours, today);
-  if (!todays) return null;
-  const { opens } = serviceWindow(todays, today, place.timeZoneId);
-  const diff = opens.getTime() - now.getTime();
-  return diff > 0 ? Math.ceil(diff / MINUTE_MS) : null;
+  const t = now.getTime();
+  const windows = hoursBlocksOn(place.hours, today).map((block) =>
+    serviceWindow(block, today, place.timeZoneId),
+  );
+  if (windows.some(({ opens, closes }) => t >= opens.getTime() && t < closes.getTime())) {
+    return null;
+  }
+  const next = windows.find(({ opens }) => opens.getTime() > t);
+  return next ? Math.ceil((next.opens.getTime() - t) / MINUTE_MS) : null;
 }

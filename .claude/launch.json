@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-real",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/bash.mjs", "scripts/dev-real.sh", "--only", "api"],
+      "cwd": ".",
+      "port": 5086
+    },
+    {
+      "name": "console-real",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/bash.mjs", "scripts/dev-real.sh", "--only", "console"],
+      "cwd": ".",
+      "port": 5173
+    },
+    {
+      "name": "diner-web-real",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/bash.mjs", "scripts/dev-real.sh", "--only", "diner"],
+      "cwd": ".",
+      "port": 8095
+    }
+  ]
+}

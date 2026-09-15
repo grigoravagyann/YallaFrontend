@@ -159,7 +159,8 @@ describe('browse over /api/public/venues', () => {
 
     await expect(
       gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'northern-avenue' }),
-    ).resolves.toEqual({ bookingWindowDays: 30, minLeadMinutes: 45 });
+      // No `acceptsAppBookings` on the page: a server from before the K9 gate, which books.
+    ).resolves.toEqual({ bookingWindowDays: 30, minLeadMinutes: 45, acceptsAppBookings: true });
     await expect(
       gateway.getBookingRules({ venueSlug: 'lumen-coffee', branchSlug: 'gone' }),
     ).resolves.toBeNull();

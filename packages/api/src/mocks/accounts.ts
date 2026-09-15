@@ -156,6 +156,13 @@ export interface AccountStore {
   setPhoto(accountId: string, seed: string): Photo;
   removePhoto(accountId: string): void;
   /**
+   * Account deletion (K2): the row goes, so its phone, username and email can
+   * be registered again. What else is erased is the gateway's business.
+   */
+  remove(accountId: string): void;
+  /** Whether a password matches, without the login limiter — for confirming a deletion. */
+  passwordMatches(accountId: string, password: string): boolean;
+  /**
    * What verify-code does to accounts: a number that already has one is marked
    * verified and that account is signed in; a number with none gets an account
    * made for it, as the server has always done. Returns the id and which.
@@ -322,6 +329,15 @@ export function createAccountStore(options: { readonly now: () => Date }): Accou
 
     removePhoto(accountId) {
       byId(accountId).photo = null;
+    },
+
+    remove(accountId) {
+      accounts.delete(accountId);
+    },
+
+    passwordMatches(accountId, password) {
+      const account = accounts.get(accountId);
+      return account !== undefined && account.password !== null && account.password === password;
     },
 
     verifyPhone(phoneE164, localeCode, callerAccountId) {

@@ -66,7 +66,7 @@ export function Skeleton({
       {measured > 0 ? (
         <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
           <LinearGradient
-            colors={[SHIMMER_EDGE, SHIMMER_PEAK, SHIMMER_EDGE]}
+            colors={[colors.shimmerClear, colors.shimmerPeak, colors.shimmerClear]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={StyleSheet.absoluteFill}
@@ -76,9 +76,6 @@ export function Skeleton({
     </View>
   );
 }
-
-const SHIMMER_EDGE = 'rgba(255,255,255,0)';
-const SHIMMER_PEAK = 'rgba(255,255,255,0.65)';
 
 const styles = StyleSheet.create({
   base: { backgroundColor: colors.surfaceMuted, overflow: 'hidden' },

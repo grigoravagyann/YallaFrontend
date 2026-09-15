@@ -11,10 +11,16 @@ import type {
 } from '../contracts/console';
 import type { ApprovalTrigger, ConsoleBooking } from '../contracts/approvals';
 import type { ReservationStatusCode } from '../contracts/push';
+import type { TablePhotoPositions } from '../contracts/floorPlan';
+import type { BranchReadiness } from '../contracts/readiness';
+import type { ModeratedReview, VenueModeratedReview } from '../contracts/reviews';
 import type { components } from '../generated/schema';
 
 type Schemas = components['schemas'];
 type WireReservation = Schemas['Yalla.Application.Reservations.ReservationView'];
+type WireTablePhotoPositions = Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsView'];
+type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
+type WireModeratedReviewPage = Schemas['Yalla.Application.Reviews.ModeratedReviewPage'];
 type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
 type WireBranch = Schemas['Yalla.Application.Platform.BranchSummary'];
 type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
@@ -178,5 +184,94 @@ export function consoleBookingFromWire(view: WireReservation): ConsoleBooking {
       view.awaitingApprovalBecause === null || view.awaitingApprovalBecause === undefined
         ? null
         : (APPROVAL_TRIGGER[view.awaitingApprovalBecause] ?? 'unknown'),
+    note: view.note ?? null,
+  };
+}
+
+// --- Readiness ------------------------------------------------------------------
+
+type WireReadiness = Schemas['Yalla.Application.BranchSettings.BranchReadinessView'];
+
+export function readinessFromWire(view: WireReadiness): BranchReadiness {
+  return {
+    branchId: view.branchId,
+    isReadyForDiners: view.isReadyForDiners,
+    floorPlanDrawn: view.floorPlanDrawn,
+    tableCount: view.tableCount,
+    tablesLabelled: view.tablesLabelled,
+    menuCategoriesPresent: view.menuCategoriesPresent,
+    menuCategoryCount: view.menuCategoryCount,
+    menuItemCount: view.menuItemCount,
+    menuComplete: view.menuComplete,
+    incompleteMenuItemCount: view.incompleteMenuItemCount,
+    incompleteMenuItemIds: view.incompleteMenuItemIds ?? [],
+    openingHoursSet: view.openingHoursSet,
+    openingHoursDayCount: view.openingHoursDayCount,
+    reservationPolicyReviewed: view.reservationPolicyReviewed,
+    staffEnrolled: view.staffEnrolled,
+    staffCount: view.staffCount,
+    deviceEnrolled: view.deviceEnrolled,
+    deviceCount: view.deviceCount,
+    acceptsWebBookings: view.acceptsWebBookings,
+    blockers: view.blockers ?? [],
+  };
+}
+
+// --- Table photo positions (K7) ---------------------------------------------------
+
+export function tablePhotoPositionsFromWire(view: WireTablePhotoPositions): TablePhotoPositions {
+  return {
+    coverPhotoId: view.coverPhotoId,
+    tables: (view.tables ?? []).map((table) => {
+      const x = typeof table.photoX === 'number' ? table.photoX : null;
+      const y = typeof table.photoY === 'number' ? table.photoY : null;
+      // A pair or nothing: half a position is no position.
+      const placed = x !== null && y !== null;
+      return {
+        tableId: table.tableId,
+        label: table.label,
+        photoX: placed ? x : null,
+        photoY: placed ? y : null,
+      };
+    }),
+  };
+}
+
+// --- Review moderation ------------------------------------------------------------
+
+export function moderatedReviewFromWire(view: WireModeratedReview): ModeratedReview {
+  return {
+    reviewId: view.reviewId,
+    branchId: view.branchId,
+    rating: view.rating,
+    text: view.text ?? null,
+    authorName: view.authorName,
+    dinerUserId: view.dinerUserId ?? null,
+    createdAtUtc: view.createdAtUtc,
+    updatedAtUtc: view.updatedAtUtc,
+    hidden: Boolean(view.hidden),
+    hiddenReason: view.hiddenReason ?? null,
+    hiddenAtUtc: view.hiddenAtUtc ?? null,
+    hiddenByPlatform: Boolean(view.hidden) && Boolean(view.hiddenByPlatform),
+  };
+}
+
+export function venueReviewFromWire(view: WireModeratedReview): VenueModeratedReview {
+  return {
+    ...moderatedReviewFromWire(view),
+    reportCount: view.reportCount ?? 0,
+    lastReportedAtUtc: view.lastReportedAtUtc ?? null,
+  };
+}
+
+export function reviewPageFromWire<T>(
+  wire: WireModeratedReviewPage,
+  map: (item: WireModeratedReview) => T,
+): Page<T> {
+  return {
+    items: (wire.items ?? []).map(map),
+    total: wire.total ?? 0,
+    page: wire.page,
+    pageSize: wire.pageSize,
   };
 }

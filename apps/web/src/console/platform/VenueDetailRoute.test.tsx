@@ -223,6 +223,29 @@ describe('hiring the first owner', () => {
   });
 });
 
+describe('the branch rows', () => {
+  it('link each branch to its public page, floor plan and reviews', async () => {
+    renderVenue();
+    const branches = await screen.findByRole('heading', { name: /^branches$/i });
+    const card = branches.closest('.card') as HTMLElement;
+    const publicLinks = within(card).getAllByRole('link', { name: /public page/i });
+    expect(publicLinks.length).toBeGreaterThan(0);
+    const href = publicLinks[0]!.getAttribute('href')!;
+    expect(href).toMatch(/^\/platform\/venues\/v-lumen\/branches\/[^/]+\/public$/u);
+    const branchId = href.split('/')[5];
+    expect(
+      within(card)
+        .getAllByRole('link', { name: /floor plan/i })
+        .map((link) => link.getAttribute('href')),
+    ).toContain(`/platform/venues/v-lumen/branches/${branchId}/floorplan`);
+    expect(
+      within(card)
+        .getAllByRole('link', { name: /reviews/i })
+        .map((link) => link.getAttribute('href')),
+    ).toContain(`/platform/venues/v-lumen/branches/${branchId}/reviews`);
+  });
+});
+
 describe('the staff card', () => {
   it('shows every sign-in state and offers the platform admin the action on each admin row', async () => {
     renderVenue();

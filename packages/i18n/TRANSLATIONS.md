@@ -17,6 +17,37 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
 ### What is currently provisional
 
 - `common` — the app shell, table-state legend and connection states.
+- `admin` — the diner app listing and table pins on the Public page
+  (2026-09-14), provisional and **not** reviewed: `publicPage.listing.*`
+  (cuisine, about, the four price-level names, website, the five amenity
+  names — which must match the diner app's `place.amenity.*` wording — the map
+  pin fields and the gallery manager) and `publicPage.markers.*` (placing
+  tables on the cover photo). `publicPage.markers.noCover` must keep saying
+  the cover has to be **saved** first. Added with the review fixes, also
+  **not** reviewed: `publicPage.listing.location.notANumber` and `outOfRange`
+  (which must say both ranges), `publicPage.markers.selectedUnplaced`,
+  `placeInMiddle` and `refused`. Added when a cover change started taking the
+  pins off (2026-09-14), **not** reviewed: `publicPage.markers.discarded`,
+  which must say it was the **unsaved** pin changes that were dropped.
+- `diner` — the real-data review fixes (2026-09-14), provisional and **not**
+  reviewed: `place.review.loadFailed`, `orders.signedOut.*` (orders live on
+  the account — never phrase it as the order being gone) and
+  `tables.notOnPhoto`.
+- `diner` — the delete-account refusals (2026-09-14), provisional and **not**
+  reviewed: `profile.deleteAccount.wrongPassword` and `.wrongCode` (both must
+  keep saying **nothing was deleted**) and `.tooManyAttempts`.
+- Review round 2 (2026-09-15), provisional and **not** reviewed:
+  - `diner` `profile.deleteAccount.codeLabel`, `.sendCode` and `.codeSent`,
+    reworded so none promises an SMS (no backend sends one yet), and the new
+    `.noCodeHint`, which must name the Edit profile screen where a password is
+    set. `booking.note.hint` now says the venue sees the note only while the
+    booking waits for its approval; widen it again once venue screens show
+    notes on confirmed bookings.
+  - `admin` `reviews.hiddenReasonLine` and `platform.reviews.hiddenReasonLine`,
+    the recorded reason as one line (hy joins with `՝`, not a colon);
+    `floorPlan.conflict.body` in hy now uses `պահպանել` and `կկորչեն`; ru
+    `publicPage.listing.save` / `.saved` / `.failed` say `карточка`, keeping
+    `описание` for the About field alone.
 - `diner` — the whole browse flow: Explore header and filters, venue cards,
   branch rows, the booking bar and the floor plan screen. Added with the browse
   flow and **not** reviewed.
@@ -160,7 +191,19 @@ invisible one that never gets revisited.
 2. Add the same key path to `ru` and `en`.
 3. Run `pnpm i18n:check`. It fails on a key present in one language and absent
    in another, on a key present in a translation but not in `hy`, and on any
-   empty string value.
+   empty string value. It also fails when:
+   - a `diner` key is defined but nothing in `apps` or `packages` references it
+     (as a quoted key, or under a template literal such as
+     `` `waiter.${reason}` ``). A key added before the screen that renders it
+     goes in `scripts/pending-diner-keys.json`, saying who renders it; delete
+     the entry once the screen uses the key (the check prints a note);
+   - an amenity name in `diner` `place.amenity.*` differs from `admin`
+     `publicPage.listing.amenities.*` in the same language;
+   - a `hy` or `ru` string glues `-ը`, `-ն` or `-ին` onto an interpolation
+     (`{{name}}-ը`). `staff` is exempt until its floor-screen copy is
+     rephrased.
+4. `pnpm --filter @yalla/i18n test` proves each of those rules still fails when
+   it is broken.
 
 `pnpm i18n:check` deliberately does not let you "fill in later" with `""` — an
 empty value renders as blank rather than falling back, which reads as a broken
@@ -213,3 +256,96 @@ screen.
   permission and upload refusals per reason, details, password, phone). Also
   `confirm.error.phoneNotVerified` and `confirm.verifyMyNumber`, shown when an
   account whose number has not passed the SMS code tries to book or open a tab.
+- `diner` + `admin` — the hardening copy pass (2026-09-14, PLAN-90 F0), all
+  provisional and **not** reviewed.
+  - **hy corrections** from the copy audit: `place.tab.menu` "Ճաշացանկ";
+    `place.action.directions` and `map.directions` "Երթուղի";
+    `waiter.sending` and `waiter.sentAtTable` (the staff, not a shop's sales
+    counter); `tab.leaveHostBody` (it passes to whoever joined earliest);
+    `tab.resumeTitle` and `people.activeSection` (no more "հաշվի վրա"
+    calque); `bill.shared`; `bookings.status.pendingApproval`;
+    `auth.signup.body`, `auth.account.signupBody`, `auth.error.usernameInvalid`;
+    `scan.noAccount`. Rephrased so no case ending is glued onto a runtime
+    name, item or date: `scan.error.bookingTooEarlyOnDay`, `pending.body`,
+    `bill.marker.added`, `.removed`, `.removedNamed`, `tray.failed.soldOut`,
+    `people.removeTitle`, and in `admin` `shell.signedInAs`,
+    `venue.suspendTitle`, `venue.deleteTitle`, `devices.confirm.title` and
+    `devices.confirm.body`. One host term everywhere, "հաշիվը բացողը":
+    `tab.host`, `pending.title`, `pending.bodyNoName`, `people.hostOnly` and
+    every former "հաշիվ բացողը". The account is "պրոֆիլ", and "հաշիվ" is only
+    ever the tab: `orders.signedOut.title`, `profile.createAccount`,
+    `auth.createAccount`, `auth.signup.title`, `auth.login.noAccount`,
+    `auth.signup.haveAccount`, `auth.error.emailTaken`,
+    `auth.error.phoneInUse`, `scan.error.signInNeeded`. Lowercase "ձեզ" in
+    `verify.phoneBody` (`table.heldForYou` keeps its capital because it starts
+    the sentence). Deliberately **not** changed, left for the native reviewer:
+    `booking.done` "Պատրաստ է" and `place.tab.about` "Մասին".
+  - **ru corrections:** `success.shareMessage` (no gendered "Забронировал"),
+    `settle.host` "открыл(а)", and `pending.endedBody`, `invite.notHost` and
+    `order.blocked.notAllowed` (no "его" for a person of unknown gender);
+    `bookings.status.confirmed` / `.completed` and
+    `bookings.detail.cancelledOn` are feminine now, like the other booking
+    statuses; `waiter.body`, `waiter.failed`, `waiter.rateLimited_*` and
+    `waiter.rateLimitedNoWindow` (a table does not call; `_other` keeps
+    "минуты" for fractional counts); one service-charge term, "Сервисный
+    сбор", in `bill.serviceChargeRate` and `bill.serviceChargeApplies`;
+    `settle.people`; `people.pendingSection`; `scan.noAccount`;
+    `tray.failed.soldOut`; `orders.cancelBody` (payment is cash at the table,
+    so nothing is "списано"); `auth.account.signupBody`;
+    `editProfile.password.setDone`.
+  - **Plural now:** `table.unavailable.tooSmall` (`_one`/`_other`, plus
+    `_few`/`_many` in ru). Its caller already passes `count`.
+  - **Amenities, one wording per language in both namespaces** (now enforced
+    by `i18n:check`): en "Outdoor seating", hy "Բացօթյա նստատեղեր" and
+    "Վեգան տարբերակներ", ru "Столики на улице" (never "Летняя веранда").
+  - **Reworded for diners:** `net.notAvailable` / `net.notAvailableBody` no
+    longer talk about a backend; `push.optIn.explain` / `.granted` say "before
+    your booking". Each venue sets how long before, so this copy must never
+    name a number.
+  - **Removed, because nothing renders them:** `menu.pricesOnly`,
+    `tab.orders.placeholder`, `floorPlan.comingSoon`, and leftovers of earlier
+    flows: `explore.city`, `explore.placesNearby_*`, `explore.freeLead_*`,
+    `explore.inPlaces_*`, `venue.branchCount_*`, `venue.typeAndBranches`,
+    `venue.freeNow_*`, `venue.closedNow`, `venue.noneFreeNow`,
+    `venue.notFound.*`, `venue.openAcross_*`, `branches.openUntil`,
+    `branches.closed`, `branches.noneFree`, `branches.empty.*`,
+    `branches.loading`, `branches.openNow`, `branches.freeNow_*`,
+    `branches.opensAt`, `bookings.tableAt`, `confirm.cancellation`,
+    `success.done`, `scan.result.*`, `tab.orders.title`,
+    `pending.approvedTitle`, `menu.title`, `menu.updated`,
+    `push.actions.hint`, `.cancelled`, `.unknown`, `push.actions.stale.*`,
+    `tables.zoom`, `orders.kind.dineIn`.
+  - **Removed with the booking note (PLAN-90 D1):** `book.specialRequests`,
+    `book.requestPlaceholder` and `book.requestHint`, in all three languages.
+    The booking screen now sends the note to the venue and labels it with
+    `booking.note.title` / `.placeholder` / `.hint`, so the old "kept on this
+    phone" wording would have been untrue. D1 added no new hy or ru strings.
+  - **New `diner` keys.** `scripts/pending-diner-keys.json` names the screen
+    that renders each one. `place.reviews.seeAll_*`, `reviews.*`,
+    `place.menu.empty` / `.error`; `place.review.postedAs` (must say the
+    review is **public**), `.starLabel` ("{{rating}} of 5 stars" — the rating
+    comes first and 5 is the fixed maximum; hy "{{rating}} աստղ 5-ից", ru
+    "{{rating}} из 5 звёзд", where ru "звёзд" is not agreed with the number, so
+    a reviewer should decide whether it needs plural forms), `.needsVisit`
+    (must keep the 180 days and both kinds of visit), `.hidden`; `place.review.report.*` (five reasons, the note,
+    `own`, `failed`); `place.bookingsOff.*`; `booking.note.*` (the hint must
+    say the **venue** sees it, and only as far as a venue screen shows it); `profile.deleteAccount.*` (the body
+    must keep saying what is deleted and that venues keep their booking and
+    order records); `auth.sessionRevoked.*`; `tab.name.*`; `notifications.*`,
+    where `kind.*` holds a title and body per notification kind and uses only
+    `{{place}}`; `help.*`, whose answers describe what the app really does
+    (booking needs a confirmed number, the table code needs no account,
+    reviews need a visit within 180 days, what deleting the account removes,
+    favorites saved to the account when logged in) and must change when that
+    behaviour does, and whose contact lines render only when a support email
+    or phone is configured; and `about.*`. The About screen reads `about.*`;
+    `profile.about` stays the Profile row label.
+  - **New `admin` keys:** `onboarding.steps.acceptsWebBookings` and
+    `.acceptsWebBookingsOptional` (must say it is optional);
+    `onboarding.blockers.*`, one per readiness blocker the server reports;
+    `publicPage.markers.coverChanged`; `publicPage.listing.address.*`;
+    `publicPage.listing.relocateOwnerOnly`; `publicPage.listing.errors.*`, one
+    per field and bound a listing save can refuse; `floorPlan.conflict.*`;
+    `platform.reviews.*`; `platform.venue.publicPageLink` / `.reviewsLink`;
+    `reservations.note`; `reviews.*` (a venue's review moderation, including
+    `platformHidden`); and `nav.reviews`.

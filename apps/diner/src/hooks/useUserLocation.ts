@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import type { Coordinates } from '../places/model';
+import { usePosition } from '../places/positionStore';
 
 /** Where the map opens when the phone will not say where it is. */
 export const YEREVAN_CENTRE: Coordinates = { latitude: 40.1792, longitude: 44.4991 };
@@ -59,6 +60,8 @@ export function useUserLocation(): UserLocation {
       if (last) {
         setCoords(toCoordinates(last));
         setStatus('located');
+        // The lists' distances are keyed on this: a first fix here re-reads them.
+        usePosition.getState().note(toCoordinates(last));
       }
 
       const current = await Location.getCurrentPositionAsync({
@@ -67,6 +70,7 @@ export function useUserLocation(): UserLocation {
       if (!live()) return;
       setCoords(toCoordinates(current));
       setStatus('located');
+      usePosition.getState().note(toCoordinates(current));
     } catch {
       // Services off, airplane mode, a simulator with no fix: the city centre.
       if (live()) setStatus((previous) => (previous === 'located' ? previous : 'fallback'));

@@ -66,5 +66,5 @@ export function AtMyTableAction({
 const styles = StyleSheet.create({
   card: { gap: space.md },
   hint: { ...typography.body, color: colors.textMuted },
-  error: { ...typography.body, color: colors.error },
+  error: { ...typography.body, color: colors.errorInk },
 });

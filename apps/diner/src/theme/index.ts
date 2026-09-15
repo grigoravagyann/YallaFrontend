@@ -1,12 +1,23 @@
 /**
  * The diner app's theme. Screens import from here and nowhere else for colour,
- * type, spacing, radius, shadow and icon sizes.
+ * type, spacing, radius, shadow and icon sizes. ESLint refuses the shared
+ * colour, elevation and type-size tokens anywhere else in the app.
  */
-export { colors, contentBadgeColor, tableStatusColor } from './colors';
+export { colors, contentBadgeColor, glyphColors, tableStatusColor, textColors } from './colors';
 export type { ColorName } from './colors';
 
-export { fontWeight, tabularNumbers, typography } from './typography';
-export type { TypographyStep } from './typography';
+export { badgeColors, badgeVariants } from './badges';
+export type { BadgeSpec, BadgeTone, BadgeVariant } from './badges';
+
+export {
+  displayWeight,
+  fontWeight,
+  nativeDisplayFontFace,
+  nativeFontFace,
+  tabularNumbers,
+  typography,
+} from './typography';
+export type { DisplayWeightValue, FontWeightValue, TypographyStep } from './typography';
 
 export { layout, space } from './spacing';
 export type { SpaceToken } from './spacing';
@@ -17,5 +28,14 @@ export type { RadiusToken } from './radius';
 export { shadows } from './shadows';
 export type { ShadowToken } from './shadows';
 
-export { actionIcon, fabSize, iconSize, navIcons, placeTypeIcon } from './icons';
+export {
+  actionIcon,
+  amenityIcon,
+  fabSize,
+  filledIconAllowlist,
+  iconSize,
+  navIcons,
+  placeTypeIcon,
+  ratingIcon,
+} from './icons';
 export type { IconPair, IconSizeToken, IoniconName, NavRouteName } from './icons';

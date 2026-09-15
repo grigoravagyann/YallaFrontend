@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { LeadTimeExceededError, TableTakenError } from '../contracts/errors';
-import type { ContractSubject } from './subject';
+import type { ContractDiner, ContractSubject } from './subject';
+import { randomUuid } from './subject';
 
 /**
  * Booking a table, and being told plainly why not.
@@ -14,41 +15,60 @@ import type { ContractSubject } from './subject';
  * The window is the other half. The product does not ask people how long they
  * intend to stay; it *tells* them, before any confirm button, so somebody who
  * needs longer can pick a different table rather than negotiate at the door.
+ *
+ * Booked as a diner of this suite's own — registered, number confirmed by code,
+ * signed in — because `POST /api/reservations` answers only to one.
  */
 export function describeReservationContract(subject: ContractSubject): void {
   const reason = subject.unsupported('reservations');
   const suite = reason ? describe.skip : describe;
 
   suite(`reservations — ${subject.name}${reason ? ` (skipped: ${reason})` : ''}`, () => {
-    const { gateway, fixtures } = subject;
+    const { fixtures } = subject;
+    let diner: ContractDiner;
 
-    async function verifiedPhone(phone: string): Promise<string> {
-      const challenge = await gateway.requestPhoneCode(phone);
-      const verified = await gateway.verifyPhoneCode({
-        challengeId: challenge.challengeId,
-        // Outside production the backend returns the code it sent, so the flow
-        // is exercisable without an SMS provider.
-        code: challenge.devCode ?? '123456',
-      });
-      return verified.phoneE164;
-    }
+    beforeAll(async () => {
+      diner = await subject.newDiner();
+    });
 
     async function firstBookable() {
-      const floor = await gateway.getSlotFloor({
+      const floor = await diner.gateway.getSlotFloor({
         branchId: fixtures.branchId,
         slotUtc: fixtures.tomorrowEveningUtc,
         partySize: 2,
+        timeZoneId: fixtures.timeZoneId,
       });
       const table = floor!.tables.find((entry) => entry.isBookable);
       expect(table, 'nothing is bookable tomorrow evening').toBeDefined();
       return table!;
     }
 
+    /**
+     * A booking command as the app sends it. The command id is a fresh GUID,
+     * which is what `clientCommandId` is on the wire: anything else is a 400
+     * before any booking rule is asked.
+     */
+    function bookingOf(tableId: string, slotUtc: string) {
+      return {
+        commandId: randomUuid(),
+        branchId: fixtures.branchId,
+        tableId,
+        slotUtc,
+        partySize: 2,
+        guestPhone: diner.phoneE164,
+        timeZoneId: fixtures.timeZoneId,
+        guestName: 'Ani',
+        channel: 'app' as const,
+      };
+    }
+
     it('promises a window that starts at the slot and is bounded or openly unbounded', async () => {
       const table = await firstBookable();
 
       expect(table.window).not.toBeNull();
-      expect(table.window!.fromUtc).toBe(fixtures.tomorrowEveningUtc);
+      // The same instant. The wire writes it without milliseconds, so the
+      // strings are not compared.
+      expect(Date.parse(table.window!.fromUtc)).toBe(Date.parse(fixtures.tomorrowEveningUtc));
 
       /*
        * > A table with nothing booked after it does not get a blank space where
@@ -84,17 +104,7 @@ export function describeReservationContract(subject: ContractSubject): void {
       const table = await firstBookable();
       const tooSoon = new Date(Date.now() + 60_000).toISOString();
 
-      const attempt = gateway.createBooking({
-        commandId: `contract-lead-${table.tableId}`,
-        branchId: fixtures.branchId,
-        tableId: table.tableId,
-        slotUtc: tooSoon,
-        partySize: 2,
-        guestPhone: await verifiedPhone('+37411000001'),
-        timeZoneId: 'Asia/Yerevan',
-        guestName: 'Ani',
-        channel: 'app' as const,
-      });
+      const attempt = diner.gateway.createBooking(bookingOf(table.tableId, tooSoon));
 
       await expect(attempt).rejects.toBeInstanceOf(LeadTimeExceededError);
 
@@ -115,31 +125,12 @@ export function describeReservationContract(subject: ContractSubject): void {
        * same race twice.
        */
       const table = await firstBookable();
-      const token = await verifiedPhone('+37411000002');
 
-      await gateway.createBooking({
-        commandId: `contract-race-first-${table.tableId}`,
-        branchId: fixtures.branchId,
-        tableId: table.tableId,
-        slotUtc: fixtures.tomorrowEveningUtc,
-        partySize: 2,
-        guestPhone: token,
-        timeZoneId: 'Asia/Yerevan',
-        guestName: 'Ani',
-        channel: 'app' as const,
-      });
+      await diner.gateway.createBooking(bookingOf(table.tableId, fixtures.tomorrowEveningUtc));
 
-      const second = gateway.createBooking({
-        commandId: `contract-race-second-${table.tableId}`,
-        branchId: fixtures.branchId,
-        tableId: table.tableId,
-        slotUtc: fixtures.tomorrowEveningUtc,
-        partySize: 2,
-        guestPhone: token,
-        timeZoneId: 'Asia/Yerevan',
-        guestName: 'Ani',
-        channel: 'app' as const,
-      });
+      const second = diner.gateway.createBooking(
+        bookingOf(table.tableId, fixtures.tomorrowEveningUtc),
+      );
 
       await expect(second).rejects.toBeInstanceOf(TableTakenError);
 
@@ -155,20 +146,10 @@ export function describeReservationContract(subject: ContractSubject): void {
     it('replays an identical booking rather than making a second one', async () => {
       // What makes a flaky connection unable to create two bookings.
       const table = await firstBookable();
-      const command = {
-        commandId: `contract-idempotent-${table.tableId}`,
-        branchId: fixtures.branchId,
-        tableId: table.tableId,
-        slotUtc: fixtures.tomorrowEveningUtc,
-        partySize: 2,
-        guestPhone: await verifiedPhone('+37411000003'),
-        timeZoneId: 'Asia/Yerevan',
-        guestName: 'Ani',
-        channel: 'app' as const,
-      };
+      const command = bookingOf(table.tableId, fixtures.tomorrowEveningUtc);
 
-      const first = await gateway.createBooking(command);
-      const replay = await gateway.createBooking(command);
+      const first = await diner.gateway.createBooking(command);
+      const replay = await diner.gateway.createBooking(command);
 
       expect(replay.id, 'a retried booking created a second reservation').toBe(first.id);
       expect(replay.code).toBe(first.code);

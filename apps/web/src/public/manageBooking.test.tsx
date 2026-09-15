@@ -58,7 +58,7 @@ async function bookedLink(harness: Harness): Promise<{ url: string; code: string
   ).find((entry) => entry.isBookable) as TableAvailability;
 
   const booking = await harness.gateway.createBooking({
-    commandId: 'cmd-manage-test',
+    commandId: '6b820184-0c7b-44e7-87fa-726a8cb29b9b',
     branchId: branch.id,
     tableId: table.tableId,
     slotUtc,

@@ -27,6 +27,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 const WEB_ROOT = resolve(__dirname, '..');
 const DIST = join(WEB_ROOT, 'dist');
 
+/** The backend origin the build is told about. The documented local one, not a real host. */
+const API_URL = 'http://localhost:5086';
+
 /** The dev-only query flags. If either string survives, so does the affordance. */
 const DEV_FLAGS = ['race', 'churn'] as const;
 
@@ -74,9 +77,80 @@ beforeAll(() => {
       // same bundle here. A value passed in the environment wins over a `.env`
       // entry, which is what makes the pin effective.
       VITE_DATA_SOURCE: 'real',
+      // The origin the Content-Security-Policy must allow, pinned for the
+      // same reason: the assertion below names it.
+      VITE_API_URL: API_URL,
     },
   });
 }, 600_000);
+
+describe("the shell's Content-Security-Policy", () => {
+  /*
+   * The refresh token sits in IndexedDB, which any script on the origin can
+   * read. What stands between it and an injected script is this policy, so it
+   * is asserted on the file a browser receives, not on the function that
+   * builds it: a plugin that stopped running would leave the function correct
+   * and the page bare.
+   */
+  function shellPolicy(): string {
+    const html = readFileSync(join(DIST, 'index.html'), 'utf8');
+    const match = html.match(
+      /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]+)"\s*\/?>/u,
+    );
+    expect(match, 'dist/index.html carries no CSP meta tag').not.toBeNull();
+    return match![1]!;
+  }
+
+  function directive(policy: string, name: string): readonly string[] {
+    const entry = policy
+      .split(';')
+      .map((part) => part.trim().split(/\s+/u))
+      .find(([head]) => head === name);
+    expect(entry, `no ${name} directive`).toBeDefined();
+    return entry!.slice(1);
+  }
+
+  it('forbids plugins, base rewriting and framing', () => {
+    const policy = shellPolicy();
+    expect(policy).toContain("object-src 'none'");
+    expect(policy).toContain("frame-ancestors 'none'");
+    expect(policy).toContain("base-uri 'none'");
+  });
+
+  it('runs only its own scripts', () => {
+    expect(directive(shellPolicy(), 'script-src')).toEqual(["'self'"]);
+  });
+
+  it('lets the page reach the configured API, over http and WebSocket, and nothing else', () => {
+    const origin = new URL(API_URL).origin;
+    expect(directive(shellPolicy(), 'connect-src')).toEqual([
+      "'self'",
+      origin,
+      origin.replace(/^http/u, 'ws'),
+    ]);
+    expect(directive(shellPolicy(), 'img-src')).toContain(origin);
+  });
+
+  it('shows photos hosted outside the API, which every legacy menu photo is', () => {
+    // Migrated `MenuItems.PhotoUrl` values are absolute URLs on whatever host
+    // a venue once used. Without this the console and the public page draw
+    // them as blocked images.
+    expect(directive(shellPolicy(), 'img-src')).toContain('https:');
+  });
+
+  it('writes the same policy beside the bundle, for the hosting header', () => {
+    const header = readFileSync(join(DIST, 'content-security-policy.txt'), 'utf8').trim();
+    expect(header).toBe(shellPolicy());
+  });
+
+  it('comes before anything the policy has to govern', () => {
+    const html = readFileSync(join(DIST, 'index.html'), 'utf8');
+    const policyAt = html.indexOf('Content-Security-Policy');
+    expect(policyAt).toBeGreaterThan(-1);
+    expect(policyAt).toBeLessThan(html.indexOf('<script'));
+    expect(policyAt).toBeLessThan(html.indexOf('<link'));
+  });
+});
 
 describe('the production bundle', () => {
   it('was built and has JavaScript in it', () => {

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { OpeningHours, Place } from './model';
-import { bookableTables, dayOptions, tablesForParty, timeSlots } from './slots';
+import {
+  LEAD_MINUTES,
+  WINDOW_DAYS,
+  bookableTables,
+  dayOptions,
+  tablesForParty,
+  timeSlots,
+} from './slots';
 
 const YEREVAN = 'Asia/Yerevan';
 
@@ -38,6 +45,12 @@ describe('dayOptions', () => {
     expect(dayOptions(NOW, YEREVAN, 0)).toHaveLength(1);
     expect(dayOptions(NOW, YEREVAN, 3)).toHaveLength(3);
   });
+
+  it("offers only the branch's own window: three days, not the default week", () => {
+    const days = dayOptions(NOW, YEREVAN, 3);
+    expect(days.map((day) => day.dateKey)).toEqual(['2026-09-12', '2026-09-13', '2026-09-14']);
+    expect(dayOptions(NOW, YEREVAN)).toHaveLength(WINDOW_DAYS);
+  });
 });
 
 describe('timeSlots', () => {
@@ -58,6 +71,20 @@ describe('timeSlots', () => {
     const slots = timeSlots(place(every('08:00', '23:00')), '2026-09-20', now);
     expect(slots[0]?.key).toBe('15:00');
     expect(slots.at(-1)?.key).toBe('22:30');
+  });
+
+  it("keeps to the branch's own lead: nothing sooner than two hours when it asks for 120 minutes", () => {
+    // 14:05 in Yerevan. With a 120-minute lead the first slot is 16:30, not 15:00.
+    const now = new Date('2026-09-20T10:05:00Z');
+    const hours = place(every('08:00', '23:00'));
+
+    expect(timeSlots(hours, '2026-09-20', now, 120)[0]?.key).toBe('16:30');
+    expect(timeSlots(hours, '2026-09-20', now)[0]?.key).toBe('15:00');
+    expect(timeSlots(hours, '2026-09-20', now, LEAD_MINUTES)[0]?.key).toBe('15:00');
+    // A 180-minute lead, as set in the console: nothing before 17:05 is offered.
+    const later = timeSlots(hours, '2026-09-20', now, 180);
+    expect(later[0]?.key).toBe('17:30');
+    expect(later.every((slot) => slot.at.getTime() >= now.getTime() + 180 * 60_000)).toBe(true);
   });
 
   it('returns nothing for a day the place is shut', () => {
@@ -109,6 +136,32 @@ describe('timeSlots', () => {
     const slots = timeSlots(place(hours), '2026-09-19', new Date('2026-09-14T06:00:00Z'));
     expect(slots[0]?.key).toBe('11:00');
     expect(slots.at(-1)?.key).toBe('14:30');
+  });
+
+  it('offers both services of a split day, and nothing in the gap', () => {
+    // Listed dinner first, as nothing guarantees the order blocks arrive in.
+    const split: OpeningHours[] = [
+      { day: 0, open: '18:00', close: '21:00' },
+      { day: 0, open: '12:00', close: '14:00' },
+    ];
+    // 2026-09-20 is a Sunday.
+    const all = timeSlots(place(split), '2026-09-20', new Date('2026-09-01T00:00:00Z'));
+    expect(all.map((slot) => slot.key)).toEqual([
+      '12:00',
+      '12:30',
+      '13:00',
+      '13:30',
+      '18:00',
+      '18:30',
+      '19:00',
+      '19:30',
+      '20:00',
+      '20:30',
+    ]);
+
+    // 15:00 in Yerevan: lunch is over, dinner is still to come.
+    const afterLunch = timeSlots(place(split), '2026-09-20', new Date('2026-09-20T11:00:00Z'));
+    expect(afterLunch[0]?.key).toBe('18:00');
   });
 });
 

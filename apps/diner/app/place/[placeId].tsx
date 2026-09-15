@@ -1,10 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { isOfflinePaused } from '@yalla/api/react';
-import { formatDram, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   ScrollView,
@@ -28,23 +27,26 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { AmenityChips } from '../../src/components/place/AmenityChips';
 import { PlaceActions } from '../../src/components/place/PlaceActions';
+import { ReviewComposer } from '../../src/components/place/ReviewComposer';
 import { PlaceTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
 import { PlaceMetaRow, usePlaceCopy } from '../../src/components/places/placeCopy';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { TablePhotoView } from '../../src/components/tables/TablePhotoView';
-import { usePlace, usePlaceTables } from '../../src/places/hooks';
+import { placeKeys, usePlace, usePlaceTables } from '../../src/places/hooks';
 import {
   formatClock,
+  tablePhotoOf,
   type Place,
-  type Review,
   type TablePhotoMarker,
 } from '../../src/places/model';
+import { floorPlanParams } from '../../src/places/navigation';
+import { PlaceMenu } from '../../src/places/PlaceMenu';
+import { ReviewList } from '../../src/places/ReviewList';
 import { useFavorites, useIsFavorite } from '../../src/stores/favorites';
 import {
   actionIcon,
   colors,
   fontWeight,
-  iconSize,
   layout,
   radius,
   shadows,
@@ -74,6 +76,20 @@ export default function PlaceDetailsScreen() {
 
   const placeQuery = usePlace(placeId);
   const tablesQuery = usePlaceTables(placeId);
+
+  // The markers are read every few seconds, the place every few minutes. When
+  // the markers name a different cover than the place holds, the cover has
+  // changed: read the place again — once per new cover — so the hero agrees.
+  const queryClient = useQueryClient();
+  const markersPhoto = tablesQuery.data?.photo;
+  const placeCover = placeQuery.data ? tablePhotoOf(placeQuery.data) : undefined;
+  const refreshedFor = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!placeId || markersPhoto === undefined || placeCover === undefined) return;
+    if (markersPhoto === placeCover || refreshedFor.current === markersPhoto) return;
+    refreshedFor.current = markersPhoto;
+    void queryClient.invalidateQueries({ queryKey: placeKeys.detail(placeId) });
+  }, [placeId, markersPhoto, placeCover, queryClient]);
 
   const openBooking = useCallback(
     (table?: TablePhotoMarker) => {
@@ -114,19 +130,11 @@ export default function PlaceDetailsScreen() {
   }
 
   if (placeQuery.isError || isOfflinePaused(placeQuery)) {
-    const notAvailable = placeQuery.error?.name === 'PlaceApiNotImplementedError';
     return (
       <Screen edges={['top', 'left', 'right', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
         <HeaderRow onBack={back} />
-        <ErrorState
-          offline={isOfflinePaused(placeQuery)}
-          {...(notAvailable
-            ? { title: t('net.notAvailable'), body: t('net.notAvailableBody') }
-            : {})}
-          onRetry={retry}
-          style={styles.centered}
-        />
+        <ErrorState offline={isOfflinePaused(placeQuery)} onRetry={retry} style={styles.centered} />
       </Screen>
     );
   }
@@ -150,7 +158,9 @@ export default function PlaceDetailsScreen() {
   return (
     <PlaceDetails
       place={place}
-      tables={tablesQuery.data ?? place.tables}
+      tables={tablesQuery.data?.tables ?? place.tables}
+      // The markers' own photo once they have answered: their positions refer to it.
+      tablePhoto={tablesQuery.data ? tablesQuery.data.photo : tablePhotoOf(place)}
       heroHeight={heroHeight}
       onBack={back}
       onBook={openBooking}
@@ -161,12 +171,21 @@ export default function PlaceDetailsScreen() {
 interface PlaceDetailsProps {
   readonly place: Place;
   readonly tables: readonly TablePhotoMarker[];
+  /** The cover the markers sit on; `null` when there is none. */
+  readonly tablePhoto: string | null;
   readonly heroHeight: number;
   readonly onBack: () => void;
   readonly onBook: (table?: TablePhotoMarker) => void;
 }
 
-function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetailsProps) {
+function PlaceDetails({
+  place,
+  tables,
+  tablePhoto,
+  heroHeight,
+  onBack,
+  onBook,
+}: PlaceDetailsProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
@@ -192,7 +211,6 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
   );
 
   const photos = place.photos.length > 0 ? place.photos : [''];
-  const heroPhoto = photos[0] ?? '';
 
   const onHeroScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -211,11 +229,14 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
   }, [place.name, place.address, place.website]);
 
   const openFloorPlan = useCallback(() => {
-    router.push({
-      pathname: '/branch/[branchId]',
-      params: { branchId: place.id, venueId: place.venueId },
-    });
-  }, [router, place.id, place.venueId]);
+    // Slugs, names and the zone travel with it: the floor plan reads the
+    // booking rules by slug and never has to look the venue up again.
+    router.push({ pathname: '/branch/[branchId]', params: floorPlanParams(place) });
+  }, [router, place]);
+
+  const openAllReviews = useCallback(() => {
+    router.push({ pathname: '/place/[placeId]/reviews', params: { placeId: place.id } });
+  }, [router, place.id]);
 
   const { isOpen, opensAt, closesAt } = place.openState;
   const hours =
@@ -226,6 +247,9 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
         })
       : null;
   const badge = place.badges[0];
+  // Known from the place's own page (K9). Book is not offered where the app
+  // cannot book, and the page says why instead.
+  const bookingsOff = place.acceptsAppBookings === false;
 
   return (
     <Screen edges={['left', 'right']} backgroundColor={colors.surface}>
@@ -277,7 +301,8 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
                 icon={favorite ? actionIcon.favorited : actionIcon.favorite}
                 accessibilityLabel={favorite ? t('place.unfavorite') : t('place.favorite')}
                 variant="translucent"
-                {...(favorite ? { iconColor: colors.error } : {})}
+                // White on the glass either way: the filled heart says saved,
+                // and red on the glass fails 3:1 over a light photo.
                 onPress={() => toggleFavorite(place.id)}
               />
               <IconButton
@@ -343,16 +368,25 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
             }
             style={styles.tablesHeader}
           />
-          <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
-          <TablePhotoView
-            photo={heroPhoto}
-            tables={tables}
-            selectedTableId={selectedTableId}
-            onSelect={setSelectedTableId}
-            onBook={onBook}
-            style={styles.tablePhoto}
-          />
-          <TableLegend style={styles.legend} />
+          {tablePhoto && tables.length > 0 ? (
+            <>
+              <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
+              <TablePhotoView
+                photo={tablePhoto}
+                tables={tables}
+                selectedTableId={selectedTableId}
+                onSelect={setSelectedTableId}
+                onBook={onBook}
+                style={styles.tablePhoto}
+              />
+              <TableLegend style={styles.legend} />
+            </>
+          ) : (
+            // No cover, or no table placed on it yet: say so, rather than draw
+            // a gallery picture or an empty frame the diner is told to tap
+            // tables on. The floor plan link above and Book below still work.
+            <Text style={[styles.subtitle, styles.noTablePhoto]}>{t('tables.notOnPhoto')}</Text>
+          )}
 
           <PlaceTabs value={tab} onChange={setTab} style={styles.tabs} />
           <View style={styles.tabBody}>
@@ -362,85 +396,36 @@ function PlaceDetails({ place, tables, heroHeight, onBack, onBook }: PlaceDetail
                 <AmenityChips amenities={place.amenities} style={styles.amenities} />
               </>
             ) : tab === 'menu' ? (
-              <MenuList place={place} />
+              <PlaceMenu placeId={place.id} />
             ) : (
-              <ReviewList reviews={place.reviews} />
+              <>
+                <ReviewList placeId={place.id} reviews={place.reviews} />
+                {place.ratingCount > place.reviews.length ? (
+                  <Button
+                    label={t('place.reviews.seeAll', { count: place.ratingCount })}
+                    variant="outline"
+                    onPress={openAllReviews}
+                    style={styles.seeAll}
+                  />
+                ) : null}
+                <ReviewComposer placeId={place.id} style={styles.composer} />
+              </>
             )}
           </View>
         </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
-        <Button label={t('place.bookTable')} size="large" onPress={() => onBook()} />
+        {bookingsOff ? (
+          <View style={styles.bookingsOff} accessibilityRole="summary">
+            <Text style={styles.bookingsOffTitle}>{t('place.bookingsOff.title')}</Text>
+            <Text style={styles.bookingsOffBody}>{t('place.bookingsOff.body')}</Text>
+          </View>
+        ) : (
+          <Button label={t('place.bookTable')} size="large" onPress={() => onBook()} />
+        )}
       </View>
     </Screen>
-  );
-}
-
-function MenuList({ place }: { place: Place }) {
-  const { locale } = useLocale();
-  return (
-    <View style={styles.menu}>
-      {place.menu.map((section) => (
-        <View key={section.section} style={styles.menuSection}>
-          <Text style={styles.menuSectionTitle}>{section.section}</Text>
-          {section.items.map((item) => (
-            <View key={item.name} style={styles.menuItem}>
-              <View style={styles.menuItemBody}>
-                <Text style={styles.menuItemName}>{item.name}</Text>
-                {item.description ? (
-                  <Text style={styles.menuItemDescription}>{item.description}</Text>
-                ) : null}
-              </View>
-              <Text style={styles.menuItemPrice}>{formatDram(item.price, locale)}</Text>
-            </View>
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function ReviewList({ reviews }: { reviews: readonly Review[] }) {
-  const { locale } = useLocale();
-  const dateFormat = useMemo(
-    () => new Intl.DateTimeFormat(intlTag(locale), { dateStyle: 'medium', timeZone: 'UTC' }),
-    [locale],
-  );
-  return (
-    <View style={styles.reviews}>
-      {reviews.map((review) => {
-        const parsed = new Date(review.date);
-        const date = Number.isNaN(parsed.getTime()) ? review.date : dateFormat.format(parsed);
-        return (
-          <View key={`${review.author}-${review.date}`} style={styles.review}>
-            <View style={styles.reviewHead}>
-              <Text numberOfLines={1} style={styles.reviewAuthor}>
-                {review.author}
-              </Text>
-              <Text style={styles.reviewDate}>{date}</Text>
-            </View>
-            <Stars rating={review.rating} />
-            <Text style={styles.reviewText}>{review.text}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function Stars({ rating }: { rating: number }) {
-  return (
-    <View accessibilityRole="text" accessibilityLabel={String(rating)} style={styles.stars}>
-      {[1, 2, 3, 4, 5].map((step) => (
-        <Ionicons
-          key={step}
-          name={step <= Math.round(rating) ? actionIcon.star : 'star-outline'}
-          size={iconSize.sm}
-          color={colors.warning}
-        />
-      ))}
-    </View>
   );
 }
 
@@ -547,56 +532,15 @@ const styles = StyleSheet.create({
   tabBody: { paddingTop: space.lg, paddingBottom: space.sm },
   about: { ...typography.body, color: colors.text },
   amenities: { marginTop: space.md },
-
-  menu: { gap: space.lg },
-  menuSection: { gap: space.xs },
-  menuSectionTitle: {
-    ...typography.bodyLg,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-    marginBottom: space.xs,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.md,
-    paddingVertical: space.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  menuItemBody: { flex: 1, gap: 2 },
-  menuItemName: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
-  menuItemDescription: { ...typography.caption, color: colors.textMuted },
-  menuItemPrice: {
-    ...typography.body,
-    ...tabularNumbers,
-    fontWeight: fontWeight.medium,
-    color: colors.text,
-  },
-
-  reviews: { gap: space.md },
-  review: {
-    padding: space.md,
-    gap: space.xs + 2,
-    borderRadius: radius.card,
-    backgroundColor: colors.background,
-  },
-  reviewHead: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
-  reviewAuthor: {
-    ...typography.body,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-    flexShrink: 1,
-  },
-  reviewDate: { ...typography.caption, color: colors.textSubtle },
-  stars: { flexDirection: 'row', gap: 2 },
-  reviewText: { ...typography.body, color: colors.text },
+  seeAll: { marginTop: space.md },
+  composer: { marginTop: space.lg },
 
   tablesHeader: { marginTop: space.xl },
   floorPlanLink: { paddingHorizontal: space.sm, minHeight: layout.touchTarget - 8 },
   subtitle: { ...typography.caption, color: colors.textMuted, marginTop: space.xs },
   tablePhoto: { marginTop: space.md },
   legend: { marginTop: space.md, marginBottom: space.lg },
+  noTablePhoto: { marginBottom: space.lg },
 
   footer: {
     paddingHorizontal: layout.screenPadding,
@@ -605,6 +549,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
+  bookingsOff: { gap: space.xs, paddingVertical: space.xs },
+  bookingsOffTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
+  bookingsOffBody: { ...typography.body, color: colors.textMuted },
 
   skeletonSheet: { gap: space.md, paddingBottom: space.xl },
   skeletonTiles: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },

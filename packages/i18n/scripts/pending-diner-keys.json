@@ -1,0 +1,4 @@
+{
+  "$comment": "Diner keys added before the screens that render them. check-used-keys.mjs accepts these while nothing references them; once a screen uses a key it prints a note, and the entry should be deleted. An entry is a full key or a prefix ending in .* — the value says who renders it.",
+  "keys": {}
+}

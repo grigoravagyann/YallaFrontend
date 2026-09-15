@@ -1,9 +1,16 @@
 node_modules
 dist
+dist-web
 build
 .expo
 pnpm-lock.yaml
 packages/api/src/generated
+
+# Playwright's output from a local e2e run; gitignored in apps/e2e, so CI never sees it.
+apps/e2e/test-results
+apps/e2e/test-results-*
+apps/e2e/playwright-report
+apps/e2e/blob-report
 
 # Written by packages/tokens/scripts/generate-css.mjs; formatting it by hand would only make the next run rewrite it.
 apps/web/src/tokens.generated.css

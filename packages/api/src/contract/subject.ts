@@ -35,10 +35,29 @@ import type { StaffGateway } from '../staffGateway';
 export interface ContractSubject {
   /** Shown in test names, so a failure says which implementation broke. */
   readonly name: string;
+  /** Anonymous: browsing, availability and the public reads need no account. */
   readonly gateway: YallaGateway;
+  /** A waiter's session at the fixture branch. */
   readonly staff: StaffGateway;
+  /** The console as somebody who may do everything at the fixture branch, moving it included. */
   readonly console: ConsoleGateway;
+  /**
+   * The console as a manager whose home branch is the fixture branch: may edit
+   * it, may not move it (K4, K5).
+   */
+  readonly managerConsole: ConsoleGateway;
   readonly fixtures: ContractFixtures;
+  /**
+   * A diner who did not exist a moment ago: registered with a password, the
+   * phone confirmed by code, signed in on a session of their own.
+   *
+   * A fresh one per suite rather than one shared, because the journey ends by
+   * deleting the account, and a suite that inherits a revoked session from
+   * another one fails for a reason that has nothing to do with it.
+   */
+  readonly newDiner: () => Promise<ContractDiner>;
+  /** GET a photo variant the way a phone would, and say what came back. */
+  readonly fetchPhoto: (url: string) => Promise<PhotoProbe>;
   /**
    * Why a capability cannot be exercised against this subject, or `null` when
    * it can.
@@ -67,15 +86,44 @@ export interface ContractSubject {
   readonly dispose?: () => Promise<void>;
 }
 
+/** A signed-in diner, and what it takes to act as them again. */
+export interface ContractDiner {
+  readonly gateway: YallaGateway;
+  readonly dinerUserId: string;
+  readonly phoneE164: string;
+  /** Kept so the account can be deleted with it (K2). Never logged. */
+  readonly password: string;
+}
+
+export interface PhotoProbe {
+  readonly status: number;
+  readonly contentType: string;
+}
+
 /**
  * The areas of behaviour a subject may or may not be able to exercise.
  *
  * Coarse on purpose. A subject either has the credentials and seeded data for a
  * whole area or it does not; making this finer would let a live run opt out of
  * the single assertion it fails.
+ *
+ * `photoBytes` and `photoMarkers` are the exception, and both are the mock's:
+ * it stores no image bytes to serve, and its diner world keeps no photo
+ * positions for the console's pins to show up in. Every other assertion about
+ * the same uploads and pins runs against it.
  */
 export type ContractCapability =
-  'availability' | 'reservations' | 'tabs' | 'tableState' | 'menu' | 'reports';
+  | 'availability'
+  | 'reservations'
+  | 'tabs'
+  | 'tableState'
+  | 'menu'
+  | 'reports'
+  | 'places'
+  | 'consoleListing'
+  | 'dinerJourney'
+  | 'photoBytes'
+  | 'photoMarkers';
 
 /**
  * The ids a suite needs to ask a real question.
@@ -114,4 +162,30 @@ export function tomorrowEvening(timeZoneId: string, now: Date = new Date()): str
     : 0;
 
   return new Date(naive - offsetMinutes * 60_000).toISOString();
+}
+
+const TOKEN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
+
+/** Lowercase letters and digits, from the platform's CSPRNG. */
+export function randomToken(length: number): string {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((byte) => TOKEN_ALPHABET[byte % TOKEN_ALPHABET.length]).join('');
+}
+
+export function randomUuid(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Different in every run, so a command id from an earlier run against the same
+ * database is never read back as a replay of this one.
+ */
+export const CONTRACT_RUN = `${Date.now().toString(36)}${randomToken(4)}`;
+
+/** A number in the `+37491000xxx` test range. */
+export function testPhone(): string {
+  const bytes = new Uint16Array(1);
+  crypto.getRandomValues(bytes);
+  return `+37491000${String(bytes[0]! % 1000).padStart(3, '0')}`;
 }

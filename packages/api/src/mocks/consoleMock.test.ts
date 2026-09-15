@@ -103,13 +103,18 @@ describe('console mock — the venue reads refuse what the server refuses', () =
   });
 
   it('refuses a branch read outside the signed-in venue, and answers one inside it', async () => {
-    // The server's rule (`BranchScoped`, `StaffBranchGuard`): the branch must
-    // belong to the token's venue. A manager with a home branch is not confined
-    // to it on the server, so a sibling branch answers.
+    // The server's rule (`BranchScoped`, `IStaffBranchGuard`): the branch must
+    // belong to the token's venue, and since K4 a manager with a home branch is
+    // confined to it. Their home branch answers; a sibling does not.
     const { ForbiddenError } = await import('../errors');
     const manager = createConsoleMockGateway({ role: 'manager' });
-    await expect(manager.getFloorPlan('b-lumen-cascade')).resolves.toBeTruthy();
-    await expect(manager.getAdminMenu('b-lumen-cascade')).resolves.toBeTruthy();
+    await expect(manager.getFloorPlan('b-lumen-north')).resolves.toBeTruthy();
+    await expect(manager.getAdminMenu('b-lumen-north')).resolves.toBeTruthy();
+    expect(await failing(manager.getFloorPlan('b-lumen-cascade'))).toBeInstanceOf(ForbiddenError);
+    expect(await failing(manager.getAdminMenu('b-lumen-cascade'))).toBeInstanceOf(ForbiddenError);
+    // A manager created with no branch still runs every branch of the venue.
+    const floating = createConsoleMockGateway({ role: 'manager', managerBranch: 'none' });
+    await expect(floating.getFloorPlan('b-lumen-cascade')).resolves.toBeTruthy();
 
     const reads = [
       manager.getFloorPlan('b-tumanyan-main'),
@@ -783,7 +788,14 @@ describe('console mock — deciding a pending booking', () => {
   it('refuses a manager with a home branch at a sibling branch, with the server sentence', async () => {
     const { ForbiddenError } = await import('../errors');
     const manager = createConsoleMockGateway({ role: 'manager' });
-    const [elsewhere] = await manager.listPendingReservations('b-lumen-cascade');
+    // K4: the sibling's list itself is refused now. The booking id is the
+    // fixture's own, read through the owner.
+    expect(await failing(manager.listPendingReservations('b-lumen-cascade'))).toBeInstanceOf(
+      ForbiddenError,
+    );
+    const [elsewhere] = await createConsoleMockGateway({ role: 'owner' }).listPendingReservations(
+      'b-lumen-cascade',
+    );
 
     const caught = await failing(manager.approveReservation({ reservationId: elsewhere!.id }));
     expect(caught).toBeInstanceOf(ForbiddenError);
