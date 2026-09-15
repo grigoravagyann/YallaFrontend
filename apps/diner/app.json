@@ -34,6 +34,11 @@
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
+      ],
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -61,6 +66,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cfd66f41-308a-47d0-991d-72f2538e7e9d"
+      }
     }
   }
 }
