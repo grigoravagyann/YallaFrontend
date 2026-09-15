@@ -103,7 +103,7 @@ export const ANONYMOUS_AUTHOR = 'Yalla diner';
  * 3. Otherwise keep only letters (any script) and hyphens, at most 24 characters.
  * 4. Add `" X."` only if the second word starts with a letter.
  *
- * `"ani@mail.am"` and `"+374 91 123456"` are `"Yalla diner"`;
+ * `"ani@example.test"` and `"+374 91 000 999"` are `"Yalla diner"`;
  * `"Anahit Sargsyan"` is `"Anahit S."`; `"Անահիտ Սարգսյան"` is `"Անահիտ Ս."`.
  */
 export function publicAuthorName(displayName: string | null | undefined): string {

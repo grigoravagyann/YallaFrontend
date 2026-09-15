@@ -1473,7 +1473,7 @@ export interface paths {
          *
          *     The new password is under the same rule as registration: 8-128 characters, and not the username or the email.
          *
-         *     **Every access token the account holds ends, this one included**: the next call with it answers `401 session-revoked`. Refresh tokens are not revoked, so the app refreshes and carries on.
+         *     **Every access token the account holds ends, this one included**: the next call with it answers `401 session-revoked`. **Every other sign-in's refresh token is revoked**, so other devices are signed out; the sign-in this token came from keeps its refresh token, so the app refreshes and carries on.
          */
         put: operations["setDinerPassword"];
         post?: never;

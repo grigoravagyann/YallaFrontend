@@ -53,8 +53,18 @@ function unreadable(what, error) {
 /** A leading byte-order mark is not JSON; .NET tooling writes one. */
 const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
 
+/** CRLF vs LF in descriptions follows the backend's checkout, not the contract. */
+function unixNewlines(value) {
+  if (typeof value === 'string') return value.replace(/\r\n?/g, '\n');
+  if (Array.isArray(value)) return value.map(unixNewlines);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, unixNewlines(v)]));
+  }
+  return value;
+}
+
 function parse(text) {
-  return JSON.parse(text.startsWith(BYTE_ORDER_MARK) ? text.slice(1) : text);
+  return unixNewlines(JSON.parse(text.startsWith(BYTE_ORDER_MARK) ? text.slice(1) : text));
 }
 
 async function readLive() {

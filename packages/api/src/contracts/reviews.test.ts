@@ -4,8 +4,8 @@ import { ANONYMOUS_AUTHOR, publicAuthorName } from './reviews';
 /** The K8 author-name rule, with the backend's own cases first. */
 describe('publicAuthorName', () => {
   it.each([
-    ['ani@mail.am', ANONYMOUS_AUTHOR],
-    ['+374 91 123456', ANONYMOUS_AUTHOR],
+    ['ani@example.test', ANONYMOUS_AUTHOR],
+    ['+374 91 000 999', ANONYMOUS_AUTHOR],
     ['Anahit Sargsyan', 'Anahit S.'],
     ['Անահիտ Սարգսյան', 'Անահիտ Ս.'],
   ])('%s → %s', (input, expected) => {

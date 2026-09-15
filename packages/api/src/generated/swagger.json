@@ -3555,7 +3555,7 @@
                     "$ref": "#/components/schemas/Yalla.Application.Staff.UpdateStaffCommand"
                   }
                 ],
-                "description": "Patch a staff member. BranchId is applied only when SetBranch\r\nis true, so that \"make them venue-wide\" (null) can be told apart from \"leave it\"."
+                "description": "Patch a staff member. BranchId is applied only when SetBranch\nis true, so that \"make them venue-wide\" (null) can be told apart from \"leave it\"."
               }
             }
           },
@@ -5913,7 +5913,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "What this device is bound to. Reads the claim in the handler for the same reason the PIN\r\nexchange does: the device token is the credential being described, not one being authorised.",
+        "summary": "What this device is bound to. Reads the claim in the handler for the same reason the PIN\nexchange does: the device token is the credential being described, not one being authorised.",
         "description": "For the PIN screen. **A tablet on a counter should say where it thinks it is** - without this a browser enrolled months ago shows a keypad with no indication of which branch it will act on, and a laptop bound to the wrong one is first noticed in an audit row.\n\nAuthenticated by the device token. A revoked device is refused here too: showing a venue name and a keypad to somebody holding a killed tablet is the wrong answer twice.",
         "operationId": "getEnrolledStaffDevice",
         "responses": {
@@ -5985,7 +5985,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Who may sign in on this device. Reads the device claim exactly as\r\nM:Yalla.Api.Endpoints.AuthEndpoints.GetEnrolledDeviceAsync(Yalla.Application.Auth.IStaffAuthService,Microsoft.AspNetCore.Http.HttpContext,System.Threading.CancellationToken) does, so the two refuse the same callers the same way.",
+        "summary": "Who may sign in on this device. Reads the device claim exactly as\nM:Yalla.Api.Endpoints.AuthEndpoints.GetEnrolledDeviceAsync(Yalla.Application.Auth.IStaffAuthService,Microsoft.AspNetCore.Http.HttpContext,System.Threading.CancellationToken) does, so the two refuse the same callers the same way.",
         "description": "For the PIN screen, so a first sign-in is a name to tap rather than a staff member id to type. Exactly the people `POST /api/auth/staff/pin` would accept here: active, of this device's venue, and either at this device's branch or at no particular branch. Sorted by name.\n\nThree fields per person and nothing else - no phone, email or PIN state - because whoever holds the tablet can read it.\n\nAuthenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.",
         "operationId": "getStaffRoster",
         "responses": {
@@ -6060,7 +6060,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "The one endpoint that reads a claim in the handler, because the device is the credential\r\nbeing exchanged rather than something being authorised.",
+        "summary": "The one endpoint that reads a claim in the handler, because the device is the credential\nbeing exchanged rather than something being authorised.",
         "description": "The whole point of the staff model: **a waiter never types an email during a Friday rush**. The tablet signs in once and stays signed in; a person becomes present with four taps.\n\nSend the device token as the bearer. The session token that comes back carries the staff member, their role and the tablet's branch, and lasts thirty minutes; the renewal handle keeps it alive while the tablet is in use and stops working after thirty minutes of inactivity.\n\nPINs are per person, never shared. A shared PIN is faster and destroys the audit trail that answers 'who gave away my reserved table'.",
         "operationId": "signInStaffWithPin",
         "requestBody": {
@@ -8069,7 +8069,7 @@
           "diner"
         ],
         "summary": "Set a first password, or change the current one",
-        "description": "An account the code flow created has no password and sets one without `currentPassword` - the bearer token is the proof. An account that has one must send it, and a wrong one is `401 invalid-credentials`.\n\nThe new password is under the same rule as registration: 8-128 characters, and not the username or the email.\n\n**Every access token the account holds ends, this one included**: the next call with it answers `401 session-revoked`. Refresh tokens are not revoked, so the app refreshes and carries on.",
+        "description": "An account the code flow created has no password and sets one without `currentPassword` - the bearer token is the proof. An account that has one must send it, and a wrong one is `401 invalid-credentials`.\n\nThe new password is under the same rule as registration: 8-128 characters, and not the username or the email.\n\n**Every access token the account holds ends, this one included**: the next call with it answers `401 session-revoked`. **Every other sign-in's refresh token is revoked**, so other devices are signed out; the sign-in this token came from keeps its refresh token, so the app refreshes and carries on.",
         "operationId": "setDinerPassword",
         "requestBody": {
           "content": {
@@ -10607,7 +10607,7 @@
           "diner"
         ],
         "summary": "Availability, through the existing read model.",
-        "description": "The public gate is applied first and the query is then the same one the app calls. Growing a\r\nsecond availability implementation here would be the beginning of two answers to \"is table 7\r\nfree\", and the two would eventually disagree in front of somebody standing at the door.",
+        "description": "The public gate is applied first and the query is then the same one the app calls. Growing a\nsecond availability implementation here would be the beginning of two answers to \"is table 7\nfree\", and the two would eventually disagree in front of somebody standing at the door.",
         "operationId": "getPublicAvailability",
         "parameters": [
           {
@@ -10817,7 +10817,7 @@
           "diner"
         ],
         "summary": "Cancels a booking from its manage link.",
-        "description": "The reason is optional and comes from the body, which may be absent entirely - a diner\r\ntapping Cancel on a page has nothing to say and should not have to send an empty object.",
+        "description": "The reason is optional and comes from the body, which may be absent entirely - a diner\ntapping Cancel on a page has nothing to say and should not have to send an empty object.",
         "operationId": "cancelPublicBooking",
         "parameters": [
           {
@@ -15946,7 +15946,7 @@
           },
           "clientCommandId": {
             "type": "string",
-            "description": "The caller's own id for this booking. <b>Required.</b> A phone on a patchy connection retries,\r\nand this is what makes the retry return the original booking instead of taking a second table\r\nfor the same party.",
+            "description": "The caller's own id for this booking. <b>Required.</b> A phone on a patchy connection retries,\nand this is what makes the retry return the original booking instead of taking a second table\nfor the same party.",
             "format": "uuid"
           },
           "stayHint": {
@@ -15968,7 +15968,7 @@
           },
           "note": {
             "type": "string",
-            "description": "A note to the venue - \"window table\", \"a high chair\". Optional; trimmed, blank means none, at\r\nmost 500 characters, refused as `validation-failed` naming `note` with bound `max`.",
+            "description": "A note to the venue - \"window table\", \"a high chair\". Optional; trimmed, blank means none, at\nmost 500 characters, refused as `validation-failed` naming `note` with bound `max`.",
             "nullable": true
           }
         },
@@ -15997,7 +15997,7 @@
           },
           "code": {
             "type": "string",
-            "description": "Required when it has none: a one-time code from `POST /api/auth/diner/request-code` for the\r\naccount's own number.",
+            "description": "Required when it has none: a one-time code from `POST /api/auth/diner/request-code` for the\naccount's own number.",
             "nullable": true
           }
         },
@@ -16012,7 +16012,7 @@
         "properties": {
           "clientCommandId": {
             "type": "string",
-            "description": "Idempotency. The late nudge is a notification the diner can tap twice, and the second tap must be\r\na no-op rather than an error about an extension already used.",
+            "description": "Idempotency. The late nudge is a notification the diner can tap twice, and the second tap must be\na no-op rather than an error about an extension already used.",
             "format": "uuid"
           }
         },
@@ -16060,7 +16060,7 @@
           },
           "localeCode": {
             "type": "string",
-            "description": "Language to store against the account: `hy`, `ru` or `en`. Left alone when\r\nabsent or unrecognised - the account already knows its language.",
+            "description": "Language to store against the account: `hy`, `ru` or `en`. Left alone when\nabsent or unrecognised - the account already knows its language.",
             "nullable": true
           }
         },
@@ -16115,7 +16115,7 @@
         "properties": {
           "bookingCode": {
             "type": "string",
-            "description": "The code on the diner's booking - \"DFJFQY\" - typed however they typed it. Case, spaces and dashes\r\ndo not matter."
+            "description": "The code on the diner's booking - \"DFJFQY\" - typed however they typed it. Case, spaces and dashes\ndo not matter."
           },
           "deviceId": {
             "type": "string",
@@ -16123,7 +16123,7 @@
           },
           "clientCommandId": {
             "type": "string",
-            "description": "The caller's own id for this attempt. <b>Required.</b> A retry with the same id returns the same\r\ntab instead of opening a second one.",
+            "description": "The caller's own id for this attempt. <b>Required.</b> A retry with the same id returns the same\ntab instead of opening a second one.",
             "format": "uuid"
           },
           "displayName": {
@@ -16169,11 +16169,11 @@
           },
           "deviceId": {
             "type": "string",
-            "description": "A stable identifier the app generates once per install. Not an account and not a login - it is\r\nwhat lets someone who re-scans after their phone locked land back on the same participant\r\ninstead of appearing twice on the bill."
+            "description": "A stable identifier the app generates once per install. Not an account and not a login - it is\nwhat lets someone who re-scans after their phone locked land back on the same participant\ninstead of appearing twice on the bill."
           },
           "clientCommandId": {
             "type": "string",
-            "description": "The caller's own id for this scan. <b>Required.</b> A double scan, or a retry on flaky wifi,\r\nwith the same id returns the same tab instead of opening a second one.",
+            "description": "The caller's own id for this scan. <b>Required.</b> A double scan, or a retry on flaky wifi,\nwith the same id returns the same tab instead of opening a second one.",
             "format": "uuid"
           },
           "displayName": {
@@ -16193,7 +16193,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.SettlementMode"
               }
             ],
-            "description": "Optional. How the bill will be split, if the host chooses now: 1 HostPaysEverything,\r\n2 EveryonePaysOwnItems, 3 AnyonePaysAnyAmount (the default). Only used when this scan opens the tab.",
+            "description": "Optional. How the bill will be split, if the host chooses now: 1 HostPaysEverything,\n2 EveryonePaysOwnItems, 3 AnyonePaysAnyAmount (the default). Only used when this scan opens the tab.",
             "nullable": true
           },
           "hideTotalFromGuests": {
@@ -16252,12 +16252,12 @@
           },
           "clientCommandId": {
             "type": "string",
-            "description": "The caller's own id. A double-tap over flaky wifi returns the first order rather than sending\r\nthe kitchen two. <b>Required</b>: left out, it bound `Guid.Empty` and replayed whichever order\r\nfirst used that, on any tab; now it is refused with 400. A replay is matched on this tab and this\r\ncaller only.",
+            "description": "The caller's own id. A double-tap over flaky wifi returns the first order rather than sending\nthe kitchen two. <b>Required</b>: left out, it bound `Guid.Empty` and replayed whichever order\nfirst used that, on any tab; now it is refused with 400. A replay is matched on this tab and this\ncaller only.",
             "format": "uuid"
           },
           "onBehalfOfParticipantId": {
             "type": "string",
-            "description": "<b>Staff only.</b> Who the spoken order was for. Leave it out when the waiter did not know, and\r\n            the lines are attributed to the table and split across everyone present.",
+            "description": "<b>Staff only.</b> Who the spoken order was for. Leave it out when the waiter did not know, and\n            the lines are attributed to the table and split across everyone present.",
             "format": "uuid",
             "nullable": true
           }
@@ -16350,11 +16350,11 @@
           },
           "deviceId": {
             "type": "string",
-            "description": "The identifier the tablet minted for itself, stable across reinstalls. Enrolling the same one\r\ntwice on a branch is refused as a client bug rather than as a credential problem - the tablet is\r\nalready enrolled and holding a token it is not using."
+            "description": "The identifier the tablet minted for itself, stable across reinstalls. Enrolling the same one\ntwice on a branch is refused as a client bug rather than as a credential problem - the tablet is\nalready enrolled and holding a token it is not using."
           },
           "deviceName": {
             "type": "string",
-            "description": "What the tablet should be called in the admin panel - \"Bar tablet\", \"Terrace\". A manager\r\nrevoking a lost device picks it out of a list by this name."
+            "description": "What the tablet should be called in the admin panel - \"Bar tablet\", \"Terrace\". A manager\nrevoking a lost device picks it out of a list by this name."
           }
         },
         "additionalProperties": false,
@@ -16368,7 +16368,7 @@
         "properties": {
           "refreshToken": {
             "type": "string",
-            "description": "The handle from the last sign-in or refresh. It is spent by this call: use the one in the\r\nresponse next time. Sending a spent handle revokes the whole chain."
+            "description": "The handle from the last sign-in or refresh. It is spent by this call: use the one in the\nresponse next time. Sending a spent handle revokes the whole chain."
           }
         },
         "additionalProperties": false,
@@ -16396,7 +16396,7 @@
           },
           "locale": {
             "type": "string",
-            "description": "BCP-47. <b>The person's language, not the venue's</b> - a Russian-speaking regular at an\r\nArmenian venue is written to in Russian. Anything unrecognised falls back to Armenian."
+            "description": "BCP-47. <b>The person's language, not the venue's</b> - a Russian-speaking regular at an\nArmenian venue is written to in Russian. Anything unrecognised falls back to Armenian."
           }
         },
         "additionalProperties": false,
@@ -16414,7 +16414,7 @@
         "properties": {
           "username": {
             "type": "string",
-            "description": "3-30 characters - letters, digits, dots and underscores, starting with a letter or a digit.\r\nStored lowercased, unique case-insensitively."
+            "description": "3-30 characters - letters, digits, dots and underscores, starting with a letter or a digit.\nStored lowercased, unique case-insensitively."
           },
           "email": {
             "type": "string",
@@ -16426,7 +16426,7 @@
           },
           "phoneE164": {
             "type": "string",
-            "description": "The number, in E.164 - `+37411223344`. <b>Not verified by registering:</b> the account's\r\n`phoneVerified` stays false until a one-time code to it is passed once."
+            "description": "The number, in E.164 - `+37411223344`. <b>Not verified by registering:</b> the account's\n`phoneVerified` stays false until a one-time code to it is passed once."
           },
           "displayName": {
             "type": "string",
@@ -16454,11 +16454,11 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reservations.ReleaseOutcome"
               }
             ],
-            "description": "<b>1 NoShow</b> - nobody came and nobody called; counts toward the diner's rolling no-show\r\n             threshold. <b>2 CancelledByVenue</b> - they phoned, or the table went out of service; does\r\n             <b>not</b> count.\r\n            \r\n             Two buttons on the tablet, never one. A single \"release\" gets tapped for both cases by a busy\r\n             waiter, and the threshold then punishes the diners who bothered to ring ahead."
+            "description": "<b>1 NoShow</b> - nobody came and nobody called; counts toward the diner's rolling no-show\n             threshold. <b>2 CancelledByVenue</b> - they phoned, or the table went out of service; does\n             <b>not</b> count.\n            \n             Two buttons on the tablet, never one. A single \"release\" gets tapped for both cases by a busy\n             waiter, and the threshold then punishes the diners who bothered to ring ahead."
           },
           "clientCommandId": {
             "type": "string",
-            "description": "Idempotency. Releasing twice from a tablet that lost its connection must not put two no-shows on\r\na diner's record.",
+            "description": "Idempotency. Releasing twice from a tablet that lost its connection must not put two no-shows on\na diner's record.",
             "format": "uuid"
           },
           "reason": {
@@ -16478,7 +16478,7 @@
         "properties": {
           "renewalToken": {
             "type": "string",
-            "description": "The handle from the last PIN sign-in or renewal. Rotates on every use, and stops working after\r\nthirty minutes of inactivity."
+            "description": "The handle from the last PIN sign-in or renewal. Rotates on every use, and stops working after\nthirty minutes of inactivity."
           }
         },
         "additionalProperties": false,
@@ -16492,11 +16492,11 @@
         "properties": {
           "phoneE164": {
             "type": "string",
-            "description": "The number to send the code to, in E.164 - `+37411223344`. Spaces, dashes and brackets\r\nare stripped before validation, so what a phone keypad produces is accepted."
+            "description": "The number to send the code to, in E.164 - `+37411223344`. Spaces, dashes and brackets\nare stripped before validation, so what a phone keypad produces is accepted."
           },
           "localeCode": {
             "type": "string",
-            "description": "Language for the message: `hy`, `ru` or `en`. A regional tag such as\r\n`hy-AM` is accepted; anything unrecognised falls back rather than failing.",
+            "description": "Language for the message: `hy`, `ru` or `en`. A regional tag such as\n`hy-AM` is accepted; anything unrecognised falls back rather than failing.",
             "nullable": true
           }
         },
@@ -16535,7 +16535,7 @@
           },
           "newPassword": {
             "type": "string",
-            "description": "The new password. Only a minimum length is enforced - no composition rules, which push people\r\ntowards predictable substitutions and towards writing the result down."
+            "description": "The new password. Only a minimum length is enforced - no composition rules, which push people\ntowards predictable substitutions and towards writing the result down."
           }
         },
         "additionalProperties": false,
@@ -16572,7 +16572,7 @@
           },
           "queued": {
             "type": "boolean",
-            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\r\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\r\napplied twice and says nothing about it being out of date."
+            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\napplied twice and says nothing about it being out of date."
           },
           "expectedFromStatus": {
             "allOf": [
@@ -16585,7 +16585,7 @@
           },
           "expectedRowVersion": {
             "type": "string",
-            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\r\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\r\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\r\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
+            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
             "nullable": true
           }
         },
@@ -16623,7 +16623,7 @@
           },
           "queued": {
             "type": "boolean",
-            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\r\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\r\napplied twice and says nothing about it being out of date."
+            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\napplied twice and says nothing about it being out of date."
           },
           "expectedFromStatus": {
             "allOf": [
@@ -16636,7 +16636,7 @@
           },
           "expectedRowVersion": {
             "type": "string",
-            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\r\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\r\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\r\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
+            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
             "nullable": true
           }
         },
@@ -16668,7 +16668,7 @@
           },
           "queued": {
             "type": "boolean",
-            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\r\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\r\napplied twice and says nothing about it being out of date."
+            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\napplied twice and says nothing about it being out of date."
           },
           "expectedFromStatus": {
             "allOf": [
@@ -16681,7 +16681,7 @@
           },
           "expectedRowVersion": {
             "type": "string",
-            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\r\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\r\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\r\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
+            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
             "nullable": true
           }
         },
@@ -16700,7 +16700,7 @@
           },
           "currentPassword": {
             "type": "string",
-            "description": "Required when the account has a password; ignored when it has none yet. The profile's\r\n`hasPassword` says which.",
+            "description": "Required when the account has a password; ignored when it has none yet. The profile's\n`hasPassword` says which.",
             "nullable": true
           }
         },
@@ -16811,7 +16811,7 @@
         "properties": {
           "clientCommandId": {
             "type": "string",
-            "description": "The caller's own id for this command. <b>Required.</b> The staff tablet queues changes while\r\nthe wifi is down and replays them on reconnect, so the same request arrives twice; this is\r\nwhat makes the second arrival return the first one's result instead of acting again.",
+            "description": "The caller's own id for this command. <b>Required.</b> The staff tablet queues changes while\nthe wifi is down and replays them on reconnect, so the same request arrives twice; this is\nwhat makes the second arrival return the first one's result instead of acting again.",
             "format": "uuid"
           },
           "reason": {
@@ -16821,7 +16821,7 @@
           },
           "queued": {
             "type": "boolean",
-            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\r\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\r\napplied twice and says nothing about it being out of date."
+            "description": "True when this came off the tablet's offline queue rather than from a live tap. A queued command\n<b>must</b> carry ExpectedFromStatus, because idempotency stops it being\napplied twice and says nothing about it being out of date."
           },
           "expectedFromStatus": {
             "allOf": [
@@ -16834,7 +16834,7 @@
           },
           "expectedRowVersion": {
             "type": "string",
-            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\r\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\r\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\r\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
+            "description": "The table's `rowVersion` from the floor read model at the moment of the tap, sent back\nuntouched. <b>Status is not a version:</b> a table that went Free to Occupied and back to Free\nwhile the command sat in the queue passes a status check, and the command lands on a sitting that\nhas already ended. When both are supplied both must match, and the refusal says which failed.",
             "nullable": true
           }
         },
@@ -17001,7 +17001,7 @@
           },
           "earliestUtc": {
             "type": "string",
-            "description": "When the branch starts holding the table for the party - the earliest the code opens the tab.\r\nBefore it, `booking-too-early`: render it in the branch's time zone, \"from 19:10\".",
+            "description": "When the branch starts holding the table for the party - the earliest the code opens the tab.\nBefore it, `booking-too-early`: render it in the branch's time zone, \"from 19:10\".",
             "format": "date-time"
           }
         },
@@ -17071,7 +17071,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`booking-too-early`, `booking-ended` or `booking-not-active`, 409, with the\r\n            booking's facts. Branch on the code. The other 409s the route shares with the scan - the table out\r\n            of service, the tab being settled, the command id taken by another device - arrive on the same\r\n            status with no `context`."
+        "description": "`booking-too-early`, `booking-ended` or `booking-not-active`, 409, with the\n            booking's facts. Branch on the code. The other 409s the route shares with the scan - the table out\n            of service, the tab being settled, the command id taken by another device - arrive on the same\n            status with no `context`."
       },
       "Yalla.Api.Errors.BranchNotReadyContext": {
         "required": [
@@ -17087,7 +17087,7 @@
           },
           "incompleteMenuItemCount": {
             "type": "integer",
-            "description": "How many items are missing a photo, a description, ingredients, allergens, a portion size or a\r\nprep time. The number the refusal exists to carry - the readiness endpoint lists which ones.",
+            "description": "How many items are missing a photo, a description, ingredients, allergens, a portion size or a\nprep time. The number the refusal exists to carry - the readiness endpoint lists which ones.",
             "format": "int32"
           }
         },
@@ -17246,7 +17246,7 @@
         "properties": {
           "field": {
             "type": "string",
-            "description": "The property, in the casing the OpenAPI schema uses - `turnTimeMinutes`, or\r\n`[2].closesAt` where the payload is an array. <b>This is what a form keys on.</b> It\r\ndeliberately is not an English label: the console used to map server prose back to inputs\r\nthrough a lookup table, which stopped working the moment either side was translated."
+            "description": "The property, in the casing the OpenAPI schema uses - `turnTimeMinutes`, or\n`[2].closesAt` where the payload is an array. <b>This is what a form keys on.</b> It\ndeliberately is not an English label: the console used to map server prose back to inputs\nthrough a lookup table, which stopped working the moment either side was translated."
           },
           "message": {
             "type": "string",
@@ -17436,7 +17436,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`hold-not-active`, `hold-already-extended` or `extensions-not-offered`, 409. Branch\r\n            on the code: the three need three different sentences."
+        "description": "`hold-not-active`, `hold-already-extended` or `extensions-not-offered`, 409. Branch\n            on the code: the three need three different sentences."
       },
       "Yalla.Api.Errors.IdentifierTakenContext": {
         "required": [
@@ -17446,7 +17446,7 @@
         "properties": {
           "field": {
             "type": "string",
-            "description": "The request field to highlight: `username`, `email` or `phoneE164`. The same\r\ninformation the code carries, in the form a form keys on."
+            "description": "The request field to highlight: `username`, `email` or `phoneE164`. The same\ninformation the code carries, in the form a form keys on."
           }
         },
         "additionalProperties": false,
@@ -17515,7 +17515,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`username-taken`, `email-taken` or `phone-in-use`, 409. Branch on the code: the\r\n            third is the one that offers \"log in with a code instead\", because the number's owner can\r\n            prove it and a stranger typing it cannot."
+        "description": "`username-taken`, `email-taken` or `phone-in-use`, 409. Branch on the code: the\n            third is the one that offers \"log in with a code instead\", because the number's owner can\n            prove it and a stranger typing it cannot."
       },
       "Yalla.Api.Errors.LineAlreadyPaidContext": {
         "required": [
@@ -17713,7 +17713,7 @@
           },
           "itemName": {
             "type": "string",
-            "description": "Its name. The reason this family is typed at all: the client has to be able to say <i>which</i>\r\ndish, and \"your order could not be placed\" sends the diner back to a waiter."
+            "description": "Its name. The reason this family is typed at all: the client has to be able to say <i>which</i>\ndish, and \"your order could not be placed\" sends the diner back to a waiter."
           }
         },
         "additionalProperties": false,
@@ -17804,7 +17804,7 @@
           },
           "remainingAmd": {
             "type": "integer",
-            "description": "What is actually owed. The waiter is standing at the table holding notes, so this is the field\r\nthe refusal exists to carry.",
+            "description": "What is actually owed. The waiter is standing at the table holding notes, so this is the field\nthe refusal exists to carry.",
             "format": "int64"
           }
         },
@@ -17960,7 +17960,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`review-needs-visit`, 403, with the window. `phone-not-verified` arrives on the same status\r\n            with no `context`: branch on the code."
+        "description": "`review-needs-visit`, 403, with the window. `phone-not-verified` arrives on the same status\n            with no `context`: branch on the code."
       },
       "Yalla.Api.Errors.ServiceRequestRateLimitedContext": {
         "required": [
@@ -18156,11 +18156,11 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "A URI naming the problem type. Built from Yalla.Api.Errors.UnifiedErrorEnvelope.Code, so it is stable and\r\ndereferenceable to documentation rather than being `about:blank` for everything."
+            "description": "A URI naming the problem type. Built from Yalla.Api.Errors.UnifiedErrorEnvelope.Code, so it is stable and\ndereferenceable to documentation rather than being `about:blank` for everything."
           },
           "title": {
             "type": "string",
-            "description": "Short, stable summary of the <i>kind</i> of problem. Same wording for every occurrence -\r\nthe specifics go in Yalla.Api.Errors.UnifiedErrorEnvelope.Detail."
+            "description": "Short, stable summary of the <i>kind</i> of problem. Same wording for every occurrence -\nthe specifics go in Yalla.Api.Errors.UnifiedErrorEnvelope.Detail."
           },
           "status": {
             "type": "integer",
@@ -18192,7 +18192,7 @@
                 "type": "string"
               }
             },
-            "description": "Field-level complaints, keyed by field name, when the failure was about the payload.\r\nOmitted entirely when there are none.",
+            "description": "Field-level complaints, keyed by field name, when the failure was about the payload.\nOmitted entirely when there are none.",
             "nullable": true
           },
           "context": {
@@ -18200,7 +18200,7 @@
             "additionalProperties": {
               "nullable": true
             },
-            "description": "Machine-readable facts about this particular failure, for the cases where the client has\r\nto act on more than the code.",
+            "description": "Machine-readable facts about this particular failure, for the cases where the client has\nto act on more than the code.",
             "nullable": true
           }
         },
@@ -18223,7 +18223,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Api.Errors.FieldViolationShape"
             },
-            "description": "All of them. A single request can break six bounds, and returning one at a time makes an owner\r\nsubmit six times to discover that."
+            "description": "All of them. A single request can break six bounds, and returning one at a time makes an owner\nsubmit six times to discover that."
           }
         },
         "additionalProperties": false,
@@ -18292,7 +18292,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`validation-failed`, 422. The reservation policy and opening-hours refusals, and every\r\n            other field-level refusal that used to carry prose and nothing else."
+        "description": "`validation-failed`, 422. The reservation policy and opening-hours refusals, and every\n            other field-level refusal that used to carry prose and nothing else."
       },
       "Yalla.Api.Errors.VerificationCodeInvalidContext": {
         "required": [
@@ -18302,7 +18302,7 @@
         "properties": {
           "attemptsRemaining": {
             "type": "integer",
-            "description": "Tries left on the number's live code. <b>Zero</b> when there is no live code, or the last try was\r\njust spent: say \"ask for a new code\", not \"try again\".",
+            "description": "Tries left on the number's live code. <b>Zero</b> when there is no live code, or the last try was\njust spent: say \"ask for a new code\", not \"try again\".",
             "format": "int32"
           }
         },
@@ -18372,7 +18372,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`verification-code-invalid`, 401, with the count. `verification-code-expired` arrives on\r\n            the same status with no `context`."
+        "description": "`verification-code-invalid`, 401, with the count. `verification-code-expired` arrives on\n            the same status with no `context`."
       },
       "Yalla.Application.Auth.DeviceEnrolmentCodeResult": {
         "required": [
@@ -18641,7 +18641,7 @@
           },
           "renewalToken": {
             "type": "string",
-            "description": "Handle the tablet exchanges to stay signed in. Rotates on every use, and stops working after\r\nthirty minutes of inactivity - at which point the PIN is needed again."
+            "description": "Handle the tablet exchanges to stay signed in. Rotates on every use, and stops working after\nthirty minutes of inactivity - at which point the PIN is needed again."
           },
           "expiresInSeconds": {
             "type": "integer",
@@ -18792,7 +18792,7 @@
           },
           "developmentCode": {
             "type": "string",
-            "description": "The code itself, returned <b>only</b> in Development so the flow can be exercised with no SMS\r\nprovider wired up. Always null in any other environment.",
+            "description": "The code itself, returned <b>only</b> in Development so the flow can be exercised with no SMS\nprovider wired up. Always null in any other environment.",
             "nullable": true
           }
         },
@@ -18828,7 +18828,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`.\r\nNull or empty clears them.",
+            "description": "Keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`.\nNull or empty clears them.",
             "nullable": true
           },
           "galleryPhotoIds": {
@@ -18837,7 +18837,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "Photos uploaded for <b>this</b> branch, in display order, at most 12. <b>Null leaves the gallery\r\nas it is</b>; an empty list clears it.",
+            "description": "Photos uploaded for <b>this</b> branch, in display order, at most 12. <b>Null leaves the gallery\nas it is</b>; an empty list clears it.",
             "nullable": true
           },
           "address": {
@@ -18956,7 +18956,7 @@
           },
           "isReadyForDiners": {
             "type": "boolean",
-            "description": "Every line below satisfied. This is exactly what going Paid requires on the menu side, plus the\r\nrest of the checklist - the tier switch itself only enforces the menu, because a venue may want\r\nits tabs enabled before it has finished enrolling tablets."
+            "description": "Every line below satisfied. This is exactly what going Paid requires on the menu side, plus the\nrest of the checklist - the tier switch itself only enforces the menu, because a venue may want\nits tabs enabled before it has finished enrolling tablets."
           },
           "floorPlanDrawn": {
             "type": "boolean",
@@ -18969,7 +18969,7 @@
           },
           "tablesLabelled": {
             "type": "boolean",
-            "description": "Every active table carries a label. Labels are required by the entity and unique per branch, so\r\nthis is satisfied whenever there are tables at all - it is reported because the checklist has a\r\nline for it and a silently-absent line reads as a failure."
+            "description": "Every active table carries a label. Labels are required by the entity and unique per branch, so\nthis is satisfied whenever there are tables at all - it is reported because the checklist has a\nline for it and a silently-absent line reads as a failure."
           },
           "menuCategoriesPresent": {
             "type": "boolean",
@@ -18987,7 +18987,7 @@
           },
           "incompleteMenuItemCount": {
             "type": "integer",
-            "description": "How many items are missing a photo, a description, ingredients, allergens, a portion size or a\r\nprep time. <b>The number that blocks going live</b>, and the number the refusal quotes.",
+            "description": "How many items are missing a photo, a description, ingredients, allergens, a portion size or a\nprep time. <b>The number that blocks going live</b>, and the number the refusal quotes.",
             "format": "int32"
           },
           "incompleteMenuItemIds": {
@@ -19013,7 +19013,7 @@
           },
           "reservationPolicyReviewed": {
             "type": "boolean",
-            "description": "Somebody has saved the reservation policy at least once. A branch ships with defaults, so\r\n\"has a policy\" is always true and answers nothing; this asks whether a human has looked."
+            "description": "Somebody has saved the reservation policy at least once. A branch ships with defaults, so\n\"has a policy\" is always true and answers nothing; this asks whether a human has looked."
           },
           "staffEnrolled": {
             "type": "boolean",
@@ -19035,14 +19035,14 @@
           },
           "acceptsWebBookings": {
             "type": "boolean",
-            "description": "Whether the branch takes bookings from its public page.\r\n<b>Reported, and deliberately not a blocker.</b> A venue that does not want bookings from\r\nstrangers on the internet is not an unfinished venue - most will start this way, and its public\r\npage showing the room, the menu and the hours is a perfectly good page. It is on the checklist\r\nso that leaving it off is something somebody saw and chose, rather than a default they never\r\nknew they had inherited; a line that blocked going live would instead teach every onboarder to\r\nswitch it on without reading it, which is the opposite of the point."
+            "description": "Whether the branch takes bookings from its public page.\n<b>Reported, and deliberately not a blocker.</b> A venue that does not want bookings from\nstrangers on the internet is not an unfinished venue - most will start this way, and its public\npage showing the room, the menu and the hours is a perfectly good page. It is on the checklist\nso that leaving it off is something somebody saw and chose, rather than a default they never\nknew they had inherited; a line that blocked going live would instead teach every onboarder to\nswitch it on without reading it, which is the opposite of the point."
           },
           "blockers": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "One sentence per unsatisfied line, in checklist order. The console renders its own labels; this\r\nis for the places that need to say what is wrong without reimplementing the list - a log line,\r\na support answer, an email to the venue."
+            "description": "One sentence per unsatisfied line, in checklist order. The console renders its own labels; this\nis for the places that need to say what is wrong without reimplementing the list - a log line,\na support answer, an email to the venue."
           }
         },
         "additionalProperties": false,
@@ -19147,7 +19147,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "The plan as applied, plus what the editor should know: overlaps (warnings, not errors), and\r\nwhich omitted tables were deactivated rather than deleted because they have history."
+        "description": "The plan as applied, plus what the editor should know: overlaps (warnings, not errors), and\nwhich omitted tables were deactivated rather than deleted because they have history."
       },
       "Yalla.Application.BranchSettings.FloorPlanView": {
         "required": [
@@ -19191,7 +19191,7 @@
           },
           "version": {
             "type": "string",
-            "description": "The plan's revision, opaque. Send it back as `expectedVersion` on the replace; a save against\r\nan older revision is refused with `floor-plan-changed`."
+            "description": "The plan's revision, opaque. Send it back as `expectedVersion` on the replace; a save against\nan older revision is refused with `floor-plan-changed`."
           }
         },
         "additionalProperties": false,
@@ -19270,7 +19270,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A table as the editor sends it. `Id` matches an existing table; null means new - unless a\r\ntable with that label already exists in the branch, in which case it is that table, so its QR\r\ncode survives an editor that lost the id."
+        "description": "A table as the editor sends it. `Id` matches an existing table; null means new - unless a\ntable with that label already exists in the branch, in which case it is that table, so its QR\ncode survives an editor that lost the id."
       },
       "Yalla.Application.BranchSettings.FloorTableView": {
         "required": [
@@ -19433,7 +19433,7 @@
         "properties": {
           "phoneE164": {
             "type": "string",
-            "description": "E.164, e.g. `+37411223344`. Spaces, dashes and brackets are stripped before validation.\r\nNull or blank clears the number.",
+            "description": "E.164, e.g. `+37411223344`. Spaces, dashes and brackets are stripped before validation.\nNull or blank clears the number.",
             "nullable": true
           },
           "acceptsWebBookings": {
@@ -19442,7 +19442,7 @@
           },
           "coverPhotoId": {
             "type": "string",
-            "description": "A photo uploaded for <b>this</b> branch, or null to clear the picture. One uploaded for another\r\nbranch is not found here, the same answer a menu item gets for a foreign photo.",
+            "description": "A photo uploaded for <b>this</b> branch, or null to clear the picture. One uploaded for another\nbranch is not found here, the same answer a menu item gets for a foreign photo.",
             "format": "uuid",
             "nullable": true
           }
@@ -19463,7 +19463,7 @@
           },
           "acceptsWebBookings": {
             "type": "boolean",
-            "description": "Whether the public page offers booking. See\r\nYalla.Domain.Venues.Branch.AcceptsWebBookings for why this is false until somebody\r\nsays otherwise."
+            "description": "Whether the public page offers booking. See\nYalla.Domain.Venues.Branch.AcceptsWebBookings for why this is false until somebody\nsays otherwise."
           },
           "coverPhoto": {
             "allOf": [
@@ -19471,7 +19471,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
               }
             ],
-            "description": "The venue card's picture - the first thing a stranger sees on the public page and in the diner\r\napp's list - or null when there is none yet.",
+            "description": "The venue card's picture - the first thing a stranger sees on the public page and in the diner\napp's list - or null when there is none yet.",
             "nullable": true
           }
         },
@@ -19513,7 +19513,7 @@
           },
           "expectedVersion": {
             "type": "string",
-            "description": "<b>Required.</b> The `version` the editor loaded. A plan changed since then is refused with\r\n            `409 floor-plan-changed` and `context.currentVersion`, and nothing is written.",
+            "description": "<b>Required.</b> The `version` the editor loaded. A plan changed since then is refused with\n            `409 floor-plan-changed` and `context.currentVersion`, and nothing is written.",
             "nullable": true
           }
         },
@@ -19538,7 +19538,7 @@
           },
           "affectedExistingReservations": {
             "type": "integer",
-            "description": "How many live bookings now fall outside the new rules - beyond the shortened window, or\r\nbooked under a longer turn time. They were <b>not</b> changed: a settings edit never rewrites or\r\ncancels a booking. The new rules apply to future bookings only.",
+            "description": "How many live bookings now fall outside the new rules - beyond the shortened window, or\nbooked under a longer turn time. They were <b>not</b> changed: a settings edit never rewrites or\ncancels a booking. The new rules apply to future bookings only.",
             "format": "int32"
           },
           "affectedReservationIds": {
@@ -19797,7 +19797,7 @@
         "properties": {
           "coverPhotoId": {
             "type": "string",
-            "description": "<b>Required.</b> The cover the positions were placed on. When it is no longer the branch's cover -\r\n            or the branch has none - the save is refused with `409 cover-changed`.",
+            "description": "<b>Required.</b> The cover the positions were placed on. When it is no longer the branch's cover -\n            or the branch has none - the save is refused with `409 cover-changed`.",
             "format": "uuid",
             "nullable": true
           },
@@ -19928,14 +19928,14 @@
           },
           "kind": {
             "type": "string",
-            "description": "`booking-reminder`, `booking-confirmed`, `booking-declined`,\r\n            `booking-cancelled-by-venue`, `order-ready` or `review-hidden`. The app writes the text."
+            "description": "`booking-reminder`, `booking-confirmed`, `booking-declined`,\n            `booking-cancelled-by-venue`, `order-ready` or `review-hidden`. The app writes the text."
           },
           "params": {
             "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "description": "String values the app's text is built from, as they were when the entry was written: for bookings\r\n`venueName`, `branchName`, `date` (yyyy-MM-dd), `time` (HH:mm), `partySize`,\r\n`reservationCode`; for an order `venueName`, `branchName`, `tableLabel`; for a\r\nreview `venueName`, `branchName`, `reviewId`."
+            "description": "String values the app's text is built from, as they were when the entry was written: for bookings\n`venueName`, `branchName`, `date` (yyyy-MM-dd), `time` (HH:mm), `partySize`,\n`reservationCode`; for an order `venueName`, `branchName`, `tableLabel`; for a\nreview `venueName`, `branchName`, `reviewId`."
           },
           "branchId": {
             "type": "string",
@@ -20306,7 +20306,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "At most 500. Each is added when missing; nothing is ever removed. An unknown or unpublished place is\r\nskipped rather than refused - a heart made weeks ago may be for a place that has since closed.",
+            "description": "At most 500. Each is added when missing; nothing is ever removed. An unknown or unpublished place is\nskipped rather than refused - a heart made weeks ago may be for a place that has since closed.",
             "nullable": true
           }
         },
@@ -20512,7 +20512,7 @@
           },
           "asOfUtc": {
             "type": "string",
-            "description": "The instant the derived states were computed for. Every `ReservedSoon` in this\r\npayload is relative to this, not to the client's clock.",
+            "description": "The instant the derived states were computed for. Every `ReservedSoon` in this\npayload is relative to this, not to the client's clock.",
             "format": "date-time"
           },
           "maxSequence": {
@@ -20618,7 +20618,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.DerivedTableState"
               }
             ],
-            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\r\nreservation overlay applied."
+            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\nreservation overlay applied."
           },
           "rowVersion": {
             "type": "string",
@@ -20667,7 +20667,7 @@
           },
           "freeUntilUtc": {
             "type": "string",
-            "description": "How long this table can be given away for: the next booking's start less the branch's\r\nturnaround buffer. Null when nothing is booked.",
+            "description": "How long this table can be given away for: the next booking's start less the branch's\nturnaround buffer. Null when nothing is booked.",
             "format": "date-time",
             "nullable": true
           }
@@ -20703,7 +20703,7 @@
           },
           "wasDeduplicated": {
             "type": "boolean",
-            "description": "True when these exact bytes were already stored for this branch and the existing photo was\r\nreturned. Reported rather than hidden - an upload that wrote nothing looks like a failure."
+            "description": "True when these exact bytes were already stored for this branch and the existing photo was\nreturned. Reported rather than hidden - an upload that wrote nothing looks like a failure."
           }
         },
         "additionalProperties": false,
@@ -21281,7 +21281,7 @@
           },
           "tableSessionClosed": {
             "type": "boolean",
-            "description": "True when closing the tab also closed the sitting. The <b>table is not freed</b> by this -\r\nthat stays an explicit waiter action, because physical and financial state are independent."
+            "description": "True when closing the tab also closed the sitting. The <b>table is not freed</b> by this -\nthat stays an explicit waiter action, because physical and financial state are independent."
           },
           "tabEventSequence": {
             "type": "integer",
@@ -21557,7 +21557,7 @@
           },
           "absorbedFromRemovedAmd": {
             "type": "integer",
-            "description": "What fell to them because somebody removed from the tab cannot pay for what they ate. Non-zero\r\nonly for the host, and stated rather than folded in silently.",
+            "description": "What fell to them because somebody removed from the tab cannot pay for what they ate. Non-zero\nonly for the host, and stated rather than folded in silently.",
             "format": "int64"
           },
           "personalAmd": {
@@ -21647,7 +21647,7 @@
           },
           "tabEventSequence": {
             "type": "integer",
-            "description": "Where the tab's event stream stands. Raising or acknowledging a request appends an event, so the\r\nresponse says where that left the stream - otherwise the phone that just called a waiter is the\r\none client guaranteed to be behind. Zero on the branch-wide list, which spans many tabs and so\r\nhas no single stream to be caught up with.",
+            "description": "Where the tab's event stream stands. Raising or acknowledging a request appends an event, so the\nresponse says where that left the stream - otherwise the phone that just called a waiter is the\none client guaranteed to be behind. Zero on the branch-wide list, which spans many tabs and so\nhas no single stream to be caught up with.",
             "format": "int64"
           }
         },
@@ -21794,7 +21794,7 @@
           },
           "maxSequence": {
             "type": "integer",
-            "description": "Where the tab's event stream stands, so a client that just read the split knows whether it has\r\nmissed anything. Prompt 8 said every tab response carries it; this one did not, which made the\r\nbill screen - the screen where being out of date matters most - the one that had to ask twice.",
+            "description": "Where the tab's event stream stands, so a client that just read the split knows whether it has\nmissed anything. Prompt 8 said every tab response carries it; this one did not, which made the\nbill screen - the screen where being out of date matters most - the one that had to ask twice.",
             "format": "int64"
           }
         },
@@ -21903,7 +21903,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
               }
             ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\r\nis four paying customers. The venue-level view is a rollup."
+            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
           },
           "tableCount": {
             "type": "integer",
@@ -21960,7 +21960,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
               }
             ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\r\nis four paying customers. The venue-level view is a rollup."
+            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
           }
         },
         "additionalProperties": false,
@@ -22215,7 +22215,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
               }
             ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\r\nis four paying customers. The venue-level view is a rollup."
+            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
           }
         },
         "additionalProperties": false,
@@ -22253,7 +22253,7 @@
           },
           "timeZoneId": {
             "type": "string",
-            "description": "The branch's IANA zone. Every time here is wall-clock in it, and a diner reading this on a\r\nphone set to another zone must not be shown a converted time."
+            "description": "The branch's IANA zone. Every time here is wall-clock in it, and a diner reading this on a\nphone set to another zone must not be shown a converted time."
           },
           "tableLabel": {
             "type": "string",
@@ -22288,12 +22288,12 @@
           },
           "cancellationDeadlineUtc": {
             "type": "string",
-            "description": "The instant past which cancelling is recorded as late. Absolute rather than a number of minutes\r\nso the page does not have to reimplement the arithmetic, and so a policy edit cannot silently\r\nmove a deadline the diner has already been shown.",
+            "description": "The instant past which cancelling is recorded as late. Absolute rather than a number of minutes\nso the page does not have to reimplement the arithmetic, and so a policy edit cannot silently\nmove a deadline the diner has already been shown.",
             "format": "date-time"
           },
           "canCancel": {
             "type": "boolean",
-            "description": "Whether cancelling would do anything - false once the booking is already cancelled, missed or\r\nfinished. <b>Not</b> the deadline: cancelling past the deadline is allowed and merely recorded."
+            "description": "Whether cancelling would do anything - false once the booking is already cancelled, missed or\nfinished. <b>Not</b> the deadline: cancelling past the deadline is allowed and merely recorded."
           },
           "cancelledAfterDeadline": {
             "type": "boolean",
@@ -22301,7 +22301,7 @@
           },
           "note": {
             "type": "string",
-            "description": "The note the diner typed for the venue when booking, or absent (K9). Theirs to see again; it\r\nsays nothing the link holder did not write.",
+            "description": "The note the diner typed for the venue when booking, or absent (K9). Theirs to see again; it\nsays nothing the link holder did not write.",
             "nullable": true
           }
         },
@@ -22339,7 +22339,7 @@
           },
           "freeTableCount": {
             "type": "integer",
-            "description": "How many tables have nobody sitting at them right now, walk-in-only stools included - the same\r\ntables the branch page's `tableCount` counts and its plan draws, so the two can never read\r\n\"3 of 2 free\" and zero means every seat is taken. The one volatile number here, and the reason\r\nthe browse list is cached for seconds rather than minutes.",
+            "description": "How many tables have nobody sitting at them right now, walk-in-only stools included - the same\ntables the branch page's `tableCount` counts and its plan draws, so the two can never read\n\"3 of 2 free\" and zero means every seat is taken. The one volatile number here, and the reason\nthe browse list is cached for seconds rather than minutes.",
             "format": "int32"
           },
           "isOpenNow": {
@@ -22348,7 +22348,7 @@
           },
           "timeZoneId": {
             "type": "string",
-            "description": "The branch's IANA zone, e.g. `Asia/Yerevan`. A slot a diner picks after browsing is a\r\nwall-clock time at the branch, and a phone set to another zone has to render it in this one\r\nrather than guess - the diner app guessed `Asia/Yerevan`, because this list is the only\r\npublic read in front of its venue and booking screens and it did not say."
+            "description": "The branch's IANA zone, e.g. `Asia/Yerevan`. A slot a diner picks after browsing is a\nwall-clock time at the branch, and a phone set to another zone has to render it in this one\nrather than guess - the diner app guessed `Asia/Yerevan`, because this list is the only\npublic read in front of its venue and booking screens and it did not say."
           }
         },
         "additionalProperties": false,
@@ -22424,7 +22424,7 @@
           },
           "acceptsAppBookings": {
             "type": "boolean",
-            "description": "Whether the diner app may book here: online bookings switched on <b>and</b> the reservation policy\r\nsaved by somebody at the venue (K9). False means hide the booking button."
+            "description": "Whether the diner app may book here: online bookings switched on <b>and</b> the reservation policy\nsaved by somebody at the venue (K9). False means hide the booking button."
           },
           "recentReviews": {
             "type": "array",
@@ -22682,7 +22682,7 @@
           },
           "timeZoneId": {
             "type": "string",
-            "description": "The branch's IANA zone. Every time on this page is rendered in it - a tourist's phone is on the\r\nwrong zone, and a tourist is a named primary user of this surface."
+            "description": "The branch's IANA zone. Every time on this page is rendered in it - a tourist's phone is on the\nwrong zone, and a tourist is a named primary user of this surface."
           },
           "openingHours": {
             "type": "array",
@@ -22693,16 +22693,16 @@
           },
           "isOpenNow": {
             "type": "boolean",
-            "description": "Whether it is open at this moment, decided in the branch's own zone.\r\n\r\n<b>This is the only \"is it worth going\" signal, and there is deliberately no second one.</b> An\r\nearlier draft carried a `status` of Open/Closed beside it, which was computed from this\r\nfield and therefore said nothing new under a name that implied venue lifecycle. A branch that is\r\nsuspended, deleted or switched off never reaches this response at all - every query behind it\r\nfilters those out and the route answers 404 - so \"shut tonight\" is this field being false, and\r\n\"this venue is gone\" is the 404. Two names for one fact is how a mapper picks the wrong one.\r\n"
+            "description": "Whether it is open at this moment, decided in the branch's own zone.\n\n<b>This is the only \"is it worth going\" signal, and there is deliberately no second one.</b> An\nearlier draft carried a `status` of Open/Closed beside it, which was computed from this\nfield and therefore said nothing new under a name that implied venue lifecycle. A branch that is\nsuspended, deleted or switched off never reaches this response at all - every query behind it\nfilters those out and the route answers 404 - so \"shut tonight\" is this field being false, and\n\"this venue is gone\" is the 404. Two names for one fact is how a mapper picks the wrong one.\n"
           },
           "freeTableCount": {
             "type": "integer",
-            "description": "Tables with nobody at them right now, bookable or walk-in only, so it is always out of\r\nTableCount and always the number of tables the plan draws with\r\n`isFree` true.",
+            "description": "Tables with nobody at them right now, bookable or walk-in only, so it is always out of\nTableCount and always the number of tables the plan draws with\n`isFree` true.",
             "format": "int32"
           },
           "tableCount": {
             "type": "integer",
-            "description": "How many tables there are - every table on the plan, bookable or not - so the count has a\r\ndenominator.",
+            "description": "How many tables there are - every table on the plan, bookable or not - so the count has a\ndenominator.",
             "format": "int32"
           },
           "floorPlan": {
@@ -22711,16 +22711,16 @@
                 "$ref": "#/components/schemas/Yalla.Application.Public.PublicFloorPlan"
               }
             ],
-            "description": "The room, in diner shape: the canvas, the areas and the tables with their geometry and whether\r\neach is free. <b>No QR tokens and no staff state</b> - see Yalla.Application.Public.PublicFloorTable."
+            "description": "The room, in diner shape: the canvas, the areas and the tables with their geometry and whether\neach is free. <b>No QR tokens and no staff state</b> - see Yalla.Application.Public.PublicFloorTable."
           },
           "phoneE164": {
             "type": "string",
-            "description": "The branch's contact number in E.164, or null when nobody has supplied one. The only way a\r\ndiner on this page can ask about a high chair or a wheelchair ramp.",
+            "description": "The branch's contact number in E.164, or null when nobody has supplied one. The only way a\ndiner on this page can ask about a high chair or a wheelchair ramp.",
             "nullable": true
           },
           "acceptsWebBookings": {
             "type": "boolean",
-            "description": "Whether this branch takes bookings from this page. <b>False unless somebody switched it on</b> -\r\nsee Yalla.Domain.Venues.Branch.AcceptsWebBookings. When false the page shows the\r\nroom, the menu and the hours and offers no booking, which is a perfectly good page."
+            "description": "Whether this branch takes bookings from this page. <b>False unless somebody switched it on</b> -\nsee Yalla.Domain.Venues.Branch.AcceptsWebBookings. When false the page shows the\nroom, the menu and the hours and offers no booking, which is a perfectly good page."
           },
           "bookingWindowDays": {
             "type": "integer",
@@ -22733,11 +22733,11 @@
                 "$ref": "#/components/schemas/Yalla.Application.Public.PublicReservationPolicy"
               }
             ],
-            "description": "The reservation rules a diner needs, and <b>only</b> those - see\r\nYalla.Application.Public.PublicReservationPolicy for what is deliberately withheld."
+            "description": "The reservation rules a diner needs, and <b>only</b> those - see\nYalla.Application.Public.PublicReservationPolicy for what is deliberately withheld."
           },
           "asOfUtc": {
             "type": "string",
-            "description": "When the server read the live half of this page. FreeTableCount,\r\nIsOpenNow and each table's `isFree` are true as of this instant and no\r\nlater; the rest is stable. The page shows the staleness rather than implying there is none,\r\nbecause this link is cached for seconds and shared for days.",
+            "description": "When the server read the live half of this page. FreeTableCount,\nIsOpenNow and each table's `isFree` are true as of this instant and no\nlater; the rest is stable. The page shows the staleness rather than implying there is none,\nbecause this link is cached for seconds and shared for days.",
             "format": "date-time"
           },
           "coverPhoto": {
@@ -22746,12 +22746,12 @@
                 "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
               }
             ],
-            "description": "The venue card's picture, or null when the owner has not set one. Part of the cached plan, not\r\nthe live stitch: it changes once during onboarding, and a stale cover is not a claim about the\r\nroom.",
+            "description": "The venue card's picture, or null when the owner has not set one. Part of the cached plan, not\nthe live stitch: it changes once during onboarding, and a stale cover is not a claim about the\nroom.",
             "nullable": true
           },
           "acceptsAppBookings": {
             "type": "boolean",
-            "description": "Whether the diner app may book here: AcceptsWebBookings<b>and</b> a reservation\r\npolicy somebody at the venue has saved (K9). Read live, like AcceptsWebBookings."
+            "description": "Whether the diner app may book here: AcceptsWebBookings<b>and</b> a reservation\npolicy somebody at the venue has saved (K9). Read live, like AcceptsWebBookings."
           }
         },
         "additionalProperties": false,
@@ -22874,7 +22874,7 @@
         "properties": {
           "turnTimeMinutes": {
             "type": "integer",
-            "description": "How long the table is held. The diner is told this before booking because it is the answer to\r\n\"can we linger?\", and finding out at the table is worse.",
+            "description": "How long the table is held. The diner is told this before booking because it is the answer to\n\"can we linger?\", and finding out at the table is worse.",
             "format": "int32"
           },
           "minLeadMinutes": {
@@ -22884,7 +22884,7 @@
           },
           "cancellationDeadlineMinutes": {
             "type": "integer",
-            "description": "How long before the start a diner may still cancel freely. On the page because a deadline\r\nnobody was told about is a deadline that produces no-shows rather than cancellations.",
+            "description": "How long before the start a diner may still cancel freely. On the page because a deadline\nnobody was told about is a deadline that produces no-shows rather than cancellations.",
             "format": "int32"
           }
         },
@@ -22950,7 +22950,7 @@
           },
           "authorName": {
             "type": "string",
-            "description": "\"Anahit S.\" - a first name and an initial, \"Yalla diner\" when the name cannot be shown. Never the\r\nfull name, a number, an email or any id. See `BranchReview.PublicAuthorName`."
+            "description": "\"Anahit S.\" - a first name and an initial, \"Yalla diner\" when the name cannot be shown. Never the\nfull name, a number, an email or any id. See `BranchReview.PublicAuthorName`."
           },
           "rating": {
             "type": "integer",
@@ -23016,7 +23016,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.DerivedTableState"
               }
             ],
-            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\r\nreservation overlay applied."
+            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\nreservation overlay applied."
           },
           "photoX": {
             "type": "number",
@@ -23161,7 +23161,7 @@
           },
           "previous": {
             "type": "number",
-            "description": "The same measure over the equivalent period immediately before. Null when there is no prior\r\ndata at all - which is <b>not</b> the same as zero, and a client must render it differently: a\r\nvenue's first week has no previous week, and \"down 100%\" would be a lie about it.",
+            "description": "The same measure over the equivalent period immediately before. Null when there is no prior\ndata at all - which is <b>not</b> the same as zero, and a client must render it differently: a\nvenue's first week has no previous week, and \"down 100%\" would be a lie about it.",
             "format": "double",
             "nullable": true
           },
@@ -23355,7 +23355,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Reports.MenuItemPerformance"
             },
-            "description": "<b>The report that changes behaviour.</b> Items with no line in the period at all. A dish nobody\r\n            orders is inventory that spoils and menu space that could sell something else, and no venue\r\n            knows which those are - they are, by definition, the ones nobody mentions."
+            "description": "<b>The report that changes behaviour.</b> Items with no line in the period at all. A dish nobody\n            orders is inventory that spoils and menu space that could sell something else, and no venue\n            knows which those are - they are, by definition, the ones nobody mentions."
           },
           "voids": {
             "type": "array",
@@ -23588,7 +23588,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Called off inside the branch's own cancellation deadline. Distinguished from an ordinary\r\ncancellation because a table given up in time is resold and one given up at 19:50 is not."
+            "description": "Called off inside the branch's own cancellation deadline. Distinguished from an ordinary\ncancellation because a table given up in time is resold and one given up at 19:50 is not."
           },
           "leadTime": {
             "type": "array",
@@ -23603,7 +23603,7 @@
                 "$ref": "#/components/schemas/Yalla.Application.Reports.Compared"
               }
             ],
-            "description": "Booked from the public page by somebody with no registered device. <b>These people cannot be\r\nreminded</b>: no app means no push channel, so the reminder, the late nudge and one-tap cancel -\r\nthe entire no-show story - do not reach them. This is the number that decides whether an SMS or\r\nTelegram channel is worth paying for. See `docs/reports.md`."
+            "description": "Booked from the public page by somebody with no registered device. <b>These people cannot be\nreminded</b>: no app means no push channel, so the reminder, the late nudge and one-tap cancel -\nthe entire no-show story - do not reach them. This is the number that decides whether an SMS or\nTelegram channel is worth paying for. See `docs/reports.md`."
           }
         },
         "additionalProperties": false
@@ -23789,7 +23789,7 @@
           },
           "overPolicyFraction": {
             "type": "number",
-            "description": "The fraction of sittings that ran past the policy's turn time. The single number to put next to\r\nthe chart, and the one that says whether the policy needs changing.",
+            "description": "The fraction of sittings that ran past the policy's turn time. The single number to put next to\nthe chart, and the one that says whether the policy needs changing.",
             "format": "double"
           },
           "closedSessions": {
@@ -23929,7 +23929,7 @@
           },
           "requestedEndUtc": {
             "type": "string",
-            "description": "The requested slot's end: start plus the branch's turn time. The diner is never asked how\r\nlong they intend to stay.",
+            "description": "The requested slot's end: start plus the branch's turn time. The diner is never asked how\nlong they intend to stay.",
             "format": "date-time"
           },
           "turnTimeMinutes": {
@@ -23944,12 +23944,12 @@
           },
           "cancellationDeadlineMinutes": {
             "type": "integer",
-            "description": "How long before the start a diner may still cancel freely - the branch's setting as it stands\r\nnow, which is what a cancellation is judged against.",
+            "description": "How long before the start a diner may still cancel freely - the branch's setting as it stands\nnow, which is what a cancellation is judged against.",
             "format": "int32"
           },
           "cancellationDeadlineUtc": {
             "type": "string",
-            "description": "The instant past which cancelling the slot asked about is recorded as late: the requested\r\nstart less Yalla.Application.Reservations.BranchAvailability.CancellationDeadlineMinutes.",
+            "description": "The instant past which cancelling the slot asked about is recorded as late: the requested\nstart less Yalla.Application.Reservations.BranchAvailability.CancellationDeadlineMinutes.",
             "format": "date-time",
             "nullable": true
           },
@@ -23959,7 +23959,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Occupancy.ReservationRejectionReason"
               }
             ],
-            "description": "A rule that refused the whole request before any table was considered - the date is too far\r\nout, the slot is too soon, the branch is shut. Null when the request itself was fine.",
+            "description": "A rule that refused the whole request before any table was considered - the date is too far\nout, the slot is too soon, the branch is shut. Null when the request itself was fine.",
             "nullable": true
           },
           "asOfUtc": {
@@ -24004,7 +24004,7 @@
           },
           "extensionsRemaining": {
             "type": "integer",
-            "description": "Always zero after a successful extension. Stated so the app can grey the button out rather than\r\nletting the diner tap it and be told no.",
+            "description": "Always zero after a successful extension. Stated so the app can grey the button out rather than\nletting the diner tap it and be told no.",
             "format": "int32"
           },
           "wasReplay": {
@@ -24084,7 +24084,7 @@
           },
           "tableFreed": {
             "type": "boolean",
-            "description": "True when the table was held for this booking and has been freed. False when somebody else is\r\nsitting there - the release still stands, and the floor is left telling the truth."
+            "description": "True when the table was held for this booking and has been freed. False when somebody else is\nsitting there - the release still stands, and the floor is left telling the truth."
           },
           "tableId": {
             "type": "string",
@@ -24105,7 +24105,7 @@
           },
           "countsTowardNoShowThreshold": {
             "type": "boolean",
-            "description": "Whether this one goes on the diner's record. Stated in the response so a client can say so\r\nrather than the waiter having to remember which button does what."
+            "description": "Whether this one goes on the diner's record. Stated in the response so a client can say so\nrather than the waiter having to remember which button does what."
           },
           "wasReplay": {
             "type": "boolean",
@@ -24226,11 +24226,11 @@
           },
           "cancelledAfterDeadline": {
             "type": "boolean",
-            "description": "Whether the cancellation came in past the branch's free-cancellation deadline. Recorded,\r\nnever punished here."
+            "description": "Whether the cancellation came in past the branch's free-cancellation deadline. Recorded,\nnever punished here."
           },
           "cancellationDeadlineUtc": {
             "type": "string",
-            "description": "The instant past which cancelling is recorded as late: the start less the branch's\r\ncancellation deadline as it stands, which is what a cancellation made now is judged against.\r\nCancelling after it is still allowed - recorded in Yalla.Application.Reservations.ReservationView.CancelledAfterDeadline, never\r\nrefused.",
+            "description": "The instant past which cancelling is recorded as late: the start less the branch's\ncancellation deadline as it stands, which is what a cancellation made now is judged against.\nCancelling after it is still allowed - recorded in Yalla.Application.Reservations.ReservationView.CancelledAfterDeadline, never\nrefused.",
             "format": "date-time"
           },
           "clientCommandId": {
@@ -24252,7 +24252,7 @@
           },
           "manageToken": {
             "type": "string",
-            "description": "The plaintext manage token, <b>returned exactly once</b> - in the response to the request\r\nthat created this booking - and null on every later read.",
+            "description": "The plaintext manage token, <b>returned exactly once</b> - in the response to the request\nthat created this booking - and null on every later read.",
             "nullable": true
           }
         },
@@ -24360,7 +24360,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.DerivedTableState"
               }
             ],
-            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\r\nreservation overlay applied."
+            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\nreservation overlay applied."
           },
           "isAvailable": {
             "type": "boolean",
@@ -24377,7 +24377,7 @@
           },
           "requiresApproval": {
             "type": "boolean",
-            "description": "True when booking this table will land as `PendingApproval` rather than confirmed: the\r\nbranch approves every booking by hand, or the party is over its threshold. Not a refusal,\r\nand worth saying before the diner commits."
+            "description": "True when booking this table will land as `PendingApproval` rather than confirmed: the\nbranch approves every booking by hand, or the party is over its threshold. Not a refusal,\nand worth saying before the diner commits."
           },
           "window": {
             "allOf": [
@@ -24417,13 +24417,13 @@
           },
           "availableUntilUtc": {
             "type": "string",
-            "description": "When the table has to be clear again - the next booking's start less the branch's clearing time.\r\nNull when nothing is booked after it.",
+            "description": "When the table has to be clear again - the next booking's start less the branch's clearing time.\nNull when nothing is booked after it.",
             "format": "date-time",
             "nullable": true
           },
           "hasNoLaterBooking": {
             "type": "boolean",
-            "description": "True when nothing is booked after this slot. Explicit, so a client never has to read a null as\r\neither \"unbounded\" or \"missing\"."
+            "description": "True when nothing is booked after this slot. Explicit, so a client never has to read a null as\neither \"unbounded\" or \"missing\"."
           },
           "windowMinutes": {
             "type": "integer",
@@ -24433,7 +24433,7 @@
           },
           "isShorterThanTurnTime": {
             "type": "boolean",
-            "description": "True when the window is shorter than the branch's usual sitting, so the client can say plainly\r\nthat this table gives less time than normal."
+            "description": "True when the window is shorter than the branch's usual sitting, so the client can say plainly\nthat this table gives less time than normal."
           },
           "availableFromLocal": {
             "type": "string",
@@ -24556,7 +24556,7 @@
           },
           "hiddenByPlatform": {
             "type": "boolean",
-            "description": "Taken down by the platform rather than the venue. A venue cannot put these back; the console\r\nshows them as the platform's decision."
+            "description": "Taken down by the platform rather than the venue. A venue cannot put these back; the console\nshows them as the platform's decision."
           },
           "reportCount": {
             "type": "integer",
@@ -24571,7 +24571,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "One review as a moderator sees it: the published fields, who wrote it, whether it is down and\r\nwhy, and how often diners have reported it."
+        "description": "One review as a moderator sees it: the published fields, who wrote it, whether it is down and\nwhy, and how often diners have reported it."
       },
       "Yalla.Application.Staff.CreateStaffCommand": {
         "required": [
@@ -24702,11 +24702,11 @@
           },
           "replacedExistingSignIn": {
             "type": "boolean",
-            "description": "True when this person already had a password. It keeps working until the link is used, at\r\nwhich point it is replaced and every session they had open is ended."
+            "description": "True when this person already had a password. It keeps working until the link is used, at\nwhich point it is replaced and every session they had open is ended."
           }
         },
         "additionalProperties": false,
-        "description": "A freshly issued sign-in link. ResetLink exists only here: the server keeps\r\nthe token's hash and no read ever returns it, so this is the one copy."
+        "description": "A freshly issued sign-in link. ResetLink exists only here: the server keeps\nthe token's hash and no read ever returns it, so this is the one copy."
       },
       "Yalla.Application.Staff.UpdateStaffCommand": {
         "required": [
@@ -24744,7 +24744,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Patch a staff member. BranchId is applied only when SetBranch\r\nis true, so that \"make them venue-wide\" (null) can be told apart from \"leave it\"."
+        "description": "Patch a staff member. BranchId is applied only when SetBranch\nis true, so that \"make them venue-wide\" (null) can be told apart from \"leave it\"."
       },
       "Yalla.Application.Tables.AffectedReservation": {
         "required": [
@@ -24858,7 +24858,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.DerivedTableState"
               }
             ],
-            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\r\nreservation overlay applied."
+            "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\nreservation overlay applied."
           },
           "tableSessionId": {
             "type": "string",
@@ -24898,7 +24898,7 @@
           },
           "wasReplay": {
             "type": "boolean",
-            "description": "True when this command had already been applied and the result was replayed from the audit\r\nlog rather than performed again. Callers can treat it exactly like a fresh success."
+            "description": "True when this command had already been applied and the result was replayed from the audit\nlog rather than performed again. Callers can treat it exactly like a fresh success."
           },
           "outstandingAmd": {
             "type": "integer",
@@ -24977,11 +24977,11 @@
           },
           "wasReplay": {
             "type": "boolean",
-            "description": "True when the `clientCommandId` had already been applied and this is the original answer\r\nagain. Treat exactly like a fresh success."
+            "description": "True when the `clientCommandId` had already been applied and this is the original answer\nagain. Treat exactly like a fresh success."
           }
         },
         "additionalProperties": false,
-        "description": "What a scan or a join hands back: the device's tab-scoped token, the tab as this person is\r\nallowed to see it, and which case they landed in."
+        "description": "What a scan or a join hands back: the device's tab-scoped token, the tab as this person is\nallowed to see it, and which case they landed in."
       },
       "Yalla.Application.Tabs.TabAdjustmentView": {
         "required": [
@@ -25158,12 +25158,12 @@
           },
           "sharedWithCount": {
             "type": "integer",
-            "description": "How many people a shared line is split between. <b>From the line's own participant snapshot, not\r\nthe current roster</b>: a friend who joined ten minutes after the bottle was poured is not on it,\r\nand a badge computed from the roster would silently re-split every existing line each time\r\nsomebody else scanned the code.",
+            "description": "How many people a shared line is split between. <b>From the line's own participant snapshot, not\nthe current roster</b>: a friend who joined ten minutes after the bottle was poured is not on it,\nand a badge computed from the roster would silently re-split every existing line each time\nsomebody else scanned the code.",
             "format": "int32"
           },
           "isVoided": {
             "type": "boolean",
-            "description": "True once staff took it off the bill. <b>The line stays here, labelled.</b> It is excluded from\r\nevery total, and a diner watching their bill must still see that the coffee was removed."
+            "description": "True once staff took it off the bill. <b>The line stays here, labelled.</b> It is excluded from\nevery total, and a diner watching their bill must still see that the coffee was removed."
           },
           "voidedAtUtc": {
             "type": "string",
@@ -25286,7 +25286,7 @@
           },
           "canOrderNow": {
             "type": "boolean",
-            "description": "The flag applied to the moment: approved, allowed to order, and the tab still open. This is\r\nwhat the ordering endpoints will enforce, computed by the same rule."
+            "description": "The flag applied to the moment: approved, allowed to order, and the tab still open. This is\nwhat the ordering endpoints will enforce, computed by the same rule."
           },
           "joinedAtUtc": {
             "type": "string",
@@ -25404,7 +25404,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "A tab as staff see it: every phone on the table, with roles and flags, and the money. Staff are\r\nnot participants and are not subject to the host's visibility flags."
+        "description": "A tab as staff see it: every phone on the table, with roles and flags, and the money. Staff are\nnot participants and are not subject to the host's visibility flags."
       },
       "Yalla.Application.Tabs.TabTotalsView": {
         "required": [
@@ -25476,7 +25476,7 @@
           },
           "venueName": {
             "type": "string",
-            "description": "The venue's name, for the top of the bill. On the tab so a phone that has only scanned a code\r\nneed not make a second, public read to say where it is."
+            "description": "The venue's name, for the top of the bill. On the tab so a phone that has only scanned a code\nneed not make a second, public read to say where it is."
           },
           "branchName": {
             "type": "string",
@@ -25488,7 +25488,7 @@
           },
           "timeZoneId": {
             "type": "string",
-            "description": "The branch's IANA zone, e.g. `Asia/Yerevan`. <b>Every time on this response is to be\r\nrendered in it, never in the device's.</b> A tourist's phone is on the wrong zone, and a diner\r\nwho has just landed is the exact person least able to work out the offset - and without this the\r\nclient had to make a second call to a different endpoint to find out."
+            "description": "The branch's IANA zone, e.g. `Asia/Yerevan`. <b>Every time on this response is to be\nrendered in it, never in the device's.</b> A tourist's phone is on the wrong zone, and a diner\nwho has just landed is the exact person least able to work out the offset - and without this the\nclient had to make a second call to a different endpoint to find out."
           },
           "status": {
             "allOf": [
@@ -25522,7 +25522,7 @@
           },
           "serviceChargePercent": {
             "type": "number",
-            "description": "The branch's service charge as it stood when this tab opened, snapshotted onto the tab.\r\n<b>Present for everyone</b>, including a guest whose host has hidden the total: the percentage\r\nis a fact about the venue rather than an aggregate, and the bill has to state it from the first\r\nitem. It was manager-only, sitting on the reservation policy behind `ManagerOrAbove`.",
+            "description": "The branch's service charge as it stood when this tab opened, snapshotted onto the tab.\n<b>Present for everyone</b>, including a guest whose host has hidden the total: the percentage\nis a fact about the venue rather than an aggregate, and the bill has to state it from the first\nitem. It was manager-only, sitting on the reservation policy behind `ManagerOrAbove`.",
             "format": "double"
           },
           "openedAtUtc": {
@@ -25538,7 +25538,7 @@
           },
           "maxSequence": {
             "type": "integer",
-            "description": "The tab's newest event position. On every tab response, so a client knows where it stands\r\nwithout a second call to `/events` purely to ask.",
+            "description": "The tab's newest event position. On every tab response, so a client knows where it stands\nwithout a second call to `/events` purely to ask.",
             "format": "int64"
           },
           "me": {
@@ -25554,7 +25554,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Tabs.TabParticipantSummary"
             },
-            "description": "Who is at the table. Everyone still on the tab for an approved participant; only the caller\r\nthemself while they are pending, because a pending joiner may see their own state and nothing else."
+            "description": "Who is at the table. Everyone still on the tab for an approved participant; only the caller\nthemself while they are pending, because a pending joiner may see their own state and nothing else."
           },
           "myLines": {
             "type": "array",
@@ -25565,7 +25565,7 @@
           },
           "myItemsSubtotalAmd": {
             "type": "integer",
-            "description": "What the caller's own unshared lines come to, in whole dram. Always present. Shared lines are\r\nlisted in MyLines with `isShared` set and are apportioned by the\r\nsplitting task, not here.",
+            "description": "What the caller's own unshared lines come to, in whole dram. Always present. Shared lines are\nlisted in MyLines with `isShared` set and are apportioned by the\nsplitting task, not here.",
             "format": "int64"
           },
           "adjustments": {
@@ -25573,7 +25573,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Tabs.TabAdjustmentView"
             },
-            "description": "Comps and discounts, with the reason the manager typed. Present for everyone, for the same\r\nreason voided lines are: a total that drops with no visible cause makes people distrust the app."
+            "description": "Comps and discounts, with the reason the manager typed. Present for everyone, for the same\nreason voided lines are: a total that drops with no visible cause makes people distrust the app."
           },
           "tableTotalVisible": {
             "type": "boolean",
@@ -25645,7 +25645,7 @@
                 "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
               }
             ],
-            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\r\nis four paying customers. The venue-level view is a rollup."
+            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
           },
           "tableCount": {
             "type": "integer",
@@ -25702,7 +25702,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Venues.ManagedBranchView"
             },
-            "description": "Every branch the caller covers, active ones first, then by name. Inactive branches are listed\r\nand flagged rather than hidden, because an owner may still open one."
+            "description": "Every branch the caller covers, active ones first, then by name. Inactive branches are listed\nand flagged rather than hidden, because an owner may still open one."
           }
         },
         "additionalProperties": false,
@@ -25745,7 +25745,7 @@
           5
         ],
         "type": "integer",
-        "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\r\nreservation overlay applied.\n\nValues: 1 Free, 2 ReservedSoon, 3 Held, 4 Occupied, 5 OutOfService.",
+        "description": "What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the\nreservation overlay applied.\n\nValues: 1 Free, 2 ReservedSoon, 3 Held, 4 Occupied, 5 OutOfService.",
         "format": "int32",
         "x-enum-varnames": [
           "Free",
@@ -25917,7 +25917,7 @@
           3
         ],
         "type": "integer",
-        "description": "Optional hint from the diner about how long they expect to stay. Advisory only:\r\n`Reservation.EndUtc` is derived from the branch turn time, not from this.\n\nValues: 1 OneHour, 2 TwoHours, 3 ThreeHoursPlus.",
+        "description": "Optional hint from the diner about how long they expect to stay. Advisory only:\n`Reservation.EndUtc` is derived from the branch turn time, not from this.\n\nValues: 1 OneHour, 2 TwoHours, 3 ThreeHoursPlus.",
         "format": "int32",
         "x-enum-varnames": [
           "OneHour",
@@ -25931,7 +25931,7 @@
           2
         ],
         "type": "integer",
-        "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\r\nis four paying customers. The venue-level view is a rollup.\n\nValues: 1 Free, 2 Paid.",
+        "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup.\n\nValues: 1 Free, 2 Paid.",
         "format": "int32",
         "x-enum-varnames": [
           "Free",
