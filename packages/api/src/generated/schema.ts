@@ -2900,6 +2900,8 @@ export interface paths {
          *
          *     **When.** A `Confirmed` booking opens from the branch's walk-in holdback before its start - the moment the branch starts keeping the table back from walk-ins for it - until its end. Earlier is `409 booking-too-early` with `context.earliestUtc`; from `endUtc` on, `409 booking-ended`. Late is fine: until a waiter releases the table it is still theirs. A `Seated` booking opens whatever the time - the venue already put the party there. Pending-approval, cancelled and no-show bookings answer `409 booking-not-active`, with `context.status` saying which; a completed one, `booking-ended`.
          *
+         *     **Whose sitting.** A booking opens only its own sitting. If the table still has another party's sitting open - one that is not this booking's - the answer is `409 booking-table-occupied` and nobody is put on that tab. On the booking's own sitting, a tab somebody else opened first (a friend who scanned) takes the booker on **approved**, with no host tap; the host stays host.
+         *
          *     **Seating.** A free table is seated *as the booking*: the sitting names it and the booking becomes `Seated`, so the floor does not go on treating a party that is eating as one that has not arrived.
          *
          *     Case, spaces and dashes in the code do not matter. A double tap with the same `clientCommandId` returns the same tab with `wasReplay` set.
@@ -3677,9 +3679,15 @@ export interface components {
             startUtc: string;
             /** @description Lifecycle of a booking. Every member is the result of somebody doing something. */
             status: components["schemas"]["Yalla.Domain.Enums.ReservationStatus"];
+            /**
+             * @description The booked table's label on `booking-table-occupied`, for "Table 1 still has another party
+             *     seated". Null on the other codes.
+             */
+            tableLabel?: string | null;
         };
         /**
-         * @description `booking-too-early`, `booking-ended` or `booking-not-active`, 409, with the
+         * @description `booking-too-early`, `booking-ended`, `booking-not-active` or
+         *                 `booking-table-occupied` (another party still seated at the booked table), 409, with the
          *                 booking's facts. Branch on the code. The other 409s the route shares with the scan - the table out
          *                 of service, the tab being settled, the command id taken by another device - arrive on the same
          *                 status with no `context`.
@@ -19736,7 +19744,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `booking-too-early` (`context.earliestUtc` says when), `booking-ended`, or `booking-not-active` (`context.status` says why) - branch on the code. And, as on the scan, the table out of service, the tab there being settled, or this `clientCommandId` used by another device - those with no `context`. */
+            /** @description `booking-too-early` (`context.earliestUtc` says when), `booking-ended`, or `booking-not-active` (`context.status` says why), or `booking-table-occupied` (another party is still seated there) - branch on the code. And, as on the scan, the table out of service, the tab there being settled, or this `clientCommandId` used by another device - those with no `context`. */
             409: {
                 headers: {
                     [name: string]: unknown;

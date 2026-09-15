@@ -6352,7 +6352,7 @@
           "diner"
         ],
         "summary": "\"I'm at my table\": open the tab on your booked table with your booking code",
-        "description": "For a diner who booked through the app and is at their table: the booking code in place of the table's QR token. The code finds **the caller's own** booking, the booking names the table, and from there it is exactly `POST /api/tabs/open` - the same four cases, the same host and pending guests, the same `outcome`, the same response body.\n\n**Whose.** Only a booking this diner account made opens anything. Somebody else's code answers `404 booking-not-found`, word for word what a code nobody holds gets: a code is read out at the door and proves nothing.\n\n**When.** A `Confirmed` booking opens from the branch's walk-in holdback before its start - the moment the branch starts keeping the table back from walk-ins for it - until its end. Earlier is `409 booking-too-early` with `context.earliestUtc`; from `endUtc` on, `409 booking-ended`. Late is fine: until a waiter releases the table it is still theirs. A `Seated` booking opens whatever the time - the venue already put the party there. Pending-approval, cancelled and no-show bookings answer `409 booking-not-active`, with `context.status` saying which; a completed one, `booking-ended`.\n\n**Seating.** A free table is seated *as the booking*: the sitting names it and the booking becomes `Seated`, so the floor does not go on treating a party that is eating as one that has not arrived.\n\nCase, spaces and dashes in the code do not matter. A double tap with the same `clientCommandId` returns the same tab with `wasReplay` set.",
+        "description": "For a diner who booked through the app and is at their table: the booking code in place of the table's QR token. The code finds **the caller's own** booking, the booking names the table, and from there it is exactly `POST /api/tabs/open` - the same four cases, the same host and pending guests, the same `outcome`, the same response body.\n\n**Whose.** Only a booking this diner account made opens anything. Somebody else's code answers `404 booking-not-found`, word for word what a code nobody holds gets: a code is read out at the door and proves nothing.\n\n**When.** A `Confirmed` booking opens from the branch's walk-in holdback before its start - the moment the branch starts keeping the table back from walk-ins for it - until its end. Earlier is `409 booking-too-early` with `context.earliestUtc`; from `endUtc` on, `409 booking-ended`. Late is fine: until a waiter releases the table it is still theirs. A `Seated` booking opens whatever the time - the venue already put the party there. Pending-approval, cancelled and no-show bookings answer `409 booking-not-active`, with `context.status` saying which; a completed one, `booking-ended`.\n\n**Whose sitting.** A booking opens only its own sitting. If the table still has another party's sitting open - one that is not this booking's - the answer is `409 booking-table-occupied` and nobody is put on that tab. On the booking's own sitting, a tab somebody else opened first (a friend who scanned) takes the booker on **approved**, with no host tap; the host stays host.\n\n**Seating.** A free table is seated *as the booking*: the sitting names it and the booking becomes `Seated`, so the floor does not go on treating a party that is eating as one that has not arrived.\n\nCase, spaces and dashes in the code do not matter. A double tap with the same `clientCommandId` returns the same tab with `wasReplay` set.",
         "operationId": "openTabByBooking",
         "requestBody": {
           "content": {
@@ -6421,7 +6421,7 @@
             }
           },
           "409": {
-            "description": "`booking-too-early` (`context.earliestUtc` says when), `booking-ended`, or `booking-not-active` (`context.status` says why) - branch on the code. And, as on the scan, the table out of service, the tab there being settled, or this `clientCommandId` used by another device - those with no `context`.",
+            "description": "`booking-too-early` (`context.earliestUtc` says when), `booking-ended`, or `booking-not-active` (`context.status` says why), or `booking-table-occupied` (another party is still seated there) - branch on the code. And, as on the scan, the table out of service, the tab there being settled, or this `clientCommandId` used by another device - those with no `context`.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -17003,6 +17003,11 @@
             "type": "string",
             "description": "When the branch starts holding the table for the party - the earliest the code opens the tab.\nBefore it, `booking-too-early`: render it in the branch's time zone, \"from 19:10\".",
             "format": "date-time"
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "The booked table's label on `booking-table-occupied`, for \"Table 1 still has another party\nseated\". Null on the other codes.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -17071,7 +17076,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "`booking-too-early`, `booking-ended` or `booking-not-active`, 409, with the\n            booking's facts. Branch on the code. The other 409s the route shares with the scan - the table out\n            of service, the tab being settled, the command id taken by another device - arrive on the same\n            status with no `context`."
+        "description": "`booking-too-early`, `booking-ended`, `booking-not-active` or\n            `booking-table-occupied` (another party still seated at the booked table), 409, with the\n            booking's facts. Branch on the code. The other 409s the route shares with the scan - the table out\n            of service, the tab being settled, the command id taken by another device - arrive on the same\n            status with no `context`."
       },
       "Yalla.Api.Errors.BranchNotReadyContext": {
         "required": [

@@ -2,6 +2,7 @@ import {
   BookingEndedError,
   BookingNotActiveError,
   BookingNotFoundError,
+  BookingTableOccupiedError,
   BookingTooEarlyError,
   InviteExpiredError,
   NetworkError,
@@ -107,6 +108,16 @@ describe('a booking code that did not open a tab', () => {
     // drop the time rather than render it in whatever zone the phone is on.
     const early = new BookingTooEarlyError({ ...facts, earliestUtc: '2026-09-20T15:10:00Z' });
     expect(scanFailureFor(early).key).toBe('scan.error.bookingTooEarlyNoTime');
+  });
+
+  it('names the table another party is still seated at, and never says to wait for a host', () => {
+    expect(scanFailureFor(new BookingTableOccupiedError({ ...facts, tableLabel: '1' }))).toEqual({
+      key: 'scan.error.bookingTableOccupied',
+      params: { label: '1' },
+    });
+    expect(scanFailureFor(new BookingTableOccupiedError(facts)).key).toBe(
+      'scan.error.bookingTableOccupiedNoLabel',
+    );
   });
 
   it('tells an ended booking from one that was never going to work', () => {

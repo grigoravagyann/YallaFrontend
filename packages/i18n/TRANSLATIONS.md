@@ -131,6 +131,12 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   cannot work either and the answer really is a member of staff; and
   `scan.error.empty`, `scan.deniedBody` and `scan.unavailableBody` stop calling
   the field the code under the QR, which it has not been since the first pass.
+- `diner` — a booked table another party is still seated at (2026-09-15),
+  provisional and **not** reviewed. `scan.error.bookingTableOccupied` (keeps
+  `{{label}}`, the table) and its label-less twin
+  `scan.error.bookingTableOccupiedNoLabel`. Both must keep sending the diner to
+  a member of staff to free the table, and must never read as "wait for the
+  host": the host there is a stranger, which is the bug this answer replaced.
 - `admin` — the whole web console: the platform venues list and venue detail,
   the create-venue flow, the four role names, the branch switcher, the refusal
   page, the password page a sign-in link opens, and the staff screen's sign-in

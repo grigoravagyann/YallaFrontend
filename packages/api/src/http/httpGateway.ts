@@ -38,6 +38,7 @@ import {
   TooManyFavoritesError,
   BookingEndedError,
   BookingNotActiveError,
+  BookingTableOccupiedError,
   BookingNotFoundError,
   BookingRejectedError,
   BookingTooEarlyError,
@@ -362,6 +363,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           throw new BookingTooEarlyError({ ...facts, earliestUtc: text(context['earliestUtc']) });
         case 'booking-ended':
           throw new BookingEndedError(facts);
+        case 'booking-table-occupied':
+          throw new BookingTableOccupiedError({
+            ...facts,
+            tableLabel: text(context['tableLabel']),
+          });
         case 'booking-not-active':
           throw new BookingNotActiveError({
             ...facts,

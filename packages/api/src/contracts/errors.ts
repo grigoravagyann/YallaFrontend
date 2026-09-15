@@ -375,6 +375,34 @@ export class BookingNotActiveError extends ApiError {
   }
 }
 
+/**
+ * The booked table still has another party seated — a sitting that is not this
+ * booking's, often a walk-in nobody cleared.
+ *
+ * The server never puts the booker on a stranger's tab; a member of staff has
+ * to free the table. `tableLabel` is the booked table, for "Table 1 still has
+ * another party seated".
+ */
+export class BookingTableOccupiedError extends ApiError {
+  readonly reservationId: string | null;
+  readonly startUtc: string | null;
+  readonly endUtc: string | null;
+  readonly tableLabel: string | null;
+
+  constructor(options: BookingRefusal & { tableLabel?: string | undefined }) {
+    super('Another party is still seated at the booked table.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingTableOccupiedError';
+    this.reservationId = options.reservationId ?? null;
+    this.startUtc = options.startUtc ?? null;
+    this.endUtc = options.endUtc ?? null;
+    this.tableLabel = options.tableLabel ?? null;
+  }
+}
+
 /** The action needs the host, and the caller is not it. */
 export class NotTabHostError extends ApiError {
   constructor(options: { url: string }) {

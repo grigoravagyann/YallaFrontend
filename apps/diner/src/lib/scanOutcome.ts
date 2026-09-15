@@ -2,6 +2,7 @@ import {
   BookingEndedError,
   BookingNotActiveError,
   BookingNotFoundError,
+  BookingTableOccupiedError,
   BookingTooEarlyError,
   BranchUnavailableError,
   InviteExpiredError,
@@ -115,6 +116,13 @@ export function scanFailureFor(error: unknown, at?: BranchClock): ScanFailure {
   }
   if (error instanceof BookingEndedError) {
     return { key: 'scan.error.bookingEnded' };
+  }
+  // Somebody else is still at the booked table. Never "wait for the host": the
+  // host would be a stranger, and only a member of staff can free the table.
+  if (error instanceof BookingTableOccupiedError) {
+    return error.tableLabel
+      ? { key: 'scan.error.bookingTableOccupied', params: { label: error.tableLabel } }
+      : { key: 'scan.error.bookingTableOccupiedNoLabel' };
   }
   if (error instanceof BookingNotActiveError) {
     const known = error.bookingStatus ? NOT_ACTIVE_KEYS[error.bookingStatus] : undefined;
