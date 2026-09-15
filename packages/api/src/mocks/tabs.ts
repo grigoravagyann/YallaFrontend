@@ -76,6 +76,8 @@ interface TabRecord {
   closedAtUtc: string | null;
   participants: MutableParticipant[];
   defaultPermissions: TabPermissions;
+  /** The booking this tab's sitting was seated as; null for a walk-in scan. */
+  reservationId: string | null;
   /** Guard so the simulated joiner turns up exactly once. */
   simulatedGuestArrived: boolean;
 }
@@ -147,6 +149,7 @@ export function createTabWorld(options: TabWorldOptions) {
       closedAtUtc: null,
       participants: [],
       defaultPermissions: DEFAULT_TAB_PERMISSIONS,
+      reservationId: null,
       simulatedGuestArrived: false,
     };
     tabs.set(record.id, record);
@@ -328,6 +331,7 @@ export function createTabWorld(options: TabWorldOptions) {
     record: TabRecord,
     displayName: string | null,
     commandId: string | null,
+    asBooker = false,
   ): WorldScan {
     if (record.status === 'closed') {
       throw new TabClosedError({ url: URL_TAG, tabId: record.id });
@@ -337,6 +341,10 @@ export function createTabWorld(options: TabWorldOptions) {
 
     const existing = record.participants.find((p) => p.id === DEVICE_PARTICIPANT_ID);
     if (existing && (existing.status === 'active' || existing.status === 'pending')) {
+      // On their own booking's tab nobody has to let the booker in.
+      if (asBooker && existing.status === 'pending') {
+        existing.status = 'active';
+      }
       return {
         kind: existing.status === 'pending' ? 'joinPending' : 'alreadyOn',
         tab: project(record),
@@ -348,7 +356,7 @@ export function createTabWorld(options: TabWorldOptions) {
       DEVICE_PARTICIPANT_ID,
       displayName,
       isFirst ? 'host' : 'guest',
-      isFirst ? 'active' : 'pending',
+      isFirst || asBooker ? 'active' : 'pending',
       isFirst ? HOST_TAB_PERMISSIONS : record.defaultPermissions,
     );
 
@@ -359,7 +367,10 @@ export function createTabWorld(options: TabWorldOptions) {
       record.participants.push(you);
     }
 
-    return { kind: isFirst ? 'tabOpened' : 'joinPending', tab: project(record) };
+    return {
+      kind: isFirst ? 'tabOpened' : asBooker ? 'alreadyOn' : 'joinPending',
+      tab: project(record),
+    };
   }
 
   return {
@@ -387,12 +398,39 @@ export function createTabWorld(options: TabWorldOptions) {
       tableId: string;
       commandId: string;
       displayName?: string | undefined;
+      /** The booking opening it: its sitting is stamped, and the booker joins approved. */
+      reservationId?: string | undefined;
     }): WorldScan {
       seed();
 
+      const replay = replayOf(input.commandId);
+      if (replay) return replay;
+
+      const record = recordForTable(input.tableId);
+      if (input.reservationId && record.participants.length === 0) {
+        record.reservationId = input.reservationId;
+      }
+      return enter(
+        record,
+        input.displayName ?? null,
+        input.commandId,
+        Boolean(input.reservationId),
+      );
+    },
+
+    /**
+     * Whether another party is still seated at the table: an open tab whose
+     * sitting is not this booking's. A booking never joins that tab.
+     */
+    occupiedByAnotherParty(tableId: string, reservationId: string): boolean {
+      seed();
+      const tabId = tabByTable.get(tableId);
+      const record = tabId ? tabs.get(tabId) : undefined;
       return (
-        replayOf(input.commandId) ??
-        enter(recordForTable(input.tableId), input.displayName ?? null, input.commandId)
+        !!record &&
+        record.status === 'open' &&
+        record.participants.length > 0 &&
+        record.reservationId !== reservationId
       );
     },
 

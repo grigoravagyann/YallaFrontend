@@ -3,6 +3,7 @@ import type { Booking } from '../contracts/booking';
 import type { YallaGateway } from '../gateway';
 import { newCommandId } from '../ids';
 import { createMockGateway } from './mockGateway';
+import { mockTableCode } from './tableCodes';
 
 /**
  * "I'm at my table": the booking code, on the mock.
@@ -207,6 +208,45 @@ describe('opening the tab from a booking', () => {
 
     expect(error.name).toBe('BookingNotActiveError');
     expect(error['bookingStatus']).toBe('cancelledByDiner');
+  });
+
+  it('refuses a table another party is still seated at, naming the table', async () => {
+    const booking = await book();
+    arrive();
+
+    // Somebody scanned the booked table and is sitting there on their own tab.
+    await gateway.scanTableCode({
+      tableCode: mockTableCode(booking.tableId),
+      commandId: '0c7d0a55-8b8f-4a5e-9a51-1d5b0f2f6a10',
+    });
+
+    const error = await caught(
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+      }),
+    );
+
+    expect(error.name).toBe('BookingTableOccupiedError');
+    expect(error['tableLabel']).toBe(booking.tableLabel);
+    expect(error['reservationId']).toBe(booking.id);
+  });
+
+  it("lets the booker back onto their own booking's tab", async () => {
+    const booking = await book();
+    arrive();
+
+    await gateway.openTabByBooking({
+      bookingCode: booking.code,
+      commandId: 'a9f7e979-65d6-4f79-8a52-9102a973b8b9',
+    });
+
+    await expect(
+      gateway.openTabByBooking({
+        bookingCode: booking.code,
+        commandId: '5b1f7e0e-3c2d-4f6a-8b9c-0d1e2f3a4b5c',
+      }),
+    ).resolves.toMatchObject({ kind: 'alreadyOn' });
   });
 
   it('replaying one command id cannot open two tabs on the table', async () => {

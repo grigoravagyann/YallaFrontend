@@ -365,6 +365,8 @@
       "bookingCancelledByYou": "This booking was cancelled. Ask a member of staff to open a tab for you.",
       "bookingCancelledByVenue": "The venue cancelled this booking. Ask a member of staff.",
       "bookingNoShow": "This booking is marked as a no-show. Ask a member of staff to open a tab for you.",
+      "bookingTableOccupied": "Table {{label}} still has another party seated. Ask a member of staff to free it.",
+      "bookingTableOccupiedNoLabel": "Another party is still seated at your table. Ask a member of staff to free it.",
       "signInNeeded": "Confirm your number to use a booking code. The code on the table needs no account."
     },
     "dev": {

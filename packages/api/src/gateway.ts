@@ -500,6 +500,8 @@ export interface YallaGateway {
    * `earliestUtc` says from when.
    * @throws {BookingEndedError} the sitting is over.
    * @throws {BookingNotActiveError} awaiting the venue, cancelled or a no-show.
+   * @throws {BookingTableOccupiedError} another party is still seated at the
+   * booked table; the booker is never put on their tab.
    * @throws {TableOutOfServiceError} the booked table is out of service.
    * @throws {TabClosedError} the tab on that table is settling or closed.
    */

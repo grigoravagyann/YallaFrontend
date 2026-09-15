@@ -264,6 +264,25 @@ describe('opening the tab from a booking', () => {
     expect(refused['bookingStatus']).toBe('cancelledByVenue');
   });
 
+  it('names a table another party is still seated at, with its label', async () => {
+    const { gateway } = await signedInGatewayOver({
+      'POST /api/tabs/open-by-booking': problemReply(409, 'booking-table-occupied', {
+        reservationId: 'r1',
+        status: 2,
+        startUtc: '2026-09-20T15:30:00Z',
+        endUtc: '2026-09-20T17:00:00Z',
+        earliestUtc: '2026-09-20T15:10:00Z',
+        tableLabel: '1',
+      }),
+    });
+
+    const error = await caught(gateway.openTabByBooking({ bookingCode: 'D', commandId: 'c' }));
+
+    expect(error.name).toBe('BookingTableOccupiedError');
+    expect(error['tableLabel']).toBe('1');
+    expect(error['reservationId']).toBe('r1');
+  });
+
   it('still names the refusals it shares with the scan', async () => {
     const { gateway } = await signedInGatewayOver({
       'POST /api/tabs/open-by-booking': problemReply(

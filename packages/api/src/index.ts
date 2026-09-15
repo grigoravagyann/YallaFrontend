@@ -228,6 +228,7 @@ export {
   BookingEndedError,
   BookingNotActiveError,
   BookingNotFoundError,
+  BookingTableOccupiedError,
   BookingTooEarlyError,
   isTabAccessEnded,
   LeadTimeExceededError,
