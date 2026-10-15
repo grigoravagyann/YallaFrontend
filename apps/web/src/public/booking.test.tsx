@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  TelegramUnavailableError,
   availabilityWindowCopy,
   freeCancellationCopy,
   type Booking,
@@ -8,7 +9,7 @@ import {
 } from '@yalla/api';
 import { queryKeys } from '@yalla/api/react';
 import { i18next } from '@yalla/i18n';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import BookingSheet from './BookingSheet';
@@ -361,5 +362,143 @@ describe('losing the table while confirming', () => {
         `Table ${table.tableLabel} was just taken. Here is what is free now.`,
       ),
     ).toBeDefined();
+  });
+});
+
+/**
+ * Verifying through the Telegram bot instead of an SMS code.
+ *
+ * The page opens the bot in a new tab, waits, and lands on the same confirm
+ * step a passed code lands on. The window is opened synchronously in the
+ * click, before the start request resolves, because a popup opened from a
+ * resolved promise is what browsers block.
+ */
+describe('verifying through Telegram', () => {
+  function fakePopup() {
+    return { location: { href: '' }, close: vi.fn(), closed: false };
+  }
+
+  async function reachPhoneStep(harness: Awaited<ReturnType<typeof setUp>>) {
+    const { branch, slotUtc, selection, table } = harness;
+    render(
+      harness.harness.wrap(
+        <BookingSheet
+          branch={branch}
+          availability={table}
+          slotUtc={slotUtc}
+          partySize={selection.partySize}
+          onClose={() => {}}
+          onTableTaken={() => {}}
+        />,
+      ),
+    );
+    return screen.findByRole('button', { name: /^Reserve table/u });
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reaches a confirmed reservation once the bot confirms', async () => {
+    const world = await setUp();
+    const popup = fakePopup();
+    const open = vi.fn(() => popup);
+    vi.stubGlobal('open', open);
+    const user = userEvent.setup();
+
+    await user.click(await reachPhoneStep(world));
+    await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+
+    // Opened in the click, blank, then pointed at the bot once the server answered.
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Waiting for Telegram…')).toBeDefined();
+    const again = (await screen.findByRole('link', {
+      name: 'Open Telegram again',
+    })) as HTMLAnchorElement;
+    expect(again.href).toMatch(/^https:\/\/t\.me\/yalla_mock_bot\?start=tg_/u);
+    expect(again.target).toBe('_blank');
+    expect(again.rel).toContain('noopener');
+    await waitFor(() => expect(popup.location.href).toBe(again.href));
+
+    // The bot confirms. The page is polling, so it finds out by itself.
+    const challengeId = new URL(again.href).searchParams.get('start')!;
+    world.harness.gateway.confirmTelegramVerification(challengeId, '+37477123456');
+
+    const confirm = await screen.findByRole(
+      'button',
+      { name: 'Confirm booking' },
+      { timeout: 4000 },
+    );
+    await user.type(screen.getByLabelText('Name for the booking'), 'Ani');
+    await user.click(confirm);
+
+    expect(await screen.findByText('Table booked')).toBeDefined();
+    const { upcoming } = await world.harness.gateway.listBookings();
+    expect(upcoming[0]?.status).toBe('confirmed');
+  });
+
+  it('says the link expired and starts a fresh challenge on Try again', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const world = await setUp();
+      vi.stubGlobal('open', () => null);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+      await user.click(await reachPhoneStep(world));
+      await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+      const first = (await screen.findByRole('link', {
+        name: 'Open Telegram again',
+      })) as HTMLAnchorElement;
+
+      // The challenge's own lifetime passes without the bot confirming.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(11 * 60_000);
+      });
+      expect(
+        await screen.findByText('The Telegram link has expired. Start again to get a new one.'),
+      ).toBeDefined();
+      expect(screen.queryByText('Waiting for Telegram…')).toBeNull();
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      const second = (await screen.findByRole('link', {
+        name: 'Open Telegram again',
+      })) as HTMLAnchorElement;
+      expect(second.href).not.toBe(first.href);
+      expect(screen.getByText('Waiting for Telegram…')).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('hides the Telegram button once the backend says it has none', async () => {
+    const world = await setUp();
+    vi.stubGlobal('open', () => null);
+    world.harness.gateway.startTelegramVerification = () =>
+      Promise.reject(new TelegramUnavailableError({ url: 'mock://yalla' }));
+    const user = userEvent.setup();
+
+    await user.click(await reachPhoneStep(world));
+    await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+
+    expect(
+      await screen.findByText('Verifying through Telegram is not available right now.'),
+    ).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Verify with Telegram' })).toBeNull();
+    // The SMS code remains the way in.
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeDefined();
+  });
+
+  it('offers the code instead from the waiting screen', async () => {
+    const world = await setUp();
+    vi.stubGlobal('open', () => null);
+    const user = userEvent.setup();
+
+    await user.click(await reachPhoneStep(world));
+    await user.click(await screen.findByRole('button', { name: 'Verify with Telegram' }));
+    await screen.findByText('Waiting for Telegram…');
+
+    await user.click(screen.getByRole('button', { name: 'Use the code instead' }));
+
+    expect(await screen.findByLabelText('Phone number')).toBeDefined();
   });
 });

@@ -1,4 +1,9 @@
-import { verificationFailureCopy, type PhoneChallenge } from '@yalla/api';
+import {
+  TelegramUnavailableError,
+  verificationFailureCopy,
+  type PhoneChallenge,
+  type VerifiedPhone,
+} from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useNavigation, useRouter } from 'expo-router';
@@ -6,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -13,7 +19,11 @@ import {
   View,
 } from 'react-native';
 import { isValidEmail, normalizeName, normalizePhone } from '../../auth/validation';
-import { useRequestPhoneCode, useVerifyPhoneCode } from '../../data/queries';
+import {
+  useRequestPhoneCode,
+  useTelegramVerification,
+  useVerifyPhoneCode,
+} from '../../data/queries';
 import { useSession } from '../../stores/session';
 import {
   actionIcon,
@@ -50,7 +60,7 @@ function secondsUntil(isoUtc: string): number {
     : 0;
 }
 
-type Step = 'details' | 'phone' | 'code' | 'name';
+type Step = 'details' | 'phone' | 'code' | 'telegram' | 'name';
 
 export interface PhoneAuthFlowProps {
   readonly mode: AuthMode;
@@ -72,6 +82,12 @@ export interface PhoneAuthFlowProps {
  * back (hardware, swipe) is intercepted to do the same. Whatever was
  * underneath — a table with its slot selected, the profile — stays mounted,
  * so leaving at any point lands the diner where they left.
+ *
+ * The Telegram bot is the other way to prove a number: no digits typed, no
+ * SMS. The app hands the diner to Telegram and polls until the bot has
+ * confirmed, then runs exactly the tail a passed code runs. A backend with
+ * Telegram switched off refuses the first start, after which the button is
+ * gone and the code stays.
  */
 export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const { t } = useTranslation('diner');
@@ -89,7 +105,9 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   // arrives with that number filled in; a whole `+…` number is taken as is.
   const accountPhone = useSession((s) => (s.signedIn ? s.phoneE164 : null));
 
-  const [step, setStep] = useState<Step>(mode === 'signup' ? 'details' : 'phone');
+  const firstStepOf = mode === 'signup' ? 'details' : 'phone';
+  // Sent back by the bot with a challenge in hand: straight to waiting.
+  const [step, setStep] = useState<Step>(params.tg ? 'telegram' : firstStepOf);
   const [name, setName] = useState(rememberedName ?? '');
   const [email, setEmail] = useState(rememberedEmail ?? '');
   const [prefix, setPrefix] = useState(DEFAULT_PREFIX);
@@ -103,6 +121,8 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const [code, setCode] = useState('');
   const [errorText, setErrorText] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [telegramHidden, setTelegramHidden] = useState(false);
+  const [telegramNotInstalled, setTelegramNotInstalled] = useState(false);
 
   const requestCode = useRequestPhoneCode();
   const verifyCode = useVerifyPhoneCode();
@@ -178,10 +198,94 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
 
   /** Back from the code entry: the number entry again, the code forgotten. */
   const leaveCodeStep = useCallback(() => {
-    setStep(mode === 'signup' ? 'details' : 'phone');
+    setStep(firstStepOf);
     setErrorText(null);
     setCode('');
-  }, [mode]);
+  }, [firstStepOf]);
+
+  /**
+   * The number is proven, by whichever door. What follows is the same for a
+   * passed code and a Telegram confirmation: remember the number, re-read the
+   * profile, and either finish or ask for the name this phone has never had.
+   */
+  const afterVerified = useCallback(
+    (verified: VerifiedPhone) => {
+      // The number is what the booking is made under, and the token does not
+      // carry it, so it is remembered here. The store compares it with the
+      // number it already had: a different one drops the remembered name
+      // and email, so one person's name is never shown for another's number.
+      setVerified({ phoneE164: verified.phoneE164 });
+      // The account behind the number is now verified, or new: read it
+      // again so the profile says so.
+      void queryClient.invalidateQueries({ queryKey: accountKeys.profile });
+
+      if (mode === 'signup') {
+        setRemembered({
+          ...(tidyName ? { guestName: tidyName } : {}),
+          email: tidyEmail.length > 0 ? tidyEmail : null,
+        });
+        if (alive.current) finish();
+        return;
+      }
+
+      if (!alive.current) return;
+      // Logging in on a phone that already knows the name: nothing to ask.
+      if (useSession.getState().guestName) {
+        finish();
+        return;
+      }
+      setStep('name');
+    },
+    [setVerified, setRemembered, queryClient, mode, tidyName, tidyEmail, finish],
+  );
+
+  const {
+    start: startTelegramChallenge,
+    resume: resumeTelegramChallenge,
+    status: telegramStatus,
+    deepLinkUrl: telegramUrl,
+    reset: resetTelegram,
+  } = useTelegramVerification({ localeCode: locale, onVerified: afterVerified });
+
+  /** Hand the diner to Telegram; without it installed, the link stays on screen. */
+  const openTelegram = useCallback((url: string) => {
+    setTelegramNotInstalled(false);
+    Linking.openURL(url).catch(() => {
+      if (alive.current) setTelegramNotInstalled(true);
+    });
+  }, []);
+
+  const startTelegram = useCallback(() => {
+    setErrorText(null);
+    setStep('telegram');
+    startTelegramChallenge()
+      .then((issued) => {
+        if (!alive.current || stepRef.current !== 'telegram') return;
+        openTelegram(issued.deepLinkUrl);
+      })
+      .catch((error: unknown) => {
+        if (!alive.current) return;
+        // Off on this backend: the button goes and the code stays. Anything
+        // else is said on the first step, where the next try is.
+        if (error instanceof TelegramUnavailableError) setTelegramHidden(true);
+        setStep(firstStepOf);
+        setErrorText(describe(error));
+      });
+  }, [startTelegramChallenge, openTelegram, firstStepOf, describe]);
+
+  // The bot's button carries the challenge; polling it is all that is left.
+  const resumeId = params.tg;
+  useEffect(() => {
+    if (resumeId) resumeTelegramChallenge(resumeId);
+  }, [resumeId, resumeTelegramChallenge]);
+
+  /** Back from waiting on Telegram: the first step again, the challenge dropped. */
+  const leaveTelegramStep = useCallback(() => {
+    resetTelegram();
+    setTelegramNotInstalled(false);
+    setStep(firstStepOf);
+    setErrorText(null);
+  }, [resetTelegram, firstStepOf]);
 
   /*
    * The system back — Android hardware, the iOS swipe, the browser — does what
@@ -191,14 +295,15 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
    * guard stands aside.
    */
   useEffect(() => {
-    if (step !== 'code' && step !== 'name') return;
+    if (step !== 'code' && step !== 'name' && step !== 'telegram') return;
     return navigation.addListener('beforeRemove', (event) => {
       if (finishing.current) return;
       event.preventDefault();
       if (step === 'code') leaveCodeStep();
+      else if (step === 'telegram') leaveTelegramStep();
       else finish();
     });
-  }, [navigation, step, leaveCodeStep, finish]);
+  }, [navigation, step, leaveCodeStep, leaveTelegramStep, finish]);
 
   const send = useCallback(async () => {
     if (!phoneE164) return;
@@ -227,55 +332,20 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       if (!challenge || verifyCode.isPending) return;
       setErrorText(null);
       try {
-        const verified = await verifyCode.mutateAsync({
-          challengeId: challenge.challengeId,
-          code: value,
-          localeCode: locale,
-        });
-        // The number is what the booking is made under, and the token does not
-        // carry it, so it is remembered here. The store compares it with the
-        // number it already had: a different one drops the remembered name
-        // and email, so one person's name is never shown for another's number.
-        setVerified({ phoneE164: verified.phoneE164 });
-        // The account behind the number is now verified, or new: read it
-        // again so the profile says so.
-        void queryClient.invalidateQueries({ queryKey: accountKeys.profile });
-
-        if (mode === 'signup') {
-          setRemembered({
-            ...(tidyName ? { guestName: tidyName } : {}),
-            email: tidyEmail.length > 0 ? tidyEmail : null,
-          });
-          if (alive.current) finish();
-          return;
-        }
-
-        if (!alive.current) return;
-        // Logging in on a phone that already knows the name: nothing to ask.
-        if (useSession.getState().guestName) {
-          finish();
-          return;
-        }
-        setStep('name');
+        afterVerified(
+          await verifyCode.mutateAsync({
+            challengeId: challenge.challengeId,
+            code: value,
+            localeCode: locale,
+          }),
+        );
       } catch (error) {
         if (!alive.current) return;
         setCode('');
         setErrorText(describe(error));
       }
     },
-    [
-      challenge,
-      verifyCode,
-      setVerified,
-      setRemembered,
-      queryClient,
-      mode,
-      tidyName,
-      tidyEmail,
-      finish,
-      describe,
-      locale,
-    ],
+    [challenge, verifyCode, afterVerified, describe, locale],
   );
 
   const onCodeChange = useCallback(
@@ -297,13 +367,20 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
     finish();
   };
 
-  const busy = requestCode.isPending || verifyCode.isPending;
+  const busy = requestCode.isPending || verifyCode.isPending || telegramStatus === 'starting';
   const canSend =
     !busy && phoneE164 !== null && (mode === 'login' || (tidyName !== null && emailOk));
+  // No number needed for Telegram — the bot learns it — but a sign-up still
+  // needs the name and a well-formed email before the flow can finish.
+  const canTelegram = !busy && (mode === 'login' || (tidyName !== null && emailOk));
 
   const back = () => {
     if (step === 'code') {
       leaveCodeStep();
+      return;
+    }
+    if (step === 'telegram') {
+      leaveTelegramStep();
       return;
     }
     if (router.canGoBack()) router.back();
@@ -451,6 +528,16 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
                 onPress={() => void send()}
                 style={styles.primary}
               />
+              {telegramHidden ? null : (
+                <Button
+                  label={t('verify.telegramButton')}
+                  variant="secondary"
+                  size="large"
+                  disabled={!canTelegram}
+                  onPress={startTelegram}
+                  style={styles.secondary}
+                />
+              )}
               <View style={styles.footer}>
                 <Text style={styles.footerText}>
                   {mode === 'login' ? t('auth.login.noAccount') : t('auth.signup.haveAccount')}
@@ -544,6 +631,51 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
             </>
           ) : null}
 
+          {step === 'telegram' ? (
+            <>
+              <Text display style={styles.title} accessibilityRole="header">
+                {telegramStatus === 'expired'
+                  ? t('verify.telegramExpired')
+                  : t('verify.telegramWaitingTitle')}
+              </Text>
+              {telegramStatus === 'expired' ? null : (
+                <>
+                  <Text style={styles.blurb}>{t('verify.telegramWaitingBody')}</Text>
+                  <ActivityIndicator color={colors.primary} />
+                </>
+              )}
+
+              {/* No app to hand over to: the https link works in any browser. */}
+              {telegramNotInstalled && telegramUrl ? (
+                <>
+                  <Text style={styles.error} accessibilityRole="alert">
+                    {t('verify.telegramNotInstalled')}
+                  </Text>
+                  <Text selectable style={styles.link}>
+                    {telegramUrl}
+                  </Text>
+                </>
+              ) : null}
+
+              {telegramStatus === 'expired' ? (
+                <Button
+                  label={t('verify.telegramTryAgain')}
+                  size="large"
+                  onPress={startTelegram}
+                  style={styles.primary}
+                />
+              ) : telegramUrl ? (
+                <Button
+                  label={t('verify.telegramOpenAgain')}
+                  variant="text"
+                  onPress={() => openTelegram(telegramUrl)}
+                  style={styles.secondary}
+                />
+              ) : null}
+              <Button label={t('verify.telegramUseCode')} variant="text" onPress={back} />
+            </>
+          ) : null}
+
           {step === 'name' ? (
             <>
               <Text display style={styles.title} accessibilityRole="header">
@@ -611,6 +743,7 @@ const styles = StyleSheet.create({
   },
   devBannerText: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.warningInk },
   error: { ...typography.body, color: colors.errorInk },
+  link: { ...typography.body, ...tabularNumbers, color: colors.primary },
   primary: { marginTop: space.lg },
   secondary: { marginTop: space.sm },
   footer: {

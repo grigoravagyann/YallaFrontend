@@ -66,7 +66,7 @@ export { resolveGateway } from './resolveGateway';
 export type { ResolveGatewayOptions } from './resolveGateway';
 
 export { createMockGateway } from './mocks/mockGateway';
-export type { MockGatewayOptions } from './mocks/mockGateway';
+export type { MockGateway, MockGatewayOptions } from './mocks/mockGateway';
 export { createHttpGateway } from './http/httpGateway';
 export type { GatewayAudience, HttpGatewayOptions } from './http/httpGateway';
 
@@ -85,6 +85,8 @@ export type {
   SlotFloor,
   TableAvailability,
   TableUnavailableReason,
+  TelegramChallenge,
+  TelegramClaimResult,
   VenueSummary,
   VenueType,
   VerifiedPhone,
@@ -237,6 +239,7 @@ export {
   TabClosedError,
   TableOutOfServiceError,
   TableTakenError,
+  TelegramUnavailableError,
   TooManyAttemptsError,
   UnknownTableCodeError,
   WrongCodeError,

@@ -75,6 +75,39 @@ export function createDinerAuth(client: ApiClient) {
       return data;
     },
 
+    /**
+     * `POST /api/auth/diner/telegram/start`: a challenge and the bot's deep
+     * link. `bearer` as in `verifyCode`: a signed-in account verifying its own
+     * number keeps its password. 404 means the backend has Telegram off.
+     */
+    async telegramStart(
+      body: Schemas['Yalla.Api.Endpoints.StartTelegramVerificationRequest'],
+      bearer?: string | null,
+    ): Promise<Schemas['Yalla.Application.Auth.TelegramVerificationStart']> {
+      const { data } = await client.post<
+        Schemas['Yalla.Application.Auth.TelegramVerificationStart']
+      >(`${DINER}/telegram/start`, body, {
+        skipAuth: true,
+        ...(bearer ? { headers: { authorization: `Bearer ${bearer}` } } : {}),
+      });
+      return data;
+    },
+
+    /** `POST /api/auth/diner/telegram/{challengeId}/claim`: one poll. */
+    async telegramClaim(
+      challengeId: string,
+      body: Schemas['Yalla.Api.Endpoints.ClaimTelegramVerificationRequest'],
+      bearer?: string | null,
+    ): Promise<Schemas['Yalla.Application.Auth.TelegramVerificationClaim']> {
+      const { data } = await client.post<
+        Schemas['Yalla.Application.Auth.TelegramVerificationClaim']
+      >(`${DINER}/telegram/${encodeURIComponent(challengeId)}/claim`, body, {
+        skipAuth: true,
+        ...(bearer ? { headers: { authorization: `Bearer ${bearer}` } } : {}),
+      });
+      return data;
+    },
+
     async refreshTokens(refreshToken: string): Promise<TokenPair> {
       const { data } = await client.post<Schemas['Yalla.Application.Auth.RefreshResult']>(
         `${DINER}/refresh`,

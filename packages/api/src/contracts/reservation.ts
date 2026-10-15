@@ -11,6 +11,7 @@ import {
   PhoneNotVerifiedError,
   RateLimitedError,
   TableTakenError,
+  TelegramUnavailableError,
   TooManyAttemptsError,
   WrongCodeError,
 } from './errors';
@@ -305,6 +306,7 @@ export function verificationFailureCopy(error: unknown, locale: Locale): CopyLin
   }
   if (error instanceof ExpiredCodeError) return line('verify.error.expired');
   if (error instanceof TooManyAttemptsError) return line('verify.error.tooManyAttempts');
+  if (error instanceof TelegramUnavailableError) return line('verify.telegramUnavailable');
   if (error instanceof RateLimitedError) {
     // Only a time the server gave. The per-number window is an hour; naming
     // "one minute from now" sent people back into the same refusal.

@@ -10,6 +10,8 @@ import type {
   SlotFloor,
   TableAvailability,
   TableUnavailableReason,
+  TelegramChallenge,
+  TelegramClaimResult,
   VenueSummary,
   VerifiedPhone,
 } from '../contracts/booking';
@@ -162,9 +164,46 @@ interface Challenge {
   burned: boolean;
 }
 
+/**
+ * The mock, with the one handle a test needs that no screen does: the bot's
+ * side of a Telegram verification. Against the real backend the bot confirms
+ * a challenge; here the test does.
+ */
+export interface MockGateway extends YallaGateway {
+  /**
+   * What the Telegram bot does when the diner shares their contact: the next
+   * claim of `challengeId` answers `verified` with this number. Unknown or
+   * expired challenges are ignored, as the bot's press of a dead button is.
+   */
+  confirmTelegramVerification(challengeId: string, phoneE164: string): void;
+}
+
+/** A pending Telegram challenge: the bot has not confirmed it yet. */
+interface TelegramPending {
+  expiresAt: number;
+  polls: number;
+  /** The number the bot confirmed, once it has. */
+  phoneE164: string | null;
+}
+
+/** The number the mock bot "shares" when the dev UI lets it confirm itself. */
+const MOCK_TELEGRAM_PHONE = '+37477123456';
+/** The mock's bot. The real one is the backend's to name. */
+const MOCK_TELEGRAM_BOT = 'yalla_mock_bot';
+/** The mock's poll cadence; the server sends its own. */
+const TELEGRAM_POLL_MS = 1500;
+/** How many polls the self-confirming mock waits before "the bot" answers. */
+const TELEGRAM_AUTO_CONFIRM_AFTER_POLLS = 2;
+
 export interface MockGatewayOptions {
   /** Injectable clock so tests are deterministic. */
   readonly now?: () => Date;
+  /**
+   * Let a Telegram challenge confirm itself after two polls, so the flow can
+   * be walked in the mock-mode UI with no bot. Off in tests, which confirm
+   * through {@link MockGateway.confirmTelegramVerification} instead.
+   */
+  readonly simulateTelegramConfirm?: boolean;
   /** Simulated latency in ms, so loading states are visible in the harness. */
   readonly latencyMs?: number;
   /**
@@ -231,7 +270,8 @@ function normaliseBookingCode(input: string): string {
  */
 const WALK_IN_HOLDBACK_MINUTES = 30;
 
-export function createMockGateway(options: MockGatewayOptions = {}): YallaGateway {
+export function createMockGateway(options: MockGatewayOptions = {}): MockGateway {
+  const options_ = options;
   const now = options.now ?? (() => new Date());
   const latency = options.latencyMs ?? 0;
 
@@ -274,6 +314,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
   }
   const challenges = new Map<string, Challenge>();
   const codesPerNumber = new Map<string, number[]>();
+  const telegramChallenges = new Map<string, TelegramPending>();
 
   /**
    * The accounts, and who is signed in on this device.
@@ -1326,6 +1367,62 @@ export function createMockGateway(options: MockGatewayOptions = {}): YallaGatewa
         // gates rendering on __DEV__.
         devCode: MOCK_CODE,
       } satisfies PhoneChallenge;
+    },
+
+    async startTelegramVerification(options) {
+      await wait();
+      const id = `tg_${sequence++}`;
+      const expiresAt = now().getTime() + CODE_TTL_MS;
+      telegramChallenges.set(id, { expiresAt, polls: 0, phoneE164: null });
+      void options;
+      return {
+        challengeId: id,
+        deepLinkUrl: `https://t.me/${MOCK_TELEGRAM_BOT}?start=${id}`,
+        expiresAtUtc: new Date(expiresAt).toISOString(),
+        pollAfterMs: TELEGRAM_POLL_MS,
+      } satisfies TelegramChallenge;
+    },
+
+    async claimTelegramVerification(challengeId, options) {
+      await wait();
+      const pending = telegramChallenges.get(challengeId);
+      // Unknown and aged out are the same answer: the server has nothing to
+      // claim, and the screen offers a fresh start either way.
+      if (!pending || now().getTime() > pending.expiresAt) {
+        telegramChallenges.delete(challengeId);
+        throw new ExpiredCodeError({ url: URL_TAG });
+      }
+      pending.polls += 1;
+      if (
+        pending.phoneE164 === null &&
+        options_.simulateTelegramConfirm &&
+        pending.polls > TELEGRAM_AUTO_CONFIRM_AFTER_POLLS
+      ) {
+        pending.phoneE164 = MOCK_TELEGRAM_PHONE;
+      }
+      if (pending.phoneE164 === null) return { state: 'pending' } satisfies TelegramClaimResult;
+
+      telegramChallenges.delete(challengeId);
+      // As a passed code: the account behind the number is verified and
+      // signed in, or made.
+      const { accountId, isNewAccount } = accounts.verifyPhone(
+        pending.phoneE164,
+        options?.localeCode,
+        signedInAccountId,
+      );
+      signIn(accountId, isNewAccount);
+      return {
+        state: 'verified',
+        verified: {
+          verificationToken: `vt_${pending.phoneE164}_${sequence++}`,
+          phoneE164: pending.phoneE164,
+        },
+      } satisfies TelegramClaimResult;
+    },
+
+    confirmTelegramVerification(challengeId, phoneE164) {
+      const pending = telegramChallenges.get(challengeId);
+      if (pending && now().getTime() <= pending.expiresAt) pending.phoneE164 = phoneE164;
     },
 
     async verifyPhoneCode({ challengeId, code, localeCode }) {

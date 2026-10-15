@@ -41,6 +41,9 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
     return createMockGateway({
       latencyMs: options.mockLatencyMs ?? 250,
       simulateTableTaken: options.simulateTableTaken ?? false,
+      // There is no bot in mock mode; the challenge confirms itself after a
+      // couple of polls so the Telegram screen can be walked end to end.
+      simulateTelegramConfirm: true,
     });
   }
 

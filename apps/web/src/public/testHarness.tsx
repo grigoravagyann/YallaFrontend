@@ -2,8 +2,8 @@ import {
   createMockGateway,
   createPublicMockGateway,
   createQueryClient,
+  type MockGateway,
   type PublicGateway,
-  type YallaGateway,
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next, initI18n } from '@yalla/i18n';
@@ -28,7 +28,8 @@ import { MemoryRouter } from 'react-router-dom';
  */
 
 export interface Harness {
-  readonly gateway: YallaGateway;
+  /** The mock, with its bot-side handle for Telegram verification. */
+  readonly gateway: MockGateway;
   readonly publicGateway: PublicGateway;
   readonly queryClient: QueryClient;
   /**
