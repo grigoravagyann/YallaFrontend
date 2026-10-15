@@ -1144,8 +1144,51 @@ most of the value gone.
 
 ## Hosting the web app
 
+### The image
+
+Production serves the console from a container: `apps/web/Dockerfile` builds
+`apps/web/dist` with pnpm and hands it to Caddy, configured by
+`apps/web/deploy/Caddyfile` — `/srv` as the root, `index.html` for every route
+that is not a file, a year's `immutable` cache on the hashed `/assets/*`,
+`no-cache` on `index.html`, `sw.js` and `manifest.webmanifest`, and the headers
+below. It listens on `:80` and knows nothing about TLS: the backend's compose
+puts its own Caddy in front, terminates HTTPS there and proxies `web:80`.
+
+`.github/workflows/publish.yml` builds it on every push to `main` and every
+`v*` tag, runs `apps/web/deploy/smoke.sh` against it, and pushes
+`ghcr.io/grigoravagyann/yalla-web:<sha>`, `:latest` (main) and `:<tag>`.
+
+Two things decide what the image is:
+
+- **One origin.** In production the web and the API share one origin — the
+  outer Caddy proxies `/api/*` to the backend — so `VITE_API_URL` and
+  `VITE_PUBLIC_ORIGIN` are both the site's own origin, e.g. `https://yalla.am`.
+  The workflow takes it from the repository variable `PUBLIC_ORIGIN` and falls
+  back to `https://yalla.am` when that is unset.
+- **Per environment.** `VITE_API_URL` is baked into the bundle and into the
+  `Content-Security-Policy` at build time, not read at start. An image built for
+  `https://yalla.am` talks to `https://yalla.am` wherever it runs; a staging
+  site needs its own build with its own origin.
+
+To build one by hand, from the repository root (the workspace is the context):
+
+```bash
+docker build -f apps/web/Dockerfile \
+  --build-arg VITE_API_URL=https://yalla.am \
+  --build-arg VITE_PUBLIC_ORIGIN=https://yalla.am \
+  -t yalla-web .
+apps/web/deploy/smoke.sh yalla-web https://yalla.am   # runs it and checks the contract below
+```
+
+Everything after this heading is what the image does, written out for anyone
+hosting the static files some other way.
+
+### The static files and the CSP header
+
 The console and the public branch page are static files from `pnpm build:web`.
-Whatever serves them should send a `Content-Security-Policy` header. The policy
+Serve a real file when there is one and `index.html` for every other path — the
+routes are all client-side. Whatever serves them should send a
+`Content-Security-Policy` header. The policy
 is written once, in `apps/web/src/csp.ts` (`contentSecurityPolicy`), and the
 build writes it for the `VITE_API_URL` it was built with to
 `apps/web/dist/content-security-policy.txt` — send that file's contents as the
@@ -1164,7 +1207,14 @@ a `<meta>` tag: browsers ignore `frame-ancestors` in a meta tag, so
 `frame-ancestors 'none'` takes effect only when the host sends the contents of
 `dist/content-security-policy.txt` as the `Content-Security-Policy` response
 header. A host that serves the files without that header leaves the console
-frameable by any site, whatever the meta tag says.
+frameable by any site, whatever the meta tag says. Caddy cannot read a file into
+a header at runtime, which is why the image's build stage turns the file into
+the one-line snippet `apps/web/deploy/write-csp-snippet.mjs` writes and the
+Caddyfile imports; another host needs its own equivalent.
+
+Two more headers the image sends, and a host should too: `X-Content-Type-Options:
+nosniff`, and `Referrer-Policy: no-referrer`, the same as the page's
+`<meta name="referrer">` — a reset-password link carries its token in the query.
 
 `img-src` names the API because photos are served from `/api/photos/...` on the
 API's origin, and it names nothing else. If photos are ever served from another

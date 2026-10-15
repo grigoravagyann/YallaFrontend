@@ -1,0 +1,45 @@
+# Build context for apps/web/Dockerfile, which is built from the repository
+# root because the workspace packages are part of the build. Anything the web
+# build does not need stays out: a smaller context, and an install layer whose
+# cache key does not change when a native folder does.
+
+.git
+.github
+.claude
+.superdesign
+.vscode
+.idea
+
+# Installed and built locally; the image installs and builds its own.
+**/node_modules
+**/dist
+**/dist-web
+**/dist-ssr
+**/build
+**/coverage
+**/.vite
+**/.vitest-cache
+**/*.tsbuildinfo
+**/.cache
+**/.expo
+
+# The phone app's sources and native projects are not part of the web image.
+# Its package.json stays IN the context: the lockfile lists every workspace
+# package and `--frozen-lockfile` needs each manifest present.
+apps/diner/ios
+apps/diner/android
+apps/diner/assets
+apps/diner/src
+apps/diner/app
+apps/e2e/playwright-report
+apps/e2e/test-results
+
+# A local environment is never baked into an image; the build args are the
+# configuration.
+.env
+.env.*
+!.env.example
+
+**/*.log
+**/.DS_Store
+Thumbs.db
