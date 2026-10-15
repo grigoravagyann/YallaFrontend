@@ -125,6 +125,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/diner/telegram/{challengeId}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Poll a Telegram verification and, once verified, exchange it for tokens
+         * @description `pending` while the bot has not been handed the number; `verified` exactly once, with `signIn` set to **exactly what `verify-code` returns** - the account is created on a first number, a registered number's account is signed in and its number marked verified, with the same displacement rule - and `phoneE164`, the number Telegram handed over, so the app can show it without reading the profile. After that the challenge is spent.
+         *
+         *     Unknown, expired and spent challenges - and one started under a different account than the one claiming it - all answer **410 `telegram-verification-expired`**: start again. Links last five minutes; a verified challenge stays claimable for two more.
+         *
+         *     Rate limited per address by its own `auth-telegram-claim` policy, sized for one app polling as told.
+         */
+        post: operations["claimTelegramVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/diner/telegram/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start proving a phone number through the Telegram bot
+         * @description Issues a challenge and a single-use deep link into the bot. Open `deepLinkUrl`; Telegram starts the bot, which asks the person to share their contact. Then poll `claim` with `challengeId` every `pollAfterMs` until it answers `verified`.
+         *
+         *     **The number never passes through the app.** Telegram hands the bot the number it verified when the account was created, and only the sender's own contact card counts - a forwarded card does not.
+         *
+         *     Send the `Authorization: Bearer` token `register` returned when verifying a registered number from the same app, exactly as for `verify-code`: the claim then keeps the password. Without it the registrant is displaced. The route stays anonymous; an invalid token is ignored.
+         *
+         *     Rate limited per address like `request-code`. Not mapped at all when the Telegram door is switched off in configuration.
+         */
+        post: operations["startTelegramVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/diner/verify-code": {
         parameters: {
             query?: never;
@@ -3078,6 +3128,11 @@ export interface components {
             /** @description Optional free text, recorded on the booking. */
             reason?: string | null;
         };
+        /** @description Polls a Telegram phone verification. */
+        "Yalla.Api.Endpoints.ClaimTelegramVerificationRequest": {
+            /** @description Language to store against the account. Falls back to `Accept-Language`, then Armenian. */
+            localeCode?: string | null;
+        };
         /** @description Body for booking a table. */
         "Yalla.Api.Endpoints.CreateReservationRequest": {
             /**
@@ -3578,6 +3633,11 @@ export interface components {
              * @description Whose PIN is being tapped. The tablet lists the branch's staff.
              */
             staffMemberId: string;
+        };
+        /** @description Starts a Telegram phone verification. */
+        "Yalla.Api.Endpoints.StartTelegramVerificationRequest": {
+            /** @description Language for the bot's messages and the account, if one is created. Falls back to `Accept-Language`, then Armenian. */
+            localeCode?: string | null;
         };
         /** @description Body of a state-change request that needs nothing beyond the table. */
         "Yalla.Api.Endpoints.TableStateRequest": {
@@ -4522,6 +4582,41 @@ export interface components {
              * @description The one tab this token can touch.
              */
             tabId: string;
+        };
+        /** @description The answer to one poll. */
+        "Yalla.Application.Auth.TelegramVerificationClaim": {
+            /**
+             * @description The number Telegram handed over, in E.164, when State is `verified` -
+             *     so the app can show it without a second round trip to the profile. Null otherwise.
+             */
+            phoneE164?: string | null;
+            /** @description The tokens, when State is `verified`. Null otherwise. */
+            signIn?: components["schemas"]["Yalla.Application.Auth.DinerSignInResult"] | null;
+            /**
+             * @description `pending` while the bot has not been handed the number; `verified` exactly once,
+             *                 with SignIn set. After that the challenge is spent and answers 410.
+             */
+            state: string;
+        };
+        /** @description What the app needs to open the bot and to poll. */
+        "Yalla.Application.Auth.TelegramVerificationStart": {
+            /**
+             * Format: uuid
+             * @description Poll with this. Opaque, and useless to anyone who did not also open the link.
+             */
+            challengeId: string;
+            /** @description `https://t.me/{bot}?start={nonce}`. Open it; Telegram starts the bot with the nonce. */
+            deepLinkUrl: string;
+            /**
+             * Format: int32
+             * @description How long the link, and the challenge, stay usable.
+             */
+            expiresInSeconds: number;
+            /**
+             * Format: int32
+             * @description How long to wait between claims. Polling faster than this spends the claim rate limit for nothing.
+             */
+            pollAfterMs: number;
         };
         /** @description An owner or manager signed in to the admin panel. */
         "Yalla.Application.Auth.VenueUserSignInResult": {
@@ -8510,6 +8605,155 @@ export interface operations {
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    claimTelegramVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                challengeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.ClaimTelegramVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.TelegramVerificationClaim"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `invalid-credentials`: the number was proved but its account is deactivated. The challenge is spent and no token is issued. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `telegram-verification-expired`: the challenge is unknown, past its deadline, already claimed, or not this caller's. Start again. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Polling faster than `pollAfterMs`. Slow down. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    startTelegramVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.StartTelegramVerificationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.TelegramVerificationStart"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many starts from this address. Wait, then retry. */
             429: {
                 headers: {
                     [name: string]: unknown;

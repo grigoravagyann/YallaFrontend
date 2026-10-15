@@ -1172,7 +1172,9 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           options?.localeCode ? { localeCode: options.localeCode } : {},
           bearer,
         );
-        if (answer.state === 'pending') return { state: 'pending' };
+        // `state` is a string on the wire and `signIn` is set only on
+        // `verified`: anything short of both is still pending.
+        if (answer.state !== 'verified' || !answer.signIn) return { state: 'pending' };
         // The same session start as a passed code.
         const result = await signedIn(answer.signIn);
         // The number the bot confirmed: from the answer when it says, else from
