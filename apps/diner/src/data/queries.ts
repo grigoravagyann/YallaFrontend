@@ -147,6 +147,13 @@ export function useVerifyPhoneCode() {
   });
 }
 
+/**
+ * The other way to prove a number: the Telegram bot. Shared with the public
+ * web page, which runs the same start-then-poll against the same endpoints;
+ * what differs on the phone is only how the bot is opened.
+ */
+export { useTelegramVerification } from '@yalla/api/react';
+
 // ---------------------------------------------------------------------------
 // Scanning in and the shared tab
 // ---------------------------------------------------------------------------

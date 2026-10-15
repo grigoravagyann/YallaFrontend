@@ -17,6 +17,12 @@ export type AuthRouteParams = {
   partySize?: string;
   requests?: string;
   from?: string;
+  /**
+   * A Telegram verification challenge to pick up polling, from the bot's
+   * "back to Yalla" button (`yalla://verify?tg=…`). Not a booking key: it is
+   * spent on arrival and never carried forward.
+   */
+  tg?: string;
 };
 
 /** The value of `from` when the welcome screen is underneath. */
