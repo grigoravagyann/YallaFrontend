@@ -186,6 +186,18 @@ export class TooManyAttemptsError extends ApiError {
   }
 }
 
+/**
+ * The backend has Telegram verification switched off: its routes do not exist.
+ * The screen hides the Telegram button after the first refusal and the SMS
+ * code remains.
+ */
+export class TelegramUnavailableError extends ApiError {
+  constructor(options: { url: string }) {
+    super('Telegram verification is not available.', { status: 404, url: options.url });
+    this.name = 'TelegramUnavailableError';
+  }
+}
+
 /** Too many codes requested for one number. Distinct from too many attempts. */
 export class RateLimitedError extends ApiError {
   /**

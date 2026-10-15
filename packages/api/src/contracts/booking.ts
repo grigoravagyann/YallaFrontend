@@ -394,3 +394,28 @@ export interface VerifiedPhone {
   readonly verificationToken: string;
   readonly phoneE164: string;
 }
+
+/**
+ * Verification through the Telegram bot, started.
+ *
+ * The client never learns the number until the bot has: it opens
+ * `deepLinkUrl`, the diner shares their contact with the bot, and the client
+ * polls {@link TelegramClaimResult} every `pollAfterMs` until the state is
+ * terminal or `expiresAtUtc` has passed.
+ */
+export interface TelegramChallenge {
+  readonly challengeId: string;
+  /** `https://t.me/<bot>?start=<nonce>` — opens the bot in Telegram. */
+  readonly deepLinkUrl: string;
+  readonly expiresAtUtc: string;
+  /** How often to poll the claim, from the server. */
+  readonly pollAfterMs: number;
+}
+
+/**
+ * One poll of a Telegram challenge. `verified` carries the same proof a
+ * passed code does, so every screen downstream takes either without knowing
+ * which door was used.
+ */
+export type TelegramClaimResult =
+  { readonly state: 'pending' } | { readonly state: 'verified'; readonly verified: VerifiedPhone };

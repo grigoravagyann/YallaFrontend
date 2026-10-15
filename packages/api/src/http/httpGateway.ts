@@ -9,6 +9,8 @@ import type {
   PhoneChallenge,
   TableUnavailableReason,
   VenueSummary,
+  TelegramChallenge,
+  TelegramClaimResult,
   VerifiedPhone,
 } from '../contracts/booking';
 import type {
@@ -64,6 +66,7 @@ import {
   TableOutOfServiceError,
   TableTakenError,
   TabsNotEnabledError,
+  TelegramUnavailableError,
   TooManyAttemptsError,
   UnknownTableCodeError,
   UsernameTakenError,
@@ -639,6 +642,29 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     }
   }
 
+  /** `GET /api/diner/me`: the account behind the session. */
+  async function readProfile(): Promise<DinerProfileView> {
+    const { data } =
+      await client.get<Schemas['Yalla.Application.Diners.DinerProfileView']>('/api/diner/me');
+    return dinerProfile(data, client.baseUrl);
+  }
+
+  /**
+   * A 429 on any of the sign-in doors, as the screens' refusal.
+   *
+   * Only a time the server gave. The per-number window is an hour and sends no
+   * Retry-After; the per-address one sends it.
+   */
+  function rateLimited(error: TooManyRequestsError): RateLimitedError {
+    return new RateLimitedError({
+      url: error.url,
+      retryAtUtc:
+        error.retryAfterSeconds !== null
+          ? new Date(Date.now() + error.retryAfterSeconds * 1000).toISOString()
+          : null,
+    });
+  }
+
   /**
    * Signed in: start the token session from what the server issued, and hand
    * the caller the same facts.
@@ -1068,17 +1094,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           devCode: result.developmentCode ?? undefined,
         };
       } catch (error) {
-        if (error instanceof TooManyRequestsError) {
-          // Only a time the server gave. The per-number window is an hour and
-          // sends no Retry-After; the per-address one sends it.
-          throw new RateLimitedError({
-            url: error.url,
-            retryAtUtc:
-              error.retryAfterSeconds !== null
-                ? new Date(Date.now() + error.retryAfterSeconds * 1000).toISOString()
-                : null,
-          });
-        }
+        if (error instanceof TooManyRequestsError) throw rateLimited(error);
         throw error;
       }
     },
@@ -1125,6 +1141,58 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       }
     },
 
+    // --- Telegram verification: the other diner sign-in ---------------------------
+
+    async startTelegramVerification(options): Promise<TelegramChallenge> {
+      try {
+        const bearer = (await auth?.getAccessToken().catch(() => null)) ?? null;
+        const result = await dinerAuth.telegramStart(
+          options?.localeCode ? { localeCode: options.localeCode } : {},
+          bearer,
+        );
+        return {
+          challengeId: result.challengeId,
+          deepLinkUrl: result.deepLinkUrl,
+          expiresAtUtc: new Date(Date.now() + result.expiresInSeconds * 1000).toISOString(),
+          pollAfterMs: result.pollAfterMs,
+        };
+      } catch (error) {
+        // A backend with Telegram switched off serves no such route at all.
+        if (error instanceof NotFoundError) throw new TelegramUnavailableError({ url: error.url });
+        if (error instanceof TooManyRequestsError) throw rateLimited(error);
+        throw error;
+      }
+    },
+
+    async claimTelegramVerification(challengeId, options): Promise<TelegramClaimResult> {
+      try {
+        const bearer = (await auth?.getAccessToken().catch(() => null)) ?? null;
+        const answer = await dinerAuth.telegramClaim(
+          challengeId,
+          options?.localeCode ? { localeCode: options.localeCode } : {},
+          bearer,
+        );
+        if (answer.state === 'pending') return { state: 'pending' };
+        // The same session start as a passed code.
+        const result = await signedIn(answer.signIn);
+        // The number the bot confirmed: from the answer when it says, else from
+        // the profile the new session can now read.
+        const phoneE164 = answer.phoneE164 || (await readProfile()).phoneE164;
+        return {
+          state: 'verified',
+          verified: { verificationToken: result.accessToken, phoneE164 },
+        };
+      } catch (error) {
+        if (error instanceof SessionRevokedError) throw error;
+        if (error instanceof TooManyRequestsError) throw rateLimited(error);
+        // 410 `telegram-verification-expired`: the challenge aged out, or was
+        // never this backend's. The same refusal as an expired code.
+        if (error instanceof ApiError && error.status === 410)
+          throw new ExpiredCodeError({ url: error.url });
+        throw error;
+      }
+    },
+
     // --- The account --------------------------------------------------------------
 
     /**
@@ -1167,11 +1235,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     },
 
     /** `GET /api/diner/me`, under the diner's own token. */
-    async getDinerProfile(): Promise<DinerProfileView> {
-      const { data } =
-        await client.get<Schemas['Yalla.Application.Diners.DinerProfileView']>('/api/diner/me');
-      return dinerProfile(data, client.baseUrl);
-    },
+    getDinerProfile: readProfile,
 
     async updateDinerProfile(command): Promise<DinerProfileView> {
       try {

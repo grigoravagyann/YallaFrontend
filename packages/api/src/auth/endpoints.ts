@@ -16,6 +16,43 @@ type Schemas = components['schemas'];
 const DINER = '/api/auth/diner';
 const VENUE = '/api/auth/venue';
 
+// ---------------------------------------------------------------------------
+// Telegram verification: the wire shapes, ahead of the backend.
+//
+// TODO(schema): replace with Schemas['Yalla.Api.Endpoints.TelegramStartRequest']
+// and friends once `api:generate` has run against a backend that serves the
+// routes. Typed here so the gateway cannot drift silently from the contract it
+// was written to; the generated names are the only thing that should change.
+// ---------------------------------------------------------------------------
+
+/** `POST /api/auth/diner/telegram/start` and `.../{challengeId}/claim` body. */
+export interface TelegramLocaleRequest {
+  readonly localeCode?: string | undefined;
+}
+
+/** `POST /api/auth/diner/telegram/start` → 200. */
+export interface TelegramStartResult {
+  readonly challengeId: string;
+  readonly deepLinkUrl: string;
+  readonly expiresInSeconds: number;
+  readonly pollAfterMs: number;
+}
+
+/**
+ * `POST /api/auth/diner/telegram/{challengeId}/claim` → 200.
+ *
+ * `phoneE164` on the verified answer is asked of the backend (the client has
+ * no other way to learn the number the bot confirmed); when it is absent the
+ * gateway reads `/api/diner/me` under the new session instead.
+ */
+export type TelegramClaimWire =
+  | { readonly state: 'pending' }
+  | {
+      readonly state: 'verified';
+      readonly signIn: Schemas['Yalla.Application.Auth.DinerSignInResult'];
+      readonly phoneE164?: string | null | undefined;
+    };
+
 export function createDinerAuth(client: ApiClient) {
   return {
     async requestCode(
@@ -71,6 +108,41 @@ export function createDinerAuth(client: ApiClient) {
         `${DINER}/login`,
         body,
         { skipAuth: true },
+      );
+      return data;
+    },
+
+    /**
+     * `POST /api/auth/diner/telegram/start`: a challenge and the bot's deep
+     * link. `bearer` as in `verifyCode`: a signed-in account verifying its own
+     * number keeps its password. 404 means the backend has Telegram off.
+     */
+    async telegramStart(
+      body: TelegramLocaleRequest,
+      bearer?: string | null,
+    ): Promise<TelegramStartResult> {
+      // gateway-schema: awaiting-route — Telegram verification is being built in the backend in parallel
+      const { data } = await client.post<TelegramStartResult>(`${DINER}/telegram/start`, body, {
+        skipAuth: true,
+        ...(bearer ? { headers: { authorization: `Bearer ${bearer}` } } : {}),
+      });
+      return data;
+    },
+
+    /** `POST /api/auth/diner/telegram/{challengeId}/claim`: one poll. */
+    async telegramClaim(
+      challengeId: string,
+      body: TelegramLocaleRequest,
+      bearer?: string | null,
+    ): Promise<TelegramClaimWire> {
+      // gateway-schema: awaiting-route — Telegram verification is being built in the backend in parallel
+      const { data } = await client.post<TelegramClaimWire>(
+        `${DINER}/telegram/${encodeURIComponent(challengeId)}/claim`,
+        body,
+        {
+          skipAuth: true,
+          ...(bearer ? { headers: { authorization: `Bearer ${bearer}` } } : {}),
+        },
       );
       return data;
     },

@@ -7,6 +7,8 @@ import type {
   PhoneChallenge,
   SlotFloor,
   TableAvailability,
+  TelegramChallenge,
+  TelegramClaimResult,
   VenueSummary,
   VerifiedPhone,
 } from './contracts/booking';
@@ -310,6 +312,29 @@ export interface YallaGateway {
     code: string;
     localeCode?: string | undefined;
   }): Promise<VerifiedPhone>;
+
+  /**
+   * Start verifying through the Telegram bot: a deep link to open and a
+   * challenge to poll. No number is asked for — the bot learns it.
+   *
+   * @throws {TelegramUnavailableError} the backend has Telegram switched off.
+   * @throws {RateLimitedError} too many challenges started.
+   */
+  startTelegramVerification(options?: {
+    readonly localeCode?: string | undefined;
+  }): Promise<TelegramChallenge>;
+
+  /**
+   * One poll of a Telegram challenge. On `verified` the diner is signed in,
+   * exactly as {@link verifyPhoneCode} signs them in.
+   *
+   * @throws {ExpiredCodeError} the challenge aged out or was never issued.
+   * @throws {RateLimitedError} polled too often.
+   */
+  claimTelegramVerification(
+    challengeId: string,
+    options?: { readonly localeCode?: string | undefined },
+  ): Promise<TelegramClaimResult>;
 
   // --- The account --------------------------------------------------------
   /**
