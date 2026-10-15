@@ -33,6 +33,15 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   reviewed: `place.review.loadFailed`, `orders.signedOut.*` (orders live on
   the account — never phrase it as the order being gone) and
   `tables.notOnPhoto`.
+- `diner` — verifying through the Telegram bot (2026-10-15), provisional and
+  **not** reviewed: `verify.telegramButton`, `.telegramWaitingTitle`,
+  `.telegramWaitingBody` (must keep saying the screen updates **by itself** —
+  nobody is meant to press anything after sharing their contact),
+  `.telegramOpenAgain`, `.telegramUseCode`, `.telegramNotInstalled` (ends in
+  the punctuation that introduces the link printed under it), `.telegramExpired`
+  (the link expired, not a code — there was none), `.telegramTryAgain` and
+  `.telegramUnavailable`. Written ungendered, in the polite plural, like the
+  rest of `verify.*`.
 - `diner` — the delete-account refusals (2026-09-14), provisional and **not**
   reviewed: `profile.deleteAccount.wrongPassword` and `.wrongCode` (both must
   keep saying **nothing was deleted**) and `.tooManyAttempts`.
