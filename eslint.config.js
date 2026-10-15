@@ -71,6 +71,8 @@ export default tseslint.config(
       'scripts/**/*.mjs',
       'packages/*/scripts/**/*.mjs',
       'apps/*/scripts/**/*.mjs',
+      // The web image's build-stage helper (apps/web/deploy).
+      'apps/*/deploy/**/*.mjs',
     ],
     languageOptions: {
       sourceType: 'module',
