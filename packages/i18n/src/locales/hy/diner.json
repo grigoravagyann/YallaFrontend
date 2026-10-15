@@ -208,7 +208,16 @@
       "codeSpent": "Այս կոդով չափազանց շատ փորձեր են արվել։ Խնդրեք նորը։",
       "rateLimitedNoTime": "Չափազանց շատ կոդեր են խնդրվել։ Փորձեք մի փոքր ուշ։"
     },
-    "changeNumber": "Օգտագործել այլ համար"
+    "changeNumber": "Օգտագործել այլ համար",
+    "telegramButton": "Հաստատել Telegram-ով",
+    "telegramWaitingTitle": "Սպասում ենք Telegram-ին…",
+    "telegramWaitingBody": "Telegram-ում Yalla բոտին տրամադրեք ձեր հեռախոսահամարը։ Այս էկրանն ինքնուրույն կթարմացվի, հենց որ դա արվի։",
+    "telegramOpenAgain": "Նորից բացել Telegram-ը",
+    "telegramUseCode": "Փոխարենը օգտագործել կոդը",
+    "telegramNotInstalled": "Telegram-ը չբացվեց։ Տեղադրեք այն կամ բացեք այս հղումը բրաուզերում՝",
+    "telegramExpired": "Telegram հղման ժամկետը լրացել է։ Սկսեք նորից՝ նորը ստանալու համար։",
+    "telegramTryAgain": "Փորձել նորից",
+    "telegramUnavailable": "Telegram-ով հաստատումն այս պահին հասանելի չէ։"
   },
   "auth": {
     "welcome": {

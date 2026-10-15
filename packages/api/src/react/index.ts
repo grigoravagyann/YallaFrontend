@@ -57,6 +57,12 @@ import { staleTime } from '../queryClient';
 
 export { describeFailure } from '../errors';
 export type { FailureKind } from '../errors';
+export { useTelegramVerification } from './telegram';
+export type {
+  TelegramVerification,
+  TelegramVerificationStatus,
+  UseTelegramVerificationOptions,
+} from './telegram';
 
 /**
  * The current time, as React state rather than a `Date.now()` call in render.
@@ -198,6 +204,8 @@ export const queryKeys = {
   // the venue section a platform body the next time the admin suspended one.
   managedVenue: (venueId: string) => ['console', 'managedVenue', venueId] as const,
   editorFloorPlan: (branchId: string) => ['console', 'floorPlan', branchId] as const,
+  /** One poll of a Telegram verification challenge. See `useTelegramVerification`. */
+  telegramClaim: (challengeId: string) => ['telegramClaim', challengeId] as const,
   staffFloor: (branchId: string) => ['staff', 'floor', branchId] as const,
   staffTab: (tabId: string) => ['staff', 'tab', tabId] as const,
   orderQueue: (branchId: string) => ['staff', 'orders', branchId] as const,

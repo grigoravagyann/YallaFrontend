@@ -216,7 +216,16 @@
       "codeSpent": "С этим кодом было слишком много попыток. Запросите новый.",
       "rateLimitedNoTime": "Запрошено слишком много кодов. Попробуйте немного позже."
     },
-    "changeNumber": "Другой номер"
+    "changeNumber": "Другой номер",
+    "telegramButton": "Подтвердить через Telegram",
+    "telegramWaitingTitle": "Ждём Telegram…",
+    "telegramWaitingBody": "Поделитесь своим номером телефона с ботом Yalla в Telegram. Этот экран обновится сам, как только это произойдёт.",
+    "telegramOpenAgain": "Открыть Telegram ещё раз",
+    "telegramUseCode": "Лучше ввести код",
+    "telegramNotInstalled": "Telegram не открылся. Установите его или откройте эту ссылку в браузере:",
+    "telegramExpired": "Срок ссылки Telegram истёк. Начните заново, чтобы получить новую.",
+    "telegramTryAgain": "Попробовать ещё раз",
+    "telegramUnavailable": "Подтверждение через Telegram сейчас недоступно."
   },
   "auth": {
     "welcome": {

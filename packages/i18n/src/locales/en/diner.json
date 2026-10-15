@@ -208,7 +208,16 @@
       "codeSpent": "That code has had too many tries. Ask for a new one.",
       "rateLimitedNoTime": "Too many codes asked for. Try again a little later."
     },
-    "changeNumber": "Use a different number"
+    "changeNumber": "Use a different number",
+    "telegramButton": "Verify with Telegram",
+    "telegramWaitingTitle": "Waiting for Telegram…",
+    "telegramWaitingBody": "Share your phone number with the Yalla bot in Telegram. This screen updates by itself once it has.",
+    "telegramOpenAgain": "Open Telegram again",
+    "telegramUseCode": "Use the code instead",
+    "telegramNotInstalled": "Telegram did not open. Install it, or open this link in a browser:",
+    "telegramExpired": "The Telegram link has expired. Start again to get a new one.",
+    "telegramTryAgain": "Try again",
+    "telegramUnavailable": "Verifying through Telegram is not available right now."
   },
   "auth": {
     "welcome": {

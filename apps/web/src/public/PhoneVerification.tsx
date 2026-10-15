@@ -1,5 +1,10 @@
-import { verificationFailureCopy, type PhoneChallenge, type VerifiedPhone } from '@yalla/api';
-import { useGateway } from '@yalla/api/react';
+import {
+  TelegramUnavailableError,
+  verificationFailureCopy,
+  type PhoneChallenge,
+  type VerifiedPhone,
+} from '@yalla/api';
+import { useGateway, useTelegramVerification } from '@yalla/api/react';
 import { useMutation } from '@tanstack/react-query';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,6 +19,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *
  * Nothing is stored. The token the exchange returns lives in memory for as long
  * as the tab is open; see `gateways.ts`.
+ *
+ * The other door is the Telegram bot: no number typed, no SMS. The bot is
+ * opened in a new tab and this page polls until it has confirmed, then lands
+ * on the same `onVerified` the code does. A backend with Telegram switched off
+ * refuses the first start, after which the button is gone and the code stays.
  */
 
 const DEFAULT_PREFIX = '+374';
@@ -28,7 +38,8 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
   const { locale } = useLocale();
   const gateway = useGateway();
 
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [step, setStep] = useState<'phone' | 'code' | 'telegram'>('phone');
+  const [telegramHidden, setTelegramHidden] = useState(false);
   const [prefix, setPrefix] = useState(DEFAULT_PREFIX);
   const [localNumber, setLocalNumber] = useState('');
   const [challenge, setChallenge] = useState<PhoneChallenge | null>(null);
@@ -49,6 +60,12 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
       gateway.verifyPhoneCode({ ...input, localeCode: locale }),
     retry: false,
   });
+  const {
+    start: startTelegramChallenge,
+    status: telegramStatus,
+    deepLinkUrl: telegramUrl,
+    reset: resetTelegram,
+  } = useTelegramVerification({ localeCode: locale, onVerified });
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -100,8 +117,69 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
     [challenge, verifyCode, onVerified, describe],
   );
 
-  const busy = requestCode.isPending || verifyCode.isPending;
+  const startTelegram = useCallback(() => {
+    setErrorText(null);
+    // Opened now, in the click, and pointed at the bot once the server has
+    // answered: a window opened after an `await` is what browsers block. One
+    // that would not open (a blocker, no `window.open` at all) leaves the
+    // link on the page to tap instead.
+    const popup = typeof window.open === 'function' ? window.open('about:blank', '_blank') : null;
+    if (popup) popup.opener = null;
+    setStep('telegram');
+    startTelegramChallenge()
+      .then((issued) => {
+        if (popup && !popup.closed) popup.location.href = issued.deepLinkUrl;
+      })
+      .catch((error: unknown) => {
+        popup?.close();
+        // Off on this backend: the button goes and the code stays. Anything
+        // else is said on the phone step, where the next try is.
+        if (error instanceof TelegramUnavailableError) setTelegramHidden(true);
+        setStep('phone');
+        setErrorText(describe(error));
+      });
+  }, [startTelegramChallenge, describe]);
+
+  const busy = requestCode.isPending || verifyCode.isPending || telegramStatus === 'starting';
   const numberLongEnough = localNumber.replace(/\D/gu, '').length >= 6;
+
+  if (step === 'telegram') {
+    const expired = telegramStatus === 'expired';
+    return (
+      <div className="pub-form">
+        <h3>{expired ? t('verify.telegramExpired') : t('verify.telegramWaitingTitle')}</h3>
+        {expired ? null : <p className="pub-muted">{t('verify.telegramWaitingBody')}</p>}
+
+        {expired ? (
+          <button type="button" className="pub-button pub-button-primary" onClick={startTelegram}>
+            {t('verify.telegramTryAgain')}
+          </button>
+        ) : telegramUrl ? (
+          <a
+            className="pub-button pub-button-primary"
+            href={telegramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t('verify.telegramOpenAgain')}
+          </a>
+        ) : null}
+
+        <div className="pub-actions">
+          <button
+            type="button"
+            className="pub-button pub-button-quiet"
+            onClick={() => {
+              resetTelegram();
+              setStep('phone');
+            }}
+          >
+            {t('verify.telegramUseCode')}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (step === 'phone') {
     return (
@@ -153,6 +231,19 @@ export function PhoneVerification({ onVerified }: PhoneVerificationProps) {
         >
           {busy ? t('net.loading') : t('verify.sendCode')}
         </button>
+
+        {/* No number needed: the bot learns it. Gone after a backend without
+            Telegram refuses it once. */}
+        {telegramHidden ? null : (
+          <button
+            type="button"
+            className="pub-button pub-button-quiet"
+            disabled={busy}
+            onClick={startTelegram}
+          >
+            {t('verify.telegramButton')}
+          </button>
+        )}
       </form>
     );
   }
