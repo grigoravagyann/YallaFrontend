@@ -317,6 +317,16 @@ jobs:
           # Off, or an untokened request is attributed to the seeded waiter and
           # the suite tests a role nobody signs in as.
           DevActor__Enabled: 'false'
+          # The Telegram routes are mapped only when enabled, and the drift gate
+          # compares the live document with the committed one, which has them.
+          # A dummy token is fine: nothing calls api.telegram.org unless a
+          # challenge is started, and webhook mode registers nothing without a
+          # public URL.
+          Telegram__Enabled: 'true'
+          Telegram__BotToken: '000000:contract-run-only-not-a-real-token'
+          Telegram__BotUsername: yalla_contract_bot
+          Telegram__Mode: Webhook
+          Telegram__WebhookSecret: contract-run-only-webhook-secret
         run: |
           nohup dotnet run --project src/Yalla.Api/Yalla.Api.csproj -c Release --no-build --no-launch-profile \
             > "$GITHUB_WORKSPACE/api.log" 2>&1 &

@@ -349,6 +349,11 @@ step "Start the API on $api_url (database $database)"
     "PhotoStorage__RootPath=$(native_path "$work/photos")" \
     "Auth__PasswordResetUrlTemplate=$console_url/reset-password#token={token}" \
     "PublicWeb__ManageBookingUrlTemplate=$console_url/booking/{token}" \
+    Telegram__Enabled=true \
+    Telegram__BotToken=000000:e2e-run-only-not-a-real-token \
+    Telegram__BotUsername=yalla_e2e_bot \
+    Telegram__Mode=Webhook \
+    Telegram__WebhookSecret=e2e-run-only-webhook-secret \
     DevSeed__Enabled=true \
     DevActor__Enabled=false \
     'Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore.Database.Command=Warning' \
