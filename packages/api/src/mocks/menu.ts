@@ -31,7 +31,10 @@ const COFFEE: MenuSection = {
     item('flat-white', 'Flat white', 1400, 'Double espresso under velvety milk'),
     item('armenian-coffee', 'Armenian coffee', 800, 'Ground fine, brewed in sand'),
     // One thing the kitchen has run out of, so the unavailable state is real.
-    { ...item('cold-brew', 'Cold brew', 1500, 'Steeped overnight, served over ice'), isAvailable: false },
+    {
+      ...item('cold-brew', 'Cold brew', 1500, 'Steeped overnight, served over ice'),
+      isAvailable: false,
+    },
   ],
 };
 

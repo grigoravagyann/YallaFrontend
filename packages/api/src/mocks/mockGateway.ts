@@ -2109,11 +2109,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // parity: server rule added in fix/qa-2026-10-16-backend
       const located = findBranch(tab.branchId);
       const hours = publicBranchFixtures[tab.branchId]?.weeklyHours;
-      if (
-        located &&
-        hours &&
-        !openStateFrom(hours, now(), located.branch.timeZoneId).isOpen
-      ) {
+      if (located && hours && !openStateFrom(hours, now(), located.branch.timeZoneId).isOpen) {
         throw conflict(
           `${URL_TAG}/api/tabs/${command.tabId}/orders`,
           'branch-closed',

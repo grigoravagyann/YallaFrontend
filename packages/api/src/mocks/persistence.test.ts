@@ -133,7 +133,13 @@ describe('a mock world across a reload', () => {
   });
 
   it('tells a read from a write by the verb', () => {
-    for (const read of ['getVenue', 'listVenues', 'searchBranches', 'resolveBranch', 'exportReport']) {
+    for (const read of [
+      'getVenue',
+      'listVenues',
+      'searchBranches',
+      'resolveBranch',
+      'exportReport',
+    ]) {
       expect(isMutatingMethod(read), read).toBe(false);
     }
     for (const write of ['createVenue', 'scanTableCode', 'requestPhoneCode', 'placeOrder']) {
