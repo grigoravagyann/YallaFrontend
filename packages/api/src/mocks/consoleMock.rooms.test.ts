@@ -336,6 +336,21 @@ describe('deleting a table in the console mock', () => {
     expect((await gateway.getFloorPlan(BRANCH)).tables.some((t) => t.id === two.id)).toBe(false);
   });
 
+  it('moves the plan version, so a tab that loaded before the delete cannot save it back', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const stale = await gateway.getFloorPlan(BRANCH);
+    const one = stale.tables.find((t) => t.label === '1')!;
+    const two = stale.tables.find((t) => t.label === '2')!;
+
+    await gateway.deleteTable({ branchId: BRANCH, tableId: two.id });
+    const afterRemove = await gateway.getFloorPlan(BRANCH);
+    expect(afterRemove.version).not.toBe(stale.version);
+    await gateway.deleteTable({ branchId: BRANCH, tableId: one.id });
+    expect((await gateway.getFloorPlan(BRANCH)).version).not.toBe(afterRemove.version);
+
+    expect(await caught(save(gateway, asCommand(stale)))).toBeInstanceOf(FloorPlanChangedError);
+  });
+
   it('answers 404 for a table that is not at the branch', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
     expect(

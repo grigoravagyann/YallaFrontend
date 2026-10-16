@@ -1775,6 +1775,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         floorPlans.set(branchId, {
           ...plan,
           tables: plan.tables.map((t) => (t.id === tableId ? { ...t, isActive: false } : t)),
+          // The plan changed: a tab that loaded before this must not save the table back.
+          version: bumped(plan.version),
         });
         return {
           tableId,
@@ -1787,7 +1789,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         };
       }
 
-      floorPlans.set(branchId, { ...plan, tables: plan.tables.filter((t) => t.id !== tableId) });
+      floorPlans.set(branchId, {
+        ...plan,
+        tables: plan.tables.filter((t) => t.id !== tableId),
+        version: bumped(plan.version),
+      });
       return {
         tableId,
         label: table.label,
