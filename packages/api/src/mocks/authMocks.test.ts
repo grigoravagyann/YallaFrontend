@@ -42,15 +42,29 @@ describe('F15 — the sign-in link the console mock issues can be followed', () 
     expect(link.resetLink).toMatch(/^\/reset-password#token=[a-z0-9]{32}$/u);
     const token = link.resetLink.split('#token=')[1]!;
 
-    // Under the server's minimum: its sentence, naming the minimum.
+    // Under the server's minimum: VenueUserAuthService.ResetPasswordAsync's
+    // ArgumentException, whose .NET message carries the parameter, mapped to
+    // 400 invalid-request naming the field.
     const short = await caught(auth.resetPassword(token, 'short'));
     expect(short).toBeInstanceOf(ValidationError);
-    expect((short as ValidationError).message).toBe('Password must be at least 12 characters.');
+    expect((short as ValidationError).message).toBe(
+      "Password must be at least 12 characters. (Parameter 'newPassword')",
+    );
+    expect((short as ValidationError).field).toBe('newPassword');
+    // Length is checked before the token is looked up, so a short password
+    // on a bad link is the 400, not the 401.
+    expect(await caught(auth.resetPassword('not-a-token', 'short'))).toBeInstanceOf(
+      ValidationError,
+    );
 
     await expect(auth.resetPassword(token, 'long enough password')).resolves.toBeUndefined();
-    // Spent: the second use is the 401 the reset page reads as an invalid link.
-    expect(await caught(auth.resetPassword(token, 'long enough password'))).toBeInstanceOf(
-      UnauthorizedError,
+    // Spent: the second use is the 401 the reset page reads as an invalid link,
+    // with the server's reason code and sentence.
+    const spent = await caught(auth.resetPassword(token, 'long enough password'));
+    expect(spent).toBeInstanceOf(UnauthorizedError);
+    expect((spent as UnauthorizedError).problem?.code).toBe('reset-token-invalid');
+    expect((spent as UnauthorizedError).message).toBe(
+      'That reset link is not valid or has expired. Ask for a new one.',
     );
     expect(await caught(auth.resetPassword('not-a-token', 'long enough password'))).toBeInstanceOf(
       UnauthorizedError,

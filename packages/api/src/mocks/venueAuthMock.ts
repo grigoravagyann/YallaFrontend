@@ -44,11 +44,10 @@ export function createMockVenueUserAuth(options: VenueAuthMockOptions = {}): Ven
 
     async resetPassword(resetToken: string, newPassword: string): Promise<void> {
       const url = `${URL_TAG}/reset-password`;
-      const tokenHash = mockTokenHash(resetToken);
-      const link = registry.signInLinks.get(tokenHash);
-      if (!link || link.spentAtUtc !== null || Date.parse(link.expiresAtUtc) <= now().getTime()) {
-        throw new UnauthorizedError({ url });
-      }
+      // Length first, as VenueUserAuthService.ResetPasswordAsync checks it
+      // before it looks the token up. An ArgumentException on the server, so
+      // its .NET message carries the parameter, and 400 invalid-request names
+      // the field.
       if (newPassword.length < PASSWORD_MIN_LENGTH) {
         throw new ValidationError({
           url,
@@ -57,10 +56,25 @@ export function createMockVenueUserAuth(options: VenueAuthMockOptions = {}): Ven
             type: 'about:blank',
             title: 'Invalid request',
             status: 400,
-            detail: `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`,
+            detail: `Password must be at least ${PASSWORD_MIN_LENGTH} characters. (Parameter 'newPassword')`,
             code: 'invalid-request',
             traceId: 'mock',
             context: { field: 'newPassword' },
+          },
+        });
+      }
+      const tokenHash = mockTokenHash(resetToken);
+      const link = registry.signInLinks.get(tokenHash);
+      if (!link || link.spentAtUtc !== null || Date.parse(link.expiresAtUtc) <= now().getTime()) {
+        throw new UnauthorizedError({
+          url,
+          problem: {
+            type: 'about:blank',
+            title: 'Unauthorized',
+            status: 401,
+            detail: 'That reset link is not valid or has expired. Ask for a new one.',
+            code: 'reset-token-invalid',
+            traceId: 'mock',
           },
         });
       }
