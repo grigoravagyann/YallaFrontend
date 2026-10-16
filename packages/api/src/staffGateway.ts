@@ -10,6 +10,7 @@ import type {
   OrderStatus,
   PaymentResult,
   PlaceOrderCommand,
+  OpenTabForStaffCommand,
   PlaceOrderResult,
   ReassignHostCommand,
   RecordCashPaymentCommand,
@@ -102,6 +103,16 @@ export interface StaffGateway {
    * a status, and a bill missing everything already served is not a bill.
    */
   getTabLines(input: { branchId: string; tabId: string }): Promise<readonly TabLine[]>;
+
+  /**
+   * Open the tab on a seated table for a party that is not going to scan — no
+   * phone, or no wish to use one. Answers with the tab already there when a
+   * guest scanned first or this is a second tap. Online only: it is not one of
+   * the floor commands the tablet queues.
+   *
+   * Throws `TableNotSeatedError` when nobody is sitting at the table.
+   */
+  openTabForStaff(command: OpenTabForStaffCommand): Promise<StaffTab>;
 
   /** The bill has been asked for. The tab stops taking new items. */
   beginClosing(input: { tabId: string; clientCommandId: string }): Promise<StaffTab>;

@@ -690,6 +690,21 @@ export class MenuItemUnavailableError extends ApiError {
   }
 }
 
+/** Staff asked to open a tab on a table nobody is sitting at. Seat them first. */
+export class TableNotSeatedError extends ApiError {
+  readonly tableId: string;
+
+  constructor(options: { url: string; tableId: string; requestId?: string | undefined }) {
+    super('Nobody is seated at this table. Seat the party first, then open the tab.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'TableNotSeatedError';
+    this.tableId = options.tableId;
+  }
+}
+
 /** The bill has been asked for, so the tab takes no more items. Show the bill. */
 export class TabNotAcceptingOrdersError extends ApiError {
   readonly tabId: string;

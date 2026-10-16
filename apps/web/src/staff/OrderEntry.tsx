@@ -36,11 +36,11 @@ export interface OrderEntryProps {
   /** What is on screen came off this tablet's disk rather than the network. */
   readonly menuFromCache: boolean;
   /**
-   * There is no tab on this table, and a waiter cannot open one.
+   * There is no tab on this table yet, so an order has nowhere to go.
    *
-   * `POST /api/tabs/open` takes the QR token printed on the table, which a
-   * staff session does not have — so an order has nowhere to go. Said before
-   * the waiter builds one rather than after they try to send it.
+   * A guest opens one by scanning, or the waiter starts one from the table's
+   * panel. Said before the waiter builds an order rather than after they try
+   * to send it.
    */
   readonly noTab: boolean;
   readonly onSubmit: (lines: readonly PlaceOrderLine[]) => void;

@@ -1,4 +1,5 @@
 import {
+  TableNotSeatedError,
   isPaymentExceedsRemaining,
   newCommandId,
   tableDetail,
@@ -24,6 +25,7 @@ import {
   useAbandonTab,
   useBeginClosing,
   useCompLine,
+  useOpenTabForStaff,
   useOrderQueue,
   useRecordCashPayment,
   useReleaseReservation,
@@ -370,6 +372,7 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   const recordCash = useRecordCashPayment();
   const beginClosing = useBeginClosing();
   const releaseReservation = useReleaseReservation(branchId);
+  const openTabForStaff = useOpenTabForStaff();
 
   const selectedTabId = selectedDetail?.openTabId ?? null;
   const selectedTabQuery = useStaffTab(active ? selectedTabId : null);
@@ -479,6 +482,33 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
       );
     },
     [releaseReservation, t],
+  );
+
+  /**
+   * A tab for the party that is not going to scan. The panel stays open: once
+   * the floor refetch lands it shows "Take an order" in place of this button.
+   */
+  const startTab = useCallback(
+    (tableId: string) => {
+      if (!branchId) return;
+      const tableLabel = floor?.plan.tables.find((table) => table.id === tableId)?.label ?? '';
+      openTabForStaff.mutate(
+        { branchId, tableId, clientCommandId: newCommandId() },
+        {
+          onSuccess: () =>
+            setNotice({ kind: 'info', text: t('notice.tabStarted', { label: tableLabel }) }),
+          onError: (error) =>
+            setNotice({
+              kind: 'info',
+              text:
+                error instanceof TableNotSeatedError
+                  ? t('notice.tabNotSeated', { label: tableLabel })
+                  : t('notice.startTabFailed'),
+            }),
+        },
+      );
+    },
+    [branchId, floor, openTabForStaff, t],
   );
 
   const advanceOrder = useCallback(
@@ -633,6 +663,8 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                       setOverlay('tab');
                       setSelection(null);
                     }}
+                    onStartTab={() => startTab(selection.tableId)}
+                    startingTab={openTabForStaff.isPending}
                     onOrder={() => {
                       setActiveTableId(selection.tableId);
                       setOverlay('order');

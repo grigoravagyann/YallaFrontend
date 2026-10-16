@@ -28,7 +28,9 @@
       "seatHeld": "Seat the held party",
       "releaseHold": "Release the hold",
       "takeOrder": "Take an order",
-      "openTab": "Open the tab",
+      "openTab": "View the tab",
+      "startTab": "Start a tab",
+      "startingTab": "Opening the tab…",
       "free": "Free the table",
       "freeConfirm": "Free it",
       "outOfService": "Out of service",
@@ -59,7 +61,8 @@
       "release": "Release — our doing"
     },
     "noTab": "No tab is open on this table yet.",
-    "noTabWhy": "A tab opens when a guest scans the code on the table, and orders go on it from there. This tablet cannot open one.",
+    "noTabWhy": "Orders go on a tab. A guest opens one by scanning the code on the table, or you can start one here for a party that will not scan.",
+    "startTabNeedsOnline": "Starting a tab needs a connection.",
     "nextBookingTomorrow": "Tomorrow {{time}}",
     "nextBookingOn": "{{date}}, {{time}}"
   },
@@ -96,7 +99,10 @@
     "seatedOverBooking": "Seated. Table {{label}} still has a booking coming.",
     "releasedNoShow": "Table {{label}}'s booking was released as a no-show.",
     "releasedCancelled": "Table {{label}}'s booking was released. It does not count against them.",
-    "releaseFailed": "Could not release that booking."
+    "releaseFailed": "Could not release that booking.",
+    "tabStarted": "Tab started on table {{label}}. You can take the order now.",
+    "tabNotSeated": "Nobody is seated at table {{label}} yet. Seat the party first, then start the tab.",
+    "startTabFailed": "The tab did not open. Try again."
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -220,7 +226,7 @@
     "offlineNote": "Offline. This order is saved on the tablet and sent when the connection returns.",
     "menuOffline": "The menu has not been loaded on this tablet yet, and it cannot be fetched without a connection.",
     "noTab": "No tab is open on this table yet.",
-    "noTabWhy": "A tab opens when a guest scans the code on the table. This tablet cannot open one, so there is nowhere for an order to go yet.",
+    "noTabWhy": "Start a tab from the table first. A guest can scan the code on the table, or you can start one for them.",
     "menuFromCache": "Menu from this tablet's own copy. It refreshes when the connection is back."
   },
   "tab": {
