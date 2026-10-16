@@ -27,9 +27,16 @@ config.resolver.disableHierarchicalLookup = true;
 // watchman Metro's fallback watcher crashes on a folder that vanished between
 // being found and being watched — which is what `pnpm dev:real` does to it by
 // starting both at once. The blockList is also the watcher's ignore pattern.
+//
+// The same goes for `.claude/`: parallel work creates git worktrees under
+// `.claude/worktrees/`, each with its own node_modules, and a `pnpm install`
+// there makes and removes temp folders. Metro watching them crashed the diner
+// dev server with ENOENT on a folder that was already gone. Nothing the app
+// imports lives there.
 config.resolver.blockList = [
   ...config.resolver.blockList,
   /[\\/]node_modules[\\/]\.vite(?:[\\/].*)?$/,
+  /[\\/]\.claude[\\/].*$/,
 ];
 
 module.exports = config;
