@@ -3,6 +3,7 @@ import {
   createAuthSession,
   createMemoryIdentityStore,
   createMemoryTokenStorage,
+  createMockVenueUserAuth,
   createVenueUserAuth,
   type AuthSession,
   type SignOutReason,
@@ -35,11 +36,15 @@ export function onSignedOut(listener: (reason: SignOutReason) => void): () => vo
   };
 }
 
+/**
+ * Against the mock data source the venue auth honours only the reset link
+ * the console mock issues (QA F15); sign-in stays with the dev role switcher.
+ */
 const venueAuth = config.api
   ? createVenueUserAuth(createApiClient({ baseUrl: config.api.baseUrl }))
-  : null;
+  : createMockVenueUserAuth();
 
-export const authSession: AuthSession = venueAuth
+export const authSession: AuthSession = config.api
   ? createAuthSession({
       storage: createIdbTokenStorage(),
       refreshTokens: venueAuth.refreshTokens,
@@ -57,7 +62,6 @@ export const authSession: AuthSession = venueAuth
 
 /** Venue-user sign-in: email and password, then a token pair the session keeps. */
 export async function signIn(email: string, password: string): Promise<void> {
-  if (!venueAuth) throw new Error('Sign-in is only available against a real backend.');
   const { tokens, identity } = await venueAuth.signIn(email, password);
   identityStore.set(identity);
   await authSession.signIn(tokens);
@@ -75,6 +79,5 @@ export function signOut(): Promise<void> {
  * second way of holding a session. Through the bare client, as sign-in is.
  */
 export async function resetPassword(resetToken: string, newPassword: string): Promise<void> {
-  if (!venueAuth) throw new Error('A password reset is only available against a real backend.');
   await venueAuth.resetPassword(resetToken, newPassword);
 }

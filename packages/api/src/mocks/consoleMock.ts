@@ -90,6 +90,8 @@ import type {
   TablePhotoPositions,
 } from '../contracts/floorPlan';
 import { createMockReports } from './reports';
+import { mockRegistry, mockTokenHash, type MockRegistry } from './mockRegistry';
+import { fixtureStaffFor } from './staffFixture';
 import { mockVenues } from './venues';
 
 const URL_TAG = 'mock://yalla/console';
@@ -245,6 +247,11 @@ export interface ConsoleMockOptions {
    * moderation state (reported, hidden by the venue, hidden by the platform).
    */
   readonly reviews?: MockReviewStore;
+  /**
+   * Where sign-in links and enrolment codes are left for the auth mocks to
+   * find, across a reload. The shared browser-backed one when absent.
+   */
+  readonly registry?: MockRegistry | undefined;
 }
 
 /** Both tiers across the fixture so the list column is not one repeated value. */
@@ -265,6 +272,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const role: UserRole = options.role ?? 'platformAdmin';
   const managerBranch = options.managerBranch ?? 'home';
   const reviewStore = options.reviews ?? createMockReviewStore({ now, seed: true });
+  const registry = options.registry ?? mockRegistry;
 
   /**
    * `multiplier` exists for the reports.
@@ -599,94 +607,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       return empty;
     }
 
-    const seeded: StaffMember[] = [
-      {
-        id: `${venueId}-owner`,
-        venueId,
-        // Venue-wide: the owner works everywhere, which is what a null branch
-        // means and what this screen finally makes reachable.
-        branchId: null,
-        fullName: 'Aram Sargsyan',
-        phone: '+37477101010',
-        role: 'owner',
-        isActive: true,
-        email: `owner@${slugify(record?.name ?? 'venue')}.am`,
-        hasPasswordSignIn: true,
-        isPinLocked: false,
-      },
-      ...branches.flatMap((branch, index): StaffMember[] => [
-        {
-          id: `${branch.id}-manager`,
-          venueId,
-          branchId: branch.id,
-          fullName:
-            ['Nare Petrosyan', 'Tigran Avetisyan', 'Lilit Grigoryan'][index % 3] ?? 'Manager',
-          phone: `+3747720${index}0${index}0`,
-          role: 'manager',
-          isActive: true,
-          email: null,
-          hasPasswordSignIn: false,
-          isPinLocked: false,
-        },
-        {
-          id: `${branch.id}-waiter-1`,
-          venueId,
-          branchId: branch.id,
-          // Unique per branch: an owner sees every branch's people in one
-          // list, and two rows with the same name are two rows nobody can
-          // tell apart.
-          fullName: `Ani Hakobyan (${branch.name})`,
-          phone: `+3747730${index}111`,
-          role: 'waiter',
-          isActive: true,
-          email: null,
-          hasPasswordSignIn: false,
-          // Somebody is always locked out mid-service. It is the most
-          // time-critical row on the screen, so the fixture has one.
-          isPinLocked: index === 0,
-        },
-        {
-          id: `${branch.id}-waiter-2`,
-          venueId,
-          branchId: branch.id,
-          fullName: `Davit Manukyan (${branch.name})`,
-          phone: `+3747730${index}222`,
-          role: 'waiter',
-          // Left in March, and the record stays so a return in June is a
-          // reactivation rather than a second person with the same history.
-          isActive: false,
-          email: null,
-          hasPasswordSignIn: false,
-          isPinLocked: false,
-        },
-        {
-          id: `${branch.id}-kitchen`,
-          venueId,
-          branchId: branch.id,
-          fullName: `Sona Vardanyan (${branch.name})`,
-          phone: `+3747740${index}333`,
-          role: 'kitchen',
-          isActive: true,
-          email: null,
-          hasPasswordSignIn: false,
-          isPinLocked: false,
-        },
-      ]),
-      {
-        id: `${venueId}-manager`,
-        venueId,
-        // A manager created with no branch: they run every branch, the way an
-        // owner does, and the console must show them every branch.
-        branchId: null,
-        fullName: 'Hasmik Karapetyan',
-        phone: '+37477209090',
-        role: 'manager',
-        isActive: true,
-        email: null,
-        hasPasswordSignIn: false,
-        isPinLocked: false,
-      },
-    ];
+    // The same people the mock tablet's roster shows; see `staffFixture.ts`.
+    const seeded: StaffMember[] = fixtureStaffFor(venueId, record?.name ?? 'venue', branches);
 
     staffByVenue.set(venueId, seeded);
     return seeded;
@@ -2771,22 +2693,35 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
       /*
        * An opaque token from the same generator the enrolment code uses, and
-       * only the *link* is handed back: nothing here keeps it, so this mock
+       * only the *link* is handed back: this gateway keeps nothing, so it
        * could not return it a second time if asked — the same promise the
-       * server makes with its hash. The fragment, not the query, because that
-       * is where the real template puts it and the reset page reads it from.
+       * server makes with its hash. The registry keeps that hash for the mock
+       * venue auth, which is the server's table in this world. The fragment,
+       * not the query, because that is where the real template puts it and
+       * the reset page reads it from; and a path on this app, not a `mock://`
+       * address, so the link can actually be followed (QA F15).
        */
       const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
       const token = Array.from({ length: 32 }, () => {
         sequence = (sequence * 1103515245 + 12345) % 2147483648;
         return alphabet[sequence % alphabet.length];
       }).join('');
+      const expiresAtUtc = new Date(now().getTime() + 24 * 60 * 60_000).toISOString();
+      const tokenHash = mockTokenHash(token);
+      registry.signInLinks.set(tokenHash, {
+        tokenHash,
+        staffMemberId: subject.id,
+        venueId,
+        email: address,
+        expiresAtUtc,
+        spentAtUtc: null,
+      });
 
       const link: StaffSignInLink = {
         staffMemberId: subject.id,
         email: address,
-        resetLink: `${URL_TAG}/reset-password#token=${token}`,
-        expiresAtUtc: new Date(now().getTime() + 24 * 60 * 60_000).toISOString(),
+        resetLink: `/reset-password#token=${token}`,
+        expiresAtUtc,
         replacedExistingSignIn: subject.hasPasswordSignIn,
       };
       return link;
@@ -2828,11 +2763,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         sequence = (sequence * 1103515245 + 12345) % 2147483648;
         return alphabet[sequence % alphabet.length];
       }).join('');
-      return {
-        code,
-        expiresAtUtc: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
-        branchId,
-      };
+      const expiresAtUtc = new Date(now().getTime() + 24 * 60 * 60_000).toISOString();
+      // Left for the mock tablet to redeem (QA F13): the code crosses a
+      // counter and usually a reload before it is typed in.
+      registry.enrolmentCodes.set(code, { code, branchId, expiresAtUtc, spentAtUtc: null });
+      return { code, expiresAtUtc, branchId };
     },
 
     async revokeDevice({ branchId, deviceId }) {

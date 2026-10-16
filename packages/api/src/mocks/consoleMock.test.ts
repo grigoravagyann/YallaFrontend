@@ -412,8 +412,9 @@ describe('console mock — a sign-in for a manager or owner', () => {
     });
 
     expect(link.email).toBe('nare@lumen.am');
-    // The fragment, where the real template puts it and the reset page reads it.
-    expect(link.resetLink).toMatch(/^mock:\/\/yalla\/console\/reset-password#token=[a-z0-9]{32}$/u);
+    // The fragment, where the real template puts it and the reset page reads
+    // it — on this app's own path, so the link can be followed (QA F15).
+    expect(link.resetLink).toMatch(/^\/reset-password#token=[a-z0-9]{32}$/u);
     expect(link.replacedExistingSignIn).toBe(false);
 
     const after = (await gateway.listStaff('v-lumen')).find(
