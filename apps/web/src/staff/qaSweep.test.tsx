@@ -363,3 +363,90 @@ describe('the order and tab dialogs', () => {
     expect(screen.getByRole('dialog', { name: 'Tab · table 4' })).toBeTruthy();
   });
 });
+
+describe('the next booking on the table panel (QA 2026-10-16, P-B2)', () => {
+  const free: FloorTable = {
+    ...occupied,
+    id: 't1',
+    label: '1',
+    state: 'free',
+    occupiedSinceUtc: null,
+  };
+
+  function showFreeWith(nextReservationStartUtc: string) {
+    const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
+    render(
+      providers(
+        gateway,
+        <TableActionPanel
+          table={{ ...free, nextReservationStartUtc }}
+          detail={{
+            ...detail(null),
+            tableId: 't1',
+            label: '1',
+            physicalStatus: 'free',
+            currentSessionId: null,
+            seatedAtUtc: null,
+            partySize: null,
+            nextReservationId: 'r1',
+            nextReservationStartUtc,
+            nextReservationPartySize: 2,
+          }}
+          timeZoneId="Asia/Yerevan"
+          projectedStatus={null}
+          tab={null}
+          pending={false}
+          online
+          affectedReservations={[]}
+          releasing={false}
+          onAct={() => {}}
+          onRelease={() => {}}
+          onOpenTab={() => {}}
+          onOrder={() => {}}
+          onClose={() => {}}
+        />,
+      ),
+    );
+    return screen.getByText('Next booking').nextElementSibling?.textContent;
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('says the day when the booking is not tonight', () => {
+    // Friday 16 Oct, 22:45 in Yerevan.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-16T18:45:00Z') });
+
+    expect(showFreeWith('2026-10-16T19:30:00Z')).toBe('23:30');
+    cleanup();
+    expect(showFreeWith('2026-10-17T15:00:00Z')).toBe('Tomorrow 19:00');
+    cleanup();
+    expect(showFreeWith('2026-10-18T16:00:00Z')).toBe('Sun 18 Oct, 20:00');
+  });
+});
+
+describe('the staff floor, from QA 2026-10-16', () => {
+  it('moves focus into the panel, closes it on Escape, and gives focus back to the row', async () => {
+    signIn('waiter');
+    const user = userEvent.setup();
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+
+    const row = await screen.findByRole('button', { name: /^Table 2, 2 seats, Free/u });
+    await user.click(row);
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 2' });
+    expect(panel.contains(document.activeElement)).toBe(true);
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Actions for table 2' })).toBeNull();
+    expect(document.activeElement).toBe(row);
+  });
+
+  it('names each room as a region', async () => {
+    signIn('waiter');
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+
+    expect(await screen.findByRole('region', { name: 'Bar' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Windows' })).toBeTruthy();
+  });
+});

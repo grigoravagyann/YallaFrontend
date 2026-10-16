@@ -80,6 +80,9 @@ export function PhotoStage({
 
   function onStagePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (readOnly || event.target !== event.currentTarget) return;
+    // Keeps the press from moving focus to the page after the new-table form
+    // has put it on the label.
+    event.preventDefault();
     const pin = pinAt(event);
     if (pin) onClickAt(pin);
   }
@@ -128,15 +131,20 @@ export function PhotoStage({
       <img src={photo.fullUrl || photo.cardUrl} alt="" draggable={false} />
       {tables.map((table) => {
         if (!table.pin) return null;
-        const state = table.status
-          ? t(`common:tableStatus.${table.status}`)
-          : t('rooms.pin.unsaved');
+        // A free table diners cannot book is not "free" to anyone reading the
+        // photo: it takes walk-ins only, and is drawn and named so.
+        const walkIn = !table.isBookable && (table.status === 'free' || table.status === null);
+        const state = walkIn
+          ? t('rooms.pin.walkInOnly')
+          : table.status
+            ? t(`common:tableStatus.${table.status}`)
+            : t('rooms.pin.unsaved');
         return (
           <button
             key={table.id}
             type="button"
             data-table-id={table.id}
-            className={`room-pin is-${table.status ?? 'new'}${
+            className={`room-pin is-${table.status ?? 'new'}${walkIn ? ' is-walk-in' : ''}${
               table.id === selectedTableId ? ' is-selected' : ''
             }`}
             style={{ left: `${table.pin.x * 100}%`, top: `${table.pin.y * 100}%` }}

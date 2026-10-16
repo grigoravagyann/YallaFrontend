@@ -4,6 +4,7 @@ import { Outlet, useOutletContext } from 'react-router-dom';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
 import { useManagedVenue } from '../../data/queries';
 import { useBranchScope } from './useBranchScope';
+import { confirmLeave } from './useUnsavedChangesGuard';
 
 export interface VenueLayoutProps {
   readonly user: ConsoleUser;
@@ -49,7 +50,10 @@ export function VenueLayout({ user }: VenueLayoutProps) {
             <select
               className="field"
               value={branchId ?? ''}
-              onChange={(event) => setBranchId(event.target.value)}
+              onChange={(event) => {
+                // Another branch is another screen: unsaved work here would be thrown away.
+                if (confirmLeave()) setBranchId(event.target.value);
+              }}
             >
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>

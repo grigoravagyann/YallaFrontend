@@ -4,6 +4,7 @@ import {
   bookableUnpinned,
   duplicateLabels,
   duplicateRoomNames,
+  freeSpot,
   initialState,
   isDirty,
   nextLabel,
@@ -204,13 +205,27 @@ describe('the rooms working copy', () => {
   it("applies the server's deletion: gone when removed, kept inactive when deactivated", () => {
     let state = reducer(loaded(), {
       type: 'deleted',
-      result: { tableId: 't2', label: '2', deleted: true, deactivated: false, message: '' },
+      result: {
+        tableId: 't2',
+        label: '2',
+        deleted: true,
+        deactivated: false,
+        message: '',
+        floorPlanVersion: '2',
+      },
     });
     expect(state.tables.some((t) => t.id === 't2')).toBe(false);
 
     state = reducer(state, {
       type: 'deleted',
-      result: { tableId: 't1', label: '1', deleted: false, deactivated: true, message: '' },
+      result: {
+        tableId: 't1',
+        label: '1',
+        deleted: false,
+        deactivated: true,
+        message: '',
+        floorPlanVersion: '3',
+      },
     });
     expect(table(state, 't1').isActive).toBe(false);
     expect(toSaveCommand(state).tables).toEqual([]);
@@ -287,5 +302,48 @@ describe('pin arithmetic', () => {
     expect(nudge(pin, 'ArrowDown', true)).toEqual({ photoId: 'p1', x: 0.5, y: 0.55 });
     expect(nudge({ ...pin, x: 0 }, 'ArrowLeft', false)?.x).toBe(0);
     expect(nudge(pin, 'Enter', false)).toBeNull();
+  });
+});
+
+describe('the version a table delete moved', () => {
+  it('is taken when the plan read back is the baseline, and not when somebody else saved too', () => {
+    const state = reducer(initialState(), { type: 'loaded', plan: PLAN });
+    const same = reducer(state, { type: 'versionMoved', plan: { ...PLAN, version: '5' } });
+    expect(same.version).toBe('5');
+
+    const changed = reducer(state, {
+      type: 'versionMoved',
+      plan: { ...PLAN, version: '6', areas: PLAN.areas.slice(1) },
+    });
+    expect(changed.version).toBe('4');
+  });
+});
+
+describe('the spot for a table added in the middle', () => {
+  it('is the middle when it is clear, and beside the pins already there otherwise', () => {
+    const state = reducer(initialState(), { type: 'loaded', plan: PLAN });
+    expect(freeSpot(state, 'p2')).toEqual({ photoId: 'p2', x: 0.5, y: 0.5 });
+
+    const one = reducer(state, {
+      type: 'addTable',
+      table: { label: '20', seats: 2, isBookable: true },
+      pin: freeSpot(state, 'p2'),
+    });
+    const second = freeSpot(one, 'p2');
+    expect(second).not.toEqual({ photoId: 'p2', x: 0.5, y: 0.5 });
+    const two = reducer(one, {
+      type: 'addTable',
+      table: { label: '21', seats: 2, isBookable: true },
+      pin: second,
+    });
+    expect(freeSpot(two, 'p2')).not.toEqual(second);
+  });
+});
+
+describe('the version a delete answers with', () => {
+  it('is taken when it is the next one, and not when somebody else saved in between', () => {
+    const state = reducer(initialState(), { type: 'loaded', plan: PLAN });
+    expect(reducer(state, { type: 'versionAfterDelete', version: '5' }).version).toBe('5');
+    expect(reducer(state, { type: 'versionAfterDelete', version: '7' }).version).toBe('4');
   });
 });

@@ -1771,28 +1771,37 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         });
       }
 
+      // The plan changed: a tab that loaded before this must not save the table back.
+      const floorPlanVersion = bumped(plan.version);
       if (hasHistory(tableId)) {
         floorPlans.set(branchId, {
           ...plan,
           tables: plan.tables.map((t) => (t.id === tableId ? { ...t, isActive: false } : t)),
+          version: floorPlanVersion,
         });
         return {
           tableId,
           label: table.label,
           deleted: false,
           deactivated: true,
+          floorPlanVersion,
           message:
             `Table ${table.label} has reservations, seatings or tabs in its history, so it was deactivated rather than deleted. ` +
             'Its records are kept; it no longer appears on the floor plan or takes bookings.',
         };
       }
 
-      floorPlans.set(branchId, { ...plan, tables: plan.tables.filter((t) => t.id !== tableId) });
+      floorPlans.set(branchId, {
+        ...plan,
+        tables: plan.tables.filter((t) => t.id !== tableId),
+        version: floorPlanVersion,
+      });
       return {
         tableId,
         label: table.label,
         deleted: true,
         deactivated: false,
+        floorPlanVersion,
         message: `Table ${table.label} was never used and has been removed.`,
       };
     },

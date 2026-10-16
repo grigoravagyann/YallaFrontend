@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import RoomPhotos from './RoomPhotos';
 import { RoomSection } from './RoomSection';
-import { defaultSelection } from './slots';
+import { defaultSelection, slotInstant } from './slots';
 import { createHarness, initTestI18n } from './testHarness';
 
 /**
@@ -195,7 +195,13 @@ describe('the room section on the page', () => {
       branchSlug: 'northern-avenue',
     });
     expect(branch?.rooms.length).toBeGreaterThan(0);
-    const selection = defaultSelection(branch!.timeZoneId);
+    // Tomorrow's first slot the venue takes: a bare "this time tomorrow" is a
+    // closed slot late at night.
+    const selection = defaultSelection(branch!.timeZoneId, new Date(Date.now() + 86_400_000), {
+      minLeadMinutes: branch!.policy.minLeadMinutes,
+      turnTimeMinutes: branch!.policy.turnTimeMinutes,
+      weeklyHours: branch!.weeklyHours,
+    });
     const onTableTap = vi.fn();
     render(
       harness.wrap(
@@ -203,7 +209,7 @@ describe('the room section on the page', () => {
           branch={branch!}
           selection={selection}
           onSelectionChange={() => {}}
-          slotUtc={new Date(Date.now() + 86_400_000).toISOString()}
+          slotUtc={slotInstant(selection, branch!.timeZoneId)!.toISOString()}
           selectedTableId={null}
           onTableTap={onTableTap}
           takenTableLabel={null}
@@ -259,5 +265,53 @@ describe('the room photo stage, from review', () => {
     fireEvent.load(img);
 
     expect(stage.style.getPropertyValue('--stage-ratio')).toBe('1000 / 500');
+  });
+});
+
+describe('the rooms, from QA 2026-10-16', () => {
+  function showWith(tables: readonly FloorTable[], unavailable: Record<string, string>) {
+    const onTableTap = vi.fn();
+    render(
+      <I18nextProvider i18n={i18next}>
+        <RoomPhotos
+          rooms={ROOMS}
+          tables={tables}
+          selectedTableId={null}
+          onTableTap={onTableTap}
+          bookable
+          unavailable={unavailable}
+        />
+      </I18nextProvider>,
+    );
+    return onTableTap;
+  }
+
+  it('does not draw a table this party cannot book at the slot as free, and says why on a tap (P-B1)', async () => {
+    const onTableTap = showWith(
+      [table('a', '1', 'h1'), table('g', '7', 'h1', { isBookable: false })],
+      { g: 'Too small for 4 guests.' },
+    );
+
+    const pin = screen.getByRole('button', {
+      name: 'Table 7, not available: Too small for 4 guests.',
+    });
+    expect(pin.getAttribute('data-tone')).toBe('unavailable');
+    await userEvent.setup().click(pin);
+    expect(onTableTap).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toBe('Table 7: Too small for 4 guests.');
+    expect(screen.getByRole('list', { name: 'What the colours mean' }).textContent).toContain(
+      'Not for this time or party',
+    );
+  });
+
+  it('turns the photo on a swipe that starts on a pin, and books nothing (B4)', () => {
+    const onTableTap = show();
+    const pin = screen.getByRole('button', { name: 'Table 1, free' });
+    fireEvent.pointerDown(pin, { clientX: 300, pointerId: 1 });
+    fireEvent.pointerUp(pin, { clientX: 120, pointerId: 1 });
+    fireEvent.click(pin);
+
+    expect(screen.getByRole('group', { name: 'Hall, photo 2 of 2' })).toBeTruthy();
+    expect(onTableTap).not.toHaveBeenCalled();
   });
 });

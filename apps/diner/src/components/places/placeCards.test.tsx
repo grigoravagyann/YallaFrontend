@@ -65,6 +65,15 @@ describe('the venue / branch split on place cards', () => {
     expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./)).toBeTruthy();
   });
 
+  it('PlaceHeroCard: no empty part in the label when the distance is not known', () => {
+    // QA 20261016T2 B8: "…4.2 (5). . Open".
+    atPhoneWidth(
+      <PlaceHeroCard place={{ ...PLACE, distanceKm: null }} onPress={() => undefined} />,
+    );
+    const label = screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u);
+    expect(label.getAttribute('aria-label')).not.toMatch(/\.\s*\./u);
+  });
+
   it('PlaceRow: venue and branch on separate lines, both in the label', () => {
     atPhoneWidth(
       <PlaceRow place={PLACE} onViewDetails={() => undefined} onDirections={() => undefined} />,

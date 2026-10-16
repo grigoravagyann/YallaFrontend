@@ -37,14 +37,18 @@
       "free": "free",
       "booked": "booked",
       "occupied": "occupied",
-      "outOfService": "out of service"
+      "outOfService": "out of service",
+      "unavailable": "not available"
     },
     "legend": {
       "free": "Free",
       "booked": "Booked",
       "occupied": "Occupied",
-      "outOfService": "Out of service"
-    }
+      "outOfService": "Out of service",
+      "unavailable": "Not for this time or party"
+    },
+    "pinUnavailable": "Table {{label}}, not available: {{reason}}",
+    "unavailableHint": "Table {{label}}: {{reason}}"
   },
   "menu": {
     "empty": "No menu published yet.",

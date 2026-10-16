@@ -79,6 +79,53 @@ export function formatDate(value: Instant, timeZone: TimeZone, locale: Locale): 
   return formatter.format(toDate(value));
 }
 
+/** Which day an instant is on, from where the branch stands now. */
+export interface DayAndTime {
+  /** `today` and `tomorrow` are the branch's own days, not the device's or UTC's. */
+  readonly day: 'today' | 'tomorrow' | 'other';
+  /** `20:00`, in the branch's timezone. */
+  readonly time: string;
+  /** `Sun 18 Oct`, in the branch's timezone: what to print when `day` is `other`. */
+  readonly date: string;
+}
+
+const shortDateFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * An instant's time, and its day relative to the branch's today.
+ *
+ * For a time that might not be tonight: a booking two days away printed as a
+ * bare `20:00` reads as this evening. The words for "today" and "tomorrow"
+ * are the caller's, in its own translations; this decides which applies.
+ */
+export function formatDayAndTime(
+  value: Instant,
+  timeZone: TimeZone,
+  locale: Locale,
+  now: Instant = new Date(),
+): DayAndTime {
+  const key = `${locale}|${timeZone}`;
+  let formatter = shortDateFormatterCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(intlTag(locale), {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      timeZone,
+    });
+    shortDateFormatterCache.set(key, formatter);
+  }
+  const target = branchDayKey(value, timeZone);
+  const today = branchDayKey(now, timeZone);
+  const [year, month, day] = today.split('-').map(Number) as [number, number, number];
+  const tomorrow = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+  return {
+    day: target === today ? 'today' : target === tomorrow ? 'tomorrow' : 'other',
+    time: formatTime(value, timeZone, locale),
+    date: formatter.format(toDate(value)),
+  };
+}
+
 /**
  * The calendar day an instant falls on *in the branch's timezone*, as `YYYY-MM-DD`.
  *
@@ -120,10 +167,13 @@ function offsetMinutesAt(instant: Date, timeZone: TimeZone): number {
   }
   const name =
     formatter.formatToParts(instant).find((part) => part.type === 'timeZoneName')?.value ?? 'GMT';
-  const match = /GMT([+-])(\d{2}):(\d{2})/u.exec(name);
+  // A browser writes "GMT+04:00"; the @formatjs polyfill (every phone, and
+  // the web app when it installs itself) writes "GMT+4" and "GMT+5:30".
+  // Plain "GMT" is UTC itself.
+  const match = /GMT([+-])(\d{1,2})(?::?(\d{2}))?/u.exec(name);
   if (!match) return 0;
   const sign = match[1] === '-' ? -1 : 1;
-  return sign * (Number(match[2]) * 60 + Number(match[3]));
+  return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0));
 }
 
 /**

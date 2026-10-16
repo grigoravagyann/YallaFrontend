@@ -297,6 +297,18 @@
   color: var(--color-muted-foreground);
 }
 
+/* At phone widths the date gets its own row: three across clipped it to
+   "10/18/20" at 375 and the guests to "2 guest" at 320. */
+@media (max-width: 26rem) {
+  .pub-slot {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pub-slot .pub-field:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .pub-field input,
 .pub-field select {
   min-height: var(--touch-minimum);
@@ -407,6 +419,9 @@
 .pub-stage {
   position: relative;
   overflow: hidden;
+  /* Pins size themselves to the photo's width (cqi), so neighbours on a
+     crowded photo do not overlap on a phone. */
+  container-type: inline-size;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-paper);
@@ -440,13 +455,16 @@
 /* Never colour alone: the label is on the pin and the state is in its name. */
 .pub-pin {
   position: absolute;
-  min-width: 2.75rem;
-  height: 2.75rem;
-  padding: 0 var(--space-xs);
+  /* 44px on a wide photo, down to 28px on a 320px phone, where the seed
+     photo's tables stand 32px apart. */
+  min-width: clamp(1.75rem, 8.5cqi, 2.75rem);
+  height: clamp(1.75rem, 8.5cqi, 2.75rem);
+  padding: 0 clamp(0.125rem, 1cqi, var(--space-xs));
   transform: translate(-50%, -50%);
   border: 2px solid var(--color-surface);
   border-radius: var(--radius-pill);
   font: inherit;
+  font-size: clamp(0.75rem, 3.4cqi, 1rem);
   font-weight: var(--font-weight-bold);
   box-shadow: var(--shadow-lift);
   cursor: pointer;
@@ -488,6 +506,14 @@
 .pub-pin-dot.tone-outOfService {
   background: var(--table-out-of-service-fill);
   color: var(--table-out-of-service-label);
+}
+
+/* Free at the slot, but not for this party or time: never the bookable green. */
+.pub-pin.tone-unavailable,
+.pub-pin-dot.tone-unavailable {
+  border: 2px dashed var(--color-muted-foreground);
+  background: var(--color-surface);
+  color: var(--color-muted-foreground);
 }
 
 .pub-pin-dot {

@@ -76,7 +76,9 @@ export type RoomsAction =
   | { type: 'discardTable'; id: string }
   | { type: 'deleted'; result: TableDeletionResult }
   | { type: 'restoreTable'; id: string }
-  | { type: 'qrReplaced'; id: string; qrToken: string };
+  | { type: 'qrReplaced'; id: string; qrToken: string }
+  | { type: 'versionMoved'; plan: EditorFloorPlan }
+  | { type: 'versionAfterDelete'; version: string };
 
 export function initialState(): RoomsState {
   const empty: Snapshot = { rooms: [], tables: [] };
@@ -343,6 +345,25 @@ export function reducer(state: RoomsState, action: RoomsAction): RoomsState {
       };
     }
 
+    case 'versionMoved':
+      // A table delete moves the plan's version on the server. The newer
+      // version is taken only when the plan read back is exactly the baseline
+      // this editor already holds: if somebody else saved in between, the
+      // old version stays, and the next save is refused rather than undoing
+      // their work.
+      return JSON.stringify(commandOf(fromPlan(action.plan), '')) ===
+        JSON.stringify(commandOf(state.saved, ''))
+        ? { ...state, version: action.plan.version }
+        : state;
+
+    case 'versionAfterDelete':
+      // The version a delete answered with is taken only when it is the very
+      // next one: the server counts up by one per change, so anything further
+      // means somebody else saved meanwhile, and their save must not be undone.
+      return Number(action.version) === Number(state.version) + 1
+        ? { ...state, version: action.version }
+        : state;
+
     case 'restoreTable':
       return {
         ...state,
@@ -439,4 +460,39 @@ export function nextLabel(state: RoomsState): string {
     .map((table) => Number.parseInt(table.label, 10))
     .filter((value) => Number.isFinite(value));
   return String(numbers.length > 0 ? Math.max(...numbers) + 1 : state.tables.length + 1);
+}
+
+/** How far apart two pins have to be, as a fraction of the photo, not to hide each other. */
+const PIN_CLEARANCE = 0.06;
+
+/**
+ * Where "add a table in the middle" puts the next table: the middle of the
+ * photo, or the nearest spot around it no pin already covers, so a run of
+ * those clicks never stacks one pin exactly on another.
+ */
+export function freeSpot(state: RoomsState, photoId: string): EditorTablePin {
+  const taken = state.tables
+    .filter((table) => table.isActive && table.pin?.photoId === photoId)
+    .map((table) => table.pin!);
+  const clear = (x: number, y: number) =>
+    taken.every(
+      (pin) => Math.abs(pin.x - x) >= PIN_CLEARANCE || Math.abs(pin.y - y) >= PIN_CLEARANCE,
+    );
+  for (let ring = 0; ring <= 7; ring += 1) {
+    for (let dy = -ring; dy <= ring; dy += 1) {
+      for (const dx of ring === 0 ? [0] : [ring, -ring, ...range(-ring + 1, ring - 1)]) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const x = toFraction(0.5 + dx * PIN_CLEARANCE);
+        const y = toFraction(0.5 + dy * PIN_CLEARANCE);
+        if (clear(x, y)) return { photoId, x, y };
+      }
+    }
+  }
+  return { photoId, x: 0.5, y: 0.5 };
+}
+
+function range(from: number, to: number): number[] {
+  const values: number[] = [];
+  for (let value = from; value <= to; value += 1) values.push(value);
+  return values;
 }

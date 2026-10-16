@@ -57,7 +57,10 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
     copy.rating,
     copy.distance,
     t(`place.status.${status}`),
-  ].join('. ');
+  ]
+    // A distance not known yet is no part at all, not ". ." (QA 20261016T2 B8).
+    .filter((part) => part.trim().length > 0)
+    .join('. ');
 
   // The card is not itself a button: the heart is one, and a button inside a
   // button is invalid on the web build and nests the two in the accessibility

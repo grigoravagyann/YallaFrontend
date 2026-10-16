@@ -1,5 +1,6 @@
 import { groupByRoom, type DerivedTableState, type FloorTable } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
+import { useEffect, useRef } from 'react';
 
 /**
  * The four colours a waiter reads the floor by.
@@ -70,14 +71,25 @@ export function TableList({
 }: TableListProps) {
   const { t } = useTranslation(['staff', 'common']);
   const groups = groupByRoom(tables);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // The panel takes room beside the list and can push the chosen row below
+  // the fold (QA 2026-10-16): keep it in view.
+  useEffect(() => {
+    if (!selectedTableId) return;
+    const row = Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>('.table-row[data-table-id]') ?? [],
+    ).find((candidate) => candidate.dataset['tableId'] === selectedTableId);
+    row?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedTableId]);
 
   return (
-    <div className="table-rooms">
+    <div className="table-rooms" ref={listRef}>
       {groups.map((group) => {
         const name = group.roomName ?? t('floor.noRoom');
         const headingId = `room-${group.roomId ?? 'none'}`;
         return (
-          <section key={group.roomId ?? 'none'} className="table-room">
+          <section key={group.roomId ?? 'none'} className="table-room" aria-labelledby={headingId}>
             <h2 id={headingId} className="table-room-name">
               {name}
             </h2>
@@ -90,6 +102,7 @@ export function TableList({
                   <li key={table.id}>
                     <button
                       type="button"
+                      data-table-id={table.id}
                       className="table-row"
                       data-tone={tableTone(table.state)}
                       aria-pressed={table.id === selectedTableId}

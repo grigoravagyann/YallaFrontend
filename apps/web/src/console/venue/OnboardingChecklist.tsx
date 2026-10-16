@@ -1,5 +1,10 @@
-import { isComplete, type AdminMenuCategory, type BranchReadiness } from '@yalla/api';
-import { useBranchReadiness } from '@yalla/api/react';
+import {
+  isComplete,
+  type AdminMenuCategory,
+  type BranchReadiness,
+  type EditorFloorPlan,
+} from '@yalla/api';
+import { useBranchReadiness, useEditorFloorPlan } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { Link } from 'react-router-dom';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
@@ -27,6 +32,10 @@ export function OnboardingChecklist() {
   const { t } = useTranslation(['admin', 'common']);
   const { branchId } = useVenueOutlet();
   const readiness = useBranchReadiness(branchId ?? undefined);
+  // The one line the server's answer cannot settle yet: it counts tables, and
+  // a diner books from a room photo. Until the plan is read, the server's line.
+  const plan = useEditorFloorPlan(branchId ?? undefined);
+  const rooms = plan.data ? roomsReady(plan.data) : undefined;
 
   if (readiness.isError && !readiness.data) {
     return (
@@ -40,10 +49,10 @@ export function OnboardingChecklist() {
   }
 
   const data = readiness.data;
-  const steps = data ? checklistSteps(data) : [];
+  const steps = data ? checklistSteps(data, rooms) : [];
   const required = steps.filter((step) => !step.optional);
   const done = required.filter((step) => step.done).length;
-  const blockers = data ? readinessBlockers(data) : [];
+  const blockers = data ? readinessBlockers(data, rooms) : [];
 
   return (
     <section className="checklist">
@@ -119,14 +128,17 @@ export interface ChecklistStep {
  * Nothing here decides "done": each line is the server's boolean, and the
  * numbers beside a line are the counts the server reported with it.
  */
-export function checklistSteps(readiness: BranchReadiness): readonly ChecklistStep[] {
+export function checklistSteps(
+  readiness: BranchReadiness,
+  rooms?: boolean,
+): readonly ChecklistStep[] {
   const count = (value: number) => (value > 0 ? String(value) : undefined);
 
   return [
     {
       id: 'floorPlan',
       labelKey: 'checklist.step.floorPlan',
-      done: readiness.floorPlanDrawn,
+      done: readiness.floorPlanDrawn && rooms !== false,
       detail: count(readiness.tableCount),
       to: '/venue/floorplan',
       optional: false,
@@ -212,10 +224,14 @@ export interface ReadinessBlocker {
  * printed them would show English to an Armenian owner. The same lines are
  * rebuilt here from the booleans, one sentence per gap, in the server's order.
  */
-export function readinessBlockers(readiness: BranchReadiness): readonly ReadinessBlocker[] {
+export function readinessBlockers(
+  readiness: BranchReadiness,
+  rooms?: boolean,
+): readonly ReadinessBlocker[] {
   const blockers: ReadinessBlocker[] = [];
   if (!readiness.floorPlanDrawn) blockers.push({ key: 'floorPlanEmpty' });
   else if (!readiness.tablesLabelled) blockers.push({ key: 'tablesUnlabelled' });
+  else if (rooms === false) blockers.push({ key: 'roomsNoBookablePin' });
   if (!readiness.menuCategoriesPresent) blockers.push({ key: 'menuNoCategories' });
   else if (readiness.menuItemCount === 0) blockers.push({ key: 'menuNoItems' });
   else if (readiness.incompleteMenuItemCount > 0) {
@@ -232,4 +248,17 @@ export function readinessBlockers(readiness: BranchReadiness): readonly Readines
 export function menuIsComplete(categories: readonly AdminMenuCategory[]): boolean {
   const items = categories.flatMap((category) => category.items);
   return items.length > 0 && items.every(isComplete);
+}
+
+/**
+ * Whether a diner can book anything from the rooms: some room has a photo
+ * with a bookable table in service pinned on it. Tables on no photo are not
+ * offered to diners at all.
+ */
+export function roomsReady(plan: EditorFloorPlan): boolean {
+  const photos = new Set(plan.areas.flatMap((area) => area.photos.map((photo) => photo.photoId)));
+  return plan.tables.some(
+    (table) =>
+      table.isActive && table.isBookable && table.pin !== null && photos.has(table.pin.photoId),
+  );
 }

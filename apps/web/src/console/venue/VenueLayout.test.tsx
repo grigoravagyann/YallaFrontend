@@ -20,6 +20,7 @@ import type * as AuthSessionModule from '../../auth/authSession';
 import type * as GatewayModule from '../../data/gateway';
 import type { RoomsEditorScreen as RoomsEditorScreenComponent } from './rooms/RoomsEditorScreen';
 import type * as VenueLayoutModule from './VenueLayout';
+import { useUnsavedChangesGuard } from './useUnsavedChangesGuard';
 
 /**
  * The venue section as a venue user reaches it: signed in over HTTP, through
@@ -597,9 +598,14 @@ function openTheConsoleAt(path: string, client?: QueryClient) {
  * The layout alone, over the signed-in session, with a probe where a screen
  * would be: it prints what the outlet hands down.
  */
-function openTheLayoutWithAProbe(user: ConsoleUser, consoleGateway?: ConsoleGateway) {
+function openTheLayoutWithAProbe(
+  user: ConsoleUser,
+  consoleGateway?: ConsoleGateway,
+  { unsaved = false }: { unsaved?: boolean } = {},
+) {
   const { VenueLayout, useVenueOutlet } = venueLayout;
   function Probe() {
+    useUnsavedChangesGuard(unsaved);
     return <pre data-testid="outlet">{JSON.stringify(useVenueOutlet())}</pre>;
   }
   return render(
@@ -936,6 +942,31 @@ ${backend.log()}`,
     ).toBeNull();
     expect(screen.queryAllByText('Northern Avenue')).toHaveLength(0);
     expect(backend.statuses(`GET /api/venues/${V}/manage`)).toEqual([200, 200]);
+  });
+});
+
+describe('the branch switcher and unsaved work', () => {
+  it('asks before switching away from unsaved work, and stays on the branch when told to', async () => {
+    // QA 2026-10-16 (C-M2): the switch reloaded the screen and the draft was gone.
+    await signInAs('owner');
+    const user = await gateways.consoleGatewayFor('owner').getCurrentUser();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      openTheLayoutWithAProbe(user, undefined, { unsaved: true });
+      const before = (await outletContext())['branchId'];
+      const other = before === B1 ? B2 : B1;
+      const switcher = screen.getByRole('combobox');
+
+      fireEvent.change(switcher, { target: { value: other } });
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect((await outletContext())['branchId']).toBe(before);
+
+      confirm.mockReturnValue(true);
+      fireEvent.change(switcher, { target: { value: other } });
+      await waitFor(async () => expect((await outletContext())['branchId']).toBe(other), SETTLE);
+    } finally {
+      confirm.mockRestore();
+    }
   });
 });
 

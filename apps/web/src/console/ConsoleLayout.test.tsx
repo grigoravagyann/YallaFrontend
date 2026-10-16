@@ -85,3 +85,14 @@ describe('the console shell on a narrow screen', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false');
   });
 });
+
+describe('the current page in the nav (QA 2026-10-16)', () => {
+  it('marks only the page shown, not Overview on every venue page', () => {
+    renderShell('/venue/menu');
+    const current = screen
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+      .map((link) => link.textContent);
+    expect(current).toEqual(['Menu']);
+  });
+});

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Image,
   StyleSheet,
@@ -55,6 +55,17 @@ export function PhotoImage({
   const [failedSource, setFailedSource] = useState<PhotoSource>(undefined);
   const scrim = gradient === true ? 0.6 : gradient === false ? 0 : gradient;
   const usable = hasPhotoSource(source) && failedSource !== source;
+  /*
+   * One load handler for the image's lifetime. React Native Web reloads an
+   * image whenever its `onLoad` changes, so a new arrow each render meant a
+   * load per render, and a parent that re-rendered on load never stopped
+   * (QA 20261016T2 B1: "Maximum update depth exceeded" in the room pager).
+   */
+  const onLoadRef = useRef(onLoad);
+  useEffect(() => {
+    onLoadRef.current = onLoad;
+  }, [onLoad]);
+  const handleLoad = useCallback((event: unknown) => onLoadRef.current?.(loadedSize(event)), []);
 
   return (
     <View style={[styles.frame, style]}>
@@ -76,7 +87,7 @@ export function PhotoImage({
             setFailedSource(source);
             onLoad?.(null);
           }}
-          {...(onLoad ? { onLoad: (event: unknown) => onLoad(loadedSize(event)) } : {})}
+          {...(onLoad ? { onLoad: handleLoad } : {})}
           style={StyleSheet.absoluteFill}
         />
       )}

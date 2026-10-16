@@ -145,6 +145,8 @@ export function ConsoleLayout({ user }: ConsoleLayoutProps) {
             <li key={item.to}>
               <NavLink
                 to={item.to}
+                // Overview is the section's root: without `end` it matched every page under it.
+                end={item.to === '/venue'}
                 className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                 onClick={() => setMenuOpen(false)}
               >

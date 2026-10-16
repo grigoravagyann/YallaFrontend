@@ -3409,6 +3409,19 @@ fieldset.editor-body:disabled {
   background: var(--color-primary-on-floor-plan);
 }
 
+/* Free, but diners cannot book it: walk-ins only. Not the bookable green. */
+.room-pin.is-walk-in,
+.rooms-legend-dot.is-walk-in {
+  border-style: dashed;
+  border-color: var(--table-free-fill);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+}
+
+.rooms-legend-dot.is-walk-in {
+  border-width: 2px;
+}
+
 .room-pin.is-selected {
   border-color: var(--color-primary-ink);
   outline: 3px solid var(--color-primary-ink);

@@ -61,6 +61,10 @@ export function Chip({
     <Pressable
       accessibilityRole={onPress ? accessibilityRole : 'text'}
       accessibilityState={{ selected, disabled }}
+      // The web build reads none of accessibilityState: say "chosen" in the
+      // terms of the role, a selected tab or a checked radio (QA B5).
+      {...(onPress && accessibilityRole === 'tab' ? { 'aria-selected': selected } : {})}
+      {...(onPress && accessibilityRole === 'radio' ? { 'aria-checked': selected } : {})}
       {...(accessibilityLabel ? { accessibilityLabel } : {})}
       disabled={!interactive}
       hitSlop={Math.max(0, (layout.touchTarget - chipHeight[size]) / 2)}

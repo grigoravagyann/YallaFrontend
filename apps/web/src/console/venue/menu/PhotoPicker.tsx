@@ -31,6 +31,9 @@ const CARD_ASPECT = 4 / 3;
 /** What a diner's card is actually drawn at. The preview matches it exactly. */
 const DINER_CARD_WIDTH = 160;
 
+/** What the server takes; the same list as the file input's `accept`. */
+const ACCEPTED = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 export function PhotoPicker({ branchId, photo, onChange }: PhotoPickerProps) {
   const { t } = useTranslation(['admin', 'common']);
   const upload = useUploadPhoto(branchId);
@@ -88,6 +91,15 @@ export function PhotoPicker({ branchId, photo, onChange }: PhotoPickerProps) {
     if (!file) return;
     setFailure(null);
     if (pending) URL.revokeObjectURL(pending.url);
+    // A drop ignores the input's `accept`, so a PDF arrives here too. Said
+    // now, rather than as a broken picture in the framer. A file the browser
+    // names an image but cannot draw (a HEIC renamed .jpg) is caught by the
+    // framer itself, when it fails to open.
+    if (file.type && !ACCEPTED.has(file.type)) {
+      setPending(null);
+      setFailure(t('menu.photo.wrongFormat'));
+      return;
+    }
     setPending({ file, url: URL.createObjectURL(file) });
   }
 
@@ -110,6 +122,11 @@ export function PhotoPicker({ branchId, photo, onChange }: PhotoPickerProps) {
               setPending(null);
             }}
             onCrop={(blob) => void send(blob, pending.file.name)}
+            onUnreadable={() => {
+              URL.revokeObjectURL(pending.url);
+              setPending(null);
+              setFailure(t('menu.photo.unreadable'));
+            }}
           />
         ) : photo?.cardUrl ? (
           <div className="photo-current">
@@ -185,19 +202,29 @@ function CropPane({
   busy,
   onCrop,
   onCancel,
+  onUnreadable,
 }: {
   readonly source: string;
   readonly busy: boolean;
   readonly onCrop: (blob: Blob) => void;
   readonly onCancel: () => void;
+  /** The browser could not draw the file: not a picture, whatever its name says. */
+  readonly onUnreadable: () => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const imageRef = useRef<HTMLImageElement>(null);
   const [offset, setOffset] = useState(0.5);
+  // Nothing to crop until the picture has opened: a click before then, or on
+  // a file that never opens, would draw an empty canvas and do nothing.
+  const [decoded, setDecoded] = useState(false);
 
   function crop(): void {
     const image = imageRef.current;
-    if (!image) return;
+    if (!image || !decoded) return;
+    if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+      onUnreadable();
+      return;
+    }
 
     // The widest 4:3 band that fits, positioned by the offset. A photo already
     // wider than 4:3 is cropped horizontally from the centre instead, which is
@@ -222,6 +249,7 @@ function CropPane({
     canvas.toBlob(
       (blob) => {
         if (blob) onCrop(blob);
+        else onUnreadable();
       },
       'image/jpeg',
       0.9,
@@ -236,6 +264,11 @@ function CropPane({
           src={source}
           alt=""
           style={{ objectPosition: `50% ${offset * 100}%` }}
+          onLoad={(event) => {
+            if (event.currentTarget.naturalWidth > 0) setDecoded(true);
+            else onUnreadable();
+          }}
+          onError={onUnreadable}
         />
       </div>
 
@@ -252,7 +285,12 @@ function CropPane({
       </label>
 
       <div className="actions">
-        <button type="button" className="button button-primary" disabled={busy} onClick={crop}>
+        <button
+          type="button"
+          className="button button-primary"
+          disabled={busy || !decoded}
+          onClick={crop}
+        >
           {busy ? t('menu.photo.uploadingShort') : t('menu.photo.useThis')}
         </button>
         <button type="button" className="button" disabled={busy} onClick={onCancel}>

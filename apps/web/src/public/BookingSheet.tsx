@@ -11,7 +11,7 @@ import {
 import { useGateway } from '@yalla/api/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { BookingDone } from './BookingDone';
 import { PhoneVerification } from './PhoneVerification';
 
@@ -57,6 +57,7 @@ export default function BookingSheet({
 }: BookingSheetProps) {
   const { t } = useTranslation('diner');
   const { t: tp } = useTranslation('public');
+  const nameId = useId();
   const { locale } = useLocale();
   const gateway = useGateway();
   const queryClient = useQueryClient();
@@ -222,9 +223,14 @@ export default function BookingSheet({
               {copy.approval ? <p className="pub-notice">{line(copy.approval)}</p> : null}
 
               {step === 'confirm' ? (
-                <label className="pub-form">
-                  <span className="pub-muted">{t('confirm.nameLabel')}</span>
+                // Named by the visible text, explicitly: QA found the field
+                // read by its placeholder instead.
+                <div className="pub-form">
+                  <label className="pub-muted" htmlFor={nameId}>
+                    {t('confirm.nameLabel')}
+                  </label>
                   <input
+                    id={nameId}
                     className="pub-input"
                     value={guestName}
                     onChange={(event) => setGuestName(event.target.value)}
@@ -232,7 +238,7 @@ export default function BookingSheet({
                     maxLength={200}
                     autoComplete="name"
                   />
-                </label>
+                </div>
               ) : null}
 
               {errorText ? <p className="pub-error">{errorText}</p> : null}

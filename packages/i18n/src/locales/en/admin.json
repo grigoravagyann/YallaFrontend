@@ -364,10 +364,14 @@
       "noName": "Give the room a name.",
       "remove": "Delete the room",
       "removeTitle": "Delete {{name}}?",
-      "removeBody_one": "Its {{photos}} photo(s) go with it. Its {{count}} table stays, with no room and no pin, until you place it again.",
-      "removeBody_other": "Its {{photos}} photo(s) go with it. Its {{count}} tables stay, with no room and no pin, until you place them again.",
       "removeConfirm": "Delete it",
-      "duplicateName": "Another room already has this name."
+      "duplicateName": "Another room already has this name.",
+      "removePhotos_one": "Its photo goes with it.",
+      "removePhotos_other": "Its {{count}} photos go with it.",
+      "removeNoPhotos": "It has no photos.",
+      "removeTables_one": "Its table stays, with no room and no pin, until you place it again.",
+      "removeTables_other": "Its {{count}} tables stay, with no room and no pin, until you place them again.",
+      "removeNoTables": "It has no tables."
     },
     "photos": {
       "title": "Photos",
@@ -378,7 +382,11 @@
       "show": "Show photo {{position}}",
       "moveEarlier": "Move earlier",
       "moveLater": "Move later",
-      "remove": "Remove"
+      "remove": "Remove",
+      "removeTitle": "Remove photo {{position}}?",
+      "removeBody_one": "Table {{labels}} is pinned on it. It comes off the photo and waits under “Not on a photo” until you place it again.",
+      "removeBody_other": "Tables {{labels}} are pinned on it. They come off the photo and wait under “Not on a photo” until you place them again.",
+      "removeConfirm": "Remove it"
     },
     "stage": {
       "title": "Photo {{position}} · {{name}}",
@@ -390,7 +398,8 @@
     },
     "pin": {
       "label": "Table {{label}} · {{state}}",
-      "unsaved": "Not saved yet"
+      "unsaved": "Not saved yet",
+      "walkInOnly": "Walk-ins only"
     },
     "field": {
       "label": "Label",
@@ -420,8 +429,9 @@
     },
     "inactive": {
       "title": "Out of service",
-      "body": "Kept for their history. They are not in any room and take no bookings.",
-      "restore": "Put it back in service"
+      "body": "Kept for their history. They are not in any room and take no bookings. Putting one back takes effect when you save the rooms.",
+      "restore": "Put it back in service",
+      "restored": "Table {{label}} goes back into service when you save the rooms."
     },
     "delete": {
       "title": "Delete table {{label}}?",
@@ -561,7 +571,8 @@
       "badDimensions": "Those dimensions will not work as a card.",
       "wrongFormat": "That file is not a JPEG, PNG or WebP.",
       "wrongFormatDetected": "The file name says one thing and the bytes say another: this is really a {{format}}. Export it as a JPEG and try again.",
-      "failed": "Could not upload that photo."
+      "failed": "Could not upload that photo.",
+      "unreadable": "This file could not be opened as a picture. Choose a JPEG, PNG or WebP photo."
     },
     "bulk": {
       "open": "Upload many photos",
@@ -739,7 +750,7 @@
     "finish": "Finish",
     "elsewhere": "Done from another screen",
     "step": {
-      "floorPlan": "Floor plan drawn",
+      "floorPlan": "Rooms set up, with a table diners can book on a photo",
       "tableLabels": "Every table labelled",
       "menuCategories": "Menu has categories",
       "menuItems": "Every dish finished",
@@ -1109,7 +1120,7 @@
     "blockers": {
       "title": "What stops diners using this branch",
       "ready": "This branch is ready for diners.",
-      "floorPlanEmpty": "The floor plan has no tables on it yet.",
+      "floorPlanEmpty": "No tables have been added to the rooms yet.",
       "tablesUnlabelled": "Some tables have no label yet.",
       "menuNoCategories": "The menu has no categories yet.",
       "menuNoItems": "The menu has categories but no dishes.",
@@ -1118,7 +1129,8 @@
       "hoursNotSet": "Opening hours have not been set.",
       "policyNotReviewed": "Nobody has reviewed the reservation policy yet; it is still on the defaults.",
       "noStaff": "No staff work at this branch yet.",
-      "noDevice": "No tablet has been enrolled at this branch yet."
+      "noDevice": "No tablet has been enrolled at this branch yet.",
+      "roomsNoBookablePin": "No room has a photo with a bookable table on it, so diners have nothing to book."
     }
   },
   "platform": {
@@ -1159,5 +1171,8 @@
     "platformHidden": "Hidden by the Yalla team. Only they can show it again.",
     "empty": "No reviews match this filter.",
     "failed": "That did not go through. Nothing changed — try again."
+  },
+  "unsavedChanges": {
+    "leave": "You have unsaved changes. Leave without saving them?"
   }
 }

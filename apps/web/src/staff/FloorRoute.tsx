@@ -638,7 +638,16 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                       setOverlay('order');
                       setSelection(null);
                     }}
-                    onClose={() => setSelection(null)}
+                    onClose={() => {
+                      const tableId = selection.tableId;
+                      setSelection(null);
+                      // Back to the row it was opened from, not the top of the page.
+                      document
+                        .querySelector<HTMLElement>(
+                          `.table-row[data-table-id="${CSS.escape(tableId)}"]`,
+                        )
+                        ?.focus();
+                    }}
                   />
                 ) : null}
               </>

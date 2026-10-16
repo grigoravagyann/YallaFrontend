@@ -168,6 +168,44 @@ export function PinScreen({ device, lastSignOut }: PinScreenProps) {
     });
   }
 
+  // A tablet with a keyboard docked, or a laptop at the counter: the digit
+  // keys, Backspace and Enter work the pad as a tap would. Not while a field
+  // (the typed staff id) has the keys, and not while the pad itself is off.
+  const keys = useRef({ press, submit, pin, ready: !busy && chosenId !== null });
+  useEffect(() => {
+    keys.current = { press, submit, pin, ready: !busy && chosenId !== null };
+  });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const { press: tap, submit: send, pin: entered, ready } = keys.current;
+      if (!ready || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (/^[0-9]$/u.test(event.key)) {
+        event.preventDefault();
+        tap(event.key as (typeof KEYS)[number]);
+      } else if (event.key === 'Backspace') {
+        event.preventDefault();
+        tap('del');
+      } else if (
+        event.key === 'Enter' &&
+        entered.length >= 4 &&
+        !(target instanceof HTMLButtonElement)
+      ) {
+        event.preventDefault();
+        void send(entered);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const remaining = Math.max(0, ASSUMED_MAX_ATTEMPTS - attempts);
   const showRemaining =
     attempts > 0 && remaining > 0 && remaining <= WARN_FROM_REMAINING && lockedUntil === null;

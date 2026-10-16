@@ -65,7 +65,13 @@ async function setUp(options: { simulateTableTaken?: boolean } = {}) {
 
   // Two hours out, so the branch's own lead time cannot refuse it.
   const selection = {
-    ...defaultSelection(branch.timeZoneId, new Date(Date.now() + 2 * 60 * 60_000)),
+    // With the branch's own hours and sitting length, as the page opens on: a
+    // bare "two hours from now" is a closed slot late at night.
+    ...defaultSelection(branch.timeZoneId, new Date(Date.now() + 2 * 60 * 60_000), {
+      minLeadMinutes: branch.policy.minLeadMinutes,
+      turnTimeMinutes: branch.policy.turnTimeMinutes,
+      weeklyHours: branch.weeklyHours,
+    }),
     partySize: 2,
   };
   const instant = slotInstant(selection, branch.timeZoneId);

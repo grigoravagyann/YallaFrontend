@@ -125,6 +125,36 @@ describe('the slot the page opens on', () => {
     expect(picked).toEqual({ date: '2026-10-16', time: '09:00', partySize: 2 });
   });
 
+  it('never opens on a slot whose sitting would run past closing (QA 2026-10-16, P-B6)', () => {
+    // Friday 22:35, open until 01:00, 30 minutes lead, two-hour sittings: 23:30
+    // would end at 01:30, which the server refuses as closed.
+    const picked = defaultSelection(YEREVAN, new Date('2026-10-16T18:35:00Z'), {
+      minLeadMinutes: 30,
+      turnTimeMinutes: 120,
+      weeklyHours: [...FRIDAY_HOURS, { day: 6, blocks: [{ opensAt: '10:00', closesAt: '01:00' }] }],
+    });
+    expect(picked).toEqual({ date: '2026-10-17', time: '10:00', partySize: 2 });
+  });
+
+  it('keeps tonight when the sitting still fits before closing', () => {
+    const picked = defaultSelection(YEREVAN, new Date('2026-10-16T17:35:00Z'), {
+      minLeadMinutes: 30,
+      turnTimeMinutes: 90,
+      weeklyHours: FRIDAY_HOURS,
+    });
+    expect(picked).toEqual({ date: '2026-10-16', time: '22:30', partySize: 2 });
+  });
+
+  it('looks past a shut weekend for the next sitting', () => {
+    // Friday 23:40: nothing fits tonight, and the next open day is Thursday.
+    const picked = defaultSelection(YEREVAN, new Date('2026-10-16T19:40:00Z'), {
+      minLeadMinutes: 30,
+      turnTimeMinutes: 120,
+      weeklyHours: FRIDAY_HOURS,
+    });
+    expect(picked).toEqual({ date: '2026-10-22', time: '09:00', partySize: 2 });
+  });
+
   it('still clears the lead time when no hours are published', () => {
     const picked = defaultSelection(YEREVAN, new Date('2026-10-16T16:11:00Z'), {
       minLeadMinutes: 30,

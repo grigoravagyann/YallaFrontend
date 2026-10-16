@@ -37,14 +37,18 @@
       "free": "ազատ",
       "booked": "ամրագրված",
       "occupied": "զբաղված",
-      "outOfService": "սպասարկման մեջ չէ"
+      "outOfService": "սպասարկման մեջ չէ",
+      "unavailable": "հասանելի չէ"
     },
     "legend": {
       "free": "Ազատ",
       "booked": "Ամրագրված",
       "occupied": "Զբաղված",
-      "outOfService": "Սպասարկման մեջ չէ"
-    }
+      "outOfService": "Սպասարկման մեջ չէ",
+      "unavailable": "Այս ժամի կամ խմբի համար չէ"
+    },
+    "pinUnavailable": "Սեղան {{label}}, հասանելի չէ․ {{reason}}",
+    "unavailableHint": "Սեղան {{label}}․ {{reason}}"
   },
   "menu": {
     "empty": "Ճաշացանկը դեռ հրապարակված չէ։",

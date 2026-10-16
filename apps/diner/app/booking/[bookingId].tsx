@@ -233,12 +233,24 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
 
         {/* Large and legible: staff ask for this at the door. Pending must never
             look confirmed — a dashed blue edge instead of the solid green. */}
-        <Card style={[styles.codeCard, pending && styles.codeCardPending]}>
+        <Card
+          style={[
+            styles.codeCard,
+            pending && styles.codeCardPending,
+            isCancelled && styles.codeCardCancelled,
+          ]}
+        >
           <Text style={styles.codeLabel}>{t('success.codeLabel')}</Text>
-          <Text style={styles.code} accessibilityLabel={booking.code.split('').join(' ')}>
+          <Text
+            style={[styles.code, isCancelled && styles.codeCancelled]}
+            accessibilityLabel={booking.code.split('').join(' ')}
+          >
             {booking.code}
           </Text>
-          <Text style={styles.codeHint}>{t('success.codeHint')}</Text>
+          {/* A cancelled code opens no table: never "show this at the door" (QA B7). */}
+          <Text style={styles.codeHint}>
+            {isCancelled ? t('bookings.detail.codeCancelled') : t('success.codeHint')}
+          </Text>
         </Card>
 
         {note ? (
@@ -383,6 +395,8 @@ const styles = StyleSheet.create({
     borderColor: colors.success,
   },
   codeCardPending: { borderColor: colors.info, borderStyle: 'dashed' },
+  codeCardCancelled: { borderColor: colors.border },
+  codeCancelled: { color: colors.textMuted, textDecorationLine: 'line-through' },
   codeLabel: { ...typography.caption, color: colors.textMuted },
   code: {
     fontSize: 40,

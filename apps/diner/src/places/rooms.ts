@@ -1,4 +1,10 @@
-import type { DerivedTableState, FloorTable } from '@yalla/api';
+import type {
+  DerivedTableState,
+  FloorTable,
+  SlotFloor,
+  TableAvailability,
+  TableUnavailableReason,
+} from '@yalla/api';
 import type { PlaceRoom, TablePhotoMarker, TableStatus } from './model';
 
 /**
@@ -64,11 +70,14 @@ const byLabel = (a: TablePhotoMarker, b: TablePhotoMarker) => compareLabels(a.la
  *
  * `bookable`, when given, is the slot's own per-table verdict for this party
  * (availability's `isBookable`); without it, the venue's flag on the table.
+ * `reasonOf` is the server's reason for a refusal, carried onto the pin so it
+ * can say why rather than guess.
  */
 export function roomsAtSlot(
   rooms: readonly PlaceRoom[],
   tables: readonly FloorTable[],
   bookable?: (tableId: string) => boolean,
+  reasonOf?: (tableId: string) => TableUnavailableReason | null,
 ): PlaceRoom[] {
   const onPhoto = new Map<string, TablePhotoMarker[]>();
   for (const table of tables) {
@@ -79,6 +88,7 @@ export function roomsAtSlot(
       label: table.label,
       status: statusAtSlot(table.state),
       isBookable: bookable ? bookable(table.id) : table.isBookable,
+      ...(reasonOf ? { unavailableReason: reasonOf(table.id) } : {}),
       // Tables have seats and no minimum party; one person may book any table.
       capacityMin: 1,
       capacityMax: table.seats,
@@ -146,4 +156,37 @@ export function photoBox(
   }
   const width = (aspect / frameAspect) * 100;
   return { left: (100 - width) / 2, top: 0, width, height: 100 };
+}
+
+/** Refusals about the time asked for, not about any one table or the party. */
+const SLOT_WIDE: readonly TableUnavailableReason[] = [
+  'closed',
+  'pastLeadTime',
+  'tooFarAhead',
+  'invalidTime',
+];
+
+/**
+ * Why nothing can be booked at this slot, when the reason is the time itself:
+ * the server's whole-request `rejection`, or the same time-wide reason on every
+ * table. `null` when the slot is open, so "no table seats 2" is the right words.
+ *
+ * Without this, a venue shut at 23:30 read as "no free table seats 2 guests,
+ * try another party size" (QA 20261016T2 B2).
+ */
+export function slotRefusal(
+  floor: Pick<SlotFloor, 'rejection'> & { readonly tables: readonly TableAvailability[] },
+): TableUnavailableReason | null {
+  if (floor.rejection) return floor.rejection;
+  const [first, ...rest] = floor.tables;
+  const reason = first?.unavailableReason ?? null;
+  if (!first || first.isBookable || !reason || !SLOT_WIDE.includes(reason)) return null;
+  return rest.every((table) => !table.isBookable && table.unavailableReason === reason)
+    ? reason
+    : null;
+}
+
+/** The party does not fit the table: the refusal a hollow, dashed pin draws. */
+export function isPartyFitReason(reason: TableUnavailableReason | null | undefined): boolean {
+  return reason === 'tooSmall' || reason === 'tooLarge';
 }

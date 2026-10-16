@@ -72,7 +72,9 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled, busy }}
-      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+      // Named by its label outright: a text-only button had no name in the
+      // web build's accessibility tree ("Pick a time", QA 20261016T2 B5).
+      accessibilityLabel={accessibilityLabel ?? label}
       disabled={disabled}
       onPress={onPress}
       hitSlop={small ? (layout.touchTarget - SMALL_HEIGHT) / 2 : undefined}

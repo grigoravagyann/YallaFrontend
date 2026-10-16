@@ -578,7 +578,7 @@ export interface paths {
          *     - A pin is `photoId`, `photoX` and `photoY` together or none of them (`tables[i].photoX`, bound `required`), each coordinate 0-1 (bound `range`), on one of **the table's own room's** photos (`tables[i].photoId`, bound `conflict`).
          *     - **A photo dropped from every room takes its tables off it**: a table still sent pinned on such a photo is saved with no pin rather than refused.
          *     - A bookable table with no pin is saved, with a warning: diners are not offered it.
-         *     - A table omitted from the plan is deleted only if it has never been used. One with any reservation, session or tab is **deactivated** instead, and `deactivatedTables` says so.
+         *     - A table omitted from the plan is deleted only if it has never been used. One with any reservation, session or tab is **deactivated** instead, and `deactivatedTables` says so. One with a booking still to come (Confirmed or PendingApproval, not yet ended) is refused: `409 table-has-future-bookings` naming `context.tables` and `context.bookings`, nothing written.
          *     - **`expectedVersion` is required**: the `version` the editor loaded. A plan saved by somebody else since then is `409 floor-plan-changed` with `context.currentVersion`, and nothing is written. Missing, it is `422` naming `expectedVersion`. A successful save returns the new `version`; nothing else moves it.
          */
         put: operations["putFloorPlan"];
@@ -1149,7 +1149,9 @@ export interface paths {
         post?: never;
         /**
          * Delete a never-used table, or deactivate one with history
-         * @description A table with any reservation, session or tab is **deactivated**, not deleted - deleting it would orphan financial and occupancy records. The response says which happened. Only a table that has never been used is removed outright.
+         * @description A table with any reservation, session or tab is **deactivated**, not deleted - deleting it would orphan financial and occupancy records. The response says which happened. Only a table that has never been used is removed outright. A table with a booking still to come (Confirmed or PendingApproval, not yet ended) is neither: it is refused `409 table-has-future-bookings` with `context.tables` and `context.bookings`.
+         *
+         *     Either outcome changes the floor plan and moves its version: `floorPlanVersion` is the new one. A floor-plan save still carrying the version loaded before the delete is refused 409 `floor-plan-changed`, rather than saving the table back as a new one.
          */
         delete: operations["deleteTable"];
         options?: never;
@@ -4223,6 +4225,39 @@ export interface components {
             /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
             type: string;
         };
+        /** @description The tables a delete or a plan save would have taken away, and the bookings that hold them. */
+        "Yalla.Api.Errors.TableHasFutureBookingsContext": {
+            /** @description The codes of the upcoming bookings on them, in code order. */
+            bookings: string[];
+            /** @description The labels of the tables refused, in label order. */
+            tables: string[];
+        };
+        /** @description `table-has-future-bookings`, 409. Move or cancel the bookings first. Nothing was written. */
+        "Yalla.Api.Errors.TableHasFutureBookingsProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description The tables a delete or a plan save would have taken away, and the bookings that hold them. */
+            context: components["schemas"]["Yalla.Api.Errors.TableHasFutureBookingsContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
         /** @description The bill has been asked for, so nothing more goes on the tab. */
         "Yalla.Api.Errors.TabNotAcceptingOrdersContext": {
             /** @description Lifecycle of a tab. */
@@ -5109,11 +5144,24 @@ export interface components {
         };
         /** @description What deleting a table did: removed outright, or deactivated because it has history. */
         "Yalla.Application.BranchSettings.TableDeletionResult": {
+            /** @description Kept and switched off: it has reservations, seatings or tabs. */
             deactivated: boolean;
+            /** @description Removed outright: it had never been used. */
             deleted: boolean;
+            /**
+             * @description The plan's version after the delete. Either outcome changes the plan and moves it, so an editor
+             *     that loaded the plan before is refused rather than saving the table back; the editor that made
+             *     the delete adopts this to keep its own draft current.
+             */
+            floorPlanVersion: string;
+            /** @description Its label. */
             label: string;
+            /** @description Which of the two happened, for the manager. */
             message: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description The table.
+             */
             tableId: string;
         };
         /** @description The diner's favourites, newest first. A place that is not published is left out. */
@@ -10198,13 +10246,13 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `floor-plan-changed`: saved by somebody else since `expectedVersion`. `concurrent-update` (no context) when another save on this branch held on for too long - reload and retry. */
+            /** @description `table-has-future-bookings`: a table left out of the plan has a booking still to come. Move or cancel the bookings in `context.bookings`, or keep the tables. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.FloorPlanChangedProblem"];
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.FloorPlanChangedProblem"] | components["schemas"]["Yalla.Api.Errors.TableHasFutureBookingsProblem"];
                 };
             };
             /** @description Missing or repeated labels or room names, or a table matched twice (`floor-plan-invalid`, `context.errors`); or a photo or pin rule, or `expectedVersion` missing (`validation-failed`, `context.fields` names each). */
@@ -12600,13 +12648,13 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description A party is seated at the table. */
+            /** @description `table-has-future-bookings`: the table has a booking still to come - move or cancel the bookings in `context.bookings` first. Also 409 (no context): a party is seated at the table, or another floor-plan save held the plan too long. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.TableHasFutureBookingsProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
