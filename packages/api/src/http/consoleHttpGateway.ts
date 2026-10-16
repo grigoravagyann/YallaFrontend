@@ -4,6 +4,7 @@ import type { AuthSession } from '../auth/session';
 import type { ApiClient } from '../client';
 import type { ConsoleGateway } from '../consoleGateway';
 import type {
+  AddBranchCommand,
   ConsoleUser,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -12,6 +13,7 @@ import type {
   ManagedVenue,
   Page,
   SubscriptionTier,
+  UpdateVenueCommand,
 } from '../contracts/console';
 import type {
   EditorFloorArea,
@@ -470,6 +472,47 @@ export function createConsoleHttpGateway(
       } catch (error) {
         return translate(error, { slug: command.slug });
       }
+    },
+
+    async updateVenue(command: UpdateVenueCommand) {
+      try {
+        // No `isActive`: suspend and resume are their own routes, with their
+        // own audit entries, and this form does not offer either.
+        const { data } = await client.patch<WireDetail>(`${PLATFORM}/venues/${command.venueId}`, {
+          name: command.name,
+          slug: command.slug,
+          type: command.type === 'restaurant' ? 2 : 1,
+        });
+        return venueDetailFromWire(data);
+      } catch (error) {
+        // The other 409 here is "the venue is deleted", and the screen offers
+        // no edit on a deleted venue, so the one that reaches it is the slug.
+        return translate(error, { slug: command.slug });
+      }
+    },
+
+    async addBranch(command: AddBranchCommand) {
+      try {
+        await client.post<Schemas['Yalla.Application.Platform.BranchSummary']>(
+          `${PLATFORM}/venues/${command.venueId}/branches`,
+          {
+            name: command.name,
+            slug: command.slug,
+            address: command.address,
+            latitude: command.latitude,
+            longitude: command.longitude,
+            timeZoneId: command.timeZoneId,
+            floorWidth: NEW_BRANCH_FLOOR.width,
+            floorHeight: NEW_BRANCH_FLOOR.height,
+            subscriptionTier: FREE_TIER,
+          },
+        );
+      } catch (error) {
+        return translate(error, { slug: command.slug });
+      }
+      // The route answers with the branch; the console caches the venue.
+      // Re-read it, as the tier switch does, so the screen replaces its copy.
+      return venueDetail(`${PLATFORM}/venues/${command.venueId}`);
     },
 
     suspendVenue: ({ venueId }) => venueCommand('post', `${PLATFORM}/venues/${venueId}/suspend`),

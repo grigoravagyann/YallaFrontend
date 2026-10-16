@@ -236,3 +236,37 @@ export interface CreateVenueCommand {
     readonly longitude: number;
   };
 }
+
+/**
+ * Rename a venue, move its web address, or change its type:
+ * `PATCH /api/platform/venues/{venueId}`, platform admin only.
+ *
+ * All three are sent every time; the server applies each one it is given, and
+ * the form always shows all three.
+ */
+export interface UpdateVenueCommand {
+  readonly venueId: string;
+  readonly commandId: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly type: VenueType;
+}
+
+/**
+ * A second (or fifth) branch for a venue that already exists:
+ * `POST /api/platform/venues/{venueId}/branches`, platform admin only.
+ *
+ * The same fields as {@link CreateVenueCommand}'s `firstBranch`, for the same
+ * reasons: the slug cannot be derived from an Armenian name, and a blank map
+ * pin would arrive as 0,0.
+ */
+export interface AddBranchCommand {
+  readonly venueId: string;
+  readonly commandId: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly address: string;
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly timeZoneId: string;
+}
