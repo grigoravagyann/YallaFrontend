@@ -1,4 +1,5 @@
 import type { PublicPageMeta } from '@yalla/api';
+import { useEffect } from 'react';
 
 /**
  * Open Graph and Twitter card tags, written into the live document.
@@ -124,4 +125,19 @@ export function applyPageMeta(meta: PublicPageMeta): void {
 export function resetPageMeta(fallbackTitle: string): void {
   document.title = fallbackTitle;
   for (const node of document.head.querySelectorAll(`[${MANAGED}]`)) node.remove();
+}
+
+/**
+ * A page's own tab title, "Your booking · Yalla", for the pages that are not
+ * a venue: the manage link, its cancelled and expired states, the not-found
+ * page and the staff tablet. Each of these left the shell's bare "Yalla" in
+ * place, so a browser with three of them open showed three identical tabs.
+ *
+ * Also clears the venue tags, for the same reason `resetPageMeta` exists: a
+ * manage page reached from a venue page must not keep advertising the venue.
+ */
+export function usePageTitle(title: string, appName: string): void {
+  useEffect(() => {
+    resetPageMeta(`${title} · ${appName}`);
+  }, [title, appName]);
 }

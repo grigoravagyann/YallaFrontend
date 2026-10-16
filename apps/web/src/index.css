@@ -1493,6 +1493,21 @@ kbd {
   box-shadow: var(--shadow-float);
   max-height: calc(100% - 24px);
   overflow-y: auto;
+  /* A visible scrollbar: at 1024x768 the seat form's confirm sits below the
+     fold of this box, and a box that hides its scrollbar looks finished. */
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* The confirm and cancel of a sub-form stay in view however short the box is:
+   the thing a waiter is about to do should never be the thing they have to
+   scroll to find. */
+.table-panel .table-confirm .table-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--space-lg));
+  padding-block: var(--space-sm);
+  background: var(--color-surface);
 }
 
 .table-panel-head {
@@ -2386,7 +2401,10 @@ kbd {
   place-items: center;
   padding: var(--space-xl);
   overflow-y: auto;
-  background: var(--color-background);
+  /* Opaque. This was `--color-background`, a token that does not exist, so the
+     gate was transparent and the dead floor — "Loading…", a stale error —
+     showed around the PIN card after every sign-out. */
+  background: var(--color-paper);
 }
 
 .staff-gate-card {

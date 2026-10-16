@@ -9,6 +9,7 @@ import { staffAuthAvailable, staffSession } from './auth/staffSession';
 import { useStaffSessionSnapshot, useTouchOnInteraction } from './auth/useStaffSession';
 import { FloorRoute } from './FloorRoute';
 import { KitchenRoute } from './KitchenRoute';
+import { usePageTitle } from '../public/meta';
 
 /**
  * The counter screen and everything that guards it.
@@ -73,6 +74,13 @@ export function StaffRoute() {
   useTouchOnInteraction(snapshot.state === 'signedIn');
 
   const locked = staffAuthAvailable && snapshot.state !== 'signedIn';
+
+  // The tab bar says which screen this is — the floor, the kitchen, or the
+  // PIN gate — rather than "Yalla" three times over.
+  usePageTitle(
+    locked ? t('pin.prompt') : identity?.role === 'kitchen' ? t('kitchen.title') : t('floor.title'),
+    t('common:appName'),
+  );
 
   if (!restored) {
     return (

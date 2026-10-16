@@ -55,8 +55,13 @@ export interface PinScreenProps {
  */
 const ASSUMED_MAX_ATTEMPTS = 5;
 
-/** Shown before the last attempt only. Earlier warnings are noise. */
-const WARN_FROM_REMAINING = 2;
+/**
+ * Shown after every wrong PIN, as the SMS code screen does ("4 attempts
+ * left"). It used to appear only before the last attempt, which in practice
+ * meant a waiter saw "not recognised" four times and then a lockout with no
+ * warning in between.
+ */
+const WARN_FROM_REMAINING = ASSUMED_MAX_ATTEMPTS - 1;
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] as const;
 

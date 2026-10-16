@@ -1,7 +1,6 @@
 import { isEndpointNotWired } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect } from 'react';
-import { resetPageMeta } from './meta';
+import { usePageTitle } from './meta';
 
 /**
  * The four ways this page can have nothing to show, each said plainly.
@@ -15,7 +14,7 @@ import { resetPageMeta } from './meta';
 /** A slug that resolves to nothing. Not an error — a link that was mistyped. */
 export function NotFoundPage() {
   const { t } = useTranslation('public');
-  useEffect(() => resetPageMeta(t('appName', { ns: 'common' })), [t]);
+  usePageTitle(t('page.notFound.title'), t('appName', { ns: 'common' }));
 
   return (
     <main className="pub-state">
@@ -35,7 +34,7 @@ export function NotFoundPage() {
  */
 export function NotAvailablePage({ venueName }: { readonly venueName?: string | undefined }) {
   const { t } = useTranslation('public');
-  useEffect(() => resetPageMeta(t('appName', { ns: 'common' })), [t]);
+  usePageTitle(t('page.notAvailable.title'), t('appName', { ns: 'common' }));
 
   return (
     <main className="pub-state">
