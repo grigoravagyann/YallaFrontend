@@ -822,7 +822,8 @@
       "free": "Սեղան {{label}}, ազատ",
       "reserved": "Սեղան {{label}}, ամրագրված",
       "occupied": "Սեղան {{label}}, զբաղված",
-      "outOfService": "Սեղան {{label}}, սպասարկման մեջ չէ"
+      "outOfService": "Սեղան {{label}}, սպասարկման մեջ չէ",
+      "notForParty": "Սեղան {{label}}, ազատ, բայց ոչ {{count}} հոգու համար"
     },
     "capacity": "{{min}}–{{max}} հոգի",
     "capacityOne": "{{max}} հոգի",

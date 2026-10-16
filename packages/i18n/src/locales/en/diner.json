@@ -822,7 +822,8 @@
       "free": "Table {{label}}, free",
       "reserved": "Table {{label}}, reserved",
       "occupied": "Table {{label}}, occupied",
-      "outOfService": "Table {{label}}, out of service"
+      "outOfService": "Table {{label}}, out of service",
+      "notForParty": "Table {{label}}, free, not for a party of {{count}}"
     },
     "capacity": "{{min}}–{{max}} people",
     "capacityOne": "{{max}} people",

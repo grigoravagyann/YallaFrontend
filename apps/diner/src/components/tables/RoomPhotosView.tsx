@@ -26,6 +26,8 @@ export interface RoomPhotosViewProps {
   readonly onSelect: (tableId: string | null) => void;
   /** Book from the info bar on the photo; without it the screen acts on the selection. */
   readonly onBook?: ((table: TablePhotoMarker) => void) | undefined;
+  /** The party being booked for: pins it cannot have are not offered. */
+  readonly partySize?: number | undefined;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -42,6 +44,7 @@ export function RoomPhotosView({
   selectedTableId,
   onSelect,
   onBook,
+  partySize,
   style,
 }: RoomPhotosViewProps) {
   const { t } = useTranslation('diner');
@@ -127,6 +130,7 @@ export function RoomPhotosView({
                   selectedTableId={selectedTableId}
                   onSelect={onSelect}
                   onBook={onBook}
+                  partySize={partySize}
                   onZoomedChange={setZoomed}
                 />
               </View>
@@ -139,6 +143,7 @@ export function RoomPhotosView({
             selectedTableId={selectedTableId}
             onSelect={onSelect}
             onBook={onBook}
+            partySize={partySize}
             onZoomedChange={setZoomed}
           />
         ) : null}

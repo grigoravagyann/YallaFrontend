@@ -848,7 +848,8 @@
       "free": "Стол {{label}}, свободен",
       "reserved": "Стол {{label}}, забронирован",
       "occupied": "Стол {{label}}, занят",
-      "outOfService": "Стол {{label}}, не обслуживается"
+      "outOfService": "Стол {{label}}, не обслуживается",
+      "notForParty": "Стол {{label}}, свободен, но не для компании из {{count}} чел."
     },
     "capacity": "{{min}}–{{max}} чел.",
     "capacityOne": "{{max}} чел.",

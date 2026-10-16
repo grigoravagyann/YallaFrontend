@@ -558,6 +558,8 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
               <RoomPhotosView
                 rooms={slotRooms}
                 selectedTableId={pickedTableId}
+                // A table the slot will not give this party is drawn, not offered.
+                partySize={partySize}
                 onSelect={(tableId) => {
                   // The same pin again, or the photo away from any: leave it to us.
                   setPickedTableId(tableId === pickedTableId ? null : tableId);

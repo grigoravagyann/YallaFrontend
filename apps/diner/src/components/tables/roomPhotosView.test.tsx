@@ -120,4 +120,23 @@ describe('RoomPhotosView', () => {
     expect(screen.queryByRole('button', { name: 'Book' })).toBeNull();
     expect(screen.getByText('This table cannot be booked right now')).toBeTruthy();
   });
+
+  it('draws a free pin this party cannot have as not selectable, and says why', () => {
+    const onSelect = vi.fn();
+    render(
+      <RoomPhotosView rooms={ROOMS} selectedTableId={null} onSelect={onSelect} partySize={6} />,
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Terrace' }));
+
+    // Free at the slot, but not for six: never green, never "Table 9, free".
+    expect(screen.queryByRole('button', { name: 'Table 9, free' })).toBeNull();
+    const unfit = screen.getByRole('button', { name: 'Table 9, free, not for a party of 6' });
+    expect(unfit.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(unfit);
+    expect(onSelect).not.toHaveBeenCalled();
+
+    // A free table the party fits is still offered.
+    fireEvent.click(screen.getByRole('button', { name: 'Table 7, free' }));
+    expect(onSelect).toHaveBeenCalledWith('7');
+  });
 });

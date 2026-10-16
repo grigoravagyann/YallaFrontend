@@ -136,4 +136,19 @@ describe('the Book screen', () => {
     expect(await screen.findByText('Selected table')).toBeTruthy();
     expect(screen.getByText(new RegExp(`^Table ${label} ·`, 'u'))).toBeTruthy();
   });
+
+  it('offers no free table too small for the party, and names why', async () => {
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+    await screen.findAllByRole('button', { name: firstFree });
+
+    // The mock's two-seaters cannot take three.
+    fireEvent.click(screen.getByRole('button', { name: '3' }));
+
+    const unfit = await screen.findAllByRole('button', {
+      name: /^Table \w+, free, not for a party of 3$/u,
+    });
+    fireEvent.click(unfit[0]!);
+    expect(screen.queryByText('Selected table')).toBeNull();
+  });
 });

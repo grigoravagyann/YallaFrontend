@@ -50,6 +50,11 @@ export interface TablePhotoViewProps {
    * screen acts on the selection itself.
    */
   readonly onBook?: ((table: TablePhotoMarker) => void) | undefined;
+  /**
+   * The party being booked for: a pin the slot will not give it cannot be
+   * picked, and says why. Without it every pin can be tapped.
+   */
+  readonly partySize?: number | undefined;
   /** Told whenever the zoom leaves or returns to 1×, so a pager can stop swiping. */
   readonly onZoomedChange?: ((zoomed: boolean) => void) | undefined;
   /**
@@ -117,6 +122,7 @@ export function TablePhotoView({
   selectedTableId,
   onSelect,
   onBook,
+  partySize,
   onZoomedChange,
   fullscreen = false,
   style,
@@ -222,8 +228,12 @@ export function TablePhotoView({
   const selected = tables.find((table) => table.tableId === selectedTableId) ?? null;
 
   const handleMarker = useCallback(
-    (table: TablePhotoMarker) => onSelect(table.tableId === selectedTableId ? null : table.tableId),
-    [onSelect, selectedTableId],
+    (table: TablePhotoMarker) => {
+      // Not this party's table: nothing to pick.
+      if (partySize !== undefined && !table.isBookable) return;
+      onSelect(table.tableId === selectedTableId ? null : table.tableId);
+    },
+    [onSelect, selectedTableId, partySize],
   );
 
   const handleBook = useCallback(
@@ -281,6 +291,7 @@ export function TablePhotoView({
                   table={table}
                   selected={table.tableId === selectedTableId}
                   onPress={handleMarker}
+                  partySize={partySize}
                 />
               ))}
             </View>
@@ -330,6 +341,7 @@ export function TablePhotoView({
           selectedTableId={selectedTableId}
           onSelect={onSelect}
           onBook={onBook ? handleBook : undefined}
+          partySize={partySize}
         />
       )}
     </>
