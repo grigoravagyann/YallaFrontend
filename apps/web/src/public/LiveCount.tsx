@@ -101,7 +101,12 @@ export function OpenBadge({
         // one whose hours are not filled in. Neither warrants inventing a time.
         t('venue.openNow', { ns: 'diner' })
     : openState.opensAtUtc
-      ? nextOpening(openState.opensAtUtc, timeZoneId, locale, now ?? new Date(), t)
+      ? (() => {
+          const opening = nextOpening(openState.opensAtUtc, timeZoneId, locale, now ?? new Date());
+          return opening.weekday === null
+            ? t('page.opensAt', { time: opening.time })
+            : t('page.opensOn', { day: t(`hours.day.${opening.weekday}`), time: opening.time });
+        })()
       : // Shut with nothing scheduled. "Closed today" was the old line here, and
         // it was a guess: at 01:21 the page cannot know what today holds, and
         // on the night it shipped the venue opened at 09:00.
@@ -111,25 +116,23 @@ export function OpenBadge({
 }
 
 /**
- * "Closed · opens 09:00", or "Closed · opens Tuesday 09:00" when the opening
- * is on another day. The day is named by the branch's calendar, not the
- * phone's: at 01:21 in Yerevan a phone in London still thinks it is Thursday.
+ * When a shut venue opens next: the time, and the weekday when that is not
+ * today. The day is read off the branch's calendar, not the phone's: at 01:21
+ * in Yerevan a phone in London still thinks it is Thursday.
  */
 function nextOpening(
   opensAtUtc: string,
   timeZoneId: string,
   locale: Locale,
   now: Date,
-  t: (key: string, params?: Record<string, unknown>) => string,
-): string {
+): { readonly time: string; readonly weekday: number | null } {
   const opens = new Date(opensAtUtc);
   const time = formatTime(opens, timeZoneId, locale);
   const openingDay = branchDayKey(opens, timeZoneId);
-  if (openingDay === branchDayKey(now, timeZoneId)) return t('page.opensAt', { time });
+  if (openingDay === branchDayKey(now, timeZoneId)) return { time, weekday: null };
 
   const [year, month, day] = openingDay.split('-').map(Number) as [number, number, number];
-  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return t('page.opensOn', { day: t(`hours.day.${weekday}`), time });
+  return { time, weekday: new Date(Date.UTC(year, month - 1, day)).getUTCDay() };
 }
 
 /**
