@@ -138,6 +138,14 @@ describe('staffRoleToUserRole', () => {
     }
   });
 
+  // TODO(schema): 6 joins BY_NUMBER once the generated `StaffRole` union
+  // carries it; until the schema is regenerated it cannot be a key there.
+  it('maps the general manager, 6 on the wire and GeneralManager in the token', () => {
+    expect(staffRoleToUserRole(6)).toBe('generalManager');
+    expect(staffRoleToUserRole('GeneralManager')).toBe('generalManager');
+    expect(staffRoleToUserRole('GENERALMANAGER')).toBe('generalManager');
+  });
+
   it('shows the smallest app for a value it has never seen', () => {
     expect(staffRoleToUserRole(99)).toBe('waiter');
     expect(staffRoleToUserRole('Intern')).toBe('waiter');

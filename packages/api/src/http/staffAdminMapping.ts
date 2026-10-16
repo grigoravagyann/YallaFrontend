@@ -19,13 +19,18 @@ type WireSignInLink = Schemas['Yalla.Application.Staff.StaffSignInLink'];
  * Staff and device wire shapes to screen shapes.
  *
  * `Yalla.Domain.Enums.StaffRole` is an integer on the wire — 0 Unknown,
- * 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin — and the console
- * speaks in names.
+ * 1 Owner, 2 Manager (a branch manager), 3 Waiter, 4 Kitchen, 5 PlatformAdmin,
+ * 6 GeneralManager — and the console speaks in names. The numbers say nothing
+ * about rank: 6 sits between 1 and 2 (see `outranks`).
+ *
+ * TODO(schema): 6 is typed locally until the regenerated schema's `StaffRole`
+ * union carries `GeneralManager`.
  * The conversion lives here and in `auth/endpoints`, and nowhere else.
  */
 
 const ROLE_BY_CODE: Readonly<Record<number, StaffRole>> = {
   1: 'owner',
+  6: 'generalManager',
   2: 'manager',
   3: 'waiter',
   4: 'kitchen',
@@ -33,6 +38,7 @@ const ROLE_BY_CODE: Readonly<Record<number, StaffRole>> = {
 
 const CODE_BY_ROLE: Readonly<Record<StaffRole, number>> = {
   owner: 1,
+  generalManager: 6,
   manager: 2,
   waiter: 3,
   kitchen: 4,

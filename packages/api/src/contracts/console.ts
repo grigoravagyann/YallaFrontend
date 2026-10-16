@@ -36,18 +36,26 @@ export type VenueStatus = 'active' | 'suspended' | 'deleted';
 // ---------------------------------------------------------------------------
 
 /**
- * The four tiers, in one place.
+ * The tiers, in one place.
+ *
+ * `manager` is a **branch manager**: one branch, always named on their staff
+ * row. `generalManager` runs every branch of the venue, below the owner and
+ * above every branch manager (wire `StaffRole.GeneralManager = 6`). The id
+ * `manager` was kept when its meaning narrowed, because it is what `Manager = 2`
+ * has always mapped to.
  *
  * Waiter and kitchen are distinct roles with, for now, the same reach: the
  * floor screen for their branch. They are not collapsed into one because the
  * kitchen queue and the floor diverge in the next tasks, and widening a role
  * later is far easier than splitting one that people already hold.
  */
-export type UserRole = 'platformAdmin' | 'owner' | 'manager' | 'waiter' | 'kitchen';
+export type UserRole =
+  'platformAdmin' | 'owner' | 'generalManager' | 'manager' | 'waiter' | 'kitchen';
 
 export const USER_ROLES: readonly UserRole[] = [
   'platformAdmin',
   'owner',
+  'generalManager',
   'manager',
   'waiter',
   'kitchen',
@@ -65,9 +73,9 @@ export interface UserScope {
   /** `null` only for a platform admin, who is scoped to every venue. */
   readonly venueId: string | null;
   /**
-   * The token's **home-branch claim**, and nothing more: one id for a manager,
-   * waiter or kitchen account created at a branch, none for an owner or for a
-   * manager created with no branch.
+   * The token's **home-branch claim**, and nothing more: one id for a branch
+   * manager, waiter or kitchen account created at a branch, none for an owner
+   * or a general manager, who are venue-wide.
    *
    * Empty does not mean "no access". An owner's token carries no branch at all
    * and they reach every branch of their venue; the console used to intersect
@@ -127,7 +135,10 @@ export interface ConsoleBranch {
   readonly openTabCount: number | null;
 }
 
-export type StaffRole = Extract<UserRole, 'owner' | 'manager' | 'waiter' | 'kitchen'>;
+export type StaffRole = Extract<
+  UserRole,
+  'owner' | 'generalManager' | 'manager' | 'waiter' | 'kitchen'
+>;
 
 export interface ConsoleStaffMember {
   readonly id: string;

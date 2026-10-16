@@ -43,6 +43,7 @@ import {
   ReportRangeTooLongError,
   ReviewHiddenByPlatformError,
   StaffPermissionError,
+  StaffPinTakenError,
   FloorPlanInvalidError,
   OverlappingHoursError,
   PolicyBoundsError,
@@ -199,7 +200,8 @@ type WireCode = components['schemas']['Yalla.Application.Auth.DeviceEnrolmentCod
 type WireSignInLink = components['schemas']['Yalla.Application.Staff.StaffSignInLink'];
 
 /**
- * A 403 from the staff routes is the role guard, and it names the field.
+ * A 403 from the staff routes is the role guard, and it names the field; a 409
+ * `pin-taken` is the PIN somebody on the same tablet already uses.
  *
  * Surfaced against the control that caused it rather than as a form-level
  * banner: "you cannot assign that role" belongs under the role picker, where
@@ -207,6 +209,14 @@ type WireSignInLink = components['schemas']['Yalla.Application.Staff.StaffSignIn
  * the whole thing.
  */
 function staffRefusal(error: unknown): never {
+  // PINs are unique per tablet roster: the sentence goes under the PIN field.
+  if (error instanceof ApiError && error.status === 409 && error.code === 'pin-taken') {
+    throw new StaffPinTakenError({
+      url: error.url,
+      detail: error.problem?.detail ?? error.message,
+      requestId: error.requestId,
+    });
+  }
   if (error instanceof ApiError && error.status === 403) {
     const problem = parseProblem(error.body);
     const field = problem?.context?.['field'];
@@ -1082,11 +1092,16 @@ export function createConsoleHttpGateway(
     async setStaffPin({ venueId, staffMemberId, pin }) {
       // In the body, never the path. A PIN in a URL is a PIN in the server log,
       // the browser history and every proxy in between.
-      const { data } = await client.post<WireStaffMember>(
-        `${VENUES}/${venueId}/staff/${staffMemberId}/pin`,
-        { pin },
-      );
-      return staffMember(data);
+      try {
+        const { data } = await client.post<WireStaffMember>(
+          `${VENUES}/${venueId}/staff/${staffMemberId}/pin`,
+          { pin },
+        );
+        return staffMember(data);
+      } catch (error) {
+        // `pin-taken` (409) and the rank rule (403), as on create and edit.
+        return staffRefusal(error);
+      }
     },
 
     async issueStaffSignIn({ venueId, staffMemberId, email }) {

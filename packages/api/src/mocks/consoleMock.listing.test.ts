@@ -181,8 +181,9 @@ describe('moving a branch in the mock (K5)', () => {
   }
 
   it('refuses a manager who changes the pin or the address, and writes nothing at all', async () => {
-    // Venue-wide, so the branch itself is within reach and only the move is refused.
-    const manager = createConsoleMockGateway({ role: 'manager', managerBranch: 'none' });
+    // A general manager: venue-wide, so the branch itself is within reach and
+    // only the move is refused — moving a branch is an owner's (K5).
+    const manager = createConsoleMockGateway({ role: 'generalManager' });
     const pin = await storedPin(manager);
 
     for (const change of [{ latitude: pin.latitude + 0.01 }, { address: 'Test address 4' }]) {
@@ -199,7 +200,7 @@ describe('moving a branch in the mock (K5)', () => {
   });
 
   it('lets a manager send the stored pin and address back, which is not a move', async () => {
-    const manager = createConsoleMockGateway({ role: 'manager', managerBranch: 'none' });
+    const manager = createConsoleMockGateway({ role: 'generalManager' });
     const pin = await storedPin(manager);
 
     await expect(

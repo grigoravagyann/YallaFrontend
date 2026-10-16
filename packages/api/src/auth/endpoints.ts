@@ -136,7 +136,8 @@ export interface VenueUserIdentity {
 
 /**
  * `Yalla.Domain.Enums.StaffRole` is an integer on the wire (0 Unknown, 1 Owner,
- * 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin — `StaffEnums.cs`) and a
+ * 2 Manager — a branch manager — 3 Waiter, 4 Kitchen, 5 PlatformAdmin,
+ * 6 GeneralManager — `StaffEnums.cs`) and a
  * name in the JWT; both land on the console's role vocabulary here and nowhere
  * else.
  *
@@ -156,6 +157,11 @@ export function staffRoleToUserRole(role: number | string): UserRole {
     case 1:
     case 'owner':
       return 'owner';
+    // TODO(schema): 6 is not in the generated `StaffRole` union yet; the
+    // backend adds `GeneralManager = 6` and the regenerated schema confirms it.
+    case 6:
+    case 'generalmanager':
+      return 'generalManager';
     case 2:
     case 'manager':
       return 'manager';

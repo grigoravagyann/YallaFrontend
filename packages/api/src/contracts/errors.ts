@@ -1131,6 +1131,34 @@ export class StaffPermissionError extends ApiError {
   }
 }
 
+/**
+ * The PIN is already used by somebody who signs in on the same tablet —
+ * 409 `pin-taken`, `context.field = "pin"`.
+ *
+ * PINs are unique per tablet roster: a branch's people plus the venue-wide
+ * owners and general managers who appear on every branch's tablet. Two people
+ * on one keypad with one PIN would each be signed in as whichever the tablet
+ * matched first, so the server refuses the second one on create, on a new PIN
+ * and on a move that would put them on the same tablet.
+ *
+ * Its own type, with the same `field` the role refusal has, so a staff form
+ * puts the server's sentence under the PIN field and keeps everything else
+ * that was typed.
+ */
+export class StaffPinTakenError extends ApiError {
+  readonly field: string;
+
+  constructor(options: { url: string; detail: string; requestId?: string | undefined }) {
+    super(options.detail, {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'StaffPinTakenError';
+    this.field = 'pin';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Diner accounts
 // ---------------------------------------------------------------------------

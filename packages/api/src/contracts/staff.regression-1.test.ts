@@ -21,7 +21,13 @@ describe('a platform admin assigning the first owner', () => {
   });
 
   it('is offered every role below the platform, in rank order', () => {
-    expect(assignableRoles('platformAdmin')).toEqual(['owner', 'manager', 'waiter', 'kitchen']);
+    expect(assignableRoles('platformAdmin')).toEqual([
+      'owner',
+      'generalManager',
+      'manager',
+      'waiter',
+      'kitchen',
+    ]);
   });
 
   it('still cannot mint another platform admin from a venue screen', () => {

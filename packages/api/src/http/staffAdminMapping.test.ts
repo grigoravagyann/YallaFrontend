@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { components } from '../generated/schema';
-import { createStaffBody, staffMember, staffSignInLink } from './staffAdminMapping';
+import {
+  createStaffBody,
+  staffMember,
+  staffRole,
+  staffRoleCode,
+  staffSignInLink,
+  updateStaffBody,
+} from './staffAdminMapping';
 
 type Schemas = components['schemas'];
 
@@ -65,5 +72,29 @@ describe('the create body', () => {
     });
     expect(body).not.toHaveProperty('email');
     expect(body).not.toHaveProperty('password');
+  });
+});
+
+describe('the general manager on the wire', () => {
+  // TODO(schema): `StaffRole.GeneralManager = 6` is typed locally until the
+  // generated union carries it.
+  it('reads 6 as a general manager and writes a general manager as 6', () => {
+    expect(staffRole(6)).toBe('generalManager');
+    expect(staffRoleCode('generalManager')).toBe(6);
+    // `manager` keeps 2: it is the branch manager now, under the same number.
+    expect(staffRole(2)).toBe('manager');
+    expect(staffRoleCode('manager')).toBe(2);
+  });
+
+  it('sends the code in the create and the patch bodies', () => {
+    const body = createStaffBody({
+      fullName: 'Hasmik Karapetyan',
+      phone: '+37477209090',
+      role: 'generalManager',
+      pin: '5307',
+      branchId: null,
+    });
+    expect(body.role).toBe(6);
+    expect(updateStaffBody({ role: 'generalManager' })).toEqual({ role: 6 });
   });
 });

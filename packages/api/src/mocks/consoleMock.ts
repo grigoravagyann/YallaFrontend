@@ -38,13 +38,13 @@ import {
   ValidationError,
 } from '../errors';
 import { StaffPermissionError } from '../contracts/errors';
-import {
-  assignableRoles,
-  canEditStaff,
-  canSetStaffPin,
-  isAdminRole,
-  outranks,
-} from '../contracts/staff';
+import { assignableRoles, branchBindingFor, isAdminRole, outranks } from '../contracts/staff';
+
+/** `StaffMember.BranchManagerNeedsBranch`, word for word. */
+const BRANCH_MANAGER_NEEDS_BRANCH = 'A branch manager works at one branch. Choose it.';
+/** `StaffMember.GeneralManagerHasNoBranch`, word for word. */
+const GENERAL_MANAGER_HAS_NO_BRANCH =
+  'A general manager runs every branch, so leave the branch empty.';
 import type { StaffDevice, StaffMember, StaffSignInLink } from '../contracts/staff';
 import type { BranchPublicProfile } from '../contracts/publicProfile';
 import type { BranchReadiness } from '../contracts/readiness';
@@ -229,18 +229,11 @@ export interface ConsoleMockOptions {
   readonly latencyMs?: number;
   /**
    * Who the mock says is signed in. Real deployments read this from the token;
-   * the console's dev role switcher passes it here so all four tiers can be
-   * walked without four accounts.
+   * the console's dev role switcher passes it here so every tier can be
+   * walked without an account for each. `manager` is a branch manager, at the
+   * first branch of the first venue; `generalManager` runs that whole venue.
    */
   readonly role?: UserRole;
-  /**
-   * For `role: 'manager'`: whether the signed-in manager was created at a
-   * branch (`home`, the default — the first branch of the first venue) or
-   * with none (`none`, a venue-wide manager who runs every branch). The two
-   * are different people on the server and see different consoles, and the
-   * second could not be represented at all before this option.
-   */
-  readonly managerBranch?: 'home' | 'none';
   /**
    * The review store, shared with a diner mock so what a diner writes there is
    * moderated here. Absent: a store seeded with placeholder reviews in every
@@ -270,7 +263,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const now = options.now ?? (() => new Date());
   const latency = options.latencyMs ?? 0;
   const role: UserRole = options.role ?? 'platformAdmin';
-  const managerBranch = options.managerBranch ?? 'home';
   const reviewStore = options.reviews ?? createMockReviewStore({ now, seed: true });
   const registry = options.registry ?? mockRegistry;
 
@@ -509,6 +501,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const SERVER_ROLE: Readonly<Record<StaffRole | 'platformAdmin', string>> = {
     platformAdmin: 'PlatformAdmin',
     owner: 'Owner',
+    generalManager: 'GeneralManager',
     manager: 'Manager',
     waiter: 'Waiter',
     kitchen: 'Kitchen',
@@ -557,21 +550,73 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
    * from an owner, and a mock that always acted as an owner would let a
    * manager's picker be wrong with every test still passing.
    */
-  function actingStaff(venueId: string): { id: string; role: StaffRole | 'platformAdmin' } {
-    if (role === 'platformAdmin') return { id: 'u-platform', role: 'platformAdmin' };
+  function actingStaff(venueId: string): {
+    id: string;
+    role: StaffRole | 'platformAdmin';
+    branchId: string | null;
+  } {
+    if (role === 'platformAdmin')
+      return { id: 'u-platform', role: 'platformAdmin', branchId: null };
 
-    const list = staffFor(venueId);
     // The seeded person this console role corresponds to, so "you cannot edit
     // yourself" has a real row to point at rather than an id nothing matches.
-    // A manager is the branch one or the venue-wide one, by the option.
-    const self =
-      role === 'owner'
-        ? list.find((member) => member.role === 'owner')
-        : role === 'manager' && managerBranch === 'none'
-          ? list.find((member) => member.role === 'manager' && member.branchId === null)
-          : list.find((member) => member.role === 'manager' && member.branchId !== null);
+    // Found by the signed-in user's id, which is that row's id.
+    const self = staffFor(venueId).find((member) => member.id === currentUser().id);
 
-    return self ? { id: self.id, role: self.role } : { id: `u-${role}`, role: 'owner' };
+    return self
+      ? { id: self.id, role: self.role, branchId: self.branchId }
+      : { id: `u-${role}`, role: 'owner', branchId: null };
+  }
+
+  /** The operation sentence `StaffPermissionException` writes: "{op} requires the {role} role; …". */
+  function staffPermission(operation: string, required: StaffRole | 'platformAdmin') {
+    const actor = role === 'platformAdmin' ? 'platformAdmin' : (role as StaffRole);
+    return new StaffPermissionError({
+      url: URL_TAG,
+      detail: `${operation} requires the ${SERVER_ROLE[required]} role; the caller is a ${SERVER_ROLE[actor]}.`,
+    });
+  }
+
+  /** `StaffRoleRules.CoversWholeVenue`, plus the platform tier: every branch of the venue. */
+  function reachesWholeVenue(actor: { role: StaffRole | 'platformAdmin' }): boolean {
+    return (
+      actor.role === 'platformAdmin' || actor.role === 'owner' || actor.role === 'generalManager'
+    );
+  }
+
+  /**
+   * `StaffManagementService.RequireReach`: a branch manager acts on — and puts
+   * people at — their own branch, and nowhere else. Null is venue-wide, which
+   * is further than they reach. Everyone venue-wide passes.
+   */
+  function requireReach(
+    actor: { role: StaffRole | 'platformAdmin'; branchId: string | null },
+    branchId: string | null,
+    operation: string,
+  ): void {
+    if (reachesWholeVenue(actor)) return;
+    if (actor.branchId === null || branchId !== actor.branchId) {
+      throw staffPermission(operation, 'generalManager');
+    }
+  }
+
+  /**
+   * `StaffMember`'s invariants on the role and the branch, checked as a pair:
+   * a branch manager names their one branch, a general manager none. A 422
+   * `validation-failed` on `branchId`, with the server's sentence.
+   */
+  function requireBranchSuitsRole(url: string, staffRole: StaffRole, branchId: string | null) {
+    const binding = branchBindingFor(staffRole);
+    if (binding === 'required' && branchId === null) {
+      throw validationFailed(url, [
+        { field: 'branchId', message: BRANCH_MANAGER_NEEDS_BRANCH, bound: 'required' },
+      ]);
+    }
+    if (binding === 'venueWide' && branchId !== null) {
+      throw validationFailed(url, [
+        { field: 'branchId', message: GENERAL_MANAGER_HAS_NO_BRANCH, bound: 'conflict' },
+      ]);
+    }
   }
 
   /** A venue's people, seeded from the same names the venue fixture uses. */
@@ -836,9 +881,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   /**
    * `ReservationService.RequireManagerForBranchAsync`, as the server applies
-   * it: a manager or owner *with* a home branch may decide only at that
-   * branch; one with no branch anywhere in their own venue; a platform admin
-   * anywhere. Every refusal is the same 403, with `StaffPermissionException`'s
+   * it: an owner or a general manager may decide anywhere in their own venue,
+   * a branch manager only at their branch, a platform admin anywhere. Every refusal is the same 403, with `StaffPermissionException`'s
    * sentence, because the server does not say which rule was hit either.
    */
   function requireManagerForBranch(branchId: string, operation: string): void {
@@ -857,7 +901,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         },
       });
 
-    if (role !== 'owner' && role !== 'manager') throw refusal();
+    if (role !== 'owner' && role !== 'generalManager' && role !== 'manager') throw refusal();
 
     const venueId = venueOfBranch(branchId);
     if (venueId === null || currentUser().scope.venueId !== venueId) throw refusal();
@@ -865,7 +909,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const actor = actingStaff(venueId);
     const row = staffFor(venueId).find((member) => member.id === actor.id);
     if (!row || !row.isActive) throw refusal();
-    if (row.branchId !== null && row.branchId !== branchId) throw refusal();
+    // An owner or a general manager covers every branch; a branch manager theirs.
+    if (!reachesWholeVenue(row) && row.branchId !== branchId) throw refusal();
   }
 
   /** Load (404), then the branch rule (403), then the state (409): the server's order. */
@@ -969,8 +1014,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   /**
    * The scope a token of this role would carry — the **claims**, not the
    * coverage. An owner's token names the venue and no branch (live probe,
-   * 2026-09-10), and so does a manager created with no branch; the branches
-   * they may work on are `getManagedVenue`'s answer, as on the server.
+   * 2026-09-10), and so does a general manager's; the branches they may work
+   * on are `getManagedVenue`'s answer, as on the server.
    */
   function currentUser(): ConsoleUser {
     const firstVenue = [...venues.values()][0];
@@ -999,19 +1044,23 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           role,
           scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
         };
-      case 'manager':
+      case 'generalManager':
+        // Venue-wide: the row names no branch, so neither does the token.
         return {
-          id:
-            managerBranch === 'none' || !homeBranch
-              ? firstVenue
-                ? `${firstVenue.id}-manager`
-                : 'u-manager'
-              : `${homeBranch}-manager`,
-          displayName: managerBranch === 'none' ? 'Hasmik Karapetyan' : 'Nare Petrosyan',
+          id: firstVenue ? `${firstVenue.id}-general-manager` : 'u-general-manager',
+          displayName: 'Hasmik Karapetyan',
+          role,
+          scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
+        };
+      case 'manager':
+        // A branch manager's row always names their branch, and so does the token.
+        return {
+          id: homeBranch ? `${homeBranch}-manager` : 'u-manager',
+          displayName: 'Nare Petrosyan',
           role,
           scope: {
             venueId: firstVenue?.id ?? null,
-            branchIds: managerBranch === 'none' || !homeBranch ? [] : [homeBranch],
+            branchIds: homeBranch ? [homeBranch] : [],
           },
         };
       default:
@@ -1032,11 +1081,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   /**
    * The server's scope rule, as `BranchScoped` and `IStaffBranchGuard` apply
-   * it: the branch must belong to the token's venue, and since K4 a **manager
-   * whose stored home branch is another one** is refused too. The home branch
-   * is read from the stored staff row, as the guard reads it, so a reassignment
-   * takes effect at once. Owners, managers created with no branch and the
-   * platform admin are unaffected.
+   * it: the branch must belong to the token's venue, and a **branch manager**
+   * is refused anywhere but the branch their stored row names — read from the
+   * row, as the guard reads it, so a reassignment takes effect at once. Owners,
+   * general managers and the platform admin cover every branch.
    */
   function requireBranchInVenue(branchId: string): void {
     if (role === 'platformAdmin') return;
@@ -1049,8 +1097,31 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const actor = actingStaff(venueId);
       const row = staffFor(venueId).find((member) => member.id === actor.id);
       const home = row ? row.branchId : (currentUser().scope.branchIds[0] ?? null);
-      if (home !== null && home !== branchId) throw new ForbiddenError({ url });
+      // One with no branch passes nowhere: the server refuses that row outright.
+      if (home === null || home !== branchId) throw new ForbiddenError({ url });
     }
+  }
+
+  /**
+   * `ReportQuery`'s rollup rule: a rollup crosses branches, so the branch
+   * policy no longer covers it, and only an owner, a general manager or the
+   * platform tier may ask for one. A branch manager setting the parameter is
+   * refused rather than given their own branch.
+   */
+  function requireRollUp(query: { readonly rollUpVenue?: boolean | undefined }): void {
+    if (!query.rollUpVenue) return;
+    if (role === 'owner' || role === 'generalManager' || role === 'platformAdmin') return;
+    throw new ForbiddenError({
+      url: `${URL_TAG}/reports`,
+      problem: {
+        type: 'about:blank',
+        title: 'Forbidden',
+        status: 403,
+        detail: `Reporting across a venue's branches requires the GeneralManager role; the caller is a ${SERVER_ROLE[role]}.`,
+        code: 'forbidden',
+        traceId: 'mock',
+      },
+    });
   }
 
   /** `ManagerOrAbove` on top of the branch rule: a waiter or kitchen account is refused. */
@@ -1198,7 +1269,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   /**
    * `GET /api/venues/{venueId}/manage`: coverage from the caller's own staff
-   * row, which must be active, in this venue, and an owner or a manager.
+   * row, which must be active, in this venue, and an owner, a general manager
+   * or a branch manager. A branch manager is given their branch alone.
    */
   function managedVenueFor(venueId: string): ManagedVenue {
     const record = venues.get(venueId);
@@ -1232,7 +1304,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     // ManagerOrAbove, then VenueScoped. A venue user never learns whether a
     // venue that is not theirs exists.
-    if (role !== 'owner' && role !== 'manager') {
+    if (role !== 'owner' && role !== 'generalManager' && role !== 'manager') {
       throw new ForbiddenError({ url: `${URL_TAG}/venues/${venueId}/manage` });
     }
     requireVenueInScope(venueId);
@@ -1240,14 +1312,17 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     const actor = actingStaff(venueId);
     const row = staffFor(venueId).find((member) => member.id === actor.id);
-    if (!row || !row.isActive || (row.role !== 'owner' && row.role !== 'manager')) {
+    if (
+      !row ||
+      !row.isActive ||
+      (row.role !== 'owner' && row.role !== 'generalManager' && row.role !== 'manager')
+    ) {
       throw new ForbiddenError({ url: `${URL_TAG}/venues/${venueId}/manage` });
     }
 
-    const covered =
-      row.role === 'manager' && row.branchId !== null
-        ? record.branches.filter((branch) => branch.id === row.branchId)
-        : record.branches;
+    const covered = reachesWholeVenue(row)
+      ? record.branches
+      : record.branches.filter((branch) => branch.id === row.branchId);
 
     return {
       id: record.id,
@@ -2489,7 +2564,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async listStaff(venueId) {
       await wait();
       requireVenueInScope(venueId);
-      return [...staffFor(venueId)];
+      const actor = actingStaff(venueId);
+      // `ListAsync`: a branch manager sees their own branch's people — the
+      // same reach they have to change them. Everyone venue-wide sees the venue.
+      return reachesWholeVenue(actor)
+        ? [...staffFor(venueId)]
+        : staffFor(venueId).filter((member) => member.branchId === actor.branchId);
     },
 
     async createStaff({ venueId, staff }) {
@@ -2511,6 +2591,18 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           field: 'role',
         });
       }
+
+      // `RequireReach`: a branch manager adds people to their own branch. A
+      // branchless waiter would be on every tablet in the venue, which is
+      // further than the manager who made them reaches.
+      requireReach(
+        actor,
+        staff.branchId,
+        `Creating a ${SERVER_ROLE[staff.role]} at another branch`,
+      );
+
+      // The new row's invariants: the branch must suit the role.
+      requireBranchSuitsRole(URL_TAG, staff.role, staff.branchId);
 
       /*
        * Either both or neither, as the server rules it: an email without a
@@ -2581,7 +2673,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const subject = list[index]!;
       const actor = actingStaff(venueId);
 
-      if (!canEditStaff(actor, subject)) {
+      // The rank half of `canEditStaff`; the branch half is the reach check
+      // below, which the server raises with its own sentence.
+      if (actor.id === subject.id || !assignableRoles(actor.role).includes(subject.role)) {
         throw new StaffPermissionError({
           url: URL_TAG,
           detail:
@@ -2592,12 +2686,41 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         });
       }
 
+      // Reach on the person as they stand: a branch manager edits their own
+      // branch's people only.
+      if (actor.id !== subject.id) {
+        requireReach(
+          actor,
+          subject.branchId,
+          `Editing a ${SERVER_ROLE[subject.role]} at another branch`,
+        );
+      }
+
       if (patch.role !== undefined && !assignableRoles(actor.role).includes(patch.role)) {
         throw new StaffPermissionError({
           url: URL_TAG,
           detail: `A ${actor.role} cannot assign the role ${patch.role}.`,
           field: 'role',
         });
+      }
+
+      // And on where they are going: nobody is moved somewhere the actor
+      // does not reach.
+      if (patch.setBranch && actor.id !== subject.id) {
+        requireReach(
+          actor,
+          patch.branchId ?? null,
+          `Moving a ${SERVER_ROLE[subject.role]} to another branch`,
+        );
+      }
+
+      // The role and the branch as one pair (`StaffMember.Reassign`):
+      // promoting a branch manager to general manager clears the branch in the
+      // same request, and checking either half alone would refuse it.
+      const nextRole = patch.role ?? subject.role;
+      const nextBranch = patch.setBranch ? (patch.branchId ?? null) : subject.branchId;
+      if (nextRole !== subject.role || nextBranch !== subject.branchId) {
+        requireBranchSuitsRole(URL_TAG, nextRole, nextBranch);
       }
 
       const updated: StaffMember = {
@@ -2641,11 +2764,18 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // Your own PIN is always yours, though your own role is not.
       const subject = list[index]!;
       const actor = actingStaff(venueId);
-      if (!canSetStaffPin(actor, subject)) {
+      if (!assignableRoles(actor.role).includes(subject.role) && actor.id !== subject.id) {
         throw new StaffPermissionError({
           url: URL_TAG,
           detail: `A ${actor.role} cannot set a ${subject.role}'s PIN.`,
         });
+      }
+      if (actor.id !== subject.id) {
+        requireReach(
+          actor,
+          subject.branchId,
+          `Resetting a ${SERVER_ROLE[subject.role]}'s PIN at another branch`,
+        );
       }
 
       // Setting a PIN clears any lockout, as the server's does. The PIN itself
@@ -2711,6 +2841,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           detail: `Issuing a sign-in for a ${SERVER_ROLE[subject.role]} requires the PlatformAdmin role; the caller is a ${SERVER_ROLE[actor.role]}.`,
         });
       }
+
+      requireReach(
+        actor,
+        subject.branchId,
+        `Issuing a sign-in for a ${SERVER_ROLE[subject.role]} at another branch`,
+      );
 
       if (!subject.isActive) {
         throw conflict(
@@ -2820,18 +2956,21 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async getOccupancyReport(query) {
       await wait();
       requireBranchInVenue(query.branchId);
+      requireRollUp(query);
       return reports.occupancy(query);
     },
 
     async getReservationReport(query) {
       await wait();
       requireBranchInVenue(query.branchId);
+      requireRollUp(query);
       return reports.reservations(query);
     },
 
     async getRevenueReport(query) {
       await wait();
       requireBranchInVenue(query.branchId);
+      requireRollUp(query);
       return reports.revenue(query);
     },
 
@@ -2842,12 +2981,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // ever sees, and this is the one that needs a real one.
       await wait(3);
       requireBranchInVenue(query.branchId);
+      requireRollUp(query);
       return reports.menu(query);
     },
 
     async getStaffReport(query) {
       await wait();
       requireBranchInVenue(query.branchId);
+      requireRollUp(query);
       return reports.staff(query);
     },
 

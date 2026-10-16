@@ -6,8 +6,8 @@ import { slugify } from '../slug';
  *
  * Shared by the console mock (the staff screen) and the staff auth mock (the
  * PIN screen's roster), so the person a manager sees in the console is the
- * tile a waiter taps on the tablet. The ids are stable — `${branchId}-manager`,
- * `${venueId}-owner` — because the console mock's signed-in user is named by
+ * tile a waiter taps on the tablet. The ids are stable — `${branchId}-manager`
+ * (a branch manager), `${venueId}-owner`, `${venueId}-general-manager` — because the console mock's signed-in user is named by
  * them without seeding first.
  */
 export function fixtureStaffFor(
@@ -88,14 +88,14 @@ export function fixtureStaffFor(
       },
     ]),
     {
-      id: `${venueId}-manager`,
+      id: `${venueId}-general-manager`,
       venueId,
-      // A manager created with no branch: they run every branch, the way an
-      // owner does, and the console must show them every branch.
+      // A general manager: they run every branch, the way an owner does, and
+      // their row names none — venue-wide is the point of the role.
       branchId: null,
       fullName: 'Hasmik Karapetyan',
       phone: '+37477209090',
-      role: 'manager',
+      role: 'generalManager',
       isActive: true,
       email: null,
       hasPasswordSignIn: false,

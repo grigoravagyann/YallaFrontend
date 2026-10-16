@@ -31,11 +31,8 @@ describe('console mock — scope comes from the role, never from a url', () => {
     }
   });
 
-  it('a manager created with no branch carries the venue and no branch claim', async () => {
-    const user = await createConsoleMockGateway({
-      role: 'manager',
-      managerBranch: 'none',
-    }).getCurrentUser();
+  it('a general manager carries the venue and no branch claim', async () => {
+    const user = await createConsoleMockGateway({ role: 'generalManager' }).getCurrentUser();
     expect(user.scope.venueId).toBe('v-lumen');
     expect(user.scope.branchIds).toEqual([]);
   });
@@ -73,11 +70,10 @@ describe('console mock — the venue reads refuse what the server refuses', () =
     expect(venue.branches.map((branch) => branch.id)).toEqual(['b-lumen-north']);
   });
 
-  it('gives a manager with no branch every branch, like an owner', async () => {
-    const venue = await createConsoleMockGateway({
-      role: 'manager',
-      managerBranch: 'none',
-    }).getManagedVenue('v-lumen');
+  it('gives a general manager every branch, like an owner', async () => {
+    const venue = await createConsoleMockGateway({ role: 'generalManager' }).getManagedVenue(
+      'v-lumen',
+    );
     expect(venue.branches.map((branch) => branch.id)).toEqual(LUMEN_BRANCHES_BY_NAME);
   });
 
@@ -112,8 +108,8 @@ describe('console mock — the venue reads refuse what the server refuses', () =
     await expect(manager.getAdminMenu('b-lumen-north')).resolves.toBeTruthy();
     expect(await failing(manager.getFloorPlan('b-lumen-cascade'))).toBeInstanceOf(ForbiddenError);
     expect(await failing(manager.getAdminMenu('b-lumen-cascade'))).toBeInstanceOf(ForbiddenError);
-    // A manager created with no branch still runs every branch of the venue.
-    const floating = createConsoleMockGateway({ role: 'manager', managerBranch: 'none' });
+    // A general manager runs every branch of the venue.
+    const floating = createConsoleMockGateway({ role: 'generalManager' });
     await expect(floating.getFloorPlan('b-lumen-cascade')).resolves.toBeTruthy();
 
     const reads = [
@@ -394,7 +390,8 @@ describe('console mock — a sign-in for a manager or owner', () => {
           phone: '+37477123456',
           role: 'manager',
           pin: '2941',
-          branchId: null,
+          // A branch manager names their branch, or the row itself is refused.
+          branchId: 'b-lumen-north',
           email: 'marine@lumen.am',
         },
       }),
@@ -623,7 +620,7 @@ describe('console mock — the sign-in route refuses what the server refuses', (
       phone: '+37477123456',
       role: 'manager' as const,
       pin: '2941',
-      branchId: null,
+      branchId: 'b-lumen-north',
     };
 
     const passwordOnly = await failing(
@@ -815,9 +812,9 @@ describe('console mock — deciding a pending booking', () => {
     await expect(manager.approveReservation({ reservationId: home!.id })).resolves.toBeTruthy();
   });
 
-  it('lets a manager with no branch decide anywhere in the venue, and nowhere outside it', async () => {
+  it('lets a general manager decide anywhere in the venue, and nowhere outside it', async () => {
     const { ForbiddenError, NotFoundError } = await import('../errors');
-    const floating = createConsoleMockGateway({ role: 'manager', managerBranch: 'none' });
+    const floating = createConsoleMockGateway({ role: 'generalManager' });
     const [cascade] = await floating.listPendingReservations('b-lumen-cascade');
     await expect(floating.approveReservation({ reservationId: cascade!.id })).resolves.toBeTruthy();
 

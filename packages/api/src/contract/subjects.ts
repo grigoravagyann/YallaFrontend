@@ -118,7 +118,6 @@ export function mockSubject(): ContractSubject {
     managerConsole: createConsoleMockGateway({
       latencyMs: 0,
       role: 'manager',
-      managerBranch: 'home',
       reviews,
     }),
     fixtures: {

@@ -41,14 +41,21 @@ describe('the role picker', () => {
     // The server's MayAssign(Owner, Owner) is true: a co-owner is a normal
     // thing for a family business. This list used to be the stricter of the
     // two, and an owner could not hand the venue to a partner.
-    expect(assignableRoles('owner')).toEqual(['owner', 'manager', 'waiter', 'kitchen']);
+    expect(assignableRoles('owner')).toEqual([
+      'owner',
+      'generalManager',
+      'manager',
+      'waiter',
+      'kitchen',
+    ]);
   });
 
   it('mirrors the server table exactly, every actor against every role', () => {
     // StaffRoleRules.MayAssign, case for case.
     const table: Record<string, readonly string[]> = {
-      platformAdmin: ['owner', 'manager', 'waiter', 'kitchen'],
-      owner: ['owner', 'manager', 'waiter', 'kitchen'],
+      platformAdmin: ['owner', 'generalManager', 'manager', 'waiter', 'kitchen'],
+      owner: ['owner', 'generalManager', 'manager', 'waiter', 'kitchen'],
+      generalManager: ['manager', 'waiter', 'kitchen'],
       manager: ['waiter', 'kitchen'],
       waiter: [],
       kitchen: [],
@@ -81,7 +88,10 @@ describe('the role picker', () => {
 describe('editing somebody', () => {
   it('lets an owner edit a manager and a manager edit a waiter', () => {
     expect(canEditStaff({ id: 's-owner', role: 'owner' }, someone({ role: 'manager' }))).toBe(true);
-    expect(canEditStaff({ id: 's-mgr', role: 'manager' }, someone({ role: 'waiter' }))).toBe(true);
+    // A branch manager, at the branch the waiter works at.
+    expect(
+      canEditStaff({ id: 's-mgr', role: 'manager', branchId: 'b-1' }, someone({ role: 'waiter' })),
+    ).toBe(true);
   });
 
   it('stops a manager touching another manager, and lets an owner edit a co-owner', () => {
