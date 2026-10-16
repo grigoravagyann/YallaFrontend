@@ -2,7 +2,7 @@ import type { AuthSession } from './auth/session';
 import { createApiClient } from './client';
 import type { DataSource } from './config';
 import type { YallaGateway } from './gateway';
-import { createHttpGateway, type GatewayAudience } from './http/httpGateway';
+import { createHttpGateway, type GatewayAudience, type TabTokenStorage } from './http/httpGateway';
 import { createMockGateway } from './mocks/mockGateway';
 
 export interface ResolveGatewayOptions {
@@ -22,6 +22,8 @@ export interface ResolveGatewayOptions {
   readonly simulateTableTaken?: boolean | undefined;
   /** This install's device id, for opening and joining tabs. Real only. */
   readonly deviceId?: (() => Promise<string>) | undefined;
+  /** Where tab participant tokens are kept between launches. Real only. */
+  readonly tabTokens?: TabTokenStorage | undefined;
 }
 
 /**
@@ -58,5 +60,6 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
     audience: options.audience ?? 'diner',
     auth: options.auth,
     deviceId: options.deviceId,
+    tabTokens: options.tabTokens,
   });
 }

@@ -68,7 +68,7 @@ export type { ResolveGatewayOptions } from './resolveGateway';
 export { createMockGateway } from './mocks/mockGateway';
 export type { MockGateway, MockGatewayOptions } from './mocks/mockGateway';
 export { createHttpGateway } from './http/httpGateway';
-export type { GatewayAudience, HttpGatewayOptions } from './http/httpGateway';
+export type { GatewayAudience, HttpGatewayOptions, TabTokenStorage } from './http/httpGateway';
 
 export type {
   AvailabilityWindowDto,
