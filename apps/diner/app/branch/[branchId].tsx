@@ -4,7 +4,7 @@ import { FloorPlan, Legend } from '@yalla/floorplan';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { BookingContextBar, type BookingContext } from '../../src/components/BookingContextBar';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -80,14 +80,15 @@ export default function BranchFloorPlanScreen() {
   const bookingsOff = rulesQuery.data?.acceptsAppBookings === false;
 
   // The branch's own lead time, once known, moves an untouched default past it.
+  // Adjusted while rendering, once per lead time read, rather than in an effect
+  // that would paint the too-early slot first.
   const minLead = rulesQuery.data?.minLeadMinutes;
-  useEffect(() => {
-    if (touchedSlot || minLead === undefined) return;
+  const [leadApplied, setLeadApplied] = useState<number | null>(null);
+  if (!touchedSlot && minLead !== undefined && leadApplied !== minLead) {
+    setLeadApplied(minLead);
     const slotUtc = defaultSlot(new Date(), Math.max(minLead, LEAD_MINUTES));
-    setBooking((prev) =>
-      prev.slotUtc.getTime() >= slotUtc.getTime() ? prev : { ...prev, slotUtc },
-    );
-  }, [minLead, touchedSlot]);
+    if (booking.slotUtc.getTime() < slotUtc.getTime()) setBooking({ ...booking, slotUtc });
+  }
 
   /*
    * One question, one answer: the room **as it will be at the slot**, and every

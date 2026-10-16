@@ -4,7 +4,7 @@ import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge } from '../../src/components/bookings/BookingCard';
@@ -158,16 +158,13 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
     cancel.mutate(booking.id, { onSuccess: () => setConfirming(false) });
   };
 
-  // Closed from the mutation's own state as well as the per-call callback:
-  // the sheet stayed open over a booking the server had already cancelled.
-  useEffect(() => {
-    if (cancel.isSuccess) setConfirming(false);
-  }, [cancel.isSuccess]);
-
   // Whatever closed the sheet, a booking that can no longer be cancelled has
   // nothing to confirm: the venue may have cancelled it while the sheet was up.
+  // Closed from the mutation's own state as well as the per-call callback: the
+  // sheet stayed open over a booking the server had already cancelled.
+  // Reopening resets the mutation first.
   const cancellable = canCancel(booking.status);
-  const sheetOpen = confirming && cancellable;
+  const sheetOpen = confirming && cancellable && !cancel.isSuccess;
 
   return (
     <>
