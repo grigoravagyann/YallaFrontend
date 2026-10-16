@@ -1,6 +1,6 @@
-import type { BranchReadiness } from '@yalla/api';
+import type { BranchReadiness, EditorFloorPlan } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { checklistSteps, readinessBlockers } from './OnboardingChecklist';
+import { checklistSteps, readinessBlockers, roomsReady } from './OnboardingChecklist';
 
 /**
  * The checklist renders the server's readiness answer and decides nothing.
@@ -109,5 +109,51 @@ describe('what stops diners', () => {
       tableCount: 0,
     }).map((blocker) => blocker.key);
     expect(keys).toEqual(['floorPlanEmpty']);
+  });
+});
+
+describe('the rooms line (QA 2026-10-16)', () => {
+  const photo = {
+    photoId: 'p1',
+    thumbnailUrl: '',
+    cardUrl: '',
+    fullUrl: '',
+    width: 4,
+    height: 3,
+  };
+  const table = {
+    id: 't1',
+    label: '1',
+    seats: 2,
+    floorAreaId: 'hall',
+    isBookable: true,
+    isActive: true,
+    isDeletable: true,
+    status: 'free' as const,
+    qrToken: 'q',
+    pin: { photoId: 'p1', x: 0.5, y: 0.5 },
+  };
+  const plan: EditorFloorPlan = {
+    branchId: 'b-1',
+    version: '1',
+    areas: [{ id: 'hall', name: 'Hall', displayOrder: 0, photos: [photo] }],
+    tables: [table],
+  };
+
+  it('is done once a room has a photo with a bookable table pinned on it', () => {
+    expect(roomsReady(plan)).toBe(true);
+    expect(roomsReady({ ...plan, tables: [{ ...table, isBookable: false }] })).toBe(false);
+    expect(roomsReady({ ...plan, tables: [{ ...table, pin: null }] })).toBe(false);
+    expect(roomsReady({ ...plan, areas: [{ ...plan.areas[0]!, photos: [] }] })).toBe(false);
+
+    expect(checklistSteps(READY, false).find((entry) => entry.id === 'floorPlan')!.done).toBe(
+      false,
+    );
+    expect(checklistSteps(READY, true).find((entry) => entry.id === 'floorPlan')!.done).toBe(true);
+  });
+
+  it('says what stops diners when tables exist but none is on a photo they can book from', () => {
+    expect(readinessBlockers(READY, false)).toEqual([{ key: 'roomsNoBookablePin' }]);
+    expect(readinessBlockers(READY, true)).toEqual([]);
   });
 });

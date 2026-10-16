@@ -750,7 +750,7 @@
     "finish": "Finish",
     "elsewhere": "Done from another screen",
     "step": {
-      "floorPlan": "Floor plan drawn",
+      "floorPlan": "Rooms set up, with a table diners can book on a photo",
       "tableLabels": "Every table labelled",
       "menuCategories": "Menu has categories",
       "menuItems": "Every dish finished",
@@ -1120,7 +1120,7 @@
     "blockers": {
       "title": "What stops diners using this branch",
       "ready": "This branch is ready for diners.",
-      "floorPlanEmpty": "The floor plan has no tables on it yet.",
+      "floorPlanEmpty": "No tables have been added to the rooms yet.",
       "tablesUnlabelled": "Some tables have no label yet.",
       "menuNoCategories": "The menu has no categories yet.",
       "menuNoItems": "The menu has categories but no dishes.",
@@ -1129,7 +1129,8 @@
       "hoursNotSet": "Opening hours have not been set.",
       "policyNotReviewed": "Nobody has reviewed the reservation policy yet; it is still on the defaults.",
       "noStaff": "No staff work at this branch yet.",
-      "noDevice": "No tablet has been enrolled at this branch yet."
+      "noDevice": "No tablet has been enrolled at this branch yet.",
+      "roomsNoBookablePin": "No room has a photo with a bookable table on it, so diners have nothing to book."
     }
   },
   "platform": {
