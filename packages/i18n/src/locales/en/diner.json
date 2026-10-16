@@ -815,7 +815,8 @@
       "free": "Free",
       "reserved": "Reserved",
       "occupied": "Occupied",
-      "outOfService": "Out of service"
+      "outOfService": "Out of service",
+      "notForParty": "Not for your party"
     },
     "table": "Table {{label}}",
     "pin": {
@@ -823,12 +824,14 @@
       "reserved": "Table {{label}}, reserved",
       "occupied": "Table {{label}}, occupied",
       "outOfService": "Table {{label}}, out of service",
-      "notForParty": "Table {{label}}, free, not for a party of {{count}}"
+      "notForParty": "Table {{label}}, free, not for a party of {{count}}",
+      "withReason": "Table {{label}}. {{reason}}"
     },
     "capacity": "{{min}}–{{max}} people",
     "capacityOne": "{{max}} people",
     "book": "Book",
     "notBookable": "This table cannot be booked right now",
+    "refusal": "{{table}} · {{capacity}}. {{reason}}",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "fullscreen": "Full screen",

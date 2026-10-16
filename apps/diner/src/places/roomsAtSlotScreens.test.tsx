@@ -3,7 +3,7 @@ import { GatewayProvider } from '@yalla/api/react';
 import type * as I18nModule from '@yalla/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import BranchScreen from '../../app/branch/[branchId]';
 import BookingScreen from '../../app/book/[placeId]';
 import { roomsFromApi } from './httpMapping';
@@ -55,7 +55,10 @@ vi.mock('@yalla/i18n', async (importOriginal) => {
     ...(await importOriginal<typeof I18nModule>()),
     useTranslation: () => ({
       t: (key: string, values: Record<string, unknown> = {}) =>
-        lookup(key).replace(/\{\{(\w+)\}\}/gu, (_, name: string) => String(values[name])),
+        (lookup(key) === key && typeof values['count'] === 'number'
+          ? lookup(`${key}_${values['count'] === 1 ? 'one' : 'other'}`)
+          : lookup(key)
+        ).replace(/\{\{(\w+)\}\}/gu, (_, name: string) => String(values[name])),
     }),
     useLocale: () => ({ locale: 'en' }),
   };
@@ -152,6 +155,19 @@ describe('the branch screen', () => {
 });
 
 describe('the Book screen', () => {
+  /*
+   * Noon in Yerevan. On the real clock, from 23:30 there is no slot left today
+   * past the 30-minute lead, so the screen has no slot, no slot floor and no
+   * pins, and these tests failed every night for half an hour.
+   */
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T08:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('picks the table tapped on the room photo at the slot', async () => {
     params.current = { placeId: BRANCH };
     renderScreen(<BookingScreen />);
@@ -179,5 +195,38 @@ describe('the Book screen', () => {
     });
     fireEvent.click(unfit[0]!);
     expect(screen.queryByText('Selected table')).toBeNull();
+    // QA 20261016T2 B3: the reason is on screen, not only in the pin's name.
+    expect(screen.getByText(/Too small for 3 guests\./u)).toBeTruthy();
+    // And the legend says what the hollow, dashed pin means.
+    expect(screen.getByText('Not for your party')).toBeTruthy();
+  });
+
+  it('says the place is closed at that time, not that no table seats the party', async () => {
+    // QA 20261016T2 B2: the server refuses every table, and the slot, as closed.
+    const original = mock.getSlotFloor.bind(mock);
+    const spy = vi.spyOn(mock, 'getSlotFloor').mockImplementation(async (input) => {
+      const floor = await original(input);
+      if (!floor) return floor;
+      return {
+        ...floor,
+        rejection: 'closed',
+        tables: floor.tables.map((table) => ({
+          ...table,
+          isBookable: false,
+          unavailableReason: 'closed',
+          window: null,
+        })),
+      };
+    });
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText('Closed at that time.')).toBeTruthy();
+    expect(screen.queryByText(/No free table seats/u)).toBeNull();
+    expect(screen.queryByRole('button', { name: /not for a party of/u })).toBeNull();
+    expect(
+      screen.getAllByRole('button', { name: /^Table \w+\. Closed at that time\.$/u }).length,
+    ).toBeGreaterThan(0);
+    spy.mockRestore();
   });
 });

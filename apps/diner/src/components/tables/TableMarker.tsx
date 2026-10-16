@@ -1,7 +1,9 @@
+import { unavailableCopy, type TableUnavailableReason } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import type { TablePhotoMarker } from '../../places/model';
+import { isPartyFitReason } from '../../places/rooms';
 import {
   colors,
   fontWeight,
@@ -35,6 +37,44 @@ export function useCapacityLabel(): (
         ? t('tables.capacityOne', { max: table.capacityMax })
         : t('tables.capacity', { min: table.capacityMin, max: table.capacityMax }),
     [t],
+  );
+}
+
+/**
+ * Why `partySize` cannot have this table at the slot, or `null` when it can
+ * (or no party is being booked for). The server's reason when it gave one;
+ * else, for a table the party does not fit, that it is too small or too large.
+ */
+export function pinRefusal(
+  table: TablePhotoMarker,
+  partySize: number | undefined,
+): { reason: TableUnavailableReason | null } | null {
+  if (partySize === undefined || table.isBookable) return null;
+  if (table.unavailableReason) return { reason: table.unavailableReason };
+  if (partySize > table.capacityMax) return { reason: 'tooSmall' };
+  if (partySize < table.capacityMin) return { reason: 'tooLarge' };
+  return { reason: null };
+}
+
+/** "Table 6 · 1–2 people. Too small for 3 guests." — what a tap on a refused pin says. */
+export function usePinRefusalText(): (
+  table: TablePhotoMarker,
+  partySize: number | undefined,
+) => string | null {
+  const { t } = useTranslation('diner');
+  const capacity = useCapacityLabel();
+  return useCallback(
+    (table, partySize) => {
+      const refusal = pinRefusal(table, partySize);
+      if (!refusal || partySize === undefined) return null;
+      const line = unavailableCopy(refusal.reason, partySize);
+      return t('tables.refusal', {
+        table: t('tables.table', { label: table.label }),
+        capacity: capacity(table),
+        reason: t(line.key, line.params),
+      });
+    },
+    [t, capacity],
   );
 }
 
@@ -90,12 +130,27 @@ export function TableMarker({ table, selected, onPress, partySize }: TableMarker
     return () => pulse.stop();
   }, [scale, ring, selected]);
 
-  const refused = partySize !== undefined && !table.isBookable;
-  // Free at the slot, but not for this party: still free, so not grey or red.
-  const unfit = refused && table.status === 'free';
+  const refusal = pinRefusal(table, partySize);
+  const refused = refusal !== null;
+  // Free at the slot, but the party does not fit it: still free, so not grey
+  // or red, and drawn hollow. Free but refused for the time itself (closed,
+  // too soon) is a different answer and says so.
+  const unfit =
+    refused &&
+    table.status === 'free' &&
+    (refusal.reason === null || isPartyFitReason(refusal.reason));
+  const timeRefused = refused && table.status === 'free' && !unfit;
   const label = unfit
     ? t('tables.pin.notForParty', { label: table.label, count: partySize })
-    : t(`tables.pin.${table.status}`, { label: table.label });
+    : timeRefused && partySize !== undefined
+      ? (() => {
+          const line = unavailableCopy(refusal.reason, partySize);
+          return t('tables.pin.withReason', {
+            label: table.label,
+            reason: t(line.key, line.params),
+          });
+        })()
+      : t(`tables.pin.${table.status}`, { label: table.label });
   const color = tableStatusColor[table.status];
   const ringScale = ring.interpolate({ inputRange: [0, 1], outputRange: [1, RING_SCALE] });
   const ringOpacity = ring.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] });
@@ -120,8 +175,9 @@ export function TableMarker({ table, selected, onPress, partySize }: TableMarker
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityHint={capacity(table)}
+        // Not selectable, yet still tappable: the tap says why on the photo
+        // (QA 20261016T2 B3). The name says it too, for a screen reader.
         accessibilityState={{ selected, disabled: refused }}
-        disabled={refused}
         hitSlop={8}
         onPress={() => onPress(table)}
         style={({ pressed }) => [

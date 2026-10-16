@@ -23,7 +23,7 @@ import { PhotoImage } from '../PhotoImage';
 import { Text } from '../Text';
 import { TABLE_INFO_BAR_CLEARANCE, TableInfoBar } from './TableInfoBar';
 import { TableLegend } from './TableLegend';
-import { TableMarker } from './TableMarker';
+import { TableMarker, usePinRefusalText } from './TableMarker';
 
 export const ZOOM_MIN = 1;
 export const ZOOM_MAX = 3;
@@ -275,13 +275,28 @@ export function TablePhotoView({
 
   const selected = tables.find((table) => table.tableId === selectedTableId) ?? null;
 
+  // Why the pin just tapped cannot be had, on the photo itself: a sighted
+  // diner gets the same reason the screen reader says (QA 20261016T2 B3).
+  const refusalText = usePinRefusalText();
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
   const handleMarker = useCallback(
     (table: TablePhotoMarker) => {
-      // Not this party's table: nothing to pick.
-      if (partySize !== undefined && !table.isBookable) return;
+      const refused = refusalText(table, partySize);
+      // Not this party's table: nothing to pick, but say why.
+      if (refused) {
+        setNotice(refused);
+        return;
+      }
+      setNotice(null);
       onSelect(table.tableId === selectedTableId ? null : table.tableId);
     },
-    [onSelect, selectedTableId, partySize],
+    [onSelect, selectedTableId, partySize, refusalText],
   );
 
   const handleBook = useCallback(
@@ -293,6 +308,7 @@ export function TablePhotoView({
   );
 
   const controlsBottom = selected && onBook ? TABLE_INFO_BAR_CLEARANCE + space.md : space.md;
+  const transform = [{ translateX: pan.x }, { translateY: pan.y }, { scale }];
 
   return (
     <>
@@ -301,17 +317,15 @@ export function TablePhotoView({
         style={[styles.frame, fullscreen && styles.frameFull, style]}
         {...responder.panHandlers}
       >
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            { transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }] },
-          ]}
-        >
+        <Animated.View style={[StyleSheet.absoluteFill, { transform }]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('tables.photo')}
             accessibilityHint={t('tables.clearSelection')}
-            onPress={() => onSelect(null)}
+            onPress={() => {
+              setNotice(null);
+              onSelect(null);
+            }}
             style={StyleSheet.absoluteFill}
           >
             <PhotoImage
@@ -321,6 +335,44 @@ export function TablePhotoView({
               style={[StyleSheet.absoluteFill, styles.photo]}
             />
           </Pressable>
+        </Animated.View>
+
+        {fullscreen ? null : (
+          <IconButton
+            icon={actionIcon.expand}
+            accessibilityLabel={t('tables.fullscreen')}
+            variant="translucent"
+            size="sm"
+            onPress={() => setExpanded(true)}
+            style={styles.expand}
+          />
+        )}
+
+        <View style={[styles.zoom, { bottom: controlsBottom }]}>
+          <IconButton
+            icon={actionIcon.zoomIn}
+            accessibilityLabel={t('tables.zoomIn')}
+            variant="translucent"
+            size="sm"
+            disabled={zoom >= ZOOM_MAX}
+            onPress={() => zoomBy(ZOOM_STEP)}
+          />
+          <IconButton
+            icon={actionIcon.zoomOut}
+            accessibilityLabel={t('tables.zoomOut')}
+            variant="translucent"
+            size="sm"
+            disabled={zoom <= ZOOM_MIN}
+            onPress={() => zoomBy(-ZOOM_STEP)}
+          />
+        </View>
+
+        {/*
+          The pins on their own layer, moved with the photo and drawn over the
+          buttons: a table by the right edge, or one panned under the zoom
+          pair, is still the thing a finger lands on (QA 20261016T2 B6).
+        */}
+        <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { transform }]}>
           {box ? (
             // The box the photo is drawn in: pins at fractions of the photo,
             // never of the frame and its bars.
@@ -355,37 +407,17 @@ export function TablePhotoView({
           <View pointerEvents="none" style={styles.unmeasured}>
             <Text style={styles.unmeasuredText}>{t('tables.unmeasured')}</Text>
           </View>
+        ) : notice ? (
+          <View pointerEvents="none" style={[styles.unmeasured, { bottom: controlsBottom }]}>
+            <Text
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={styles.unmeasuredText}
+            >
+              {notice}
+            </Text>
+          </View>
         ) : null}
-
-        {fullscreen ? null : (
-          <IconButton
-            icon={actionIcon.expand}
-            accessibilityLabel={t('tables.fullscreen')}
-            variant="translucent"
-            size="sm"
-            onPress={() => setExpanded(true)}
-            style={styles.expand}
-          />
-        )}
-
-        <View style={[styles.zoom, { bottom: controlsBottom }]}>
-          <IconButton
-            icon={actionIcon.zoomIn}
-            accessibilityLabel={t('tables.zoomIn')}
-            variant="translucent"
-            size="sm"
-            disabled={zoom >= ZOOM_MAX}
-            onPress={() => zoomBy(ZOOM_STEP)}
-          />
-          <IconButton
-            icon={actionIcon.zoomOut}
-            accessibilityLabel={t('tables.zoomOut')}
-            variant="translucent"
-            size="sm"
-            disabled={zoom <= ZOOM_MIN}
-            onPress={() => zoomBy(-ZOOM_STEP)}
-          />
-        </View>
 
         {onBook ? (
           <TableInfoBar
@@ -458,6 +490,9 @@ function FullscreenTables({ visible, onClose, ...view }: FullscreenTablesProps) 
     </Modal>
   );
 }
+
+/** How long the line saying why a pin cannot be picked stays up. */
+const NOTICE_MS = 4000;
 
 /** Keeps the "can't show tables" line clear of the zoom buttons. */
 const UNMEASURED_CLEARANCE = 48;

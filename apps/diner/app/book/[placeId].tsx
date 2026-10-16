@@ -36,7 +36,7 @@ import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
 import { placeKeys, usePlace, usePlaceRooms } from '../../src/places/hooks';
 import type { Place, PlaceRoom } from '../../src/places/model';
-import { roomsAtSlot } from '../../src/places/rooms';
+import { roomsAtSlot, slotRefusal } from '../../src/places/rooms';
 import { bookingRulesInput } from '../../src/places/navigation';
 import {
   LEAD_MINUTES,
@@ -271,10 +271,13 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   const slotPlan = slotQuery.data?.plan.tables;
   const slotRooms = useMemo(() => {
     if (!slotPlan) return [];
-    const verdicts = new Map((slotTables ?? []).map((table) => [table.tableId, table.isBookable]));
-    return roomsAtSlot(rooms, slotPlan, (tableId) => verdicts.get(tableId) ?? false).filter(
-      (room) => room.photos.some((photo) => photo.tables.length > 0),
-    );
+    const verdicts = new Map((slotTables ?? []).map((table) => [table.tableId, table]));
+    return roomsAtSlot(
+      rooms,
+      slotPlan,
+      (tableId) => verdicts.get(tableId)?.isBookable ?? false,
+      (tableId) => verdicts.get(tableId)?.unavailableReason ?? null,
+    ).filter((room) => room.photos.some((photo) => photo.tables.length > 0));
   }, [rooms, slotPlan, slotTables]);
   const chosenAtSlot = useMemo(
     () => slotTables?.find((table) => table.tableId === chosenTable?.tableId) ?? null,
@@ -334,6 +337,17 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
 
   const targetTableId = chosenTable?.tableId ?? autoTableId;
   const noTableFits = !chosenTable && autoTableId === null;
+  // Shut at that time (or too soon, too far ahead): the time is the problem,
+  // not the party, and the banner says so rather than "try another party size".
+  const slotClosed = useMemo(
+    () => (slotQuery.data ? slotRefusal(slotQuery.data) : null),
+    [slotQuery.data],
+  );
+  const noTableText = useMemo(() => {
+    if (!slotClosed) return t('book.noTableForParty', { count: partySize });
+    const line = unavailableCopy(slotClosed, partySize);
+    return t(line.key, line.params);
+  }, [slotClosed, partySize, t]);
 
   const canConfirm =
     activeSlot !== null &&
@@ -566,7 +580,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
                   setErrorText(null);
                 }}
               />
-              <TableLegend style={styles.legend} />
+              <TableLegend partyFit style={styles.legend} />
             </>
           ) : null}
 
@@ -593,7 +607,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             </>
           ) : noTableFits ? (
             <Text accessibilityRole="alert" style={styles.warning}>
-              {t('book.noTableForParty', { count: partySize })}
+              {noTableText}
             </Text>
           ) : null}
 

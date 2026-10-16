@@ -1,3 +1,4 @@
+import type { TableUnavailableReason } from '@yalla/api';
 import { branchDayKey, instantFromZonedClock, intlTag, type Locale } from '@yalla/format';
 
 /**
@@ -109,6 +110,11 @@ export interface TablePhotoMarker {
   readonly status: TableStatus;
   /** False for a table the venue never takes bookings for: drawn, never offered. */
   readonly isBookable: boolean;
+  /**
+   * Why the slot will not give it to this party, as the server said: `closed`,
+   * `alreadyBooked`, `tooSmall`. Only known at a slot; absent on the live rooms.
+   */
+  readonly unavailableReason?: TableUnavailableReason | null;
   readonly capacityMin: number;
   readonly capacityMax: number;
   readonly x: number;

@@ -28,7 +28,10 @@ vi.mock('@yalla/i18n', async (importOriginal) => {
     ...(await importOriginal<typeof I18nModule>()),
     useTranslation: () => ({
       t: (key: string, params: Record<string, unknown> = {}) =>
-        lookup(key).replace(/\{\{(\w+)\}\}/gu, (_, name: string) => String(params[name])),
+        (lookup(key) === 'undefined' && typeof params['count'] === 'number'
+          ? lookup(`${key}_${params['count'] === 1 ? 'one' : 'other'}`)
+          : lookup(key)
+        ).replace(/\{\{(\w+)\}\}/gu, (_, name: string) => String(params[name])),
     }),
     useLocale: () => ({ locale: 'en' }),
   };
@@ -156,13 +159,39 @@ describe('RoomPhotosView', () => {
     // Free at the slot, but not for six: never green, never "Table 9, free".
     expect(screen.queryByRole('button', { name: 'Table 9, free' })).toBeNull();
     const unfit = screen.getByRole('button', { name: 'Table 9, free, not for a party of 6' });
-    expect(unfit.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(unfit);
     expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByText('Table 9 · 1–4 people. Too small for 6 guests.')).toBeTruthy();
 
     // A free table the party fits is still offered.
     fireEvent.click(screen.getByRole('button', { name: 'Table 7, free' }));
     expect(onSelect).toHaveBeenCalledWith('7');
+  });
+
+  it('says on the photo why a booked table cannot be picked when it is tapped', () => {
+    const onSelect = vi.fn();
+    const booked: PlaceRoom[] = [
+      {
+        roomId: 'hall',
+        name: 'Hall',
+        photos: [
+          photo('h1', [
+            { ...pin('5', 'reserved', false), unavailableReason: 'alreadyBooked' },
+            { ...pin('6', 'free', false), unavailableReason: 'tooSmall', capacityMax: 2 },
+          ]),
+        ],
+      },
+    ];
+    render(
+      <RoomPhotosView rooms={booked} selectedTableId={null} onSelect={onSelect} partySize={3} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Table 5, reserved' }));
+    expect(screen.getByText(/Already booked at that time\./u)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Table 6, free, not for a party of 3' }));
+    expect(screen.getByText('Table 6 · 1–2 people. Too small for 3 guests.')).toBeTruthy();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });
 
