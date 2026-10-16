@@ -1,5 +1,3 @@
-import { FloorPlan } from '@yalla/floorplan';
-import type { DerivedTableState, FloorPlanData } from '@yalla/floorplan/types';
 import {
   AA_BODY,
   blob,
@@ -59,43 +57,6 @@ interface ContrastPair {
   readonly ratio: number;
   /** `false` for the one pair the token set forbids rather than passes. */
   readonly required: boolean;
-}
-
-/**
- * One table per state, drawn by the real renderer at a real size. This is the
- * treatment a waiter sees, not a swatch that approximates it.
- */
-function statePlan(): FloorPlanData {
-  const states: readonly DerivedTableState[] = [
-    'free',
-    'reservedSoon',
-    'held',
-    'occupied',
-    'outOfService',
-    // `yourPick` is a selection, not a state; the sixth table is free and selected.
-    'free',
-  ];
-  return {
-    branchId: 'dev-tokens',
-    canvasWidth: 70 * 2 + states.length * 130,
-    canvasHeight: 70 * 2 + 90,
-    timeZoneId: 'Asia/Yerevan',
-    tables: states.map((state, i) => ({
-      id: `state-${i}`,
-      label: String(i + 1),
-      seats: 4,
-      x: 70 + i * 130,
-      y: 70,
-      width: 110,
-      height: 80,
-      rotationDegrees: 0,
-      shape: i % 2 === 0 ? 'rectangle' : 'round',
-      floorAreaName: null,
-      isBookable: state !== 'outOfService',
-      state,
-      nextReservationStartUtc: null,
-    })),
-  };
 }
 
 function contrastPairs(): ContrastPair[] {
@@ -181,8 +142,6 @@ function radiusSample(name: keyof typeof radius): {
 }
 
 export function DevTokensRoute() {
-  const plan = useMemo(() => statePlan(), []);
-  const viewport = useMemo(() => ({ width: 960, height: 230 }), []);
   const pairs = useMemo(() => contrastPairs(), []);
   const failures = pairs.filter((p) => p.required && p.ratio < AA_BODY);
 
@@ -223,20 +182,9 @@ export function DevTokensRoute() {
       <div>
         <h2>Table states — the protected six</h2>
         <p className="muted small">
-          Drawn by the real <code>FloorPlan</code> in staff mode. Table 6 is free and selected,
-          which is what <code>yourPick</code> is. Hue is never the only signal: each state also
-          differs in pattern, outline, opacity or ring. Nothing here is green except the free table
-          — the frame, the buttons and the chips on a floor plan screen are ink.
+          Each state as its tokens define it: <code>yourPick</code> is a selection, not a state. Hue
+          is never the only signal: each state also differs in pattern, outline, opacity or ring.
         </p>
-        <div className="floor-plan-frame" style={{ height: viewport.height, marginTop: space.md }}>
-          <FloorPlan
-            plan={plan}
-            mode="staff"
-            viewport={viewport}
-            selectedTableId="state-5"
-            accessibilityLabel="Table state samples"
-          />
-        </div>
         <div className="states" style={{ marginTop: space.md }}>
           {tableStatusLegendOrder.map((status) => {
             const s = tableStatusStyle[status];
