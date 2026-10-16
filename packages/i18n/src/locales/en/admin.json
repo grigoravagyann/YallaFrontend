@@ -561,7 +561,8 @@
       "badDimensions": "Those dimensions will not work as a card.",
       "wrongFormat": "That file is not a JPEG, PNG or WebP.",
       "wrongFormatDetected": "The file name says one thing and the bytes say another: this is really a {{format}}. Export it as a JPEG and try again.",
-      "failed": "Could not upload that photo."
+      "failed": "Could not upload that photo.",
+      "unreadable": "This file could not be opened as a picture. Choose a JPEG, PNG or WebP photo."
     },
     "bulk": {
       "open": "Upload many photos",
