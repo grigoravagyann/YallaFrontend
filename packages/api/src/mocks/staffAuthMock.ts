@@ -35,7 +35,7 @@ import { mockVenues } from './venues';
 
 const URL_TAG = 'mock://yalla/api/auth/staff';
 
-/** The server's lockout: five wrong PINs, fifteen minutes. */
+/** AuthOptions.PinMaxAttempts and PinLockoutMinutes: five in a row, fifteen minutes. */
 const PIN_MAX_ATTEMPTS = 5;
 const PIN_LOCK_MS = 15 * 60_000;
 const SESSION_SECONDS = 900;
@@ -51,8 +51,11 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
   const registry = options.registry ?? mockRegistry;
   const now = options.now ?? (() => new Date());
   let sequence = 0;
-  /** staffMemberId → the instants of its recent misses. */
-  const misses = new Map<string, number[]>();
+  /**
+   * staffMemberId → consecutive misses and the lockout they caused, as
+   * `StaffMember.PinFailedAttempts` and `PinLockedUntilUtc` are on the server.
+   */
+  const pinState = new Map<string, { attempts: number; lockedUntil: number | null }>();
 
   function locate(branchId: string) {
     for (const venue of mockVenues) {
@@ -105,13 +108,16 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
     async enrol(command: EnrolDeviceCommand): Promise<DeviceEnrolment> {
       const code = command.code.trim().toUpperCase();
       const found = registry.enrolmentCodes.get(code);
-      // Unknown, or past its day: the same answer, as a code that is wrong
-      // and one that expired are told apart by nobody standing at a counter.
-      if (!found || Date.parse(found.expiresAtUtc) <= now().getTime()) {
+      // StaffAuthService.EnrolAsync's order: unknown is 401, spent is the
+      // 409 whatever the date, and only then past its day is 401.
+      if (!found) {
         throw new UnauthorizedError({ url: `${URL_TAG}/enrol` });
       }
       if (found.spentAtUtc !== null) {
         throw new EnrolmentCodeSpentError({ url: `${URL_TAG}/enrol` });
+      }
+      if (Date.parse(found.expiresAtUtc) <= now().getTime()) {
+        throw new UnauthorizedError({ url: `${URL_TAG}/enrol` });
       }
       const at = now().toISOString();
       registry.enrolmentCodes.set(code, { ...found, spentAtUtc: at });
@@ -158,29 +164,45 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
       const found = device(deviceToken);
       const url = `${URL_TAG}/pin`;
       const member = staffOf(found.venue.id).find((person) => person.id === command.staffMemberId);
-      const onRoster =
-        member &&
-        member.isActive &&
-        (member.branchId === null || member.branchId === found.branchId);
-
-      const t = now().getTime();
-      const recent = (misses.get(command.staffMemberId) ?? []).filter((at) => t - at < PIN_LOCK_MS);
-      if (recent.length >= PIN_MAX_ATTEMPTS || member?.isPinLocked) {
-        throw new PinLockedError({
-          url,
-          lockedUntilUtc: member?.isPinLocked
-            ? null
-            : new Date((recent[0] ?? t) + PIN_LOCK_MS).toISOString(),
-        });
-      }
-
-      if (!onRoster || command.pin !== MOCK_STAFF_PIN) {
-        recent.push(t);
-        misses.set(command.staffMemberId, recent);
+      // Somebody who does not sign in on this tablet does not exist as far as
+      // it is concerned: rejected, and no miss counted against anybody.
+      if (
+        !member ||
+        !member.isActive ||
+        (member.branchId !== null && member.branchId !== found.branchId)
+      ) {
         throw new PinRejectedError({ url });
       }
 
-      misses.delete(command.staffMemberId);
+      const t = now().getTime();
+      const state = pinState.get(member.id) ?? { attempts: 0, lockedUntil: null };
+      if (member.isPinLocked) {
+        // The fixture's person a manager has yet to unlock: no known end.
+        throw new PinLockedError({ url, lockedUntilUtc: null });
+      }
+      if (state.lockedUntil !== null && t < state.lockedUntil) {
+        throw new PinLockedError({
+          url,
+          lockedUntilUtc: new Date(state.lockedUntil).toISOString(),
+        });
+      }
+
+      if (command.pin !== MOCK_STAFF_PIN) {
+        // StaffMember.RecordFailedPin: the miss that reaches the threshold is
+        // the lockout itself.
+        state.attempts += 1;
+        pinState.set(member.id, state);
+        if (state.attempts >= PIN_MAX_ATTEMPTS) {
+          state.lockedUntil = t + PIN_LOCK_MS;
+          throw new PinLockedError({
+            url,
+            lockedUntilUtc: new Date(state.lockedUntil).toISOString(),
+          });
+        }
+        throw new PinRejectedError({ url });
+      }
+
+      pinState.delete(member.id);
       return session(deviceToken, member);
     },
 

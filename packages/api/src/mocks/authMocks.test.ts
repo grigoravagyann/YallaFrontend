@@ -177,16 +177,24 @@ describe('F13 — a mock tablet enrols with a console code, signs in by PIN, and
     expect(await auth.renew(renewed!.tokens.renewalToken)).toBeNull();
   });
 
-  it('locks a PIN after five misses, and a locked person from the first', async () => {
+  it('locks a PIN on the fifth miss in a row, and a locked person from the first', async () => {
+    // StaffMember.RecordFailedPin: consecutive misses, and the one that
+    // reaches AuthOptions.PinMaxAttempts (5) is itself the lockout, for
+    // PinLockoutMinutes (15).
     const { auth, enrolment } = await enrolled();
     const manager = 'b-lumen-north-manager';
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
       expect(
         await caught(
           auth.signInWithPin(enrolment.deviceToken, { staffMemberId: manager, pin: '9999' }),
         ),
       ).toBeInstanceOf(PinRejectedError);
     }
+    const fifth = await caught(
+      auth.signInWithPin(enrolment.deviceToken, { staffMemberId: manager, pin: '9999' }),
+    );
+    expect(fifth).toBeInstanceOf(PinLockedError);
+    expect((fifth as PinLockedError).lockedUntilUtc).toBe('2026-09-16T10:15:00.000Z');
     expect(
       await caught(
         auth.signInWithPin(enrolment.deviceToken, { staffMemberId: manager, pin: MOCK_STAFF_PIN }),
@@ -201,5 +209,44 @@ describe('F13 — a mock tablet enrols with a console code, signs in by PIN, and
         }),
       ),
     ).toBeInstanceOf(PinLockedError);
+  });
+
+  it('counts a miss only for somebody this tablet signs in, and a hit clears the count', async () => {
+    const { auth, enrolment } = await enrolled();
+    // Another branch's waiter does not exist as far as this tablet is
+    // concerned: rejected however often, never locked.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      expect(
+        await caught(
+          auth.signInWithPin(enrolment.deviceToken, {
+            staffMemberId: 'b-lumen-cascade-kitchen',
+            pin: '9999',
+          }),
+        ),
+      ).toBeInstanceOf(PinRejectedError);
+    }
+    // Four misses, a hit, four more: never five in a row.
+    const kitchen = 'b-lumen-north-kitchen';
+    const miss = () =>
+      caught(auth.signInWithPin(enrolment.deviceToken, { staffMemberId: kitchen, pin: '9999' }));
+    for (let attempt = 0; attempt < 4; attempt += 1)
+      expect(await miss()).toBeInstanceOf(PinRejectedError);
+    await auth.signInWithPin(enrolment.deviceToken, {
+      staffMemberId: kitchen,
+      pin: MOCK_STAFF_PIN,
+    });
+    for (let attempt = 0; attempt < 4; attempt += 1)
+      expect(await miss()).toBeInstanceOf(PinRejectedError);
+  });
+
+  it('calls a spent code spent even after its day, as the server checks that first', async () => {
+    const { registry, code } = await enrolled();
+    const later = createMockStaffAuth({
+      registry,
+      now: () => new Date(T0.getTime() + 25 * 60 * 60_000),
+    });
+    expect(
+      await caught(later.enrol({ code, deviceId: 'dev-9', deviceName: 'Late' })),
+    ).toBeInstanceOf(EnrolmentCodeSpentError);
   });
 });
