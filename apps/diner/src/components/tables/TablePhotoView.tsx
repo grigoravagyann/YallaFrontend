@@ -51,6 +51,11 @@ export interface TablePhotoViewProps {
    */
   readonly onBook?: ((table: TablePhotoMarker) => void) | undefined;
   /**
+   * False where the venue takes no app bookings: the info bar still shows the
+   * selected table and says so, with no Book on it.
+   */
+  readonly canBook?: boolean | undefined;
+  /**
    * The party being booked for: a pin the slot will not give it cannot be
    * picked, and says why. Without it every pin can be tapped.
    */
@@ -122,6 +127,7 @@ export function TablePhotoView({
   selectedTableId,
   onSelect,
   onBook,
+  canBook = true,
   partySize,
   onZoomedChange,
   fullscreen = false,
@@ -329,7 +335,12 @@ export function TablePhotoView({
         </View>
 
         {onBook ? (
-          <TableInfoBar table={selected} photo={photo.thumbUrl} onBook={handleBook} />
+          <TableInfoBar
+            table={selected}
+            photo={photo.thumbUrl}
+            onBook={handleBook}
+            canBook={canBook}
+          />
         ) : null}
       </View>
 
@@ -341,6 +352,7 @@ export function TablePhotoView({
           selectedTableId={selectedTableId}
           onSelect={onSelect}
           onBook={onBook ? handleBook : undefined}
+          canBook={canBook}
           partySize={partySize}
         />
       )}

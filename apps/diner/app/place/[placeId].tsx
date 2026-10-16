@@ -351,8 +351,9 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
                 rooms={rooms}
                 selectedTableId={selectedTableId}
                 onSelect={setSelectedTableId}
+                onBook={onBook}
                 // Where the app cannot book, the bar says so rather than offer Book.
-                onBook={bookingsOff ? undefined : onBook}
+                canBook={!bookingsOff}
                 style={styles.tablePhoto}
               />
               <TableLegend style={styles.legend} />

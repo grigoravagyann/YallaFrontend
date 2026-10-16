@@ -121,6 +121,21 @@ describe('RoomPhotosView', () => {
     expect(screen.getByText('This table cannot be booked right now')).toBeTruthy();
   });
 
+  it('explains on the bar, without Book, where the venue takes no app bookings', () => {
+    render(
+      <RoomPhotosView
+        rooms={ROOMS}
+        selectedTableId="4"
+        onSelect={() => undefined}
+        onBook={() => undefined}
+        canBook={false}
+      />,
+    );
+    expect(screen.getByText('Table 4')).toBeTruthy();
+    expect(screen.getByText('Not taking bookings in the app')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Book' })).toBeNull();
+  });
+
   it('draws a free pin this party cannot have as not selectable, and says why', () => {
     const onSelect = vi.fn();
     render(
