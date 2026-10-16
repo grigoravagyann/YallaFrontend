@@ -4,6 +4,7 @@ import { createQueryClient } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +20,7 @@ import { resetDinerQueriesOnSessionChange } from '../src/data/dinerScope';
 import { gateway } from '../src/data/gateway';
 import { bootstrapI18n } from '../src/i18n';
 import { wireQueryManagers } from '../src/lib/queryManagers';
+import { useWebFontFaces } from '../src/lib/useWebFontFaces';
 import { configureProfileStorage, useSession } from '../src/stores/session';
 import { usePushNotifications } from '../src/push/usePushNotifications';
 import { colors, nativeDisplayFontFace, nativeFontFace } from '../src/theme';
@@ -61,7 +63,8 @@ configureProfileStorage(profileStorage);
  * Serif for display — registered under the exact face names the theme hands
  * to `Text`. Loaded before the first frame: a screen that paints in the
  * system font and then reflows into Yalla Sans half a second later looks
- * broken, not fast.
+ * broken, not fast. The icon font is in the list for the same reason: an
+ * icon that has not arrived is an empty box.
  */
 // Metro resolves assets by statically analysing a literal `require()`; an
 // `import` would need a module declaration per extension and gains nothing.
@@ -72,8 +75,10 @@ const FONTS = {
   [nativeFontFace['700']]: require('../assets/fonts/YallaSans-700.ttf'),
   [nativeDisplayFontFace['600']]: require('../assets/fonts/YallaSerif-600.ttf'),
   [nativeDisplayFontFace['700']]: require('../assets/fonts/YallaSerif-700.ttf'),
+  ...Ionicons.font,
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
+const FONT_FACES = Object.keys(FONTS);
 
 /**
  * Notification wiring, as a component rather than a call in `RootLayout`.
@@ -102,6 +107,8 @@ function PushNotifications() {
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [fontsLoaded, fontError] = useFonts(FONTS);
+  // On the web, "loaded" means the rules are in the page; this waits for the files.
+  const facesReady = useWebFontFaces(FONT_FACES, fontsLoaded);
 
   // Reading the device locale, any stored override and the refresh token are
   // all async, so the first frame has to wait — rendering before they resolve
@@ -124,7 +131,7 @@ export default function RootLayout() {
   // face: an unreadable label is worse than an off-brand one.
   if (fontError) console.warn('[fonts] Yalla fonts failed to load', fontError);
 
-  if (!ready || (!fontsLoaded && !fontError)) {
+  if (!ready || (!fontError && (!fontsLoaded || !facesReady))) {
     // The boot screen is the first frame anybody sees, so it is already the
     // app's ground and brown, not a neutral placeholder that changes a moment later.
     return (
