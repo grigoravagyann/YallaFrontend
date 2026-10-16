@@ -163,13 +163,11 @@ describe('placeFromDetail', () => {
         edited: true,
       },
     ],
-    tableMarkers: [
-      { tableId: 't', label: '5', seats: 4, isBookable: true, status: 'free', x: 0.25, y: 0.5 },
-    ],
+    rooms: [],
     asOfUtc: '2026-09-14T10:00:00Z',
   };
 
-  it('maps hours, reviews, markers and the booking gate the screens read', () => {
+  it('maps hours, reviews and the booking gate the screens read', () => {
     // A Monday in Yerevan, 14:00 local.
     const place = placeFromDetail(detail, CONTEXT);
 
@@ -182,9 +180,8 @@ describe('placeFromDetail', () => {
     expect(place.reviews).toEqual([
       { id: 'r', author: 'Anahit S.', rating: 5, text: '', date: '2026-09-02', edited: true },
     ]);
-    expect(place.tables).toEqual([
-      { tableId: 't', label: '5', status: 'free', capacityMin: 1, capacityMax: 4, x: 0.25, y: 0.5 },
-    ]);
+    // Pins are on room photos, never on the cover; the tables read brings them.
+    expect(place.tables).toEqual([]);
     expect(place).not.toHaveProperty('menu');
   });
 

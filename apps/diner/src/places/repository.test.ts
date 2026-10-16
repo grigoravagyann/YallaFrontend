@@ -2,7 +2,7 @@ import type {
   BranchDetail,
   BranchListing,
   BranchReviewPage,
-  BranchTableMarkers,
+  BranchRooms,
   YallaGateway,
 } from '@yalla/api';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -73,7 +73,7 @@ const DETAIL: BranchDetail = {
   acceptsWebBookings: true,
   acceptsAppBookings: true,
   recentReviews: [],
-  tableMarkers: [],
+  rooms: [],
   asOfUtc: '2026-09-14T10:00:00Z',
 };
 
@@ -88,7 +88,7 @@ function fakeGateway(overrides: Partial<YallaGateway> = {}) {
       ] as BranchListing[]),
     ),
     getBranchDetail: vi.fn(() => Promise.resolve(DETAIL)),
-    getBranchTableMarkers: vi.fn(() => Promise.resolve(null)),
+    getBranchRooms: vi.fn(() => Promise.resolve(null)),
     getBranchMenuDetail: vi.fn(() => Promise.resolve(null)),
     getBranchReviews: vi.fn(() => Promise.resolve(null)),
     ...overrides,
@@ -97,7 +97,7 @@ function fakeGateway(overrides: Partial<YallaGateway> = {}) {
     | 'listBranches'
     | 'searchBranches'
     | 'getBranchDetail'
-    | 'getBranchTableMarkers'
+    | 'getBranchRooms'
     | 'getBranchMenuDetail'
     | 'getBranchReviews'
   > &
@@ -138,20 +138,63 @@ describe('createHttpPlaceRepository', () => {
     expect(await places.menu('b1')).toEqual([]);
   });
 
-  it('draws no tables when the branch has no cover photo to place them on', async () => {
-    const markers = {
+  it("draws the first room photo's pins on that photo, until the screen learns rooms", async () => {
+    const rooms = {
       branchId: 'b1',
-      photo: null,
       asOfUtc: '2026-09-14T10:00:00Z',
-      tables: [
-        { tableId: 't', label: '5', seats: 4, isBookable: true, status: 'free', x: 0.2, y: 0.4 },
+      rooms: [
+        {
+          roomId: 'r1',
+          name: 'Hall',
+          displayOrder: 0,
+          photos: [
+            {
+              photo: { photoId: 'p1', thumbnailUrl: 't', cardUrl: 'c', fullUrl: 'https://api/p1' },
+              tables: [
+                {
+                  tableId: 't',
+                  label: '5',
+                  seats: 4,
+                  isBookable: true,
+                  status: 'free',
+                  x: 0.2,
+                  y: 0.4,
+                },
+              ],
+            },
+          ],
+        },
       ],
-    } as unknown as BranchTableMarkers;
-    const gateway = fakeGateway({ getBranchTableMarkers: vi.fn(() => Promise.resolve(markers)) });
+    } as unknown as BranchRooms;
+    const gateway = fakeGateway({ getBranchRooms: vi.fn(() => Promise.resolve(rooms)) });
+    const places = repository.createHttpPlaceRepository({ gateway, ...clock });
+
+    expect(await places.tables('b1')).toEqual({
+      photo: 'https://api/p1',
+      tables: [
+        {
+          tableId: 't',
+          label: '5',
+          status: 'free',
+          capacityMin: 1,
+          capacityMax: 4,
+          x: 0.2,
+          y: 0.4,
+        },
+      ],
+    });
+    expect(gateway.getBranchRooms).toHaveBeenCalledWith('b1');
+  });
+
+  it('draws no tables when the branch has no room photo to place them on', async () => {
+    const gateway = fakeGateway({
+      getBranchRooms: vi.fn(() =>
+        Promise.resolve({ branchId: 'b1', asOfUtc: '2026-09-14T10:00:00Z', rooms: [] }),
+      ),
+    });
     const places = repository.createHttpPlaceRepository({ gateway, ...clock });
 
     expect(await places.tables('b1')).toEqual({ photo: null, tables: [] });
-    expect(gateway.getBranchTableMarkers).toHaveBeenCalledWith('b1');
   });
 
   it('pages reviews through the reviews route', async () => {

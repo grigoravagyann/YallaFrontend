@@ -193,7 +193,9 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
     about: detail.about ?? '',
     acceptsAppBookings: detail.acceptsAppBookings,
     reviews: detail.recentReviews.map((review) => reviewFromApi(review, base.timeZoneId)),
-    // Markers only mean something on the cover; without one there is nothing to draw on.
-    tables: cover ? detail.tableMarkers.map(markerFromApi) : [],
+    // Pins are on room photos now, never on the cover; `repository.tables`
+    // reads them with the photo they refer to. (Rooms reach this screen in a
+    // later change.)
+    tables: [],
   };
 }

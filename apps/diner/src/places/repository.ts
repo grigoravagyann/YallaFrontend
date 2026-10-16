@@ -172,7 +172,7 @@ export interface HttpPlaceRepositoryOptions {
     | 'listBranches'
     | 'searchBranches'
     | 'getBranchDetail'
-    | 'getBranchTableMarkers'
+    | 'getBranchRooms'
     | 'getBranchMenuDetail'
     | 'getBranchReviews'
   >;
@@ -226,10 +226,12 @@ export function createHttpPlaceRepository(
     },
 
     async tables(placeId) {
-      const markers = await source.getBranchTableMarkers(placeId);
-      const photo = coverUrl(markers?.photo);
-      // No cover photo means nothing to draw the markers on.
-      return { photo, tables: photo && markers ? markers.tables.map(markerFromApi) : [] };
+      // Until this screen learns rooms: the first room's first photo, with the
+      // pins placed on it. A branch with no room photo has nothing to draw on.
+      const answer = await source.getBranchRooms(placeId);
+      const first = answer?.rooms[0]?.photos[0] ?? null;
+      const photo = coverUrl(first?.photo);
+      return { photo, tables: photo && first ? first.tables.map(markerFromApi) : [] };
     },
 
     async menu(placeId) {
