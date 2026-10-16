@@ -36,6 +36,7 @@ import { REPORT_MAX_DAYS } from '../contracts/reports';
 import type { ReportExport, ReportQuery } from '../contracts/reports';
 import {
   BranchNotReadyError,
+  VenueDeletionBlockedError,
   CategoryInUseError,
   CoverChangedError,
   FloorPlanChangedError,
@@ -530,7 +531,30 @@ export function createConsoleHttpGateway(
 
     resumeVenue: ({ venueId }) => venueCommand('post', `${PLATFORM}/venues/${venueId}/reactivate`),
 
-    deleteVenue: ({ venueId }) => venueCommand('delete', `${PLATFORM}/venues/${venueId}`),
+    async deleteVenue({ venueId }) {
+      try {
+        return await venueCommand('delete', `${PLATFORM}/venues/${venueId}`);
+      } catch (error) {
+        // 409 venue-deletion-blocked names what is still in use: open tables
+        // and upcoming bookings. Without this the screen could only say
+        // "something went wrong".
+        if (error instanceof ApiError && error.code === 'venue-deletion-blocked') {
+          const context = error.problem?.context as
+            { openTabs?: unknown; futureReservations?: unknown } | null | undefined;
+          const strings = (value: unknown): string[] =>
+            Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+          throw new VenueDeletionBlockedError({
+            url: error.url,
+            requestId: error.requestId,
+            venueId,
+            openTables: strings(context?.openTabs),
+            futureBookings: strings(context?.futureReservations),
+            message: error.message,
+          });
+        }
+        throw error;
+      }
+    },
 
     // --- The floor plan editor ----------------------------------------------
 

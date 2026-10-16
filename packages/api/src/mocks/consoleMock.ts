@@ -29,7 +29,7 @@ import {
   PolicyBoundsError,
   SlugTakenError,
   UnsupportedImageError,
-  VenueHasOpenTabsError,
+  VenueDeletionBlockedError,
 } from '../contracts/errors';
 import {
   ConcurrencyConflictError,
@@ -1612,23 +1612,41 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       await wait();
       const record = requireVenue(venueId);
 
-      // The whole reason this returns a typed error rather than a boolean: the
-      // screen has to be able to say *which* table is still sitting.
+      // PlatformService.DeleteVenueAsync: refused while a table has an open
+      // tab or a confirmed/pending booking has not started yet, with the
+      // labels and codes in the 409's context and this sentence.
       // The mock always knows its own tab counts, so a null here would be a
       // bug in the fixture rather than a source that did not report them.
-      const blocking = record.branches.filter((branch) => (branch.openTabCount ?? 0) > 0);
-      if (blocking.length > 0) {
-        throw new VenueHasOpenTabsError({
+      const openTables = record.branches.flatMap((branch) =>
+        Array.from({ length: branch.openTabCount ?? 0 }, (_, i) => String(i + 7)),
+      );
+      seedBookings();
+      const branchIds = new Set(record.branches.map((branch) => branch.id));
+      const today = now().toISOString().slice(0, 10);
+      const futureBookings = [...bookings.values()]
+        .filter(
+          (booking) =>
+            branchIds.has(booking.branchId) &&
+            (booking.status === 'confirmed' || booking.status === 'pendingApproval') &&
+            booking.localDate >= today,
+        )
+        .map((booking) => booking.code);
+      if (openTables.length > 0 || futureBookings.length > 0) {
+        const parts: string[] = [];
+        if (openTables.length > 0) {
+          parts.push(`${openTables.length} open tab(s) on table(s) ${openTables.join(', ')}`);
+        }
+        if (futureBookings.length > 0) {
+          parts.push(
+            `${futureBookings.length} future confirmed reservation(s) (${futureBookings.join(', ')})`,
+          );
+        }
+        throw new VenueDeletionBlockedError({
           url: URL_TAG,
           venueId,
-          openTabs: blocking.flatMap((branch) =>
-            Array.from({ length: branch.openTabCount ?? 0 }, (_, i) => ({
-              tabId: `${branch.id}-tab-${i + 1}`,
-              branchId: branch.id,
-              branchName: branch.name,
-              tableLabel: String(i + 7),
-            })),
-          ),
+          openTables,
+          futureBookings,
+          message: `This venue cannot be deleted: it has ${parts.join(' and ')}. Suspend it instead, or wait for them to close.`,
         });
       }
 

@@ -128,7 +128,7 @@ export interface ConsoleBranch {
   readonly subscriptionTier: SubscriptionTier;
   /**
    * Tabs open right now. Blocks deleting the venue — see
-   * `VenueHasOpenTabsError`. `null` when the source does not report it: "we did
+   * `VenueDeletionBlockedError`. `null` when the source does not report it: "we did
    * not ask" and "none are open" are different answers, and a screen that
    * conflates them tells a manager the floor is clear when nobody looked.
    */

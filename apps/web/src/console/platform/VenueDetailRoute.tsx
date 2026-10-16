@@ -1,10 +1,9 @@
 import {
   ApiError,
   BranchNotReadyError,
-  VenueHasOpenTabsError,
+  VenueDeletionBlockedError,
   canIssueSignIn,
   isAdminRole,
-  type BlockingTab,
   type StaffMember,
   type SubscriptionTier,
 } from '@yalla/api';
@@ -81,7 +80,10 @@ export function VenueDetailRoute() {
   const [tierFailure, setTierFailure] = useState<{ branchId: string; text: string } | null>(null);
   const [typed, setTyped] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
-  const [blocked, setBlocked] = useState<readonly BlockingTab[] | null>(null);
+  const [blocked, setBlocked] = useState<{
+    readonly openTables: readonly string[];
+    readonly futureBookings: readonly string[];
+  } | null>(null);
   const [hiring, setHiring] = useState(false);
   /** One panel at a time per card: the venue's fields, or a new branch. */
   const [editingVenue, setEditingVenue] = useState(false);
@@ -158,8 +160,8 @@ export function VenueDetailRoute() {
       // The whole point of the typed error: "cannot delete" is useless, and
       // "table 7 at Northern Avenue still has an open tab" is actionable in the
       // next thirty seconds.
-      if (error instanceof VenueHasOpenTabsError) {
-        setBlocked(error.openTabs);
+      if (error instanceof VenueDeletionBlockedError) {
+        setBlocked({ openTables: error.openTables, futureBookings: error.futureBookings });
         return;
       }
       setFailure(t('venue.failed'));
@@ -531,26 +533,37 @@ export function VenueDetailRoute() {
         {failure ? <p className="error">{failure}</p> : null}
 
         {blocked ? (
-          <div className="blocked">
-            <h3>{t('venue.blocked.title')}</h3>
-            {blocked.length === 0 ? (
+          <section className="blocked" aria-labelledby="venue-blocked-title">
+            <h3 id="venue-blocked-title">{t('venue.blocked.title')}</h3>
+            {blocked.openTables.length === 0 && blocked.futureBookings.length === 0 ? (
               <p>{t('venue.blocked.unknown')}</p>
             ) : (
               <>
                 <p>{t('venue.blocked.body')}</p>
-                <ul>
-                  {blocked.map((tab) => (
-                    <li key={tab.tabId}>
-                      {t('venue.blocked.tab', {
-                        branch: tab.branchName,
-                        table: tab.tableLabel,
-                      })}
-                    </li>
-                  ))}
-                </ul>
+                {blocked.openTables.length > 0 ? (
+                  <>
+                    <h4>{t('venue.blocked.tablesTitle')}</h4>
+                    <ul>
+                      {blocked.openTables.map((table) => (
+                        <li key={`table-${table}`}>{t('venue.blocked.table', { table })}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+                {blocked.futureBookings.length > 0 ? (
+                  <>
+                    <h4>{t('venue.blocked.bookingsTitle')}</h4>
+                    <ul>
+                      {blocked.futureBookings.map((code) => (
+                        <li key={`booking-${code}`}>{t('venue.blocked.booking', { code })}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
               </>
             )}
-          </div>
+            <p className="muted">{t('venue.blocked.suspendHint')}</p>
+          </section>
         ) : null}
 
         {confirming === 'suspend' ? (

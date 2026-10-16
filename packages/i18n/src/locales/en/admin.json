@@ -242,10 +242,14 @@
     "deleteConfirm": "Delete it",
     "cancel": "Cancel",
     "blocked": {
-      "title": "Still in service",
-      "body": "This venue cannot be deleted while a table is mid-service. Close these tabs first:",
-      "tab": "{{branch}} · table {{table}}",
-      "unknown": "A table is still mid-service. The server did not say which."
+      "title": "Still in use",
+      "body": "This venue cannot be deleted while people are still eating there or booked to come.",
+      "tablesTitle": "Tables with an open tab",
+      "table": "Table {{table}}",
+      "bookingsTitle": "Bookings still to come",
+      "booking": "Booking {{code}}",
+      "unknown": "Something at this venue is still in use. The server did not say what.",
+      "suspendHint": "Close the tabs and wait for the bookings, or suspend the venue instead: suspending hides it at once and keeps everything."
     },
     "failed": "That did not go through. Nothing changed — try again.",
     "working": "Working…",

@@ -143,8 +143,9 @@ export interface ConsoleGateway {
   /**
    * Soft delete.
    *
-   * @throws {VenueHasOpenTabsError} a table is still mid-service. The error
-   * carries which tabs, because "cannot delete" alone is not actionable.
+   * @throws {VenueDeletionBlockedError} a table is still mid-service or a
+   * booking is still to come. The error carries which tables and which
+   * booking codes, because "cannot delete" alone is not actionable.
    */
   deleteVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;
 

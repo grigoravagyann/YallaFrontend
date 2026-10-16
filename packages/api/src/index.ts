@@ -437,10 +437,9 @@ export {
   ReportRangeTooLongError,
   StaffPermissionError,
   StaffPinTakenError,
-  VenueHasOpenTabsError,
+  VenueDeletionBlockedError,
   isFloorPlanInvalid,
 } from './contracts/errors';
-export type { BlockingTab } from './contracts/errors';
 
 // --- The menu editor, opening hours and the reservation policy ---------------
 export type { PhotoUpload } from './consoleGateway';
