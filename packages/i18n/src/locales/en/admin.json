@@ -420,7 +420,8 @@
       "regenerate": "Regenerate the QR",
       "regenerateWarning": "The code printed and stuck to table {{label}} stops working the moment this lands. Somebody has to go and replace it.",
       "typeLabel": "Type {{label}} to confirm",
-      "regenerateConfirm": "Regenerate it"
+      "regenerateConfirm": "Regenerate it",
+      "regenerated": "Table {{label}} has a new QR code. Print it and replace the old sticker."
     },
     "deactivated": {
       "body": "Table {{label}} has bookings against it, so it was kept and deactivated rather than deleted.",
@@ -787,7 +788,7 @@
       "hideTable": "Hide table"
     },
     "summary": {
-      "title": "This week",
+      "customTitle": "Selected range",
       "covers": "Covers",
       "revenue": "Revenue",
       "tabsClosed": "Tabs closed",
@@ -902,6 +903,11 @@
     }
   },
   "staff": {
+    "deactivate": {
+      "title": "Deactivate {{name}}?",
+      "body": "They stop appearing on the tablets and can no longer sign in. Nothing is deleted: when they are back, reactivate them from “Show deactivated”.",
+      "confirm": "Deactivate"
+    },
     "intro": "Who works here, and which devices they sign in on.",
     "add": "Add someone",
     "noVenue": "This account is not attached to a venue.",

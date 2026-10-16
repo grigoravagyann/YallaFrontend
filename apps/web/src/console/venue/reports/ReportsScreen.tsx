@@ -207,7 +207,7 @@ export function ReportsScreen() {
         </p>
       )}
 
-      <SummarySection query={query} locale={locale} />
+      <SummarySection query={query} locale={locale} preset={preset} />
       <OccupancySection query={query} locale={locale} />
       <ReservationsSection query={query} locale={locale} />
       <MenuSection query={query} locale={locale} />
