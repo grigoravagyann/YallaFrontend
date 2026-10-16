@@ -32,8 +32,7 @@ export default function PlaceReviewsScreen() {
   );
   // The place read answers first (the pages wait on its zone), so an unknown
   // id is known from either.
-  const unknownPlace =
-    place === null || (pages.data !== undefined && pages.data.pages[0] === null);
+  const unknownPlace = place === null || (pages.data !== undefined && pages.data.pages[0] === null);
   const offline = isOfflinePaused(pages) && !pages.data;
 
   const goBack = () => {

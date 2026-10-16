@@ -35,7 +35,12 @@ vi.mock('../components/places/placeCopy', () => ({
   usePlaceCopy: () => ({ typeLine: 'Café · Armenian' }),
 }));
 vi.mock('./useFavoritePlaces', () => ({
-  useFavoritePlaces: () => ({ places: [PLACE], isLoading: false, isError: false, refetch: vi.fn() }),
+  useFavoritePlaces: () => ({
+    places: [PLACE],
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 const PLACE = {
@@ -61,6 +66,8 @@ describe('the Favourites list', () => {
 
     expect(screen.getByRole('button', { name: 'place.unfavorite' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'The Green Table' })).toBeTruthy();
-    expect(container.querySelectorAll('button button, [role="button"] [role="button"]')).toHaveLength(0);
+    expect(
+      container.querySelectorAll('button button, [role="button"] [role="button"]'),
+    ).toHaveLength(0);
   });
 });
