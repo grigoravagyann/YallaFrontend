@@ -151,4 +151,24 @@ describe('the manage page in the browser chrome', () => {
     await waitFor(() => expect(document.title).toBe('Your booking · Yalla'));
     expect(screen.getByText(/^Table \S+$/u)).toBeTruthy();
   });
+
+  it('retitles the tab once the booking is cancelled', async () => {
+    const harness = createHarness();
+    const { url } = await bookedLink(harness);
+    const user = userEvent.setup();
+
+    render(harness.wrap(<PublicApp />, url));
+    await user.click(await screen.findByRole('button', { name: 'Cancel this booking' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, cancel' }));
+
+    await waitFor(() => expect(document.title).toBe('Cancelled · Yalla'));
+  });
+
+  it('titles a dead link as one', async () => {
+    const harness = createHarness();
+    render(harness.wrap(<PublicApp />, '/lumen-coffee/northern-avenue/booking/mbk_nope'));
+
+    await screen.findByText('This link no longer works');
+    await waitFor(() => expect(document.title).toBe('This link no longer works · Yalla'));
+  });
 });

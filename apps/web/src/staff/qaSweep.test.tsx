@@ -168,6 +168,21 @@ describe('the connection chip on the staff header', () => {
   });
 });
 
+describe('the tab title on the tablet', () => {
+  it('names the floor for a waiter and the kitchen for the kitchen', async () => {
+    signIn('waiter');
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+    await screen.findByRole('heading', { level: 1, name: 'Floor' });
+    await waitFor(() => expect(document.title).toBe('Floor · Yalla'));
+    cleanup();
+
+    signIn('kitchen');
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+    await screen.findByRole('heading', { level: 1, name: 'Kitchen' });
+    await waitFor(() => expect(document.title).toBe('Kitchen · Yalla'));
+  });
+});
+
 describe('the staff floor, read without a pointer', () => {
   it('names each table as a button', async () => {
     signIn('waiter');
@@ -284,7 +299,10 @@ describe('the order and tab dialogs', () => {
 
     expect(screen.getByRole('dialog', { name: 'Order for table 4' })).toBeTruthy();
     expect(screen.queryByText('A tab will be opened for this table.')).toBeNull();
-    expect(screen.getByRole('button', { name: new RegExp(`^${first.name}`, 'u') })).toBeTruthy();
+    // "Name, price" — the tile's own label, not its two spans run together
+    // ("Lahmajun1,200 ֏"), which is what a tile with no name is read as.
+    const name = first.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    expect(screen.getByRole('button', { name: new RegExp(`^${name}, \\S`, 'u') })).toBeTruthy();
   });
 
   it('name the tab panel by its table too', () => {

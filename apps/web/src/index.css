@@ -3553,7 +3553,7 @@ kbd {
 }
 
 .report-stat-value {
-  margin: var(--space-xxs) 0 0;
+  margin: var(--space-xs) 0 0;
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
   color: var(--color-foreground);
@@ -3568,7 +3568,7 @@ kbd {
    one in twelve men cannot tell this red from this green, and it is a number
    somebody is making a decision on. */
 .report-delta {
-  margin: var(--space-xxs) 0 0;
+  margin: var(--space-xs) 0 0;
   font-size: var(--font-size-sm);
 }
 
