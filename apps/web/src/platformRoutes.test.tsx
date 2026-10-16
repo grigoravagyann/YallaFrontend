@@ -92,9 +92,9 @@ describe('the platform branch routes', () => {
     ).toBe(false);
   });
 
-  it('give a platform admin the branch floor plan editor', async () => {
+  it('give a platform admin the branch rooms editor', async () => {
     renderAt('platformAdmin', `${BASE}/floorplan`);
-    expect(await screen.findByRole('button', { name: /save the plan/i })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /save rooms/i })).toBeTruthy();
   });
 
   it.each(['waiter', 'kitchen', 'owner', 'manager'] as const)(

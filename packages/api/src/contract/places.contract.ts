@@ -48,9 +48,12 @@ export function describePlacesContract(subject: ContractSubject): void {
       const detail = await gateway.getBranchDetail(fixtures.branchId);
       expect(detail?.listing.branchId).toBe(fixtures.branchId);
       expect(detail!.recentReviews.length).toBeLessThanOrEqual(3);
-      for (const marker of detail!.tableMarkers) {
-        expect(marker.x).toBeGreaterThanOrEqual(0);
-        expect(marker.x).toBeLessThanOrEqual(1);
+      for (const room of detail!.rooms) {
+        expect(room.photos.length).toBeGreaterThan(0);
+        for (const marker of room.photos.flatMap((photo) => photo.tables)) {
+          expect(marker.x).toBeGreaterThanOrEqual(0);
+          expect(marker.x).toBeLessThanOrEqual(1);
+        }
       }
 
       await expect(

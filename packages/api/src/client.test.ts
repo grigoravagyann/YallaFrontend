@@ -346,6 +346,48 @@ describe('401 and the refresh flow', () => {
     expect(describeFailure(error)).toBe('unauthorized');
   });
 
+  it('never refreshes for a request sent with no token, so it cannot spend the next sign-in', async () => {
+    /*
+     * The console's flake (VenueLayout, "the next person to sign in"): a read
+     * the last person's screen made after their sign-out went out anonymous,
+     * and its 401 arrived as the next person signed in. Refreshing for it read
+     * the new refresh token, the refresh was refused, and the new person was
+     * signed out before their first screen loaded.
+     */
+    const inner = createMemoryTokenStorage();
+    const storage = {
+      ...inner,
+      read: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return inner.read();
+      },
+    };
+    const refreshTokens = vi.fn(() =>
+      Promise.reject(new UnauthorizedError({ url: `${BASE}/api/auth/venue/refresh` })),
+    );
+    const onSignedOut = vi.fn();
+    const auth = createAuthSession({ storage, refreshTokens, onSignedOut });
+    await auth.restore();
+    const fetchImpl = vi.fn().mockResolvedValue(problem(401, 'token-rejected'));
+
+    const stray = clientWith(fetchImpl, { auth })
+      .get('/x')
+      .catch((e: unknown) => e);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    const next = {
+      accessToken: jwt(9_999_999_999, 'next'),
+      refreshToken: 'r-next',
+      expiresInSeconds: 900,
+    };
+    await auth.signIn(next);
+
+    expect(await stray).toBeInstanceOf(UnauthorizedError);
+    expect(refreshTokens).not.toHaveBeenCalled();
+    expect(onSignedOut).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(auth.peekAccessToken()).toBe(next.accessToken);
+  });
+
   it('does not refresh on a 401 from an auth endpoint itself', async () => {
     const refreshTokens = vi.fn();
     const { auth } = sessionWith(refreshTokens);

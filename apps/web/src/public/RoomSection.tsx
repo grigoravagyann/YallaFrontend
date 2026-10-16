@@ -1,7 +1,8 @@
 import { unavailableCopy, type PublicBranch, type TableAvailability } from '@yalla/api';
 import { isOfflinePaused, PUBLIC_REFRESH_MS, useSlotFloor } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import RoomPhotos from './RoomPhotos';
 import {
   PARTY_SIZES,
   addDays,
@@ -12,24 +13,20 @@ import {
 } from './slots';
 
 /**
- * The room, the three controls above it, and nothing else.
+ * The rooms, the three controls above them, and nothing else.
  *
- * `FloorPlanCanvas` is behind `lazy()` **and** behind an intersection observer.
- * Both matter and they do different jobs: `lazy()` keeps
- * `react-native-web` out of the first download, and the observer keeps it from
- * being requested at all until the visitor scrolls far enough to want it. A
- * visitor who reads the free-table count and closes the tab — which is most of
- * them — never fetches the renderer.
+ * The photos are behind an intersection observer: a visitor who reads the
+ * free-table count and closes the tab — which is most of them — never
+ * downloads a room photo.
  */
-const FloorPlanCanvas = lazy(() => import('./FloorPlanCanvas'));
 
 /**
  * True once `ref` has been near the viewport at least once.
  *
- * Sticky on purpose: it turns the chunk fetch on and never off, so scrolling
- * back up does not unmount a plan somebody is using. `rootMargin` starts the
- * fetch a screen early, which on a slow connection is the difference between
- * arriving at a drawn room and arriving at a placeholder.
+ * Sticky on purpose: it turns the photos on and never off, so scrolling back
+ * up does not unmount a room somebody is using. `rootMargin` starts the fetch a
+ * screen early, which on a slow connection is the difference between arriving
+ * at a room and arriving at a placeholder.
  */
 function useHasApproached(ref: React.RefObject<HTMLElement | null>): boolean {
   // No observer at all (an old browser): start visible rather than hide the
@@ -81,8 +78,8 @@ export function RoomSection({
   const approached = useHasApproached(holder);
 
   /*
-   * The room **as it will be at the chosen slot**, and every table's verdict
-   * for it, from one request.
+   * The tables **as they will be at the chosen slot** — each with its pin on a
+   * room photo — and every table's verdict for it, from one request.
    *
    * This used to be two calls, and the one that drew the room asked about
    * *now* — so a visitor picking Saturday at 20:00 was shown tonight's walk-ins
@@ -267,15 +264,13 @@ export function RoomSection({
       ) : !approached || !slotFloorQuery.data ? (
         <div className="pub-plan is-placeholder" aria-hidden="true" />
       ) : (
-        <Suspense fallback={<div className="pub-plan is-placeholder" aria-hidden="true" />}>
-          <FloorPlanCanvas
-            plan={slotFloorQuery.data.plan}
-            partySize={selection.partySize}
-            selectedTableId={selectedTableId}
-            onTableTap={handleTap}
-            bookable={branch.acceptsWebBookings}
-          />
-        </Suspense>
+        <RoomPhotos
+          rooms={branch.rooms}
+          tables={slotFloorQuery.data.plan.tables}
+          selectedTableId={selectedTableId}
+          onTableTap={handleTap}
+          bookable={branch.acceptsWebBookings}
+        />
       )}
     </section>
   );

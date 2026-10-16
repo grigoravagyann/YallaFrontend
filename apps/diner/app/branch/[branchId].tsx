@@ -1,11 +1,10 @@
 import { describeFailure, unavailableCopy, type TableAvailability } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
-import { FloorPlan, Legend } from '@yalla/floorplan';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { BookingContextBar, type BookingContext } from '../../src/components/BookingContextBar';
 import { EmptyState } from '../../src/components/EmptyState';
 import { IconButton } from '../../src/components/IconButton';
@@ -13,10 +12,14 @@ import { QueryErrorState } from '../../src/components/QueryErrorState';
 import { Screen } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
 import { TableSheet } from '../../src/components/TableSheet';
+import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
+import { TableLegend } from '../../src/components/tables/TableLegend';
 import { Text } from '../../src/components/Text';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
 import { useBookingRules, useSlotFloor } from '../../src/data/queries';
 import { defaultSlot } from '../../src/lib/bookingSlots';
+import { usePlaceRooms } from '../../src/places/hooks';
+import { roomsAtSlot } from '../../src/places/rooms';
 import { LEAD_MINUTES } from '../../src/places/slots';
 import { bookingRulesInput, type FloorPlanParams } from '../../src/places/navigation';
 import { useConflict } from '../../src/stores/conflict';
@@ -24,12 +27,13 @@ import { useSession } from '../../src/stores/session';
 import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../src/theme';
 
 /**
- * Pick a table at one branch — the floor-plan view.
+ * Pick a table at one branch, at a time — the rooms as photos, every table a
+ * pin coloured by its state **at the chosen slot**.
  *
- * The secondary way in: the details screen's photo is the main experience and
- * links here for a diner who wants the whole room. The booking context (date,
- * time, party size) is held here and passed down: party size decides which
- * tables are selectable, the slot decides each table's availability window.
+ * Reached from the place page's "Pick a time": the page shows the rooms as
+ * they are now, this shows them at the date, time and party size picked here.
+ * The booking context is held here and passed down: party size decides which
+ * tables are selectable, the slot decides each table's state and window.
  * This screen stays mounted while verification and confirmation are pushed on
  * top of it — that is what preserves the diner's selected table across the
  * whole round trip, including Android hardware back.
@@ -61,7 +65,6 @@ export default function BranchFloorPlanScreen() {
   const [touchedSlot, setTouchedSlot] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [sheetTableId, setSheetTableId] = useState<string | null>(null);
-  const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   const slotIso = useMemo(() => booking.slotUtc.toISOString(), [booking.slotUtc]);
 
@@ -109,12 +112,14 @@ export default function BranchFloorPlanScreen() {
   });
   const waitingForZone = !timeZoneId && zoneQuery.isLoading;
 
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    setViewport((prev) =>
-      prev.width === width && prev.height === height ? prev : { width, height },
-    );
-  }, []);
+  // What each room looks like: its photos, in the venue's order. The slot
+  // floor says where every table stands on them and what state it is in then.
+  const roomsQuery = usePlaceRooms(branchId);
+  const slotPlan = slotFloorQuery.data?.plan.tables;
+  const rooms = useMemo(
+    () => (slotPlan ? roomsAtSlot(roomsQuery.data ?? [], slotPlan) : []),
+    [roomsQuery.data, slotPlan],
+  );
 
   const handleTap = useCallback(
     (tableId: string) => {
@@ -289,7 +294,7 @@ export default function BranchFloorPlanScreen() {
       />
 
       <View style={styles.legendWrap}>
-        <Legend mode="diner" translate={(key) => t(key, { ns: 'common' })} />
+        <TableLegend />
       </View>
 
       {/* A lost table is information with the next action attached, not an
@@ -321,17 +326,29 @@ export default function BranchFloorPlanScreen() {
         </Text>
       )}
 
-      <View style={styles.planWrap} onLayout={onLayout}>
-        <FloorPlan
-          plan={slotFloor.plan}
-          mode="diner"
-          partySize={booking.partySize}
-          selectedTableId={selectedTableId}
-          onTableTap={handleTap}
-          viewport={viewport}
-          accessibilityLabel={t('floorPlan.title')}
-        />
-      </View>
+      <ScrollView style={styles.planWrap} contentContainerStyle={styles.plan}>
+        {rooms.length > 0 ? (
+          <RoomPhotosView
+            rooms={rooms}
+            selectedTableId={selectedTableId}
+            onSelect={(tableId) => {
+              if (tableId) handleTap(tableId);
+              else setSelectedTableId(null);
+            }}
+          />
+        ) : roomsQuery.isLoading ? (
+          <Skeleton height={240} borderRadius={radius.card} />
+        ) : isOfflinePaused(roomsQuery) || roomsQuery.isError ? (
+          // A failed read is not a venue without photos: say which, and retry.
+          <QueryErrorState
+            error={roomsQuery.error}
+            offline={isOfflinePaused(roomsQuery)}
+            onRetry={() => void roomsQuery.refetch()}
+          />
+        ) : (
+          <Text style={styles.noRooms}>{t('tables.notOnPhoto')}</Text>
+        )}
+      </ScrollView>
 
       <TableSheet
         availability={sheetAvailability}
@@ -376,17 +393,9 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontWeight: fontWeight.medium,
   },
-  // The room sits in a white card like everything else on the cream.
-  planWrap: {
-    flex: 1,
-    marginHorizontal: layout.screenPadding,
-    marginBottom: space.lg,
-    borderRadius: radius.card,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
+  planWrap: { flex: 1 },
+  noRooms: { ...typography.body, color: colors.textMuted },
+  plan: { paddingHorizontal: layout.screenPadding, paddingBottom: space.lg },
   skeleton: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm, gap: space.md },
   skeletonBar: { flexDirection: 'row', gap: space.sm },
 });

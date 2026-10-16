@@ -113,9 +113,9 @@ export function timeSlots(
   return slots.sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 
-/** Only a free table can be booked from the photo. */
+/** Only a free table the venue takes bookings for can be booked from the photo. */
 export function bookableTables(tables: readonly TablePhotoMarker[]): readonly TablePhotoMarker[] {
-  return tables.filter((table) => table.status === 'free');
+  return tables.filter((table) => table.status === 'free' && table.isBookable);
 }
 
 /** The tables a party of `partySize` fits at, free ones only. */

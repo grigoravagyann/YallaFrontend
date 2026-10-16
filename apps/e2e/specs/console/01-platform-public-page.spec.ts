@@ -1,18 +1,25 @@
 import { expect, test } from '@playwright/test';
 
-import { branchDetail, demoBranch, newApi, tableMarkers, uniqueTag } from '../../support/api';
+import {
+  branchDetail,
+  branchRooms,
+  demoBranch,
+  newApi,
+  roomPins,
+  uniqueTag,
+} from '../../support/api';
 import { signInConsole } from '../../support/console';
 import { env } from '../../support/env';
 import { gradientPng } from '../../support/png';
 
 /**
- * Plan E1 console spec, as the platform admin, on the demo branch's public page
- * through the platform route: listing fields persist; a pin lands where it was
- * clicked (the positions request carries photoX/photoY, or this fails); a new
- * cover clears the pins in the UI and the API; and a new address and pin reach
- * the public details.
+ * Plan E1 console spec, as the platform admin, on the demo branch through the
+ * platform routes: listing fields persist; a new cover is uploaded and saved; a
+ * new address and pin reach the public details; and in the rooms editor (the
+ * floor-plan route) a table's pin moved with the keyboard reaches the rooms a
+ * diner reads, on the same photo.
  */
-test('Platform admin edits the demo branch public page: listing, pins, cover and address', async ({
+test('Platform admin edits the demo branch: listing, cover, address and a table pin', async ({
   page,
 }) => {
   const api = await newApi();
@@ -50,27 +57,7 @@ test('Platform admin edits the demo branch public page: listing, pins, cover and
     .poll(async () => (await branchDetail(api, demo.branchId)).listing.cuisine)
     .toBe(cuisine);
 
-  // --- Pins: table 1 goes where the photo was clicked ---------------------------------
-  const markers = page.getByRole('region', { name: 'Tables on the cover photo' });
-  const before = await tableMarkers(api, demo.branchId);
-  const target = emptySpot(before.tables.filter((table) => table.label !== '1'));
-
-  await markers.getByRole('button', { name: /^Table 1 · / }).click();
-  const stage = markers.getByTestId('marker-stage');
-  const box = await stage.boundingBox();
-  if (!box) throw new Error('The marker stage has no size.');
-  await page.mouse.click(box.x + box.width * target.x, box.y + box.height * target.y);
-  await markers.getByRole('button', { name: 'Save positions' }).click();
-  await expect(markers.getByText('Positions saved.')).toBeVisible();
-
-  const placed = (await tableMarkers(api, demo.branchId)).tables.find(
-    (table) => table.label === '1',
-  );
-  expect(placed, 'table 1 is on the cover in /table-markers').toBeTruthy();
-  expect(Math.abs(placed!.photoX - target.x)).toBeLessThanOrEqual(0.02);
-  expect(Math.abs(placed!.photoY - target.y)).toBeLessThanOrEqual(0.02);
-
-  // --- Cover: a new picture clears every pin ------------------------------------------
+  // --- Cover: a new picture is uploaded and saved ------------------------------------
   const coverCard = page
     .locator('form')
     .filter({ has: page.getByRole('heading', { name: 'Cover photo' }) });
@@ -102,17 +89,6 @@ test('Platform admin edits the demo branch public page: listing, pins, cover and
   ).toBe(newCoverId);
   await expect(coverCard.getByText('Saved.', { exact: true })).toBeVisible();
 
-  // The server first, then the screen, so a failure says which of them kept the old pins.
-  await expect
-    .poll(async () => (await tableMarkers(api, demo.branchId)).tables.length, {
-      message: 'GET /table-markers is empty after the cover changed',
-    })
-    .toBe(0);
-  await expect(
-    markers.getByText(/^0 of \d+ tables placed$/),
-    'the markers section drops the old pins once the new cover is saved, without a reload',
-  ).toBeVisible();
-
   // --- Address and pin: the public details follow -------------------------------------
   const address = `${tag} Test Street, Yerevan`;
   await listing.getByLabel('Street address').fill(address);
@@ -125,15 +101,28 @@ test('Platform admin edits the demo branch public page: listing, pins, cover and
     .poll(async () => (await branchDetail(api, demo.branchId)).listing.address, { timeout: 30_000 })
     .toBe(address);
 
+  // --- Rooms: table 1's pin, moved down with the keyboard, reaches the rooms read -----
+  const before = roomPins(await branchRooms(api, demo.branchId)).find((p) => p.label === '1');
+  expect(before, 'the seed pins table 1 on a room photo').toBeTruthy();
+  await page.goto(`/platform/venues/${demo.venueId}/branches/${demo.branchId}/floorplan`);
+  const tableOne = page.getByRole('button', { name: /^Table 1 · / });
+  await tableOne.click();
+  // Shift+arrow moves a pin by a twentieth of the photo; up when there is no room below.
+  const key = before!.photoY <= 0.9 ? 'Shift+ArrowDown' : 'Shift+ArrowUp';
+  await tableOne.press(key);
+  await page.getByRole('button', { name: 'Save rooms' }).click();
+  await expect(page.getByText('Rooms saved.')).toBeVisible();
+
+  const expectedY = before!.photoY + (key === 'Shift+ArrowDown' ? 0.05 : -0.05);
+  await expect
+    .poll(async () => {
+      const after = roomPins(await branchRooms(api, demo.branchId)).find((p) => p.label === '1');
+      return after && after.photoId === before!.photoId
+        ? Math.abs(after.photoY - expectedY) <= 0.002 &&
+            Math.abs(after.photoX - before!.photoX) <= 0.002
+        : false;
+    })
+    .toBe(true);
+
   await api.dispose();
 });
-
-/** A point on the photo at least 0.1 from every other pin, so the click lands on the photo. */
-function emptySpot(pins: readonly { photoX: number; photoY: number }[]): { x: number; y: number } {
-  for (const y of [0.35, 0.5, 0.65, 0.8, 0.2]) {
-    for (const x of [0.37, 0.5, 0.63, 0.25, 0.75, 0.15, 0.85]) {
-      if (pins.every((pin) => Math.hypot(pin.photoX - x, pin.photoY - y) >= 0.1)) return { x, y };
-    }
-  }
-  return { x: 0.5, y: 0.5 };
-}

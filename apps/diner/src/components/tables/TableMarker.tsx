@@ -42,17 +42,26 @@ export interface TableMarkerProps {
   readonly table: TablePhotoMarker;
   readonly selected: boolean;
   readonly onPress: (table: TablePhotoMarker) => void;
+  /**
+   * The party being booked for. Given, a table the slot will not give this
+   * party (`isBookable` false) cannot be picked: a free one is drawn hollow
+   * rather than green and named "Table 3, free, not for a party of 6".
+   */
+  readonly partySize?: number | undefined;
 }
 
 /**
- * A numbered circle on the photo: green free, orange reserved, red occupied.
+ * A numbered circle on the photo: green free, orange reserved, red occupied,
+ * grey out of service; hollow with a green ring when free but not for the
+ * party being booked. Named "Table 4, free" for a screen reader, so the
+ * colour is never the only way to know.
  *
- * Positioned by the marker's normalised `x`/`y` as percentages of the photo,
- * so it lands on the same table at any size and scales with the photo when
+ * Positioned by the pin's `x`/`y` as percentages of the box the photo is drawn
+ * in, so it lands on the same table at any size and scales with the photo when
  * the view is zoomed. Selecting it springs it up and sends a ring of its own
  * colour outwards, so the eye finds the tapped table even on a busy photo.
  */
-export function TableMarker({ table, selected, onPress }: TableMarkerProps) {
+export function TableMarker({ table, selected, onPress, partySize }: TableMarkerProps) {
   const { t } = useTranslation('diner');
   const capacity = useCapacityLabel();
   const [scale] = useState(() => new Animated.Value(selected ? SELECTED_SCALE : 1));
@@ -81,7 +90,12 @@ export function TableMarker({ table, selected, onPress }: TableMarkerProps) {
     return () => pulse.stop();
   }, [scale, ring, selected]);
 
-  const label = `${t('tables.table', { label: table.label })}, ${t(`tables.status.${table.status}`)}, ${capacity(table)}`;
+  const refused = partySize !== undefined && !table.isBookable;
+  // Free at the slot, but not for this party: still free, so not grey or red.
+  const unfit = refused && table.status === 'free';
+  const label = unfit
+    ? t('tables.pin.notForParty', { label: table.label, count: partySize })
+    : t(`tables.pin.${table.status}`, { label: table.label });
   const color = tableStatusColor[table.status];
   const ringScale = ring.interpolate({ inputRange: [0, 1], outputRange: [1, RING_SCALE] });
   const ringOpacity = ring.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] });
@@ -105,12 +119,15 @@ export function TableMarker({ table, selected, onPress }: TableMarkerProps) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
-        accessibilityState={{ selected }}
+        accessibilityHint={capacity(table)}
+        accessibilityState={{ selected, disabled: refused }}
+        disabled={refused}
         hitSlop={8}
         onPress={() => onPress(table)}
         style={({ pressed }) => [
           styles.marker,
-          { backgroundColor: color },
+          unfit ? [styles.markerUnfit, { borderColor: color }] : { backgroundColor: color },
+          refused && !unfit && styles.markerRefused,
           selected && styles.markerSelected,
           pressed && styles.markerPressed,
         ]}
@@ -152,6 +169,9 @@ const styles = StyleSheet.create({
   },
   markerSelected: { borderWidth: 3, borderColor: colors.onImage },
   markerPressed: { opacity: 0.85 },
+  // Hollow: the free colour as a ring on the dark glass, never a green fill.
+  markerUnfit: { backgroundColor: colors.glass, borderStyle: 'dashed' },
+  markerRefused: { opacity: 0.6 },
   label: {
     ...typography.caption,
     lineHeight: 14,

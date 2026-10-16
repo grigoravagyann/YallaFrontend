@@ -17,11 +17,11 @@ import { CreateVenueRoute } from './console/platform/CreateVenueRoute';
 import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
-import { FloorPlanEditorScreen } from './console/venue/floorplan/FloorPlanEditorScreen';
 import { MenuEditorScreen } from './console/venue/menu/MenuEditorScreen';
 import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
 import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolicyScreen';
 import { PublicPageScreen } from './console/venue/public/PublicPageScreen';
+import { RoomsEditorScreen } from './console/venue/rooms/RoomsEditorScreen';
 import { VenueReviewsScreen } from './console/venue/reviews/VenueReviewsScreen';
 import { VenueOverviewScreen } from './console/venue/VenueOverviewScreen';
 import { StaffScreen } from './console/venue/staff/StaffScreen';
@@ -37,7 +37,6 @@ const ReportsScreen = lazy(() =>
   })),
 );
 import { usingMockData } from './data/gateway';
-import { DevFloorPlanRoute } from './routes/DevFloorPlanRoute';
 import { DevTokensRoute } from './routes/DevTokensRoute';
 import { StaffRoute } from './staff/StaffRoute';
 import { useDocumentLocale } from './useDocumentLocale';
@@ -246,7 +245,7 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
                 one screen that answers "is this venue ready" — so it is what
                 the venue section opens on rather than the floor plan. */}
             <Route index element={<VenueOverviewScreen />} />
-            <Route path="floorplan" element={<FloorPlanEditorScreen />} />
+            <Route path="floorplan" element={<RoomsEditorScreen />} />
             <Route path="menu" element={<MenuEditorScreen />} />
             <Route path="hours" element={<OpeningHoursScreen />} />
             <Route path="policy" element={<ReservationPolicyScreen />} />
@@ -254,8 +253,8 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="reviews" element={<VenueReviewsScreen />} />
             <Route path="staff" element={<StaffScreen />} />
             {/* Lazy: the reports screen is the only thing in the console
-                that needs a charting library, and an owner who opens the floor
-                plan should not download one. */}
+                that needs a charting library, and an owner who opens the rooms
+                editor should not download one. */}
             <Route
               path="reports"
               element={
@@ -267,15 +266,8 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
           </Route>
         ) : null}
 
-        {/* Development harness, not a product screen, and not in any sidebar.
-            It stays because the floor plan editor and venue onboarding both
-            need a way to look at a room in isolation. */}
-        {import.meta.env.DEV ? (
-          <>
-            <Route path="/dev/floorplan" element={<DevFloorPlanRoute />} />
-            <Route path="/dev/tokens" element={<DevTokensRoute />} />
-          </>
-        ) : null}
+        {/* Development harness, not a product screen, and not in any sidebar. */}
+        {import.meta.env.DEV ? <Route path="/dev/tokens" element={<DevTokensRoute />} /> : null}
       </Route>
 
       <Route path="*" element={<Forbidden />} />

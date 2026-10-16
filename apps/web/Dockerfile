@@ -44,7 +44,6 @@ COPY apps/web/package.json apps/web/
 COPY apps/diner/package.json apps/diner/
 COPY apps/e2e/package.json apps/e2e/
 COPY packages/api/package.json packages/api/
-COPY packages/floorplan/package.json packages/floorplan/
 COPY packages/format/package.json packages/format/
 COPY packages/i18n/package.json packages/i18n/
 COPY packages/realtime/package.json packages/realtime/

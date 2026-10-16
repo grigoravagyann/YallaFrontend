@@ -6,6 +6,8 @@ import type {
   PublicBranch,
   PublicBranchPolicy,
   PublicPageMeta,
+  PublicPhoto,
+  PublicRoom,
   PublicVenue,
   PublicVenueHeader,
 } from '../contracts/publicBranch';
@@ -119,6 +121,32 @@ function openStateFromWire(
   return fromHours;
 }
 
+type WirePhoto = Schemas['Yalla.Application.Media.PhotoView'];
+
+function photoFromWire(photo: WirePhoto, baseUrl: string): PublicPhoto {
+  return {
+    photoId: photo.photoId,
+    thumbnailUrl: absolutePhotoUrl(baseUrl, photo.thumbnailUrl),
+    cardUrl: absolutePhotoUrl(baseUrl, photo.cardUrl),
+    fullUrl: absolutePhotoUrl(baseUrl, photo.fullUrl),
+    width: photo.width ?? null,
+    height: photo.height ?? null,
+  };
+}
+
+/** The plan's rooms that have a photo, lowest `displayOrder` first. */
+function roomsFromWire(plan: WirePublicBranch['floorPlan'], baseUrl: string): PublicRoom[] {
+  return [...(plan?.areas ?? [])]
+    .filter((area) => (area.photos ?? []).length > 0)
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((area) => ({
+      roomId: area.id,
+      name: area.name,
+      displayOrder: area.displayOrder,
+      photos: area.photos.map((photo) => photoFromWire(photo, baseUrl)),
+    }));
+}
+
 function venueHeaderFromWire(wire: WirePublicBranch, baseUrl: string): PublicVenueHeader {
   const cover = wire.coverPhoto;
   return {
@@ -136,16 +164,7 @@ function venueHeaderFromWire(wire: WirePublicBranch, baseUrl: string): PublicVen
     description: null,
     // The branch's cover, on the venue header because that is where the page
     // draws it. Links resolved against the API — see `photoUrl.ts`.
-    coverPhoto: cover
-      ? {
-          photoId: cover.photoId,
-          thumbnailUrl: absolutePhotoUrl(baseUrl, cover.thumbnailUrl),
-          cardUrl: absolutePhotoUrl(baseUrl, cover.cardUrl),
-          fullUrl: absolutePhotoUrl(baseUrl, cover.fullUrl),
-          width: cover.width ?? null,
-          height: cover.height ?? null,
-        }
-      : null,
+    coverPhoto: cover ? photoFromWire(cover, baseUrl) : null,
   };
 }
 
@@ -220,6 +239,8 @@ export function publicBranchFromWire(
      * reservation service will refuse.
      */
     acceptsWebBookings: wire.acceptsWebBookings ?? false,
+
+    rooms: roomsFromWire(wire.floorPlan, baseUrl),
   };
 }
 

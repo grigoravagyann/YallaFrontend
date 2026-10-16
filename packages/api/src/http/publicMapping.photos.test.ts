@@ -22,7 +22,7 @@ const PAGE: Page = {
   isOpenNow: true,
   freeTableCount: 2,
   tableCount: 8,
-  floorPlan: { floorWidth: 800, floorHeight: 600, areas: [], tables: [] },
+  floorPlan: { areas: [], tables: [] },
   acceptsWebBookings: true,
   acceptsAppBookings: true,
   bookingWindowDays: 14,

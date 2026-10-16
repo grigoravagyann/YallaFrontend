@@ -1,5 +1,5 @@
 import type { FloorChange, StaffFloor, StaffTableDetail, TableStatus } from '@yalla/api';
-import { cafeFloorPlan } from '@yalla/floorplan/mocks';
+import { cafeFloorPlan } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import { applyFloorChanges, latestChangeFor } from './sequence';
 

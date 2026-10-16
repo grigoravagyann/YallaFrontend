@@ -1,8 +1,24 @@
 import { createMockGateway } from '@yalla/api';
-import type { DerivedTableState } from '@yalla/floorplan/types';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { mockPlaces } from './mockPlaces';
-import { formatClock, openStateFor, type TableStatus } from './model';
+import { formatClock, openStateFor } from './model';
+import { createMockPlaceRepository } from './repository';
+
+// `repository` picks the app's data source on import; these stand in for the
+// phone-only modules that pulls in.
+vi.hoisted(() => {
+  vi.stubEnv('EXPO_PUBLIC_DATA_SOURCE', 'mock');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
+vi.mock('expo-constants', () => ({ default: { expoConfig: null, expoGoConfig: null } }));
+vi.mock('expo-secure-store', () => ({
+  getItemAsync: vi.fn(() => Promise.resolve(null)),
+  setItemAsync: vi.fn(() => Promise.resolve()),
+  deleteItemAsync: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('./devicePosition', () => ({ readDevicePosition: vi.fn(() => Promise.resolve(null)) }));
 
 /**
  * The mock is what every screen renders during development, so a bad entry —
@@ -40,18 +56,6 @@ describe('the mock places', () => {
       }
       expect(place.reviews).toHaveLength(3);
 
-      expect(place.tables.length).toBeGreaterThanOrEqual(6);
-      expect(place.tables.length).toBeLessThanOrEqual(9);
-      expect(new Set(place.tables.map((t) => t.tableId)).size).toBe(place.tables.length);
-      for (const table of place.tables) {
-        expect(table.x).toBeGreaterThan(0);
-        expect(table.x).toBeLessThan(1);
-        expect(table.y).toBeGreaterThan(0);
-        expect(table.y).toBeLessThan(1);
-        expect(table.capacityMin).toBeLessThanOrEqual(table.capacityMax);
-        expect(table.tableId.startsWith(`${place.id}-`)).toBe(true);
-      }
-
       // Every mock place is located; only the real backend may lack coordinates.
       expect(place.coords).not.toBeNull();
       expect(place.coords!.latitude).toBeGreaterThan(40.1);
@@ -60,49 +64,45 @@ describe('the mock places', () => {
       expect(place.coords!.longitude).toBeLessThan(44.6);
     },
   );
-
-  it('has free tables to tap on most photos', () => {
-    const withFree = mockPlaces.filter(
-      (place) => place.tables.filter((t) => t.status === 'free').length >= 3,
-    );
-    expect(withFree.length).toBeGreaterThanOrEqual(5);
-  });
 });
 
 /**
- * Every place is a branch the api mock knows, and every marker is one of that
- * branch's tables in the state the floor has it — so a table drawn green on
- * the photo is a table the gateway will book, and a party the marker says
- * fits is a party the gateway will not refuse as too big.
+ * Every place is a branch the api mock knows, with rooms photographed and
+ * tables pinned on them — the rooms the mock repository draws, read from the
+ * same gateway the slot floor and the booking resolve against.
  */
 describe('the mock places against the api mock', () => {
   const gateway = createMockGateway({ latencyMs: 0 });
-
-  const asMarkerStatus: Record<DerivedTableState, TableStatus> = {
-    free: 'free',
-    reservedSoon: 'reserved',
-    held: 'reserved',
-    occupied: 'occupied',
-    outOfService: 'occupied',
-  };
+  const places = createMockPlaceRepository({ latencyMs: 0, gateway });
 
   it.each(mockPlaces.map((place) => [place.name, place] as const))(
-    '%s is a branch the gateway can book, with its own tables',
+    '%s has rooms with pins the gateway knows',
     async (_name, place) => {
       const floor = await gateway.getFloorPlan(place.id);
       expect(floor).not.toBeNull();
       const byId = new Map(floor!.tables.map((table) => [table.id, table] as const));
 
-      for (const marker of place.tables) {
-        const table = byId.get(marker.tableId);
-        expect(table, marker.tableId).toBeDefined();
-        expect(marker.label).toBe(table!.label);
-        expect(marker.status).toBe(asMarkerStatus[table!.state]);
-        expect(marker.capacityMax).toBe(table!.seats);
-        expect(marker.capacityMin).toBeGreaterThanOrEqual(1);
+      const rooms = await places.rooms(place.id);
+      expect(rooms.length).toBeGreaterThan(0);
+      const pins = rooms.flatMap((room) =>
+        room.photos.flatMap((photo) => photo.tables.map((pin) => ({ pin, photo }))),
+      );
+      expect(pins.length).toBeGreaterThan(0);
+      for (const { pin, photo } of pins) {
+        const table = byId.get(pin.tableId);
+        expect(table, pin.tableId).toBeDefined();
+        expect(table!.pin?.photoId).toBe(photo.photoId);
+        expect(pin.x).toBeGreaterThan(0);
+        expect(pin.x).toBeLessThan(1);
+        expect(pin.capacityMax).toBe(table!.seats);
       }
     },
   );
+
+  it('serves the same rooms on the place page as on the rooms read', async () => {
+    const place = await places.getById('b-lumen-north');
+    expect(place?.rooms).toEqual(await places.rooms('b-lumen-north'));
+  });
 });
 
 describe('openStateFor', () => {

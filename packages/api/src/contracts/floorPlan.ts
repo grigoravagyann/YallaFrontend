@@ -1,41 +1,55 @@
-import type { TableShape } from '@yalla/floorplan/types';
+import type { Photo } from './menuAdmin';
 
 /**
- * The floor plan as the **editor** sees it.
+ * The rooms as the **editor** sees them.
  *
- * Deliberately not `FloorPlanData`, which is what the viewer sees. The viewer
- * gets derived state — is this table free right now — and no identity it could
- * use to change anything. The editor gets the stored shape instead: area ids,
- * the active flag, and the QR token it must display and must never send back.
+ * A branch is a set of rooms (Hall, Terrace, VIP), each with up to ten photos,
+ * and every table is a pin on one of its own room's photos. There is no drawn
+ * floor plan any more: no canvas, no geometry. The editor gets the stored
+ * shape — room ids, the active flag, and the QR token it must display and must
+ * never send back.
  */
+
+/** A room holds at most this many photos (`FloorAreaPhoto.MaxPhotos`). */
+export const MAX_ROOM_PHOTOS = 10;
 
 export interface EditorFloorArea {
   readonly id: string;
   readonly name: string;
-  /** The order the venue thinks of its own room in, front of house first. */
+  /** The order the venue thinks of its own rooms in, front of house first. */
   readonly displayOrder: number;
+  /** In the order a diner swipes them. Empty for a room nobody has photographed yet. */
+  readonly photos: readonly Photo[];
 }
+
+/** Where a table sits: one of its room's photos, and fractions of it (0 left/top to 1). */
+export interface EditorTablePin {
+  readonly photoId: string;
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * The **physical** state of a table, as the plan read carries it — what
+ * somebody did to it, not the booking overlay. Values: 1 Free, 2 Held,
+ * 4 Occupied, 5 OutOfService.
+ */
+export type EditorTableStatus = 'free' | 'held' | 'occupied' | 'outOfService';
 
 export interface EditorFloorTable {
   readonly id: string;
   readonly label: string;
   readonly seats: number;
-  /** Floor-plan units, top-left origin. Not pixels. */
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly rotationDegrees: number;
-  readonly shape: TableShape;
   readonly floorAreaId: string | null;
   readonly isBookable: boolean;
   /**
-   * False for a table that was removed from the plan but had history, so the
-   * server deactivated it instead of deleting it. It stays on the canvas,
-   * visibly marked — a person who deletes table 7 and sees it still there with
-   * no explanation deletes it again.
+   * False for a table that was removed but had history, so the server
+   * deactivated it instead of deleting it.
    */
   readonly isActive: boolean;
+  /** Whether a delete would remove it outright rather than deactivate it. */
+  readonly isDeletable: boolean;
+  readonly status: EditorTableStatus;
   /**
    * The token behind the QR sticker on the physical table. **Read-only.**
    * Editing a table never changes it and the client never sends it back; the
@@ -43,25 +57,19 @@ export interface EditorFloorTable {
    * the one thing that changes it, and it is its own guarded action.
    */
   readonly qrToken: string;
-  /**
-   * Where the table sits on the branch's cover photo, 0 (left/top) to 1, or
-   * absent when it has not been placed. Both or neither. **Read-only here**:
-   * pins are saved through `saveTablePhotoPositions`, never with the plan (K6).
-   */
-  readonly photoX?: number | null | undefined;
-  readonly photoY?: number | null | undefined;
+  /** The table's pin, or `null` when it is on no photo — and then diners are not offered it. */
+  readonly pin: EditorTablePin | null;
 }
 
 export interface EditorFloorPlan {
   readonly branchId: string;
-  readonly floorWidth: number;
-  readonly floorHeight: number;
+  /** Lowest `displayOrder` first. */
   readonly areas: readonly EditorFloorArea[];
+  /** Every table, inactive ones included. */
   readonly tables: readonly EditorFloorTable[];
   /**
    * Opaque. Send it back as `expectedVersion` on the next save (K6); a save
-   * somebody else made in between is refused rather than overwritten. Empty
-   * only from a server that predates the check.
+   * somebody else made in between is refused rather than overwritten.
    */
   readonly version: string;
 }
@@ -72,76 +80,41 @@ export interface ReplaceFloorTableInput {
   readonly id?: string | undefined;
   readonly label: string;
   readonly seats: number;
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly rotationDegrees: number;
-  readonly shape: TableShape;
-  /** The backend matches an area by **name**, not by id, on this payload. */
+  /** The backend matches a room by **name**, not by id, on this payload. */
   readonly floorAreaName?: string | null | undefined;
   readonly isBookable: boolean;
-  /*
-   * No `photoX`/`photoY` (K6). A plan save used to carry every pin and take off
-   * the photo any table it omitted, so an editor holding a stale copy wiped pins
-   * placed meanwhile. The server now ignores them on this route: kept tables
-   * keep their pins, new tables have none, and pins move only through
-   * `saveTablePhotoPositions`.
-   */
+  /** On one of **its own room's** photos in this same plan, or `null`. */
+  readonly pin: EditorTablePin | null;
 }
 
 export interface ReplaceFloorAreaInput {
   readonly id?: string | undefined;
   readonly name: string;
   readonly displayOrder: number;
+  /** The whole list, in order, replacing what was there. At most {@link MAX_ROOM_PHOTOS}. */
+  readonly photoIds: readonly string[];
 }
 
 /**
- * The whole plan, replaced atomically.
+ * Rooms, their photos and every table's pin, replaced atomically.
  *
- * Canvas, areas and tables land together or not at all. That is why the editor
- * holds a working copy and saves explicitly: a partially applied plan is a
- * broken room, and an autosave mid-drag would produce exactly one.
+ * They land together or not at all. That is why the editor holds a working
+ * copy and saves explicitly: a half-applied plan is a pin on a photo its room
+ * no longer has.
  */
 export interface ReplaceFloorPlanCommand {
-  readonly floorWidth: number;
-  readonly floorHeight: number;
   readonly areas: readonly ReplaceFloorAreaInput[];
   readonly tables: readonly ReplaceFloorTableInput[];
   /** The `version` the editor loaded (K6). Stale: `FloorPlanChangedError`, nothing written. */
   readonly expectedVersion: string;
 }
 
-/** One table's pin on the cover photo, or `null`/`null` to take it off (K7). */
-export interface TablePhotoPosition {
-  readonly tableId: string;
-  /** 0 (left) to 1. Both or neither. */
-  readonly photoX: number | null;
-  /** 0 (top) to 1. */
-  readonly photoY: number | null;
-}
-
-/**
- * `PUT /api/branches/{branchId}/table-photo-positions` (K7).
- *
- * Only the listed tables change. `coverPhotoId` is the picture the pins were
- * placed on: if the branch's cover is no longer that one, the save is refused
- * with `CoverChangedError` and nothing is written.
- */
-export interface SaveTablePhotoPositionsCommand {
-  readonly coverPhotoId: string;
-  readonly positions: readonly TablePhotoPosition[];
-}
-
-/** The answer: every active table at the branch, placed or not. */
-export interface TablePhotoPositions {
-  readonly coverPhotoId: string;
-  readonly tables: readonly (TablePhotoPosition & { readonly label: string })[];
-}
-
 export interface FloorPlanSaveResult {
   readonly plan: EditorFloorPlan;
-  /** Overlapping tables and the like. Advisory: the save already happened. */
+  /**
+   * Advisory: the save already happened. Today, bookable tables with no pin
+   * (diners are not offered them) and tables taken off a photo the plan removed.
+   */
   readonly warnings: readonly string[];
   /** Labels of tables kept but deactivated because they had history. */
   readonly deactivatedTables: readonly string[];

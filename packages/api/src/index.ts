@@ -65,6 +65,22 @@ export type { YallaGateway } from './gateway';
 export { resolveGateway } from './resolveGateway';
 export type { ResolveGatewayOptions } from './resolveGateway';
 
+export type {
+  DerivedTableState,
+  FloorPlanData,
+  FloorRoomGroup,
+  FloorTable,
+  TablePin,
+} from './contracts/tableFloor';
+export { byRoomThenLabel, groupByRoom } from './contracts/tableFloor';
+export {
+  MOCK_FLOOR_NOW,
+  cafeFloorPlan,
+  cafeRoomFloor,
+  restaurantRoomFloor,
+  roomFloor,
+} from './mocks/roomFloors';
+export type { MockRoom, MockRoomFloor, MockRoomSpec, MockTableSeed } from './mocks/roomFloors';
 export { createMockGateway } from './mocks/mockGateway';
 export type { MockGateway, MockGatewayOptions } from './mocks/mockGateway';
 export { MOCK_JOURNAL_PREFIX, clearMockJournal, persistMockGateway } from './mocks/persistence';
@@ -111,8 +127,10 @@ export type {
   BranchReview,
   BranchReviewPage,
   BranchSearchQuery,
+  BranchRoom,
+  BranchRoomPhoto,
+  BranchRooms,
   BranchTableMarker,
-  BranchTableMarkers,
   DinerOrder,
   DinerOrderLine,
   DinerOrderSegment,
@@ -164,7 +182,6 @@ export type { BranchReadiness } from './contracts/readiness';
 export {
   BookingsNotAcceptedError,
   CannotReportOwnReviewError,
-  CoverChangedError,
   FloorPlanChangedError,
   RelocationNotAllowedError,
   ReviewHiddenByPlatformError,
@@ -319,6 +336,7 @@ export type {
   PublicBranchStatus,
   PublicPageMeta,
   PublicPhoto,
+  PublicRoom,
   PublicVenue,
   PublicVenueHeader,
 } from './contracts/publicBranch';
@@ -504,15 +522,15 @@ export type {
   EditorFloorArea,
   EditorFloorPlan,
   EditorFloorTable,
+  EditorTablePin,
+  EditorTableStatus,
   FloorPlanSaveResult,
   ReplaceFloorAreaInput,
   ReplaceFloorPlanCommand,
   ReplaceFloorTableInput,
-  SaveTablePhotoPositionsCommand,
   TableDeletionResult,
-  TablePhotoPosition,
-  TablePhotoPositions,
 } from './contracts/floorPlan';
+export { MAX_ROOM_PHOTOS } from './contracts/floorPlan';
 
 // --- The counter screen ------------------------------------------------------
 export type {

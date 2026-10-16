@@ -10,7 +10,7 @@ import {
   type StaffTableDetail,
   type TableStatus,
 } from '@yalla/api';
-import { cafeFloorPlan } from '@yalla/floorplan/mocks';
+import { cafeFloorPlan } from '@yalla/api';
 import { describe, expect, it, vi } from 'vitest';
 import { createCommandStore } from '../offline/commandStore';
 import { createMemoryMenuCache } from '../offline/menuCache';

@@ -1,12 +1,13 @@
 import type {
   AffectedReservation,
+  DerivedTableState,
+  FloorTable,
   ReleaseOutcome,
   StaffTab,
   StaffTableDetail,
   TableActionKind,
   TableStatus,
 } from '@yalla/api';
-import type { DerivedTableState, FloorTable, Rect } from '@yalla/floorplan';
 import { useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
 import { useBranchFormat } from './useBranchFormat';
@@ -14,11 +15,11 @@ import { useBranchFormat } from './useBranchFormat';
 /**
  * What a waiter does to a table, beside the table.
  *
- * Anchored to the tapped table with the floor still on screen, because a waiter
- * is looking at the room and not at a form: a full-screen sheet would hide the
- * two tables they are deciding between. It follows the table rather than
- * sitting in a fixed corner so there is never a question of which table the
- * buttons belong to.
+ * Beside the table list with the floor still on screen, because a waiter is
+ * looking at the room and not at a form: a full-screen sheet would hide the
+ * two tables they are deciding between. The selected row stays marked and the
+ * panel is titled with the table, so there is never a question of which table
+ * the buttons belong to.
  *
  * Only the actions that are legal from this table's state are rendered. Not
  * greyed out — absent. A disabled control on a counter screen is something a
@@ -29,9 +30,6 @@ import { useBranchFormat } from './useBranchFormat';
 export interface TableActionPanelProps {
   readonly table: FloorTable;
   readonly detail: StaffTableDetail | undefined;
-  /** Where the table was drawn, in the plan frame's pixel space. */
-  readonly anchor: Rect;
-  readonly frame: { readonly width: number; readonly height: number };
   readonly timeZoneId: string;
   /**
    * The status this table will be in once everything queued for it has been
@@ -66,33 +64,6 @@ export interface TableActionPanelProps {
   readonly onClose: () => void;
 }
 
-/** How wide the panel is. Fixed, so the anchoring maths has something to use. */
-const PANEL_WIDTH = 340;
-const PANEL_ESTIMATED_HEIGHT = 300;
-const GAP = 12;
-
-/**
- * Beside the table, and inside the frame.
- *
- * Right of the table by preference, left when the table is near the right wall.
- * Vertically it is clamped rather than centred, so a table at the very top or
- * bottom of the room still gets a panel that is entirely on screen — a panel
- * with its buttons cut off is worse than one that is not quite beside its table.
- */
-function anchorStyle(anchor: Rect, frame: TableActionPanelProps['frame']) {
-  const right = anchor.x + anchor.width + GAP;
-  const fitsRight = right + PANEL_WIDTH <= frame.width;
-  const left = fitsRight ? right : Math.max(GAP, anchor.x - PANEL_WIDTH - GAP);
-
-  const preferred = anchor.y + anchor.height / 2 - PANEL_ESTIMATED_HEIGHT / 2;
-  const top = Math.max(
-    GAP,
-    Math.min(preferred, Math.max(GAP, frame.height - PANEL_ESTIMATED_HEIGHT - GAP)),
-  );
-
-  return { left, top, width: PANEL_WIDTH } as const;
-}
-
 export function TableActionPanel(props: TableActionPanelProps) {
   const { table, detail, tab, timeZoneId, pending, online, onAct, onRelease, onClose } = props;
   const { t } = useTranslation(['staff', 'common']);
@@ -124,7 +95,6 @@ export function TableActionPanel(props: TableActionPanelProps) {
   return (
     <aside
       className="table-panel"
-      style={anchorStyle(props.anchor, props.frame)}
       role="dialog"
       aria-label={t('table.panelLabel', { label: table.label })}
     >

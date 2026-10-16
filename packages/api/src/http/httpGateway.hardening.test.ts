@@ -65,7 +65,7 @@ const DETAIL = {
   tableCount: 0,
   acceptsWebBookings: true,
   recentReviews: [],
-  tableMarkers: [],
+  rooms: [],
   asOfUtc: '2026-09-14T10:00:00Z',
 };
 

@@ -1,4 +1,4 @@
-import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { FloorPlanData } from './tableFloor';
 import type { OpenState } from './publicBranch';
 import type { ReservationStatusCode } from './push';
 

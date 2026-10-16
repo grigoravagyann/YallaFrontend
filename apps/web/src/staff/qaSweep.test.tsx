@@ -4,18 +4,19 @@ import {
   createQueryClient,
   createStaffMockGateway,
   type EnrolledDevice,
+  type FloorTable,
   type StaffGateway,
   type StaffSessionIdentity,
   type StaffSessionSnapshot,
   type StaffTableDetail,
 } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
-import type { FloorTable } from '@yalla/floorplan';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
 import type * as CurrentUserModule from '../auth/useCurrentUser';
 import { OrderEntry } from './OrderEntry';
@@ -52,7 +53,6 @@ vi.mock('../auth/useCurrentUser', async () => {
 const { StaffRoute } = await import('./StaffRoute');
 
 const BRANCH = 'b1';
-const SIZE = { width: 1024, height: 700 };
 
 const device: EnrolledDevice = {
   deviceId: 'd1',
@@ -94,21 +94,6 @@ beforeAll(async () => {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
   await initConsoleTestI18n();
-});
-
-beforeEach(() => {
-  // The floor measures its pane; jsdom gives it none, and a 0x0 plan draws
-  // no tables at all.
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-    x: 0,
-    y: 0,
-    top: 0,
-    left: 0,
-    right: SIZE.width,
-    bottom: SIZE.height,
-    ...SIZE,
-    toJSON: () => ({}),
-  });
 });
 
 afterEach(() => {
@@ -192,19 +177,64 @@ describe('the staff floor, read without a pointer', () => {
     const tables = await screen.findAllByRole('button', { name: /^Table \d+, \d+ seats?, /u });
     expect(tables.length).toBeGreaterThan(0);
   });
+
+  it('lists the tables by room, in room order and then by label, with no drawn plan', async () => {
+    signIn('waiter');
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+
+    const bar = await screen.findByRole('list', { name: 'Bar' });
+    const windows = screen.getByRole('list', { name: 'Windows' });
+    expect(bar.compareDocumentPosition(windows) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Bar' })).toBeTruthy();
+
+    const labels = (list: HTMLElement) =>
+      within(list)
+        .getAllByRole('button')
+        .map((button) => /^Table (\d+),/u.exec(button.getAttribute('aria-label') ?? '')?.[1]);
+    expect(labels(bar)).toEqual(['1', '2', '3', '4', '9', '10', '11']);
+    expect(labels(windows)).toEqual(['5', '6', '7', '8']);
+    expect(document.querySelector('svg[role="img"], [data-testid="floor-plan"]')).toBeNull();
+  });
+
+  it('colours each row by its state: free, booked or held, occupied, out of service', async () => {
+    signIn('waiter');
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+
+    const tone = async (name: RegExp) =>
+      (await screen.findByRole('button', { name })).getAttribute('data-tone');
+    expect(await tone(/^Table 2, 2 seats, Free/u)).toBe('free');
+    expect(await tone(/^Table 3, 4 seats, Held/u)).toBe('booked');
+    expect(await tone(/^Table 6, 4 seats, Reserved/u)).toBe('booked');
+    expect(await tone(/^Table 1, 2 seats, Occupied/u)).toBe('occupied');
+    expect(await tone(/^Table 10, 2 seats, Out of service/u)).toBe('out');
+  });
+
+  it('opens the table actions from a row with the keyboard, and closes back to the row', async () => {
+    signIn('waiter');
+    const user = userEvent.setup();
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+
+    const row = await screen.findByRole('button', { name: /^Table 2, 2 seats, Free/u });
+    row.focus();
+    await user.keyboard('{Enter}');
+
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 2' });
+    expect(row.getAttribute('aria-pressed')).toBe('true');
+    expect(within(panel).getByRole('button', { name: 'Seat a walk-in' })).toBeTruthy();
+
+    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: 'Actions for table 2' })).toBeNull();
+  });
 });
 
 const occupied: FloorTable = {
   id: 't2',
   label: '2',
   seats: 2,
-  x: 100,
-  y: 100,
-  width: 70,
-  height: 70,
-  rotationDegrees: 0,
-  shape: 'round',
+  floorAreaId: null,
   floorAreaName: null,
+  floorAreaDisplayOrder: 0,
+  pin: null,
   isBookable: true,
   state: 'occupied',
   nextReservationStartUtc: null,
@@ -237,8 +267,6 @@ function showPanel(openTabId: string | null) {
       <TableActionPanel
         table={occupied}
         detail={detail(openTabId)}
-        anchor={{ x: 100, y: 100, width: 70, height: 70 }}
-        frame={SIZE}
         timeZoneId="Asia/Yerevan"
         projectedStatus={null}
         tab={null}

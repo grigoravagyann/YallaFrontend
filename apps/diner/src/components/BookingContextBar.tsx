@@ -27,7 +27,7 @@ import {
 import { Button } from './Button';
 import { Text } from './Text';
 
-/** The three values the floor plan filters and annotates on. */
+/** The three values the room photos at a time filter and annotate on. */
 export interface BookingContext {
   /** Instant of the requested slot, UTC. */
   readonly slotUtc: Date;
@@ -56,7 +56,7 @@ export interface BookingContextBarProps {
 export { nextHalfHour };
 
 /**
- * Date / time / party size, held above the floor plan.
+ * Date / time / party size, held above the room photos.
  *
  * These three drive what the plan shows — party size filters which tables are
  * selectable, and the slot decides which tables count as `reservedSoon` — so

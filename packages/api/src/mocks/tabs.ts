@@ -1,4 +1,4 @@
-import type { FloorTable } from '@yalla/floorplan/types';
+import type { FloorTable } from '../contracts/tableFloor';
 import {
   HostCannotLeaveError,
   InviteExpiredError,

@@ -7,6 +7,7 @@ export type BadgeVariant =
   | 'new'
   | 'reserved'
   | 'occupied'
+  | 'outOfService'
   | 'free'
   | 'confirmed'
   | 'preparing'
@@ -63,7 +64,7 @@ const neutral = {
  * What each badge means, and the one colour it is allowed to be.
  *
  * Open / Free / Confirmed / Ready are green; Reserved / Preparing / In progress
- * are orange; Occupied / Cancelled are red; Closed / Completed are grey;
+ * are orange; Occupied / Cancelled are red; Closed / Completed / Out of service are grey;
  * Popular is the brown and New the blue. Availability (Open / Closed) and
  * content (Popular / New) are separate variants so a card can carry both.
  *
@@ -90,6 +91,7 @@ export const badgeVariants: Record<BadgeVariant, BadgeSpec> = {
   free: { ...success, labelKey: 'tables.status.free' },
   reserved: { ...warning, labelKey: 'tables.status.reserved' },
   occupied: { ...error, labelKey: 'tables.status.occupied' },
+  outOfService: { ...neutral, labelKey: 'tables.status.outOfService' },
   confirmed: { ...success, labelKey: 'orders.status.confirmed' },
   preparing: { ...warning, labelKey: 'orders.status.preparing' },
   inProgress: { ...warning, labelKey: 'orders.status.inProgress' },

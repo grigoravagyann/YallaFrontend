@@ -40,8 +40,6 @@ const wireBranch = (
   latitude: 40.183,
   longitude: 44.515,
   timeZoneId: 'Asia/Yerevan',
-  floorWidth: 1000,
-  floorHeight: 700,
   isActive: true,
   subscriptionTier: 1,
   tableCount: 8,

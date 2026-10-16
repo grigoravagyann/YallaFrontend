@@ -7,7 +7,6 @@ import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
 import { ListingSection } from './ListingSection';
-import { TableMarkersSection } from './TableMarkersSection';
 
 /**
  * What this branch says to strangers on the internet: the number, whether the
@@ -180,11 +179,9 @@ function PublicPageForm({
         </div>
       </form>
 
-      {/* The diner app's listing sits next to the cover it describes, and the
-          table pins go on the cover as it was last saved — read from the
-          profile's cache, which this form's save writes. */}
+      {/* The diner app's listing sits next to the cover it describes. Tables
+          are pinned on room photos in the rooms editor, not on the cover. */}
       <ListingSection branchId={branchId} canRelocate={canRelocate} />
-      <TableMarkersSection branchId={branchId} />
     </section>
   );
 }

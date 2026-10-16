@@ -236,6 +236,14 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         policy: DEFAULT_POLICY,
         bookingWindowDays: BOOKING_WINDOW_DAYS,
         acceptsWebBookings: fixture.acceptsWebBookings,
+        rooms: branch.rooms
+          .filter((room) => room.photos.length > 0)
+          .map((room) => ({
+            roomId: room.roomId,
+            name: room.name,
+            displayOrder: room.displayOrder,
+            photos: room.photos,
+          })),
       };
     },
 

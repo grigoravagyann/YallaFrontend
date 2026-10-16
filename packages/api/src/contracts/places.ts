@@ -14,8 +14,12 @@ import type { Photo } from './menuAdmin';
 
 export type BranchBadge = 'popular' | 'new';
 
-/** Live table state as the photo markers draw it — the staff floor's rule, collapsed to three. */
-export type MarkerStatus = 'free' | 'reserved' | 'occupied';
+/**
+ * Live table state as the photo pins draw it — the staff floor's rule,
+ * collapsed to four: free, reserved (soon, or held), occupied, and out of
+ * service, which is neither taken nor on offer.
+ */
+export type MarkerStatus = 'free' | 'reserved' | 'occupied' | 'outOfService';
 
 /** One entry of `GET /api/public/branches` and `/search`. */
 export interface BranchListing {
@@ -73,17 +77,31 @@ export interface BranchTableMarker {
   readonly seats: number;
   readonly isBookable: boolean;
   readonly status: MarkerStatus;
-  /** 0..1 across the cover photo. */
+  /** 0..1 across the room photo the marker is on. */
   readonly x: number;
   readonly y: number;
 }
 
-export interface BranchTableMarkers {
-  readonly branchId: string;
-  /** The photo the coordinates refer to — the cover. `null` when there is none. */
-  readonly photo: Photo | null;
-  readonly asOfUtc: string;
+/** One photo of a room, with the tables pinned on it. */
+export interface BranchRoomPhoto {
+  readonly photo: Photo;
   readonly tables: readonly BranchTableMarker[];
+}
+
+/** A room a diner picks from: Hall, Terrace, VIP. Never without a photo. */
+export interface BranchRoom {
+  readonly roomId: string;
+  readonly name: string;
+  readonly displayOrder: number;
+  /** In the order the venue chose. */
+  readonly photos: readonly BranchRoomPhoto[];
+}
+
+/** `GET /api/public/branches/{id}/rooms`: the rooms, lowest `displayOrder` first, with live pins. */
+export interface BranchRooms {
+  readonly branchId: string;
+  readonly asOfUtc: string;
+  readonly rooms: readonly BranchRoom[];
 }
 
 /** `GET /api/public/branches/{id}`. */
@@ -107,7 +125,8 @@ export interface BranchDetail {
   readonly acceptsAppBookings: boolean;
   /** Newest three, hidden reviews left out. */
   readonly recentReviews: readonly BranchReview[];
-  readonly tableMarkers: readonly BranchTableMarker[];
+  /** The same rooms `GET …/rooms` serves. */
+  readonly rooms: readonly BranchRoom[];
   readonly asOfUtc: string;
 }
 

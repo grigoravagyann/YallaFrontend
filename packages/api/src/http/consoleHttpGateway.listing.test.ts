@@ -3,7 +3,6 @@ import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { createApiClient } from '../client';
 import {
-  CoverChangedError,
   FloorPlanChangedError,
   FloorPlanInvalidError,
   RelocationNotAllowedError,
@@ -185,74 +184,142 @@ describe('the branch listing over HTTP', () => {
   });
 });
 
-describe('the floor plan over HTTP (K6)', () => {
-  const wireTable = {
-    id: 't1',
-    label: '1',
-    seats: 2,
-    x: 0,
-    y: 0,
-    width: 80,
-    height: 80,
-    rotationDegrees: 0,
-    shape: 1,
-    isBookable: true,
-    isActive: true,
-    qrToken: 'qr',
-    photoX: 0.25,
-    photoY: 0.5,
+describe('rooms with photos over HTTP (K6)', () => {
+  const wirePhoto = {
+    photoId: 'p1',
+    thumbnailUrl: '/api/photos/p1/thumbnail',
+    cardUrl: '/api/photos/p1/card',
+    fullUrl: '/api/photos/p1/full',
+    width: 1600,
+    height: 1200,
   };
   const plan = {
     branchId: 'b-1',
-    floorWidth: 1000,
-    floorHeight: 800,
-    tables: [wireTable],
+    areas: [
+      { id: 'a2', name: 'Terrace', displayOrder: 1, photos: [] },
+      { id: 'a1', name: 'Hall', displayOrder: 0, photos: [wirePhoto] },
+    ],
+    tables: [
+      {
+        id: 't1',
+        label: '1',
+        seats: 2,
+        floorAreaId: 'a1',
+        isBookable: true,
+        isActive: true,
+        isDeletable: false,
+        status: 4,
+        qrToken: 'qr',
+        photoId: 'p1',
+        photoX: 0.25,
+        photoY: 0.5,
+      },
+      // Nulls are omitted on the wire: a table with no pin has no photo keys at all.
+      {
+        id: 't2',
+        label: '2',
+        seats: 4,
+        isBookable: true,
+        isActive: true,
+        isDeletable: true,
+        status: 1,
+        qrToken: 'qr2',
+      },
+    ],
     version: 'v7',
   };
 
-  it('reads the pins and the version, and saves with the version and never a pin', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(json(200, plan))
-      .mockResolvedValueOnce(json(200, { plan: { ...plan, version: 'v8' } }));
-    const gateway = gatewayOver(fetchImpl);
+  it('reads rooms in order with absolute photo links, and tables with a pin, a state and whether they can go', async () => {
+    const read = await gatewayOver(vi.fn().mockResolvedValue(json(200, plan))).getFloorPlan('b-1');
 
-    const read = await gateway.getFloorPlan('b-1');
+    expect(read).not.toHaveProperty('floorWidth');
+    expect(read.areas.map((area) => area.name)).toEqual(['Hall', 'Terrace']);
+    expect(read.areas[0]!.photos[0]).toMatchObject({
+      photoId: 'p1',
+      fullUrl: `${BASE}/api/photos/p1/full`,
+    });
+    expect(read.tables[0]).toMatchObject({
+      floorAreaId: 'a1',
+      status: 'occupied',
+      isDeletable: false,
+      pin: { photoId: 'p1', x: 0.25, y: 0.5 },
+    });
+    expect(read.tables[1]).toMatchObject({ floorAreaId: null, status: 'free', pin: null });
     expect(read.version).toBe('v7');
-    expect(read.tables[0]).toMatchObject({ photoX: 0.25, photoY: 0.5 });
+  });
 
-    const saved = await gateway.replaceFloorPlan({
+  it("saves each room's photo ids and each table's pin as the three wire fields", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      json(200, {
+        plan: { ...plan, version: 'v8' },
+        warnings: ['w'],
+        deactivatedTables: [],
+        removedTables: [],
+      }),
+    );
+
+    const saved = await gatewayOver(fetchImpl).replaceFloorPlan({
       branchId: 'b-1',
       command: {
-        floorWidth: 1000,
-        floorHeight: 800,
-        areas: [],
+        expectedVersion: 'v7',
+        areas: [{ id: 'a1', name: 'Hall', displayOrder: 0, photoIds: ['p1'] }],
         tables: [
-          read.tables[0]!,
           {
-            label: '2',
+            id: 't1',
+            label: '1',
             seats: 2,
-            x: 100,
-            y: 0,
-            width: 80,
-            height: 80,
-            rotationDegrees: 0,
-            shape: 'round',
+            floorAreaName: 'Hall',
             isBookable: true,
+            pin: { photoId: 'p1', x: 0.25, y: 0.5 },
           },
+          { label: '2', seats: 4, floorAreaName: null, isBookable: false, pin: null },
         ],
-        expectedVersion: read.version,
       },
     });
 
-    const body = sentBody(fetchImpl, 1) as { expectedVersion: string; tables: object[] };
-    expect(body.expectedVersion).toBe('v7');
-    expect(body.tables.map((table) => 'photoX' in table || 'photoY' in table)).toEqual([
-      false,
-      false,
-    ]);
-    expect(body.tables[1]).toMatchObject({ id: null, shape: 2 });
+    expect(sent(fetchImpl)).toBe(`PUT ${BASE}/api/branches/b-1/floor-plan`);
+    expect(sentBody(fetchImpl)).toEqual({
+      expectedVersion: 'v7',
+      areas: [{ id: 'a1', name: 'Hall', displayOrder: 0, photoIds: ['p1'] }],
+      tables: [
+        {
+          id: 't1',
+          label: '1',
+          seats: 2,
+          floorAreaName: 'Hall',
+          isBookable: true,
+          photoId: 'p1',
+          photoX: 0.25,
+          photoY: 0.5,
+        },
+        {
+          id: null,
+          label: '2',
+          seats: 4,
+          floorAreaName: null,
+          isBookable: false,
+          photoId: null,
+          photoX: null,
+          photoY: null,
+        },
+      ],
+    });
     expect(saved.plan.version).toBe('v8');
+    expect(saved.warnings).toEqual(['w']);
+  });
+
+  it('reads a new room with its photos, as POST answers it', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        json(201, { id: 'a3', name: 'VIP', displayOrder: 2, photos: [wirePhoto] }),
+      );
+    const area = await gatewayOver(fetchImpl).createFloorArea({
+      branchId: 'b-1',
+      name: 'VIP',
+      displayOrder: 2,
+    });
+    expect(area.photos[0]!.cardUrl).toBe(`${BASE}/api/photos/p1/card`);
   });
 
   it('reads a stale version as FloorPlanChangedError with the version the server has', async () => {
@@ -262,15 +329,15 @@ describe('the floor plan over HTTP (K6)', () => {
     const refusal = await caught(
       gatewayOver(fetchImpl).replaceFloorPlan({
         branchId: 'b-1',
-        command: { floorWidth: 1, floorHeight: 1, areas: [], tables: [], expectedVersion: 'v7' },
+        command: { areas: [], tables: [], expectedVersion: 'v7' },
       }),
     );
     expect(refusal).toBeInstanceOf(FloorPlanChangedError);
     expect((refusal as FloorPlanChangedError).currentVersion).toBe('v9');
   });
 
-  it('keeps FloorPlanInvalidError for the plan refusal and a ValidationError for a malformed request', async () => {
-    const command = { floorWidth: 1, floorHeight: 1, areas: [], tables: [], expectedVersion: '' };
+  it('keeps FloorPlanInvalidError for the plan refusal and a ValidationError for a photo or pin rule', async () => {
+    const command = { areas: [], tables: [], expectedVersion: 'v1' };
 
     const invalid = await caught(
       gatewayOver(
@@ -284,71 +351,26 @@ describe('the floor plan over HTTP (K6)', () => {
     );
     expect(invalid).toBeInstanceOf(FloorPlanInvalidError);
     expect((invalid as FloorPlanInvalidError).duplicateLabels).toEqual(['7']);
+    expect((invalid as FloorPlanInvalidError).errors).toEqual(['Repeated: 7.']);
+    expect(invalid).not.toHaveProperty('tablesOutsideCanvas');
 
     const malformed = await caught(
       gatewayOver(
         vi.fn().mockResolvedValue(
           problem(422, 'validation-failed', {
-            fields: [{ field: 'expectedVersion', message: 'Required.', bound: 'required' }],
+            fields: [
+              { field: 'areas[0].photoIds[1]', message: 'In two rooms.', bound: 'conflict' },
+            ],
           }),
         ),
       ).replaceFloorPlan({ branchId: 'b-1', command }),
     );
     expect(malformed).toBeInstanceOf(ValidationError);
     expect(malformed).not.toBeInstanceOf(FloorPlanInvalidError);
-    expect((malformed as ValidationError).field).toBe('expectedVersion');
-  });
-});
-
-describe('table photo positions over HTTP (K7)', () => {
-  it('puts the changed pins on their own route and reads every table back', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      json(200, {
-        coverPhotoId: 'cover-1',
-        tables: [
-          { tableId: 't1', label: '1', photoX: 0.4, photoY: 0.6 },
-          { tableId: 't2', label: '2' },
-        ],
-      }),
-    );
-
-    const result = await gatewayOver(fetchImpl).saveTablePhotoPositions('b-1', {
-      coverPhotoId: 'cover-1',
-      positions: [
-        { tableId: 't1', photoX: 0.4, photoY: 0.6 },
-        { tableId: 't3', photoX: null, photoY: null },
-      ],
+    expect((malformed as ValidationError).violations[0]).toMatchObject({
+      field: 'areas[0].photoIds[1]',
+      bound: 'conflict',
     });
-
-    expect(sent(fetchImpl)).toBe(`PUT ${BASE}/api/branches/b-1/table-photo-positions`);
-    expect(sentBody(fetchImpl)).toEqual({
-      coverPhotoId: 'cover-1',
-      positions: [
-        { tableId: 't1', photoX: 0.4, photoY: 0.6 },
-        { tableId: 't3', photoX: null, photoY: null },
-      ],
-    });
-    expect(result).toEqual({
-      coverPhotoId: 'cover-1',
-      tables: [
-        { tableId: 't1', label: '1', photoX: 0.4, photoY: 0.6 },
-        { tableId: 't2', label: '2', photoX: null, photoY: null },
-      ],
-    });
-  });
-
-  it('reads a changed cover as CoverChangedError with the cover the branch has now', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(problem(409, 'cover-changed', { currentCoverPhotoId: 'cover-2' }));
-    const refusal = await caught(
-      gatewayOver(fetchImpl).saveTablePhotoPositions('b-1', {
-        coverPhotoId: 'cover-1',
-        positions: [],
-      }),
-    );
-    expect(refusal).toBeInstanceOf(CoverChangedError);
-    expect((refusal as CoverChangedError).currentCoverPhotoId).toBe('cover-2');
   });
 });
 

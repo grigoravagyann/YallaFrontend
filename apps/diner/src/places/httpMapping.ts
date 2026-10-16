@@ -5,6 +5,7 @@ import {
   type BranchMenu,
   type BranchReview,
   type BranchReviewPage,
+  type BranchRoom,
   type BranchTableMarker,
   type Photo,
 } from '@yalla/api';
@@ -15,6 +16,7 @@ import {
   type MenuSection,
   type OpeningHours,
   type Place,
+  type PlaceRoom,
   type Review,
   type ReviewPage,
   type TablePhotoMarker,
@@ -49,11 +51,7 @@ export function distanceFor(listing: BranchListing, position: Coordinates | null
   return Math.round(haversineKm(position, coords) * 10) / 10;
 }
 
-/**
- * The large rendition of a photo: the hero, and the picture table markers are
- * placed on. The detail and the markers both name the cover this way, so the
- * two can be compared to tell whether the cover changed between their reads.
- */
+/** The large rendition of a photo: the hero, and a room photo under its pins. */
 export function coverUrl(photo: Photo | null | undefined): string | null {
   return photo ? photo.fullUrl || photo.cardUrl || null : null;
 }
@@ -76,12 +74,38 @@ export function markerFromApi(marker: BranchTableMarker): TablePhotoMarker {
     tableId: marker.tableId,
     label: marker.label,
     status: marker.status,
+    isBookable: marker.isBookable,
     // Tables have seats and no minimum party; one person may book any table.
     capacityMin: 1,
     capacityMax: marker.seats,
     x: marker.x,
     y: marker.y,
   };
+}
+
+/** The server's rooms, in its order, each photo with the pins placed on it. */
+export function roomsFromApi(rooms: readonly BranchRoom[]): PlaceRoom[] {
+  return rooms
+    .map((room) => ({
+      roomId: room.roomId,
+      name: room.name,
+      photos: room.photos.flatMap(({ photo, tables }) => {
+        const url = coverUrl(photo);
+        // A photo with no picture to draw has nowhere to put a pin.
+        if (!url) return [];
+        return [
+          {
+            photoId: photo.photoId,
+            url,
+            thumbUrl: photo.thumbnailUrl || photo.cardUrl || url,
+            width: photo.width ?? null,
+            height: photo.height ?? null,
+            tables: tables.map(markerFromApi),
+          },
+        ];
+      }),
+    }))
+    .filter((room) => room.photos.length > 0);
 }
 
 /**
@@ -156,7 +180,6 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
     // The list carries no hours, so the server's own "open now" is the answer.
     openState: { isOpen: listing.isOpenNow, todayLabel: '' },
     photos: cover ? [cover] : [],
-    coverPhoto: coverUrl(listing.coverPhoto),
     coords: coordsOf(listing),
     address: listing.address,
     timeZoneId: listing.timeZoneId,
@@ -166,11 +189,11 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
     // The list does not say; the place's own page does.
     acceptsAppBookings: null,
     reviews: [],
-    tables: [],
+    rooms: [],
   };
 }
 
-/** The details screen: the listing plus hours, gallery, reviews and markers. The menu is its own read. */
+/** The details screen: the listing plus hours, gallery, reviews and rooms. The menu is its own read. */
 export function placeFromDetail(detail: BranchDetail, context: PlaceMappingContext): Place {
   const base = placeFromListing(detail.listing, context);
   const hours = hoursFromApi(detail);
@@ -184,8 +207,6 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
         ? openStateFor(hours, context.now, base.timeZoneId, context.locale)
         : base.openState,
     photos: [...(cover ? [cover] : []), ...detail.gallery.map((photo) => photo.fullUrl)],
-    // Said outright: with no cover, the first photo is a gallery picture.
-    coverPhoto: cover,
     ...(detail.phoneE164 ? { phone: detail.phoneE164 } : {}),
     ...(detail.websiteUrl ? { website: detail.websiteUrl } : {}),
     hours,
@@ -193,7 +214,6 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
     about: detail.about ?? '',
     acceptsAppBookings: detail.acceptsAppBookings,
     reviews: detail.recentReviews.map((review) => reviewFromApi(review, base.timeZoneId)),
-    // Markers only mean something on the cover; without one there is nothing to draw on.
-    tables: cover ? detail.tableMarkers.map(markerFromApi) : [],
+    rooms: roomsFromApi(detail.rooms),
   };
 }

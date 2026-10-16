@@ -18,7 +18,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { App as AppComponent } from '../../App';
 import type * as AuthSessionModule from '../../auth/authSession';
 import type * as GatewayModule from '../../data/gateway';
-import type { FloorPlanEditorScreen as FloorPlanEditorScreenComponent } from './floorplan/FloorPlanEditorScreen';
+import type { RoomsEditorScreen as RoomsEditorScreenComponent } from './rooms/RoomsEditorScreen';
 import type * as VenueLayoutModule from './VenueLayout';
 
 /**
@@ -191,8 +191,6 @@ function branchSummary(branchId: string, name: string, slug: string) {
     latitude: 40.1811,
     longitude: 44.5136,
     timeZoneId: 'Asia/Yerevan',
-    floorWidth: 800,
-    floorHeight: 600,
     isActive: true,
     subscriptionTier: 1,
     tableCount: 0,
@@ -257,12 +255,10 @@ const NORTHERN = [B1, 'Northern Avenue', 'northern-avenue'];
 const CASCADE = [B2, 'Cascade', 'cascade'];
 const MAIN_STREET = [BS, 'Main Street', 'main-street'];
 
-/** A branch as the probe created it: an 800 x 600 floor with nothing drawn on it yet. */
+/** A branch as the probe created it: no rooms and no tables yet. */
 function floorPlan(branchId: string) {
   return {
     branchId,
-    floorWidth: 800,
-    floorHeight: 600,
     areas: [],
     tables: [],
     // Opaque to the client (K6); this layout test never saves the plan.
@@ -508,7 +504,7 @@ function serveTheProbedBackend() {
 let App: typeof AppComponent;
 let auth: typeof AuthSessionModule;
 let gateways: typeof GatewayModule;
-let FloorPlanEditorScreen: typeof FloorPlanEditorScreenComponent;
+let RoomsEditorScreen: typeof RoomsEditorScreenComponent;
 let venueLayout: typeof VenueLayoutModule;
 let backend: ReturnType<typeof serveTheProbedBackend>;
 
@@ -524,7 +520,7 @@ beforeAll(async () => {
   ({ App } = await import('../../App'));
   auth = await import('../../auth/authSession');
   gateways = await import('../../data/gateway');
-  ({ FloorPlanEditorScreen } = await import('./floorplan/FloorPlanEditorScreen'));
+  ({ RoomsEditorScreen } = await import('./rooms/RoomsEditorScreen'));
   venueLayout = await import('./VenueLayout');
 });
 
@@ -642,7 +638,7 @@ function openTheFloorPlanScreenWith(branchId: string | null) {
       <MemoryRouter initialEntries={['/venue/floorplan']}>
         <Routes>
           <Route path="/venue" element={<Outlet context={context} />}>
-            <Route path="floorplan" element={<FloorPlanEditorScreen />} />
+            <Route path="floorplan" element={<RoomsEditorScreen />} />
           </Route>
         </Routes>
       </MemoryRouter>,
@@ -651,9 +647,9 @@ function openTheFloorPlanScreenWith(branchId: string | null) {
 }
 
 /** The floor plan screen's words for a user with no branch, from the en locale. */
-const NO_BRANCH = 'This account has no branch to draw a plan for.';
+const NO_BRANCH = 'This account has no branch to set up rooms for.';
 /** The editor's header once a plan with nothing on it has loaded. */
-const EMPTY_PLAN_LOADED = /^0 tables across 0 areas/u;
+const EMPTY_PLAN_LOADED = /^Rooms: 0 · Tables: 0/u;
 /** The notice for a read the server refused, from the en locale. */
 const FORBIDDEN = 'Your account cannot see this.';
 /** Long enough for every stubbed answer to land, so a failure below is the settled state. */

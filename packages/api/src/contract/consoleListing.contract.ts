@@ -1,9 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  CoverChangedError,
-  FloorPlanChangedError,
-  RelocationNotAllowedError,
-} from '../contracts/errors';
+import { FloorPlanChangedError, RelocationNotAllowedError } from '../contracts/errors';
 import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { VenueListing, VenueListingInput } from '../contracts/listing';
 import { NotFoundError, ValidationError } from '../errors';
@@ -12,8 +8,9 @@ import type { ContractSubject } from './subject';
 import { CONTRACT_RUN, randomUuid } from './subject';
 
 /**
- * The branch's diner-app listing, its gallery, its cover and the tables pinned
- * on it, as the console edits them (`BranchListingService`, K5–K7).
+ * The branch's diner-app listing, its gallery, its cover, and the tables pinned
+ * on room photos, as the console edits them (`BranchListingService`,
+ * `BranchSettingsService`, K5–K6).
  *
  * Three rules carry the weight:
  *
@@ -22,9 +19,8 @@ import { CONTRACT_RUN, randomUuid } from './subject';
  *   below is followed by a read that must equal the read before it.
  * - **Moving a branch is an owner's or the platform's** (K5). A manager may
  *   save everything else; repeating the stored location is not a move.
- * - **Pins belong to one picture and are saved on their own** (K6, K7). A plan
- *   save neither writes nor wipes them, a pin save does not bump the plan's
- *   version, and a new cover takes every pin off.
+ * - **A pin is on one of its own room's photos, and saved with the plan** (K6).
+ *   The cover is the card's picture only: changing it moves no pin.
  *
  * Every suite that changes the fixture branch puts it back afterwards, so a
  * run against a database somebody develops on leaves the demo branch as it
@@ -99,7 +95,7 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
       readonly phoneE164: string | null;
       readonly acceptsWebBookings: boolean;
       readonly coverPhotoId: string | null;
-      readonly pins: readonly { tableId: string; photoX: number; photoY: number }[];
+      readonly plan: EditorFloorPlan;
     } | null = null;
 
     beforeAll(async () => {
@@ -111,11 +107,7 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
         phoneE164: profile.phoneE164,
         acceptsWebBookings: profile.acceptsWebBookings,
         coverPhotoId: profile.coverPhoto?.photoId ?? null,
-        pins: plan.tables.flatMap((table) =>
-          typeof table.photoX === 'number' && typeof table.photoY === 'number'
-            ? [{ tableId: table.id, photoX: table.photoX, photoY: table.photoY }]
-            : [],
-        ),
+        plan,
       };
     });
 
@@ -133,12 +125,12 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
           coverPhotoId: original.coverPhotoId,
         },
       });
-      if (original.coverPhotoId && original.pins.length > 0) {
-        await owner.saveTablePhotoPositions(branchId, {
-          coverPhotoId: original.coverPhotoId,
-          positions: original.pins,
-        });
-      }
+      // The rooms as they were, against whatever version the tests left.
+      const now = await owner.getFloorPlan(branchId);
+      await owner.replaceFloorPlan({
+        branchId,
+        command: { ...commandFrom(original.plan), expectedVersion: now.version },
+      });
     });
 
     // --- The listing ------------------------------------------------------------------
@@ -308,46 +300,43 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
       });
     });
 
-    // --- The cover and its pins -------------------------------------------------------
+    // --- Rooms, their photos and the pins on them -------------------------------------
+
+    const ROOM = `Contract room ${CONTRACT_RUN}`;
 
     let pinned: Promise<{
-      coverPhotoId: string;
+      photoId: string;
       placed: string;
-      unplaced: string;
       versionBefore: string;
-      saved: Awaited<ReturnType<typeof owner.saveTablePhotoPositions>>;
+      saved: Awaited<ReturnType<typeof owner.replaceFloorPlan>>;
     }> | null = null;
 
-    /** A new cover with one table pinned and one taken off, made once for the tests below. */
-    function pinnedCover() {
+    /** A room of its own with one photo and one table pinned on it, made once for the tests below. */
+    function pinnedRoom() {
       pinned ??= (async () => {
-        const coverPhotoId = await upload();
-        const profile = await owner.getPublicProfile(branchId);
-        await owner.updatePublicProfile({
-          branchId,
-          profile: {
-            phoneE164: profile.phoneE164,
-            acceptsWebBookings: profile.acceptsWebBookings,
-            coverPhotoId,
-          },
-        });
-
+        const photoId = await upload();
         const plan = await owner.getFloorPlan(branchId);
         const active = plan.tables.filter((table) => table.isActive);
-        expect(
-          active.length,
-          'the fixture branch has fewer than two active tables',
-        ).toBeGreaterThanOrEqual(2);
-        const [placed, unplaced] = [active[0]!.id, active[1]!.id];
+        expect(active.length, 'the fixture branch has no active table').toBeGreaterThanOrEqual(1);
+        const placed = active[0]!.id;
 
-        const saved = await owner.saveTablePhotoPositions(branchId, {
-          coverPhotoId,
-          positions: [
-            { tableId: placed, photoX: 0.25, photoY: 0.5 },
-            { tableId: unplaced, photoX: null, photoY: null },
-          ],
+        const command = commandFrom(plan);
+        const saved = await owner.replaceFloorPlan({
+          branchId,
+          command: {
+            ...command,
+            areas: [
+              ...command.areas,
+              { name: ROOM, displayOrder: command.areas.length, photoIds: [photoId] },
+            ],
+            tables: command.tables.map((table) =>
+              table.id === placed
+                ? { ...table, floorAreaName: ROOM, pin: { photoId, x: 0.25, y: 0.5 } }
+                : table,
+            ),
+          },
         });
-        return { coverPhotoId, placed, unplaced, versionBefore: plan.version, saved };
+        return { photoId, placed, versionBefore: plan.version, saved };
       })();
       return pinned;
     }
@@ -355,67 +344,110 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
     const tableIn = (plan: EditorFloorPlan, tableId: string) =>
       plan.tables.find((table) => table.id === tableId);
 
-    it("pins tables on the cover, answers every active table, and leaves the plan's version", async () => {
-      const { coverPhotoId, placed, unplaced, versionBefore, saved } = await pinnedCover();
+    it('saves a room with its photo and a table pinned on it, and moves the version', async () => {
+      const { photoId, placed, versionBefore, saved } = await pinnedRoom();
 
-      expect(saved.coverPhotoId).toBe(coverPhotoId);
-      expect(saved.tables.find((table) => table.tableId === placed)).toMatchObject({
-        photoX: 0.25,
-        photoY: 0.5,
+      expect(saved.plan.version).not.toBe(versionBefore);
+      const room = saved.plan.areas.find((area) => area.name === ROOM);
+      expect(room?.photos.map((photo) => photo.photoId)).toEqual([photoId]);
+      expect(tableIn(saved.plan, placed)).toMatchObject({
+        floorAreaId: room!.id,
+        pin: { photoId, x: 0.25, y: 0.5 },
       });
-      expect(saved.tables.find((table) => table.tableId === unplaced)).toMatchObject({
-        photoX: null,
-        photoY: null,
-      });
-
-      const plan = await owner.getFloorPlan(branchId);
-      expect(plan.tables.filter((table) => table.isActive).length).toBe(saved.tables.length);
-      // Pin saves and cover changes do not bump it.
-      expect(plan.version).toBe(versionBefore);
-      expect(tableIn(plan, placed)).toMatchObject({ photoX: 0.25, photoY: 0.5 });
+      expect(await owner.getFloorPlan(branchId)).toEqual(saved.plan);
     });
 
-    it('refuses pins placed on a picture that is no longer the cover, and writes nothing', async () => {
-      const { coverPhotoId, placed } = await pinnedCover();
+    it("refuses a pin on another room's photo and a photo in two rooms, naming each field, and writes nothing", async () => {
+      const { photoId, placed } = await pinnedRoom();
+      const before = await owner.getFloorPlan(branchId);
+      const command = commandFrom(before);
+      const other = command.tables.findIndex((table) => table.id !== placed);
 
-      const stale = owner.saveTablePhotoPositions(branchId, {
-        coverPhotoId: randomUuid(),
-        positions: [{ tableId: placed, photoX: 0.9, photoY: 0.9 }],
-      });
-      await expect(stale).rejects.toBeInstanceOf(CoverChangedError);
-      const refusal = (await stale.catch((error: unknown) => error)) as CoverChangedError;
-      expect(refusal.currentCoverPhotoId).toBe(coverPhotoId);
+      const elsewhere = await owner
+        .replaceFloorPlan({
+          branchId,
+          command: {
+            ...command,
+            tables: command.tables.map((table, index) =>
+              index === other
+                ? { ...table, floorAreaName: null, pin: { photoId, x: 0.5, y: 0.5 } }
+                : table,
+            ),
+          },
+        })
+        .catch((error: unknown) => error);
+      if (other >= 0) {
+        expect(namedFields(elsewhere)).toContain(`tables[${other}].photoId`);
+      }
 
-      expect(tableIn(await owner.getFloorPlan(branchId), placed)).toMatchObject({
-        photoX: 0.25,
-        photoY: 0.5,
+      const twice = await owner
+        .replaceFloorPlan({
+          branchId,
+          command: {
+            ...command,
+            areas: [
+              ...command.areas,
+              { name: `${ROOM} 2`, displayOrder: command.areas.length, photoIds: [photoId] },
+            ],
+          },
+        })
+        .catch((error: unknown) => error);
+      expect(namedFields(twice)).toContain(`areas[${command.areas.length}].photoIds[0]`);
+
+      expect(await owner.getFloorPlan(branchId)).toEqual(before);
+    });
+
+    it("refuses a room photo that is not this branch's with a 404, and writes nothing", async () => {
+      await pinnedRoom();
+      const before = await owner.getFloorPlan(branchId);
+      const command = commandFrom(before);
+
+      const refusal = owner.replaceFloorPlan({
+        branchId,
+        command: {
+          ...command,
+          areas: command.areas.map((area) =>
+            area.name === ROOM ? { ...area, photoIds: [...area.photoIds, randomUuid()] } : area,
+          ),
+        },
       });
+
+      await expect(refusal).rejects.toBeInstanceOf(NotFoundError);
+      expect(await owner.getFloorPlan(branchId)).toEqual(before);
     });
 
     const markersGap = subject.unsupported('photoMarkers');
     (markersGap ? it.skip : it)(
-      `shows the pins to a diner, on the cover they were placed on${markersGap ? ` (skipped: ${markersGap})` : ''}`,
+      `shows the pin to a diner, on the room photo it was placed on${markersGap ? ` (skipped: ${markersGap})` : ''}`,
       async () => {
-        const { coverPhotoId, placed, unplaced } = await pinnedCover();
+        const { photoId, placed } = await pinnedRoom();
 
-        const markers = await gateway.getBranchTableMarkers(branchId);
-        expect(markers?.photo?.photoId).toBe(coverPhotoId);
-        expect(markers!.tables.find((table) => table.tableId === placed)).toMatchObject({
+        const rooms = await gateway.getBranchRooms(branchId);
+        const room = rooms?.rooms.find((candidate) => candidate.name === ROOM);
+        expect(room?.photos[0]?.photo.photoId).toBe(photoId);
+        expect(room!.photos[0]!.tables.find((table) => table.tableId === placed)).toMatchObject({
           x: 0.25,
           y: 0.5,
         });
-        // Only tables a manager placed on the cover photo appear.
-        expect(markers!.tables.some((table) => table.tableId === unplaced)).toBe(false);
       },
     );
 
-    it('keeps pins through a floor-plan save, and refuses a save against a stale version', async () => {
-      const { placed } = await pinnedCover();
+    it('moves no pin when the cover changes, and refuses a save against a stale version', async () => {
+      const { placed, photoId } = await pinnedRoom();
+      const profile = await owner.getPublicProfile(branchId);
+      await owner.updatePublicProfile({
+        branchId,
+        profile: {
+          phoneE164: profile.phoneE164,
+          acceptsWebBookings: profile.acceptsWebBookings,
+          coverPhotoId: await upload(),
+        },
+      });
       const plan = await owner.getFloorPlan(branchId);
+      expect(tableIn(plan, placed)?.pin).toEqual({ photoId, x: 0.25, y: 0.5 });
 
       const result = await owner.replaceFloorPlan({ branchId, command: commandFrom(plan) });
       expect(result.plan.version).not.toBe(plan.version);
-      expect(tableIn(result.plan, placed)).toMatchObject({ photoX: 0.25, photoY: 0.5 });
 
       const stale = owner.replaceFloorPlan({ branchId, command: commandFrom(plan) });
       await expect(stale).rejects.toBeInstanceOf(FloorPlanChangedError);
@@ -423,31 +455,25 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
       expect(refusal.currentVersion).toBe(result.plan.version);
     });
 
-    // Last of the pin tests: it changes the cover the ones above rely on.
-    it('keeps every pin for the same cover sent again, and takes them all off for a new one', async () => {
-      const { coverPhotoId, placed } = await pinnedCover();
-      const profile = await owner.getPublicProfile(branchId);
-      const withCover = (cover: string) =>
-        owner.updatePublicProfile({
-          branchId,
-          profile: {
-            phoneE164: profile.phoneE164,
-            acceptsWebBookings: profile.acceptsWebBookings,
-            coverPhotoId: cover,
-          },
-        });
+    // Last of the room tests: it takes away the photo the ones above rely on.
+    it('takes a table off a photo the plan drops, with a warning naming it', async () => {
+      const { placed } = await pinnedRoom();
+      const plan = await owner.getFloorPlan(branchId);
+      const command = commandFrom(plan);
 
-      await withCover(coverPhotoId);
-      expect(tableIn(await owner.getFloorPlan(branchId), placed)).toMatchObject({
-        photoX: 0.25,
-        photoY: 0.5,
+      const result = await owner.replaceFloorPlan({
+        branchId,
+        command: {
+          ...command,
+          areas: command.areas.map((area) =>
+            area.name === ROOM ? { ...area, photoIds: [] } : area,
+          ),
+        },
       });
 
-      await withCover(await upload());
-      for (const table of (await owner.getFloorPlan(branchId)).tables) {
-        expect(table.photoX ?? null, `table ${table.label} kept its pin`).toBeNull();
-        expect(table.photoY ?? null, `table ${table.label} kept its pin`).toBeNull();
-      }
+      const label = tableIn(plan, placed)!.label;
+      expect(tableIn(result.plan, placed)?.pin).toBeNull();
+      expect(result.warnings.some((warning) => warning.includes(label))).toBe(true);
     });
   });
 }
@@ -456,13 +482,12 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
 function commandFrom(plan: EditorFloorPlan): ReplaceFloorPlanCommand {
   const areaName = new Map(plan.areas.map((area) => [area.id, area.name]));
   return {
-    floorWidth: plan.floorWidth,
-    floorHeight: plan.floorHeight,
     expectedVersion: plan.version,
     areas: plan.areas.map((area) => ({
       id: area.id,
       name: area.name,
       displayOrder: area.displayOrder,
+      photoIds: area.photos.map((photo) => photo.photoId),
     })),
     tables: plan.tables
       .filter((table) => table.isActive)
@@ -470,14 +495,9 @@ function commandFrom(plan: EditorFloorPlan): ReplaceFloorPlanCommand {
         id: table.id,
         label: table.label,
         seats: table.seats,
-        x: table.x,
-        y: table.y,
-        width: table.width,
-        height: table.height,
-        rotationDegrees: table.rotationDegrees,
-        shape: table.shape,
         floorAreaName: table.floorAreaId ? (areaName.get(table.floorAreaId) ?? null) : null,
         isBookable: table.isBookable,
+        pin: table.pin,
       })),
   };
 }

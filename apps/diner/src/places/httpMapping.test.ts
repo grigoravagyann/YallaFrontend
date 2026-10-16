@@ -8,7 +8,7 @@ import {
   reviewFromApi,
   reviewPageFromApi,
 } from './httpMapping';
-import { nextReviewPage, tablePhotoOf } from './model';
+import { nextReviewPage } from './model';
 import { bookingRulesInput, floorPlanParams } from './navigation';
 
 const LISTING: BranchListing = {
@@ -163,13 +163,11 @@ describe('placeFromDetail', () => {
         edited: true,
       },
     ],
-    tableMarkers: [
-      { tableId: 't', label: '5', seats: 4, isBookable: true, status: 'free', x: 0.25, y: 0.5 },
-    ],
+    rooms: [],
     asOfUtc: '2026-09-14T10:00:00Z',
   };
 
-  it('maps hours, reviews, markers and the booking gate the screens read', () => {
+  it('maps hours, reviews and the booking gate the screens read', () => {
     // A Monday in Yerevan, 14:00 local.
     const place = placeFromDetail(detail, CONTEXT);
 
@@ -182,28 +180,82 @@ describe('placeFromDetail', () => {
     expect(place.reviews).toEqual([
       { id: 'r', author: 'Anahit S.', rating: 5, text: '', date: '2026-09-02', edited: true },
     ]);
-    expect(place.tables).toEqual([
-      { tableId: 't', label: '5', status: 'free', capacityMin: 1, capacityMax: 4, x: 0.25, y: 0.5 },
-    ]);
+    expect(place.rooms).toEqual([]);
     expect(place).not.toHaveProperty('menu');
   });
 
-  it('draws no markers when there is no cover photo to draw them on', () => {
-    const bare = { ...detail, listing: { ...detail.listing, coverPhoto: null } };
-    expect(placeFromDetail(bare, CONTEXT).tables).toEqual([]);
-  });
+  it('carries every room and every photo, each pin on the photo it stands on', () => {
+    const photo = (photoId: string, width: number | null, height: number | null) => ({
+      photoId,
+      thumbnailUrl: `https://api/${photoId}/t`,
+      cardUrl: `https://api/${photoId}/c`,
+      fullUrl: `https://api/${photoId}/f`,
+      width,
+      height,
+    });
+    const pin = (tableId: string, status: 'free' | 'outOfService', isBookable = true) => ({
+      tableId,
+      label: tableId,
+      seats: 4,
+      isBookable,
+      status,
+      x: 0.25,
+      y: 0.75,
+    });
+    const place = placeFromDetail(
+      {
+        ...detail,
+        rooms: [
+          {
+            roomId: 'hall',
+            name: 'Hall',
+            displayOrder: 0,
+            photos: [
+              { photo: photo('h1', 1600, 1200), tables: [pin('1', 'free')] },
+              { photo: photo('h2', null, null), tables: [pin('2', 'outOfService', false)] },
+            ],
+          },
+          {
+            roomId: 'terrace',
+            name: 'Terrace',
+            displayOrder: 1,
+            photos: [{ photo: photo('t1', 1200, 1600), tables: [] }],
+          },
+        ],
+      },
+      CONTEXT,
+    );
 
-  it('never takes a gallery photo for the one the tables are placed on', () => {
-    expect(tablePhotoOf(placeFromDetail(detail, CONTEXT))).toBe('https://api/p/f');
-
-    const galleryOnly = {
-      ...detail,
-      listing: { ...detail.listing, coverPhoto: null },
-      gallery: [{ ...detail.listing.coverPhoto!, photoId: 'g', fullUrl: 'https://api/g/f' }],
-    };
-    const place = placeFromDetail(galleryOnly, CONTEXT);
-    expect(place.photos).toEqual(['https://api/g/f']);
-    expect(tablePhotoOf(place)).toBeNull();
+    expect(place.rooms.map((room) => [room.roomId, room.name])).toEqual([
+      ['hall', 'Hall'],
+      ['terrace', 'Terrace'],
+    ]);
+    expect(place.rooms[0]!.photos[0]).toEqual({
+      photoId: 'h1',
+      url: 'https://api/h1/f',
+      thumbUrl: 'https://api/h1/t',
+      width: 1600,
+      height: 1200,
+      tables: [
+        {
+          tableId: '1',
+          label: '1',
+          status: 'free',
+          isBookable: true,
+          capacityMin: 1,
+          capacityMax: 4,
+          x: 0.25,
+          y: 0.75,
+        },
+      ],
+    });
+    expect(place.rooms[0]!.photos[1]).toMatchObject({
+      photoId: 'h2',
+      width: null,
+      height: null,
+      tables: [{ tableId: '2', status: 'outOfService', isBookable: false }],
+    });
+    expect(place.rooms[1]!.photos.map((entry) => entry.photoId)).toEqual(['t1']);
   });
 
   describe('a split service: lunch 12:00–15:00, dinner 18:00–23:00 on Mondays', () => {

@@ -35,6 +35,21 @@ export interface PublicPhoto {
 }
 
 /**
+ * A room a visitor picks from — Hall, Terrace, VIP — with its photos in the
+ * order a diner swipes them. Only rooms with a photo are listed: tables are
+ * pins on the photos, so a room with none has nothing to show or book.
+ *
+ * The pins themselves come from availability, for the slot the visitor picked,
+ * so their colours are the state at that slot rather than now.
+ */
+export interface PublicRoom {
+  readonly roomId: string;
+  readonly name: string;
+  readonly displayOrder: number;
+  readonly photos: readonly PublicPhoto[];
+}
+
+/**
  * The reservation rules a diner needs in order to book, and nothing else.
  *
  * Deliberately **not** `BranchPolicy`. The backend publishes a hand-picked
@@ -167,6 +182,9 @@ export interface PublicBranch {
    * worth someone's time — but nothing on it offers an action it cannot honour.
    */
   readonly acceptsWebBookings: boolean;
+
+  /** The rooms with photos, lowest `displayOrder` first. */
+  readonly rooms: readonly PublicRoom[];
 }
 
 /**

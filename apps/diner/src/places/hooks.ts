@@ -36,7 +36,8 @@ export const placeKeys = {
   /** One place as read from one rounded position. */
   detailAt: (placeId: string, position: PositionKey | null) =>
     [...detailKey(placeId), position?.[0] ?? null, position?.[1] ?? null] as const,
-  tables: (placeId: string) => ['places', 'tables', placeId] as const,
+  /** The rooms with their live pins. */
+  rooms: (placeId: string) => ['places', 'rooms', placeId] as const,
   /** The menu on its own, so a failed menu read is the menu tab's problem and nobody else's. */
   menu: (placeId: string) => ['places', 'menu', placeId] as const,
   /** Every page of a place's reviews read so far. */
@@ -87,11 +88,11 @@ export function usePlace(placeId: string | undefined) {
   });
 }
 
-/** The photo's table markers. Live data: short stale time, refreshed on focus. */
-export function usePlaceTables(placeId: string | undefined) {
+/** The rooms, photos and live pins. Live data: short stale time, refreshed on focus. */
+export function usePlaceRooms(placeId: string | undefined) {
   return useQuery({
-    queryKey: placeKeys.tables(placeId ?? ''),
-    queryFn: () => placeRepository.tables(placeId!),
+    queryKey: placeKeys.rooms(placeId ?? ''),
+    queryFn: () => placeRepository.rooms(placeId!),
     enabled: Boolean(placeId),
     staleTime: staleTime.live,
     refetchOnWindowFocus: true,

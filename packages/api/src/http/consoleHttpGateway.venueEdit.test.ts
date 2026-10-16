@@ -133,8 +133,6 @@ describe('adding a branch over HTTP', () => {
       latitude: 40.2,
       longitude: 44.5,
       timeZoneId: 'Asia/Yerevan',
-      floorWidth: 1000,
-      floorHeight: 700,
       subscriptionTier: 1,
     });
     expect(sent(fetchImpl, 1).url).toBe(`${BASE}/api/platform/venues/v-1`);

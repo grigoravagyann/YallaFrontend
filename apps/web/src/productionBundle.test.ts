@@ -258,7 +258,7 @@ function chunkGraph(): readonly GraphChunk[] {
  * Every chunk the browser must have downloaded before this one can run.
  *
  * Static imports only. A dynamic import is the whole point of the split — the
- * floor plan renderer and the booking panel are reached that way — so counting
+ * booking panel is reached that way — so counting
  * them would make the assertion vacuous and the byte budget meaningless.
  */
 function staticClosure(graph: readonly GraphChunk[], entry: GraphChunk): readonly GraphChunk[] {
@@ -347,21 +347,13 @@ describe("the public branch page's bundle", () => {
     expect(offenders).toEqual([]);
   });
 
-  it('defers the floor plan renderer, which is the heaviest thing it needs', () => {
+  it('ships no React Native renderer to the public page', () => {
     const graph = chunkGraph();
     const publicChunk = findChunkContaining(graph, 'src/public/bootstrapPublic.tsx');
-    const closure = new Set(staticClosure(graph, publicChunk).map((chunk) => chunk.file));
 
-    const rendererChunk = findChunkContaining(graph, 'packages/floorplan/src/FloorPlan.tsx');
-    expect(
-      closure.has(rendererChunk.file),
-      'react-native-web reached the first load; the room is meant to arrive after the fold',
-    ).toBe(false);
-
-    // And react-native-web is with it rather than hoisted into something the
-    // first load already needs.
-    for (const file of closure) {
-      const chunk = graph.find((entry) => entry.file === file)!;
+    // The room is photos and pins now; nothing on the page needs
+    // react-native-web, and nothing reached from it should bring it along.
+    for (const chunk of staticClosure(graph, publicChunk)) {
       for (const module of chunk.modules) {
         if (module.bytes === 0) continue;
         expect(module.id).not.toMatch(/node_modules\/react-native-(web|svg)\//u);

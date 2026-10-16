@@ -39,20 +39,6 @@ async function newVenue(gateway: ConsoleGateway, slug = 'kond-bakery') {
   });
 }
 
-async function planCommand(
-  gateway: ConsoleGateway,
-  branchId: string,
-): Promise<ReplaceFloorPlanCommand> {
-  const plan = await gateway.getFloorPlan(branchId);
-  return {
-    floorWidth: plan.floorWidth,
-    floorHeight: plan.floorHeight,
-    areas: [],
-    tables: plan.tables.filter((t) => t.isActive).map((t) => ({ ...t, floorAreaName: null })),
-    expectedVersion: plan.version,
-  };
-}
-
 describe('F1 — a new venue starts with nobody on it', () => {
   it('seeds no staff for a venue the platform admin just created', async () => {
     // `PlatformService.CreateVenueAsync` writes the venue and its first branch
@@ -133,43 +119,6 @@ describe('F7 — opening hours: a block must have a length', () => {
   });
 });
 
-describe('F8 — the floor plan refuses a table outside the room, in the server words', () => {
-  it('names the canvas and the tables, and writes nothing', async () => {
-    const gateway = createConsoleMockGateway();
-    const branchId = 'b-lumen-cascade';
-    const command = await planCommand(gateway, branchId);
-    const before = await gateway.getFloorPlan(branchId);
-    const error = await caught(
-      gateway.replaceFloorPlan({
-        branchId,
-        command: {
-          ...command,
-          tables: [
-            ...command.tables,
-            {
-              label: 'QA13',
-              seats: 2,
-              x: command.floorWidth - 40,
-              y: 100,
-              width: 90,
-              height: 90,
-              rotationDegrees: 0,
-              shape: 'rectangle',
-              floorAreaName: null,
-              isBookable: true,
-            },
-          ],
-        },
-      }),
-    );
-    expect(error).toBeInstanceOf(FloorPlanInvalidError);
-    expect((error as FloorPlanInvalidError).errors).toEqual([
-      `Every table must sit inside the ${command.floorWidth}x${command.floorHeight} canvas. Outside it: QA13.`,
-    ]);
-    expect(await gateway.getFloorPlan(branchId)).toEqual(before);
-  });
-});
-
 async function planWithAreas(
   gateway: ConsoleGateway,
   branchId: string,
@@ -177,9 +126,12 @@ async function planWithAreas(
   const plan = await gateway.getFloorPlan(branchId);
   const nameOf = new Map(plan.areas.map((a) => [a.id, a.name]));
   return {
-    floorWidth: plan.floorWidth,
-    floorHeight: plan.floorHeight,
-    areas: plan.areas.map((a) => ({ id: a.id, name: a.name, displayOrder: a.displayOrder })),
+    areas: plan.areas.map((a) => ({
+      id: a.id,
+      name: a.name,
+      displayOrder: a.displayOrder,
+      photoIds: a.photos.map((photo) => photo.photoId),
+    })),
     tables: plan.tables
       .filter((t) => t.isActive)
       .map((t) => ({

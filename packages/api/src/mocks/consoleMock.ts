@@ -19,9 +19,6 @@ import type {
 import {
   BranchNotReadyError,
   CategoryInUseError,
-  CoverChangedError,
-  FloorPlanChangedError,
-  FloorPlanInvalidError,
   RelocationNotAllowedError,
   ReviewHiddenByPlatformError,
   OutOfScopeError,
@@ -90,8 +87,8 @@ import type {
   EditorFloorTable,
   FloorPlanSaveResult,
   TableDeletionResult,
-  TablePhotoPositions,
 } from '../contracts/floorPlan';
+import { applyFloorPlan, sortAreas } from './floorPlanMock';
 import { createMockReports } from './reports';
 import { mockRegistry, mockTokenHash, type MockRegistry } from './mockRegistry';
 import { fixtureStaffFor } from './staffFixture';
@@ -1397,12 +1394,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   /**
    * Which tables the mock pretends have been sat at.
    *
-   * Two in every branch, so the "deactivated rather than deleted" path is
-   * reachable without inventing a booking first. It is the path most likely to
-   * be got wrong, and the one a person will hit by accident.
+   * Tables 1, 7 and 11 in every branch, so the "deactivated rather than
+   * deleted" path is reachable without inventing a booking first. It is the
+   * path most likely to be got wrong, and the one a person will hit by accident.
    */
+  const tablesWithHistory = new Set<string>();
   function hasHistory(tableId: string): boolean {
-    return tableId.endsWith('1') || tableId.endsWith('7');
+    return tablesWithHistory.has(tableId);
   }
 
   function seedFloorPlan(branchId: string): EditorFloorPlan {
@@ -1411,30 +1409,29 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       id: `area-${branchId}-${index}`,
       name,
       displayOrder: index,
+      // Nobody has photographed the rooms yet; the editor's first job.
+      photos: [],
     }));
 
     const tables: EditorFloorTable[] = Array.from({ length: 12 }, (_, i) => {
-      const col = i % 4;
-      const row = Math.floor(i / 4);
-      const area = areas[row] ?? areas[0]!;
+      const area = areas[Math.floor(i / 4)] ?? areas[0]!;
+      const id = `tbl-${branchId}-${i + 1}`;
+      if ([1, 7, 11].includes(i + 1)) tablesWithHistory.add(id);
       return {
-        id: `tbl-${branchId}-${i + 1}`,
+        id,
         label: String(i + 1),
-        seats: col === 3 ? 4 : 2,
-        x: 120 + col * 200,
-        y: 120 + row * 220,
-        width: col === 3 ? 140 : 90,
-        height: 90,
-        rotationDegrees: 0,
-        shape: col % 2 === 0 ? 'rectangle' : 'round',
+        seats: i % 4 === 3 ? 4 : 2,
         floorAreaId: area.id,
         isBookable: true,
         isActive: true,
+        isDeletable: !tablesWithHistory.has(id),
+        status: 'free',
         qrToken: `qr-${branchId}-${i + 1}`,
+        pin: null,
       };
     });
 
-    return { branchId, floorWidth: 1000, floorHeight: 800, areas, tables, version: '1' };
+    return { branchId, areas, tables, version: '1' };
   }
 
   function floorPlanFor(branchId: string): EditorFloorPlan {
@@ -1446,27 +1443,38 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     return plan;
   }
 
-  /** The same advisory the server gives: overlapping tables save anyway. */
-  function overlapWarnings(
-    tables: readonly { label: string; x: number; y: number; width: number; height: number }[],
-  ): string[] {
-    const warnings: string[] = [];
-    for (let i = 0; i < tables.length; i += 1) {
-      for (let j = i + 1; j < tables.length; j += 1) {
-        const a = tables[i];
-        const b = tables[j];
-        if (!a || !b) continue;
-        if (
-          a.x < b.x + b.width &&
-          b.x < a.x + a.width &&
-          a.y < b.y + b.height &&
-          b.y < a.y + a.height
-        ) {
-          warnings.push(`Tables ${a.label} and ${b.label} overlap.`);
-        }
-      }
+  function bumped(version: string): string {
+    return String((Number.parseInt(version, 10) || 0) + 1);
+  }
+
+  /** `RequireUnusedAreaNameAsync`: another room's name, ignoring case and spaces at the ends. */
+  function requireUnusedAreaName(
+    plan: EditorFloorPlan,
+    name: string,
+    exceptAreaId: string | null,
+    url: string,
+  ): void {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const taken = plan.areas.some(
+      (area) =>
+        area.id !== exceptAreaId &&
+        area.name.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase(),
+    );
+    if (taken) {
+      throw validationFailed(url, [
+        {
+          field: 'name',
+          message: `Area names must be unique within a branch. ${trimmed} is already used.`,
+          bound: 'conflict',
+        },
+      ]);
     }
-    return warnings;
+  }
+
+  /** A photo uploaded for this branch, or `undefined`: the server's `Photos.BranchId` lookup. */
+  function branchPhoto(branchId: string, photoId: string): Photo | undefined {
+    return photoBranch.get(photoId) === branchId ? photosById.get(photoId) : undefined;
   }
 
   return {
@@ -1666,225 +1674,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       await wait();
       const url = `${URL_TAG}/branches/${branchId}/floor-plan`;
       requireBranchInVenue(branchId);
-      const existing = floorPlanFor(branchId);
-
-      // K6: the version this edit started from is required, and must still be
-      // the plan's. Checked before the plan itself: a stale editor's plan is
-      // not worth validating, it is worth reloading.
-      if (typeof command.expectedVersion !== 'string' || command.expectedVersion.trim() === '') {
-        throw validationFailed(url, [
-          {
-            field: 'expectedVersion',
-            message: 'Send the version of the plan this edit started from.',
-            bound: 'required',
-          },
-        ]);
-      }
-      if (command.expectedVersion !== existing.version) {
-        throw new FloorPlanChangedError({ url, currentVersion: existing.version });
-      }
-
-      // The same two refusals the server makes, and no more. Overlapping
-      // tables are deliberately not one of them: a client stricter than the
-      // server teaches people a rule that does not exist.
-      const outside = command.tables
-        .filter(
-          (t) =>
-            t.x < 0 ||
-            t.y < 0 ||
-            t.x + t.width > command.floorWidth ||
-            t.y + t.height > command.floorHeight,
-        )
-        .map((t) => t.label);
-
-      const seen = new Map<string, number>();
-      for (const table of command.tables) {
-        const key = table.label.trim().toLocaleLowerCase();
-        seen.set(key, (seen.get(key) ?? 0) + 1);
-      }
-      const duplicates = command.tables
-        .map((t) => t.label.trim())
-        .filter((label, index, all) => {
-          const key = label.toLocaleLowerCase();
-          return (
-            (seen.get(key) ?? 0) > 1 &&
-            all.findIndex((l) => l.toLocaleLowerCase() === key) === index
-          );
-        });
-
-      // A table may only name an area this same plan keeps
-      // (BranchSettingsService: "Tables reference areas that are not in the
-      // plan"). Dropping an area and its tables' reference in one save is fine.
-      const keptAreaNames = new Set(command.areas.map((a) => a.name.trim().toLocaleLowerCase()));
-      const unknownAreas = command.tables
-        .filter(
-          (t) =>
-            t.floorAreaName != null &&
-            !keptAreaNames.has(t.floorAreaName.trim().toLocaleLowerCase()),
-        )
-        .map((t) => `${t.label} -> ${t.floorAreaName}`);
-
-      if (outside.length > 0 || duplicates.length > 0 || unknownAreas.length > 0) {
-        const errors: string[] = [];
-        if (outside.length > 0) {
-          // `FloorPlanRules.Validate`'s sentence, verbatim.
-          errors.push(
-            `Every table must sit inside the ${command.floorWidth}x${command.floorHeight} canvas. Outside it: ${outside.join(', ')}.`,
-          );
-        }
-        if (duplicates.length > 0) {
-          errors.push(
-            `Table labels must be unique within a branch. Repeated: ${duplicates.join(', ')}.`,
-          );
-        }
-        if (unknownAreas.length > 0) {
-          errors.push(
-            `Tables reference areas that are not in the plan: ${unknownAreas.join(', ')}.`,
-          );
-        }
-        throw new FloorPlanInvalidError({
-          url: URL_TAG,
-          errors,
-          tablesOutsideCanvas: outside,
-          duplicateLabels: duplicates,
-        });
-      }
-
-      const areas: EditorFloorArea[] = command.areas.map((area, index) => ({
-        id: area.id ?? `area-${branchId}-${index}-${area.name}`,
-        name: area.name,
-        displayOrder: area.displayOrder,
-      }));
-      const areaByName = new Map(areas.map((a) => [a.name, a.id]));
-
-      const kept = new Set(command.tables.map((t) => t.id).filter(Boolean));
-      // A table dropped from the plan is removed only if it never had a
-      // booking; one with history is deactivated and stays on the canvas.
-      const dropped = existing.tables.filter((t) => !kept.has(t.id));
-      const deactivated = dropped.filter((t) => hasHistory(t.id));
-      const removed = dropped.filter((t) => !hasHistory(t.id));
-
-      const tables: EditorFloorTable[] = [
-        ...command.tables.map((table, index): EditorFloorTable => {
-          const previous = table.id ? existing.tables.find((t) => t.id === table.id) : undefined;
-          return {
-            id: table.id ?? `tbl-${branchId}-${index}-${table.label}`,
-            label: table.label,
-            seats: table.seats,
-            x: Math.round(table.x),
-            y: Math.round(table.y),
-            width: Math.round(table.width),
-            height: Math.round(table.height),
-            rotationDegrees: table.rotationDegrees,
-            shape: table.shape,
-            floorAreaId: table.floorAreaName ? (areaByName.get(table.floorAreaName) ?? null) : null,
-            isBookable: table.isBookable,
-            isActive: true,
-            // Survives the edit, exactly as on the server.
-            qrToken: previous?.qrToken ?? `qr-${branchId}-${table.label}`,
-            // Pins are not part of a plan save (K6): a kept table keeps its
-            // pin, a new one has none, and anything sent for them is ignored.
-            photoX: previous?.photoX ?? null,
-            photoY: previous?.photoY ?? null,
-          };
-        }),
-        ...deactivated.map((table) => ({ ...table, isActive: false })),
-      ];
-
-      const saved: EditorFloorPlan = {
+      const result = applyFloorPlan(floorPlanFor(branchId), command, {
         branchId,
-        floorWidth: command.floorWidth,
-        floorHeight: command.floorHeight,
-        areas,
-        tables,
-        // Bumped here and only here: pin saves and cover changes leave it.
-        version: String((Number.parseInt(existing.version, 10) || 0) + 1),
-      };
-      floorPlans.set(branchId, saved);
-
-      return {
-        plan: saved,
-        warnings: overlapWarnings(command.tables),
-        deactivatedTables: deactivated.map((t) => t.label),
-        removedTables: removed.map((t) => t.label),
-      };
-    },
-
-    /**
-     * K7, refused in this order with nothing written for any refusal: the role
-     * and branch (403), the body (422), the cover (409), the tables (404).
-     */
-    async saveTablePhotoPositions(branchId, command): Promise<TablePhotoPositions> {
-      await wait();
-      const url = `${URL_TAG}/branches/${branchId}/table-photo-positions`;
-      requireManagerAtBranch(branchId, url);
-
-      const fields: MockViolation[] = [];
-      command.positions.forEach((position, index) => {
-        const x = position.photoX ?? null;
-        const y = position.photoY ?? null;
-        if ((x === null) !== (y === null)) {
-          fields.push({
-            field: `positions[${index}].${x === null ? 'photoX' : 'photoY'}`,
-            message: 'Send photoX and photoY together, or neither.',
-            bound: 'required',
-          });
-        }
-        for (const [name, value] of [
-          ['photoX', x],
-          ['photoY', y],
-        ] as const) {
-          if (value !== null && (!Number.isFinite(value) || value < 0 || value > 1)) {
-            fields.push({
-              field: `positions[${index}].${name}`,
-              message: 'Photo coordinates are fractions from 0 to 1.',
-              bound: 'range',
-              min: 0,
-              max: 1,
-            });
-          }
-        }
+        url,
+        hasHistory,
+        branchPhoto: (photoId) => branchPhoto(branchId, photoId),
+        newId: nextId,
       });
-      const ids = command.positions.map((position) => position.tableId);
-      if (new Set(ids).size !== ids.length) {
-        fields.push({
-          field: 'positions',
-          message: 'A table appears more than once.',
-          bound: 'conflict',
-        });
-      }
-      if (fields.length > 0) throw validationFailed(url, fields);
-
-      const cover = profileFor(branchId).coverPhoto?.photoId ?? null;
-      if (cover === null || cover !== command.coverPhotoId) {
-        throw new CoverChangedError({ url, currentCoverPhotoId: cover });
-      }
-
-      const plan = floorPlanFor(branchId);
-      const active = new Set(
-        plan.tables.filter((table) => table.isActive).map((table) => table.id),
-      );
-      if (ids.some((id) => !active.has(id))) throw new NotFoundError({ url });
-
-      const changes = new Map(command.positions.map((position) => [position.tableId, position]));
-      const tables = plan.tables.map((table) => {
-        const change = changes.get(table.id);
-        return change ? { ...table, photoX: change.photoX, photoY: change.photoY } : table;
-      });
-      // The plan's version is left alone: a pin is not a plan edit.
-      floorPlans.set(branchId, { ...plan, tables });
-
-      return {
-        coverPhotoId: cover,
-        tables: tables
-          .filter((table) => table.isActive)
-          .map((table) => ({
-            tableId: table.id,
-            label: table.label,
-            photoX: table.photoX ?? null,
-            photoY: table.photoY ?? null,
-          })),
-      };
+      floorPlans.set(branchId, result.plan);
+      return result;
     },
 
     async getBranchReadiness(branchId): Promise<BranchReadiness> {
@@ -1895,41 +1693,83 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async createFloorArea({ branchId, name, displayOrder }) {
       await wait();
+      const url = `${URL_TAG}/branches/${branchId}/floor-areas`;
+      requireBranchInVenue(branchId);
       const plan = floorPlanFor(branchId);
-      const area: EditorFloorArea = { id: `area-${branchId}-${name}`, name, displayOrder };
-      floorPlans.set(branchId, { ...plan, areas: [...plan.areas, area] });
+      requireUnusedAreaName(plan, name, null, url);
+      // A new room has no photos; they are added through the plan save.
+      const area: EditorFloorArea = {
+        id: nextId(`area-${branchId}`),
+        name: name.trim(),
+        displayOrder,
+        photos: [],
+      };
+      // A change to the plan, so its version moves: a stale editor is refused
+      // rather than saving over the new room and deleting it.
+      floorPlans.set(branchId, {
+        ...plan,
+        areas: sortAreas([...plan.areas, area]),
+        version: bumped(plan.version),
+      });
       return area;
     },
 
     async updateFloorArea({ branchId, areaId, name, displayOrder }) {
       await wait();
+      const url = `${URL_TAG}/branches/${branchId}/floor-areas/${areaId}`;
+      requireBranchInVenue(branchId);
       const plan = floorPlanFor(branchId);
-      const updated: EditorFloorArea = { id: areaId, name, displayOrder };
+      const existing = plan.areas.find((area) => area.id === areaId);
+      if (!existing) throw new NotFoundError({ url });
+      requireUnusedAreaName(plan, name, areaId, url);
+      const updated: EditorFloorArea = { ...existing, name: name.trim(), displayOrder };
       floorPlans.set(branchId, {
         ...plan,
-        areas: plan.areas.map((area) => (area.id === areaId ? updated : area)),
+        areas: sortAreas(plan.areas.map((area) => (area.id === areaId ? updated : area))),
+        version: bumped(plan.version),
       });
       return updated;
     },
 
     async deleteFloorArea({ branchId, areaId }) {
       await wait();
+      const url = `${URL_TAG}/branches/${branchId}/floor-areas/${areaId}`;
+      requireBranchInVenue(branchId);
       const plan = floorPlanFor(branchId);
+      if (!plan.areas.some((area) => area.id === areaId)) throw new NotFoundError({ url });
       floorPlans.set(branchId, {
         ...plan,
         areas: plan.areas.filter((area) => area.id !== areaId),
-        // The area goes; its tables stay, with no area.
+        // The room and its photos go; its tables stay, with no room and no pin.
         tables: plan.tables.map((t) =>
-          t.floorAreaId === areaId ? { ...t, floorAreaId: null } : t,
+          t.floorAreaId === areaId ? { ...t, floorAreaId: null, pin: null } : t,
         ),
+        version: bumped(plan.version),
       });
     },
 
     async deleteTable({ branchId, tableId }): Promise<TableDeletionResult> {
       await wait();
+      const url = `${URL_TAG}/branches/${branchId}/tables/${tableId}`;
+      requireBranchInVenue(branchId);
       const plan = floorPlanFor(branchId);
       const table = plan.tables.find((t) => t.id === tableId);
-      if (!table) throw new OutOfScopeError({ url: URL_TAG });
+      if (!table) throw new NotFoundError({ url });
+
+      if (table.status === 'occupied') {
+        const detail = `Table ${table.label} has a party seated at it. Free it first.`;
+        throw new ConcurrencyConflictError({
+          url,
+          problem: {
+            type: 'about:blank',
+            title: 'Conflicting state',
+            status: 409,
+            detail,
+            code: 'conflicting-state',
+            traceId: 'mock',
+          },
+        });
+      }
 
       if (hasHistory(tableId)) {
         floorPlans.set(branchId, {
@@ -1941,12 +1781,20 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           label: table.label,
           deleted: false,
           deactivated: true,
-          message: `Table ${table.label} has bookings against it, so it was deactivated rather than deleted.`,
+          message:
+            `Table ${table.label} has reservations, seatings or tabs in its history, so it was deactivated rather than deleted. ` +
+            'Its records are kept; it no longer appears on the floor plan or takes bookings.',
         };
       }
 
       floorPlans.set(branchId, { ...plan, tables: plan.tables.filter((t) => t.id !== tableId) });
-      return { tableId, label: table.label, deleted: true, deactivated: false, message: '' };
+      return {
+        tableId,
+        label: table.label,
+        deleted: true,
+        deactivated: false,
+        message: `Table ${table.label} was never used and has been removed.`,
+      };
     },
 
     async regenerateTableQr({ tableId }) {
@@ -2276,18 +2124,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
             traceId: 'mock',
             context: { field: 'phoneE164' },
           },
-        });
-      }
-
-      // A new picture — or none — takes every table off the photo, as on the
-      // server: pins placed on the old cover would point at the wrong spots on
-      // the new one. The same cover sent again keeps them.
-      const previousCoverId = profileFor(branchId).coverPhoto?.photoId ?? null;
-      const plan = floorPlans.get(branchId);
-      if (plan && previousCoverId !== (cover?.photoId ?? null)) {
-        floorPlans.set(branchId, {
-          ...plan,
-          tables: plan.tables.map((table) => ({ ...table, photoX: null, photoY: null })),
         });
       }
 

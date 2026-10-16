@@ -57,7 +57,7 @@ export default tseslint.config(
   // the top-level `configs.recommended` is still eslintrc-shaped and ESLint 10
   // rejects it outright.
   {
-    files: ['apps/**/*.{ts,tsx}', 'packages/floorplan/**/*.tsx'],
+    files: ['apps/**/*.{ts,tsx}'],
     ...reactHooks.configs.flat.recommended,
     languageOptions: {
       globals: { ...globals.browser, ...globals.es2023 },

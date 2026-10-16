@@ -1,4 +1,4 @@
-import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { FloorPlanData } from '../contracts/tableFloor';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createMockGateway } from './mockGateway';
 import type { YallaGateway } from '../gateway';

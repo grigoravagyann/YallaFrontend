@@ -11,14 +11,12 @@ import type {
 } from '../contracts/console';
 import type { ApprovalTrigger, ConsoleBooking } from '../contracts/approvals';
 import type { ReservationStatusCode } from '../contracts/push';
-import type { TablePhotoPositions } from '../contracts/floorPlan';
 import type { BranchReadiness } from '../contracts/readiness';
 import type { ModeratedReview, VenueModeratedReview } from '../contracts/reviews';
 import type { components } from '../generated/schema';
 
 type Schemas = components['schemas'];
 type WireReservation = Schemas['Yalla.Application.Reservations.ReservationView'];
-type WireTablePhotoPositions = Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsView'];
 type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
 type WireModeratedReviewPage = Schemas['Yalla.Application.Reviews.ModeratedReviewPage'];
 type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
@@ -214,26 +212,6 @@ export function readinessFromWire(view: WireReadiness): BranchReadiness {
     deviceCount: view.deviceCount,
     acceptsWebBookings: view.acceptsWebBookings,
     blockers: view.blockers ?? [],
-  };
-}
-
-// --- Table photo positions (K7) ---------------------------------------------------
-
-export function tablePhotoPositionsFromWire(view: WireTablePhotoPositions): TablePhotoPositions {
-  return {
-    coverPhotoId: view.coverPhotoId,
-    tables: (view.tables ?? []).map((table) => {
-      const x = typeof table.photoX === 'number' ? table.photoX : null;
-      const y = typeof table.photoY === 'number' ? table.photoY : null;
-      // A pair or nothing: half a position is no position.
-      const placed = x !== null && y !== null;
-      return {
-        tableId: table.tableId,
-        label: table.label,
-        photoX: placed ? x : null,
-        photoY: placed ? y : null,
-      };
-    }),
   };
 }
 

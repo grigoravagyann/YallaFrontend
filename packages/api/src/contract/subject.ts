@@ -108,8 +108,8 @@ export interface PhotoProbe {
  * the single assertion it fails.
  *
  * `photoBytes` and `photoMarkers` are the exception, and both are the mock's:
- * it stores no image bytes to serve, and its diner world keeps no photo
- * positions for the console's pins to show up in. Every other assertion about
+ * it stores no image bytes to serve, and its diner world keeps no rooms for
+ * the console's pins to show up in. Every other assertion about
  * the same uploads and pins runs against it.
  */
 export type ContractCapability =

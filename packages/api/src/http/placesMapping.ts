@@ -7,8 +7,9 @@ import type {
   BranchOpeningBlock,
   BranchReview,
   BranchReviewPage,
+  BranchRoom,
+  BranchRooms,
   BranchTableMarker,
-  BranchTableMarkers,
   DinerOrder,
   DinerOrderStatus,
   MarkerStatus,
@@ -32,7 +33,8 @@ export type WireReviewPage = Omit<
 };
 export type WireReview = Schemas['Yalla.Application.Public.PublicReviewView'];
 export type WireTableMarker = Schemas['Yalla.Application.Public.PublicTableMarker'];
-export type WireTableMarkers = Schemas['Yalla.Application.Public.PublicTableMarkers'];
+export type WireRoom = Schemas['Yalla.Application.Public.PublicRoom'];
+export type WireRooms = Schemas['Yalla.Application.Public.PublicBranchRooms'];
 export type WireDinerReview = Schemas['Yalla.Application.Diners.DinerReviewView'];
 export type WireDinerOrder = Schemas['Yalla.Application.Diners.DinerOrderView'];
 export type WireFavorite = Schemas['Yalla.Application.Diners.DinerFavoriteView'];
@@ -66,12 +68,14 @@ export function venueTypeCode(type: VenueType): 1 | 2 {
 }
 
 /**
- * `DerivedTableState` onto the photo's three colours: 1 Free → free;
- * 2 ReservedSoon, 3 Held → reserved; 4 Occupied, 5 OutOfService → occupied.
+ * `DerivedTableState` onto the photo's four colours: 1 Free → free;
+ * 2 ReservedSoon, 3 Held → reserved; 4 Occupied → occupied; 5 OutOfService →
+ * outOfService. Anything newer reads as occupied: never offered.
  */
 export function markerStatusFromState(state: number): MarkerStatus {
   if (state === 1) return 'free';
   if (state === 2 || state === 3) return 'reserved';
+  if (state === 5) return 'outOfService';
   return 'occupied';
 }
 
@@ -181,12 +185,33 @@ function markersFrom(wires: readonly WireTableMarker[] | undefined): BranchTable
     .filter((marker): marker is BranchTableMarker => marker !== null);
 }
 
-export function tableMarkersFromWire(wire: WireTableMarkers, baseUrl: string): BranchTableMarkers {
+function roomFromWire(wire: WireRoom, baseUrl: string): BranchRoom {
+  return {
+    roomId: wire.roomId,
+    name: wire.name,
+    displayOrder: wire.displayOrder,
+    photos: (wire.photos ?? []).map((entry) => ({
+      photo: absolutePhoto(baseUrl, photo(entry.photo)),
+      tables: markersFrom(entry.tables),
+    })),
+  };
+}
+
+function roomsFrom(wires: readonly WireRoom[] | undefined, baseUrl: string): BranchRoom[] {
+  return (
+    [...(wires ?? [])]
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((room) => roomFromWire(room, baseUrl))
+      // A room with no photo is not listed by the server; one that arrives empty is not either.
+      .filter((room) => room.photos.length > 0)
+  );
+}
+
+export function branchRoomsFromWire(wire: WireRooms, baseUrl: string): BranchRooms {
   return {
     branchId: wire.branchId,
-    photo: photoFrom(baseUrl, wire.photo),
     asOfUtc: wire.asOfUtc,
-    tables: markersFrom(wire.tables),
+    rooms: roomsFrom(wire.rooms, baseUrl),
   };
 }
 
@@ -211,7 +236,7 @@ export function branchDetailFromWire(wire: WireBranchDetail, baseUrl: string): B
     // every place against that server.
     acceptsAppBookings: wire.acceptsAppBookings ?? true,
     recentReviews: (wire.recentReviews ?? []).map(branchReviewFromWire),
-    tableMarkers: markersFrom(wire.tableMarkers),
+    rooms: roomsFrom(wire.rooms, baseUrl),
     asOfUtc: wire.asOfUtc,
   };
 }

@@ -107,10 +107,10 @@ export function createHarness(options: HarnessOptions = {}): Harness {
  *
  * jsdom has none, and the room's loader fails *open* without one — which is
  * right in a browser (an old browser should see the room, not a permanent
- * placeholder) and wrong in a test, where it would pull `react-native-web` and
- * `react-native-svg` into every render. This stub reproduces the real state
- * these tests care about: the room is below the fold and has not been scrolled
- * to, so the renderer has not been fetched.
+ * placeholder) and noise in a test about something else, where every render
+ * would draw the room photos. This stub reproduces the real state these tests
+ * care about: the room is below the fold and has not been scrolled to, so its
+ * photos have not been fetched.
  */
 export function stubIntersectionObserverAsNeverVisible(): void {
   class NeverIntersecting {

@@ -780,7 +780,7 @@ Measured off the real build, served by `vite preview` with gzip negotiated:
 | ---------------------------------------------------- | ------------- | -------- |
 | HTML, CSS, and every JS chunk the first render needs | **163 kB**    | 12       |
 | Fonts, after first paint (`font-display: swap`)      | 178 kB        | 2        |
-| Floor plan renderer, when the room scrolls into view | 49 kB         | 2        |
+| Room photos, when the room scrolls into view         | the photos    | per room |
 | Booking panel, when a table is tapped                | 4 kB          | 1        |
 
 Those twelve requests are four serial round trips deep: the HTML, then the entry
@@ -794,10 +794,11 @@ so read them as arithmetic rather than as a Lighthouse run.
 
 Three things account for that shape:
 
-- **The floor plan is behind `lazy()` _and_ an intersection observer.** Importing
-  `@yalla/floorplan` pulls `react-native-web` and `react-native-svg` behind it —
-  49 kB gzipped — and a visitor who reads the free-table count and closes the
-  tab never fetches it.
+- **The room photos are behind an intersection observer.** The rooms are photos
+  with table pins on them, drawn with plain HTML — no renderer to download — and
+  a visitor who reads the free-table count and closes the tab never fetches a
+  photo. (The 163 kB above predates this and included no renderer either; the
+  49 kB floor plan renderer it used to defer is gone.)
 - **The console's translations are not shipped.** `@yalla/i18n` gained a module
   per namespace and a narrow `@yalla/i18n/public` entry, so the page loads
   `common`, `diner` and `public` and leaves 138 kB of `admin` and `staff` JSON
@@ -847,9 +848,8 @@ The functions return `{ key, params }` descriptors rather than strings, which is
 what keeps a React-free package free of `react-i18next` and makes every rule
 testable without a translation bundle.
 
-Two rules moved out of components when the second caller appeared:
-`nextHalfHour` out of the diner app's booking bar, and the area-mode decision
-out of `FloorPlan`'s own render into `shouldUseAreaMode`.
+One rule moved out of a component when the second caller appeared:
+`nextHalfHour`, out of the diner app's booking bar.
 
 ### Cancelling without an account
 
@@ -882,25 +882,16 @@ which is why `@yalla/i18n`'s `localStorage` adapter had to move into its own
 `webStorage.ts`: in one file with the memory adapter, no bundler could drop one
 and keep the other, and the guarantee would have stopped being checkable.
 
-### The floor plan at 380pt, honestly
+### The rooms
 
-A thirty-table restaurant does not survive a 380pt phone whole: the room fits at
-scale 0.25, the smallest table is drawn 14px across against a 44px tap floor,
-nine of the thirty numbers are too small to draw, and the halos overlap three
-deep so a tap resolves by nearest centre. That is what `shouldUseAreaMode` is
-for, and it engages.
-
-One area at a time, **all thirty numbers become legible**, and two of the three
-areas clear the tap-target floor. The third does not: "Windows" is ten two-tops
-at an 88-unit pitch down a wall, which fits the 436px-high plan box at scale
-0.43 and leaves 41px between adjacent centres against a 44px floor — about 8%
-short. It clears at 1.2x zoom, well inside the component's own 4x ceiling, and
-the plan ships with pinch-zoom on.
-
-`src/public/areaMode.test.ts` asserts that set exactly rather than "at least one
-area is fine", so a change that fixes Windows fails there and gets this
-paragraph rewritten. The second fallback — for an area that still does not fit
-alone — belongs in `@yalla/floorplan` and is not built.
+A branch is a set of rooms (Hall, Terrace, VIP), each with up to ten photos, and
+every table is a pin on one of its own room's photos. The page shows the rooms
+that have a photo — a picker when there is more than one — one photo at a time
+(arrows, arrow keys or a swipe), with each pin coloured by the table's state
+**at the slot picked above**: green free, orange booked, red occupied. A free pin
+the server would give the party starts the booking. Pins are buttons named
+"Table 4, free". The rooms and photos come with the branch page; the pins and
+their states come from availability, which offers only pinned tables.
 
 ### The routes it reads
 
@@ -915,7 +906,7 @@ alone — belongs in `@yalla/floorplan` and is not built.
 | `POST /api/public/bookings/{token}/cancel`          | Cancelling it                                                                               |
 
 Everything _else_ the page uses is anonymous as well: availability carries the
-floor, the derived table states, the branch's zone and its turn time; the menu
+table pins, the derived table states, the branch's zone and its turn time; the menu
 excludes unfinished items; photos are anonymous; and the diner sign-in pair is
 anonymous by definition. The reservation response carries `manageToken`, which
 becomes `Booking.manageToken` and the manage link.
@@ -928,7 +919,7 @@ anything.
 
 Run the whole page with no backend on `VITE_DATA_SOURCE=mock`. The mock is complete —
 slug resolution, a suspended branch, a branch that takes no web bookings, a
-thirty-table room, and a manage link that operates on the very booking the
+thirty-table branch across three photographed rooms, and a manage link that operates on the very booking the
 confirmation screen just created.
 
 ## Repository layout
@@ -944,7 +935,6 @@ apps/
 packages/
   api/        Typed fetch client, typed errors, TanStack Query client factory
   realtime/   SignalR connection, backoff, connection state
-  floorplan/  Shared top-down floor plan renderer + geometry
   i18n/       i18next setup and hy/ru/en resources
   tokens/     Colours, spacing, type scale, table-state styles
   format/     Dram, dates, durations, table labels
@@ -952,7 +942,7 @@ packages/
 ```
 
 Apps depend on packages via `workspace:*`. Packages never depend on apps, and
-never on each other except `api → format` and `floorplan → tokens`.
+never on each other except `api → format`.
 
 ## Conventions worth knowing
 
@@ -1390,7 +1380,7 @@ real is in the backend's swagger document (`packages/api/src/generated/swagger.j
 | Diner: search                               | real   | `GET /api/public/branches/search?q=&category=`                                                       |
 | Diner: place details                        | real   | `GET /api/public/branches/{branchId}`                                                                |
 | Diner: reviews                              | real   | `GET /api/public/branches/{branchId}/reviews`                                                        |
-| Diner: pins on the table photo              | real   | `GET /api/public/branches/{branchId}/table-markers`                                                  |
+| Diner: rooms with pinned tables             | real   | `GET /api/public/branches/{branchId}/rooms`                                                          |
 | Diner: writing a review                     | real   | `GET`/`POST`/`PUT /api/diner/branches/{branchId}/review`                                             |
 | Diner: orders                               | real   | `GET /api/diner/orders`, `GET /api/diner/orders/{orderId}`                                           |
 | Diner: bookings                             | real   | `POST /api/reservations`, `GET /api/reservations/mine`, `POST /api/reservations/{id}/cancel`         |

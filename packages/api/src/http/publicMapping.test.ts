@@ -55,7 +55,7 @@ describe('the open state on the public branch page', () => {
     isOpenNow: false,
     freeTableCount: 8,
     tableCount: 8,
-    floorPlan: { floorWidth: 800, floorHeight: 600, areas: [], tables: [] },
+    floorPlan: { areas: [], tables: [] },
     acceptsWebBookings: true,
     acceptsAppBookings: true,
     bookingWindowDays: 14,
@@ -90,5 +90,56 @@ describe('the open state on the public branch page', () => {
     expect(branch.openState.isOpen).toBe(false);
     expect(branch.openState.opensAtUtc).toBeNull();
     expect(branch.openState.closesAtUtc).toBeNull();
+  });
+});
+
+describe('the rooms on the public branch page', () => {
+  const photo = (id: string) => ({
+    photoId: id,
+    thumbnailUrl: `/api/photos/${id}/thumbnail`,
+    cardUrl: `/api/photos/${id}/card`,
+    fullUrl: `/api/photos/${id}/full`,
+    width: 1600,
+    height: 1200,
+  });
+  const PAGE: Page = {
+    venueSlug: 'yalla-demo',
+    branchSlug: 'yerevan-centre',
+    branchId: 'b-2',
+    venueName: 'Yalla Demo',
+    branchName: 'Yerevan Centre',
+    venueType: 1,
+    address: 'Abovyan 1',
+    latitude: 40.18,
+    longitude: 44.51,
+    timeZoneId: 'Asia/Yerevan',
+    openingHours: [],
+    isOpenNow: true,
+    freeTableCount: 2,
+    tableCount: 3,
+    floorPlan: {
+      areas: [
+        { id: 'terrace', name: 'Terrace', displayOrder: 2, photos: [photo('p3')] },
+        { id: 'empty', name: 'Cellar', displayOrder: 0, photos: [] },
+        { id: 'hall', name: 'Hall', displayOrder: 1, photos: [photo('p1'), photo('p2')] },
+      ],
+      tables: [],
+    },
+    acceptsWebBookings: true,
+    acceptsAppBookings: true,
+    bookingWindowDays: 14,
+    policy: { turnTimeMinutes: 120, minLeadMinutes: 30, cancellationDeadlineMinutes: 120 },
+    asOfUtc: '2026-10-15T21:21:00Z',
+    coverPhoto: null,
+  };
+
+  it('lists the rooms that have a photo, in display order, with absolute photo links', () => {
+    const branch = publicBranchFromWire(PAGE, BASE);
+    expect(branch.rooms.map((room) => [room.roomId, room.name])).toEqual([
+      ['hall', 'Hall'],
+      ['terrace', 'Terrace'],
+    ]);
+    expect(branch.rooms[0]?.photos.map((p) => p.photoId)).toEqual(['p1', 'p2']);
+    expect(branch.rooms[0]?.photos[0]?.fullUrl).toBe(`${BASE}/api/photos/p1/full`);
   });
 });

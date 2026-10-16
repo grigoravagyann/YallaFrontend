@@ -352,8 +352,48 @@
  * The room
  * -------------------------------------------------------------------------- */
 
+/*
+ * The room picker: one pill per room, the picked one filled. Only drawn when
+ * the venue has more than one room with a photo.
+ */
+.pub-room-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.pub-room-picker button {
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-lg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pub-room-picker button[aria-pressed='true'] {
+  border-color: var(--color-primary-ink);
+  background: var(--color-primary-ink);
+  color: var(--color-surface);
+}
+
 .pub-legend {
-  margin-bottom: var(--space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin: 0 0 var(--space-sm);
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.pub-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
 }
 
 .pub-room-hint {
@@ -361,34 +401,134 @@
 }
 
 /*
- * The plan's box, and the same box before the plan arrives.
- *
- * A fixed height on both, so the lazily loaded renderer drops into a space that
- * was already there. `62vh` is roughly what is left on a phone once the count
- * and the controls are above it; the floor is the smallest a real room stays
- * legible at, the ceiling stops it eating a desktop window.
+ * One room photo, with every table a pin on it. Pins sit on fractions of the
+ * picture, so they stay on their tables at whatever width the photo is drawn.
  */
-.pub-plan {
-  height: clamp(20rem, 62vh, 30rem);
+.pub-stage {
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  /* The canvas opts out of the paper grain: on the floor plan, legibility is
-     the whole job. Same rule the staff screen follows. */
+  background: var(--color-paper);
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.pub-stage:focus-visible {
+  outline: 3px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+
+.pub-stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+/* A photo with no stored size: a 4:3 placeholder until it loads, then its own
+   shape, so the pins have a stage to sit on from the first paint. */
+.pub-stage.is-unsized {
+  aspect-ratio: var(--stage-ratio, 4 / 3);
+}
+
+.pub-stage.is-unsized img {
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Never colour alone: the label is on the pin and the state is in its name. */
+.pub-pin {
+  position: absolute;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 var(--space-xs);
+  transform: translate(-50%, -50%);
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+  box-shadow: var(--shadow-lift);
+  cursor: pointer;
+}
+
+.pub-pin[aria-disabled='true'] {
+  cursor: default;
+}
+
+.pub-pin:focus-visible {
+  outline: 3px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+
+.pub-pin.is-selected {
+  border-color: var(--table-your-pick-fill);
+  outline: 3px solid var(--table-your-pick-fill);
+}
+
+.pub-pin.tone-free,
+.pub-pin-dot.tone-free {
+  background: var(--table-free-fill);
+  color: var(--table-free-label);
+}
+
+.pub-pin.tone-booked,
+.pub-pin-dot.tone-booked {
+  background: var(--table-reserved-soon-fill);
+  color: var(--table-reserved-soon-label);
+}
+
+.pub-pin.tone-occupied,
+.pub-pin-dot.tone-occupied {
+  background: var(--table-occupied-fill);
+  color: var(--table-occupied-label);
+}
+
+.pub-pin.tone-outOfService,
+.pub-pin-dot.tone-outOfService {
+  background: var(--table-out-of-service-fill);
+  color: var(--table-out-of-service-label);
+}
+
+.pub-pin-dot {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: var(--radius-pill);
+}
+
+.pub-photo-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  margin-top: var(--space-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.pub-photo-step {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
-  overflow: hidden;
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--font-size-xl);
+  cursor: pointer;
 }
 
-/* A table reached with the keyboard shows where focus is. The group has no
-   box of its own, so the ring goes on the shapes inside it. */
-.pub-plan g[role='button']:focus-visible {
-  outline: none;
-}
-.pub-plan g[role='button']:focus-visible > g > * {
-  stroke: var(--color-foreground);
-  stroke-width: 3;
+.pub-photo-step:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
+/* The room's box before the photos arrive, so they drop into a space that was
+   already there. */
 .pub-plan.is-placeholder {
+  height: clamp(14rem, 40vh, 22rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
   background: var(--color-paper);
 }
 
@@ -772,8 +912,7 @@
     max-width: 64rem;
   }
 
-  /* Two columns, and the room gets the taller one. Above this width the plan
-     stops folding into area mode of its own accord, so it wants the space. */
+  /* Two columns: the rooms beside the menu. */
   .pub-page {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -792,10 +931,6 @@
 
   .pub-sheet {
     grid-column: 1 / -1;
-  }
-
-  .pub-plan {
-    height: clamp(24rem, 60vh, 34rem);
   }
 }
 

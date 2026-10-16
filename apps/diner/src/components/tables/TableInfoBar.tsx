@@ -22,15 +22,21 @@ export interface TableInfoBarProps {
   /** The photo the table sits in, shown as a thumb. */
   readonly photo: string;
   readonly onBook: (table: TablePhotoMarker) => void;
+  /**
+   * False where the venue takes no bookings in the app: the bar still names
+   * the table, says so, and offers no Book.
+   */
+  readonly canBook?: boolean;
   readonly style?: StyleProp<ViewStyle>;
 }
 
 /**
  * The dark strip that slides over the photo when a table is tapped: thumb,
- * "Table 5", "● Free", "2–4 people", and Book — only when the table is free.
- * Reserved and occupied say so and offer nothing to press.
+ * "Table 5", "● Free", "2–4 people", and Book — only when the table is free
+ * and the venue takes bookings for it. Any other says so and offers nothing
+ * to press.
  */
-export function TableInfoBar({ table, photo, onBook, style }: TableInfoBarProps) {
+export function TableInfoBar({ table, photo, onBook, canBook = true, style }: TableInfoBarProps) {
   const { t } = useTranslation('diner');
   const capacity = useCapacityLabel();
   const [progress] = useState(() => new Animated.Value(table ? 1 : 0));
@@ -63,7 +69,7 @@ export function TableInfoBar({ table, photo, onBook, style }: TableInfoBarProps)
   const shown = table ?? rendered;
   if (!shown) return null;
 
-  const free = shown.status === 'free';
+  const free = canBook && shown.status === 'free' && shown.isBookable;
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [SLIDE, 0] });
 
   return (
@@ -94,7 +100,11 @@ export function TableInfoBar({ table, photo, onBook, style }: TableInfoBarProps)
           />
         ) : null}
       </View>
-      {free ? null : <Text style={styles.notBookable}>{t('tables.notBookable')}</Text>}
+      {free ? null : (
+        <Text style={styles.notBookable}>
+          {canBook ? t('tables.notBookable') : t('place.bookingsOff.title')}
+        </Text>
+      )}
     </Animated.View>
   );
 }

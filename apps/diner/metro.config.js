@@ -32,11 +32,23 @@ config.resolver.disableHierarchicalLookup = true;
 // `.claude/worktrees/`, each with its own node_modules, and a `pnpm install`
 // there makes and removes temp folders. Metro watching them crashed the diner
 // dev server with ENOENT on a folder that was already gone. Nothing the app
-// imports lives there.
+// imports lives there. Only this workspace's own `.claude/` is blocked: a
+// worktree is itself a workspace under `.claude/worktrees/`, and blocking every
+// path with a `.claude` in it blocked the whole of that worktree's app.
+const separator = String.raw`[\\/]`;
+// No flags: Expo merges the blockList into one pattern and refuses mixed flags.
+// A Windows drive letter is matched in either case instead.
+const escapeRegExp = (text) =>
+  /^[a-z]:$/i.test(text)
+    ? `[${text[0].toLowerCase()}${text[0].toUpperCase()}]:`
+    : text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+const ownClaudeFolder = new RegExp(
+  `^${workspaceRoot.split(/[\\/]/).map(escapeRegExp).join(separator)}${separator}\\.claude${separator}.*$`,
+);
 config.resolver.blockList = [
   ...config.resolver.blockList,
   /[\\/]node_modules[\\/]\.vite(?:[\\/].*)?$/,
-  /[\\/]\.claude[\\/].*$/,
+  ownClaudeFolder,
 ];
 
 module.exports = config;

@@ -3,24 +3,22 @@ import { currentLocale } from '@yalla/i18n';
 import { gateway, usingMockData } from '../data/gateway';
 import { readDevicePosition } from './devicePosition';
 import {
-  coverUrl,
-  markerFromApi,
   menuFromApi,
   placeFromDetail,
   placeFromListing,
   reviewPageFromApi,
+  roomsFromApi,
   type PlaceMappingContext,
 } from './httpMapping';
 import { mockPlaces, type PlaceSeed } from './mockPlaces';
 import {
   REVIEW_PAGE_SIZE,
   openStateFor,
-  tablePhotoOf,
   type Coordinates,
   type MenuSection,
   type Place,
   type PlaceBadge,
-  type PlaceTables,
+  type PlaceRoom,
   type PlaceType,
   type ReviewPage,
 } from './model';
@@ -30,7 +28,7 @@ import {
  *
  * One interface, two implementations: the HTTP one over the backend's public
  * branch routes (`/api/public/branches`, its search, a branch's page, reviews,
- * table markers and menu), and an in-memory mock for `EXPO_PUBLIC_DATA_SOURCE=mock`.
+ * rooms and menu), and an in-memory mock for `EXPO_PUBLIC_DATA_SOURCE=mock`.
  * Screens reach either only through `hooks.ts`, never directly, so which one runs
  * is a question of configuration and not of any component.
  */
@@ -53,11 +51,10 @@ export interface PlaceRepository {
   /** Name, cuisine and address match, case-insensitive, then `filter` narrows. */
   search(query: string, filter?: PlaceFilter): Promise<readonly Place[]>;
   /**
-   * Live table markers, with the photo they sit on. Refetched more often than
-   * the place itself, so the screen draws them on this photo rather than on a
-   * cover the place's older read may still hold.
+   * The rooms, each photo with its live pins. Refetched more often than the
+   * place itself; `[]` for a branch with no room photographed, or unknown.
    */
-  tables(placeId: string): Promise<PlaceTables>;
+  rooms(placeId: string): Promise<readonly PlaceRoom[]>;
   /**
    * The menu, read on its own. A failure **rejects** — the menu tab says it
    * could not load and offers a retry — rather than passing for a place with
@@ -83,6 +80,12 @@ export interface MockPlaceRepositoryOptions {
   /** The language today's hours are read out in. Defaults to the active locale. */
   readonly locale?: () => ReturnType<typeof currentLocale>;
   readonly seeds?: readonly PlaceSeed[];
+  /**
+   * The rooms read. Defaults to the app's gateway, which in mock mode is the
+   * `@yalla/api` mock: the rooms, photos and pins the slot floor and the
+   * booking resolve against, so a pin drawn here is a table the mock books.
+   */
+  readonly gateway?: Pick<YallaGateway, 'getBranchRooms'>;
 }
 
 function wait(ms: number): Promise<void> {
@@ -109,10 +112,15 @@ export function createMockPlaceRepository(
   const now = options.now ?? (() => new Date());
   const locale = options.locale ?? currentLocale;
   const seeds = options.seeds ?? mockPlaces;
+  const rooms = options.gateway ?? gateway;
+
+  const roomsOf = async (placeId: string) =>
+    roomsFromApi((await rooms.getBranchRooms(placeId))?.rooms ?? []);
 
   const hydrate = ({ menu: _menu, ...seed }: PlaceSeed): Place => ({
     ...seed,
     openState: openStateFor(seed.hours, now(), seed.timeZoneId, locale()),
+    rooms: [],
   });
 
   const byDistance = (a: PlaceSeed, b: PlaceSeed) =>
@@ -128,7 +136,7 @@ export function createMockPlaceRepository(
     async getById(placeId) {
       await wait(latencyMs);
       const seed = seedOf(placeId);
-      return seed ? hydrate(seed) : null;
+      return seed ? { ...hydrate(seed), rooms: await roomsOf(placeId) } : null;
     },
     async search(query, filter) {
       await wait(latencyMs);
@@ -138,10 +146,9 @@ export function createMockPlaceRepository(
         .sort(byDistance)
         .map(hydrate);
     },
-    async tables(placeId) {
+    async rooms(placeId) {
       await wait(latencyMs);
-      const seed = seedOf(placeId);
-      return { photo: seed ? tablePhotoOf(seed) : null, tables: seed?.tables ?? [] };
+      return seedOf(placeId) ? roomsOf(placeId) : [];
     },
     async menu(placeId) {
       await wait(latencyMs);
@@ -172,7 +179,7 @@ export interface HttpPlaceRepositoryOptions {
     | 'listBranches'
     | 'searchBranches'
     | 'getBranchDetail'
-    | 'getBranchTableMarkers'
+    | 'getBranchRooms'
     | 'getBranchMenuDetail'
     | 'getBranchReviews'
   >;
@@ -225,11 +232,8 @@ export function createHttpPlaceRepository(
       return detail ? placeFromDetail(detail, ctx) : null;
     },
 
-    async tables(placeId) {
-      const markers = await source.getBranchTableMarkers(placeId);
-      const photo = coverUrl(markers?.photo);
-      // No cover photo means nothing to draw the markers on.
-      return { photo, tables: photo && markers ? markers.tables.map(markerFromApi) : [] };
+    async rooms(placeId) {
+      return roomsFromApi((await source.getBranchRooms(placeId))?.rooms ?? []);
     },
 
     async menu(placeId) {

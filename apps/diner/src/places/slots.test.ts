@@ -166,30 +166,26 @@ describe('timeSlots', () => {
 });
 
 describe('tables', () => {
+  const at = { x: 0.1, y: 0.1, isBookable: true };
   const tables = [
-    { tableId: 'a', label: '1', status: 'free', capacityMin: 2, capacityMax: 4, x: 0.1, y: 0.1 },
+    { ...at, tableId: 'a', label: '1', status: 'free', capacityMin: 2, capacityMax: 4 },
+    { ...at, tableId: 'b', label: '2', status: 'reserved', capacityMin: 2, capacityMax: 4 },
+    { ...at, tableId: 'c', label: '3', status: 'occupied', capacityMin: 2, capacityMax: 2 },
+    { ...at, tableId: 'd', label: '4', status: 'free', capacityMin: 6, capacityMax: 8 },
+    { ...at, tableId: 'e', label: '5', status: 'outOfService', capacityMin: 2, capacityMax: 4 },
+    // A staff pass: free, and never offered.
     {
-      tableId: 'b',
-      label: '2',
-      status: 'reserved',
+      ...at,
+      tableId: 'f',
+      label: '6',
+      status: 'free',
       capacityMin: 2,
       capacityMax: 4,
-      x: 0.2,
-      y: 0.1,
+      isBookable: false,
     },
-    {
-      tableId: 'c',
-      label: '3',
-      status: 'occupied',
-      capacityMin: 2,
-      capacityMax: 2,
-      x: 0.3,
-      y: 0.1,
-    },
-    { tableId: 'd', label: '4', status: 'free', capacityMin: 6, capacityMax: 8, x: 0.4, y: 0.1 },
   ] as const;
 
-  it('only free tables can be booked', () => {
+  it('only free tables the venue takes bookings for can be booked', () => {
     expect(bookableTables(tables).map((t) => t.label)).toEqual(['1', '4']);
   });
 

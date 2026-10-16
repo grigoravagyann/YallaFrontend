@@ -1,4 +1,4 @@
-import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { FloorPlanData } from './contracts/tableFloor';
 import type {
   Booking,
   BookingRules,
@@ -36,7 +36,7 @@ import type {
   BranchListing,
   BranchReviewPage,
   BranchSearchQuery,
-  BranchTableMarkers,
+  BranchRooms,
   DinerOrder,
   DinerOrderSegment,
   MyBranchReview,
@@ -188,8 +188,11 @@ export interface YallaGateway {
    */
   getBranchReviews(input: { branchId: string; page?: number }): Promise<BranchReviewPage | null>;
 
-  /** Live table markers on the cover photo. `null` for an unknown branch. */
-  getBranchTableMarkers(branchId: string): Promise<BranchTableMarkers | null>;
+  /**
+   * The rooms a diner picks from, each photo with its live table pins.
+   * `null` for an unknown branch.
+   */
+  getBranchRooms(branchId: string): Promise<BranchRooms | null>;
 
   /**
    * The signed-in diner's own review of a branch, or `null` when they have not

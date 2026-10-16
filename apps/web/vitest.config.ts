@@ -20,39 +20,6 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    // The same aliasing the app build uses. Nothing under test imports the
-    // floor plan renderer today — the page loads it lazily and the tests stub
-    // the observer that would trigger it — but a test that does must resolve
-    // `react-native` the way the browser build does, or it fails on a Flow-
-    // typed import rather than on anything it is about.
-    alias: [
-      {
-        find: /^react-native-svg$/,
-        replacement: 'react-native-svg/lib/module/ReactNativeSVG.web.js',
-      },
-      {
-        find: '@react-native/assets-registry/registry',
-        replacement: 'react-native-web/dist/modules/AssetRegistry',
-      },
-      { find: /^react-native$/, replacement: 'react-native-web' },
-    ],
-    extensions: [
-      '.web.tsx',
-      '.web.ts',
-      '.web.jsx',
-      '.web.js',
-      '.tsx',
-      '.ts',
-      '.jsx',
-      '.js',
-      '.json',
-    ],
-  },
-  define: {
-    __DEV__: 'true',
-    global: 'globalThis',
-  },
   test: {
     globals: true,
     environment: 'node',

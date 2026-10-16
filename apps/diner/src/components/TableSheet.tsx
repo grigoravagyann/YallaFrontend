@@ -17,7 +17,7 @@ export interface TableSheetProps {
 }
 
 /**
- * Bottom sheet over the floor plan.
+ * Bottom sheet over the room photos.
  *
  * Deliberately a transparent modal rather than a pushed screen: the diner is
  * choosing *between* tables and needs to keep seeing the room while they read
@@ -46,7 +46,7 @@ export function TableSheet({
       animationType="slide"
       onRequestClose={onClose} // Android hardware back closes the sheet.
     >
-      {/* Backdrop is only lightly tinted so the floor plan stays readable. */}
+      {/* Backdrop is only lightly tinted so the room photos stay readable. */}
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('table.close')} />
 
       {availability && copy ? (

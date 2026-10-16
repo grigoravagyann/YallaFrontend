@@ -16,11 +16,7 @@ import type {
   SubscriptionTier,
   UpdateVenueCommand,
 } from '../contracts/console';
-import type {
-  EditorFloorPlan,
-  ReplaceFloorPlanCommand,
-  SaveTablePhotoPositionsCommand,
-} from '../contracts/floorPlan';
+import type { EditorFloorPlan, ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/reviews';
 import type {
   AbandonTabCommand,
@@ -32,13 +28,13 @@ import type {
 import type { Menu } from '../contracts/menu';
 import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
-import type { BranchPublicProfile, BranchPublicProfileInput } from '../contracts/publicProfile';
+import type { BranchPublicProfileInput } from '../contracts/publicProfile';
 import type { VenueListingInput } from '../contracts/listing';
 import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
-import { CoverChangedError, ReportRangeTooLongError } from '../contracts/errors';
+import { ReportRangeTooLongError } from '../contracts/errors';
 import type { PublicGateway } from '../publicGateway';
 import type { ReleaseReservationCommand } from '../staffGateway';
 import type { YallaGateway } from '../gateway';
@@ -541,6 +537,10 @@ export function useSetBranchTier() {
  * Reference data, not live state: this is furniture, and it changes when
  * somebody edits it. Refetching on window focus would silently replace a
  * half-drawn room with the server's copy, so it does not.
+ *
+ * It is read afresh every time the editor opens, though: the editor loads one
+ * copy and works on it, and a cached copy can carry a QR code another tab has
+ * since replaced — printed from here, a sticker that never worked.
  */
 export function useEditorFloorPlan(branchId: string | undefined) {
   const gateway = useConsoleGateway();
@@ -550,6 +550,7 @@ export function useEditorFloorPlan(branchId: string | undefined) {
     enabled: Boolean(branchId),
     staleTime: staleTime.reference,
     refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
   });
 }
 
@@ -579,42 +580,38 @@ export function useSaveFloorPlan() {
 }
 
 /**
- * Pins on the cover photo (K7), one call for every changed table.
+ * Delete a table that was never used, or deactivate one that has history
+ * (`DELETE /api/branches/{branchId}/tables/{tableId}`).
  *
- * On success the cached plan takes the answer's pins and keeps its `version`:
- * a pin is not a plan edit, and bumping the cached version here would make the
- * floor-plan editor's next save look stale to itself. A `CoverChangedError`
- * refetches the cover and the plan, because both are what the pins were wrong
- * about.
+ * It does not move the plan's `version`, so the cached plan keeps it: the
+ * table goes from the cache, or stays there inactive, exactly as the server
+ * now holds it. The rooms editor's next save then neither resurrects it nor
+ * looks stale to itself.
  */
-export function useSaveTablePhotoPositions(branchId: string | undefined) {
+export function useDeleteTable(branchId: string | undefined) {
   const gateway = useConsoleGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (command: SaveTablePhotoPositionsCommand) =>
-      gateway.saveTablePhotoPositions(branchId!, command),
+    mutationFn: (tableId: string) => gateway.deleteTable({ branchId: branchId!, tableId }),
     retry: false,
     onSuccess: (result) => {
-      const pins = new Map(result.tables.map((table) => [table.tableId, table]));
       queryClient.setQueryData<EditorFloorPlan>(
         queryKeys.editorFloorPlan(branchId ?? ''),
         (plan) =>
           plan
             ? {
                 ...plan,
-                tables: plan.tables.map((table) => {
-                  const pin = pins.get(table.id);
-                  return pin ? { ...table, photoX: pin.photoX, photoY: pin.photoY } : table;
-                }),
+                tables: result.deleted
+                  ? plan.tables.filter((table) => table.id !== result.tableId)
+                  : plan.tables.map((table) =>
+                      table.id === result.tableId ? { ...table, isActive: false } : table,
+                    ),
               }
             : plan,
       );
-    },
-    onError: (error) => {
-      if (error instanceof CoverChangedError) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.publicProfile(branchId ?? '') });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.editorFloorPlan(branchId ?? '') });
-      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.floor(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: ['availability', branchId ?? ''] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
     },
   });
 }
@@ -635,10 +632,28 @@ export function useBranchReadiness(branchId: string | undefined) {
   });
 }
 
+/**
+ * Replace a table's QR code. The old sticker stops working at once, so every
+ * cached plan holding the table takes the new token: the editor must never
+ * show, or print, the dead one. It does not move the plan's `version`.
+ */
 export function useRegenerateTableQr() {
   const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { tableId: string }) => gateway.regenerateTableQr(input),
+    onSuccess: ({ qrToken }, { tableId }) => {
+      queryClient.setQueriesData<EditorFloorPlan>({ queryKey: ['console', 'floorPlan'] }, (plan) =>
+        plan?.tables.some((table) => table.id === tableId)
+          ? {
+              ...plan,
+              tables: plan.tables.map((table) =>
+                table.id === tableId ? { ...table, qrToken } : table,
+              ),
+            }
+          : plan,
+      );
+    },
   });
 }
 
@@ -1077,32 +1092,9 @@ export function useSavePublicProfile(branchId: string | undefined) {
       gateway.updatePublicProfile({ branchId: branchId!, profile }),
     retry: false,
     onSuccess: (saved) => {
-      const profileKey = queryKeys.publicProfile(branchId ?? '');
-      const planKey = queryKeys.editorFloorPlan(branchId ?? '');
-      const previous = queryClient.getQueryData<BranchPublicProfile>(profileKey);
-      const coverId = saved.coverPhoto?.photoId ?? null;
-      if (!previous || (previous.coverPhoto?.photoId ?? null) !== coverId) {
-        // A new cover (or none) takes every table off the photo on the server.
-        // A cached plan still carries the old pins: drawn on the new picture
-        // they point at the wrong spots, and a later floor-plan or pin save
-        // would send them back and put them there. With the old cover known,
-        // the cache mirrors the server at once so nothing renders them in the
-        // meantime; either way the plan is read again.
-        if (previous) {
-          queryClient.setQueryData<EditorFloorPlan>(planKey, (plan) =>
-            plan
-              ? {
-                  ...plan,
-                  tables: plan.tables.map((table) => ({ ...table, photoX: null, photoY: null })),
-                }
-              : plan,
-          );
-        }
-        void queryClient.invalidateQueries({ queryKey: planKey });
-      }
-      // Set after the plan, so a screen that keys its pin draft on the cover
-      // never sees the new cover next to the old pins.
-      queryClient.setQueryData(profileKey, saved);
+      // The cover is the card's picture only: tables are pinned on room
+      // photos, so a new cover moves no pin and the plan is not read again.
+      queryClient.setQueryData(queryKeys.publicProfile(branchId ?? ''), saved);
       // The card's picture is also what the public page and the readiness
       // checklist read, through the managed venue.
       void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });

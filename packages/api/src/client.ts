@@ -281,8 +281,15 @@ export class ApiClient {
     // token is still good and the retry goes through; after a deletion the
     // refresh is refused, the session signs out, and the original answer
     // rejects as `SessionRevokedError`. A retry refused again rejects the same way.
+    //
+    // A request sent with no token is never refreshed for: the session had
+    // already decided nobody was signed in (or its own refresh had just
+    // failed), and a refresh now could only read — and spend — the token of
+    // whoever signed in since, ending their session for a read that was not
+    // theirs.
     if (
       response.status === 401 &&
+      token !== null &&
       this.#config.auth &&
       !options.skipAuth &&
       !isRetry &&
