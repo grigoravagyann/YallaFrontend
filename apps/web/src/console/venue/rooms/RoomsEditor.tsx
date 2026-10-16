@@ -1313,6 +1313,16 @@ function SaveRefusal({
     );
   }
 
+  // A refusal the server explains itself, naming tables and bookings: a
+  // table left out of the plan that still has upcoming bookings, say.
+  if (error instanceof ApiError && error.status === 409 && error.problem?.detail) {
+    return (
+      <div className="notice notice-error" role="alert">
+        <p>{error.problem.detail}</p>
+      </div>
+    );
+  }
+
   if (error instanceof NotFoundError) {
     return (
       <div className="notice notice-error" role="alert">

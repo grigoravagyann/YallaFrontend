@@ -606,6 +606,32 @@ describe('the rooms editor, from review', () => {
     );
   });
 
+  it('shows the server sentence when a save is refused for a table with upcoming bookings', async () => {
+    const { gateway } = await seededGateway();
+    const sentence = 'Table 2 has upcoming bookings ABC123. Cancel or move them first.';
+    vi.spyOn(gateway, 'replaceFloorPlan').mockRejectedValue(
+      new ConcurrencyConflictError({
+        url: '/floor-plan',
+        problem: {
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail: sentence,
+          code: 'table-has-upcoming-bookings',
+          traceId: 't',
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.type(await screen.findByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe(sentence);
+  });
+
   it('refuses the save of a tab that still shows a table another tab deleted', async () => {
     const { gateway } = await seededGateway();
     const user = userEvent.setup();
