@@ -1,6 +1,6 @@
 import type { DinerProfileView } from '@yalla/api';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useSession } from './session';
+import { PHONE_PROOF_WINDOW_MS, phoneProvedRecently, useSession } from './session';
 
 const ACCOUNT: DinerProfileView = {
   dinerUserId: 'diner-1',
@@ -122,5 +122,31 @@ describe('the profile from the server', () => {
 
     useSession.getState().setSignedIn(false);
     expect(useSession.getState().profile).toBeNull();
+  });
+});
+
+describe('when the phone was last proved', () => {
+  it('is remembered from a code or Telegram sign-in, for ten minutes', () => {
+    useSession.getState().markPhoneProved(1_000_000);
+    const state = useSession.getState();
+    expect(state.phoneProvedAtMs).toBe(1_000_000);
+    expect(phoneProvedRecently(state, 1_000_000 + PHONE_PROOF_WINDOW_MS)).toBe(true);
+    expect(phoneProvedRecently(state, 1_000_000 + PHONE_PROOF_WINDOW_MS + 1)).toBe(false);
+    expect(PHONE_PROOF_WINDOW_MS).toBe(10 * 60_000);
+  });
+
+  it('is forgotten on sign-out and when the session ends', () => {
+    useSession.getState().markPhoneProved(1_000_000);
+    useSession.getState().clear();
+    expect(useSession.getState().phoneProvedAtMs).toBeNull();
+
+    useSession.getState().markPhoneProved(1_000_000);
+    useSession.getState().setSignedIn(false);
+    expect(useSession.getState().phoneProvedAtMs).toBeNull();
+  });
+
+  it('is never claimed when nothing was proved', () => {
+    useSession.setState({ phoneProvedAtMs: null });
+    expect(phoneProvedRecently(useSession.getState(), Date.now())).toBe(false);
   });
 });

@@ -43,7 +43,7 @@ import {
   useUploadDinerPhoto,
 } from '../../src/data/accountQueries';
 import { initialsOf } from '../../src/lib/initials';
-import { useSession } from '../../src/stores/session';
+import { phoneProvedRecently, useSession } from '../../src/stores/session';
 import {
   actionIcon,
   colors,
@@ -245,11 +245,22 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
   const [newPassword, setNewPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<Partial<Record<AccountField, string>>>({});
   const [passwordDone, setPasswordDone] = useState<string | null>(null);
+  /** The server asked for the current password after all: the field is back. */
+  const [currentNeeded, setCurrentNeeded] = useState(false);
 
   const hasPassword = profile.hasPassword;
+  // Just proved the phone (a code or the Telegram bot): for ten minutes the
+  // server takes a new password without the old one, so the field is left
+  // out. Judged against when the screen opened; if the window closes while it
+  // is open, the server's 422 brings the field back — it is the last word.
+  const phoneProvedAtMs = useSession((s) => s.phoneProvedAtMs);
+  const [openedAtMs] = useState(() => Date.now());
+  const skipCurrent =
+    hasPassword && !currentNeeded && phoneProvedRecently({ phoneProvedAtMs }, openedAtMs);
+  const askCurrent = hasPassword && !skipCurrent;
   const canChangePassword =
     isValidPassword(newPassword) &&
-    (!hasPassword || currentPassword.length > 0) &&
+    (!askCurrent || currentPassword.length > 0) &&
     !setPassword.isPending;
   const newPasswordError =
     passwordErrors.password ??
@@ -264,7 +275,7 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
     const wasSet = hasPassword;
     try {
       await setPassword.mutateAsync({
-        ...(wasSet ? { currentPassword } : {}),
+        ...(askCurrent ? { currentPassword } : {}),
         newPassword,
       });
       setCurrentPassword('');
@@ -277,6 +288,9 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
       if (failure.key === 'auth.error.invalidCredentials') {
         setPasswordErrors({ currentPassword: t('editProfile.password.wrongCurrent') });
       } else {
+        // Asked for after all — the proof is older than the server allows, or
+        // this sign-in never had one: show the field, with the reason under it.
+        if (failure.field === 'currentPassword') setCurrentNeeded(true);
         setPasswordErrors({ [failure.field]: failure.key ? t(failure.key) : generic(error) });
       }
     }
@@ -411,7 +425,10 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
           {hasPassword ? null : (
             <Text style={styles.muted}>{t('editProfile.password.setBody')}</Text>
           )}
-          {hasPassword ? (
+          {skipCurrent ? (
+            <Text style={styles.muted}>{t('editProfile.password.provedRecently')}</Text>
+          ) : null}
+          {askCurrent ? (
             <Field
               label={t('editProfile.password.current')}
               error={passwordErrors.currentPassword ?? null}

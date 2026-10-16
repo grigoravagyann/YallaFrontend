@@ -64,6 +64,9 @@ async function signInWith(
   queryClient.removeQueries({ queryKey: accountKeys.profile });
   const profile = await gateway.getDinerProfile();
   useSession.getState().setVerified({ phoneE164: profile.phoneE164 });
+  // A password sign-in proves nothing about the phone; any earlier proof was
+  // the earlier session's.
+  useSession.setState({ phoneProvedAtMs: null });
   storeProfile(queryClient, profile);
   // Bookings belong to whoever was signed in before; so do orders and reviews.
   void queryClient.invalidateQueries({ queryKey: ['bookings'] });

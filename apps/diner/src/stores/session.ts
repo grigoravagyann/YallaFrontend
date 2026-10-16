@@ -63,6 +63,20 @@ interface SessionState {
    * profile is read fresh once that token is known to be good.
    */
   profile: DinerProfileView | null;
+  /**
+   * When this session proved the phone — a passed code or the Telegram bot —
+   * as the device clock read it, or `null` for a password sign-in.
+   *
+   * The server stamps the access token of such a sign-in with
+   * `phone_proved_at` and, for ten minutes after it, lets that sign-in set a
+   * new password without the old one. The token is not read here; this is the
+   * app's own record of the sign-in it just did, so Edit profile can leave the
+   * current password out. The server stays the authority: its 422 brings the
+   * field back. Not persisted, as the claim does not outlive the sign-in.
+   */
+  phoneProvedAtMs: number | null;
+  /** The phone was proved just now, by a code or the Telegram bot. */
+  markPhoneProved: (atMs: number) => void;
   /** Signed in under this number. A change of number also forgets the name and email. */
   setVerified: (input: { phoneE164: string }) => void;
   setGuestName: (guestName: string) => void;
@@ -97,6 +111,8 @@ export const useSession = create<SessionState>((set, get) => ({
   guestName: null,
   email: null,
   profile: null,
+  phoneProvedAtMs: null,
+  markPhoneProved: (atMs) => set({ phoneProvedAtMs: atMs }),
   setVerified: ({ phoneE164 }) => {
     // A different number than the one remembered is a different person: their
     // predecessor's name, email and profile must not be shown for, or booked
@@ -131,14 +147,30 @@ export const useSession = create<SessionState>((set, get) => ({
   clearProfile: () => set({ profile: null }),
   // Signed out by the token session (a refused refresh): the account is no
   // longer this device's to show.
-  setSignedIn: (signedIn) => set(signedIn ? { signedIn } : { signedIn, profile: null }),
+  setSignedIn: (signedIn) =>
+    set(signedIn ? { signedIn } : { signedIn, profile: null, phoneProvedAtMs: null }),
   hydrate: (profile) =>
     set({ phoneE164: profile.phoneE164, guestName: profile.guestName, email: profile.email }),
   clear: () => {
-    set({ signedIn: false, profile: null, ...EMPTY_PROFILE });
+    set({ signedIn: false, profile: null, phoneProvedAtMs: null, ...EMPTY_PROFILE });
     persist(get());
   },
 }));
+
+/**
+ * `DinerProfileService.PhoneProofWindow`: how long a phone proof stands in for
+ * the current password.
+ */
+export const PHONE_PROOF_WINDOW_MS = 10 * 60_000;
+
+/** Whether this session proved the phone recently enough to set a password without the old one. */
+export function phoneProvedRecently(
+  state: { readonly phoneProvedAtMs: number | null },
+  nowMs: number,
+): boolean {
+  const proved = state.phoneProvedAtMs;
+  return proved !== null && nowMs >= proved && nowMs - proved <= PHONE_PROOF_WINDOW_MS;
+}
 
 export function isSignedIn(): boolean {
   return useSession.getState().signedIn;

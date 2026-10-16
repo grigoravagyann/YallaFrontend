@@ -36,7 +36,10 @@ const INVALID_KEY: Record<AccountField, string | null> = {
   email: 'auth.error.emailInvalid',
   phone: 'auth.error.phoneInvalid',
   password: 'auth.error.passwordInvalid',
-  currentPassword: 'editProfile.password.wrongCurrent',
+  // A 422 on `currentPassword` means it was needed and not sent: the account
+  // has one and this sign-in did not prove the phone lately. A wrong one sent
+  // is `invalid-credentials`, which the screen words as "wrong" itself.
+  currentPassword: 'editProfile.password.currentNeeded',
   form: null,
 };
 

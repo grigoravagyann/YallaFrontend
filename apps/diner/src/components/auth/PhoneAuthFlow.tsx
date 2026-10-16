@@ -18,9 +18,11 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { describeAccountFailure } from '../../auth/accountErrors';
 import {
   NAME_MAX_LENGTH,
   isValidEmail,
+  isValidPassword,
   nameProblem,
   normalizeName,
   normalizePhone,
@@ -45,8 +47,8 @@ import { Button } from '../Button';
 import { IconButton } from '../IconButton';
 import { Screen } from '../Screen';
 import { Text, TextInput } from '../Text';
-import { accountKeys } from '../../data/accountQueries';
-import { Field, FieldInput } from './Field';
+import { accountKeys, useSetDinerPassword } from '../../data/accountQueries';
+import { Field, FieldInput, PasswordInput } from './Field';
 import { FROM_WELCOME, useAuthFinish, type AuthRouteParams } from './useAuthFinish';
 
 const DEFAULT_PREFIX = '+374';
@@ -66,7 +68,7 @@ function secondsUntil(isoUtc: string): number {
     : 0;
 }
 
-type Step = 'details' | 'phone' | 'code' | 'telegram' | 'name';
+type Step = 'details' | 'phone' | 'code' | 'telegram' | 'newPassword' | 'name';
 
 export interface PhoneAuthFlowProps {
   readonly mode: AuthMode;
@@ -89,6 +91,12 @@ export interface PhoneAuthFlowProps {
  * underneath — a table with its slot selected, the profile — stays mounted,
  * so leaving at any point lands the diner where they left.
  *
+ * "Forgot your password?" opens this with `reason: forgotPassword`, and there
+ * the number being proved is the way back in: the server lets a sign-in that
+ * proved the phone set a new password without the old one for ten minutes,
+ * so a passed code (or the bot) leads straight to "Set a new password" and
+ * only then finishes.
+ *
  * The Telegram bot is the other way to prove a number: no digits typed, no
  * SMS. The app hands the diner to Telegram and polls until the bot has
  * confirmed, then runs exactly the tail a passed code runs. A backend with
@@ -107,6 +115,8 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const rememberedEmail = useSession((s) => s.email);
   const setVerified = useSession((s) => s.setVerified);
   const setRemembered = useSession((s) => s.setRemembered);
+  const markPhoneProved = useSession((s) => s.markPhoneProved);
+  const forgotPassword = params.reason === 'forgotPassword';
   // An account verifying the number it already holds (the profile's "Verify")
   // arrives with that number filled in; a whole `+…` number is taken as is.
   const accountPhone = useSession((s) => (s.signedIn ? s.phoneE164 : null));
@@ -136,6 +146,10 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [telegramHidden, setTelegramHidden] = useState(false);
   const [telegramNotInstalled, setTelegramNotInstalled] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordAgain, setNewPasswordAgain] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const setPassword = useSetDinerPassword();
 
   const requestCode = useRequestPhoneCode();
   const verifyCode = useVerifyPhoneCode();
@@ -182,6 +196,11 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
         ? t('auth.error.nameRequired')
         : null;
   const emailError = touched.email && !emailOk ? t('auth.error.emailInvalid') : null;
+  // The house rule while typing; the server's refusal (or the mismatch) after.
+  const newPasswordError =
+    newPassword.length > 0 && !isValidPassword(newPassword)
+      ? t('auth.error.passwordInvalid')
+      : passwordError;
 
   const touch = (field: keyof typeof touched) => setTouched((prev) => ({ ...prev, [field]: true }));
 
@@ -234,6 +253,9 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       // number it already had: a different one drops the remembered name
       // and email, so one person's name is never shown for another's number.
       setVerified({ phoneE164: verified.phoneE164 });
+      // This sign-in proved the phone: for the next ten minutes it may set a
+      // new password without the old one (Edit profile reads this too).
+      markPhoneProved(Date.now());
       // The account behind the number is now verified, or new: read it
       // again so the profile says so.
       void queryClient.invalidateQueries({ queryKey: accountKeys.profile });
@@ -248,6 +270,12 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       }
 
       if (!alive.current) return;
+      // Here because the password was forgotten: setting a new one is what
+      // this sign-in is for, so it comes before anything else.
+      if (forgotPassword) {
+        setStep('newPassword');
+        return;
+      }
       // Logging in on a phone that already knows the name: nothing to ask.
       if (useSession.getState().guestName) {
         finish();
@@ -255,7 +283,17 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
       }
       setStep('name');
     },
-    [setVerified, setRemembered, queryClient, mode, tidyName, tidyEmail, finish],
+    [
+      setVerified,
+      markPhoneProved,
+      setRemembered,
+      queryClient,
+      mode,
+      tidyName,
+      tidyEmail,
+      finish,
+      forgotPassword,
+    ],
   );
 
   const {
@@ -314,7 +352,9 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
    * guard stands aside.
    */
   useEffect(() => {
-    if (step !== 'code' && step !== 'name' && step !== 'telegram') return;
+    if (step !== 'code' && step !== 'name' && step !== 'telegram' && step !== 'newPassword') {
+      return;
+    }
     return navigation.addListener('beforeRemove', (event) => {
       if (finishing.current) return;
       event.preventDefault();
@@ -376,6 +416,32 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
     },
     [submitCode],
   );
+
+  /**
+   * After a code or the bot, with no current password: the server takes this
+   * sign-in's phone proof instead. Its refusal goes under the field — a
+   * password equal to the username, or a proof the server no longer accepts.
+   */
+  const saveNewPassword = async () => {
+    if (!isValidPassword(newPassword) || setPassword.isPending) return;
+    if (newPassword !== newPasswordAgain) {
+      setPasswordError(t('auth.newPassword.mismatch'));
+      return;
+    }
+    setPasswordError(null);
+    try {
+      await setPassword.mutateAsync({ newPassword });
+      if (!alive.current) return;
+      // Then whatever a code log-in would have asked: the name, if this phone
+      // has never had one.
+      if (useSession.getState().guestName) finish();
+      else setStep('name');
+    } catch (error) {
+      if (!alive.current) return;
+      const failure = describeAccountFailure(error);
+      setPasswordError(failure.key ? t(failure.key) : describe(error));
+    }
+  };
 
   const saveName = () => {
     if (!tidyName) {
@@ -479,7 +545,7 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
         <View style={styles.header}>
           {/* No arrow at the name step: the number is verified, and "Skip for
               now" is the honest name for leaving. */}
-          {step === 'name' ? (
+          {step === 'name' || step === 'newPassword' ? (
             <View style={styles.headerSpacer} />
           ) : (
             <IconButton
@@ -695,6 +761,68 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
                 />
               ) : null}
               <Button label={t('verify.telegramUseCode')} variant="text" onPress={back} />
+            </>
+          ) : null}
+
+          {step === 'newPassword' ? (
+            <>
+              <Text display style={styles.title} accessibilityRole="header">
+                {t('auth.newPassword.title')}
+              </Text>
+              <Text style={styles.blurb}>{t('auth.newPassword.body')}</Text>
+              <Field
+                label={t('editProfile.password.new')}
+                hint={t('auth.passwordHint')}
+                error={newPasswordError}
+              >
+                <PasswordInput
+                  value={newPassword}
+                  onChangeText={(value) => {
+                    setNewPassword(value);
+                    setPasswordError(null);
+                  }}
+                  textContentType="newPassword"
+                  autoComplete="new-password"
+                  autoFocus
+                  invalid={newPasswordError !== null}
+                  accessibilityLabel={t('editProfile.password.new')}
+                  showLabel={t('auth.showPassword')}
+                  hideLabel={t('auth.hidePassword')}
+                  maxLength={128}
+                />
+              </Field>
+              <Field label={t('auth.newPassword.confirmLabel')}>
+                <PasswordInput
+                  value={newPasswordAgain}
+                  onChangeText={(value) => {
+                    setNewPasswordAgain(value);
+                    setPasswordError(null);
+                  }}
+                  textContentType="newPassword"
+                  autoComplete="new-password"
+                  returnKeyType="done"
+                  onSubmitEditing={() => void saveNewPassword()}
+                  accessibilityLabel={t('auth.newPassword.confirmLabel')}
+                  showLabel={t('auth.showPassword')}
+                  hideLabel={t('auth.hidePassword')}
+                  maxLength={128}
+                />
+              </Field>
+              <Button
+                label={t('auth.newPassword.save')}
+                size="large"
+                disabled={!isValidPassword(newPassword) || setPassword.isPending}
+                onPress={() => void saveNewPassword()}
+                style={styles.primary}
+              />
+              {/* Signed in by the code already: the password can wait. */}
+              <Button
+                label={t('auth.skipForNow')}
+                variant="text"
+                disabled={setPassword.isPending}
+                onPress={finish}
+                style={styles.secondary}
+              />
             </>
           ) : null}
 
