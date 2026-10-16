@@ -82,6 +82,7 @@ export default defineConfig({
           hookTimeout: LOADED_MACHINE_TIMEOUT_MS,
           environment: 'jsdom',
           include: ['src/**/*.test.tsx'],
+          setupFiles: ['./src/testSetup.ts'],
         },
       },
     ],

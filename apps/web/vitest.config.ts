@@ -57,6 +57,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['./src/testSetup.ts'],
     // The bundle tests build the app when `dist` is stale, which is minutes
     // rather than milliseconds. The default 5s would kill them mid-build.
     testTimeout: 600_000,
