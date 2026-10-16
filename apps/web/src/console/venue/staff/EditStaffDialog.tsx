@@ -1,9 +1,9 @@
 import {
   assignableRoles,
+  branchBindingFor,
   canChooseBranch,
   type ConsoleBranch,
   type StaffMember,
-  type StaffPermissionError,
   type StaffRole,
   type UpdateStaffInput,
 } from '@yalla/api';
@@ -62,8 +62,9 @@ function StaffIdRow({ staffMemberId }: { readonly staffMemberId: string }) {
   );
 }
 import { useDialogFocus } from '../../../components/useDialogFocus';
-import { BranchField, RoleChoices } from './StaffFields';
+import { BranchField, RoleChoices, branchChoiceFor, branchIdFor } from './StaffFields';
 import { ALL_BRANCHES } from './StaffForm';
+import { refusalIsFormLevel, refusalText, type StaffRefusal } from './staffRefusal';
 
 export interface EditStaffDialogProps {
   readonly member: StaffMember;
@@ -72,7 +73,7 @@ export interface EditStaffDialogProps {
   readonly branches: readonly ConsoleBranch[];
   readonly onUpdate: (patch: UpdateStaffInput) => Promise<void>;
   readonly onCancel: () => void;
-  readonly refusal: StaffPermissionError | null;
+  readonly refusal: StaffRefusal | null;
   readonly isSaving: boolean;
 }
 
@@ -110,24 +111,31 @@ export function EditStaffDialog({
   const [phone, setPhone] = useState(member.phone);
   const [role, setRole] = useState<StaffRole>(member.role);
   const [branchChoice, setBranchChoice] = useState<string>(member.branchId ?? ALL_BRANCHES);
+  // A real branch whenever the role needs one: promoting a waiter who works
+  // everywhere to branch manager puts them at the branch on screen.
+  const shownBranch = branchChoiceFor(role, branchChoice, fixedBranchId, branches);
+  const binding = branchBindingFor(role);
 
   const cancel = useCallback(() => onCancel(), [onCancel]);
   useDialogFocus(dialogRef, { onEscape: cancel, escapeEnabled: !isSaving });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const branchId = branchChoice === ALL_BRANCHES ? null : branchChoice;
+    const branchId = branchIdFor(role, shownBranch);
     await onUpdate({
       fullName,
       phone,
       role,
       // Always sent when the actor may choose, because `null` is a real
-      // assignment and the flag is what tells it from "leave it alone".
+      // assignment and the flag is what tells it from "leave it alone". The
+      // role and the branch travel together, so promoting a branch manager to
+      // general manager clears the branch in the same save, as the server
+      // checks the pair.
       ...(chooseBranch ? { setBranch: true, branchId } : {}),
     });
   }
 
-  const refusalFor = (field: string) => (refusal?.field === field ? refusal.message : null);
+  const refusalFor = (field: string) => refusalText(refusal, field);
 
   return (
     <div className="scrim" role="presentation">
@@ -175,8 +183,9 @@ export function EditStaffDialog({
             <RoleChoices roles={roles} value={role} onChange={setRole} error={refusalFor('role')} />
             <BranchField
               chooseBranch={chooseBranch}
+              binding={binding}
               branches={branches}
-              value={branchChoice}
+              value={shownBranch}
               onChange={setBranchChoice}
               fixedBranchId={fixedBranchId}
               error={refusalFor('branchId')}
@@ -184,7 +193,8 @@ export function EditStaffDialog({
 
             <StaffIdRow staffMemberId={member.id} />
 
-            {refusal && !refusal.field ? (
+            {/* Anything without a control in this dialog, at the foot. */}
+            {refusal && refusalIsFormLevel(refusal, ['role', 'branchId']) ? (
               <p className="field-error" role="alert">
                 {refusal.message}
               </p>

@@ -459,3 +459,77 @@ describe('editing the venue and adding a branch', () => {
     expect(screen.queryByRole('form', { name: /add a branch/i })).toBeNull();
   });
 });
+
+/**
+ * The general manager and the branch manager on the platform's form: the
+ * same binding the venue's own dialogs follow, and the server's refusals
+ * under the field they are about.
+ */
+describe('the roles a platform admin hires', () => {
+  const PIN_TAKEN = 'Somebody who signs in on this tablet already uses that PIN. Choose another.';
+
+  it('offers a general manager with no branch, and a branch manager with no "All branches"', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const create = vi.spyOn(gateway, 'createStaff');
+    const user = userEvent.setup();
+    renderVenue(gateway);
+    await waitForStaff();
+
+    await user.click(screen.getByRole('button', { name: /add someone/i }));
+    const form = screen.getByRole('form');
+    const role = within(form).getByLabelText(/^role$/i) as HTMLSelectElement;
+    expect([...role.options].map((option) => option.textContent)).toEqual([
+      'Owner',
+      'General manager',
+      'Branch manager',
+      'Waiter',
+      'Kitchen',
+    ]);
+
+    await user.selectOptions(role, 'manager');
+    const branch = within(form).getByLabelText(/which branch/i) as HTMLSelectElement;
+    expect([...branch.options].map((option) => option.value)).not.toContain('__all__');
+
+    await user.selectOptions(role, 'generalManager');
+    expect(within(form).queryByLabelText(/which branch/i)).toBeNull();
+    expect(within(form).getByText(/every branch of the venue/i)).toBeTruthy();
+
+    await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
+    await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
+    await user.type(within(form).getByLabelText(/pin/i), '7315');
+    await user.click(within(form).getByRole('button', { name: /^add$/i }));
+
+    await waitFor(() => expect(create).toHaveBeenCalled());
+    expect(create.mock.calls[0]?.[0].staff).toMatchObject({
+      role: 'generalManager',
+      branchId: null,
+    });
+  });
+
+  it('puts a taken PIN under the PIN field', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const user = userEvent.setup();
+    renderVenue(gateway);
+    await waitForStaff();
+
+    for (const name of ['Hasmik Sargsyan', 'Lilit Sargsyan']) {
+      await user.click(screen.getByRole('button', { name: /add someone/i }));
+      const form = screen.getByRole('form');
+      await user.selectOptions(within(form).getByLabelText(/^role$/i), 'waiter');
+      await user.type(within(form).getByLabelText(/full name/i), name);
+      await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
+      await user.type(within(form).getByLabelText(/pin/i), '7315');
+      await user.click(within(form).getByRole('button', { name: /^add$/i }));
+      if (name === 'Hasmik Sargsyan') {
+        const dialog = await screen.findByRole('dialog');
+        await user.click(within(dialog).getByRole('button'));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      }
+    }
+
+    const form = screen.getByRole('form');
+    const alert = await within(form).findByRole('alert');
+    expect(alert.textContent).toBe(PIN_TAKEN);
+    expect(within(form).getByLabelText(/pin/i).getAttribute('aria-describedby')).toBe(alert.id);
+  });
+});

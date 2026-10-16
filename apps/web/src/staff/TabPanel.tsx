@@ -72,7 +72,13 @@ export interface TabPanelProps {
   readonly onClose: () => void;
 }
 
-const MANAGER_ROLES: readonly UserRole[] = ['owner', 'manager', 'platformAdmin'];
+/** The roles the server lets move money on a tab: a branch manager and everyone above. */
+const MANAGER_ROLES: readonly UserRole[] = ['owner', 'generalManager', 'manager', 'platformAdmin'];
+
+/** Whether this role gets the tab's manager controls: comp, void, adjust, cash, abandon. */
+export function isTabManager(role: UserRole): boolean {
+  return MANAGER_ROLES.includes(role);
+}
 
 export function TabPanel(props: TabPanelProps) {
   const { tab, lines, tableLabel, timeZoneId, role, online, loading, offlineUnknown } = props;
@@ -90,7 +96,7 @@ export function TabPanel(props: TabPanelProps) {
   const [abandoning, setAbandoning] = useState(false);
   const [abandonConfirm, setAbandonConfirm] = useState('');
 
-  const isManager = MANAGER_ROLES.includes(role);
+  const isManager = isTabManager(role);
   const totals = tab?.totals;
   const closed = tab?.status === 'closed' || tab?.status === 'abandoned';
   const closing = tab?.status === 'closing';

@@ -415,7 +415,7 @@ export function createConsoleHttpGateway(
       const known = identity.get();
       // A platform admin belongs to no venue and no branch, and carries
       // neither claim. An owner carries the venue and no branch, and so does a
-      // manager created with no branch. None of these is a broken token, and
+      // general manager. None of these is a broken token, and
       // none of them says what the person may reach: that is
       // `getManagedVenue`'s answer. `branchIds` is only the home branch.
       const venueId = claimString(claims, CLAIM.venueId);

@@ -16,6 +16,8 @@ export function useStaffLabels() {
     switch (role) {
       case 'owner':
         return t('staff.group.owner');
+      case 'generalManager':
+        return t('staff.group.generalManager');
       case 'manager':
         return t('staff.group.manager');
       case 'waiter':
@@ -29,6 +31,8 @@ export function useStaffLabels() {
     switch (role) {
       case 'owner':
         return t('staff.roleInfo.owner');
+      case 'generalManager':
+        return t('staff.roleInfo.generalManager');
       case 'manager':
         return t('staff.roleInfo.manager');
       case 'waiter':

@@ -6,7 +6,7 @@ import type { StaffRole } from './console';
  * Two different scopes on one screen, and the difference is not cosmetic:
  * **staff belong to a venue and devices belong to a branch.** An owner works
  * everywhere, so `StaffMember.branchId` is nullable and null means every branch
- * of the venue — that is how a floating manager is represented. A tablet is
+ * of the venue — that is how a general manager is represented. A tablet is
  * bolted to one counter, so a device is always branch-bound.
  */
 
@@ -17,7 +17,8 @@ export interface StaffMember {
    * The one branch they work at, or **null for every branch of the venue**.
    *
    * Null is a real assignment rather than a missing value: it is how an owner
-   * who works the floor, or a manager who covers three sites, is represented.
+   * who works the floor, or a general manager, is represented. A branch
+   * manager always names their branch.
    * Nothing in the product could reach that state before this screen existed.
    */
   readonly branchId: string | null;

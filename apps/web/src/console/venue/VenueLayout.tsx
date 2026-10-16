@@ -15,9 +15,8 @@ export interface VenueLayoutProps {
  * The switcher's options are the branches `GET /api/venues/{id}/manage`
  * answers for **this caller** — never anything in the URL, and never the
  * token's branch claim intersected with a list. The server decides coverage
- * from the caller's staff row: an owner and a manager created with no branch
- * see every branch; a manager created at a branch sees that one and gets no
- * switcher at all, because a control with a single option is a control that
+ * from the caller's staff row: an owner and a general manager see every
+ * branch; a branch manager sees their own and gets no switcher at all, because a control with a single option is a control that
  * invites someone to go looking for the others. The token's claim only picks
  * which branch the section opens on.
  *
@@ -79,11 +78,12 @@ export function VenueLayout({ user }: VenueLayoutProps) {
               branchId,
               timeZoneId: current?.timeZoneId ?? 'Asia/Yerevan',
               branchCount: branches.length,
-              // The server allows the venue-wide report rollup to an owner or
-              // the platform admin only (`ReportQuery.cs`). Decided here, once,
-              // so no screen re-implements a role check — and so a manager who
-              // sees several branches is not offered a query the server 403s.
-              canRollUpVenue: user.role === 'owner' && branches.length > 1,
+              // The server allows the venue-wide report rollup to an owner, a
+              // general manager or the platform admin (`ReportQuery.cs`).
+              // Decided here, once, so no screen re-implements a role check —
+              // and so a branch manager is not offered a query the server 403s.
+              canRollUpVenue:
+                (user.role === 'owner' || user.role === 'generalManager') && branches.length > 1,
               // Moving a branch — its map pin or its address — is an owner's
               // (K5); a manager's save of either is refused and audited as a
               // refusal, so the editors are not offered.
@@ -110,8 +110,8 @@ export interface VenueOutletContext {
    */
   readonly branchCount: number;
   /**
-   * Whether the reports screen may offer "all branches". True for an owner
-   * with more than one branch; never for a manager, however many they see,
+   * Whether the reports screen may offer "all branches". True for an owner or
+   * a general manager with more than one branch; never for a branch manager,
    * because the server refuses them the rollup.
    */
   readonly canRollUpVenue: boolean;

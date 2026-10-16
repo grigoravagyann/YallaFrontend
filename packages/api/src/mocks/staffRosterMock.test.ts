@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DeviceRevokedError } from '../contracts/errors';
 import type { StaffMember } from '../contracts/staff';
+import { fixtureStaffFor } from './staffFixture';
 import { createStaffRosterMock, mockStaffRoster } from './staffRosterMock';
 
 function member(
@@ -48,5 +49,23 @@ describe('the mock branch roster', () => {
     const roster = await mock.getRoster('tablet-b2');
     expect(roster.map((entry) => entry.staffMemberId)).toEqual(['anna', 'other-branch']);
     await expect(mock.getRoster('never-enrolled')).rejects.toBeInstanceOf(DeviceRevokedError);
+  });
+});
+
+describe('a branch tablet with general and branch managers on it', () => {
+  it("lists the branch's own people and the venue-wide owner and general manager", () => {
+    // The fixture as the console and the tablet mocks share it.
+    const people = fixtureStaffFor('v-lumen', 'Lumen Coffee', [
+      { id: 'b-lumen-north', name: 'Northern Avenue' },
+      { id: 'b-lumen-cascade', name: 'Cascade' },
+    ]);
+    const roster = mockStaffRoster(people, { venueId: 'v-lumen', branchId: 'b-lumen-north' });
+    const roles = new Map(roster.map((entry) => [entry.staffMemberId, entry.role]));
+
+    expect(roles.get('v-lumen-owner')).toBe('owner');
+    expect(roles.get('v-lumen-general-manager')).toBe('generalManager');
+    expect(roles.get('b-lumen-north-manager')).toBe('manager');
+    // Another branch's manager is another tablet's.
+    expect(roles.has('b-lumen-cascade-manager')).toBe(false);
   });
 });

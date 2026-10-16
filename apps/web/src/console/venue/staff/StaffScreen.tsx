@@ -1,5 +1,5 @@
 import {
-  StaffPermissionError,
+  StaffPinTakenError,
   canChooseBranch,
   type StaffMember,
   type StaffRole,
@@ -31,6 +31,7 @@ import { StaffCard } from './StaffCard';
 import { ROLE_ORDER, StaffFilters, type RoleFilter } from './StaffFilters';
 import { issueFailureText } from './signInIssue';
 import { actionsFor, type StaffAction } from './staffActions';
+import { asStaffRefusal, type StaffRefusal } from './staffRefusal';
 import { useStaffLabels } from './staffLabels';
 
 /**
@@ -59,6 +60,9 @@ export interface SignInPromptState {
   readonly email: string;
   readonly failure: string | null;
 }
+
+/** How many PINs "New PIN" draws before it gives up on finding a free one. */
+const RESET_PIN_ATTEMPTS = 5;
 
 /** Four random digits, from the platform's cryptographic source. */
 function randomPin(): string {
@@ -103,7 +107,7 @@ export function StaffScreen() {
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [creating, setCreating] = useState(false);
   const [deactivating, setDeactivating] = useState<StaffMember | null>(null);
-  const [refusal, setRefusal] = useState<StaffPermissionError | null>(null);
+  const [refusal, setRefusal] = useState<StaffRefusal | null>(null);
   /**
    * The one moment a PIN or a sign-in link exists on screen. Cleared when the
    * dialog closes; there is nowhere else either lives.
@@ -174,6 +178,14 @@ export function StaffScreen() {
     return self?.id ?? user?.id ?? '';
   }, [staff.data, actorRole, branchId, user]);
 
+  // Where the actor works, for the one rule that needs it: a branch manager
+  // touches their own branch's people only. Their stored row says; the
+  // token's branch claim stands in until the list arrives.
+  const actorBranchId =
+    staff.data?.find((member) => member.id === actorId)?.branchId ??
+    user?.scope.branchIds[0] ??
+    null;
+
   // Search and the switch first: the chips count what those leave, so each
   // chip says how many cards it would show.
   const matching = useMemo(() => {
@@ -193,6 +205,7 @@ export function StaffScreen() {
     const byRole: Record<RoleFilter, number> = {
       all: matching.length,
       owner: 0,
+      generalManager: 0,
       manager: 0,
       waiter: 0,
       kitchen: 0,
@@ -221,6 +234,30 @@ export function StaffScreen() {
     return branches.find((branch) => branch.id === member.branchId)?.name ?? '—';
   }
 
+  /**
+   * A generated PIN, set and shown once.
+   *
+   * PINs are unique per tablet roster, so a random one can be somebody
+   * else's on the same keypad: the server says `pin-taken` and another is
+   * drawn. Nothing is shown until one is accepted, so the PIN on screen is
+   * always the one that works. Anything else is the mutation's to report.
+   */
+  async function resetPin(member: StaffMember) {
+    for (let attempt = 0; attempt < RESET_PIN_ATTEMPTS; attempt += 1) {
+      const pin = randomPin();
+      try {
+        await setPin.mutateAsync({ staffMemberId: member.id, pin });
+        setShown({ kind: 'pin', name: member.fullName, pin });
+        return;
+      } catch (error) {
+        if (!(error instanceof StaffPinTakenError)) return;
+      } finally {
+        // The mutation keeps its variables, which hold the PIN.
+        setPin.reset();
+      }
+    }
+  }
+
   const closeForms = useCallback(() => {
     setCreating(false);
     setEditing(null);
@@ -239,14 +276,9 @@ export function StaffScreen() {
         setCreating(false);
         setEditing(member);
         return;
-      case 'resetPin': {
-        const pin = randomPin();
-        setPin.mutate(
-          { staffMemberId: member.id, pin },
-          { onSuccess: () => setShown({ kind: 'pin', name: member.fullName, pin }) },
-        );
+      case 'resetPin':
+        void resetPin(member);
         return;
-      }
       case 'changeOwnPin':
         setChangingOwnPin(member);
         return;
@@ -276,7 +308,7 @@ export function StaffScreen() {
     );
   }
 
-  const actor = { id: actorId, role: actorRole };
+  const actor = { id: actorId, role: actorRole, branchId: actorBranchId };
   // The issue call counts: the dialog stays in "Saving…" until the next one
   // is ready, so there is never a moment with the person made and nothing on
   // screen about it.
@@ -453,9 +485,10 @@ export function StaffScreen() {
               }
               return null;
             } catch (error) {
-              if (error instanceof StaffPermissionError) {
-                setRefusal(error);
-                return error;
+              const refused = asStaffRefusal(error);
+              if (refused) {
+                setRefusal(refused);
+                return refused;
               }
               throw error;
             }
@@ -479,7 +512,8 @@ export function StaffScreen() {
               await updateStaff.mutateAsync({ staffMemberId: editing.id, patch });
               setEditing(null);
             } catch (error) {
-              if (error instanceof StaffPermissionError) setRefusal(error);
+              const refused = asStaffRefusal(error);
+              if (refused) setRefusal(refused);
               else throw error;
             }
           }}

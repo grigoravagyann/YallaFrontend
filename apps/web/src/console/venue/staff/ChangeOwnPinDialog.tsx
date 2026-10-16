@@ -1,4 +1,4 @@
-import { StaffPermissionError, describeFailure } from '@yalla/api';
+import { StaffPermissionError, StaffPinTakenError, describeFailure } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useDialogFocus } from '../../../components/useDialogFocus';
@@ -24,6 +24,7 @@ const digitsOnly = (value: string) => value.replace(/\D/gu, '').slice(0, 4);
 export function ChangeOwnPinDialog({ onSubmit, onClose }: ChangeOwnPinDialogProps) {
   const { t } = useTranslation(['admin', 'common']);
   const titleId = useId();
+  const errorId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const doneRef = useRef<HTMLButtonElement>(null);
 
@@ -31,6 +32,8 @@ export function ChangeOwnPinDialog({ onSubmit, onClose }: ChangeOwnPinDialogProp
   const [again, setAgain] = useState('');
   const [phase, setPhase] = useState<'form' | 'pending' | 'done'>('form');
   const [error, setError] = useState<string | null>(null);
+  /** The server said somebody on the same tablet uses it: the error is the new PIN's. */
+  const [pinTaken, setPinTaken] = useState(false);
   const pending = phase === 'pending';
 
   const close = useCallback(() => onClose(), [onClose]);
@@ -44,6 +47,7 @@ export function ChangeOwnPinDialog({ onSubmit, onClose }: ChangeOwnPinDialogProp
   function failureText(failure: unknown): string {
     // The server's own sentence when it refused; the house words otherwise.
     if (failure instanceof StaffPermissionError) return failure.message;
+    if (failure instanceof StaffPinTakenError) return failure.message;
     switch (describeFailure(failure)) {
       case 'offline':
         return t('state.offline');
@@ -62,6 +66,7 @@ export function ChangeOwnPinDialog({ onSubmit, onClose }: ChangeOwnPinDialogProp
     event.preventDefault();
     if (pending) return;
     const problem = ownPinProblem(pin, again);
+    setPinTaken(false);
     if (problem) {
       setError(problem === 'fourDigits' ? t('staff.pin.fourDigits') : t('staff.ownPin.mismatch'));
       return;
@@ -75,6 +80,7 @@ export function ChangeOwnPinDialog({ onSubmit, onClose }: ChangeOwnPinDialogProp
       setPhase('done');
     } catch (failure) {
       setError(failureText(failure));
+      setPinTaken(failure instanceof StaffPinTakenError);
       setPhase('form');
     }
   }
@@ -130,9 +136,16 @@ export function ChangeOwnPinDialog({ onSubmit, onClose }: ChangeOwnPinDialogProp
                   maxLength={4}
                   value={pin}
                   disabled={pending}
+                  {...(error && pinTaken ? { 'aria-describedby': errorId } : {})}
                   onChange={(event) => setPin(digitsOnly(event.currentTarget.value))}
                 />
               </label>
+              {/* Under the PIN it is about: pick another one. */}
+              {error && pinTaken ? (
+                <p id={errorId} className="field-error" role="alert">
+                  {error}
+                </p>
+              ) : null}
               <label className="labelled">
                 <span>{t('staff.ownPin.again')}</span>
                 <input
@@ -146,7 +159,7 @@ export function ChangeOwnPinDialog({ onSubmit, onClose }: ChangeOwnPinDialogProp
                   onChange={(event) => setAgain(digitsOnly(event.currentTarget.value))}
                 />
               </label>
-              {error ? (
+              {error && !pinTaken ? (
                 <p className="field-error" role="alert">
                   {error}
                 </p>

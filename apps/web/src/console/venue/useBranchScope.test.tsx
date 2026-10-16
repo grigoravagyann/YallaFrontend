@@ -41,7 +41,7 @@ describe('useBranchScope', () => {
   });
 
   it('opens on the first listed branch when the token names none', () => {
-    // An owner, or a manager created with no branch: `branchIds` is empty.
+    // An owner, or a general manager: `branchIds` is empty.
     const { result } = renderHook(() => useBranchScope([B1, B2], null));
     expect(result.current.branchId).toBe('b-1');
   });
