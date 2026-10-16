@@ -5,7 +5,8 @@
     "fullyBooked": "No tables free right now",
     "openUntil": "Open until {{time}}",
     "opensAt": "Closed · opens {{time}}",
-    "closedToday": "Closed today",
+    "opensOn": "Closed · opens {{day}} {{time}}",
+    "closedNow": "Closed right now",
     "updated": "Updated {{time}}",
     "loading": "Loading…",
     "notAvailable": {
@@ -66,7 +67,7 @@
   "booking": {
     "notOffered": "Booking through Yalla is not switched on for this venue. The room below is live, and the menu and hours are up to date.",
     "pick": "Book a table",
-    "closedNotice": "Closed right now — you can still book ahead.",
+    "closedNotice": "You can still book ahead.",
     "back": "Back to the room"
   },
   "done": {

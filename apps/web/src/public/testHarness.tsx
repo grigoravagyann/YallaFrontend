@@ -67,6 +67,13 @@ export function initTestI18n(): Promise<unknown> {
 export interface HarnessOptions {
   /** Force the next booking attempt to lose the race, for the 409 path. */
   readonly simulateTableTaken?: boolean;
+  /**
+   * The mock world's clock. Open-or-shut is derived from the fixture's hours
+   * at this instant, so a test that needs the venue open — the free-table
+   * count is only shown while it is — pins it rather than hoping the suite
+   * is not run at four in the morning.
+   */
+  readonly now?: () => Date;
 }
 
 export function createHarness(options: HarnessOptions = {}): Harness {
@@ -76,8 +83,9 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     // Off: a guest wandering onto a tab mid-test is a timer firing inside an
     // assertion, which is a flake and never a finding.
     simulateJoiners: false,
+    ...(options.now ? { now: options.now } : {}),
   });
-  const publicGateway = createPublicMockGateway({ gateway });
+  const publicGateway = createPublicMockGateway({ gateway, now: options.now });
   // Retry off, so a deliberate failure is one attempt and not four.
   const queryClient = createQueryClient({ retry: false, mutationNetworkMode: 'always' });
 

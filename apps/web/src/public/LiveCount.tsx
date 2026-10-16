@@ -1,6 +1,6 @@
 import type { OpenState, PublicBranch } from '@yalla/api';
 import { useNow } from '@yalla/api/react';
-import { formatTime, type Locale } from '@yalla/format';
+import { branchDayKey, formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 
 /**
@@ -75,12 +75,15 @@ export function OpenBadge({
   timeZoneId,
   locale,
   as: Tag = 'p',
+  now,
 }: {
   readonly openState: OpenState;
   readonly timeZoneId: string;
   readonly locale: Locale;
   /** `span` on a branch card, which is inside a link. */
   readonly as?: 'p' | 'span';
+  /** Which day "today" is, for naming the next opening. Tests inject it. */
+  readonly now?: Date;
 }) {
   const { t } = useTranslation('public');
   const open = openState.isOpen;
@@ -98,8 +101,76 @@ export function OpenBadge({
         // one whose hours are not filled in. Neither warrants inventing a time.
         t('venue.openNow', { ns: 'diner' })
     : openState.opensAtUtc
-      ? t('page.opensAt', { time: formatTime(openState.opensAtUtc, timeZoneId, locale) })
-      : t('page.closedToday');
+      ? nextOpening(openState.opensAtUtc, timeZoneId, locale, now ?? new Date(), t)
+      : // Shut with nothing scheduled. "Closed today" was the old line here, and
+        // it was a guess: at 01:21 the page cannot know what today holds, and
+        // on the night it shipped the venue opened at 09:00.
+        t('page.closedNow');
 
   return <Tag className={open ? 'pub-open pub-open-yes' : 'pub-open pub-open-no'}>{text}</Tag>;
+}
+
+/**
+ * "Closed · opens 09:00", or "Closed · opens Tuesday 09:00" when the opening
+ * is on another day. The day is named by the branch's calendar, not the
+ * phone's: at 01:21 in Yerevan a phone in London still thinks it is Thursday.
+ */
+function nextOpening(
+  opensAtUtc: string,
+  timeZoneId: string,
+  locale: Locale,
+  now: Date,
+  t: (key: string, params?: Record<string, unknown>) => string,
+): string {
+  const opens = new Date(opensAtUtc);
+  const time = formatTime(opens, timeZoneId, locale);
+  const openingDay = branchDayKey(opens, timeZoneId);
+  if (openingDay === branchDayKey(now, timeZoneId)) return t('page.opensAt', { time });
+
+  const [year, month, day] = openingDay.split('-').map(Number) as [number, number, number];
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return t('page.opensOn', { day: t(`hours.day.${weekday}`), time });
+}
+
+/**
+ * The header's one status line, and the count only when the count means
+ * something.
+ *
+ * Shut, the page used to say three things at once: "Closed today", "8 tables
+ * free right now", and "Closed right now — you can still book ahead." The
+ * first was a guess, the second counted a room nobody can walk into, and a
+ * reader had to pick which to believe. One line now: open or shut and when
+ * that changes, then either the live count or the one sentence a shut venue
+ * has to offer — that booking ahead still works.
+ */
+export function BranchStatus({
+  branch,
+  locale,
+  now,
+}: {
+  readonly branch: PublicBranch;
+  readonly locale: Locale;
+  /** Injected by tests; the badge otherwise reads the clock. */
+  readonly now?: Date;
+}) {
+  const { t } = useTranslation('public');
+  const open = branch.openState.isOpen;
+
+  return (
+    <>
+      <OpenBadge
+        openState={branch.openState}
+        timeZoneId={branch.timeZoneId}
+        locale={locale}
+        {...(now ? { now } : {})}
+      />
+      {open ? (
+        <FreeTables branch={branch} locale={locale} />
+      ) : branch.acceptsWebBookings ? (
+        <div className="pub-count">
+          <p className="pub-muted">{t('booking.closedNotice')}</p>
+        </div>
+      ) : null}
+    </>
+  );
 }

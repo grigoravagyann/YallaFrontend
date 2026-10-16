@@ -27,8 +27,12 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+// Friday 20:00 in Yerevan: inside every fixture's hours, so the pages open on
+// a venue that is open and showing its count.
+const OPEN_HOURS = () => new Date('2026-10-16T16:00:00Z');
+
 function open(path: string) {
-  const harness = createHarness();
+  const harness = createHarness({ now: OPEN_HOURS });
   const view = render(harness.wrap(<PublicApp />, path));
   return { ...harness, ...view };
 }

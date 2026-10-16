@@ -11,6 +11,7 @@ import type {
 } from '../contracts/publicBranch';
 import type { BranchSummary, VenueSummary, VenueType } from '../contracts/booking';
 import type { components } from '../generated/schema';
+import { openStateFrom } from '../mocks/openState';
 import { absolutePhotoUrl } from './photoUrl';
 
 type Schemas = components['schemas'];
@@ -86,17 +87,36 @@ function weeklyHoursFromWire(hours: WirePublicBranch['openingHours']): WeeklyHou
 }
 
 /**
- * Open or shut, from the server's answer — and no more than that.
+ * Open or shut — the server's word — and *when that changes*, read off the hours.
  *
- * `isOpenNow` is computed backend-side against the branch's real clock, so it is
- * taken as given. The two timestamps are **not** derived here even though the
- * weekly hours are in hand, and `mocks/openState.ts` explains why in full: a
- * client that computed them would let a phone with a wrong date tell a visitor
- * that a shut venue is open. Null is what the contract documents for "not
- * scheduled", and `LiveCount` already falls back to a plain open/closed line.
+ * `isOpenNow` is computed backend-side against the branch's real clock and its
+ * closures, so it is taken as given: a phone with a wrong date must never be
+ * able to tell a visitor that a shut venue is open. What the page could not say
+ * before was the second half of the sentence. At 01:21 on a Friday that opens
+ * at 09:00 the header read "Closed today", because both instants were `null`
+ * and the badge had nothing to name — under a hours table that printed 09:00.
+ *
+ * So the instants come from the same weekly hours the page prints, and only
+ * when they agree with the server's verdict. Server says shut and the hours say
+ * shut too: name the next opening. Server says open and the hours say open:
+ * name the closing. Any disagreement — a holiday the hours do not know about,
+ * a device clock that is wrong — keeps the verdict and drops the time, which
+ * `LiveCount` renders as a plain open/closed line.
  */
-function openStateFromWire(wire: WirePublicBranch): OpenState {
-  return { isOpen: wire.isOpenNow ?? false, closesAtUtc: null, opensAtUtc: null };
+function openStateFromWire(
+  wire: WirePublicBranch,
+  weeklyHours: WeeklyHours,
+  now: () => Date,
+): OpenState {
+  const isOpen = wire.isOpenNow ?? false;
+  const timeZoneId = wire.timeZoneId;
+  if (!timeZoneId || weeklyHours.length === 0) {
+    return { isOpen, closesAtUtc: null, opensAtUtc: null };
+  }
+
+  const fromHours = openStateFrom(weeklyHours, now(), timeZoneId);
+  if (fromHours.isOpen !== isOpen) return { isOpen, closesAtUtc: null, opensAtUtc: null };
+  return fromHours;
 }
 
 function venueHeaderFromWire(wire: WirePublicBranch, baseUrl: string): PublicVenueHeader {
@@ -138,7 +158,12 @@ function policyFromWire(wire: WirePublicBranch['policy']): PublicBranchPolicy {
 }
 
 /** One branch's public page. `baseUrl` is the API origin photo links resolve against. */
-export function publicBranchFromWire(wire: WirePublicBranch, baseUrl = ''): PublicBranch {
+export function publicBranchFromWire(
+  wire: WirePublicBranch,
+  baseUrl = '',
+  now: () => Date = () => new Date(),
+): PublicBranch {
+  const weeklyHours = weeklyHoursFromWire(wire.openingHours);
   return {
     venue: venueHeaderFromWire(wire, baseUrl),
 
@@ -173,8 +198,8 @@ export function publicBranchFromWire(wire: WirePublicBranch, baseUrl = ''): Publ
     phoneE164: wire.phoneE164 ?? null,
 
     timeZoneId: wire.timeZoneId ?? '',
-    openState: openStateFromWire(wire),
-    weeklyHours: weeklyHoursFromWire(wire.openingHours),
+    openState: openStateFromWire(wire, weeklyHours, now),
+    weeklyHours,
 
     freeTables: wire.freeTableCount ?? 0,
     totalTables: wire.tableCount ?? 0,
