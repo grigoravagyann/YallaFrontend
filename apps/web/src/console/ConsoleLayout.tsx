@@ -1,6 +1,7 @@
 import type { ConsoleUser, UserRole } from '@yalla/api';
 import { LOCALES, useLocale, useTranslation, type Locale } from '@yalla/i18n';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { signOut } from '../auth/authSession';
 import { DevRoleSwitcher } from '../auth/DevRoleSwitcher';
 import { FLOOR_ROLES, PLATFORM_ROLES, VENUE_ROLES } from '../auth/useCurrentUser';
@@ -52,15 +53,72 @@ export interface ConsoleLayoutProps {
   readonly user: ConsoleUser;
 }
 
-/** Sidebar shell for the console. The staff floor screen uses its own layout. */
+/** The one id the menu button points at; the sidebar is rendered once. */
+const NAV_ID = 'console-nav';
+
+/**
+ * Sidebar shell for the console. The staff floor screen uses its own layout.
+ *
+ * Above the phone breakpoint (`--shell-collapse` in the stylesheet) the
+ * sidebar is a column beside the content, as it always was. Below it the
+ * column left 135px for the content on a 375px phone — every screen wrapped
+ * one word per line and the floor-plan canvas was unreachable — so there the
+ * same `nav` becomes a drawer behind a menu button, and the content takes the
+ * width. One element, two layouts: the links, the role switcher and the
+ * language picker are not duplicated for the small screen.
+ */
 export function ConsoleLayout({ user }: ConsoleLayoutProps) {
   const { t } = useTranslation(['admin', 'common']);
   const { locale, setLocale } = useLocale();
   const items = navItemsFor(user.role);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  // Choosing a destination closes the drawer: the page it opens is the point.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   return (
     <div className="shell">
-      <nav className="sidebar" aria-label={t('shell.title')}>
+      {/* Only drawn below the breakpoint; see `.shell-bar` in the stylesheet. */}
+      <header className="shell-bar">
+        <button
+          type="button"
+          className="button button-ghost shell-menu"
+          aria-expanded={menuOpen}
+          aria-controls={NAV_ID}
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          <span className="shell-menu-icon" aria-hidden="true" />
+          {t('shell.openMenu')}
+        </button>
+        <span className="shell-bar-brand">{t('common:appName')}</span>
+      </header>
+
+      {menuOpen ? (
+        <button
+          type="button"
+          className="shell-scrim"
+          aria-label={t('shell.closeMenu')}
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+
+      <nav
+        id={NAV_ID}
+        className={menuOpen ? 'sidebar is-open' : 'sidebar'}
+        aria-label={t('shell.title')}
+      >
         <div className="brand">{t('common:appName')}</div>
 
         <div className="whoami">
@@ -89,6 +147,7 @@ export function ConsoleLayout({ user }: ConsoleLayoutProps) {
               <NavLink
                 to={item.to}
                 className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+                onClick={() => setMenuOpen(false)}
               >
                 {t(item.labelKey)}
               </NavLink>

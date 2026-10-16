@@ -72,22 +72,25 @@ export function VenuesRoute() {
         </div>
       ) : (
         <>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>{t('venues.column.name')}</th>
-                <th className="num">{t('venues.column.branches')}</th>
-                <th className="num">{t('venues.column.tables')}</th>
-                <th>{t('venues.column.tier')}</th>
-                <th>{t('venues.column.status')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result?.items.map((venue) => (
-                <VenueRow key={venue.id} venue={venue} />
-              ))}
-            </tbody>
-          </table>
+          {/* Scrolls sideways on a phone rather than clipping the status column. */}
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{t('venues.column.name')}</th>
+                  <th className="num">{t('venues.column.branches')}</th>
+                  <th className="num">{t('venues.column.tables')}</th>
+                  <th>{t('venues.column.tier')}</th>
+                  <th>{t('venues.column.status')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result?.items.map((venue) => (
+                  <VenueRow key={venue.id} venue={venue} />
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <nav className="pager" aria-label={t('venues.title')}>
             <button

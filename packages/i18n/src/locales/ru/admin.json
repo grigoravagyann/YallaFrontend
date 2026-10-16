@@ -165,6 +165,7 @@
     "signedInAs": "Вы вошли как {{name}}",
     "devRole": "Только для разработки — смотреть как",
     "openMenu": "Меню",
+    "closeMenu": "Закрыть меню",
     "signOut": "Выйти"
   },
   "role": {
@@ -476,7 +477,10 @@
       "emptyHint": "Начните с раздела — например, «Кофе» или «Горячее».",
       "add": "Добавить раздел",
       "addPrompt": "Название раздела",
-      "rename": "Новое название раздела",
+      "addTitle": "Новый раздел",
+      "renameTitle": "Переименовать «{{name}}»",
+      "addConfirm": "Добавить",
+      "nameRequired": "Укажите название раздела.",
       "itemCount_one": "{{count}} блюдо",
       "itemCount_few": "{{count}} блюда",
       "itemCount_many": "{{count}} блюд",

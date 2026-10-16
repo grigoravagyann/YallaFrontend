@@ -165,6 +165,7 @@
     "signedInAs": "Մուտք եք գործել որպես {{name}}",
     "devRole": "Միայն մշակման համար՝ դիտել որպես",
     "openMenu": "Ընտրացանկ",
+    "closeMenu": "Փակել ընտրացանկը",
     "signOut": "Ելք"
   },
   "role": {
@@ -462,7 +463,10 @@
       "emptyHint": "Սկսեք բաժին ավելացնելուց՝ օրինակ «Սուրճ» կամ «Տաք ուտեստներ»։",
       "add": "Ավելացնել բաժին",
       "addPrompt": "Բաժնի անունը",
-      "rename": "Բաժնի նոր անունը",
+      "addTitle": "Նոր բաժին",
+      "renameTitle": "Վերանվանել «{{name}}»-ը",
+      "addConfirm": "Ավելացնել",
+      "nameRequired": "Բաժնին անուն տվեք։",
       "itemCount_one": "{{count}} ուտեստ",
       "itemCount_other": "{{count}} ուտեստ",
       "confirmEmpty": "Ջնջե՞լ «{{name}}» բաժինը։",

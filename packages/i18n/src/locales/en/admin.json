@@ -165,6 +165,7 @@
     "signedInAs": "Signed in as {{name}}",
     "devRole": "Dev only — view as",
     "openMenu": "Menu",
+    "closeMenu": "Close the menu",
     "signOut": "Sign out"
   },
   "role": {
@@ -462,7 +463,10 @@
       "emptyHint": "Start with a category — “Coffee”, say, or “Hot dishes”.",
       "add": "Add a category",
       "addPrompt": "Category name",
-      "rename": "New name for this category",
+      "addTitle": "New category",
+      "renameTitle": "Rename “{{name}}”",
+      "addConfirm": "Add",
+      "nameRequired": "Give the category a name.",
       "itemCount_one": "{{count}} dish",
       "itemCount_other": "{{count}} dishes",
       "confirmEmpty": "Delete “{{name}}”?",
