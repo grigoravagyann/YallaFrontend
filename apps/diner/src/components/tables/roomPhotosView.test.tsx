@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type * as I18nModule from '@yalla/i18n';
 import { dinerResources } from '@yalla/i18n/diner';
+import { Image } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlaceRoom, RoomPhoto, TablePhotoMarker } from '../../places/model';
 import { RoomPhotosView } from './RoomPhotosView';
@@ -206,5 +207,55 @@ describe('RoomPhotosView paging', () => {
     fireEvent.click(secondZoomIn!);
     fireEvent.click(secondZoomOut!);
     expect(getComputedStyle(scroller).overflowX).toBe('hidden');
+  });
+});
+
+describe('a photo stored without its size', () => {
+  const UNSIZED: PlaceRoom[] = [
+    {
+      roomId: 'hall',
+      name: 'Hall',
+      photos: [{ ...photo('old', [pin('4', 'free')]), width: null, height: null }],
+    },
+  ];
+
+  /** A browser image that loads (or fails) on the next tick, as a real one would. */
+  function stubBrowserImage(loads: { width: number; height: number } | null) {
+    class StubImage {
+      onload: ((event: unknown) => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 0;
+      naturalHeight = 0;
+      set src(_: string) {
+        setTimeout(() => {
+          if (!loads) return this.onerror?.();
+          this.naturalWidth = loads.width;
+          this.naturalHeight = loads.height;
+          this.onload?.({ target: this });
+        }, 0);
+      }
+    }
+    vi.stubGlobal('Image', StubImage);
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('measures it as it loads when it cannot be measured first, and pins its tables', async () => {
+    vi.spyOn(Image, 'getSize').mockImplementation((_, __, failure) => failure?.(new Error('no')));
+    stubBrowserImage({ width: 1600, height: 900 });
+    render(<RoomPhotosView rooms={UNSIZED} selectedTableId={null} onSelect={() => undefined} />);
+
+    expect(await screen.findByRole('button', { name: 'Table 4, free' })).toBeTruthy();
+  });
+
+  it('says its tables cannot be shown when it cannot be measured at all', async () => {
+    stubBrowserImage(null);
+    render(<RoomPhotosView rooms={UNSIZED} selectedTableId={null} onSelect={() => undefined} />);
+
+    expect(await screen.findByText("Tables can't be shown on this photo")).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Table 4, free' })).toBeNull();
   });
 });

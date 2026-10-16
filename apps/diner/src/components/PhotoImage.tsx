@@ -27,6 +27,11 @@ export interface PhotoImageProps {
   readonly gradient?: boolean | number;
   readonly resizeMode?: ImageResizeMode;
   readonly accessibilityLabel?: string;
+  /**
+   * The photo arrived, with its size when the platform says it (`null` when
+   * it does not), or never will (`null` after an error).
+   */
+  readonly onLoad?: (size: { width: number; height: number } | null) => void;
   /** Overlays — badges, buttons, captions — laid on top of the photo. */
   readonly children?: ReactNode;
 }
@@ -42,6 +47,7 @@ export function PhotoImage({
   gradient = false,
   resizeMode = 'cover',
   accessibilityLabel,
+  onLoad,
   children,
 }: PhotoImageProps) {
   // The source that failed rather than a flag, so a recycled card showing a
@@ -66,7 +72,11 @@ export function PhotoImage({
           resizeMode={resizeMode}
           accessible={accessibilityLabel !== undefined}
           {...(accessibilityLabel ? { accessibilityLabel } : {})}
-          onError={() => setFailedSource(source)}
+          onError={() => {
+            setFailedSource(source);
+            onLoad?.(null);
+          }}
+          {...(onLoad ? { onLoad: (event: unknown) => onLoad(loadedSize(event)) } : {})}
           style={StyleSheet.absoluteFill}
         />
       )}
@@ -80,6 +90,22 @@ export function PhotoImage({
       {children}
     </View>
   );
+}
+
+/**
+ * The size a load event carries: `nativeEvent.source` on a phone, the loaded
+ * `<img>` (React Native Web passes the DOM event) on the web.
+ */
+function loadedSize(event: unknown): { width: number; height: number } | null {
+  const native = (event as { nativeEvent?: unknown } | null)?.nativeEvent as
+    | {
+        source?: { width?: number; height?: number };
+        target?: { naturalWidth?: number; naturalHeight?: number };
+      }
+    | undefined;
+  const width = native?.source?.width ?? native?.target?.naturalWidth ?? 0;
+  const height = native?.source?.height ?? native?.target?.naturalHeight ?? 0;
+  return width > 0 && height > 0 ? { width, height } : null;
 }
 
 const styles = StyleSheet.create({

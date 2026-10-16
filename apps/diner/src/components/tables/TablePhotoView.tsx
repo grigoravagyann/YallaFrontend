@@ -82,16 +82,23 @@ function clamp(value: number, limit: number): number {
   return Math.min(limit, Math.max(-limit, value));
 }
 
+type Size = { width: number; height: number };
+
 /**
- * The photo's size: stored with it, or measured once for one stored before
- * sizes were. `null` until known.
+ * The photo's size: stored with it, or measured for one stored before sizes
+ * were — asked of the image first and, should that fail, read off the photo
+ * as it loads. `size` is `null` until known; `unknown` once neither way gave
+ * one, so the frame can say why it has no pins.
  */
-function usePhotoSize(photo: RoomPhoto): { width: number; height: number } | null {
+function usePhotoSize(photo: RoomPhoto): {
+  size: Size | null;
+  unknown: boolean;
+  onLoad: (size: Size | null) => void;
+} {
   const stored = photo.width && photo.height ? { width: photo.width, height: photo.height } : null;
-  const [measured, setMeasured] = useState<{
-    url: string;
-    size: { width: number; height: number };
-  } | null>(null);
+  // Each keyed by the url it is about, so a recycled view starts over.
+  const [measured, setMeasured] = useState<{ url: string; size: Size | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ url: string; size: Size | null } | null>(null);
   useEffect(() => {
     if (stored) return;
     let live = true;
@@ -100,8 +107,9 @@ function usePhotoSize(photo: RoomPhoto): { width: number; height: number } | nul
       (width, height) => {
         if (live) setMeasured({ url: photo.url, size: { width, height } });
       },
-      // A photo that cannot be measured cannot be drawn either: no pins on it.
-      () => undefined,
+      () => {
+        if (live) setMeasured({ url: photo.url, size: null });
+      },
     );
     return () => {
       live = false;
@@ -109,7 +117,13 @@ function usePhotoSize(photo: RoomPhoto): { width: number; height: number } | nul
     // `stored` is derived from these two.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photo.url, photo.width, photo.height]);
-  return stored ?? (measured?.url === photo.url ? measured.size : null);
+  const url = photo.url;
+  const onLoad = useCallback((size: Size | null) => setLoaded({ url, size }), [url]);
+
+  const asked = measured?.url === url ? measured : null;
+  const seen = loaded?.url === url ? loaded : null;
+  const size = stored ?? asked?.size ?? seen?.size ?? null;
+  return { size, unknown: !size && asked !== null && seen !== null, onLoad };
 }
 
 /**
@@ -135,7 +149,8 @@ export function TablePhotoView({
 }: TablePhotoViewProps) {
   const { t } = useTranslation('diner');
   const tables = photo.tables;
-  const box = photoBox(usePhotoSize(photo), TABLE_PHOTO_ASPECT);
+  const photoSize = usePhotoSize(photo);
+  const box = photoBox(photoSize.size, TABLE_PHOTO_ASPECT);
   const [zoom, setZoom] = useState(ZOOM_MIN);
   const [scale] = useState(() => new Animated.Value(ZOOM_MIN));
   const [pan] = useState(() => new Animated.ValueXY({ x: 0, y: 0 }));
@@ -289,6 +304,7 @@ export function TablePhotoView({
             <PhotoImage
               source={photo.url}
               resizeMode="contain"
+              onLoad={photoSize.onLoad}
               style={[StyleSheet.absoluteFill, styles.photo]}
             />
           </Pressable>
@@ -319,6 +335,14 @@ export function TablePhotoView({
             </View>
           ) : null}
         </Animated.View>
+
+        {photoSize.unknown ? (
+          // No size, no honest place for a pin: say so rather than show a
+          // room with no tables in it.
+          <View pointerEvents="none" style={styles.unmeasured}>
+            <Text style={styles.unmeasuredText}>{t('tables.unmeasured')}</Text>
+          </View>
+        ) : null}
 
         {fullscreen ? null : (
           <IconButton
@@ -422,6 +446,9 @@ function FullscreenTables({ visible, onClose, ...view }: FullscreenTablesProps) 
   );
 }
 
+/** Keeps the "can't show tables" line clear of the zoom buttons. */
+const UNMEASURED_CLEARANCE = 48;
+
 /** Header row + legend row inside the fullscreen modal. */
 const FULLSCREEN_CHROME = 120;
 
@@ -438,6 +465,23 @@ const styles = StyleSheet.create({
   box: { position: 'absolute' },
   expand: { position: 'absolute', top: space.md, right: space.md },
   zoom: { position: 'absolute', right: space.md, gap: space.sm },
+  // Bottom-left: the counter has the top-left corner, the zoom pair the right.
+  unmeasured: {
+    position: 'absolute',
+    bottom: space.md,
+    left: space.md,
+    right: space.md + UNMEASURED_CLEARANCE,
+    alignItems: 'flex-start',
+  },
+  unmeasuredText: {
+    ...typography.caption,
+    color: colors.onImage,
+    backgroundColor: colors.glass,
+    borderRadius: radius.small,
+    overflow: 'hidden',
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+  },
   modal: { flex: 1, backgroundColor: colors.surfaceDark },
   modalHeader: {
     flexDirection: 'row',
