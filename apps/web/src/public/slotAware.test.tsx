@@ -161,6 +161,17 @@ function LiveRoom({ branch, initial }: { branch: PublicBranch; initial: SlotSele
 }
 
 describe('a slot the branch refuses', () => {
+  // Run at a fixed midday in Yerevan. "Tomorrow at the default time" is only a
+  // bookable slot while the default time falls inside opening hours; run near
+  // midnight, the default moved past closing and the notice never cleared.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-10-14T08:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('says why, rather than drawing an empty room', async () => {
     const harness = createHarness();
     const branch = await branchOf(harness);
