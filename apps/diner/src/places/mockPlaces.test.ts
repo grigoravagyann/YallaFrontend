@@ -1,5 +1,4 @@
-import { createMockGateway } from '@yalla/api';
-import type { DerivedTableState } from '@yalla/floorplan/types';
+import { createMockGateway, type DerivedTableState } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import { mockPlaces } from './mockPlaces';
 import { formatClock, openStateFor, type TableStatus } from './model';

@@ -1,11 +1,15 @@
-import { describeFailure, unavailableCopy, type TableAvailability } from '@yalla/api';
+import {
+  describeFailure,
+  unavailableCopy,
+  type DerivedTableState,
+  type TableAvailability,
+} from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
-import { FloorPlan, Legend } from '@yalla/floorplan';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { BookingContextBar, type BookingContext } from '../../src/components/BookingContextBar';
 import { EmptyState } from '../../src/components/EmptyState';
 import { IconButton } from '../../src/components/IconButton';
@@ -13,6 +17,7 @@ import { QueryErrorState } from '../../src/components/QueryErrorState';
 import { Screen } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
 import { TableSheet } from '../../src/components/TableSheet';
+import { TableLegend } from '../../src/components/tables/TableLegend';
 import { Text } from '../../src/components/Text';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
 import { useBookingRules, useSlotFloor } from '../../src/data/queries';
@@ -21,7 +26,24 @@ import { LEAD_MINUTES } from '../../src/places/slots';
 import { bookingRulesInput, type FloorPlanParams } from '../../src/places/navigation';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
-import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../src/theme';
+import type { TableStatus } from '../../src/places/model';
+import {
+  actionIcon,
+  colors,
+  fontWeight,
+  layout,
+  radius,
+  space,
+  tableStatusColor,
+  typography,
+} from '../../src/theme';
+
+/** The three states a diner reads, as the photo markers draw them. */
+function dinerStatus(state: DerivedTableState): TableStatus {
+  if (state === 'free') return 'free';
+  if (state === 'reservedSoon' || state === 'held') return 'reserved';
+  return 'occupied';
+}
 
 /**
  * Pick a table at one branch — the floor-plan view.
@@ -61,7 +83,6 @@ export default function BranchFloorPlanScreen() {
   const [touchedSlot, setTouchedSlot] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [sheetTableId, setSheetTableId] = useState<string | null>(null);
-  const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   const slotIso = useMemo(() => booking.slotUtc.toISOString(), [booking.slotUtc]);
 
@@ -108,13 +129,6 @@ export default function BranchFloorPlanScreen() {
     timeZoneId: timeZoneId ?? undefined,
   });
   const waitingForZone = !timeZoneId && zoneQuery.isLoading;
-
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    setViewport((prev) =>
-      prev.width === width && prev.height === height ? prev : { width, height },
-    );
-  }, []);
 
   const handleTap = useCallback(
     (tableId: string) => {
@@ -289,7 +303,7 @@ export default function BranchFloorPlanScreen() {
       />
 
       <View style={styles.legendWrap}>
-        <Legend mode="diner" translate={(key) => t(key, { ns: 'common' })} />
+        <TableLegend />
       </View>
 
       {/* A lost table is information with the next action attached, not an
@@ -321,17 +335,31 @@ export default function BranchFloorPlanScreen() {
         </Text>
       )}
 
-      <View style={styles.planWrap} onLayout={onLayout}>
-        <FloorPlan
-          plan={slotFloor.plan}
-          mode="diner"
-          partySize={booking.partySize}
-          selectedTableId={selectedTableId}
-          onTableTap={handleTap}
-          viewport={viewport}
-          accessibilityLabel={t('floorPlan.title')}
-        />
-      </View>
+      {/* A plain list until this screen learns the room photos (phase 4). */}
+      <ScrollView style={styles.planWrap} contentContainerStyle={styles.list}>
+        {slotFloor.plan.tables.map((table) => {
+          const status = dinerStatus(table.state);
+          const selectable = table.isBookable && table.state === 'free';
+          return (
+            <Pressable
+              key={table.id}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !selectable, selected: table.id === selectedTableId }}
+              accessibilityLabel={`${t('tables.table', { label: table.label })}, ${t(`tables.status.${status}`)}`}
+              disabled={!selectable}
+              onPress={() => handleTap(table.id)}
+              style={[styles.row, table.id === selectedTableId && styles.rowSelected]}
+            >
+              <View style={[styles.dot, { backgroundColor: tableStatusColor[status] }]} />
+              <Text style={styles.rowLabel}>{t('tables.table', { label: table.label })}</Text>
+              <Text style={styles.rowStatus}>
+                {table.floorAreaName ? `${table.floorAreaName} · ` : ''}
+                {t(`tables.status.${status}`)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       <TableSheet
         availability={sheetAvailability}
@@ -387,6 +415,19 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
   },
+  list: { padding: space.sm, gap: space.xs },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: layout.touchTarget,
+    paddingHorizontal: space.md,
+    borderRadius: radius.card,
+  },
+  rowSelected: { borderWidth: 2, borderColor: colors.text },
+  dot: { width: 12, height: 12, borderRadius: radius.pill },
+  rowLabel: { ...typography.body, color: colors.text, fontWeight: fontWeight.medium },
+  rowStatus: { ...typography.caption, color: colors.textMuted, marginLeft: 'auto' },
   skeleton: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm, gap: space.md },
   skeletonBar: { flexDirection: 'row', gap: space.sm },
 });
