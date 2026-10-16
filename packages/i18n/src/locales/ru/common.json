@@ -42,6 +42,10 @@
     "areaFree_one": "{{area}}, свободен {{count}} стол",
     "areaFree_few": "{{area}}, свободно {{count}} стола",
     "areaFree_many": "{{area}}, свободно {{count}} столов",
-    "areaFree_other": "{{area}}, свободно {{count}} стола"
+    "areaFree_other": "{{area}}, свободно {{count}} стола",
+    "table_one": "Стол {{label}}, {{count}} место, {{status}}",
+    "table_few": "Стол {{label}}, {{count}} места, {{status}}",
+    "table_many": "Стол {{label}}, {{count}} мест, {{status}}",
+    "table_other": "Стол {{label}}, {{count}} мест, {{status}}"
   }
 }

@@ -73,6 +73,16 @@ export default function FloorPlanCanvas({
           // it. Bound to `common`, where the floor plan's own copy lives.
           translate={(key, params) => t(key, { ns: 'common', ...params })}
           accessibilityLabel={t('section.room')}
+          // "Table 4, 2 seats, free": label, seats and the state the legend
+          // above names, so a screen reader hears what the colours show.
+          tableAccessibilityLabel={(laid) =>
+            t('floorPlan.table', {
+              ns: 'common',
+              label: laid.table.label,
+              count: laid.table.seats,
+              status: t(`tableStatus.${laid.table.state}`, { ns: 'common' }),
+            })
+          }
         />
       </div>
     </>

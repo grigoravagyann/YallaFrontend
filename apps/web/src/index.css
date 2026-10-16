@@ -697,6 +697,15 @@ select {
   flex-wrap: wrap;
 }
 
+/* A table reached with the keyboard shows where focus is; see public.css. */
+.floor-plan-pane g[role='button']:focus-visible {
+  outline: none;
+}
+.floor-plan-pane g[role='button']:focus-visible > g > * {
+  stroke: var(--color-foreground);
+  stroke-width: 3;
+}
+
 .floor-plan-pane {
   display: flex;
   flex-direction: column;

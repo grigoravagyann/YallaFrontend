@@ -599,6 +599,16 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                     pendingTableIds.has(laid.id) ? t('floor.pendingMark') : null
                   }
                   accessibilityLabel={t('floor.title')}
+                  // Named the way the legend names them, so a waiter on a
+                  // keyboard or a screen reader hears "Table 4, 2 seats,
+                  // occupied" rather than "4".
+                  tableAccessibilityLabel={(laid) =>
+                    t('common:floorPlan.table', {
+                      label: laid.table.label,
+                      count: laid.table.seats,
+                      status: t(`common:tableStatus.${laid.table.state}`),
+                    })
+                  }
                 />
 
                 {selection && selectedTable ? (
