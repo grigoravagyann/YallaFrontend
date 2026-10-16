@@ -112,6 +112,13 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const accountPhone = useSession((s) => (s.signedIn ? s.phoneE164 : null));
 
   const firstStepOf = mode === 'signup' ? 'details' : 'phone';
+  // The phone step says what it is for: the profile's "Verify" while signed
+  // in confirms a number, and "Forgot your password?" is a log-in by code.
+  const phoneCopy = accountPhone
+    ? ({ title: 'auth.login.confirmTitle', body: 'auth.login.confirmBody' } as const)
+    : params.reason === 'forgotPassword'
+      ? ({ title: 'auth.login.forgot', body: 'auth.login.forgotBody' } as const)
+      : ({ title: 'auth.login.title', body: 'auth.login.body' } as const);
   // Sent back by the bot with a challenge in hand: straight to waiting.
   const [step, setStep] = useState<Step>(params.tg ? 'telegram' : firstStepOf);
   const [name, setName] = useState(rememberedName ?? '');
@@ -492,10 +499,10 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
           {step === 'phone' ? (
             <>
               <Text display style={styles.title} accessibilityRole="header">
-                {t('auth.login.title')}
+                {t(phoneCopy.title)}
               </Text>
               {/* Considerate framing: says why, not just what. */}
-              <Text style={styles.blurb}>{t('auth.login.body')}</Text>
+              <Text style={styles.blurb}>{t(phoneCopy.body)}</Text>
               {phoneField}
             </>
           ) : null}
@@ -550,18 +557,21 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
                   style={styles.secondary}
                 />
               )}
-              <View style={styles.footer}>
-                <Text style={styles.footerText}>
-                  {mode === 'login' ? t('auth.login.noAccount') : t('auth.signup.haveAccount')}
-                </Text>
-                <Button
-                  label={mode === 'login' ? t('auth.login.createOne') : t('auth.logIn')}
-                  variant="text"
-                  fullWidth={false}
-                  disabled={busy}
-                  onPress={() => switchTo(mode === 'login' ? '/auth/signup' : '/auth/login')}
-                />
-              </View>
+              {/* Signed in already: confirming a number, not choosing an account. */}
+              {accountPhone ? null : (
+                <View style={styles.footer}>
+                  <Text style={styles.footerText}>
+                    {mode === 'login' ? t('auth.login.noAccount') : t('auth.signup.haveAccount')}
+                  </Text>
+                  <Button
+                    label={mode === 'login' ? t('auth.login.createOne') : t('auth.logIn')}
+                    variant="text"
+                    fullWidth={false}
+                    disabled={busy}
+                    onPress={() => switchTo(mode === 'login' ? '/auth/signup' : '/auth/login')}
+                  />
+                </View>
+              )}
             </>
           ) : null}
 

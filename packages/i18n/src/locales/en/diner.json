@@ -234,6 +234,7 @@
       "noAccount": "No account yet?",
       "createOne": "Create one",
       "forgot": "Forgot your password?",
+      "forgotBody": "Log in with a code sent to the number on your account.",
       "confirmTitle": "Confirm your number",
       "confirmBody": "We'll text a code to the number on your account."
     },
