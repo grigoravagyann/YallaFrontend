@@ -146,10 +146,26 @@ export function TablePhotoView({
   const offset = useRef({ x: 0, y: 0 });
   const frame = useRef({ width: 0, height: 0 });
   const zoomRef = useRef(ZOOM_MIN);
+  // What the pager was last told: only a change is reported, so a page that
+  // mounts at 1× says nothing, and one unmounted while zoomed says it is not.
+  const reportedZoomed = useRef(false);
   useEffect(() => {
     zoomRef.current = zoom;
-    onZoomedChange?.(zoom > ZOOM_MIN);
+    const zoomed = zoom > ZOOM_MIN;
+    if (zoomed === reportedZoomed.current) return;
+    reportedZoomed.current = zoomed;
+    onZoomedChange?.(zoomed);
   }, [zoom, onZoomedChange]);
+  const onZoomedChangeRef = useRef(onZoomedChange);
+  useEffect(() => {
+    onZoomedChangeRef.current = onZoomedChange;
+  }, [onZoomedChange]);
+  useEffect(
+    () => () => {
+      if (reportedZoomed.current) onZoomedChangeRef.current?.(false);
+    },
+    [],
+  );
 
   const settle = useCallback(
     (next: { x: number; y: number }, animated: boolean) => {

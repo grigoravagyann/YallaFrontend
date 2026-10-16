@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type * as I18nModule from '@yalla/i18n';
 import { dinerResources } from '@yalla/i18n/diner';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -153,5 +153,58 @@ describe('RoomPhotosView', () => {
     // A free table the party fits is still offered.
     fireEvent.click(screen.getByRole('button', { name: 'Table 7, free' }));
     expect(onSelect).toHaveBeenCalledWith('7');
+  });
+});
+
+/**
+ * React Native Web measures through a ResizeObserver jsdom does not have; it
+ * still hangs each `onLayout` on its node, so a test can lay a view out.
+ */
+function layOut(width: number, height: number) {
+  for (const node of Array.from(document.querySelectorAll('div'))) {
+    const handler = (node as unknown as Record<string, unknown>)['__reactLayoutHandler'];
+    if (typeof handler === 'function') {
+      act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height } } }));
+    }
+  }
+}
+
+/** The pager's scrolling node: the one that holds every photo of the room. */
+function pager(): HTMLElement {
+  const counter = screen.getByText(/^\d+\/\d+$/u);
+  const frame = counter.parentElement!.parentElement!;
+  const scroller = Array.from(frame.querySelectorAll<HTMLElement>('div')).find(
+    (node) => node.querySelectorAll('[aria-label="Zoom in"]').length > 1,
+  );
+  return scroller!;
+}
+
+describe('RoomPhotosView paging', () => {
+  it('counts the photo swiped to, from the scroll itself (web has no momentum end)', () => {
+    render(<RoomPhotosView rooms={ROOMS} selectedTableId={null} onSelect={() => undefined} />);
+    layOut(400, 300);
+    expect(screen.getByText('1/2')).toBeTruthy();
+
+    const scroller = pager();
+    scroller.scrollLeft = 400;
+    fireEvent.scroll(scroller);
+
+    expect(screen.getByText('2/2')).toBeTruthy();
+  });
+
+  it('holds the pager still while the photo on screen is zoomed, whatever another page reports', () => {
+    render(<RoomPhotosView rooms={ROOMS} selectedTableId={null} onSelect={() => undefined} />);
+    layOut(400, 300);
+    const scroller = pager();
+    const [firstZoomIn, secondZoomIn] = screen.getAllByRole('button', { name: 'Zoom in' });
+    const [, secondZoomOut] = screen.getAllByRole('button', { name: 'Zoom out' });
+
+    fireEvent.click(firstZoomIn!);
+    expect(getComputedStyle(scroller).overflowX).toBe('hidden');
+
+    // The page off screen zooms and unzooms: the photo on screen is still zoomed.
+    fireEvent.click(secondZoomIn!);
+    fireEvent.click(secondZoomOut!);
+    expect(getComputedStyle(scroller).overflowX).toBe('hidden');
   });
 });

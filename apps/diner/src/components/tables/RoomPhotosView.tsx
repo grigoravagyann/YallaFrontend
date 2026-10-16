@@ -1,5 +1,5 @@
 import { useTranslation } from '@yalla/i18n';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   ScrollView,
@@ -11,7 +11,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import type { PlaceRoom, TablePhotoMarker } from '../../places/model';
+import type { PlaceRoom, RoomPhoto, TablePhotoMarker } from '../../places/model';
 import { roomOfTable } from '../../places/rooms';
 import { colors, fontWeight, radius, space, tabularNumbers, typography } from '../../theme';
 import { Chip } from '../Chip';
@@ -57,16 +57,42 @@ export function RoomPhotosView({
     initial ? { [initial.roomId]: initial.photoIndex } : {},
   );
   const [width, setWidth] = useState(0);
-  const [zoomed, setZoomed] = useState(false);
+  // Per photo, so one page mounting or unzooming never unlocks another.
+  const [zoomedPhotos, setZoomedPhotos] = useState<Readonly<Record<string, boolean>>>({});
+  const list = useRef<FlatList<RoomPhoto>>(null);
 
   const room = rooms.find((candidate) => candidate.roomId === roomId) ?? rooms[0];
   const count = room?.photos.length ?? 0;
   const index = Math.min(room ? (photoIndexes[room.roomId] ?? 0) : 0, Math.max(0, count - 1));
+  const zoomed = Boolean(room && zoomedPhotos[room.photos[index]?.photoId ?? '']);
+
+  const setZoomed = useCallback((photoId: string, value: boolean) => {
+    setZoomedPhotos((current) =>
+      Boolean(current[photoId]) === value ? current : { ...current, [photoId]: value },
+    );
+  }, []);
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     setWidth(event.nativeEvent.layout.width);
   }, []);
 
+  // A new width (rotation, a resized window) moves every page; keep the one
+  // on screen. Read through a ref so a swipe does not scroll it back.
+  const indexRef = useRef(index);
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+  useEffect(() => {
+    if (width > 0 && indexRef.current > 0) {
+      list.current?.scrollToIndex({ index: indexRef.current, animated: false });
+    }
+  }, [width]);
+
+  /*
+   * The page on screen, from the scroll itself rather than its momentum end:
+   * React Native Web never fires `onMomentumScrollEnd`, so on the web the
+   * counter and the remembered photo would never move.
+   */
   const onPaged = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (!room || width <= 0) return;
@@ -97,10 +123,7 @@ export function RoomPhotosView({
               size="sm"
               accessibilityRole="tab"
               selected={candidate.roomId === room.roomId}
-              onPress={() => {
-                setRoomId(candidate.roomId);
-                setZoomed(false);
-              }}
+              onPress={() => setRoomId(candidate.roomId)}
             />
           ))}
         </ScrollView>
@@ -122,10 +145,12 @@ export function RoomPhotosView({
             bounces={false}
             scrollEnabled={!zoomed && count > 1}
             showsHorizontalScrollIndicator={false}
+            ref={list}
             keyExtractor={(photo) => photo.photoId}
             initialScrollIndex={index}
             getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-            onMomentumScrollEnd={onPaged}
+            onScroll={onPaged}
+            scrollEventThrottle={32}
             renderItem={({ item }) => (
               <View style={{ width }}>
                 <TablePhotoView
@@ -135,7 +160,7 @@ export function RoomPhotosView({
                   onBook={onBook}
                   canBook={canBook}
                   partySize={partySize}
-                  onZoomedChange={setZoomed}
+                  onZoomedChange={(value) => setZoomed(item.photoId, value)}
                 />
               </View>
             )}
@@ -149,7 +174,7 @@ export function RoomPhotosView({
             onBook={onBook}
             canBook={canBook}
             partySize={partySize}
-            onZoomedChange={setZoomed}
+            onZoomedChange={(value) => setZoomed(room.photos[index]!.photoId, value)}
           />
         ) : null}
         {count > 1 ? (
