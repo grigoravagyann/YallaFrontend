@@ -171,6 +171,7 @@ function planPins(
   tables: readonly ReplaceFloorTableInput[],
   areas: readonly ReplaceFloorAreaInput[],
   photoRoom: ReadonlyMap<string, number>,
+  previousPhotos: readonly ReadonlySet<string>[],
   currentRoomPhotos: ReadonlySet<string>,
 ): (EditorTablePin | null)[] {
   const violations: MockViolation[] = [];
@@ -195,6 +196,9 @@ function planPins(
     if (photoIn !== undefined) {
       if (photoIn === room) {
         pins.push({ photoId: pin.photoId, x: pin.x, y: pin.y });
+      } else if (room >= 0 && previousPhotos[room]!.has(pin.photoId)) {
+        // The photo was this table's room's, and the save moved it away.
+        pins.push(null);
       } else {
         pins.push(null);
         violations.push({
@@ -221,6 +225,43 @@ function planPins(
 
   if (violations.length > 0) throw validationFailed(url, violations);
   return pins;
+}
+
+/**
+ * `MatchAreas`: the stored room each entry is, or `null` for a new one — by
+ * id first for every entry, and only then by name among the rooms no id
+ * claimed. An id claimed twice is refused naming both entries.
+ */
+function matchAreas(
+  areas: readonly ReplaceFloorAreaInput[],
+  stored: readonly EditorFloorArea[],
+  errors: string[],
+): (EditorFloorArea | null)[] {
+  const matched: (EditorFloorArea | null)[] = areas.map(() => null);
+  const claimedBy = new Map<string, number>();
+  areas.forEach((input, i) => {
+    const area = input.id ? stored.find((a) => a.id === input.id) : undefined;
+    if (!area) return;
+    const first = claimedBy.get(area.id);
+    if (first !== undefined) {
+      errors.push(
+        `Room ${area.name} is matched by more than one entry in the plan: ` +
+          `${areas[first]!.name.trim()} and ${input.name.trim()}.`,
+      );
+      return;
+    }
+    claimedBy.set(area.id, i);
+    matched[i] = area;
+  });
+  areas.forEach((input, i) => {
+    if (matched[i] || (input.id && claimedBy.has(input.id))) return;
+    const area = stored.find((a) => !claimedBy.has(a.id) && key(a.name) === key(input.name));
+    if (area) {
+      claimedBy.set(area.id, i);
+      matched[i] = area;
+    }
+  });
+  return matched;
 }
 
 /** Lowest `displayOrder` first, then by name — the server's read order. */
@@ -283,6 +324,7 @@ export function applyFloorPlan(
   if (unknownAreas.length > 0) {
     errors.push(`Tables reference areas that are not in the plan: ${unknownAreas.join(', ')}.`);
   }
+  const storedAreas = matchAreas(areasInput, existing.areas, errors);
   if (errors.length > 0) throw invalid();
 
   // Photos and pins: every field-named rule, then whose photos they are.
@@ -290,17 +332,18 @@ export function applyFloorPlan(
   const currentRoomPhotos = new Set(
     existing.areas.flatMap((area) => area.photos.map((photo) => photo.photoId)),
   );
-  const pins = planPins(url, tablesInput, areasInput, photoRoom, currentRoomPhotos);
+  const previousPhotos = storedAreas.map(
+    (area) => new Set(area?.photos.map((photo) => photo.photoId) ?? []),
+  );
+  const pins = planPins(url, tablesInput, areasInput, photoRoom, previousPhotos, currentRoomPhotos);
   for (const photoId of photoRoom.keys()) {
     if (!context.branchPhoto(photoId)) throw new NotFoundError({ url });
   }
 
   // Areas: by id, then by name; anything else is new.
   const keptAreas: EditorFloorArea[] = [];
-  for (const input of areasInput) {
-    const match =
-      (input.id ? existing.areas.find((a) => a.id === input.id) : undefined) ??
-      existing.areas.find((a) => key(a.name) === key(input.name));
+  for (const [index, input] of areasInput.entries()) {
+    const match = storedAreas[index];
     keptAreas.push({
       id: match?.id ?? context.newId(`area-${context.branchId}`),
       name: input.name.trim(),
@@ -407,12 +450,23 @@ export function applyFloorPlan(
   }
 
   const warnings = [...validation.warnings];
-  const unpinnedByRemoval = tablesInput
-    .filter((input, index) => input.pin?.photoId && pins[index] === null)
+  // Every pin sent that was taken off rather than refused: on a photo the
+  // plan dropped from every room, or moved out of the table's room.
+  const unpinned = tablesInput.filter((input, index) => input.pin?.photoId && pins[index] === null);
+  const unpinnedByRemoval = unpinned
+    .filter((input) => !photoRoom.has(input.pin!.photoId))
+    .map((input) => input.label.trim());
+  const unpinnedByMove = unpinned
+    .filter((input) => photoRoom.has(input.pin!.photoId))
     .map((input) => input.label.trim());
   if (unpinnedByRemoval.length > 0) {
     warnings.push(
       `Table(s) ${unpinnedByRemoval.join(', ')} were taken off photos this plan removed from every room.`,
+    );
+  }
+  if (unpinnedByMove.length > 0) {
+    warnings.push(
+      `Table(s) ${unpinnedByMove.join(', ')} were taken off photos this plan moved to another room.`,
     );
   }
 

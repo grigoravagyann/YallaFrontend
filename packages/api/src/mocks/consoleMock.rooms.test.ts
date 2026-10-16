@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConsoleGateway } from '../consoleGateway';
-import { FloorPlanInvalidError } from '../contracts/errors';
+import { FloorPlanChangedError, FloorPlanInvalidError } from '../contracts/errors';
 import type {
   EditorFloorPlan,
   ReplaceFloorAreaInput,
@@ -365,5 +365,124 @@ describe('deleting a table in the console mock', () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
     const area = await gateway.createFloorArea({ branchId: BRANCH, name: 'VIP', displayOrder: 9 });
     expect(area).toMatchObject({ name: 'VIP', displayOrder: 9, photos: [] });
+  });
+});
+
+describe('the room routes and the plan version in the console mock', () => {
+  it('moves the version when a room is added, renamed or deleted, so a stale save is refused', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const loaded = await gateway.getFloorPlan(BRANCH);
+
+    const vip = await gateway.createFloorArea({ branchId: BRANCH, name: 'VIP', displayOrder: 5 });
+    const afterAdd = await gateway.getFloorPlan(BRANCH);
+    expect(afterAdd.version).not.toBe(loaded.version);
+    expect(await caught(save(gateway, asCommand(loaded)))).toBeInstanceOf(FloorPlanChangedError);
+
+    await gateway.updateFloorArea({
+      branchId: BRANCH,
+      areaId: vip.id,
+      name: 'Lounge',
+      displayOrder: 5,
+    });
+    const afterRename = await gateway.getFloorPlan(BRANCH);
+    expect(afterRename.version).not.toBe(afterAdd.version);
+
+    await gateway.deleteFloorArea({ branchId: BRANCH, areaId: vip.id });
+    expect((await gateway.getFloorPlan(BRANCH)).version).not.toBe(afterRename.version);
+  });
+
+  it('refuses a room name another room has, ignoring case and spaces, but not its own', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const [first, second] = (await gateway.getFloorPlan(BRANCH)).areas;
+
+    const added = await caught(
+      gateway.createFloorArea({
+        branchId: BRANCH,
+        name: ` ${first!.name.toUpperCase()} `,
+        displayOrder: 9,
+      }),
+    );
+    expect(named(added)).toEqual([['name', 'conflict']]);
+    expect((added as ValidationError).violations[0]!.message).toBe(
+      `Area names must be unique within a branch. ${first!.name.toUpperCase()} is already used.`,
+    );
+    expect(
+      named(
+        await caught(
+          gateway.updateFloorArea({
+            branchId: BRANCH,
+            areaId: second!.id,
+            name: first!.name,
+            displayOrder: 1,
+          }),
+        ),
+      ),
+    ).toEqual([['name', 'conflict']]);
+
+    const renamed = await gateway.updateFloorArea({
+      branchId: BRANCH,
+      areaId: first!.id,
+      name: first!.name.toLowerCase(),
+      displayOrder: 0,
+    });
+    expect(renamed.name).toBe(first!.name.toLowerCase());
+  });
+});
+
+describe('matching rooms in a plan save in the console mock', () => {
+  it('refuses one room id sent by two entries, naming both', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const command = asCommand(await gateway.getFloorPlan(BRANCH));
+    const hall = command.areas[0]!;
+    command.areas.push({ ...hall, name: 'Annex', displayOrder: 9 });
+
+    const error = await caught(save(gateway, command));
+
+    expect(error).toBeInstanceOf(FloorPlanInvalidError);
+    expect((error as FloorPlanInvalidError).errors).toEqual([
+      `Room ${hall.name} is matched by more than one entry in the plan: ${hall.name} and Annex.`,
+    ]);
+  });
+
+  it('makes two rooms when one is renamed and a new one takes its old name in the same save', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const command = asCommand(await gateway.getFloorPlan(BRANCH));
+    const hall = command.areas[0]!;
+    command.areas = [
+      { name: hall.name, displayOrder: 0, photoIds: [] },
+      { ...hall, name: 'Lounge', displayOrder: 1 },
+      ...command.areas.slice(1).map((area, i) => ({ ...area, displayOrder: i + 2 })),
+    ];
+    command.tables = command.tables.map((t) =>
+      t.floorAreaName === hall.name ? { ...t, floorAreaName: 'Lounge' } : t,
+    );
+
+    const result = await save(gateway, command);
+
+    const lounge = result.plan.areas.find((area) => area.name === 'Lounge')!;
+    const fresh = result.plan.areas.find((area) => area.name === hall.name)!;
+    expect(lounge.id).toBe(hall.id);
+    expect(fresh.id).not.toBe(hall.id);
+  });
+
+  it('takes a pin off a photo the save moves to another room, with a warning, instead of refusing', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const photoId = await upload(gateway, 'moving.png');
+    const first = asCommand(await gateway.getFloorPlan(BRANCH));
+    first.areas[0] = { ...first.areas[0]!, photoIds: [photoId] };
+    const index = first.tables.findIndex((t) => t.floorAreaName === first.areas[0]!.name);
+    first.tables[index] = { ...first.tables[index]!, pin: { photoId, x: 0.5, y: 0.5 } };
+    const saved = await save(gateway, first);
+
+    const second = asCommand(saved.plan);
+    second.areas[0] = { ...second.areas[0]!, photoIds: [] };
+    second.areas[1] = { ...second.areas[1]!, photoIds: [photoId] };
+    const result = await save(gateway, second);
+
+    const label = first.tables[index]!.label;
+    expect(result.plan.tables.find((t) => t.label === label)!.pin).toBeNull();
+    expect(result.warnings).toContain(
+      `Table(s) ${label} were taken off photos this plan moved to another room.`,
+    );
   });
 });

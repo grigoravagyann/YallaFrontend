@@ -161,14 +161,16 @@ export interface ConsoleGateway {
 
   /**
    * Replace rooms, their photos and every table's pin in one call, against the
-   * `version` the editor loaded (K6). A photo dropped from every room takes
-   * its tables off it (with a warning); a bookable table with no pin is saved
-   * with a warning that diners are not offered it.
+   * `version` the editor loaded (K6). A photo dropped from every room, or
+   * moved to another room, takes its tables off it (with a warning); a
+   * bookable table with no pin is saved with a warning that diners are not
+   * offered it. Rooms match by id first, then by name among the unclaimed.
    *
    * @throws {FloorPlanChangedError} somebody saved the plan since it was
    * loaded; nothing was written. Carries the server's `currentVersion`.
    * @throws {FloorPlanInvalidError} `floor-plan-invalid`: a missing or
-   * repeated label or room name, or a table matched twice.
+   * repeated label or room name, a table matched twice, or one room id sent
+   * by two entries.
    * @throws {ValidationError} `validation-failed`: more than ten photos in a
    * room (`areas[i].photoIds`, `max`), a photo twice or in two rooms
    * (`areas[i].photoIds[j]`, `conflict`), half a pin (`tables[i].photoId|photoX|photoY`,
@@ -188,12 +190,21 @@ export interface ConsoleGateway {
    */
   getBranchReadiness(branchId: string): Promise<BranchReadiness>;
 
+  /**
+   * Add a room with no photos. Like the rename and the delete below, it moves
+   * the plan's `version`: an editor holding the plan must reload it, or its
+   * next save is a `FloorPlanChangedError`.
+   *
+   * @throws {ValidationError} `name`, bound `conflict`: another room has the
+   * name (ignoring case and spaces at the ends).
+   */
   createFloorArea(input: {
     branchId: string;
     name: string;
     displayOrder: number;
   }): Promise<EditorFloorArea>;
 
+  /** Moves the plan's `version`; refuses another room's name like {@link createFloorArea}. */
   updateFloorArea(input: {
     branchId: string;
     areaId: string;
@@ -201,7 +212,7 @@ export interface ConsoleGateway {
     displayOrder: number;
   }): Promise<EditorFloorArea>;
 
-  /** The room and its photos go; its tables stay, with no room and no pin. */
+  /** The room and its photos go; its tables stay, with no room and no pin. Moves the `version`. */
   deleteFloorArea(input: { branchId: string; areaId: string }): Promise<void>;
 
   /**

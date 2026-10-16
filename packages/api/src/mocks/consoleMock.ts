@@ -1443,6 +1443,35 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     return plan;
   }
 
+  function bumped(version: string): string {
+    return String((Number.parseInt(version, 10) || 0) + 1);
+  }
+
+  /** `RequireUnusedAreaNameAsync`: another room's name, ignoring case and spaces at the ends. */
+  function requireUnusedAreaName(
+    plan: EditorFloorPlan,
+    name: string,
+    exceptAreaId: string | null,
+    url: string,
+  ): void {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const taken = plan.areas.some(
+      (area) =>
+        area.id !== exceptAreaId &&
+        area.name.trim().toLocaleLowerCase() === trimmed.toLocaleLowerCase(),
+    );
+    if (taken) {
+      throw validationFailed(url, [
+        {
+          field: 'name',
+          message: `Area names must be unique within a branch. ${trimmed} is already used.`,
+          bound: 'conflict',
+        },
+      ]);
+    }
+  }
+
   /** A photo uploaded for this branch, or `undefined`: the server's `Photos.BranchId` lookup. */
   function branchPhoto(branchId: string, photoId: string): Photo | undefined {
     return photoBranch.get(photoId) === branchId ? photosById.get(photoId) : undefined;
@@ -1664,8 +1693,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async createFloorArea({ branchId, name, displayOrder }) {
       await wait();
+      const url = `${URL_TAG}/branches/${branchId}/floor-areas`;
       requireBranchInVenue(branchId);
       const plan = floorPlanFor(branchId);
+      requireUnusedAreaName(plan, name, null, url);
       // A new room has no photos; they are added through the plan save.
       const area: EditorFloorArea = {
         id: nextId(`area-${branchId}`),
@@ -1673,7 +1704,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         displayOrder,
         photos: [],
       };
-      floorPlans.set(branchId, { ...plan, areas: sortAreas([...plan.areas, area]) });
+      // A change to the plan, so its version moves: a stale editor is refused
+      // rather than saving over the new room and deleting it.
+      floorPlans.set(branchId, {
+        ...plan,
+        areas: sortAreas([...plan.areas, area]),
+        version: bumped(plan.version),
+      });
       return area;
     },
 
@@ -1684,10 +1721,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const plan = floorPlanFor(branchId);
       const existing = plan.areas.find((area) => area.id === areaId);
       if (!existing) throw new NotFoundError({ url });
+      requireUnusedAreaName(plan, name, areaId, url);
       const updated: EditorFloorArea = { ...existing, name: name.trim(), displayOrder };
       floorPlans.set(branchId, {
         ...plan,
         areas: sortAreas(plan.areas.map((area) => (area.id === areaId ? updated : area))),
+        version: bumped(plan.version),
       });
       return updated;
     },
@@ -1705,6 +1744,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         tables: plan.tables.map((t) =>
           t.floorAreaId === areaId ? { ...t, floorAreaId: null, pin: null } : t,
         ),
+        version: bumped(plan.version),
       });
     },
 
