@@ -533,3 +533,39 @@ describe('the roles a platform admin hires', () => {
     expect(within(form).getByLabelText(/pin/i).getAttribute('aria-describedby')).toBe(alert.id);
   });
 });
+
+/**
+ * Deleting a venue that is still in use. The server answers 409
+ * venue-deletion-blocked with the tables that have an open tab and the codes
+ * of bookings still to come; the page used to show only "That did not go
+ * through", so nobody could tell what was holding the venue.
+ */
+describe('deleting a venue that is still in use', () => {
+  it('names the open tables and the upcoming bookings', async () => {
+    const { VenueDeletionBlockedError } = await import('@yalla/api');
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    gateway.deleteVenue = () =>
+      Promise.reject(
+        new VenueDeletionBlockedError({
+          url: 'mock://yalla',
+          venueId: 'v-lumen',
+          openTables: ['4', '12'],
+          futureBookings: ['K7Q2LM'],
+        }),
+      );
+    renderVenue(gateway);
+    const user = userEvent.setup();
+
+    const heading = await screen.findByRole('heading', { level: 1 });
+    const name = heading.textContent ?? '';
+    await user.click(screen.getByRole('button', { name: 'Delete venue' }));
+    await user.type(screen.getByLabelText(new RegExp(name, 'u')), name);
+    await user.click(screen.getByRole('button', { name: /^Delete$|Delete it|Delete for good/u }));
+
+    const panel = await screen.findByRole('region', { name: /still in use/iu });
+    expect(within(panel).getByText(/Table 4/u)).toBeTruthy();
+    expect(within(panel).getByText(/Table 12/u)).toBeTruthy();
+    expect(within(panel).getByText(/K7Q2LM/u)).toBeTruthy();
+    expect(screen.queryByText('That did not go through. Nothing changed — try again.')).toBeNull();
+  });
+});

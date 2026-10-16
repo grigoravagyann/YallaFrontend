@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConsoleGateway } from '../consoleGateway';
-import { SlugTakenError, VenueHasOpenTabsError } from '../contracts/errors';
+import { SlugTakenError, VenueDeletionBlockedError } from '../contracts/errors';
 import { createConsoleMockGateway } from './consoleMock';
 
 let n = 0;
@@ -194,18 +194,18 @@ describe('console mock — destructive actions', () => {
     expect(resumed.suspendedAtUtc).toBeNull();
   });
 
-  it('refuses to delete a venue with an open tab, and says which table', async () => {
+  it('refuses to delete a venue still in use, naming its tables and bookings', async () => {
     const caught = await gateway
       .deleteVenue({ venueId: 'v-lumen', commandId: cmd() })
       .then(() => null)
       .catch((error: unknown) => error);
 
-    expect(caught).toBeInstanceOf(VenueHasOpenTabsError);
+    expect(caught).toBeInstanceOf(VenueDeletionBlockedError);
     // The payload is the point: "cannot delete" alone is not actionable.
-    const blocked = caught as VenueHasOpenTabsError;
-    expect(blocked.openTabs.length).toBeGreaterThan(0);
-    expect(blocked.openTabs[0]?.branchName).toBeTruthy();
-    expect(blocked.openTabs[0]?.tableLabel).toBeTruthy();
+    const blocked = caught as VenueDeletionBlockedError;
+    expect(blocked.openTables.length).toBeGreaterThan(0);
+    expect(blocked.futureBookings.length).toBeGreaterThan(0);
+    expect(blocked.message).toMatch(/^This venue cannot be deleted: it has .+ Suspend it instead/u);
   });
 
   it('deletes a venue with nothing in service, as a soft delete', async () => {

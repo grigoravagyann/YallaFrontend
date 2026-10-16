@@ -752,29 +752,39 @@ export function isEndpointNotWired(error: unknown): error is EndpointNotWiredErr
 // ---------------------------------------------------------------------------
 
 /**
- * A venue cannot be deleted while a table is still mid-service.
+ * A venue cannot be deleted while people are still eating there or still
+ * booked to.
  *
- * The point of the type is the payload. "Cannot delete" is useless to whoever
- * pressed the button; "table 7 at Northern Avenue still has an open tab" is
- * something they can act on in the next thirty seconds, so the blocking tabs
- * travel with the error rather than being fetched afterwards.
+ * `venue-deletion-blocked`, 409 (`PlatformService.DeleteVenueAsync`). The
+ * point of the type is the payload: "cannot delete" is useless to whoever
+ * pressed the button, "table 4 still has an open tab, and bookings K7Q2LM and
+ * R9XP3D are coming" is something they can act on. The server lists table
+ * labels and booking codes, nothing more, so that is what this carries.
  */
-export interface BlockingTab {
-  readonly tabId: string;
-  readonly branchId: string;
-  readonly branchName: string;
-  readonly tableLabel: string;
-}
-
-export class VenueHasOpenTabsError extends ApiError {
+export class VenueDeletionBlockedError extends ApiError {
   readonly venueId: string;
-  readonly openTabs: readonly BlockingTab[];
+  /** Labels of tables with an open or closing tab. */
+  readonly openTables: readonly string[];
+  /** Codes of confirmed or pending bookings that have not started yet. */
+  readonly futureBookings: readonly string[];
 
-  constructor(options: { url: string; venueId: string; openTabs: readonly BlockingTab[] }) {
-    super('That venue still has open tabs.', { status: 409, url: options.url });
-    this.name = 'VenueHasOpenTabsError';
+  constructor(options: {
+    url: string;
+    venueId: string;
+    openTables: readonly string[];
+    futureBookings: readonly string[];
+    message?: string;
+    requestId?: string | undefined;
+  }) {
+    super(options.message ?? 'That venue is still in use, so it cannot be deleted.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'VenueDeletionBlockedError';
     this.venueId = options.venueId;
-    this.openTabs = options.openTabs;
+    this.openTables = options.openTables;
+    this.futureBookings = options.futureBookings;
   }
 }
 
