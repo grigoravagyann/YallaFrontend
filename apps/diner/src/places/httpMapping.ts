@@ -8,7 +8,7 @@ import {
   type BranchTableMarker,
   type Photo,
 } from '@yalla/api';
-import type { Locale } from '@yalla/format';
+import { branchDayKey, type Locale } from '@yalla/format';
 import {
   openStateFor,
   type Coordinates,
@@ -84,20 +84,25 @@ export function markerFromApi(marker: BranchTableMarker): TablePhotoMarker {
   };
 }
 
-export function reviewFromApi(review: BranchReview): Review {
+/**
+ * `timeZoneId` is the branch's: a review posted at 01:40 in Yerevan is dated
+ * the 16th there, and was shown as the 15th while the date was cut from the
+ * UTC instant.
+ */
+export function reviewFromApi(review: BranchReview, timeZoneId: string): Review {
   return {
     id: review.reviewId,
     author: review.authorName,
     rating: review.rating,
     text: review.text ?? '',
-    date: (review.updatedAtUtc || review.createdAtUtc).slice(0, 10),
+    date: branchDayKey(review.updatedAtUtc || review.createdAtUtc, timeZoneId),
     edited: review.edited,
   };
 }
 
-export function reviewPageFromApi(page: BranchReviewPage): ReviewPage {
+export function reviewPageFromApi(page: BranchReviewPage, timeZoneId: string): ReviewPage {
   return {
-    reviews: page.reviews.map(reviewFromApi),
+    reviews: page.reviews.map((review) => reviewFromApi(review, timeZoneId)),
     total: page.reviewCount,
     page: page.page,
     pageSize: page.pageSize,
@@ -187,7 +192,7 @@ export function placeFromDetail(detail: BranchDetail, context: PlaceMappingConte
     amenities: detail.amenities,
     about: detail.about ?? '',
     acceptsAppBookings: detail.acceptsAppBookings,
-    reviews: detail.recentReviews.map(reviewFromApi),
+    reviews: detail.recentReviews.map((review) => reviewFromApi(review, base.timeZoneId)),
     // Markers only mean something on the cover; without one there is nothing to draw on.
     tables: cover ? detail.tableMarkers.map(markerFromApi) : [],
   };

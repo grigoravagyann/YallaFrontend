@@ -64,8 +64,11 @@ export interface PlaceRepository {
    * no menu. An unknown place, or one with nothing published, is `[]`.
    */
   menu(placeId: string): Promise<readonly MenuSection[]>;
-  /** One page of reviews, newest first. `null` for an unknown place. */
-  reviewPage(placeId: string, page: number): Promise<ReviewPage | null>;
+  /**
+   * One page of reviews, newest first. `null` for an unknown place. The zone
+   * is the branch's, which dates each review on the day it was posted there.
+   */
+  reviewPage(placeId: string, page: number, timeZoneId: string): Promise<ReviewPage | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,9 +237,9 @@ export function createHttpPlaceRepository(
       return menuFromApi(await source.getBranchMenuDetail(placeId));
     },
 
-    async reviewPage(placeId, page) {
+    async reviewPage(placeId, page, timeZoneId) {
       const answer = await source.getBranchReviews({ branchId: placeId, page });
-      return answer ? reviewPageFromApi(answer) : null;
+      return answer ? reviewPageFromApi(answer, timeZoneId) : null;
     },
   };
 }

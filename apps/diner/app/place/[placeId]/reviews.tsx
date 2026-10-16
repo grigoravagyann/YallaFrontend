@@ -22,15 +22,18 @@ export default function PlaceReviewsScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
   const { placeId } = useLocalSearchParams<{ placeId: string }>();
-  const pages = useReviewPages(placeId);
   const { data: place } = usePlace(placeId);
+  const pages = useReviewPages(placeId, place?.timeZoneId);
   const reporting = useReviewReporting(placeId ?? '');
 
   const reviews = useMemo(
     () => pages.data?.pages.flatMap((page) => page?.reviews ?? []) ?? [],
     [pages.data],
   );
-  const unknownPlace = pages.data !== undefined && pages.data.pages[0] === null;
+  // The place read answers first (the pages wait on its zone), so an unknown
+  // id is known from either.
+  const unknownPlace =
+    place === null || (pages.data !== undefined && pages.data.pages[0] === null);
   const offline = isOfflinePaused(pages) && !pages.data;
 
   const goBack = () => {

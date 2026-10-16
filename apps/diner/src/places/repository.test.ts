@@ -176,7 +176,7 @@ describe('createHttpPlaceRepository', () => {
     const gateway = fakeGateway({ getBranchReviews: vi.fn(() => Promise.resolve(page)) });
     const places = repository.createHttpPlaceRepository({ gateway, ...clock });
 
-    const answer = await places.reviewPage('b1', 2);
+    const answer = await places.reviewPage('b1', 2, 'Asia/Yerevan');
 
     expect(gateway.getBranchReviews).toHaveBeenCalledWith({ branchId: 'b1', page: 2 });
     expect(answer).toMatchObject({ total: 21, page: 2, pageSize: 20 });
