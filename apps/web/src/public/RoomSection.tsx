@@ -169,6 +169,21 @@ export function RoomSection({
       ? unavailableCopy(slotFloorQuery.data.rejection, selection.partySize)
       : null;
 
+  /*
+   * Why each table the server will not give this party at this slot is
+   * unavailable, in the reader's words: a pin free at the slot but too small,
+   * kept for larger parties or in a closed hour is not drawn as free.
+   */
+  const unavailable: Record<string, string> = {};
+  for (const entry of slotFloorQuery.data?.tables ?? []) {
+    if (entry.isBookable) continue;
+    const copy = unavailableCopy(
+      entry.unavailableReason ?? slotFloorQuery.data?.rejection ?? null,
+      selection.partySize,
+    );
+    unavailable[entry.tableId] = t(copy.key, { ns: 'diner', ...copy.params });
+  }
+
   return (
     <section className="pub-section" aria-labelledby="room" ref={holder}>
       <h2 id="room">{t('section.room')}</h2>
@@ -270,6 +285,7 @@ export function RoomSection({
           selectedTableId={selectedTableId}
           onTableTap={handleTap}
           bookable={branch.acceptsWebBookings}
+          unavailable={unavailable}
         />
       )}
     </section>

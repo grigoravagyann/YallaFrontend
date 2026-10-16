@@ -39,14 +39,18 @@
       "free": "свободен",
       "booked": "забронирован",
       "occupied": "занят",
-      "outOfService": "не обслуживается"
+      "outOfService": "не обслуживается",
+      "unavailable": "недоступен"
     },
     "legend": {
       "free": "Свободен",
       "booked": "Забронирован",
       "occupied": "Занят",
-      "outOfService": "Не обслуживается"
-    }
+      "outOfService": "Не обслуживается",
+      "unavailable": "Не для этого времени или числа гостей"
+    },
+    "pinUnavailable": "Стол {{label}}, недоступен: {{reason}}",
+    "unavailableHint": "Стол {{label}}: {{reason}}"
   },
   "menu": {
     "empty": "Меню пока не опубликовано.",

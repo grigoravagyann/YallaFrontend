@@ -6,7 +6,7 @@ import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerE
  * The four colours a visitor reads a pin by — the diner's and the staff's
  * four: a table out of service is grey, never the occupied red.
  */
-export type PinTone = 'free' | 'booked' | 'occupied' | 'outOfService';
+export type PinTone = 'free' | 'booked' | 'occupied' | 'outOfService' | 'unavailable';
 
 export function pinTone(state: DerivedTableState): PinTone {
   switch (state) {
@@ -40,6 +40,12 @@ export interface RoomPhotosProps {
    * but inviting a tap that goes nowhere is worse than not inviting one.
    */
   readonly bookable: boolean;
+  /**
+   * Why a table that is free at the slot still cannot be booked by this party
+   * then — too small, kept for larger parties, closed — by table id, in the
+   * reader's language. Such a pin is not drawn as free.
+   */
+  readonly unavailable?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -58,11 +64,16 @@ export default function RoomPhotos({
   selectedTableId,
   onTableTap,
   bookable,
+  unavailable = {},
 }: RoomPhotosProps) {
   const { t } = useTranslation('public');
   const [roomId, setRoomId] = useState<string | null>(null);
   const [photoIndexes, setPhotoIndexes] = useState<Readonly<Record<string, number>>>({});
   const swipeFrom = useRef<number | null>(null);
+  /** Set by a swipe, so the click it ends with does not also tap a pin. */
+  const swiped = useRef(false);
+  /** The unbookable pin last tapped, whose reason is said under the photo. */
+  const [hintFor, setHintFor] = useState<string | null>(null);
   /** Each unsized photo's shape once it has loaded, as a CSS aspect ratio. */
   const [loadedRatios, setLoadedRatios] = useState<Readonly<Record<string, string>>>({});
 
@@ -99,18 +110,29 @@ export default function RoomPhotos({
     }
   };
 
+  // A swipe can start anywhere, a pin included: on a crowded photo the pins
+  // cover most of it. Only a press that travels counts; a still one is a tap.
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    // A press on a pin is a tap on the pin, not the start of a swipe.
-    swipeFrom.current = (event.target as HTMLElement).closest('button') ? null : event.clientX;
+    swipeFrom.current = event.clientX;
+    swiped.current = false;
   };
   const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
     const from = swipeFrom.current;
     swipeFrom.current = null;
     if (from === null) return;
     const moved = event.clientX - from;
+    if (Math.abs(moved) >= SWIPE_PX) swiped.current = true;
     if (moved <= -SWIPE_PX) go(index + 1);
     else if (moved >= SWIPE_PX) go(index - 1);
   };
+
+  // Only while that pin is still one this party cannot book: a new slot may have freed it.
+  const notBookable = t('table.unavailable.notBookable', { ns: 'diner' });
+  const hintTable = hintFor
+    ? pins.find(
+        (table) => table.id === hintFor && bookable && table.state === 'free' && !table.isBookable,
+      )
+    : undefined;
 
   return (
     <div className="pub-rooms">
@@ -130,7 +152,10 @@ export default function RoomPhotos({
       ) : null}
 
       <ul className="pub-legend" aria-label={t('room.legendLabel')}>
-        {(['free', 'booked', 'occupied', 'outOfService'] as const).map((tone) => (
+        {(bookable
+          ? (['free', 'unavailable', 'booked', 'occupied', 'outOfService'] as const)
+          : (['free', 'booked', 'occupied', 'outOfService'] as const)
+        ).map((tone) => (
           <li key={tone}>
             <span className={`pub-pin-dot tone-${tone}`} aria-hidden="true" />
             {t(`room.legend.${tone}`)}
@@ -174,8 +199,12 @@ export default function RoomPhotos({
           />
         ) : null}
         {pins.map((table) => {
-          const tone = pinTone(table.state);
           const pickable = bookable && table.isBookable && table.state === 'free';
+          // Free at the slot, but not for this party or this time: never the
+          // bookable green, and its name says why.
+          const blocked = bookable && table.state === 'free' && !pickable;
+          const reason = blocked ? (unavailable[table.id] ?? notBookable) : null;
+          const tone: PinTone = blocked ? 'unavailable' : pinTone(table.state);
           return (
             <button
               key={table.id}
@@ -183,14 +212,24 @@ export default function RoomPhotos({
               className={`pub-pin tone-${tone}${table.id === selectedTableId ? ' is-selected' : ''}`}
               data-tone={tone}
               style={{ left: `${table.pin!.x * 100}%`, top: `${table.pin!.y * 100}%` }}
-              aria-label={t('room.pin', {
-                label: table.label,
-                status: t(`room.status.${tone}`),
-              })}
+              aria-label={
+                reason !== null
+                  ? t('room.pinUnavailable', { label: table.label, reason })
+                  : t('room.pin', { label: table.label, status: t(`room.status.${tone}`) })
+              }
               aria-pressed={table.id === selectedTableId}
               aria-disabled={pickable ? undefined : true}
               onClick={() => {
-                if (pickable) onTableTap(table.id);
+                if (swiped.current) {
+                  swiped.current = false;
+                  return;
+                }
+                if (pickable) {
+                  setHintFor(null);
+                  onTableTap(table.id);
+                } else if (blocked) {
+                  setHintFor(table.id);
+                }
               }}
             >
               {table.label}
@@ -198,6 +237,15 @@ export default function RoomPhotos({
           );
         })}
       </div>
+
+      {hintTable ? (
+        <p className="pub-notice" role="status">
+          {t('room.unavailableHint', {
+            label: hintTable.label,
+            reason: unavailable[hintTable.id] ?? notBookable,
+          })}
+        </p>
+      ) : null}
 
       {count > 1 ? (
         <div className="pub-photo-nav">
