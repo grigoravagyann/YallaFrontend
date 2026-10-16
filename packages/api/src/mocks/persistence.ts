@@ -153,44 +153,6 @@ export function clearMockJournal(storage: MockJournalStorage | null, key: string
 export const MOCK_JOURNAL_PREFIX = 'yalla.mock.';
 
 /**
- * Forget every mock world this browser holds. The "reset mock data" dev action:
- * the caller reloads the page afterwards, and every gateway starts from the
- * fixture. Returns how many worlds were forgotten.
- */
-export function resetBrowserMockWorlds(): number {
-  const storage = browserMockStorage();
-  if (!storage) return 0;
-  const keys: string[] = [];
-  try {
-    const local = window.localStorage;
-    for (let index = 0; index < local.length; index += 1) {
-      const key = local.key(index);
-      if (key?.startsWith(MOCK_JOURNAL_PREFIX)) keys.push(key);
-    }
-  } catch {
-    return 0;
-  }
-  for (const key of keys) clearMockJournal(storage, key);
-  return keys.length;
-}
-
-/**
- * `window.localStorage` when this is a browser that lets us read it, else null.
- *
- * Wrapped because a private window, or a browser with site data blocked,
- * throws on the *access* rather than returning null.
- */
-export function browserMockStorage(): MockJournalStorage | null {
-  try {
-    if (typeof window === 'undefined') return null;
-    const storage = window.localStorage;
-    return storage ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Wrap a mock so its world survives a reload.
  *
  * Returns the same shape as the mock, plus {@link PersistedMock}. Every method
@@ -258,7 +220,11 @@ export function persistMockGateway<G extends object>(
       await wait(slow[name] ?? 1);
       const result: unknown = await (method as (...a: unknown[]) => unknown).apply(inner, args);
       if (isMutation(name)) {
-        entries.push({ at: wallClock().toISOString(), method: name, args: serialisable(args) as unknown[] });
+        entries.push({
+          at: wallClock().toISOString(),
+          method: name,
+          args: serialisable(args) as unknown[],
+        });
         writeJournal(storage, options.key, { v: 1, seed, entries });
       }
       return result;

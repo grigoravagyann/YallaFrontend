@@ -2,7 +2,7 @@ import type { AuthSession } from './auth/session';
 import { createApiClient } from './client';
 import type { DataSource } from './config';
 import { createStaffHttpGateway } from './http/staffHttpGateway';
-import { browserMockStorage, persistMockGateway } from './mocks/persistence';
+import { persistMockGateway } from './mocks/persistence';
 import { createStaffMockGateway } from './mocks/staffMock';
 import type { MockPersistence } from './resolveConsoleGateway';
 import type { StaffGateway } from './staffGateway';
@@ -49,7 +49,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
     if (options.persist) {
       return persistMockGateway<StaffGateway>({
         key: options.persist.key,
-        storage: options.persist.storage === undefined ? browserMockStorage() : options.persist.storage,
+        storage: options.persist.storage ?? null,
         latencyMs: options.mockLatencyMs ?? 200,
         create: (inner) => createStaffMockGateway({ now: inner.now, latencyMs: 0, ...shared }),
       });

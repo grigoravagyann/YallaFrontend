@@ -9,18 +9,17 @@ import {
   type ConsoleIdentityStore,
 } from './http/consoleHttpGateway';
 import { createConsoleMockGateway } from './mocks/consoleMock';
-import {
-  browserMockStorage,
-  persistMockGateway,
-  type MockJournalStorage,
-} from './mocks/persistence';
+import { persistMockGateway, type MockJournalStorage } from './mocks/persistence';
 
 /**
  * Keep the mock world across a full page load (QA F2).
  *
- * `key` names the world; `storage` defaults to the browser's `localStorage`
- * and may be `null` to keep the world in memory. Absent: in memory, which is
- * what every test wants.
+ * `key` names the world; `storage` is where it is kept — the caller passes
+ * `browserMockStorage()` for the browser's `localStorage` — and absent or
+ * `null` keeps it in memory, which is what every test wants. The resolvers do
+ * not reach for `localStorage` themselves: the public branch page imports
+ * `resolveGateway`, and that page's bundle may not name a storage API at all
+ * (`apps/web/src/productionBundle.test.ts`).
  */
 export interface MockPersistence {
   readonly key: string;
@@ -61,7 +60,7 @@ export function resolveConsoleGateway(options: ResolveConsoleGatewayOptions): Co
     if (options.persist) {
       return persistMockGateway<ConsoleGateway>({
         key: options.persist.key,
-        storage: options.persist.storage === undefined ? browserMockStorage() : options.persist.storage,
+        storage: options.persist.storage ?? null,
         latencyMs: options.mockLatencyMs ?? 200,
         // The menu report is deliberately the slow one; see the mock.
         slow: { getMenuReport: 3 },

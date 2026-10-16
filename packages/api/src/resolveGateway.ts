@@ -4,7 +4,7 @@ import type { DataSource } from './config';
 import type { YallaGateway } from './gateway';
 import { createHttpGateway, type GatewayAudience } from './http/httpGateway';
 import { createMockGateway } from './mocks/mockGateway';
-import { browserMockStorage, persistMockGateway } from './mocks/persistence';
+import { persistMockGateway } from './mocks/persistence';
 import type { MockPersistence } from './resolveConsoleGateway';
 
 export interface ResolveGatewayOptions {
@@ -51,7 +51,7 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
     if (options.persist) {
       return persistMockGateway<YallaGateway>({
         key: options.persist.key,
-        storage: options.persist.storage === undefined ? browserMockStorage() : options.persist.storage,
+        storage: options.persist.storage ?? null,
         latencyMs: options.mockLatencyMs ?? 250,
         create: (inner) => createMockGateway({ ...shared, ...inner }),
       });

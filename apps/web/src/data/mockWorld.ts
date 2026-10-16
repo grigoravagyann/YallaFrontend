@@ -1,4 +1,4 @@
-import { resetBrowserMockWorlds, type MockPersistence } from '@yalla/api';
+import { browserMockStorage, resetBrowserMockWorlds, type MockPersistence } from '@yalla/api';
 import { readConfig } from '../config';
 
 /**
@@ -12,7 +12,7 @@ import { readConfig } from '../config';
 export function mockPersistence(name: string): MockPersistence | undefined {
   if (readConfig().dataSource !== 'mock') return undefined;
   if (typeof window === 'undefined' || import.meta.env.MODE === 'test') return undefined;
-  return { key: `yalla.mock.${name}` };
+  return { key: `yalla.mock.${name}`, storage: browserMockStorage() };
 }
 
 /** The "reset mock data" dev action: forget every world, start from the fixture. */

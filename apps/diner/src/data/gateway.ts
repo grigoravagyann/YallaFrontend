@@ -1,4 +1,4 @@
-import { resolveGateway, type YallaGateway } from '@yalla/api';
+import { browserMockStorage, resolveGateway, type YallaGateway } from '@yalla/api';
 import { authSession } from '../auth/session';
 import { apiConfig, dataSource } from '../config';
 import { installDeviceId } from '../lib/deviceId';
@@ -31,7 +31,7 @@ export const gateway: YallaGateway = resolveGateway({
     typeof window !== 'undefined' &&
     typeof document !== 'undefined' &&
     process.env['NODE_ENV'] !== 'test'
-      ? { key: 'yalla.mock.diner' }
+      ? { key: 'yalla.mock.diner', storage: browserMockStorage() }
       : undefined,
 });
 

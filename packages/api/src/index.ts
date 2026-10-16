@@ -67,18 +67,9 @@ export type { ResolveGatewayOptions } from './resolveGateway';
 
 export { createMockGateway } from './mocks/mockGateway';
 export type { MockGateway, MockGatewayOptions } from './mocks/mockGateway';
-export {
-  MOCK_JOURNAL_PREFIX,
-  browserMockStorage,
-  clearMockJournal,
-  persistMockGateway,
-  resetBrowserMockWorlds,
-} from './mocks/persistence';
-export type {
-  MockJournalStorage,
-  PersistedMock,
-  PersistedMockOptions,
-} from './mocks/persistence';
+export { MOCK_JOURNAL_PREFIX, clearMockJournal, persistMockGateway } from './mocks/persistence';
+export { browserMockStorage, resetBrowserMockWorlds } from './mocks/browserStorage';
+export type { MockJournalStorage, PersistedMock, PersistedMockOptions } from './mocks/persistence';
 export type { MockPersistence } from './resolveConsoleGateway';
 export { createHttpGateway } from './http/httpGateway';
 export type { GatewayAudience, HttpGatewayOptions } from './http/httpGateway';
