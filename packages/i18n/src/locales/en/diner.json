@@ -834,6 +834,8 @@
     "fullscreen": "Full screen",
     "close": "Close",
     "pickTime": "Pick a time",
+    "photo": "Room photo",
+    "clearSelection": "Clears the selected table",
     "unmeasured": "Tables can't be shown on this photo",
     "notOnPhoto": "This place has not put its tables on a photo yet. You can still book a table."
   },

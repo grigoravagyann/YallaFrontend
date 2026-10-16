@@ -84,6 +84,15 @@ describe('RoomPhotosView', () => {
     expect(screen.queryByRole('button', { name: 'Table 4, free' })).toBeNull();
   });
 
+  it('groups the room chips as a tab list, and names the photo by what tapping it does', () => {
+    const onSelect = vi.fn();
+    render(<RoomPhotosView rooms={ROOMS} selectedTableId="4" onSelect={onSelect} />);
+
+    expect(screen.getByRole('tablist', { name: 'Rooms' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Room photo' }));
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
   it('opens on the room of the selected table', () => {
     render(<RoomPhotosView rooms={ROOMS} selectedTableId="7" onSelect={() => undefined} />);
     expect(screen.getByRole('button', { name: 'Table 7, free' })).toBeTruthy();

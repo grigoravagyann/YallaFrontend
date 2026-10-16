@@ -113,6 +113,7 @@ export function RoomPhotosView({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          accessibilityRole="tablist"
           accessibilityLabel={t('tables.rooms')}
           contentContainerStyle={styles.rooms}
         >

@@ -297,7 +297,9 @@ export function TablePhotoView({
           ]}
         >
           <Pressable
-            accessibilityLabel={t('tables.subtitle')}
+            accessibilityRole="button"
+            accessibilityLabel={t('tables.photo')}
+            accessibilityHint={t('tables.clearSelection')}
             onPress={() => onSelect(null)}
             style={StyleSheet.absoluteFill}
           >
