@@ -4,6 +4,7 @@ import {
   bookableUnpinned,
   duplicateLabels,
   duplicateRoomNames,
+  freeSpot,
   initialState,
   isDirty,
   nextLabel,
@@ -301,5 +302,26 @@ describe('the version a table delete moved', () => {
       plan: { ...PLAN, version: '6', areas: PLAN.areas.slice(1) },
     });
     expect(changed.version).toBe('4');
+  });
+});
+
+describe('the spot for a table added in the middle', () => {
+  it('is the middle when it is clear, and beside the pins already there otherwise', () => {
+    const state = reducer(initialState(), { type: 'loaded', plan: PLAN });
+    expect(freeSpot(state, 'p2')).toEqual({ photoId: 'p2', x: 0.5, y: 0.5 });
+
+    const one = reducer(state, {
+      type: 'addTable',
+      table: { label: '20', seats: 2, isBookable: true },
+      pin: freeSpot(state, 'p2'),
+    });
+    const second = freeSpot(one, 'p2');
+    expect(second).not.toEqual({ photoId: 'p2', x: 0.5, y: 0.5 });
+    const two = reducer(one, {
+      type: 'addTable',
+      table: { label: '21', seats: 2, isBookable: true },
+      pin: second,
+    });
+    expect(freeSpot(two, 'p2')).not.toEqual(second);
   });
 });

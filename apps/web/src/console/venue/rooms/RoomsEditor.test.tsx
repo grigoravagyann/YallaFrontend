@@ -243,6 +243,9 @@ describe('the rooms editor', () => {
 
     await screen.findByRole('button', { name: /^table 2 · free$/i });
     await user.click(screen.getByRole('button', { name: /^remove \(1\)$/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /remove it/i }),
+    );
     expect(screen.queryByTestId('room-stage')).toBeNull();
     expect(screen.getByTestId('unpinned-warning').textContent).toMatch(/^Tables 1, 2, 3/u);
 
@@ -442,6 +445,9 @@ describe('the rooms editor, from review', () => {
     fireEvent.pointerDown(await stage(), { clientX: 20, clientY: 80, pointerId: 1 });
     expect(screen.getByRole('form', { name: /new table/i })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /^remove \(1\)$/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /remove it/i }),
+    );
     expect(screen.queryByRole('form', { name: /new table/i })).toBeNull();
   });
 
@@ -561,7 +567,9 @@ describe('the rooms editor, from review', () => {
     await user.click(screen.getByRole('button', { name: /add the room/i }));
     await user.click(screen.getByRole('button', { name: /save rooms/i }));
 
-    expect((await screen.findByRole('alert')).textContent).toMatch(/someone else changed the rooms/i);
+    expect((await screen.findByRole('alert')).textContent).toMatch(
+      /someone else changed the rooms/i,
+    );
     expect((await gateway.getFloorPlan(BRANCH)).tables.some((t) => t.label === '2')).toBe(false);
   });
 
@@ -581,5 +589,207 @@ describe('the rooms editor, from review', () => {
       `More than one room is called ${other.name.toUpperCase()}. Give each room its own name.`,
     );
     expect(screen.getByText('Another room already has this name.')).toBeTruthy();
+  });
+});
+
+describe('the rooms editor, from QA 2026-10-16', () => {
+  it('asks before removing a photo with tables on it, naming them, and keeps focus (C-M4)', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await screen.findByRole('button', { name: /^table 2 · free$/i });
+    const remove = screen.getByRole('button', { name: /^remove \(1\)$/i });
+    await user.click(remove);
+    let dialog = screen.getByRole('dialog', { name: /remove photo 1\?/i });
+    expect(dialog.textContent).toContain('Tables 1, 2 are pinned on it.');
+    await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
+    expect(screen.getByTestId('room-stage')).toBeTruthy();
+    expect(document.activeElement).toBe(remove);
+
+    await user.click(remove);
+    dialog = screen.getByRole('dialog', { name: /remove photo 1\?/i });
+    await user.click(within(dialog).getByRole('button', { name: /remove it/i }));
+    expect(screen.queryByTestId('room-stage')).toBeNull();
+    const list = screen.getByRole('region', { name: /not on a photo/i });
+    expect(within(list).getByRole('button', { name: /^table 1$/i })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /^photos$/i }));
+  });
+
+  it('removes a photo with no tables on it straight away, and focuses the photo before it', async () => {
+    const { gateway } = await seededGateway();
+    picker.next = await upload(gateway, 'second.png');
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await screen.findByRole('button', { name: /^table 2 · free$/i });
+    await user.click(screen.getByRole('button', { name: /use the queued photo/i }));
+    await user.click(screen.getByRole('button', { name: /^remove \(2\)$/i }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^remove \(2\)$/i })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /show photo 1/i }));
+  });
+
+  it('clears "Rooms saved." at the next edit', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.type(await screen.findByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+    await screen.findByText(/rooms saved/i);
+
+    await user.type(screen.getByLabelText(/^new room$/i), 'Cellar');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    expect(screen.queryByText(/rooms saved/i)).toBeNull();
+  });
+
+  it('will not save two rooms with one name, and drops a refusal once the plan is edited', async () => {
+    const { gateway, room } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await screen.findByRole('heading', { name: room.name });
+    const other = (await gateway.getFloorPlan(BRANCH)).areas[1]!;
+    const name = screen.getByLabelText(/^room name$/i);
+    await user.clear(name);
+    await user.type(name, other.name);
+    const saveButton = screen.getByRole('button', { name: /save rooms/i }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+
+    await user.type(name, ' room');
+    expect(saveButton.disabled).toBe(false);
+    vi.spyOn(gateway, 'replaceFloorPlan').mockRejectedValueOnce(
+      new ValidationError({
+        url: '/floor-plan',
+        status: 422,
+        problem: {
+          type: 'about:blank',
+          title: 'Validation failed',
+          status: 422,
+          detail: 'x',
+          code: 'validation-failed',
+          traceId: 't',
+          context: { fields: [{ field: 'areas[0].photoIds', message: 'x', bound: 'max' }] },
+        },
+      }),
+    );
+    await user.click(saveButton);
+    await screen.findByText(/has more than 10 photos/i);
+
+    await user.type(name, 's');
+    expect(screen.queryByText(/has more than 10 photos/i)).toBeNull();
+  });
+
+  it('puts a second table added in the middle beside the first, not on top of it', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await screen.findByRole('button', { name: /^table 2 · free$/i });
+    for (let i = 0; i < 2; i += 1) {
+      await user.click(screen.getByRole('button', { name: /add a table in the middle/i }));
+      const form = screen.getByRole('form', { name: /new table/i });
+      await user.click(within(form).getByRole('button', { name: /add the table/i }));
+    }
+
+    const pins = screen
+      .getAllByRole('button', { name: /· not saved yet$/i })
+      .map((pin) => `${pin.style.left} ${pin.style.top}`);
+    expect(pins).toHaveLength(2);
+    expect(new Set(pins).size).toBe(2);
+    // Table 2 sits in the middle already: neither new one lands on it.
+    expect(pins).not.toContain('50% 50%');
+  });
+
+  it('keeps focus on something sensible after each action', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    fireEvent.pointerDown(await stage(), { clientX: 20, clientY: 80, pointerId: 1 });
+    const form = screen.getByRole('form', { name: /new table/i });
+    expect(document.activeElement).toBe(within(form).getByLabelText(/label/i));
+    await user.click(within(form).getByRole('button', { name: /cancel/i }));
+
+    await user.click(screen.getByRole('button', { name: /^table 2 · free$/i }));
+    await user.click(screen.getByRole('button', { name: /take it off the photo/i }));
+    const list = screen.getByRole('region', { name: /not on a photo/i });
+    expect(document.activeElement).toBe(within(list).getByRole('button', { name: /^table 2$/i }));
+
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /delete it/i }),
+    );
+    await screen.findByText('Table 2 was removed.');
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement?.id).toBe('stage-title');
+  });
+
+  it('runs the delete-room dialog as a modal: focus inside, Escape closes, focus returns', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    const opener = await screen.findByRole('button', { name: /delete the room/i });
+    await user.click(opener);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('counts photos in words when a room is deleted', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /delete the room/i }));
+    expect(screen.getByRole('dialog').textContent).toContain('Its photo goes with it.');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cancel/i }));
+
+    await user.click(screen.getAllByRole('button', { name: /· 0 photos$/i })[0]!);
+    await user.click(screen.getByRole('button', { name: /delete the room/i }));
+    const text = screen.getByRole('dialog').textContent ?? '';
+    expect(text).toContain('It has no photos.');
+    expect(text).not.toMatch(/photo\(s\)/u);
+  });
+
+  it('does not call a table diners cannot book "free"', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · free$/i }));
+    await user.click(screen.getByRole('checkbox', { name: /diners can book it/i }));
+
+    const pin = screen.getByRole('button', { name: /^table 2 · walk-ins only$/i });
+    expect(pin.className).toMatch(/\bis-walk-in\b/u);
+    expect(screen.getByRole('list', { name: /pin colours/i }).textContent).toContain(
+      'Walk-ins only',
+    );
+  });
+
+  it('says that putting a table back in service waits for Save', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 1 · free$/i }));
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /delete it/i }),
+    );
+    const out = await screen.findByRole('complementary', { name: /out of service/i });
+    await user.click(within(out).getByRole('button', { name: /put it back in service/i }));
+
+    expect(
+      screen.getByText('Table 1 goes back into service when you save the rooms.'),
+    ).toBeTruthy();
   });
 });

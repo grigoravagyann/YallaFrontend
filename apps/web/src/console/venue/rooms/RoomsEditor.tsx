@@ -18,8 +18,18 @@ import {
 } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useCallback, useEffect, useReducer, useRef, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useReducer,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { useDialogFocus } from '../../../components/useDialogFocus';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { PhotoStage } from './PhotoStage';
@@ -28,6 +38,7 @@ import {
   bookableUnpinned,
   duplicateLabels,
   duplicateRoomNames,
+  freeSpot,
   initialState,
   isDirty,
   isServerId,
@@ -37,7 +48,28 @@ import {
   toSaveCommand,
   type DraftRoom,
   type DraftTable,
+  type RoomsAction,
 } from './roomsModel';
+
+/**
+ * The actions that are the person's own edits, as against the server's
+ * answers (`loaded`, `deleted`, `qrReplaced`, `versionMoved`). An edit makes
+ * "Rooms saved." and a refused save's reasons stale.
+ */
+const EDITS = new Set<RoomsAction['type']>([
+  'addRoom',
+  'renameRoom',
+  'moveRoom',
+  'removeRoom',
+  'addPhoto',
+  'movePhoto',
+  'removePhoto',
+  'addTable',
+  'updateTable',
+  'placeTable',
+  'discardTable',
+  'restoreTable',
+]);
 
 export interface RoomsEditorProps {
   /** From the token's scope, or the platform route — never a parameter the user typed. */
@@ -66,7 +98,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   const remove = useDeleteTable(branchId);
   const regenerate = useRegenerateTableQr();
 
-  const [state, dispatch] = useReducer(reducer, undefined, initialState);
+  const [state, apply] = useReducer(reducer, undefined, initialState);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [photoByRoom, setPhotoByRoom] = useState<Record<string, string>>({});
   const [tableId, setTableId] = useState<string | null>(null);
@@ -86,6 +118,44 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   } | null>(null);
   const [reloadFailed, setReloadFailed] = useState(false);
   const [focusListTableId, setFocusListTableId] = useState<string | null>(null);
+  const [removingPhoto, setRemovingPhoto] = useState<{
+    readonly roomId: string;
+    readonly photoId: string;
+    readonly position: number;
+    readonly labels: readonly string[];
+  } | null>(null);
+  /**
+   * Where focus goes once the control that had it is gone: a photo removed,
+   * a table deleted. The first of these ids on the page wins.
+   */
+  const focusAfter = useRef<readonly string[] | null>(null);
+  // After every render: whatever set it also changed state, so one follows.
+  useEffect(() => {
+    const ids = focusAfter.current;
+    if (!ids) return;
+    focusAfter.current = null;
+    for (const id of ids) {
+      const target = document.getElementById(id);
+      if (target) {
+        target.focus();
+        break;
+      }
+    }
+  });
+
+  const { reset: resetSave, error: saveError } = save;
+  const dispatch = useCallback(
+    (action: RoomsAction) => {
+      if (EDITS.has(action.type)) {
+        setSavedResult(null);
+        // A refusal's reasons are about the draft as it was sent. A conflict
+        // stays: editing does not make the newer plan go away.
+        if (saveError && !(saveError instanceof FloorPlanChangedError)) resetSave();
+      }
+      apply(action);
+    },
+    [resetSave, saveError],
+  );
 
   // Load once into the working copy. Re-running on every refetch would throw
   // away whatever the person is placing. Not while a read is in flight: the
@@ -95,7 +165,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   useEffect(() => {
     if (!query.data || query.isFetching || loadedFor.current === query.data.branchId) return;
     loadedFor.current = query.data.branchId;
-    dispatch({ type: 'loaded', plan: query.data });
+    apply({ type: 'loaded', plan: query.data });
   }, [query.data, query.isFetching]);
 
   const loaded = state.version !== '';
@@ -125,6 +195,17 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
     setPhotoByRoom((current) => ({ ...current, [nextRoomId]: nextPhotoId }));
     // A table half-added on the photo going off screen would be pinned on it unseen.
     setDraftPin(null);
+  }
+
+  function removePhoto(fromRoomId: string, removedPhotoId: string, position: number) {
+    dispatch({ type: 'removePhoto', roomId: fromRoomId, photoId: removedPhotoId });
+    setDraftPin(null);
+    // The photo that slides into its place, else the one before it, else the heading.
+    focusAfter.current = [
+      `room-photo-${position + 1}`,
+      `room-photo-${position - 1}`,
+      'room-photos-title',
+    ];
   }
 
   function onClickPhoto(pin: EditorTablePin) {
@@ -192,6 +273,8 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
           : t('rooms.delete.deactivated', { label: result.label }),
       );
       setDeleting(null);
+      // Its panel and its pin went with it.
+      focusAfter.current = ['stage-title', 'room-title', 'rooms-list-title'];
     } catch {
       // Shown in the dialog from the mutation's own error.
     }
@@ -259,7 +342,8 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
           <button
             type="button"
             className="button button-primary"
-            disabled={!dirty || busy}
+            // The server refuses these; the notices below say why.
+            disabled={!dirty || busy || duplicateRooms.length > 0 || duplicates.length > 0}
             onClick={() => void onSave()}
           >
             {save.isPending ? t('rooms.saving') : t('rooms.save')}
@@ -339,7 +423,9 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
 
       <fieldset className="editor-body rooms-body" disabled={busy} aria-busy={busy}>
         <aside className="editor-areas rooms-list" aria-labelledby="rooms-list-title">
-          <h2 id="rooms-list-title">{t('rooms.list.title')}</h2>
+          <h2 id="rooms-list-title" tabIndex={-1}>
+            {t('rooms.list.title')}
+          </h2>
           {state.rooms.length === 0 ? (
             <p className="muted small">{t('rooms.list.empty')}</p>
           ) : (
@@ -413,7 +499,9 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
         {room ? (
           <div className="rooms-room">
             <section className="editor-panel" aria-labelledby="room-title">
-              <h2 id="room-title">{room.name.trim() || t('rooms.list.unnamed')}</h2>
+              <h2 id="room-title" tabIndex={-1}>
+                {room.name.trim() || t('rooms.list.unnamed')}
+              </h2>
               <div className="rooms-room-head">
                 <label className="labelled">
                   {t('rooms.room.name')}
@@ -441,7 +529,9 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                 <p className="error small">{t('rooms.room.duplicateName')}</p>
               ) : null}
 
-              <h3>{t('rooms.photos.title')}</h3>
+              <h3 id="room-photos-title" tabIndex={-1}>
+                {t('rooms.photos.title')}
+              </h3>
               <p className="small muted">
                 {t('rooms.photos.summary', { used: room.photos.length, max: MAX_ROOM_PHOTOS })}
               </p>
@@ -456,6 +546,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                     >
                       <button
                         type="button"
+                        id={`room-photo-${index + 1}`}
                         className="rooms-photo-thumb"
                         aria-pressed={candidate === photo}
                         aria-label={t('rooms.photos.show', { position: index + 1 })}
@@ -501,12 +592,21 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                           className="button button-small button-danger"
                           aria-label={`${t('rooms.photos.remove')} (${index + 1})`}
                           onClick={() => {
-                            dispatch({
-                              type: 'removePhoto',
-                              roomId: room.id,
-                              photoId: candidate.photoId,
-                            });
-                            setDraftPin(null);
+                            const pinned = active.filter(
+                              (table) => table.pin?.photoId === candidate.photoId,
+                            );
+                            // Its tables come off it, bookable or not: asked
+                            // first, by name, when there are any.
+                            if (pinned.length > 0) {
+                              setRemovingPhoto({
+                                roomId: room.id,
+                                photoId: candidate.photoId,
+                                position: index + 1,
+                                labels: pinned.map((table) => table.label),
+                              });
+                              return;
+                            }
+                            removePhoto(room.id, candidate.photoId, index + 1);
                           }}
                         >
                           {t('rooms.photos.remove')}
@@ -537,7 +637,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
 
             {photo ? (
               <section className="editor-panel" aria-labelledby="stage-title">
-                <h2 id="stage-title">
+                <h2 id="stage-title" tabIndex={-1}>
                   {t('rooms.stage.title', { position: photoIndex + 1, name: room.name })}
                 </h2>
                 <p className="muted small" role="status">
@@ -573,7 +673,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                         dispatch({
                           type: 'placeTable',
                           id: placing.id,
-                          pin: { photoId: photo.photoId, x: 0.5, y: 0.5 },
+                          pin: freeSpot(state, photo.photoId),
                         });
                         setFocusTableId(placing.id);
                       }}
@@ -586,7 +686,8 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                       className="button button-small"
                       onClick={() => {
                         setTableId(null);
-                        setDraftPin({ photoId: photo.photoId, x: 0.5, y: 0.5 });
+                        // Beside any pin already in the middle, never on top of it.
+                        setDraftPin(freeSpot(state, photo.photoId));
                       }}
                     >
                       {t('rooms.stage.addInMiddle')}
@@ -634,7 +735,11 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                 (label) => label.toLocaleLowerCase() === selected.label.trim().toLocaleLowerCase(),
               )}
               onChange={(patch) => dispatch({ type: 'updateTable', id: selected.id, patch })}
-              onUnpin={() => dispatch({ type: 'placeTable', id: selected.id, pin: null })}
+              onUnpin={() => {
+                dispatch({ type: 'placeTable', id: selected.id, pin: null });
+                // The button went with the pin; the table is in the list below now.
+                setFocusListTableId(selected.id);
+              }}
               onDelete={() => {
                 if (!isServerId(selected.id)) {
                   dispatch({ type: 'discardTable', id: selected.id });
@@ -677,7 +782,11 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                     <button
                       type="button"
                       className="button button-small"
-                      onClick={() => dispatch({ type: 'restoreTable', id: table.id })}
+                      onClick={() => {
+                        dispatch({ type: 'restoreTable', id: table.id });
+                        // Unlike the delete, this waits for Save: said, so it is not missed.
+                        setNotice(t('rooms.inactive.restored', { label: table.label }));
+                      }}
                       aria-label={`${t('rooms.inactive.restore')} (${table.label})`}
                     >
                       {t('rooms.inactive.restore')}
@@ -691,142 +800,214 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
       </fieldset>
 
       {removingRoom ? (
-        <div
-          className="editor-dialog"
-          role="dialog"
-          aria-label={t('rooms.room.removeTitle', { name: removingRoom.name })}
+        <RoomsDialog
+          title={t('rooms.room.removeTitle', { name: removingRoom.name })}
+          onCancel={() => setRemovingRoom(null)}
         >
-          <div className="card confirm-danger">
-            <h2>{t('rooms.room.removeTitle', { name: removingRoom.name })}</h2>
-            <p>
-              {t('rooms.room.removeBody', {
-                photos: removingRoom.photos.length,
-                count: active.filter((table) => table.roomId === removingRoom.id).length,
-              })}
-            </p>
-            <div className="actions">
-              <button
-                type="button"
-                className="button button-danger"
-                onClick={() => {
-                  dispatch({ type: 'removeRoom', id: removingRoom.id });
-                  setRemovingRoom(null);
-                  setRoomId(null);
-                  select(null);
-                }}
-              >
-                {t('rooms.room.removeConfirm')}
-              </button>
-              <button type="button" className="button" onClick={() => setRemovingRoom(null)}>
-                {t('common:action.cancel')}
-              </button>
-            </div>
+          <p>
+            {removingRoom.photos.length > 0
+              ? t('rooms.room.removePhotos', { count: removingRoom.photos.length })
+              : t('rooms.room.removeNoPhotos')}{' '}
+            {(() => {
+              const count = active.filter((table) => table.roomId === removingRoom.id).length;
+              return count > 0
+                ? t('rooms.room.removeTables', { count })
+                : t('rooms.room.removeNoTables');
+            })()}
+          </p>
+          <div className="actions">
+            <button type="button" className="button" onClick={() => setRemovingRoom(null)}>
+              {t('common:action.cancel')}
+            </button>
+            <button
+              type="button"
+              className="button button-danger"
+              onClick={() => {
+                dispatch({ type: 'removeRoom', id: removingRoom.id });
+                setRemovingRoom(null);
+                setRoomId(null);
+                select(null);
+                // The opener went with the room.
+                focusAfter.current = ['room-title', 'rooms-list-title'];
+              }}
+            >
+              {t('rooms.room.removeConfirm')}
+            </button>
           </div>
-        </div>
+        </RoomsDialog>
+      ) : null}
+
+      {removingPhoto ? (
+        <RoomsDialog
+          title={t('rooms.photos.removeTitle', { position: removingPhoto.position })}
+          onCancel={() => setRemovingPhoto(null)}
+        >
+          <p>
+            {t('rooms.photos.removeBody', {
+              count: removingPhoto.labels.length,
+              labels: removingPhoto.labels.join(', '),
+            })}
+          </p>
+          <div className="actions">
+            <button type="button" className="button" onClick={() => setRemovingPhoto(null)}>
+              {t('common:action.cancel')}
+            </button>
+            <button
+              type="button"
+              className="button button-danger"
+              onClick={() => {
+                const { roomId: fromRoomId, photoId: removedPhotoId, position } = removingPhoto;
+                setRemovingPhoto(null);
+                removePhoto(fromRoomId, removedPhotoId, position);
+              }}
+            >
+              {t('rooms.photos.removeConfirm')}
+            </button>
+          </div>
+        </RoomsDialog>
       ) : null}
 
       {deleting ? (
-        <div
-          className="editor-dialog"
-          role="dialog"
-          aria-label={t('rooms.delete.title', { label: deleting.label })}
+        <RoomsDialog
+          title={t('rooms.delete.title', { label: deleting.label })}
+          onCancel={() => setDeleting(null)}
+          escapeEnabled={!remove.isPending}
         >
-          <div className="card confirm-danger">
-            <h2>{t('rooms.delete.title', { label: deleting.label })}</h2>
-            {/* Said before it happens: a table with history is kept for its
-                records and taken out of service, and the person should know
-                which of the two this click does. */}
-            <p>
-              {deleting.isDeletable
-                ? t('rooms.delete.removeBody')
-                : t('rooms.delete.deactivateBody')}
-            </p>
-            {remove.isError ? (
-              remove.error instanceof ConcurrencyConflictError ? (
-                <p className="error" role="alert">
-                  {t('rooms.delete.seated', { label: deleting.label })}
-                </p>
-              ) : (
-                <QueryFailureNotice
-                  error={remove.error}
-                  onRetry={() => void onConfirmDelete(deleting)}
-                />
-              )
-            ) : null}
-            <div className="actions">
-              <button
-                type="button"
-                className="button button-danger"
-                disabled={remove.isPending}
-                onClick={() => void onConfirmDelete(deleting)}
-              >
-                {t('rooms.delete.confirm')}
-              </button>
-              <button type="button" className="button" onClick={() => setDeleting(null)}>
-                {t('common:action.cancel')}
-              </button>
-            </div>
+          {/* Said before it happens: a table with history is kept for its
+              records and taken out of service, and the person should know
+              which of the two this click does. */}
+          <p>
+            {deleting.isDeletable ? t('rooms.delete.removeBody') : t('rooms.delete.deactivateBody')}
+          </p>
+          {remove.isError ? (
+            remove.error instanceof ConcurrencyConflictError ? (
+              <p className="error" role="alert">
+                {t('rooms.delete.seated', { label: deleting.label })}
+              </p>
+            ) : (
+              <QueryFailureNotice
+                error={remove.error}
+                onRetry={() => void onConfirmDelete(deleting)}
+              />
+            )
+          ) : null}
+          <div className="actions">
+            <button
+              type="button"
+              className="button"
+              disabled={remove.isPending}
+              onClick={() => setDeleting(null)}
+            >
+              {t('common:action.cancel')}
+            </button>
+            <button
+              type="button"
+              className="button button-danger"
+              disabled={remove.isPending}
+              onClick={() => void onConfirmDelete(deleting)}
+            >
+              {t('rooms.delete.confirm')}
+            </button>
           </div>
-        </div>
+        </RoomsDialog>
       ) : null}
 
       {regenerating ? (
-        <div className="editor-dialog" role="dialog" aria-label={t('rooms.qr.regenerate')}>
-          <div className="card confirm-danger">
-            <h2>{t('rooms.qr.regenerate')}</h2>
-            {/* Typed confirmation, because the consequence is physical: the
-                sticker already on that table stops working the moment this
-                lands, and somebody has to go and replace it. */}
-            <p>{t('rooms.qr.regenerateWarning', { label: regenerating.label })}</p>
-            <label className="labelled">
-              {t('rooms.qr.typeLabel', { label: regenerating.label })}
-              <input
-                className="field"
-                value={confirmText}
-                onChange={(event) => setConfirmText(event.target.value)}
-              />
-            </label>
-            {regenerate.isError ? <QueryFailureNotice error={regenerate.error} /> : null}
-            <div className="actions">
-              <button
-                type="button"
-                className="button button-danger"
-                disabled={confirmText.trim() !== regenerating.label.trim() || regenerate.isPending}
-                onClick={() => {
-                  const table = regenerating;
-                  void regenerate
-                    .mutateAsync({ tableId: table.id })
-                    .then(({ qrToken }) => {
-                      dispatch({ type: 'qrReplaced', id: table.id, qrToken });
-                      setNotice(t('rooms.qr.regenerated', { label: table.label }));
-                      setRegenerating(null);
-                    })
-                    .catch(() => undefined);
-                }}
-              >
-                {t('rooms.qr.regenerateConfirm')}
-              </button>
-              <button type="button" className="button" onClick={() => setRegenerating(null)}>
-                {t('common:action.cancel')}
-              </button>
-            </div>
+        <RoomsDialog
+          title={t('rooms.qr.regenerate')}
+          onCancel={() => setRegenerating(null)}
+          escapeEnabled={!regenerate.isPending}
+        >
+          {/* Typed confirmation, because the consequence is physical: the
+              sticker already on that table stops working the moment this
+              lands, and somebody has to go and replace it. */}
+          <p>{t('rooms.qr.regenerateWarning', { label: regenerating.label })}</p>
+          <label className="labelled">
+            {t('rooms.qr.typeLabel', { label: regenerating.label })}
+            <input
+              className="field"
+              value={confirmText}
+              onChange={(event) => setConfirmText(event.target.value)}
+            />
+          </label>
+          {regenerate.isError ? <QueryFailureNotice error={regenerate.error} /> : null}
+          <div className="actions">
+            <button
+              type="button"
+              className="button button-danger"
+              disabled={confirmText.trim() !== regenerating.label.trim() || regenerate.isPending}
+              onClick={() => {
+                const table = regenerating;
+                void regenerate
+                  .mutateAsync({ tableId: table.id })
+                  .then(({ qrToken }) => {
+                    dispatch({ type: 'qrReplaced', id: table.id, qrToken });
+                    setNotice(t('rooms.qr.regenerated', { label: table.label }));
+                    setRegenerating(null);
+                  })
+                  .catch(() => undefined);
+              }}
+            >
+              {t('rooms.qr.regenerateConfirm')}
+            </button>
+            <button type="button" className="button" onClick={() => setRegenerating(null)}>
+              {t('common:action.cancel')}
+            </button>
           </div>
-        </div>
+        </RoomsDialog>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * A confirmation over the editor, as a modal: focus moves in and stays in,
+ * Escape cancels, and focus goes back to the control that opened it.
+ */
+function RoomsDialog({
+  title,
+  onCancel,
+  escapeEnabled = true,
+  children,
+}: {
+  readonly title: string;
+  readonly onCancel: () => void;
+  readonly escapeEnabled?: boolean;
+  readonly children: ReactNode;
+}) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, { onEscape: onCancel, escapeEnabled });
+  return (
+    <div className="editor-dialog" role="presentation">
+      <div
+        ref={dialogRef}
+        className="card confirm-danger"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <h2 id={titleId}>{title}</h2>
+        {children}
+      </div>
+    </div>
   );
 }
 
 /** The live palette the pins are drawn in, in words as well as colour. */
 function Legend() {
   const { t } = useTranslation(['admin', 'common']);
-  const states = ['free', 'held', 'occupied', 'outOfService', 'new'] as const;
+  const states = ['free', 'walk-in', 'held', 'occupied', 'outOfService', 'new'] as const;
   return (
     <ul className="rooms-legend" aria-label={t('rooms.legend')}>
       {states.map((state) => (
         <li key={state}>
           <span className={`rooms-legend-dot is-${state}`} aria-hidden="true" />
-          {state === 'new' ? t('rooms.pin.unsaved') : t(`common:tableStatus.${state}`)}
+          {state === 'new'
+            ? t('rooms.pin.unsaved')
+            : state === 'walk-in'
+              ? t('rooms.pin.walkInOnly')
+              : t(`common:tableStatus.${state}`)}
         </li>
       ))}
     </ul>
@@ -844,6 +1025,15 @@ function NewTableForm({
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const [label, setLabel] = useState(suggestedLabel);
+  const labelRef = useRef<HTMLInputElement>(null);
+  // The form opens where the photo was clicked; typing the label is the next
+  // thing. Again after the click has finished: a pointer press on the photo
+  // moves focus to the page once its own handler has run.
+  useEffect(() => {
+    labelRef.current?.focus();
+    const later = window.setTimeout(() => labelRef.current?.focus(), 0);
+    return () => window.clearTimeout(later);
+  }, []);
   // Text while typing, so the field can be cleared; read as a number on submit.
   const [seats, setSeats] = useState('2');
   const seatCount = Number.parseInt(seats, 10);
@@ -866,9 +1056,8 @@ function NewTableForm({
           {t('rooms.field.label')}
           <input
             className="field"
+            ref={labelRef}
             value={label}
-            // The form opens where the photo was clicked; typing the label is the next thing.
-            autoFocus
             onChange={(event) => setLabel(event.target.value)}
           />
         </label>

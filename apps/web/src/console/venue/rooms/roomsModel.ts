@@ -452,3 +452,38 @@ export function nextLabel(state: RoomsState): string {
     .filter((value) => Number.isFinite(value));
   return String(numbers.length > 0 ? Math.max(...numbers) + 1 : state.tables.length + 1);
 }
+
+/** How far apart two pins have to be, as a fraction of the photo, not to hide each other. */
+const PIN_CLEARANCE = 0.06;
+
+/**
+ * Where "add a table in the middle" puts the next table: the middle of the
+ * photo, or the nearest spot around it no pin already covers, so a run of
+ * those clicks never stacks one pin exactly on another.
+ */
+export function freeSpot(state: RoomsState, photoId: string): EditorTablePin {
+  const taken = state.tables
+    .filter((table) => table.isActive && table.pin?.photoId === photoId)
+    .map((table) => table.pin!);
+  const clear = (x: number, y: number) =>
+    taken.every(
+      (pin) => Math.abs(pin.x - x) >= PIN_CLEARANCE || Math.abs(pin.y - y) >= PIN_CLEARANCE,
+    );
+  for (let ring = 0; ring <= 7; ring += 1) {
+    for (let dy = -ring; dy <= ring; dy += 1) {
+      for (const dx of ring === 0 ? [0] : [ring, -ring, ...range(-ring + 1, ring - 1)]) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const x = toFraction(0.5 + dx * PIN_CLEARANCE);
+        const y = toFraction(0.5 + dy * PIN_CLEARANCE);
+        if (clear(x, y)) return { photoId, x, y };
+      }
+    }
+  }
+  return { photoId, x: 0.5, y: 0.5 };
+}
+
+function range(from: number, to: number): number[] {
+  const values: number[] = [];
+  for (let value = from; value <= to; value += 1) values.push(value);
+  return values;
+}
