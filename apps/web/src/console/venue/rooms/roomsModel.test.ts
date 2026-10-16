@@ -325,3 +325,11 @@ describe('the spot for a table added in the middle', () => {
     expect(freeSpot(two, 'p2')).not.toEqual(second);
   });
 });
+
+describe('the version a delete answers with', () => {
+  it('is taken when it is the next one, and not when somebody else saved in between', () => {
+    const state = reducer(initialState(), { type: 'loaded', plan: PLAN });
+    expect(reducer(state, { type: 'versionAfterDelete', version: '5' }).version).toBe('5');
+    expect(reducer(state, { type: 'versionAfterDelete', version: '7' }).version).toBe('4');
+  });
+});

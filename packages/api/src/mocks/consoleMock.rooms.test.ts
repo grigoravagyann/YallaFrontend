@@ -317,6 +317,7 @@ describe('deleting a table in the console mock', () => {
       label: '1',
       deleted: false,
       deactivated: true,
+      floorPlanVersion: expect.any(String),
       message:
         'Table 1 has reservations, seatings or tabs in its history, so it was deactivated rather than deleted. ' +
         'Its records are kept; it no longer appears on the floor plan or takes bookings.',
@@ -342,9 +343,11 @@ describe('deleting a table in the console mock', () => {
     const one = stale.tables.find((t) => t.label === '1')!;
     const two = stale.tables.find((t) => t.label === '2')!;
 
-    await gateway.deleteTable({ branchId: BRANCH, tableId: two.id });
+    const removed = await gateway.deleteTable({ branchId: BRANCH, tableId: two.id });
     const afterRemove = await gateway.getFloorPlan(BRANCH);
     expect(afterRemove.version).not.toBe(stale.version);
+    // The answer says the version it moved to, as the server's does.
+    expect(removed.floorPlanVersion).toBe(afterRemove.version);
     await gateway.deleteTable({ branchId: BRANCH, tableId: one.id });
     expect((await gateway.getFloorPlan(BRANCH)).version).not.toBe(afterRemove.version);
 

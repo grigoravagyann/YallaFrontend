@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  ConcurrencyConflictError,
   NetworkError,
   ValidationError,
   createConsoleMockGateway,
@@ -552,6 +553,57 @@ describe('the rooms editor, from review', () => {
     await screen.findByText(/rooms saved/i);
     expect(screen.queryByText(/someone else changed the rooms/i)).toBeNull();
     expect((await gateway.getFloorPlan(BRANCH)).tables.some((t) => t.label === '2')).toBe(false);
+  });
+
+  it('takes the version the delete answers with, without reading the plan again', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · free$/i }));
+    const read = vi
+      .spyOn(gateway, 'getFloorPlan')
+      .mockRejectedValue(new NetworkError({ url: '/floor-plan' }));
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /delete it/i }),
+    );
+    await screen.findByText('Table 2 was removed.');
+    read.mockRestore();
+
+    await user.type(screen.getByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+    await screen.findByText(/rooms saved/i);
+  });
+
+  it('shows the server sentence when a delete is refused for a reason it names', async () => {
+    const { gateway } = await seededGateway();
+    vi.spyOn(gateway, 'deleteTable').mockRejectedValue(
+      new ConcurrencyConflictError({
+        url: '/tables/x',
+        problem: {
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail: 'Table 2 has upcoming bookings ABC123, XYZ789. Cancel or move them first.',
+          code: 'table-has-upcoming-bookings',
+          traceId: 't',
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · free$/i }));
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /delete it/i }),
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Table 2 has upcoming bookings ABC123, XYZ789. Cancel or move them first.',
+    );
   });
 
   it('refuses the save of a tab that still shows a table another tab deleted', async () => {

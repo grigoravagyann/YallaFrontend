@@ -1,4 +1,5 @@
 import {
+  ApiError,
   ConcurrencyConflictError,
   FloorPlanChangedError,
   MAX_ROOM_PHOTOS,
@@ -262,11 +263,16 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
       const result = await remove.mutateAsync(table.id);
       dispatch({ type: 'deleted', result });
       select(null);
-      // The delete moved the plan's version: read it back, or this editor's
-      // next save would be refused as if somebody else had changed the rooms.
-      void query.refetch().then((fresh) => {
-        if (fresh.isSuccess) dispatch({ type: 'versionMoved', plan: fresh.data });
-      });
+      // The delete moved the plan's version: take it, or this editor's next
+      // save would be refused as if somebody else had changed the rooms. A
+      // server that does not say it yet is asked by reading the plan back.
+      if (result.floorPlanVersion !== undefined) {
+        dispatch({ type: 'versionAfterDelete', version: result.floorPlanVersion });
+      } else {
+        void query.refetch().then((fresh) => {
+          if (fresh.isSuccess) dispatch({ type: 'versionMoved', plan: fresh.data });
+        });
+      }
       setNotice(
         result.deleted
           ? t('rooms.delete.removed', { label: result.label })
@@ -880,9 +886,18 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
             {deleting.isDeletable ? t('rooms.delete.removeBody') : t('rooms.delete.deactivateBody')}
           </p>
           {remove.isError ? (
-            remove.error instanceof ConcurrencyConflictError ? (
+            remove.error instanceof ConcurrencyConflictError &&
+            remove.error.code === 'conflicting-state' ? (
               <p className="error" role="alert">
                 {t('rooms.delete.seated', { label: deleting.label })}
+              </p>
+            ) : remove.error instanceof ApiError &&
+              remove.error.status === 409 &&
+              remove.error.problem?.detail ? (
+              // Any other refusal (upcoming bookings on the table, say) names
+              // the tables and bookings itself: its own sentence is the answer.
+              <p className="error" role="alert">
+                {remove.error.problem.detail}
               </p>
             ) : (
               <QueryFailureNotice

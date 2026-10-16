@@ -77,7 +77,8 @@ export type RoomsAction =
   | { type: 'deleted'; result: TableDeletionResult }
   | { type: 'restoreTable'; id: string }
   | { type: 'qrReplaced'; id: string; qrToken: string }
-  | { type: 'versionMoved'; plan: EditorFloorPlan };
+  | { type: 'versionMoved'; plan: EditorFloorPlan }
+  | { type: 'versionAfterDelete'; version: string };
 
 export function initialState(): RoomsState {
   const empty: Snapshot = { rooms: [], tables: [] };
@@ -353,6 +354,14 @@ export function reducer(state: RoomsState, action: RoomsAction): RoomsState {
       return JSON.stringify(commandOf(fromPlan(action.plan), '')) ===
         JSON.stringify(commandOf(state.saved, ''))
         ? { ...state, version: action.plan.version }
+        : state;
+
+    case 'versionAfterDelete':
+      // The version a delete answered with is taken only when it is the very
+      // next one: the server counts up by one per change, so anything further
+      // means somebody else saved meanwhile, and their save must not be undone.
+      return Number(action.version) === Number(state.version) + 1
+        ? { ...state, version: action.version }
         : state;
 
     case 'restoreTable':

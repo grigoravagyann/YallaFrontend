@@ -129,4 +129,13 @@ export interface TableDeletionResult {
   readonly deactivated: boolean;
   /** The server's own words, shown as-is: it knows why it refused. */
   readonly message: string;
+  /**
+   * The floor plan's version after the delete, which moves it: an editor that
+   * loaded the plan before takes it, or its next save is refused as stale.
+   * Optional until every server sends it.
+   *
+   * TODO(schema): from backend fix/rooms-qa-backend; drop the `?` once the
+   * generated schema has `floorPlanVersion`.
+   */
+  readonly floorPlanVersion?: string;
 }
