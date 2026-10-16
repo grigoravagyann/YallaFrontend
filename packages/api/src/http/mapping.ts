@@ -1,9 +1,4 @@
-import type {
-  DerivedTableState,
-  FloorPlanData,
-  FloorTable,
-  TableShape,
-} from '@yalla/floorplan/types';
+import type { DerivedTableState, FloorPlanData, FloorTable } from '@yalla/floorplan/types';
 import type {
   AvailabilityWindowDto,
   SlotFloor,
@@ -39,11 +34,6 @@ const DERIVED_STATE: Readonly<Record<number, DerivedTableState>> = {
 
 export function derivedTableState(value: number): DerivedTableState {
   return DERIVED_STATE[value] ?? 'outOfService';
-}
-
-// Values: 1 Rectangle, 2 Round.
-export function tableShape(value: number): TableShape {
-  return value === 2 ? 'round' : 'rectangle';
 }
 
 /**
@@ -117,16 +107,10 @@ export function unavailableReason(
 
 // --- Floor --------------------------------------------------------------------
 
-interface TableGeometry {
+interface TableRow {
   readonly tableId: string;
   readonly label: string;
   readonly seats: number;
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly rotationDegrees: number;
-  readonly shape: number;
   readonly floorAreaName?: string | null;
   readonly floorAreaDisplayOrder: number;
   readonly isBookable: boolean;
@@ -134,17 +118,35 @@ interface TableGeometry {
   readonly nextReservationStartUtc?: string | null;
 }
 
-function toFloorTable(table: TableGeometry, occupiedSinceUtc: string | null): FloorTable {
+/*
+ * The drawn floor plan is gone: tables are pins on room photos now, and the
+ * server sends no geometry. Until the staff floor and the diner booking
+ * screens move to rooms, the tables are laid out on a plain grid in area
+ * order, so the existing floor views keep working.
+ */
+const GRID_COLUMNS = 6;
+const GRID_CELL = { width: 140, height: 120 } as const;
+const GRID_TABLE = { width: 100, height: 80 } as const;
+
+function gridCanvas(count: number): { canvasWidth: number; canvasHeight: number } {
+  const columns = Math.max(1, Math.min(GRID_COLUMNS, count));
+  const rows = Math.max(1, Math.ceil(count / GRID_COLUMNS));
+  return { canvasWidth: columns * GRID_CELL.width, canvasHeight: rows * GRID_CELL.height };
+}
+
+function toFloorTable(table: TableRow, index: number, occupiedSinceUtc: string | null): FloorTable {
   return {
     id: table.tableId,
     label: table.label,
     seats: table.seats,
-    x: table.x,
-    y: table.y,
-    width: table.width,
-    height: table.height,
-    rotationDegrees: table.rotationDegrees,
-    shape: tableShape(table.shape),
+    x: (index % GRID_COLUMNS) * GRID_CELL.width + (GRID_CELL.width - GRID_TABLE.width) / 2,
+    y:
+      Math.floor(index / GRID_COLUMNS) * GRID_CELL.height +
+      (GRID_CELL.height - GRID_TABLE.height) / 2,
+    width: GRID_TABLE.width,
+    height: GRID_TABLE.height,
+    rotationDegrees: 0,
+    shape: 'rectangle',
     floorAreaName: table.floorAreaName ?? null,
     isBookable: table.isBookable,
     state: derivedTableState(table.state),
@@ -154,7 +156,7 @@ function toFloorTable(table: TableGeometry, occupiedSinceUtc: string | null): Fl
 }
 
 /** Area order first, then label, so the plan draws in by area. */
-function byArea<T extends TableGeometry>(tables: readonly T[]): T[] {
+function byArea<T extends TableRow>(tables: readonly T[]): T[] {
   return [...tables].sort(
     (a, b) =>
       a.floorAreaDisplayOrder - b.floorAreaDisplayOrder ||
@@ -167,11 +169,10 @@ export function floorFromState(state: FloorState): FloorPlanData {
   return {
     branchId: state.branchId,
     branchName: state.branchName,
-    canvasWidth: state.floorWidth,
-    canvasHeight: state.floorHeight,
+    ...gridCanvas(state.tables.length),
     timeZoneId: state.timeZoneId,
-    tables: byArea(state.tables).map((table: FloorTableState) =>
-      toFloorTable(table, table.seatedAtUtc ?? null),
+    tables: byArea(state.tables).map((table: FloorTableState, index) =>
+      toFloorTable(table, index, table.seatedAtUtc ?? null),
     ),
   };
 }
@@ -187,11 +188,10 @@ export function floorFromAvailability(availability: Availability): FloorPlanData
   return {
     branchId: availability.branchId,
     branchName: availability.branchName,
-    canvasWidth: availability.floorWidth,
-    canvasHeight: availability.floorHeight,
+    ...gridCanvas(availability.tables.length),
     timeZoneId: availability.timeZoneId,
-    tables: byArea(availability.tables).map((table: AvailabilityTable) =>
-      toFloorTable(table, null),
+    tables: byArea(availability.tables).map((table: AvailabilityTable, index) =>
+      toFloorTable(table, index, null),
     ),
   };
 }
@@ -269,11 +269,10 @@ export function slotFloorFromResponse(response: Availability): SlotFloor {
   const plan: FloorPlanData = {
     branchId: response.branchId,
     branchName: response.branchName,
-    canvasWidth: response.floorWidth,
-    canvasHeight: response.floorHeight,
+    ...gridCanvas(response.tables.length),
     timeZoneId: response.timeZoneId,
-    tables: byArea(response.tables).map((table: AvailabilityTable) => ({
-      ...toFloorTable(table, null),
+    tables: byArea(response.tables).map((table: AvailabilityTable, index) => ({
+      ...toFloorTable(table, index, null),
       // The server decided this, for this slot and this party size.
       isBookable: answers.get(table.tableId)?.isBookable ?? false,
     })),

@@ -111,8 +111,10 @@ export type {
   BranchReview,
   BranchReviewPage,
   BranchSearchQuery,
+  BranchRoom,
+  BranchRoomPhoto,
+  BranchRooms,
   BranchTableMarker,
-  BranchTableMarkers,
   DinerOrder,
   DinerOrderLine,
   DinerOrderSegment,
@@ -164,7 +166,6 @@ export type { BranchReadiness } from './contracts/readiness';
 export {
   BookingsNotAcceptedError,
   CannotReportOwnReviewError,
-  CoverChangedError,
   FloorPlanChangedError,
   RelocationNotAllowedError,
   ReviewHiddenByPlatformError,
@@ -504,15 +505,15 @@ export type {
   EditorFloorArea,
   EditorFloorPlan,
   EditorFloorTable,
+  EditorTablePin,
+  EditorTableStatus,
   FloorPlanSaveResult,
   ReplaceFloorAreaInput,
   ReplaceFloorPlanCommand,
   ReplaceFloorTableInput,
-  SaveTablePhotoPositionsCommand,
   TableDeletionResult,
-  TablePhotoPosition,
-  TablePhotoPositions,
 } from './contracts/floorPlan';
+export { MAX_ROOM_PHOTOS } from './contracts/floorPlan';
 
 // --- The counter screen ------------------------------------------------------
 export type {

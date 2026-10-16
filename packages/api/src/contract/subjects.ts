@@ -94,14 +94,14 @@ const MOCK_ZONE = 'Asia/Yerevan';
 /**
  * The mock's two declared gaps, both about bytes and pixels it does not hold.
  *
- * Nothing else is excused: the uploads, the gallery, the cover, the pins and
- * their refusals all run against the mock with the same assertions as the live
+ * Nothing else is excused: the uploads, the gallery, the cover, the rooms, the
+ * pins and their refusals all run against the mock with the same assertions as the live
  * backend.
  */
 const MOCK_GAPS: Partial<Record<ContractCapability, string>> = {
   photoBytes: 'the mock stores no image bytes to serve',
   photoMarkers:
-    "the mock's diner world keeps no photo positions, so the console mock's pins never reach its markers",
+    "the mock's diner world keeps no rooms, so the console mock's pins never reach a diner",
 };
 
 export function mockSubject(): ContractSubject {

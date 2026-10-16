@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConsoleGateway } from '../consoleGateway';
-import {
-  CoverChangedError,
-  FloorPlanChangedError,
-  ReviewHiddenByPlatformError,
-} from '../contracts/errors';
+import { FloorPlanChangedError, ReviewHiddenByPlatformError } from '../contracts/errors';
 import type { ReplaceFloorPlanCommand } from '../contracts/floorPlan';
 import { ForbiddenError, NotFoundError, ValidationError } from '../errors';
 import { createConsoleMockGateway } from './consoleMock';
@@ -12,7 +8,7 @@ import { createMockReviewStore } from './reviewStore';
 
 /**
  * The console mock against the hardening contract: branch limits (K4), floor-plan
- * versions (K6), the pin route (K7), readiness from state, and review moderation.
+ * versions (K6), readiness from state, and review moderation.
  */
 
 const BRANCH = 'b-lumen-cascade';
@@ -45,8 +41,6 @@ async function withCover(gateway: ConsoleGateway, fileName = 'cover.png'): Promi
 async function planCommand(gateway: ConsoleGateway): Promise<ReplaceFloorPlanCommand> {
   const plan = await gateway.getFloorPlan(BRANCH);
   return {
-    floorWidth: plan.floorWidth,
-    floorHeight: plan.floorHeight,
     areas: [],
     tables: plan.tables.filter((t) => t.isActive).map((t) => ({ ...t, floorAreaName: null })),
     expectedVersion: plan.version,
@@ -98,154 +92,31 @@ describe('floor-plan versions in the mock (K6)', () => {
     ).toEqual([['expectedVersion', 'required']]);
   });
 
-  it('keeps pins through a plan save, ignores pins sent with it, and gives a new table none', async () => {
+  it('moves no pin when the cover changes: the cover is the card picture only', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const cover = await withCover(gateway);
-    const before = await gateway.getFloorPlan(BRANCH);
-    const [one, two] = before.tables;
-
-    await gateway.saveTablePhotoPositions(BRANCH, {
-      coverPhotoId: cover,
-      positions: [
-        { tableId: one!.id, photoX: 0.2, photoY: 0.3 },
-        { tableId: two!.id, photoX: 0.7, photoY: 0.8 },
-      ],
-    });
-    // A pin is not a plan edit.
-    expect((await gateway.getFloorPlan(BRANCH)).version).toBe(before.version);
-
+    const photoId = await withCover(gateway, 'hall.png');
+    const plan = await gateway.getFloorPlan(BRANCH);
+    const hall = plan.areas[0]!;
     const command = await planCommand(gateway);
-    const result = await gateway.replaceFloorPlan({
+    const saved = await gateway.replaceFloorPlan({
       branchId: BRANCH,
       command: {
         ...command,
-        // A stale editor sending pins with the plan: ignored, never written.
-        tables: [
-          ...command.tables.map((t) => Object.assign({}, t, { photoX: 0.9, photoY: 0.9 })),
-          {
-            label: '99',
-            seats: 2,
-            x: 10,
-            y: 10,
-            width: 50,
-            height: 50,
-            rotationDegrees: 0,
-            shape: 'round' as const,
-            isBookable: true,
-          },
-        ],
+        areas: [{ id: hall.id, name: hall.name, displayOrder: 0, photoIds: [photoId] }],
+        tables: command.tables.map((t, index) =>
+          index === 0 ? { ...t, floorAreaName: hall.name, pin: { photoId, x: 0.2, y: 0.3 } } : t,
+        ),
       },
     });
 
-    const pins = new Map(result.plan.tables.map((t) => [t.label, [t.photoX, t.photoY]]));
-    expect(pins.get(one!.label)).toEqual([0.2, 0.3]);
-    expect(pins.get(two!.label)).toEqual([0.7, 0.8]);
-    expect(pins.get('99')).toEqual([null, null]);
-    expect(result.plan.version).not.toBe(before.version);
-  });
-});
+    const pinned = saved.plan.tables.find((t) => t.pin !== null);
+    expect(pinned?.pin).toEqual({ photoId, x: 0.2, y: 0.3 });
 
-describe('table photo positions in the mock (K7)', () => {
-  it('changes only the listed tables and answers every active table', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const cover = await withCover(gateway);
-    const plan = await gateway.getFloorPlan(BRANCH);
-    const [one, two] = plan.tables;
+    await withCover(gateway, 'another.png');
 
-    await gateway.saveTablePhotoPositions(BRANCH, {
-      coverPhotoId: cover,
-      positions: [{ tableId: two!.id, photoX: 0.5, photoY: 0.5 }],
-    });
-    const answer = await gateway.saveTablePhotoPositions(BRANCH, {
-      coverPhotoId: cover,
-      positions: [{ tableId: one!.id, photoX: 0.25, photoY: 0.75 }],
-    });
-
-    expect(answer.coverPhotoId).toBe(cover);
-    expect(answer.tables).toHaveLength(plan.tables.filter((t) => t.isActive).length);
-    expect(answer.tables.find((t) => t.tableId === one!.id)).toMatchObject({
-      label: one!.label,
-      photoX: 0.25,
-      photoY: 0.75,
-    });
-    // Left out of the second call, so kept.
-    expect(answer.tables.find((t) => t.tableId === two!.id)).toMatchObject({ photoX: 0.5 });
-
-    // null/null takes a table off the photo.
-    const off = await gateway.saveTablePhotoPositions(BRANCH, {
-      coverPhotoId: cover,
-      positions: [{ tableId: one!.id, photoX: null, photoY: null }],
-    });
-    expect(off.tables.find((t) => t.tableId === one!.id)).toMatchObject({ photoX: null });
-  });
-
-  it('refuses a stale cover, and a branch with no cover, naming the cover it has', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const plan = await gateway.getFloorPlan(BRANCH);
-    const position = { tableId: plan.tables[0]!.id, photoX: 0.5, photoY: 0.5 };
-
-    const none = await caught(
-      gateway.saveTablePhotoPositions(BRANCH, { coverPhotoId: 'photo-old', positions: [position] }),
-    );
-    expect(none).toBeInstanceOf(CoverChangedError);
-    expect((none as CoverChangedError).currentCoverPhotoId).toBeNull();
-
-    const first = await withCover(gateway, 'first.png');
-    const second = await withCover(gateway, 'second.png');
-    const stale = await caught(
-      gateway.saveTablePhotoPositions(BRANCH, { coverPhotoId: first, positions: [position] }),
-    );
-    expect(stale).toBeInstanceOf(CoverChangedError);
-    expect((stale as CoverChangedError).currentCoverPhotoId).toBe(second);
-    expect((await gateway.getFloorPlan(BRANCH)).tables[0]?.photoX ?? null).toBeNull();
-  });
-
-  it('names half a position, a value out of range and a repeated table, before the cover', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const [one, two] = (await gateway.getFloorPlan(BRANCH)).tables;
-
-    const refusal = await caught(
-      gateway.saveTablePhotoPositions(BRANCH, {
-        coverPhotoId: 'not-the-cover',
-        positions: [
-          { tableId: one!.id, photoX: 0.5, photoY: null },
-          { tableId: two!.id, photoX: 1.5, photoY: 0.5 },
-          { tableId: two!.id, photoX: 0.1, photoY: 0.1 },
-        ],
-      }),
-    );
-    expect(named(refusal)).toEqual([
-      ['positions[0].photoY', 'required'],
-      ['positions[1].photoX', 'range'],
-      ['positions', 'conflict'],
-    ]);
-  });
-
-  it('refuses a table that is not active at this branch', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0 });
-    const cover = await withCover(gateway);
-    expect(
-      await caught(
-        gateway.saveTablePhotoPositions(BRANCH, {
-          coverPhotoId: cover,
-          positions: [{ tableId: 'tbl-b-lumen-north-1', photoX: 0.5, photoY: 0.5 }],
-        }),
-      ),
-    ).toBeInstanceOf(NotFoundError);
-  });
-
-  it('refuses a waiter, and a manager at a branch that is not their home (K4)', async () => {
-    const command = { coverPhotoId: 'c', positions: [] };
-    expect(
-      await caught(
-        createConsoleMockGateway({ role: 'waiter' }).saveTablePhotoPositions(BRANCH, command),
-      ),
-    ).toBeInstanceOf(ForbiddenError);
-    expect(
-      await caught(
-        createConsoleMockGateway({ role: 'manager' }).saveTablePhotoPositions(BRANCH, command),
-      ),
-    ).toBeInstanceOf(ForbiddenError);
+    const after = await gateway.getFloorPlan(BRANCH);
+    expect(after.tables.find((t) => t.id === pinned!.id)?.pin).toEqual(pinned!.pin);
+    expect(after.version).toBe(saved.plan.version);
   });
 });
 
@@ -257,8 +128,6 @@ describe('writes a manager may make only at their home branch (K4)', () => {
       manager.replaceFloorPlan({
         branchId: 'b-lumen-north',
         command: {
-          floorWidth: home.floorWidth,
-          floorHeight: home.floorHeight,
           areas: [],
           tables: home.tables.map((t) => ({ ...t, floorAreaName: null })),
           expectedVersion: home.version,
@@ -270,7 +139,7 @@ describe('writes a manager may make only at their home branch (K4)', () => {
       await caught(
         manager.replaceFloorPlan({
           branchId: BRANCH,
-          command: { floorWidth: 1, floorHeight: 1, areas: [], tables: [], expectedVersion: '1' },
+          command: { areas: [], tables: [], expectedVersion: '1' },
         }),
       ),
     ).toBeInstanceOf(ForbiddenError);

@@ -19,12 +19,9 @@ const table = (
   tableId: 't1',
   label: '7',
   seats: 4,
-  x: 10,
-  y: 20,
-  width: 90,
-  height: 90,
-  rotationDegrees: 0,
-  shape: 2,
+  photoId: 'p1',
+  photoX: 0.1,
+  photoY: 0.2,
   floorAreaName: 'Terrace',
   floorAreaDisplayOrder: 1,
   isBookable: true,
@@ -44,8 +41,6 @@ const availability = (
   branchName: 'Yerevan Centre',
   bufferMinutes: 15,
   cancellationDeadlineMinutes: 120,
-  floorWidth: 1000,
-  floorHeight: 700,
   localDate: '2026-09-05',
   localTime: '19:30',
   partySize: 2,
@@ -123,14 +118,26 @@ describe('floor', () => {
     const plan = floorFromAvailability(
       availability([
         table({ tableId: 'b', label: '2', floorAreaDisplayOrder: 1 }),
-        table({ tableId: 'a', label: '1', floorAreaDisplayOrder: 0, shape: 1 }),
+        table({ tableId: 'a', label: '1', floorAreaDisplayOrder: 0 }),
       ]),
     );
-    expect(plan.canvasWidth).toBe(1000);
     expect(plan.timeZoneId).toBe('Asia/Yerevan');
     expect(plan.tables.map((t) => t.id)).toEqual(['a', 'b']);
-    expect(plan.tables[0]?.shape).toBe('rectangle');
-    expect(plan.tables[1]?.shape).toBe('round');
+  });
+
+  it('lays tables out on a grid inside the canvas, now that the server sends no geometry', () => {
+    const plan = floorFromAvailability(
+      availability(
+        Array.from({ length: 8 }, (_, i) => table({ tableId: `t${i}`, label: String(i + 1) })),
+      ),
+    );
+    const [first, second, seventh] = [plan.tables[0]!, plan.tables[1]!, plan.tables[6]!];
+    expect(second.x).toBeGreaterThanOrEqual(first.x + first.width);
+    expect(seventh.y).toBeGreaterThanOrEqual(first.y + first.height);
+    for (const t of plan.tables) {
+      expect(t.x + t.width).toBeLessThanOrEqual(plan.canvasWidth);
+      expect(t.y + t.height).toBeLessThanOrEqual(plan.canvasHeight);
+    }
   });
 
   it('carries who was seated when from the staff floor view', () => {
@@ -139,20 +146,12 @@ describe('floor', () => {
       branchId: 'b1',
       branchName: 'Yerevan Centre',
       maxSequence: 41,
-      floorWidth: 1000,
-      floorHeight: 700,
       timeZoneId: 'Asia/Yerevan',
       tables: [
         {
           tableId: 't1',
           label: '7',
           seats: 4,
-          x: 0,
-          y: 0,
-          width: 90,
-          height: 90,
-          rotationDegrees: 0,
-          shape: 1,
           floorAreaDisplayOrder: 0,
           isBookable: true,
           physicalStatus: 4,

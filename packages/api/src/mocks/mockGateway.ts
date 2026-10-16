@@ -65,7 +65,7 @@ import {
   type BranchReview,
   type BranchReviewPage,
   type BranchSearchQuery,
-  type BranchTableMarkers,
+  type BranchRooms,
   type DinerOrder,
   type MyBranchReview,
 } from '../contracts/places';
@@ -1116,8 +1116,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         acceptsAppBookings: acceptsAppBookings(branchId),
         // Newest first written, hidden reviews left out (K8).
         recentReviews: reviewStore.visible(branchId).slice(0, 3).map(toPublicReview),
-        // The mock floor has no photo positions, so nothing is placed on a photo.
-        tableMarkers: [],
+        // The mock rooms have no photos, and a room with no photo is not listed.
+        rooms: [],
         asOfUtc: now().toISOString(),
       };
     },
@@ -1145,10 +1145,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       };
     },
 
-    async getBranchTableMarkers(branchId): Promise<BranchTableMarkers | null> {
+    async getBranchRooms(branchId): Promise<BranchRooms | null> {
       await wait();
       if (!findBranch(branchId)) return null;
-      return { branchId, photo: null, asOfUtc: now().toISOString(), tables: [] };
+      return { branchId, asOfUtc: now().toISOString(), rooms: [] };
     },
 
     async getMyBranchReview(branchId) {

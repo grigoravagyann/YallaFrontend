@@ -18,6 +18,9 @@ import type {
 import type {
   EditorFloorArea,
   EditorFloorPlan,
+  EditorFloorTable,
+  EditorTablePin,
+  EditorTableStatus,
   FloorPlanSaveResult,
   TableDeletionResult,
 } from '../contracts/floorPlan';
@@ -38,7 +41,6 @@ import {
   BranchNotReadyError,
   VenueDeletionBlockedError,
   CategoryInUseError,
-  CoverChangedError,
   FloorPlanChangedError,
   RelocationNotAllowedError,
   ReportRangeTooLongError,
@@ -59,7 +61,6 @@ import {
   moderatedReviewFromWire,
   readinessFromWire,
   reviewPageFromWire,
-  tablePhotoPositionsFromWire,
   venueDetailFromWire,
   venuePageFromWire,
   venueReviewFromWire,
@@ -257,15 +258,6 @@ type WireRevenue = components['schemas']['Yalla.Application.Reports.RevenueRepor
 type WireMenu = components['schemas']['Yalla.Application.Reports.MenuReport'];
 type WireStaff = components['schemas']['Yalla.Application.Reports.StaffReport'];
 
-/** `Yalla.Domain.Enums.TableShape`: 1 Rectangle, 2 Round. */
-function shapeFromWire(value: number): 'rectangle' | 'round' {
-  return value === 2 ? 'round' : 'rectangle';
-}
-
-function shapeToWire(shape: 'rectangle' | 'round'): 1 | 2 {
-  return shape === 'round' ? 2 : 1;
-}
-
 function stringList(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 }
@@ -287,16 +279,6 @@ const TIER_TO_WIRE: Readonly<Record<SubscriptionTier, number>> = { free: 1, paid
  * Every method maps a real endpoint. Nothing is faked: a fabricated
  * "suspended" would be worse than any error.
  */
-/**
- * The canvas a new branch's floor starts on, in the editor's own units.
- *
- * `CreateBranchCommand` requires both, and the create form does not ask: an
- * owner sets the real room size in the floor plan editor, with the room in
- * front of them. This is a starting canvas, not a claim about the building, and
- * it matches the dimensions the seeded demo branch uses.
- */
-const NEW_BRANCH_FLOOR = { width: 1000, height: 700 } as const;
-
 /** `SubscriptionTier.Free`. Every venue starts free; the platform upgrades it later. */
 const FREE_TIER = 1;
 
@@ -459,8 +441,7 @@ export function createConsoleHttpGateway(
          * The backend takes no `commandId` on this route. It also does **not**
          * derive the branch slug from its name, which an earlier comment here
          * claimed: `CreateBranchCommand` requires all nine of name, slug,
-         * address, latitude, longitude, timeZoneId, floorWidth, floorHeight and
-         * subscriptionTier, and sending two of them answered
+         * address, latitude, longitude, timeZoneId and subscriptionTier, and sending two of them answered
          * `400 Value must not be null or blank. (Parameter 'slug')` on every
          * attempt. Venue creation had never worked against a real backend.
          */
@@ -475,8 +456,6 @@ export function createConsoleHttpGateway(
             latitude: command.firstBranch.latitude,
             longitude: command.firstBranch.longitude,
             timeZoneId: command.firstBranch.timeZoneId,
-            floorWidth: NEW_BRANCH_FLOOR.width,
-            floorHeight: NEW_BRANCH_FLOOR.height,
             subscriptionTier: FREE_TIER,
           },
         });
@@ -514,8 +493,6 @@ export function createConsoleHttpGateway(
             latitude: command.latitude,
             longitude: command.longitude,
             timeZoneId: command.timeZoneId,
-            floorWidth: NEW_BRANCH_FLOOR.width,
-            floorHeight: NEW_BRANCH_FLOOR.height,
             subscriptionTier: FREE_TIER,
           },
         );
@@ -556,25 +533,24 @@ export function createConsoleHttpGateway(
       }
     },
 
-    // --- The floor plan editor ----------------------------------------------
+    // --- The rooms editor -------------------------------------------------
 
     async getFloorPlan(branchId: string): Promise<EditorFloorPlan> {
       const { data } = await client.get<WireFloorPlan>(`${BRANCHES}/${branchId}/floor-plan`);
-      return floorPlanFromWire(data);
+      return floorPlanFromWire(data, client.baseUrl);
     },
 
     async replaceFloorPlan({ branchId, command }): Promise<FloorPlanSaveResult> {
       try {
         // Inline, so check-gateway-schema reads every key against the request shape.
         const { data } = await client.put<WireSaveResult>(`${BRANCHES}/${branchId}/floor-plan`, {
-          floorWidth: command.floorWidth,
-          floorHeight: command.floorHeight,
           expectedVersion: command.expectedVersion,
           areas: command.areas.map(
             (area): Schemas['Yalla.Application.BranchSettings.FloorAreaInput'] => ({
               id: area.id ?? null,
               name: area.name,
               displayOrder: area.displayOrder,
+              photoIds: [...area.photoIds],
             }),
           ),
           tables: command.tables.map(
@@ -582,23 +558,19 @@ export function createConsoleHttpGateway(
               id: table.id ?? null,
               label: table.label,
               seats: table.seats,
-              x: Math.round(table.x),
-              y: Math.round(table.y),
-              width: Math.round(table.width),
-              height: Math.round(table.height),
-              rotationDegrees: table.rotationDegrees,
-              shape: shapeToWire(table.shape),
               floorAreaName: table.floorAreaName ?? null,
               isBookable: table.isBookable,
-              // No `photoX`/`photoY` (K6): pins are saved on their own route, and
-              // a plan save that carried them wiped pins placed meanwhile.
-              // `qrToken` is deliberately absent too. The sticker on the table has
+              // A pin is all three or none of them; the server refuses half of one.
+              photoId: table.pin?.photoId ?? null,
+              photoX: table.pin ? table.pin.x : null,
+              photoY: table.pin ? table.pin.y : null,
+              // `qrToken` is deliberately absent. The sticker on the table has
               // to keep working, and only the explicit regenerate action changes it.
             }),
           ),
         });
         return {
-          plan: floorPlanFromWire(data.plan),
+          plan: floorPlanFromWire(data.plan, client.baseUrl),
           warnings: data.warnings ?? [],
           deactivatedTables: data.deactivatedTables ?? [],
           removedTables: data.removedTables ?? [],
@@ -613,9 +585,8 @@ export function createConsoleHttpGateway(
           });
         }
         // Only the plan's own refusal is a plan error. A `validation-failed`
-        // 422 — a missing `expectedVersion`, say — is already the client's
-        // `ValidationError`, and dressing it as "these tables are wrong" named
-        // no table and hid the field that was.
+        // 422 - a photo in two rooms, half a pin, a missing `expectedVersion`
+        // - is already the client's `ValidationError`, naming the field.
         if (error instanceof ApiError && error.code === 'floor-plan-invalid') {
           const context = error.problem?.context ?? {};
           throw new FloorPlanInvalidError({
@@ -623,35 +594,8 @@ export function createConsoleHttpGateway(
             errors: stringList(context['errors']).length
               ? stringList(context['errors'])
               : [error.message],
-            tablesOutsideCanvas: stringList(context['tablesOutsideCanvas']),
             duplicateLabels: stringList(context['duplicateLabels']),
             requestId: error.requestId,
-          });
-        }
-        throw error;
-      }
-    },
-
-    async saveTablePhotoPositions(branchId, command) {
-      try {
-        const { data } = await client.put<
-          Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsView']
-        >(`${BRANCHES}/${branchId}/table-photo-positions`, {
-          coverPhotoId: command.coverPhotoId,
-          positions: command.positions.map((position) => ({
-            tableId: position.tableId,
-            photoX: position.photoX,
-            photoY: position.photoY,
-          })),
-        } satisfies Schemas['Yalla.Application.BranchSettings.TablePhotoPositionsCommand']);
-        return tablePhotoPositionsFromWire(data);
-      } catch (error) {
-        if (error instanceof ApiError && error.code === 'cover-changed') {
-          const current = error.problem?.context?.['currentCoverPhotoId'];
-          throw new CoverChangedError({
-            url: error.url,
-            requestId: error.requestId,
-            currentCoverPhotoId: typeof current === 'string' ? current : null,
           });
         }
         throw error;
@@ -670,7 +614,7 @@ export function createConsoleHttpGateway(
         name,
         displayOrder,
       });
-      return data;
+      return areaFromWire(data, client.baseUrl);
     },
 
     async updateFloorArea({ branchId, areaId, name, displayOrder }): Promise<EditorFloorArea> {
@@ -678,7 +622,7 @@ export function createConsoleHttpGateway(
         `${BRANCHES}/${branchId}/floor-areas/${areaId}`,
         { name, displayOrder },
       );
-      return data;
+      return areaFromWire(data, client.baseUrl);
     },
 
     async deleteFloorArea({ branchId, areaId }): Promise<void> {
@@ -1261,73 +1205,58 @@ function safeJson(text: string): unknown {
  * fixes and lumping them together as "upload failed" is the version that
  * generates a support conversation about a `.jpg` that is really a HEIC.
  */
-type WireArea = EditorFloorArea;
-
-interface WireTable {
-  id: string;
-  label: string;
-  seats: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotationDegrees: number;
-  shape: number;
-  floorAreaId?: string | null;
-  isBookable: boolean;
-  isActive: boolean;
-  qrToken: string;
-  photoX?: number | null;
-  photoY?: number | null;
-}
+type WireArea = Schemas['Yalla.Application.BranchSettings.FloorAreaView'];
+type WireTable = Schemas['Yalla.Application.BranchSettings.FloorTableView'];
+type WireFloorPlan = Schemas['Yalla.Application.BranchSettings.FloorPlanView'];
+type WireSaveResult = Schemas['Yalla.Application.BranchSettings.FloorPlanReplaceResult'];
 
 function blankToNull(value: string | null): string | null {
   return value === null || value.trim() === '' ? null : value.trim();
 }
 
-interface WireFloorPlan extends Pick<
-  Schemas['Yalla.Application.BranchSettings.FloorPlanView'],
-  'version'
-> {
-  branchId: string;
-  floorWidth: number;
-  floorHeight: number;
-  areas?: WireArea[];
-  tables?: WireTable[];
+/** `Yalla.Domain.Enums.TableStatus`: 1 Free, 2 Held, 4 Occupied, 5 OutOfService. */
+const TABLE_STATUS: Readonly<Record<number, EditorTableStatus>> = {
+  1: 'free',
+  2: 'held',
+  4: 'occupied',
+  5: 'outOfService',
+};
+
+function areaFromWire(area: WireArea, baseUrl: string): EditorFloorArea {
+  return {
+    id: area.id,
+    name: area.name,
+    displayOrder: area.displayOrder,
+    photos: (area.photos ?? []).map((view) => absolutePhoto(baseUrl, photo(view))),
+  };
 }
 
-interface WireSaveResult {
-  plan: WireFloorPlan;
-  warnings?: string[];
-  deactivatedTables?: string[];
-  removedTables?: string[];
+function pinFromWire(table: WireTable): EditorTablePin | null {
+  const { photoId, photoX, photoY } = table;
+  // All three or none: a pin missing a part has nowhere to be drawn.
+  if (!photoId || typeof photoX !== 'number' || typeof photoY !== 'number') return null;
+  return { photoId, x: photoX, y: photoY };
 }
 
-function floorPlanFromWire(plan: WireFloorPlan): EditorFloorPlan {
+function floorPlanFromWire(plan: WireFloorPlan, baseUrl: string): EditorFloorPlan {
   return {
     branchId: plan.branchId,
-    floorWidth: plan.floorWidth,
-    floorHeight: plan.floorHeight,
-    areas: [...(plan.areas ?? [])].sort((a, b) => a.displayOrder - b.displayOrder),
-    tables: (plan.tables ?? []).map((table) => ({
+    areas: [...(plan.areas ?? [])]
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((area) => areaFromWire(area, baseUrl)),
+    tables: (plan.tables ?? []).map((table): EditorFloorTable => ({
       id: table.id,
       label: table.label,
       seats: table.seats,
-      x: table.x,
-      y: table.y,
-      width: table.width,
-      height: table.height,
-      rotationDegrees: table.rotationDegrees,
-      shape: shapeFromWire(table.shape),
       floorAreaId: table.floorAreaId ?? null,
       isBookable: table.isBookable,
       isActive: table.isActive,
+      isDeletable: table.isDeletable,
+      status: TABLE_STATUS[table.status] ?? 'outOfService',
       qrToken: table.qrToken,
-      photoX: table.photoX ?? null,
-      photoY: table.photoY ?? null,
+      pin: pinFromWire(table),
     })),
-    // Empty only from a server that predates K6, which ignores what is sent back.
-    version: plan.version ?? '',
+    version: plan.version,
   };
 }
 

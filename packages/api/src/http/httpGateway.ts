@@ -112,7 +112,7 @@ import {
   type BranchListing,
   type BranchReviewPage,
   type BranchSearchQuery,
-  type BranchTableMarkers,
+  type BranchRooms,
   type DinerOrder,
   type MyBranchReview,
 } from '../contracts/places';
@@ -124,7 +124,7 @@ import {
   dinerOrderFromWire,
   myReviewFromWire,
   reviewPageFromWire,
-  tableMarkersFromWire,
+  branchRoomsFromWire,
   venueTypeCode,
   type WireBranchDetail,
   type WireBranchListing,
@@ -133,7 +133,7 @@ import {
   type WireFavoriteList,
   type WireNotificationPage,
   type WireReviewPage,
-  type WireTableMarkers,
+  type WireRooms,
 } from './placesMapping';
 import { photoRejectionFrom } from './photoErrors';
 import { absolutePhoto } from './photoUrl';
@@ -954,13 +954,13 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       }
     },
 
-    async getBranchTableMarkers(branchId): Promise<BranchTableMarkers | null> {
+    async getBranchRooms(branchId): Promise<BranchRooms | null> {
       try {
-        const { data } = await client.get<WireTableMarkers>(
-          `/api/public/branches/${encodeURIComponent(branchId)}/table-markers`,
+        const { data } = await client.get<WireRooms>(
+          `/api/public/branches/${encodeURIComponent(branchId)}/rooms`,
           { skipAuth: true },
         );
-        return tableMarkersFromWire(data, client.baseUrl);
+        return branchRoomsFromWire(data, client.baseUrl);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;

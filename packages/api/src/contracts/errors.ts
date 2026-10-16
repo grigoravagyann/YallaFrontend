@@ -817,30 +817,25 @@ export class BranchNotReadyError extends ApiError {
 }
 
 /**
- * The floor plan the editor sent cannot be stored, and the server named the
- * offenders.
+ * The plan the editor sent cannot be stored — `floor-plan-invalid`, 422 — and
+ * the server named the offenders.
  *
  * The payload is the point. "Invalid plan" is useless to somebody standing in
- * a cafe with the owner watching; "tables 7 and 12 are outside the canvas" is
- * something they fix in ten seconds, and the editor can highlight both and
- * scroll to the first.
+ * a cafe with the owner watching; "labels must be unique, repeated: 7" is
+ * something they fix in ten seconds, and the editor can highlight the table.
  *
- * Note what is *not* here: overlapping tables. The server treats those as a
- * warning and saves anyway, because real rooms have stools tucked under bars.
- * The client must not be stricter than the server about it.
+ * Photo and pin rules are not here: they are `validation-failed`, naming the
+ * field (`areas[i].photoIds[j]`, `tables[i].photoId`) and its bound.
  */
 export class FloorPlanInvalidError extends ApiError {
   /** Whole-plan complaints, already phrased for a person. */
   readonly errors: readonly string[];
-  /** Labels of tables that do not fit inside the canvas. */
-  readonly tablesOutsideCanvas: readonly string[];
-  /** Labels used more than once in the branch. */
+  /** Labels used more than once in the plan. */
   readonly duplicateLabels: readonly string[];
 
   constructor(options: {
     url: string;
     errors: readonly string[];
-    tablesOutsideCanvas: readonly string[];
     duplicateLabels: readonly string[];
     requestId?: string | undefined;
   }) {
@@ -851,7 +846,6 @@ export class FloorPlanInvalidError extends ApiError {
     });
     this.name = 'FloorPlanInvalidError';
     this.errors = options.errors;
-    this.tablesOutsideCanvas = options.tablesOutsideCanvas;
     this.duplicateLabels = options.duplicateLabels;
   }
 }
@@ -1327,28 +1321,6 @@ export class FloorPlanChangedError extends ApiError {
     });
     this.name = 'FloorPlanChangedError';
     this.currentVersion = options.currentVersion;
-  }
-}
-
-/**
- * The cover photo changed while pins were being placed on the old one —
- * `cover-changed`, 409 (K7).
- *
- * Positions are fractions of *a* picture; saved against a different one they
- * point at the wrong spots, so nothing was written.
- */
-export class CoverChangedError extends ApiError {
-  /** The cover the branch has now, or `null` when it has none. */
-  readonly currentCoverPhotoId: string | null;
-
-  constructor(options: RefusalOptions & { currentCoverPhotoId: string | null }) {
-    super('The cover photo changed before the pins were saved.', {
-      status: 409,
-      url: options.url,
-      requestId: options.requestId,
-    });
-    this.name = 'CoverChangedError';
-    this.currentCoverPhotoId = options.currentCoverPhotoId;
   }
 }
 

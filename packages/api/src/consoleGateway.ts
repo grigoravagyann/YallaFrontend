@@ -5,9 +5,7 @@ import type {
   EditorFloorPlan,
   FloorPlanSaveResult,
   ReplaceFloorPlanCommand,
-  SaveTablePhotoPositionsCommand,
   TableDeletionResult,
-  TablePhotoPositions,
 } from './contracts/floorPlan';
 import type { BranchReadiness } from './contracts/readiness';
 import type {
@@ -156,46 +154,32 @@ export interface ConsoleGateway {
     commandId: string;
   }): Promise<ConsoleVenueDetail>;
 
-  // --- The floor plan editor ------------------------------------------------
+  // --- The rooms editor -----------------------------------------------------
 
-  /** Canvas, areas, every table with its geometry and QR token, and the plan's `version`. */
+  /** Rooms with their photos, every table with its pin and QR token, and the plan's `version`. */
   getFloorPlan(branchId: string): Promise<EditorFloorPlan>;
 
   /**
-   * Replace the whole plan in one call, against the `version` the editor loaded
-   * (K6). Pins on the cover photo are not part of it: kept tables keep theirs,
-   * new tables have none.
+   * Replace rooms, their photos and every table's pin in one call, against the
+   * `version` the editor loaded (K6). A photo dropped from every room takes
+   * its tables off it (with a warning); a bookable table with no pin is saved
+   * with a warning that diners are not offered it.
    *
    * @throws {FloorPlanChangedError} somebody saved the plan since it was
    * loaded; nothing was written. Carries the server's `currentVersion`.
-   * @throws {FloorPlanInvalidError} `floor-plan-invalid`: a table outside the
-   * canvas or a repeated label; the error names them so the editor can
-   * highlight both.
-   * @throws {ValidationError} `validation-failed`: a malformed request, such as
-   * a missing `expectedVersion`. Not a plan problem, so not the error above.
+   * @throws {FloorPlanInvalidError} `floor-plan-invalid`: a missing or
+   * repeated label or room name, or a table matched twice.
+   * @throws {ValidationError} `validation-failed`: more than ten photos in a
+   * room (`areas[i].photoIds`, `max`), a photo twice or in two rooms
+   * (`areas[i].photoIds[j]`, `conflict`), half a pin (`tables[i].photoId|photoX|photoY`,
+   * `required`), a coordinate outside 0–1 (`range`), a pin on another room's
+   * photo (`tables[i].photoId`, `conflict`), or a missing `expectedVersion`.
+   * @throws {NotFoundError} a photo that was not uploaded for this branch.
    */
   replaceFloorPlan(input: {
     branchId: string;
     command: ReplaceFloorPlanCommand;
   }): Promise<FloorPlanSaveResult>;
-
-  /**
-   * Place, move or remove tables on the cover photo (K7), without touching the
-   * plan. One call for every changed pin; a table left out of `positions` keeps
-   * its pin.
-   *
-   * @throws {CoverChangedError} the cover is no longer `coverPhotoId`; nothing
-   * was written. Carries the cover the branch has now.
-   * @throws {NotFoundError} a table that is not an active table at this branch.
-   * @throws {ValidationError} half a position (`positions[i].photoX`/`photoY`,
-   * bound `required`), a value outside 0–1 (bound `range`), or one table twice
-   * (`positions`, bound `conflict`).
-   * @throws {ForbiddenError} not a manager of this branch.
-   */
-  saveTablePhotoPositions(
-    branchId: string,
-    command: SaveTablePhotoPositionsCommand,
-  ): Promise<TablePhotoPositions>;
 
   /**
    * What the branch still needs before it can take diners,
@@ -217,7 +201,7 @@ export interface ConsoleGateway {
     displayOrder: number;
   }): Promise<EditorFloorArea>;
 
-  /** The area goes; its tables stay, with no area. */
+  /** The room and its photos go; its tables stay, with no room and no pin. */
   deleteFloorArea(input: { branchId: string; areaId: string }): Promise<void>;
 
   /**
@@ -353,8 +337,8 @@ export interface ConsoleGateway {
 
   /**
    * Replace the listing: cuisine, about, price level, website, amenities, the
-   * map pin with its street address, and the ordered gallery. Table positions
-   * on the cover photo are {@link saveTablePhotoPositions}'s.
+   * map pin with its street address, and the ordered gallery. Tables are
+   * pinned on room photos through {@link replaceFloorPlan}.
    *
    * Refused in the server's order, and nothing is written for any refusal:
    * half a coordinate or an address without coordinates (422), more than 12 or

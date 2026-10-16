@@ -55,7 +55,7 @@ describe('the open state on the public branch page', () => {
     isOpenNow: false,
     freeTableCount: 8,
     tableCount: 8,
-    floorPlan: { floorWidth: 800, floorHeight: 600, areas: [], tables: [] },
+    floorPlan: { areas: [], tables: [] },
     acceptsWebBookings: true,
     acceptsAppBookings: true,
     bookingWindowDays: 14,
