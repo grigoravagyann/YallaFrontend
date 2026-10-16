@@ -1159,5 +1159,8 @@
     "platformHidden": "Hidden by the Yalla team. Only they can show it again.",
     "empty": "No reviews match this filter.",
     "failed": "That did not go through. Nothing changed — try again."
+  },
+  "unsavedChanges": {
+    "leave": "You have unsaved changes. Leave without saving them?"
   }
 }
