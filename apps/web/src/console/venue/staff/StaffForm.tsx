@@ -151,14 +151,18 @@ export function StaffForm({
       return;
     }
 
-    // Same idiom as the PIN. A manager without an address is the defect this
-    // form exists to close, so the address is required rather than offered.
+    // Same idiom as the PIN, for an address that was typed. One that was not
+    // is not a mistake: an owner who never touches a tablet and has no email
+    // to hand is added with the PIN alone, and the row's "Issue sign-in" —
+    // which exists for exactly this — gives them their link later. Requiring
+    // the address here made that row action unreachable for anybody new.
     const address = email.trim();
-    if (needsSignIn && !EMAIL_SHAPE.test(address)) {
+    const withSignIn = needsSignIn && address !== '';
+    if (withSignIn && !EMAIL_SHAPE.test(address)) {
       setEmailError(t('staff.signIn.emailRequired'));
       return;
     }
-    if (needsSignIn && address.length > EMAIL_MAX_LENGTH) {
+    if (withSignIn && address.length > EMAIL_MAX_LENGTH) {
       setEmailError(t('staff.signIn.emailTooLong'));
       return;
     }
@@ -171,7 +175,7 @@ export function StaffForm({
         pin,
         branchId: chooseBranch ? branchId : fixedBranchId,
       },
-      needsSignIn ? { email: address } : null,
+      withSignIn ? { email: address } : null,
     );
   }
 
@@ -321,12 +325,12 @@ export function StaffForm({
              * gets its @ key, and the shape is checked above with the app's
              * own sentence in the app's own language, rather than by the
              * browser in whatever language the browser happens to be in.
-             * `required` stays native, as on every other field here.
+             * Not `required`: see `submit` — an empty address means the
+             * sign-in is issued later from the row.
              */
             type="text"
             inputMode="email"
             value={email}
-            required
             // Mirrors `FieldLengths.Email`; see EMAIL_MAX_LENGTH.
             maxLength={EMAIL_MAX_LENGTH}
             autoComplete="email"
@@ -334,6 +338,7 @@ export function StaffForm({
             onChange={(event) => setEmail(event.currentTarget.value)}
           />
           <span className="muted small">{t('staff.field.emailHelp')}</span>
+          <span className="muted small">{t('staff.field.emailLater')}</span>
           {emailError ? (
             <span id="staff-email-error" className="field-error" role="alert">
               {emailError}

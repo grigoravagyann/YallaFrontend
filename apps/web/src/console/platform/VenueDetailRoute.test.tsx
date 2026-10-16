@@ -341,3 +341,41 @@ describe('repairing an existing owner', () => {
     });
   });
 });
+
+describe('hiring an owner who will be given their sign-in later', () => {
+  it('creates them with a PIN alone when the address is left empty, and shows the PIN once', async () => {
+    /*
+     * The address was required, so an owner who never touches a tablet still
+     * could not be added without an email on hand — and "Issue sign-in", the
+     * row action that exists for exactly this, was unreachable for anybody
+     * new. The server needs a PIN on every create; it does not need an email.
+     */
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const create = vi.spyOn(gateway, 'createStaff');
+    const issue = vi.spyOn(gateway, 'issueStaffSignIn');
+    const user = userEvent.setup();
+    renderVenue(gateway);
+    await waitForStaff();
+
+    await user.click(screen.getByRole('button', { name: /add someone/i }));
+    const form = screen.getByRole('form');
+    await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
+    await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
+    await user.type(within(form).getByLabelText(/pin/i), '7315');
+    await user.click(within(form).getByRole('button', { name: /^add$/i }));
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]![0].staff).not.toHaveProperty('email');
+    expect(issue).not.toHaveBeenCalled();
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('7315')).toBeTruthy();
+    expect(within(dialog).queryByText(/sign-in link/i)).toBeNull();
+
+    // The row offers the sign-in from here on, as it does for any owner without one.
+    await user.click(within(dialog).getByRole('button'));
+    const row = await waitFor(() => rowOf('Hasmik Sargsyan'));
+    expect(within(row).getByText(/no sign-in/i)).toBeTruthy();
+    expect(within(row).getByRole('button', { name: /issue sign-in/i })).toBeTruthy();
+  });
+});
