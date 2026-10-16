@@ -178,9 +178,18 @@ function TabItem({
             </View>
           ) : null}
         </View>
+        {/* Held to the slot: a long label (Armenian at 375px) shrinks a little
+            on a phone and is cut short, never into its neighbour. */}
         <Text
           numberOfLines={1}
-          style={[typography.navLabel, { color: tint }, focused && styles.labelActive]}
+          adjustsFontSizeToFit
+          minimumFontScale={0.85}
+          style={[
+            typography.navLabel,
+            styles.label,
+            { color: tint },
+            focused && styles.labelActive,
+          ]}
         >
           {label}
         </Text>
@@ -221,19 +230,22 @@ const styles = StyleSheet.create({
   },
   item: {
     flex: 1,
+    minWidth: 0,
     height: tabBarMetrics.height,
     alignItems: 'center',
     justifyContent: 'center',
   },
   itemPressed: { opacity: 0.7 },
   pair: {
+    maxWidth: '100%',
     alignItems: 'center',
     gap: 2,
-    paddingHorizontal: space.sm + 2,
+    paddingHorizontal: space.xs,
     paddingVertical: space.xs,
     borderRadius: radius.tile,
   },
   pairLifted: {},
+  label: { maxWidth: '100%' },
   labelActive: { fontWeight: fontWeight.medium },
   scanSlot: { height: STAGE_HEIGHT },
   badge: {
