@@ -9,6 +9,22 @@ import {
   type ConsoleIdentityStore,
 } from './http/consoleHttpGateway';
 import { createConsoleMockGateway } from './mocks/consoleMock';
+import { persistMockGateway, type MockJournalStorage } from './mocks/persistence';
+
+/**
+ * Keep the mock world across a full page load (QA F2).
+ *
+ * `key` names the world; `storage` is where it is kept — the caller passes
+ * `browserMockStorage()` for the browser's `localStorage` — and absent or
+ * `null` keeps it in memory, which is what every test wants. The resolvers do
+ * not reach for `localStorage` themselves: the public branch page imports
+ * `resolveGateway`, and that page's bundle may not name a storage API at all
+ * (`apps/web/src/productionBundle.test.ts`).
+ */
+export interface MockPersistence {
+  readonly key: string;
+  readonly storage?: MockJournalStorage | null | undefined;
+}
 
 export interface ResolveConsoleGatewayOptions {
   readonly dataSource: DataSource;
@@ -27,6 +43,8 @@ export interface ResolveConsoleGatewayOptions {
    * be walked in development without four accounts.
    */
   readonly mockRole?: UserRole | undefined;
+  /** Mock only: keep the world across a reload. See {@link MockPersistence}. */
+  readonly persist?: MockPersistence | undefined;
 }
 
 /**
@@ -38,9 +56,20 @@ export interface ResolveConsoleGatewayOptions {
  */
 export function resolveConsoleGateway(options: ResolveConsoleGatewayOptions): ConsoleGateway {
   if (options.dataSource === 'mock') {
+    const role = options.mockRole ? { role: options.mockRole } : {};
+    if (options.persist) {
+      return persistMockGateway<ConsoleGateway>({
+        key: options.persist.key,
+        storage: options.persist.storage ?? null,
+        latencyMs: options.mockLatencyMs ?? 200,
+        // The menu report is deliberately the slow one; see the mock.
+        slow: { getMenuReport: 3 },
+        create: (inner) => createConsoleMockGateway({ now: inner.now, latencyMs: 0, ...role }),
+      });
+    }
     return createConsoleMockGateway({
       latencyMs: options.mockLatencyMs ?? 200,
-      ...(options.mockRole ? { role: options.mockRole } : {}),
+      ...role,
     });
   }
 

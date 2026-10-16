@@ -2,7 +2,9 @@ import type { AuthSession } from './auth/session';
 import { createApiClient } from './client';
 import type { DataSource } from './config';
 import { createStaffHttpGateway } from './http/staffHttpGateway';
+import { persistMockGateway } from './mocks/persistence';
 import { createStaffMockGateway } from './mocks/staffMock';
+import type { MockPersistence } from './resolveConsoleGateway';
 import type { StaffGateway } from './staffGateway';
 
 export interface ResolveStaffGatewayOptions {
@@ -22,6 +24,8 @@ export interface ResolveStaffGatewayOptions {
    * party — the case only the version can catch.
    */
   readonly mockChurnOnTables?: readonly string[] | undefined;
+  /** Mock only: keep the world across a reload (QA F2). */
+  readonly persist?: MockPersistence | undefined;
 }
 
 /**
@@ -38,11 +42,19 @@ export interface ResolveStaffGatewayOptions {
  */
 export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffGateway {
   if (options.dataSource === 'mock') {
-    return createStaffMockGateway({
-      latencyMs: options.mockLatencyMs ?? 200,
+    const shared = {
       ...(options.mockRaceOnTables ? { raceOnTables: options.mockRaceOnTables } : {}),
       ...(options.mockChurnOnTables ? { churnOnTables: options.mockChurnOnTables } : {}),
-    });
+    };
+    if (options.persist) {
+      return persistMockGateway<StaffGateway>({
+        key: options.persist.key,
+        storage: options.persist.storage ?? null,
+        latencyMs: options.mockLatencyMs ?? 200,
+        create: (inner) => createStaffMockGateway({ now: inner.now, latencyMs: 0, ...shared }),
+      });
+    }
+    return createStaffMockGateway({ latencyMs: options.mockLatencyMs ?? 200, ...shared });
   }
 
   if (!options.baseUrl || !options.auth) {

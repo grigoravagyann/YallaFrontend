@@ -67,6 +67,17 @@ export type { ResolveGatewayOptions } from './resolveGateway';
 
 export { createMockGateway } from './mocks/mockGateway';
 export type { MockGateway, MockGatewayOptions } from './mocks/mockGateway';
+export { MOCK_JOURNAL_PREFIX, clearMockJournal, persistMockGateway } from './mocks/persistence';
+export { browserMockStorage, resetBrowserMockWorlds } from './mocks/browserStorage';
+export type { MockJournalStorage, PersistedMock, PersistedMockOptions } from './mocks/persistence';
+export type { MockPersistence } from './resolveConsoleGateway';
+export { createMockRegistry, mockRegistry } from './mocks/mockRegistry';
+export type { MockRegistry } from './mocks/mockRegistry';
+export { createMockStaffAuth } from './mocks/staffAuthMock';
+export type { StaffAuthMockOptions } from './mocks/staffAuthMock';
+export { createMockVenueUserAuth } from './mocks/venueAuthMock';
+export type { VenueAuthMockOptions } from './mocks/venueAuthMock';
+export { MOCK_STAFF_PIN, fixtureStaffFor } from './mocks/staffFixture';
 export { createHttpGateway } from './http/httpGateway';
 export type { GatewayAudience, HttpGatewayOptions } from './http/httpGateway';
 

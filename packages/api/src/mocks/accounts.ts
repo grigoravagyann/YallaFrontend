@@ -37,6 +37,21 @@ export const SEEDED_ACCOUNT = {
   localeCode: 'en',
 } as const;
 
+/**
+ * The second account, the one the login screen's placeholder names (`ani or
+ * you@example.com`). It exists so the placeholder is honest and so a username
+ * change to `ani` meets the 409 production gives it (QA F10).
+ */
+export const SEEDED_ACCOUNT_ANI = {
+  id: 'diner-ani',
+  username: 'ani',
+  email: 'ani@example.com',
+  password: 'password123',
+  phoneE164: '+37491234567',
+  displayName: 'Ani Hakobyan',
+  localeCode: 'hy',
+} as const;
+
 interface Account {
   readonly id: string;
   username: string | null;
@@ -194,6 +209,11 @@ export function createAccountStore(options: { readonly now: () => Date }): Accou
     displayName: SEEDED_ACCOUNT.displayName,
     localeCode: SEEDED_ACCOUNT.localeCode,
     photo: mockPhoto('avatar-lurj'),
+  });
+  accounts.set(SEEDED_ACCOUNT_ANI.id, {
+    ...SEEDED_ACCOUNT_ANI,
+    phoneVerifiedAt: now().getTime(),
+    photo: null,
   });
 
   function view(account: Account): DinerProfileView {

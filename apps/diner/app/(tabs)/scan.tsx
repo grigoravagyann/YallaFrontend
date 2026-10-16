@@ -1,4 +1,4 @@
-import { MOCK_DEMO_TABLES, formatTableCode } from '@yalla/api';
+import { MOCK_DEMO_TABLES, formatTableCode, resetBrowserMockWorlds } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { openSettings } from 'expo-linking';
@@ -236,6 +236,20 @@ function DemoCodes({ onPick }: { onPick: (code: string) => void }) {
   return (
     <View style={styles.dev}>
       <Text style={styles.devTitle}>{t('scan.dev.title')}</Text>
+      {typeof window !== 'undefined' && typeof document !== 'undefined' ? (
+        // The web build keeps the mock world across a reload (QA F2); this
+        // forgets it and starts from the fixture.
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            resetBrowserMockWorlds();
+            window.location.reload();
+          }}
+          style={({ pressed }) => [styles.devRow, pressed && styles.devRowPressed]}
+        >
+          <Text style={styles.devWhat}>{t('scan.dev.reset')}</Text>
+        </Pressable>
+      ) : null}
       {MOCK_DEMO_TABLES.map((demo) => (
         <Pressable
           key={demo.code}

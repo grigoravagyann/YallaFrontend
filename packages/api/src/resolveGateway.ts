@@ -4,6 +4,8 @@ import type { DataSource } from './config';
 import type { YallaGateway } from './gateway';
 import { createHttpGateway, type GatewayAudience } from './http/httpGateway';
 import { createMockGateway } from './mocks/mockGateway';
+import { persistMockGateway } from './mocks/persistence';
+import type { MockPersistence } from './resolveConsoleGateway';
 
 export interface ResolveGatewayOptions {
   /** `real` (the default) or `mock`. Read from the app's data-source flag. */
@@ -22,6 +24,8 @@ export interface ResolveGatewayOptions {
   readonly simulateTableTaken?: boolean | undefined;
   /** This install's device id, for opening and joining tabs. Real only. */
   readonly deviceId?: (() => Promise<string>) | undefined;
+  /** Mock only: keep the world across a reload (QA F2). */
+  readonly persist?: MockPersistence | undefined;
 }
 
 /**
@@ -38,13 +42,21 @@ export interface ResolveGatewayOptions {
  */
 export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
   if (options.dataSource === 'mock') {
-    return createMockGateway({
-      latencyMs: options.mockLatencyMs ?? 250,
+    const shared = {
       simulateTableTaken: options.simulateTableTaken ?? false,
       // There is no bot in mock mode; the challenge confirms itself after a
       // couple of polls so the Telegram screen can be walked end to end.
       simulateTelegramConfirm: true,
-    });
+    };
+    if (options.persist) {
+      return persistMockGateway<YallaGateway>({
+        key: options.persist.key,
+        storage: options.persist.storage ?? null,
+        latencyMs: options.mockLatencyMs ?? 250,
+        create: (inner) => createMockGateway({ ...shared, ...inner }),
+      });
+    }
+    return createMockGateway({ latencyMs: options.mockLatencyMs ?? 250, ...shared });
   }
 
   if (!options.baseUrl) {

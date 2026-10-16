@@ -380,6 +380,7 @@
     },
     "dev": {
       "title": "Dev only — demo codes",
+      "reset": "Reset mock data (reloads the page)",
       "outcome": {
         "tabOpened": "opens a tab",
         "joinPending": "asks to join",

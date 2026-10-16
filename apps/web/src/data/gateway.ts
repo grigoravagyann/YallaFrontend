@@ -10,6 +10,7 @@ import {
 import { authSession, identityStore } from '../auth/authSession';
 import { readConfig } from '../config';
 import { staffSession } from '../staff/auth/staffSession';
+import { mockPersistence } from './mockWorld';
 
 const config = readConfig();
 
@@ -40,7 +41,12 @@ export function consoleGatewayFor(role: UserRole): ConsoleGateway {
 
   let mock = mockConsoles.get(role);
   if (!mock) {
-    mock = resolveConsoleGateway({ dataSource: 'mock', mockLatencyMs: 200, mockRole: role });
+    mock = resolveConsoleGateway({
+      dataSource: 'mock',
+      mockLatencyMs: 200,
+      mockRole: role,
+      persist: mockPersistence(`console.${role}`),
+    });
     mockConsoles.set(role, mock);
   }
   return mock;
@@ -60,6 +66,7 @@ export const staffGateway: YallaGateway = resolveGateway({
   auth: authSession,
   audience: 'staff',
   mockLatencyMs: 200,
+  persist: mockPersistence('diner.staff'),
 });
 
 /**
@@ -85,6 +92,7 @@ export const staffDataGateway: StaffGateway = resolveStaffGateway({
   mockLatencyMs: 200,
   mockRaceOnTables: devRaceTables(),
   mockChurnOnTables: devChurnTables(),
+  persist: mockPersistence('staff'),
 });
 
 /**

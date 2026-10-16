@@ -81,6 +81,8 @@ function publicRuntime(): PublicRuntime {
     auth,
     audience: 'diner',
     mockLatencyMs: 200,
+    // No mock journal here, unlike the console's gateways: this page keeps
+    // nothing past the tab, mock data source included (productionBundle.test).
   });
 
   /** The unauthenticated half: slug resolution, the published profile, the manage link. */

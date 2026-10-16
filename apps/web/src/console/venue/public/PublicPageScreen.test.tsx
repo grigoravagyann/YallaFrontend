@@ -52,7 +52,9 @@ describe('the public page screen', () => {
     const phone = (await screen.findByLabelText(/phone/i)) as HTMLInputElement;
     expect(phone.value).toBe('');
     const bookings = screen.getByLabelText(/take bookings/i) as HTMLInputElement;
-    expect(bookings.checked).toBe(false);
+    // Seeded from the public fixture, as the server's seed does: this branch
+    // already takes bookings on its public page, so the switch starts on.
+    expect(bookings.checked).toBe(true);
 
     await user.type(phone, '+374 11 22 33 44');
     await user.click(bookings);
@@ -61,7 +63,7 @@ describe('the public page screen', () => {
     await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
     expect(update.mock.calls[0]?.[0].profile).toEqual({
       phoneE164: '+374 11 22 33 44',
-      acceptsWebBookings: true,
+      acceptsWebBookings: false,
       coverPhotoId: null,
     });
     await waitFor(() => expect(screen.getByText(/saved/i)).toBeTruthy());

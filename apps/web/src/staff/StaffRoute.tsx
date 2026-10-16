@@ -106,11 +106,10 @@ export function StaffRoute() {
  * The floor — or, for the kitchen, the order queue — given whichever identity
  * this build has.
  *
- * Against a real backend that is the staff session's. Against the mock there is
- * no tablet credential to hold — signing in is the one thing a mock cannot
- * honestly simulate — so the dev role switcher supplies the role and the mock's
- * own branch supplies the scope, exactly as it did before this screen had a
- * sign-in at all.
+ * The staff session's, against a real backend and — since QA F13 — against
+ * the mock too, whose tablet enrols with a code the console mock generated and
+ * signs in with `MOCK_STAFF_PIN`. The dev role switcher's user is the fallback
+ * only for a build with no tablet session at all.
  */
 function StaffFloor({
   paused,

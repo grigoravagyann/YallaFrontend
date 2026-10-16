@@ -287,9 +287,13 @@ describe('the app booking gate and the note in the mock (K9)', () => {
   });
 
   it('keeps the note trimmed and blank as none, and refuses one over 500 characters by name', async () => {
-    const gateway = createMockGateway();
+    // On a fixed clock: the mock refuses a slot outside the opening hours since
+    // the 2026-10-16 QA sweep (F5), and "now + a day" on the wall clock is shut
+    // for eight hours of every day.
+    const time = clock();
+    const gateway = createMockGateway({ now: time.now });
     await signUp(gateway, 3);
-    const slotUtc = new Date(Date.now() + DAY_MS).toISOString();
+    const slotUtc = new Date(time.now().getTime() + DAY_MS).toISOString();
 
     const noted = await bookAt(gateway, NORTH, slotUtc, { note: '  A quiet corner, please.  ' });
     expect(noted.note).toBe('A quiet corner, please.');

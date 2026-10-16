@@ -18,8 +18,10 @@ describe('the public profile in the mock', () => {
   });
 
   it('starts every branch with nothing published and no picture', async () => {
+    // The booking switch starts where the public page's fixture has it (QA F5,
+    // 2026-10-16): Cascade takes bookings there, so the console says so too.
     const profile = await gateway.getPublicProfile('b-lumen-cascade');
-    expect(profile).toEqual({ phoneE164: null, acceptsWebBookings: false, coverPhoto: null });
+    expect(profile).toEqual({ phoneE164: null, acceptsWebBookings: true, coverPhoto: null });
   });
 
   it('sets an uploaded photo as the cover and reads it back', async () => {
@@ -118,7 +120,7 @@ describe('the public profile in the mock', () => {
     expect(caught).toBeInstanceOf(NotFoundError);
     expect(await gateway.getPublicProfile('b-lumen-cascade')).toEqual({
       phoneE164: null,
-      acceptsWebBookings: false,
+      acceptsWebBookings: true,
       coverPhoto: null,
     });
   });

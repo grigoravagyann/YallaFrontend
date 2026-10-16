@@ -875,8 +875,14 @@ export class OutOfScopeError extends ApiError {
 export class CategoryInUseError extends ApiError {
   readonly categoryId: string;
 
-  constructor(options: { url: string; categoryId: string; requestId?: string | undefined }) {
-    super('Items in this category appear on orders.', {
+  constructor(options: {
+    url: string;
+    categoryId: string;
+    /** The server's `detail`, when the caller has it; the generic sentence otherwise. */
+    detail?: string | undefined;
+    requestId?: string | undefined;
+  }) {
+    super(options.detail ?? 'Items in this category appear on orders.', {
       status: 409,
       url: options.url,
       requestId: options.requestId,

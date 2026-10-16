@@ -53,6 +53,13 @@ The switcher is deliberately not persisted: a remembered role would be a
 client-side claim outliving the session that granted it. A hard reload therefore
 puts you back on platform admin.
 
+The mock tablet at `/staff` signs in the way a real one does: generate an
+enrolment code under **Tablets** on the console's Staff page, type it on the
+tablet, pick a name on the keypad and enter PIN `1234` (`MOCK_STAFF_PIN`). A
+sign-in link issued on the Staff screen is a `/reset-password#token=…` link on
+this app, and the mock honours it once, within its day. Both are forgotten by
+**Reset mock data**.
+
 ### Before you push
 
 ```bash
