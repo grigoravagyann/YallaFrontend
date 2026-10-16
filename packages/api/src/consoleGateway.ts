@@ -49,6 +49,7 @@ import type {
   StaffReport,
 } from './contracts/reports';
 import type {
+  AddBranchCommand,
   ConsoleUser,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -57,6 +58,7 @@ import type {
   ManagedVenue,
   Page,
   SubscriptionTier,
+  UpdateVenueCommand,
 } from './contracts/console';
 
 /**
@@ -117,6 +119,21 @@ export interface ConsoleGateway {
    * @throws {SlugTakenError} the web address is already in use.
    */
   createVenue(command: CreateVenueCommand): Promise<ConsoleVenueDetail>;
+
+  /**
+   * Name, web address and type. Platform admin only.
+   *
+   * @throws {SlugTakenError} the web address belongs to another venue.
+   */
+  updateVenue(command: UpdateVenueCommand): Promise<ConsoleVenueDetail>;
+
+  /**
+   * Another branch, on the Free tier and an empty floor, like a venue's first.
+   * Answers with the whole venue so the screen replaces its copy.
+   *
+   * @throws {SlugTakenError} the venue already has a branch at that address.
+   */
+  addBranch(command: AddBranchCommand): Promise<ConsoleVenueDetail>;
 
   /** Reversible, and mostly about billing. */
   suspendVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;

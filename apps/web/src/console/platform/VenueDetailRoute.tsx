@@ -22,6 +22,8 @@ import { SignInPrompt } from '../venue/staff/SignInPrompt';
 import { StaffForm } from '../venue/staff/StaffForm';
 import { issueFailureText } from '../venue/staff/signInIssue';
 import type { ShownCredentials, SignInPromptState } from '../venue/staff/StaffScreen';
+import { AddBranchForm } from './AddBranchForm';
+import { EditVenueForm } from './EditVenueForm';
 import {
   useConsoleVenue,
   useDeleteVenue,
@@ -81,6 +83,9 @@ export function VenueDetailRoute() {
   const [failure, setFailure] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<readonly BlockingTab[] | null>(null);
   const [hiring, setHiring] = useState(false);
+  /** One panel at a time per card: the venue's fields, or a new branch. */
+  const [editingVenue, setEditingVenue] = useState(false);
+  const [addingBranch, setAddingBranch] = useState(false);
   const [refusal, setRefusal] = useState<StaffPermissionError | null>(null);
   /** The one moment a PIN or a link is on screen; same rule as the venue's staff screen. */
   const [shown, setShown] = useState<ShownCredentials | null>(null);
@@ -221,11 +226,34 @@ export function VenueDetailRoute() {
             </p>
           ) : null}
         </div>
-        <span className={`pill pill-${venue.status}`}>{t(`status.${venue.status}`)}</span>
+        <div className="actions">
+          <span className={`pill pill-${venue.status}`}>{t(`status.${venue.status}`)}</span>
+          {editingVenue || venue.status === 'deleted' ? null : (
+            <button
+              type="button"
+              className="button button-small"
+              onClick={() => setEditingVenue(true)}
+            >
+              {t('venue.edit.open')}
+            </button>
+          )}
+        </div>
       </header>
 
+      {editingVenue ? <EditVenueForm venue={venue} onDone={() => setEditingVenue(false)} /> : null}
+
       <div className="card">
-        <h2>{t('venue.branches')}</h2>
+        <header className="card-header">
+          <h2>{t('venue.branches')}</h2>
+          {addingBranch || venue.status === 'deleted' ? null : (
+            <button type="button" className="button" onClick={() => setAddingBranch(true)}>
+              {t('venue.addBranch.open')}
+            </button>
+          )}
+        </header>
+        {addingBranch ? (
+          <AddBranchForm venue={venue} onDone={() => setAddingBranch(false)} />
+        ) : null}
         {venue.branches.length === 0 ? (
           <p className="muted">{t('venue.noBranches')}</p>
         ) : (

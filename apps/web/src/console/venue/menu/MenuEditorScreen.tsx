@@ -32,6 +32,7 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { menuItemAnchorId, menuItemIdFromHash } from '../menuAnchors';
 import { useVenueOutlet } from '../VenueLayout';
 import { BulkPhotoDrop } from './BulkPhotoDrop';
+import { CategoryNameDialog } from './CategoryNameDialog';
 import { ItemForm, knownValues } from './ItemForm';
 
 /**
@@ -124,6 +125,10 @@ export function MenuEditorScreen() {
     | null
   >(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  /** The category being named, in the console's own dialog rather than `prompt()`. */
+  const [naming, setNaming] = useState<
+    { mode: 'add' } | { mode: 'rename'; category: AdminMenuCategory } | null
+  >(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ list: 'category' | 'item'; index: number } | null>(
     null,
@@ -362,12 +367,7 @@ export function MenuEditorScreen() {
                       <button
                         type="button"
                         className="link-button"
-                        onClick={() => {
-                          const name = window.prompt(t('menu.category.rename'), category.name);
-                          if (name && name.trim()) {
-                            updateCategory.mutate({ categoryId: category.id, name: name.trim() });
-                          }
-                        }}
+                        onClick={() => setNaming({ mode: 'rename', category })}
                       >
                         {t('common:action.edit')}
                       </button>
@@ -385,16 +385,7 @@ export function MenuEditorScreen() {
             </ul>
           )}
 
-          <button
-            type="button"
-            className="button full"
-            onClick={() => {
-              const name = window.prompt(t('menu.category.addPrompt'));
-              if (name && name.trim()) {
-                createCategory.mutate({ name: name.trim(), displayOrder: categories.length });
-              }
-            }}
-          >
+          <button type="button" className="button full" onClick={() => setNaming({ mode: 'add' })}>
             {t('menu.category.add')}
           </button>
         </aside>
@@ -419,164 +410,166 @@ export function MenuEditorScreen() {
               {onlyIncomplete ? t('menu.incomplete.noneHere') : t('menu.item.empty')}
             </p>
           ) : (
-            <table className="menu-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t('menu.column.photo')}</th>
-                  <th scope="col">{t('menu.column.name')}</th>
-                  <th scope="col">{t('menu.column.price')}</th>
-                  <th scope="col">{t('menu.column.available')}</th>
-                  <th scope="col">{t('menu.column.complete')}</th>
-                  <th scope="col">
-                    <span className="visually-hidden">{t('menu.column.actions')}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleItems.map((item) => {
-                  const gaps = storedItemGaps(item);
-                  const index = (selected.items ?? []).indexOf(item);
-                  return (
-                    <tr
-                      key={item.id}
-                      // Addressable, so the reports screen can link straight at
-                      // a dish nobody ordered. Acting on that report means
-                      // editing this row, and a link that lands on the right
-                      // page but the wrong part of a sixty-item menu is a link
-                      // nobody follows twice.
-                      id={menuItemAnchorId(item.id)}
-                      draggable
-                      onDragStart={() => setDragging({ list: 'item', index })}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={() => {
-                        if (dragging?.list === 'item') {
-                          commitReorder('item', dragging.index, index);
+            <div className="table-scroll">
+              <table className="menu-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('menu.column.photo')}</th>
+                    <th scope="col">{t('menu.column.name')}</th>
+                    <th scope="col">{t('menu.column.price')}</th>
+                    <th scope="col">{t('menu.column.available')}</th>
+                    <th scope="col">{t('menu.column.complete')}</th>
+                    <th scope="col">
+                      <span className="visually-hidden">{t('menu.column.actions')}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleItems.map((item) => {
+                    const gaps = storedItemGaps(item);
+                    const index = (selected.items ?? []).indexOf(item);
+                    return (
+                      <tr
+                        key={item.id}
+                        // Addressable, so the reports screen can link straight at
+                        // a dish nobody ordered. Acting on that report means
+                        // editing this row, and a link that lands on the right
+                        // page but the wrong part of a sixty-item menu is a link
+                        // nobody follows twice.
+                        id={menuItemAnchorId(item.id)}
+                        draggable
+                        onDragStart={() => setDragging({ list: 'item', index })}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => {
+                          if (dragging?.list === 'item') {
+                            commitReorder('item', dragging.index, index);
+                          }
+                          setDragging(null);
+                        }}
+                        className={
+                          [
+                            gaps.length > 0 ? 'row-incomplete' : '',
+                            linkedItemId === item.id ? 'row-linked' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ') || undefined
                         }
-                        setDragging(null);
-                      }}
-                      className={
-                        [
-                          gaps.length > 0 ? 'row-incomplete' : '',
-                          linkedItemId === item.id ? 'row-linked' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ') || undefined
-                      }
-                    >
-                      <td>
-                        {item.photo.thumbnailUrl ? (
-                          <img
-                            src={item.photo.thumbnailUrl}
-                            alt=""
-                            width={40}
-                            height={40}
-                            className="menu-thumb"
-                          />
-                        ) : (
-                          <span className="menu-thumb menu-thumb-empty" aria-hidden />
-                        )}
-                      </td>
+                      >
+                        <td>
+                          {item.photo.thumbnailUrl ? (
+                            <img
+                              src={item.photo.thumbnailUrl}
+                              alt=""
+                              width={40}
+                              height={40}
+                              className="menu-thumb"
+                            />
+                          ) : (
+                            <span className="menu-thumb menu-thumb-empty" aria-hidden />
+                          )}
+                        </td>
 
-                      {/* Inline, saving on blur. Changing one price is the
+                        {/* Inline, saving on blur. Changing one price is the
                           single most common edit and it should not need a
                           dialog. */}
-                      <td>
-                        <input
-                          className="field inline-field"
-                          defaultValue={item.name}
-                          onBlur={(event) => {
-                            const name = event.target.value.trim();
-                            if (name && name !== item.name) {
-                              updateItem.mutate({ itemId: item.id, patch: { name } });
-                            }
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="field inline-field numeric"
-                          type="number"
-                          min={1}
-                          defaultValue={item.priceDram}
-                          onBlur={(event) => {
-                            const priceDram = Number(event.target.value);
-                            if (priceDram > 0 && priceDram !== item.priceDram) {
-                              updateItem.mutate({ itemId: item.id, patch: { priceDram } });
-                            }
-                          }}
-                        />
-                        <span className="small muted">{formatDram(item.priceDram, locale)}</span>
-                      </td>
-                      <td>
-                        <label className="switch">
+                        <td>
                           <input
-                            type="checkbox"
-                            checked={item.isAvailable}
-                            onChange={(event) =>
-                              setAvailability.mutate({
+                            className="field inline-field"
+                            defaultValue={item.name}
+                            onBlur={(event) => {
+                              const name = event.target.value.trim();
+                              if (name && name !== item.name) {
+                                updateItem.mutate({ itemId: item.id, patch: { name } });
+                              }
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="field inline-field numeric"
+                            type="number"
+                            min={1}
+                            defaultValue={item.priceDram}
+                            onBlur={(event) => {
+                              const priceDram = Number(event.target.value);
+                              if (priceDram > 0 && priceDram !== item.priceDram) {
+                                updateItem.mutate({ itemId: item.id, patch: { priceDram } });
+                              }
+                            }}
+                          />
+                          <span className="small muted">{formatDram(item.priceDram, locale)}</span>
+                        </td>
+                        <td>
+                          <label className="switch">
+                            <input
+                              type="checkbox"
+                              checked={item.isAvailable}
+                              onChange={(event) =>
+                                setAvailability.mutate({
+                                  itemId: item.id,
+                                  isAvailable: event.target.checked,
+                                })
+                              }
+                            />
+                            <span className="small">
+                              {item.isAvailable ? t('menu.available') : t('menu.soldOut')}
+                            </span>
+                          </label>
+                        </td>
+                        <td>
+                          {gaps.length === 0 ? (
+                            <span className="badge badge-ok">{t('menu.complete')}</span>
+                          ) : (
+                            <span className="badge badge-warn" title={gaps.join(', ')}>
+                              {t('menu.incomplete.badge', { count: gaps.length })}
+                            </span>
+                          )}
+                        </td>
+                        <td className="row-actions">
+                          <button
+                            type="button"
+                            className="link-button"
+                            onClick={() =>
+                              setEditing({
+                                mode: 'edit',
                                 itemId: item.id,
-                                isAvailable: event.target.checked,
+                                draft: itemToDraft(item),
+                                photo: item.photo.photoId ? item.photo : null,
                               })
                             }
-                          />
-                          <span className="small">
-                            {item.isAvailable ? t('menu.available') : t('menu.soldOut')}
-                          </span>
-                        </label>
-                      </td>
-                      <td>
-                        {gaps.length === 0 ? (
-                          <span className="badge badge-ok">{t('menu.complete')}</span>
-                        ) : (
-                          <span className="badge badge-warn" title={gaps.join(', ')}>
-                            {t('menu.incomplete.badge', { count: gaps.length })}
-                          </span>
-                        )}
-                      </td>
-                      <td className="row-actions">
-                        <button
-                          type="button"
-                          className="link-button"
-                          onClick={() =>
-                            setEditing({
-                              mode: 'edit',
-                              itemId: item.id,
-                              draft: itemToDraft(item),
-                              photo: item.photo.photoId ? item.photo : null,
-                            })
-                          }
-                        >
-                          {t('common:action.edit')}
-                        </button>
-                        {/* First-class, not buried: three sizes of one coffee
+                          >
+                            {t('common:action.edit')}
+                          </button>
+                          {/* First-class, not buried: three sizes of one coffee
                             differ by a name and a price and nothing else. */}
-                        <button
-                          type="button"
-                          className="link-button"
-                          onClick={() =>
-                            setEditing({
-                              mode: 'create',
-                              categoryId: item.categoryId,
-                              draft: duplicateDraft(item),
-                              photo: null,
-                            })
-                          }
-                        >
-                          {t('menu.item.duplicate')}
-                        </button>
-                        <button
-                          type="button"
-                          className="link-button danger"
-                          onClick={() => removeItem(item)}
-                        >
-                          {t('common:action.delete')}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          <button
+                            type="button"
+                            className="link-button"
+                            onClick={() =>
+                              setEditing({
+                                mode: 'create',
+                                categoryId: item.categoryId,
+                                draft: duplicateDraft(item),
+                                photo: null,
+                              })
+                            }
+                          >
+                            {t('menu.item.duplicate')}
+                          </button>
+                          <button
+                            type="button"
+                            className="link-button danger"
+                            onClick={() => removeItem(item)}
+                          >
+                            {t('common:action.delete')}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
@@ -599,6 +592,35 @@ export function MenuEditorScreen() {
 
       {bulkOpen ? (
         <BulkPhotoDrop branchId={branchId} items={allItems} onClose={() => setBulkOpen(false)} />
+      ) : null}
+
+      {naming ? (
+        <CategoryNameDialog
+          title={
+            naming.mode === 'add'
+              ? t('menu.category.addTitle')
+              : t('menu.category.renameTitle', { name: naming.category.name })
+          }
+          initialName={naming.mode === 'add' ? '' : naming.category.name}
+          submitLabel={
+            naming.mode === 'add' ? t('menu.category.addConfirm') : t('common:action.save')
+          }
+          isSaving={createCategory.isPending || updateCategory.isPending}
+          onCancel={() => setNaming(null)}
+          onSubmit={(name) => {
+            if (naming.mode === 'add') {
+              createCategory.mutate(
+                { name, displayOrder: categories.length },
+                { onSuccess: () => setNaming(null) },
+              );
+            } else {
+              updateCategory.mutate(
+                { categoryId: naming.category.id, name },
+                { onSuccess: () => setNaming(null) },
+              );
+            }
+          }}
+        />
       ) : null}
     </section>
   );

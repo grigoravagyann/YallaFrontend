@@ -1433,6 +1433,41 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       return toDetail(record);
     },
 
+    async updateVenue({ venueId, name, slug, type }) {
+      await wait();
+      const record = requireVenue(venueId);
+      const wanted = slug.trim().toLocaleLowerCase();
+      if ([...venues.values()].some((other) => other.id !== venueId && other.slug === wanted)) {
+        throw new SlugTakenError({ url: URL_TAG, slug: wanted });
+      }
+      record.name = name.trim();
+      record.slug = wanted;
+      record.type = type;
+      return toDetail(record);
+    },
+
+    async addBranch(command) {
+      await wait();
+      const record = requireVenue(command.venueId);
+      // The record keeps no branch slug; the managed view derives one from the
+      // name, so the same derivation is the collision the server would refuse.
+      const wanted = command.slug.trim().toLocaleLowerCase();
+      if (record.branches.some((branch) => slugify(branch.name) === wanted)) {
+        throw new SlugTakenError({ url: URL_TAG, slug: wanted });
+      }
+      sequence += 1;
+      record.branches.push({
+        id: `${record.id}-b${sequence}`,
+        venueId: record.id,
+        name: command.name.trim(),
+        timeZoneId: command.timeZoneId,
+        tableCount: 0,
+        subscriptionTier: 'free',
+        openTabCount: 0,
+      });
+      return toDetail(record);
+    },
+
     async suspendVenue({ venueId }) {
       await wait();
       const record = requireVenue(venueId);

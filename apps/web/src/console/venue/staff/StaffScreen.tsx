@@ -20,6 +20,7 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { useVenueOutlet } from '../VenueLayout';
 import { AddStaffDialog } from './AddStaffDialog';
+import { DeactivateDialog } from './DeactivateDialog';
 import { ChangeOwnPinDialog } from './ChangeOwnPinDialog';
 import { DevicesPanel } from './DevicesPanel';
 import { EditStaffDialog } from './EditStaffDialog';
@@ -101,6 +102,7 @@ export function StaffScreen() {
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deactivating, setDeactivating] = useState<StaffMember | null>(null);
   const [refusal, setRefusal] = useState<StaffPermissionError | null>(null);
   /**
    * The one moment a PIN or a sign-in link exists on screen. Cleared when the
@@ -253,13 +255,14 @@ export function StaffScreen() {
         setPrompt({ staffMemberId: member.id, email: member.email ?? '', failure: null });
         return;
       case 'deactivate':
+        // Asked first: the card vanishes on confirmation, and the way back
+        // (Show deactivated, Reactivate) should not have to be the undo.
+        setDeactivating(member);
+        return;
       case 'reactivate':
         // Deactivate, never delete — the API offers no delete. Somebody who
         // left in March and returns in June is a reactivation.
-        updateStaff.mutate({
-          staffMemberId: member.id,
-          patch: { isActive: action === 'reactivate' },
-        });
+        updateStaff.mutate({ staffMemberId: member.id, patch: { isActive: true } });
         return;
     }
   }
@@ -380,6 +383,20 @@ export function StaffScreen() {
           branch it was made for, not the one switched to. */}
       {branchId ? (
         <DevicesPanel key={branchId} branchId={branchId} timeZoneId={timeZoneId} locale={locale} />
+      ) : null}
+
+      {deactivating ? (
+        <DeactivateDialog
+          member={deactivating}
+          isSaving={updateStaff.isPending}
+          onConfirm={() =>
+            updateStaff.mutate(
+              { staffMemberId: deactivating.id, patch: { isActive: false } },
+              { onSuccess: () => setDeactivating(null) },
+            )
+          }
+          onCancel={() => setDeactivating(null)}
+        />
       ) : null}
 
       {creating ? (

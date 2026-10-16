@@ -9,10 +9,12 @@ import {
 } from 'react';
 import type { ConsoleGateway } from '../consoleGateway';
 import type {
+  AddBranchCommand,
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
   SubscriptionTier,
+  UpdateVenueCommand,
 } from '../contracts/console';
 import type {
   EditorFloorPlan,
@@ -478,6 +480,9 @@ function useVenueCommand<TInput>(run: (input: TInput) => Promise<ConsoleVenueDet
     onSuccess: (venue: ConsoleVenueDetail) => {
       queryClient.setQueryData(queryKeys.consoleVenue(venue.id), venue);
       void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+      // The venue section's own read carries the name and the branch list
+      // too, and a renamed venue or a new branch must reach it.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.managedVenue(venue.id) });
     },
   });
 }
@@ -506,6 +511,18 @@ export function useDeleteVenue() {
 export function useCreateVenue() {
   const gateway = useConsoleGateway();
   return useVenueCommand((command: CreateVenueCommand) => gateway.createVenue(command));
+}
+
+/** Platform admin only: name, web address and type. */
+export function useUpdateVenue() {
+  const gateway = useConsoleGateway();
+  return useVenueCommand((command: UpdateVenueCommand) => gateway.updateVenue(command));
+}
+
+/** Platform admin only. Answers with the whole venue, new branch included. */
+export function useAddBranch() {
+  const gateway = useConsoleGateway();
+  return useVenueCommand((command: AddBranchCommand) => gateway.addBranch(command));
 }
 
 /** Platform admin only. Answers with the whole venue, so the cache is replaced like the others. */

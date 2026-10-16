@@ -398,6 +398,7 @@ export { createConsoleHttpGateway, createMemoryIdentityStore } from './http/cons
 export type { ConsoleHttpGatewayOptions, ConsoleIdentityStore } from './http/consoleHttpGateway';
 
 export type {
+  AddBranchCommand,
   ConsoleBranch,
   ConsoleStaffMember,
   ConsoleUser,
@@ -410,6 +411,7 @@ export type {
   Page,
   StaffRole,
   SubscriptionTier,
+  UpdateVenueCommand,
   UserRole,
   UserScope,
   VenueStatus,
