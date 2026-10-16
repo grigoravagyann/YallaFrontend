@@ -205,13 +205,27 @@ describe('the rooms working copy', () => {
   it("applies the server's deletion: gone when removed, kept inactive when deactivated", () => {
     let state = reducer(loaded(), {
       type: 'deleted',
-      result: { tableId: 't2', label: '2', deleted: true, deactivated: false, message: '' },
+      result: {
+        tableId: 't2',
+        label: '2',
+        deleted: true,
+        deactivated: false,
+        message: '',
+        floorPlanVersion: '2',
+      },
     });
     expect(state.tables.some((t) => t.id === 't2')).toBe(false);
 
     state = reducer(state, {
       type: 'deleted',
-      result: { tableId: 't1', label: '1', deleted: false, deactivated: true, message: '' },
+      result: {
+        tableId: 't1',
+        label: '1',
+        deleted: false,
+        deactivated: true,
+        message: '',
+        floorPlanVersion: '3',
+      },
     });
     expect(table(state, 't1').isActive).toBe(false);
     expect(toSaveCommand(state).tables).toEqual([]);
