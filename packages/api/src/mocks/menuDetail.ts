@@ -286,7 +286,18 @@ export function mockBranchMenu(branchId: string, venueType: 'cafe' | 'restaurant
  * what a diner is allowed to see of it.
  */
 export function isPublishable(item: MenuItemDetail): boolean {
-  return item.allergens.trim() !== '' && Boolean(item.photo?.thumbnailUrl);
+  // `MenuItemCompleteness.Rule`, field for field: a photo, a description,
+  // ingredients, allergens, a portion size and a positive prep time. The mock
+  // checked two of the six, so the diner saw dishes the console had marked
+  // "hidden until finished" (QA F9).
+  return (
+    Boolean(item.photo?.thumbnailUrl) &&
+    item.description.trim() !== '' &&
+    item.ingredients.trim() !== '' &&
+    item.allergens.trim() !== '' &&
+    item.portionSize.trim() !== '' &&
+    item.prepMinutes > 0
+  );
 }
 
 /**

@@ -46,6 +46,44 @@ function instantOn(dateKey: string, clock: string, timeZone: TimeZone): Date {
 }
 
 /**
+ * Does one opening block hold the whole sitting?
+ *
+ * `ReservationRules.CheckOpeningHours`, as the server applies it: the day the
+ * sitting starts and the day before (for an after-midnight closer) are walked,
+ * and the sitting passes when `start >= opensAt && end <= closesAt` for any
+ * block of either day. A sitting that starts inside the hours and runs past
+ * closing is outside them.
+ */
+export function coversSitting(
+  weeklyHours: WeeklyHours,
+  startUtc: Date,
+  endUtc: Date,
+  timeZone: TimeZone,
+): boolean {
+  const dateKey = branchDayKey(startUtc, timeZone);
+  const byDay = new Map<WeekdayIndex, WeeklyHours[number]>();
+  for (const entry of weeklyHours) byDay.set(entry.day, entry);
+
+  for (const offset of [-1, 0]) {
+    const key = dateKeyOffsetBy(dateKey, offset);
+    const entry = byDay.get(weekdayOf(key));
+    if (!entry) continue;
+    for (const block of entry.blocks) {
+      const opens = instantOn(key, block.opensAt, timeZone);
+      const closes = instantOn(
+        closesNextDay(block) ? dateKeyOffsetBy(key, 1) : key,
+        block.closesAt,
+        timeZone,
+      );
+      if (startUtc.getTime() >= opens.getTime() && endUtc.getTime() <= closes.getTime()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Is the branch serving right now, and until (or from) when?
  *
  * Walks yesterday, today and tomorrow. Yesterday because of the 01:00 closer;
