@@ -129,9 +129,13 @@ export async function resolveLiveSubject(baseUrl: string): Promise<ContractSubje
     );
   }
 
-  const pin = randomPin();
-  await admin.setStaffPin({ venueId, staffMemberId: waiter.id, pin });
-  await admin.setStaffPin({ venueId, staffMemberId: manager.id, pin });
+  // Two different PINs: the server refuses a PIN somebody else on the same
+  // tablet already uses (`pin-taken`), and the waiter and the manager share one.
+  const waiterPin = randomPin();
+  let managerPin = randomPin();
+  while (managerPin === waiterPin) managerPin = randomPin();
+  await admin.setStaffPin({ venueId, staffMemberId: waiter.id, pin: waiterPin });
+  await admin.setStaffPin({ venueId, staffMemberId: manager.id, pin: managerPin });
 
   const { code } = await admin.createEnrolmentCode(branchId);
   const staffAuth = createStaffAuth(anonymous);
@@ -142,11 +146,11 @@ export async function resolveLiveSubject(baseUrl: string): Promise<ContractSubje
   });
   const waiterSession = await staffAuth.signInWithPin(tablet.deviceToken, {
     staffMemberId: waiter.id,
-    pin,
+    pin: waiterPin,
   });
   const managerSession = await staffAuth.signInWithPin(tablet.deviceToken, {
     staffMemberId: manager.id,
-    pin,
+    pin: managerPin,
   });
 
   // --- 4. A menu to compare ---------------------------------------------------------
