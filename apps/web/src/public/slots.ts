@@ -61,6 +61,12 @@ export interface DefaultSlotRules {
   readonly minLeadMinutes: number;
   /** The week's hours, as the page prints them. Empty when none are published. */
   readonly weeklyHours: WeeklyHours;
+  /**
+   * How long a booking holds the table. The server takes a booking only when
+   * the whole sitting fits inside one opening block, so 23:30 with two-hour
+   * sittings at a venue closing at 01:00 is "closed". Zero when unknown.
+   */
+  readonly turnTimeMinutes?: number;
 }
 
 const HALF_HOUR_MS = SLOT_MINUTES * 60_000;
@@ -86,7 +92,8 @@ function sittingsAround(
   for (const entry of weeklyHours) byDay.set(entry.day, entry);
 
   const sittings: { start: Date; end: Date }[] = [];
-  for (const offset of [-1, 0, 1, 2]) {
+  // A week and a day ahead: a venue shut for the weekend still has a next sitting.
+  for (let offset = -1; offset <= 8; offset += 1) {
     const key = addDays(dateKey, offset);
     const [year, month, day] = key.split('-').map(Number) as [number, number, number];
     const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
@@ -142,8 +149,13 @@ export function defaultSelection(
   // published, or a venue shut for three days — leaves the earliest slot, which
   // the availability query then answers honestly.
   const sittings = sittingsAround(branchDayKey(now, timeZoneId), rules.weeklyHours, timeZoneId);
-  const sitting = sittings.find((span) => earliest.getTime() < span.end.getTime());
-  const slot = sitting && earliest.getTime() < sitting.start.getTime() ? sitting.start : earliest;
+  const turnMs = (rules.turnTimeMinutes ?? 0) * 60_000;
+  const startIn = (span: { start: Date }) =>
+    earliest.getTime() < span.start.getTime() ? span.start : earliest;
+  const sitting = sittings.find(
+    (span) => startIn(span).getTime() + Math.max(turnMs, 1) <= span.end.getTime(),
+  );
+  const slot = sitting ? startIn(sitting) : earliest;
 
   return {
     date: branchDayKey(slot, timeZoneId),

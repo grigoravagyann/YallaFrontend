@@ -74,9 +74,14 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
 
   // The first slot the venue would accept — past its lead time and inside its
   // hours — rather than the next half hour, which at 01:21 is "too soon".
+  // The whole sitting has to fit before closing, as the server checks it.
   const slotRules = useMemo(
-    () => ({ minLeadMinutes: branch.policy.minLeadMinutes, weeklyHours: branch.weeklyHours }),
-    [branch.policy.minLeadMinutes, branch.weeklyHours],
+    () => ({
+      minLeadMinutes: branch.policy.minLeadMinutes,
+      turnTimeMinutes: branch.policy.turnTimeMinutes,
+      weeklyHours: branch.weeklyHours,
+    }),
+    [branch.policy.minLeadMinutes, branch.policy.turnTimeMinutes, branch.weeklyHours],
   );
   const [selection, setSelection] = useState<SlotSelection>(() =>
     defaultSelection(branch.timeZoneId, new Date(), slotRules),
