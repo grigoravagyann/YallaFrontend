@@ -2,6 +2,7 @@ import { resolveGateway, type YallaGateway } from '@yalla/api';
 import { authSession } from '../auth/session';
 import { apiConfig, dataSource } from '../config';
 import { installDeviceId } from '../lib/deviceId';
+import { tabTokenStorage } from '../lib/tabMemory';
 
 /**
  * The app's single data source.
@@ -19,6 +20,9 @@ export const gateway: YallaGateway = resolveGateway({
   // One id per install, kept in the secure store. Opening or joining a tab
   // requires it: it is how the server knows a re-scan is the same phone.
   deviceId: installDeviceId,
+  // The participant token each tab issued this install, so a reload or a tab's
+  // link re-attaches instead of saying the tab closed.
+  tabTokens: tabTokenStorage,
   // Enough delay that loading states are actually visible while developing.
   mockLatencyMs: 250,
   // Set EXPO_PUBLIC_SIMULATE_TABLE_TAKEN=1 to make the next booking lose the
