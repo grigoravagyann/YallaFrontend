@@ -146,6 +146,11 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
                     >
                       {t(`panel.orders.advance.${next}`)}
                     </button>
+                  ) : role === 'kitchen' && order.status === 'new' ? (
+                    // The server lets only a waiter send an order to the
+                    // kitchen, so the pass is told what it is waiting for
+                    // rather than shown a card with nothing to do.
+                    <p className="table-note">{t('panel.orders.awaitingWaiter')}</p>
                   ) : null}
                 </li>
               );

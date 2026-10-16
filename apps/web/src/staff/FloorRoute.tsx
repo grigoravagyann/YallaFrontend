@@ -248,6 +248,13 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
 
   // --- Live updates ---------------------------------------------------------
 
+  /**
+   * Whether the change stream's last poll reached the server. The floor query
+   * is the other half of the answer: a resync is a request *it* makes, so its
+   * own outcome is read directly when the chip is computed below.
+   */
+  const [streamFailing, setStreamFailing] = useState(false);
+
   useEffect(() => {
     if (!branchId || !active) return;
 
@@ -256,6 +263,7 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
       branchId,
       handlers: {
         onChanges: (changes) => {
+          setStreamFailing(false);
           // Fold in incrementally; a gap, an unknown table, or a change whose
           // drawn state cannot be derived falls through to a full refetch
           // rather than being patched around.
@@ -272,11 +280,14 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           }
         },
         onResync: () => {
+          setStreamFailing(false);
           void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId) });
         },
         onError: () => {
-          /* The header already reports the connection; a toast per poll would
-             be noise on a screen nobody can dismiss things on. */
+          // Reported through the header's chip, which is the one place a
+          // waiter looks; a toast per poll would be noise on a screen nobody
+          // can dismiss things on.
+          setStreamFailing(true);
         },
       },
     });
@@ -546,7 +557,13 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   // --- Render ---------------------------------------------------------------
 
   const offline = !queue.online;
-  const state = useConnectionState({ lastError: floorQuery.error, offline });
+  // The floor read is the poll that matters: every resync is one of its
+  // fetches, and a failed one leaves `isError` set beside the data it kept.
+  const state = useConnectionState({
+    lastError: floorQuery.error,
+    offline,
+    polling: streamFailing || floorQuery.isError ? 'failing' : floorQuery.data ? 'ok' : 'unknown',
+  });
   const branchName = floor?.plan.branchName;
 
   const unresolvedList = useMemo(
