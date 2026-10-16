@@ -537,6 +537,10 @@ export function useSetBranchTier() {
  * Reference data, not live state: this is furniture, and it changes when
  * somebody edits it. Refetching on window focus would silently replace a
  * half-drawn room with the server's copy, so it does not.
+ *
+ * It is read afresh every time the editor opens, though: the editor loads one
+ * copy and works on it, and a cached copy can carry a QR code another tab has
+ * since replaced — printed from here, a sticker that never worked.
  */
 export function useEditorFloorPlan(branchId: string | undefined) {
   const gateway = useConsoleGateway();
@@ -546,6 +550,7 @@ export function useEditorFloorPlan(branchId: string | undefined) {
     enabled: Boolean(branchId),
     staleTime: staleTime.reference,
     refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
   });
 }
 
@@ -627,10 +632,28 @@ export function useBranchReadiness(branchId: string | undefined) {
   });
 }
 
+/**
+ * Replace a table's QR code. The old sticker stops working at once, so every
+ * cached plan holding the table takes the new token: the editor must never
+ * show, or print, the dead one. It does not move the plan's `version`.
+ */
 export function useRegenerateTableQr() {
   const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { tableId: string }) => gateway.regenerateTableQr(input),
+    onSuccess: ({ qrToken }, { tableId }) => {
+      queryClient.setQueriesData<EditorFloorPlan>({ queryKey: ['console', 'floorPlan'] }, (plan) =>
+        plan?.tables.some((table) => table.id === tableId)
+          ? {
+              ...plan,
+              tables: plan.tables.map((table) =>
+                table.id === tableId ? { ...table, qrToken } : table,
+              ),
+            }
+          : plan,
+      );
+    },
   });
 }
 
