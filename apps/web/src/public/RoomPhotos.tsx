@@ -2,8 +2,11 @@ import type { DerivedTableState, FloorTable, PublicRoom } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 
-/** The three colours a visitor reads a pin by. */
-export type PinTone = 'free' | 'booked' | 'occupied';
+/**
+ * The four colours a visitor reads a pin by — the diner's and the staff's
+ * four: a table out of service is grey, never the occupied red.
+ */
+export type PinTone = 'free' | 'booked' | 'occupied' | 'outOfService';
 
 export function pinTone(state: DerivedTableState): PinTone {
   switch (state) {
@@ -13,8 +16,9 @@ export function pinTone(state: DerivedTableState): PinTone {
     case 'held':
       return 'booked';
     case 'occupied':
-    case 'outOfService':
       return 'occupied';
+    case 'outOfService':
+      return 'outOfService';
   }
 }
 
@@ -43,7 +47,8 @@ export interface RoomPhotosProps {
  *
  * A visitor picks a room, then moves through its photos with the arrows, the
  * arrow keys or a swipe. Pins are coloured by the table's state **at the slot
- * picked above** — green free, orange booked, red occupied — and a free pin the
+ * picked above** — green free, orange booked, red occupied, grey out of
+ * service — and a free pin the
  * server would give this party starts the booking. Every pin is a button named
  * "Table 4, free", so the colours are never the only way to know.
  */
@@ -125,7 +130,7 @@ export default function RoomPhotos({
       ) : null}
 
       <ul className="pub-legend" aria-label={t('room.legendLabel')}>
-        {(['free', 'booked', 'occupied'] as const).map((tone) => (
+        {(['free', 'booked', 'occupied', 'outOfService'] as const).map((tone) => (
           <li key={tone}>
             <span className={`pub-pin-dot tone-${tone}`} aria-hidden="true" />
             {t(`room.legend.${tone}`)}

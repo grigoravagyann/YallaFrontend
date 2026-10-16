@@ -36,12 +36,14 @@
     "status": {
       "free": "free",
       "booked": "booked",
-      "occupied": "occupied"
+      "occupied": "occupied",
+      "outOfService": "out of service"
     },
     "legend": {
       "free": "Free",
       "booked": "Booked",
-      "occupied": "Occupied"
+      "occupied": "Occupied",
+      "outOfService": "Out of service"
     }
   },
   "menu": {

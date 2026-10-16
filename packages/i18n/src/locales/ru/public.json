@@ -38,12 +38,14 @@
     "status": {
       "free": "свободен",
       "booked": "забронирован",
-      "occupied": "занят"
+      "occupied": "занят",
+      "outOfService": "не обслуживается"
     },
     "legend": {
       "free": "Свободен",
       "booked": "Забронирован",
-      "occupied": "Занят"
+      "occupied": "Занят",
+      "outOfService": "Не обслуживается"
     }
   },
   "menu": {

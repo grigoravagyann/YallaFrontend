@@ -484,6 +484,12 @@
   color: var(--table-occupied-label);
 }
 
+.pub-pin.tone-outOfService,
+.pub-pin-dot.tone-outOfService {
+  background: var(--table-out-of-service-fill);
+  color: var(--table-out-of-service-label);
+}
+
 .pub-pin-dot {
   display: inline-block;
   width: 0.875rem;

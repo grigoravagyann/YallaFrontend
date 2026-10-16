@@ -66,6 +66,7 @@ const TABLES: readonly FloorTable[] = [
   table('a', '1', 'h1'),
   table('b', '2', 'h1', { state: 'reservedSoon', isBookable: false }),
   table('c', '3', 'h1', { state: 'occupied', isBookable: false }),
+  table('f', '6', 'h1', { state: 'outOfService', isBookable: false }),
   table('d', '4', 'h2', { state: 'held', isBookable: false }),
   table('e', '5', 't1'),
 ];
@@ -101,6 +102,8 @@ describe('the rooms on the public page', () => {
     expect(tone('Table 1, free')).toBe('free');
     expect(tone('Table 2, booked')).toBe('booked');
     expect(tone('Table 3, occupied')).toBe('occupied');
+    // Out of service is its own grey, never the occupied red.
+    expect(tone('Table 6, out of service')).toBe('outOfService');
     // Table 4 is on the second photo, table 5 in another room.
     expect(screen.queryByRole('button', { name: /^Table 4,/u })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Table 5,/u })).toBeNull();

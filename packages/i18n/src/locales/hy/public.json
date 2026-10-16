@@ -36,12 +36,14 @@
     "status": {
       "free": "ազատ",
       "booked": "ամրագրված",
-      "occupied": "զբաղված"
+      "occupied": "զբաղված",
+      "outOfService": "սպասարկման մեջ չէ"
     },
     "legend": {
       "free": "Ազատ",
       "booked": "Ամրագրված",
-      "occupied": "Զբաղված"
+      "occupied": "Զբաղված",
+      "outOfService": "Սպասարկման մեջ չէ"
     }
   },
   "menu": {
