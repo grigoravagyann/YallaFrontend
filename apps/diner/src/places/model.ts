@@ -13,8 +13,8 @@ export type PlaceType = 'restaurant' | 'cafe';
 /** Content badges. Never "open" or "closed" — availability is `openState`. */
 export type PlaceBadge = 'popular' | 'new';
 
-/** Live state of one table, as the photo markers show it. */
-export type TableStatus = 'free' | 'reserved' | 'occupied';
+/** Live state of one table, as the photo pins show it. Out of service is grey, never offered. */
+export type TableStatus = 'free' | 'reserved' | 'occupied' | 'outOfService';
 
 /** A weekday as `Date#getDay` counts them: 0 = Sunday … 6 = Saturday. */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;

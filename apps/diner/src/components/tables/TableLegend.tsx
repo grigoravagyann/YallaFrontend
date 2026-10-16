@@ -4,7 +4,7 @@ import type { TableStatus } from '../../places/model';
 import { colors, radius, space, tableStatusColor, typography } from '../../theme';
 import { Text } from '../Text';
 
-const STATUSES: readonly TableStatus[] = ['free', 'reserved', 'occupied'];
+const STATUSES: readonly TableStatus[] = ['free', 'reserved', 'occupied', 'outOfService'];
 
 export interface TableLegendProps {
   /** `light` text on white; `dark` white text for the fullscreen view. */
@@ -12,7 +12,7 @@ export interface TableLegendProps {
   readonly style?: StyleProp<ViewStyle>;
 }
 
-/** ● Free ● Reserved ● Occupied — colour and the word, never one without the other. */
+/** ● Free ● Reserved ● Occupied ● Out of service — colour and the word, never one without the other. */
 export function TableLegend({ tone = 'light', style }: TableLegendProps) {
   const { t } = useTranslation('diner');
   const color = tone === 'dark' ? colors.onImage : colors.textMuted;

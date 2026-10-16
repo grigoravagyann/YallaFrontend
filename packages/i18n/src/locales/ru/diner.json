@@ -833,12 +833,14 @@
     "status": {
       "free": "Свободен",
       "reserved": "Забронирован",
-      "occupied": "Занят"
+      "occupied": "Занят",
+      "outOfService": "Не обслуживается"
     },
     "legend": {
       "free": "Свободен",
       "reserved": "Забронирован",
-      "occupied": "Занят"
+      "occupied": "Занят",
+      "outOfService": "Не обслуживается"
     },
     "table": "Стол {{label}}",
     "capacity": "{{min}}–{{max}} чел.",

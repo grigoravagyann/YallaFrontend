@@ -176,6 +176,49 @@ describe('places over /api/public/branches', () => {
     expect(rooms).toEqual({ branchId: BRANCH, asOfUtc: '2026-09-14T10:00:00Z', rooms: [] });
   });
 
+  it('names each live state a pin can be drawn in, out of service its own', async () => {
+    const pin = (tableId: string, state: number) => ({
+      tableId,
+      label: tableId,
+      seats: 2,
+      isBookable: true,
+      state,
+      photoX: 0.5,
+      photoY: 0.5,
+    });
+    const { gateway } = gatewayOver({
+      [`GET /api/public/branches/${BRANCH}/rooms`]: {
+        body: {
+          branchId: BRANCH,
+          asOfUtc: '2026-09-14T10:00:00Z',
+          rooms: [
+            {
+              roomId: 'r-hall',
+              name: 'Hall',
+              displayOrder: 0,
+              photos: [
+                {
+                  photo: { photoId: 'p1', thumbnailUrl: '/t', cardUrl: '/c', fullUrl: '/f' },
+                  tables: [pin('a', 1), pin('b', 2), pin('c', 3), pin('d', 4), pin('e', 5)],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    const rooms = await gateway.getBranchRooms(BRANCH);
+
+    expect(rooms?.rooms[0]?.photos[0]?.tables.map((table) => table.status)).toEqual([
+      'free',
+      'reserved',
+      'reserved',
+      'occupied',
+      'outOfService',
+    ]);
+  });
+
   it('answers null for an unknown branch rather than failing', async () => {
     const { gateway } = gatewayOver({
       [`GET /api/public/branches/${BRANCH}`]: problemReply(404, 'not-found'),

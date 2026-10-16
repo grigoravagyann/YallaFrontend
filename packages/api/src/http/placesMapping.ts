@@ -68,12 +68,14 @@ export function venueTypeCode(type: VenueType): 1 | 2 {
 }
 
 /**
- * `DerivedTableState` onto the photo's three colours: 1 Free → free;
- * 2 ReservedSoon, 3 Held → reserved; 4 Occupied, 5 OutOfService → occupied.
+ * `DerivedTableState` onto the photo's four colours: 1 Free → free;
+ * 2 ReservedSoon, 3 Held → reserved; 4 Occupied → occupied; 5 OutOfService →
+ * outOfService. Anything newer reads as occupied: never offered.
  */
 export function markerStatusFromState(state: number): MarkerStatus {
   if (state === 1) return 'free';
   if (state === 2 || state === 3) return 'reserved';
+  if (state === 5) return 'outOfService';
   return 'occupied';
 }
 

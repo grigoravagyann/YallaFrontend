@@ -14,8 +14,12 @@ import type { Photo } from './menuAdmin';
 
 export type BranchBadge = 'popular' | 'new';
 
-/** Live table state as the photo markers draw it — the staff floor's rule, collapsed to three. */
-export type MarkerStatus = 'free' | 'reserved' | 'occupied';
+/**
+ * Live table state as the photo pins draw it — the staff floor's rule,
+ * collapsed to four: free, reserved (soon, or held), occupied, and out of
+ * service, which is neither taken nor on offer.
+ */
+export type MarkerStatus = 'free' | 'reserved' | 'occupied' | 'outOfService';
 
 /** One entry of `GET /api/public/branches` and `/search`. */
 export interface BranchListing {

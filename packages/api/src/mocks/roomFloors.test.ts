@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createMockGateway } from './mockGateway';
 import { createPublicMockGateway } from './publicMock';
 import { createStaffMockGateway } from './staffMock';
-import { cafeFloorPlan } from './roomFloors';
+import { cafeFloorPlan, publicRooms } from './roomFloors';
 import { findBranch } from './venues';
 
 /**
@@ -33,11 +33,32 @@ describe('the mock rooms', () => {
     const pins = rooms!.rooms.flatMap((room) => room.photos.flatMap((photo) => photo.tables));
     expect(pins.length).toBe(22);
     expect(new Set(pins.map((pin) => pin.status))).toEqual(
-      new Set(['free', 'reserved', 'occupied']),
+      new Set(['free', 'reserved', 'occupied', 'outOfService']),
     );
 
     const detail = await gateway.getBranchDetail('b-lumen-north');
     expect(detail?.rooms).toEqual(rooms?.rooms);
+  });
+
+  it('draws an out-of-service pin as out of service, as the server does', () => {
+    const photo = {
+      photoId: 'p1',
+      thumbnailUrl: '',
+      cardUrl: '',
+      fullUrl: '',
+      width: 4,
+      height: 3,
+    };
+    const table = {
+      ...cafeFloorPlan.tables[0]!,
+      state: 'outOfService' as const,
+      pin: { photoId: 'p1', x: 0.5, y: 0.5 },
+    };
+    const rooms = publicRooms(
+      [{ roomId: 'r', name: 'Hall', displayOrder: 0, photos: [photo] }],
+      [table],
+    );
+    expect(rooms[0]?.photos[0]?.tables[0]?.status).toBe('outOfService');
   });
 
   it('offers only pinned tables in availability, each with its pin on the slot floor', async () => {

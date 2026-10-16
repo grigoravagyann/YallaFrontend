@@ -267,7 +267,7 @@ export function restaurantRoomFloor(branchId: string): MockRoomFloor {
 
 /**
  * The public rooms read: rooms that have a photo, each photo with the tables
- * pinned on it by label, states collapsed to the three a diner sees.
+ * pinned on it by label, states collapsed to the four a diner sees.
  */
 export function publicRooms(
   rooms: readonly MockRoom[],
@@ -289,14 +289,16 @@ export function publicRooms(
             label: table.label,
             seats: table.seats,
             isBookable: table.isBookable,
-            // The server's collapse: reserved soon and held are "reserved",
-            // occupied and out of service are "occupied".
+            // The server's collapse: reserved soon and held are "reserved";
+            // occupied and out of service keep their own names.
             status:
               table.state === 'free'
                 ? ('free' as const)
                 : table.state === 'reservedSoon' || table.state === 'held'
                   ? ('reserved' as const)
-                  : ('occupied' as const),
+                  : table.state === 'outOfService'
+                    ? ('outOfService' as const)
+                    : ('occupied' as const),
             x: table.pin!.x,
             y: table.pin!.y,
           })),

@@ -119,6 +119,7 @@ export const tableStatusColor = {
   free: colors.success,
   reserved: colors.warning,
   occupied: colors.error,
+  outOfService: colors.neutralBadge,
 } as const;
 
 /** Content badges on hero cards and in the details hero. */

@@ -807,12 +807,14 @@
     "status": {
       "free": "Ազատ",
       "reserved": "Ամրագրված",
-      "occupied": "Զբաղված"
+      "occupied": "Զբաղված",
+      "outOfService": "Սպասարկման մեջ չէ"
     },
     "legend": {
       "free": "Ազատ",
       "reserved": "Ամրագրված",
-      "occupied": "Զբաղված"
+      "occupied": "Զբաղված",
+      "outOfService": "Սպասարկման մեջ չէ"
     },
     "table": "Սեղան {{label}}",
     "capacity": "{{min}}–{{max}} հոգի",

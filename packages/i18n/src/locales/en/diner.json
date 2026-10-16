@@ -807,12 +807,14 @@
     "status": {
       "free": "Free",
       "reserved": "Reserved",
-      "occupied": "Occupied"
+      "occupied": "Occupied",
+      "outOfService": "Out of service"
     },
     "legend": {
       "free": "Free",
       "reserved": "Reserved",
-      "occupied": "Occupied"
+      "occupied": "Occupied",
+      "outOfService": "Out of service"
     },
     "table": "Table {{label}}",
     "capacity": "{{min}}–{{max}} people",
