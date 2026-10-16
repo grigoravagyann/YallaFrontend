@@ -4857,7 +4857,11 @@ export interface components {
          *     omitted tables were deactivated rather than deleted because they have history.
          */
         "Yalla.Application.BranchSettings.FloorPlanReplaceResult": {
-            /** @description Labels of omitted tables kept, inactive, because they have history. */
+            /**
+             * @description Labels of tables this save took out of service: active before, left out, kept inactive because
+             *     they have history. Not the tables already inactive - the editor leaves those out of every save,
+             *     and reporting them each time would announce a change nobody made.
+             */
             deactivatedTables: string[];
             /** @description The plan now stored. */
             plan: components["schemas"]["Yalla.Application.BranchSettings.FloorPlanView"];

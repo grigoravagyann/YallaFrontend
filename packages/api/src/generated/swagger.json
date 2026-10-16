@@ -19379,7 +19379,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Labels of omitted tables kept, inactive, because they have history."
+            "description": "Labels of tables this save took out of service: active before, left out, kept inactive because\nthey have history. Not the tables already inactive - the editor leaves those out of every save,\nand reporting them each time would announce a change nobody made."
           },
           "removedTables": {
             "type": "array",
