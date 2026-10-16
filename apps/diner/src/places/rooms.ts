@@ -26,8 +26,38 @@ export function statusAtSlot(state: DerivedTableState): TableStatus {
   }
 }
 
-const byLabel = (a: TablePhotoMarker, b: TablePhotoMarker) =>
-  a.label.localeCompare(b.label, undefined, { numeric: true });
+/**
+ * "2" before "10", "A2" before "A10": labels compared run by run, digits by
+ * their value and the rest as case-folded text, a number before a word.
+ *
+ * Not `localeCompare(…, { numeric: true })`: Hermes' Collator may ignore the
+ * option and compare code units, which puts table 10 before table 2.
+ */
+function compareLabels(a: string, b: string): number {
+  const runs = (label: string) => label.match(/\d+|\D+/gu) ?? [];
+  const left = runs(a);
+  const right = runs(b);
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    const x = left[i]!;
+    const y = right[i]!;
+    const xNumber = /^\d/u.test(x);
+    const yNumber = /^\d/u.test(y);
+    if (xNumber && yNumber) {
+      const difference = Number(x) - Number(y);
+      if (difference !== 0) return difference;
+    } else if (xNumber !== yNumber) {
+      return xNumber ? -1 : 1;
+    } else {
+      const xText = x.toLowerCase();
+      const yText = y.toLowerCase();
+      if (xText !== yText) return xText < yText ? -1 : 1;
+    }
+  }
+  if (left.length !== right.length) return left.length - right.length;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+const byLabel = (a: TablePhotoMarker, b: TablePhotoMarker) => compareLabels(a.label, b.label);
 
 /**
  * The rooms with every table of the slot floor on the photo its pin names.

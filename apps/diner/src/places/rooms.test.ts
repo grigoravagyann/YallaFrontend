@@ -1,5 +1,5 @@
 import type { FloorTable } from '@yalla/api';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlaceRoom } from './model';
 import { photoBox, roomOfTable, roomsAtSlot, statusAtSlot } from './rooms';
 
@@ -94,6 +94,38 @@ describe('roomsAtSlot', () => {
   it("takes the slot's own verdict on which tables this party can book, when given one", () => {
     const rooms = roomsAtSlot(ROOMS, tables, (tableId) => tableId !== '10');
     expect(rooms[0]!.photos[1]!.tables.find((t) => t.tableId === '10')?.isBookable).toBe(false);
+  });
+});
+
+describe('label order', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('orders labels by their numbers, then their text, without the Collator', () => {
+    // Hermes' localeCompare may ignore `{ numeric: true }` and compare code
+    // units: "10" before "2". Emulate that, and the order must still hold.
+    vi.spyOn(String.prototype, 'localeCompare').mockImplementation(function (
+      this: string,
+      other: string,
+    ) {
+      return this < other ? -1 : this > other ? 1 : 0;
+    });
+    const labels = ['10', 'A10', '2', 'Bar', 'A2', '1', 'a3'];
+    const pinned = roomsAtSlot(
+      ROOMS,
+      labels.map((label, i) => ({
+        ...table(`t${i}`, 'free', { photoId: 'h1', x: 0.5, y: 0.5 }),
+        label,
+      })),
+    );
+    expect(pinned[0]!.photos[0]!.tables.map((t) => t.label)).toEqual([
+      '1',
+      '2',
+      '10',
+      'A2',
+      'a3',
+      'A10',
+      'Bar',
+    ]);
   });
 });
 
