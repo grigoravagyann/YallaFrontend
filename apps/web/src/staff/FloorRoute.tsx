@@ -52,6 +52,7 @@ import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
 import { useConnectionState } from './useConnectionState';
+import { seatedMinutes } from './seatedMinutes';
 
 /**
  * The floor screen: the whole product, on a counter.
@@ -606,11 +607,12 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                   selectedTableId={selection?.tableId ?? null}
                   pendingTableIds={pendingTableIds}
                   onSelect={(tableId) => setSelection({ tableId })}
-                  seatedFor={(table) =>
-                    table.occupiedSinceUtc
-                      ? t('table.minutes', { count: format.minutesSince(table.occupiedSinceUtc) })
-                      : null
-                  }
+                  seatedFor={(table) => {
+                    const minutes = table.occupiedSinceUtc
+                      ? seatedMinutes(format.minutesSince(table.occupiedSinceUtc))
+                      : null;
+                    return minutes === null ? null : t('table.minutes', { count: minutes });
+                  }}
                 />
 
                 {selection && selectedTable ? (
