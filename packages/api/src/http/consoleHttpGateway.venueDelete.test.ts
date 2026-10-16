@@ -53,7 +53,9 @@ describe('deleting a venue that is still in use, over HTTP', () => {
   it('names the open tables and the upcoming bookings the server listed', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(blocked(['4'], ['K7Q2LM', 'R9XP3D']));
 
-    const error = await caught(gatewayOver(fetchImpl).deleteVenue({ venueId: 'v-1' }));
+    const error = await caught(
+      gatewayOver(fetchImpl).deleteVenue({ venueId: 'v-1', commandId: 'cmd-1' }),
+    );
 
     expect(error).toBeInstanceOf(VenueDeletionBlockedError);
     const refusal = error as VenueDeletionBlockedError;
@@ -68,6 +70,7 @@ describe('deleting a venue that is still in use, over HTTP', () => {
     const onlyBookings = await caught(
       gatewayOver(vi.fn().mockResolvedValue(blocked([], ['K7Q2LM']))).deleteVenue({
         venueId: 'v-1',
+        commandId: 'cmd-1',
       }),
     );
     expect(onlyBookings).toBeInstanceOf(VenueDeletionBlockedError);
@@ -79,7 +82,10 @@ describe('deleting a venue that is still in use, over HTTP', () => {
       { status: 409, headers: { 'content-type': 'application/problem+json' } },
     );
     const noContext = await caught(
-      gatewayOver(vi.fn().mockResolvedValue(bare)).deleteVenue({ venueId: 'v-1' }),
+      gatewayOver(vi.fn().mockResolvedValue(bare)).deleteVenue({
+        venueId: 'v-1',
+        commandId: 'cmd-1',
+      }),
     );
     expect(noContext).toBeInstanceOf(VenueDeletionBlockedError);
     expect((noContext as VenueDeletionBlockedError).openTables).toEqual([]);
