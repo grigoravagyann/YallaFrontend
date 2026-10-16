@@ -118,7 +118,18 @@ function usePhotoSize(photo: RoomPhoto): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photo.url, photo.width, photo.height]);
   const url = photo.url;
-  const onLoad = useCallback((size: Size | null) => setLoaded({ url, size }), [url]);
+  // The same answer again keeps the same state: a load must not re-render for nothing.
+  const onLoad = useCallback(
+    (size: Size | null) =>
+      setLoaded((current) =>
+        current?.url === url &&
+        current.size?.width === size?.width &&
+        current.size?.height === size?.height
+          ? current
+          : { url, size },
+      ),
+    [url],
+  );
 
   const asked = measured?.url === url ? measured : null;
   const seen = loaded?.url === url ? loaded : null;

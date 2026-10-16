@@ -219,6 +219,44 @@ describe('RoomPhotosView paging', () => {
   });
 });
 
+describe('a room with two photos, once they load', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /*
+   * QA 20261016T2 B1: every load re-rendered the photo, every render handed the
+   * image a new onLoad, and React Native Web's image reloads on a new onLoad:
+   * "Maximum update depth exceeded", forever, on every screen with the pager.
+   */
+  it('loads each photo once and settles, with no update loop', async () => {
+    let loads = 0;
+    class LoadingImage {
+      onload: ((event: unknown) => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 1600;
+      naturalHeight = 900;
+      set src(_: string) {
+        loads += 1;
+        setTimeout(() => this.onload?.({ target: this }), 0);
+      }
+    }
+    vi.stubGlobal('Image', LoadingImage);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    render(<RoomPhotosView rooms={ROOMS} selectedTableId={null} onSelect={() => undefined} />);
+    layOut(400, 300);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    const settled = loads;
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+
+    expect(loads).toBe(settled);
+    expect(settled).toBeGreaterThan(0);
+    expect(errors.mock.calls.flat().join(' ')).not.toMatch(/Maximum update depth/u);
+  });
+});
+
 describe('a photo stored without its size', () => {
   const UNSIZED: PlaceRoom[] = [
     {
