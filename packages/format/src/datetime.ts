@@ -167,10 +167,13 @@ function offsetMinutesAt(instant: Date, timeZone: TimeZone): number {
   }
   const name =
     formatter.formatToParts(instant).find((part) => part.type === 'timeZoneName')?.value ?? 'GMT';
-  const match = /GMT([+-])(\d{2}):(\d{2})/u.exec(name);
+  // A browser writes "GMT+04:00"; the @formatjs polyfill (every phone, and
+  // the web app when it installs itself) writes "GMT+4" and "GMT+5:30".
+  // Plain "GMT" is UTC itself.
+  const match = /GMT([+-])(\d{1,2})(?::?(\d{2}))?/u.exec(name);
   if (!match) return 0;
   const sign = match[1] === '-' ? -1 : 1;
-  return sign * (Number(match[2]) * 60 + Number(match[3]));
+  return sign * (Number(match[2]) * 60 + Number(match[3] ?? 0));
 }
 
 /**

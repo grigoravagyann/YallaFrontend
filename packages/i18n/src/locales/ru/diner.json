@@ -111,6 +111,7 @@
       "cancelling": "Отменяем…",
       "cancelFailed": "Не удалось отменить. Попробуйте ещё раз.",
       "cancelledOn": "Отменена {{date}}",
+      "codeCancelled": "Бронь отменена, код больше не действует.",
       "until": "До {{time}}"
     },
     "signedOut": {
@@ -841,7 +842,8 @@
       "free": "Свободен",
       "reserved": "Забронирован",
       "occupied": "Занят",
-      "outOfService": "Не обслуживается"
+      "outOfService": "Не обслуживается",
+      "notForParty": "Не для вашей компании"
     },
     "table": "Стол {{label}}",
     "pin": {
@@ -849,12 +851,14 @@
       "reserved": "Стол {{label}}, забронирован",
       "occupied": "Стол {{label}}, занят",
       "outOfService": "Стол {{label}}, не обслуживается",
-      "notForParty": "Стол {{label}}, свободен, но не для компании из {{count}} чел."
+      "notForParty": "Стол {{label}}, свободен, но не для компании из {{count}} чел.",
+      "withReason": "Стол {{label}}. {{reason}}"
     },
     "capacity": "{{min}}–{{max}} чел.",
     "capacityOne": "{{max}} чел.",
     "book": "Забронировать",
     "notBookable": "Этот стол сейчас нельзя забронировать",
+    "refusal": "{{table}} · {{capacity}}. {{reason}}",
     "zoomIn": "Увеличить",
     "zoomOut": "Уменьшить",
     "fullscreen": "На весь экран",

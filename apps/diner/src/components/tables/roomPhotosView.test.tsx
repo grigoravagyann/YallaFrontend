@@ -28,7 +28,10 @@ vi.mock('@yalla/i18n', async (importOriginal) => {
     ...(await importOriginal<typeof I18nModule>()),
     useTranslation: () => ({
       t: (key: string, params: Record<string, unknown> = {}) =>
-        lookup(key).replace(/\{\{(\w+)\}\}/gu, (_, name: string) => String(params[name])),
+        (lookup(key) === 'undefined' && typeof params['count'] === 'number'
+          ? lookup(`${key}_${params['count'] === 1 ? 'one' : 'other'}`)
+          : lookup(key)
+        ).replace(/\{\{(\w+)\}\}/gu, (_, name: string) => String(params[name])),
     }),
     useLocale: () => ({ locale: 'en' }),
   };
@@ -89,6 +92,9 @@ describe('RoomPhotosView', () => {
     render(<RoomPhotosView rooms={ROOMS} selectedTableId="4" onSelect={onSelect} />);
 
     expect(screen.getByRole('tablist', { name: 'Rooms' })).toBeTruthy();
+    // The room on show is the selected tab (QA 20261016T2 B5).
+    expect(screen.getByRole('tab', { name: 'Hall', selected: true })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Terrace', selected: false })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Room photo' }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
@@ -156,13 +162,39 @@ describe('RoomPhotosView', () => {
     // Free at the slot, but not for six: never green, never "Table 9, free".
     expect(screen.queryByRole('button', { name: 'Table 9, free' })).toBeNull();
     const unfit = screen.getByRole('button', { name: 'Table 9, free, not for a party of 6' });
-    expect(unfit.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(unfit);
     expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByText('Table 9 · 1–4 people. Too small for 6 guests.')).toBeTruthy();
 
     // A free table the party fits is still offered.
     fireEvent.click(screen.getByRole('button', { name: 'Table 7, free' }));
     expect(onSelect).toHaveBeenCalledWith('7');
+  });
+
+  it('says on the photo why a booked table cannot be picked when it is tapped', () => {
+    const onSelect = vi.fn();
+    const booked: PlaceRoom[] = [
+      {
+        roomId: 'hall',
+        name: 'Hall',
+        photos: [
+          photo('h1', [
+            { ...pin('5', 'reserved', false), unavailableReason: 'alreadyBooked' },
+            { ...pin('6', 'free', false), unavailableReason: 'tooSmall', capacityMax: 2 },
+          ]),
+        ],
+      },
+    ];
+    render(
+      <RoomPhotosView rooms={booked} selectedTableId={null} onSelect={onSelect} partySize={3} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Table 5, reserved' }));
+    expect(screen.getByText(/Already booked at that time\./u)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Table 6, free, not for a party of 3' }));
+    expect(screen.getByText('Table 6 · 1–2 people. Too small for 3 guests.')).toBeTruthy();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });
 
@@ -216,6 +248,44 @@ describe('RoomPhotosView paging', () => {
     fireEvent.click(secondZoomIn!);
     fireEvent.click(secondZoomOut!);
     expect(getComputedStyle(scroller).overflowX).toBe('hidden');
+  });
+});
+
+describe('a room with two photos, once they load', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /*
+   * QA 20261016T2 B1: every load re-rendered the photo, every render handed the
+   * image a new onLoad, and React Native Web's image reloads on a new onLoad:
+   * "Maximum update depth exceeded", forever, on every screen with the pager.
+   */
+  it('loads each photo once and settles, with no update loop', async () => {
+    let loads = 0;
+    class LoadingImage {
+      onload: ((event: unknown) => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 1600;
+      naturalHeight = 900;
+      set src(_: string) {
+        loads += 1;
+        setTimeout(() => this.onload?.({ target: this }), 0);
+      }
+    }
+    vi.stubGlobal('Image', LoadingImage);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    render(<RoomPhotosView rooms={ROOMS} selectedTableId={null} onSelect={() => undefined} />);
+    layOut(400, 300);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+    const settled = loads;
+    await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+
+    expect(loads).toBe(settled);
+    expect(settled).toBeGreaterThan(0);
+    expect(errors.mock.calls.flat().join(' ')).not.toMatch(/Maximum update depth/u);
   });
 });
 

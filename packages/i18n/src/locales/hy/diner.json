@@ -109,6 +109,7 @@
       "cancelling": "Չեղարկվում է…",
       "cancelFailed": "Չհաջողվեց չեղարկել։ Փորձեք նորից։",
       "cancelledOn": "Չեղարկված է {{date}}",
+      "codeCancelled": "Ամրագրումը չեղարկված է, և կոդն այլևս չի գործում։",
       "until": "Մինչև {{time}}"
     },
     "signedOut": {
@@ -815,7 +816,8 @@
       "free": "Ազատ",
       "reserved": "Ամրագրված",
       "occupied": "Զբաղված",
-      "outOfService": "Սպասարկման մեջ չէ"
+      "outOfService": "Սպասարկման մեջ չէ",
+      "notForParty": "Ձեր խմբի համար չէ"
     },
     "table": "Սեղան {{label}}",
     "pin": {
@@ -823,12 +825,14 @@
       "reserved": "Սեղան {{label}}, ամրագրված",
       "occupied": "Սեղան {{label}}, զբաղված",
       "outOfService": "Սեղան {{label}}, սպասարկման մեջ չէ",
-      "notForParty": "Սեղան {{label}}, ազատ, բայց ոչ {{count}} հոգու համար"
+      "notForParty": "Սեղան {{label}}, ազատ, բայց ոչ {{count}} հոգու համար",
+      "withReason": "Սեղան {{label}}։ {{reason}}"
     },
     "capacity": "{{min}}–{{max}} հոգի",
     "capacityOne": "{{max}} հոգի",
     "book": "Ամրագրել",
     "notBookable": "Այս սեղանը հիմա հնարավոր չէ ամրագրել",
+    "refusal": "{{table}} · {{capacity}}։ {{reason}}",
     "zoomIn": "Մեծացնել",
     "zoomOut": "Փոքրացնել",
     "fullscreen": "Ամբողջ էկրան",

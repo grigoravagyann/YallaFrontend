@@ -110,7 +110,10 @@ describe('cancelling a booking from its detail screen', () => {
     gateway.getBooking.mockResolvedValue(CONFIRMED);
     renderScreen();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'bookings.detail.cancel' }));
+    const cancel = await screen.findByRole('button', { name: 'bookings.detail.cancel' });
+    // Named by its label outright, not only by its text (QA 20261016T2 B5).
+    expect(cancel.getAttribute('aria-label')).toBe('bookings.detail.cancel');
+    fireEvent.click(cancel);
     expect(lastSheet().visible).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'bookings.detail.cancelKeep' }));
 
@@ -132,6 +135,9 @@ describe('cancelling a booking from its detail screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'bookings.detail.cancelConfirm' }));
 
     await waitFor(() => expect(screen.getByText('bookings.detail.cancelledOn')).toBeTruthy());
+    // QA 20261016T2 B7: a cancelled code is not one to show at the door.
+    expect(screen.queryByText('success.codeHint')).toBeNull();
+    expect(screen.getByText('bookings.detail.codeCancelled')).toBeTruthy();
     expect(gateway.cancelBooking).toHaveBeenCalledWith('booking-1');
     await waitFor(() => expect(lastSheet().visible).toBe(false));
     expect(lastSheet().busy).toBe(false);

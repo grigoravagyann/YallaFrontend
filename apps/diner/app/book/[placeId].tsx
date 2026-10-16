@@ -36,7 +36,7 @@ import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
 import { placeKeys, usePlace, usePlaceRooms } from '../../src/places/hooks';
 import type { Place, PlaceRoom } from '../../src/places/model';
-import { roomsAtSlot } from '../../src/places/rooms';
+import { roomsAtSlot, slotRefusal } from '../../src/places/rooms';
 import { bookingRulesInput } from '../../src/places/navigation';
 import {
   LEAD_MINUTES,
@@ -271,10 +271,13 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   const slotPlan = slotQuery.data?.plan.tables;
   const slotRooms = useMemo(() => {
     if (!slotPlan) return [];
-    const verdicts = new Map((slotTables ?? []).map((table) => [table.tableId, table.isBookable]));
-    return roomsAtSlot(rooms, slotPlan, (tableId) => verdicts.get(tableId) ?? false).filter(
-      (room) => room.photos.some((photo) => photo.tables.length > 0),
-    );
+    const verdicts = new Map((slotTables ?? []).map((table) => [table.tableId, table]));
+    return roomsAtSlot(
+      rooms,
+      slotPlan,
+      (tableId) => verdicts.get(tableId)?.isBookable ?? false,
+      (tableId) => verdicts.get(tableId)?.unavailableReason ?? null,
+    ).filter((room) => room.photos.some((photo) => photo.tables.length > 0));
   }, [rooms, slotPlan, slotTables]);
   const chosenAtSlot = useMemo(
     () => slotTables?.find((table) => table.tableId === chosenTable?.tableId) ?? null,
@@ -334,6 +337,17 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
 
   const targetTableId = chosenTable?.tableId ?? autoTableId;
   const noTableFits = !chosenTable && autoTableId === null;
+  // Shut at that time (or too soon, too far ahead): the time is the problem,
+  // not the party, and the banner says so rather than "try another party size".
+  const slotClosed = useMemo(
+    () => (slotQuery.data ? slotRefusal(slotQuery.data) : null),
+    [slotQuery.data],
+  );
+  const noTableText = useMemo(() => {
+    if (!slotClosed) return t('book.noTableForParty', { count: partySize });
+    const line = unavailableCopy(slotClosed, partySize);
+    return t(line.key, line.params);
+  }, [slotClosed, partySize, t]);
 
   const canConfirm =
     activeSlot !== null &&
@@ -489,6 +503,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             <Text style={styles.empty}>{t('book.noSlots')}</Text>
           ) : (
             <SlotGrid
+              label={t('book.time')}
               slots={slots}
               selectedKey={activeSlot?.key ?? null}
               onSelect={(key) => {
@@ -504,11 +519,16 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             icon={actionIcon.people}
             style={styles.section}
           />
-          <View style={styles.chips}>
+          <View
+            style={styles.chips}
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('book.partySize')}
+          >
             {PARTY_SIZES.map((size) => (
               <Chip
                 key={size}
                 label={String(size)}
+                accessibilityRole="radio"
                 shape="rounded"
                 selected={!moreOpen && partySize === size}
                 // A table for four to six is not a table for two, any more
@@ -522,6 +542,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             ))}
             <Chip
               label={t('book.partySizeMore', { count: PARTY_MORE_FROM })}
+              accessibilityRole="radio"
               shape="rounded"
               selected={moreOpen}
               disabled={!moreAllowed}
@@ -532,11 +553,16 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             />
           </View>
           {moreOpen && moreSizes.length > 0 ? (
-            <View style={[styles.chips, styles.moreChips]}>
+            <View
+              style={[styles.chips, styles.moreChips]}
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('book.partySize')}
+            >
               {moreSizes.map((size) => (
                 <Chip
                   key={size}
                   label={String(size)}
+                  accessibilityRole="radio"
                   shape="rounded"
                   size="sm"
                   selected={partySize === size}
@@ -566,7 +592,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
                   setErrorText(null);
                 }}
               />
-              <TableLegend style={styles.legend} />
+              <TableLegend partyFit style={styles.legend} />
             </>
           ) : null}
 
@@ -593,7 +619,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             </>
           ) : noTableFits ? (
             <Text accessibilityRole="alert" style={styles.warning}>
-              {t('book.noTableForParty', { count: partySize })}
+              {noTableText}
             </Text>
           ) : null}
 
@@ -790,6 +816,8 @@ function DayStrip({ days, selectedKey, timeZoneId, onSelect }: DayStripProps) {
 }
 
 interface SlotGridProps {
+  /** The group's name for a screen reader: "Time". */
+  readonly label: string;
   readonly slots: readonly { key: string; at: Date }[];
   readonly selectedKey: string | null;
   readonly onSelect: (key: string) => void;
@@ -797,15 +825,21 @@ interface SlotGridProps {
 }
 
 /** Three slot chips per row; the selected one is brown. */
-function SlotGrid({ slots, selectedKey, onSelect, format }: SlotGridProps) {
+function SlotGrid({ label, slots, selectedKey, onSelect, format }: SlotGridProps) {
   const [width, setWidth] = useState(0);
   const column = width > 0 ? (width - space.sm * (SLOT_COLUMNS - 1)) / SLOT_COLUMNS : undefined;
   return (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={styles.slotGrid}>
+    <View
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={styles.slotGrid}
+    >
       {slots.map((slot) => (
         <Chip
           key={slot.key}
           label={format(slot.at)}
+          accessibilityRole="radio"
           shape="rounded"
           selected={slot.key === selectedKey}
           onPress={() => onSelect(slot.key)}
