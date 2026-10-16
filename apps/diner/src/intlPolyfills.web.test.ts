@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
  * The web build's `Intl`. A browser without Armenian locale data — the one the
@@ -16,6 +16,11 @@ const native = {
   RelativeTimeFormat: Intl.RelativeTimeFormat,
 };
 
+// The whole @formatjs set and its locale data: slow to load on a busy machine.
+beforeAll(async () => {
+  await import('./intlPolyfills.web');
+}, 60_000);
+
 afterAll(() => {
   Object.assign(Intl, native);
 });
@@ -23,9 +28,7 @@ afterAll(() => {
 const MORNING = new Date(Date.UTC(2026, 9, 16, 5, 0)); // 09:00 in Yerevan, a Friday
 
 describe('Intl on the web build', () => {
-  it('is the bundled implementation, whatever the browser ships', async () => {
-    await import('./intlPolyfills.web');
-
+  it('is the bundled implementation, whatever the browser ships', () => {
     for (const ctor of [Intl.DateTimeFormat, Intl.NumberFormat, Intl.PluralRules]) {
       expect(typeof (ctor as unknown as { __addLocaleData?: unknown }).__addLocaleData).toBe(
         'function',
@@ -33,9 +36,7 @@ describe('Intl on the web build', () => {
     }
   });
 
-  it('writes Armenian times on the 24-hour clock, in the branch zone', async () => {
-    await import('./intlPolyfills.web');
-
+  it('writes Armenian times on the 24-hour clock, in the branch zone', () => {
     const clock = new Intl.DateTimeFormat('hy-AM', {
       hour: '2-digit',
       minute: '2-digit',
@@ -45,9 +46,7 @@ describe('Intl on the web build', () => {
     expect(clock.format(MORNING)).toBe('09:00');
   });
 
-  it('names Armenian and Russian days in their own language', async () => {
-    await import('./intlPolyfills.web');
-
+  it('names Armenian and Russian days in their own language', () => {
     const day = (tag: string) =>
       new Intl.DateTimeFormat(tag, { weekday: 'short', timeZone: 'Asia/Yerevan' }).format(MORNING);
 
