@@ -99,7 +99,7 @@ describe('the profile from the server', () => {
     expect(useSession.getState().email).toBeNull();
   });
 
-  it('is dropped on sign-out, while the prefill stays', () => {
+  it('is dropped on sign-out, with the prefill: a shared phone must not offer the last details', () => {
     useSession.getState().setVerified({ phoneE164: '+37477123456' });
     useSession.getState().setProfile(ACCOUNT);
 
@@ -108,8 +108,9 @@ describe('the profile from the server', () => {
     expect(useSession.getState()).toMatchObject({
       signedIn: false,
       profile: null,
-      phoneE164: '+37477123456',
-      guestName: 'Ani Petrosyan',
+      phoneE164: null,
+      guestName: null,
+      email: null,
     });
   });
 

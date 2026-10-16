@@ -77,7 +77,11 @@ interface SessionState {
   clearProfile: () => void;
   setSignedIn: (signedIn: boolean) => void;
   hydrate: (profile: DinerProfile) => void;
-  /** Signed out: the session is gone. The remembered number, name and email stay, as prefill. */
+  /**
+   * Signed out: the session is gone, and so are the remembered number, name
+   * and email. They used to stay as prefill, which put the last person's name
+   * and email on the sign-up form for whoever picked up the phone next.
+   */
   clear: () => void;
 }
 
@@ -130,7 +134,10 @@ export const useSession = create<SessionState>((set, get) => ({
   setSignedIn: (signedIn) => set(signedIn ? { signedIn } : { signedIn, profile: null }),
   hydrate: (profile) =>
     set({ phoneE164: profile.phoneE164, guestName: profile.guestName, email: profile.email }),
-  clear: () => set({ signedIn: false, profile: null }),
+  clear: () => {
+    set({ signedIn: false, profile: null, ...EMPTY_PROFILE });
+    persist(get());
+  },
 }));
 
 export function isSignedIn(): boolean {
