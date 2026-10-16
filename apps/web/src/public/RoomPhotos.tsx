@@ -1,6 +1,6 @@
 import type { DerivedTableState, FloorTable, PublicRoom } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 
 /** The three colours a visitor reads a pin by. */
 export type PinTone = 'free' | 'booked' | 'occupied';
@@ -58,6 +58,8 @@ export default function RoomPhotos({
   const [roomId, setRoomId] = useState<string | null>(null);
   const [photoIndexes, setPhotoIndexes] = useState<Readonly<Record<string, number>>>({});
   const swipeFrom = useRef<number | null>(null);
+  /** Each unsized photo's shape once it has loaded, as a CSS aspect ratio. */
+  const [loadedRatios, setLoadedRatios] = useState<Readonly<Record<string, string>>>({});
 
   const room = rooms.find((candidate) => candidate.roomId === roomId) ?? rooms[0];
   if (!room) return <p className="pub-muted">{t('room.empty')}</p>;
@@ -70,10 +72,19 @@ export default function RoomPhotos({
     setPhotoIndexes((current) => ({ ...current, [room.roomId]: next }));
   };
 
+  // A photo with no stored size has no height until it loads, and pins near
+  // its top would be clipped meanwhile: a placeholder shape until then.
+  const unsized = photo ? !(photo.width && photo.height) : false;
+  const ratio = photo && unsized ? loadedRatios[photo.photoId] : undefined;
+  const stageStyle = ratio ? ({ '--stage-ratio': ratio } as CSSProperties) : undefined;
+
   const pins = photo ? tables.filter((table) => table.pin?.photoId === photo.photoId) : [];
   const stageLabel = t('room.photoOf', { room: room.name, index: index + 1, count });
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // An arrow pressed on a pin is not the stage's: changing the photo would
+    // take the pin, and the focus with it, off the screen.
+    if (event.target !== event.currentTarget) return;
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
       go(index - 1);
@@ -127,7 +138,8 @@ export default function RoomPhotos({
       {/* Focusable so the arrow keys move through the photos; the pins inside
           are reached with Tab like any other button. */}
       <div
-        className="pub-stage"
+        className={`pub-stage${unsized ? ' is-unsized' : ''}`}
+        style={stageStyle}
         role="group"
         aria-label={stageLabel}
         tabIndex={0}
@@ -145,6 +157,15 @@ export default function RoomPhotos({
             draggable={false}
             loading="lazy"
             {...(photo.width && photo.height ? { width: photo.width, height: photo.height } : {})}
+            onLoad={(event) => {
+              if (!unsized) return;
+              const { naturalWidth, naturalHeight } = event.currentTarget;
+              if (!naturalWidth || !naturalHeight) return;
+              const shape = `${naturalWidth} / ${naturalHeight}`;
+              setLoadedRatios((current) =>
+                current[photo.photoId] === shape ? current : { ...current, [photo.photoId]: shape },
+              );
+            }}
           />
         ) : null}
         {pins.map((table) => {

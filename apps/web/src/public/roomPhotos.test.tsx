@@ -218,3 +218,43 @@ describe('the room section on the page', () => {
     expect(onTableTap.mock.lastCall?.[0]).toMatchObject({ tableLabel: label, isBookable: true });
   });
 });
+
+describe('the room photo stage, from review', () => {
+  it('leaves the photo alone when an arrow key is pressed on a pin, so focus stays on the pin', () => {
+    show();
+    const pin = screen.getByRole('button', { name: 'Table 1, free' });
+    pin.focus();
+
+    fireEvent.keyDown(pin, { key: 'ArrowRight' });
+
+    expect(screen.getByRole('group', { name: 'Hall, photo 1 of 2' })).toBeTruthy();
+    expect(document.activeElement).toBe(pin);
+  });
+
+  it('gives a photo with no stored size a placeholder shape, then its own once loaded', () => {
+    const unsized = { ...photo('u1'), width: null, height: null };
+    render(
+      <I18nextProvider i18n={i18next}>
+        <RoomPhotos
+          rooms={[{ roomId: 'hall', name: 'Hall', displayOrder: 0, photos: [unsized] }]}
+          tables={[table('a', '1', 'h1', { pin: { photoId: 'u1', x: 0.5, y: 0.02 } })]}
+          selectedTableId={null}
+          onTableTap={() => {}}
+          bookable
+        />
+      </I18nextProvider>,
+    );
+    const stage = screen.getByRole('group', { name: 'Hall, photo 1 of 1' });
+
+    // Before the picture loads, the stage has a height for the pins to sit in.
+    expect(stage.classList.contains('is-unsized')).toBe(true);
+    expect(stage.style.getPropertyValue('--stage-ratio')).toBe('');
+
+    const img = stage.querySelector('img')!;
+    Object.defineProperty(img, 'naturalWidth', { value: 1000 });
+    Object.defineProperty(img, 'naturalHeight', { value: 500 });
+    fireEvent.load(img);
+
+    expect(stage.style.getPropertyValue('--stage-ratio')).toBe('1000 / 500');
+  });
+});

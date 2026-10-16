@@ -426,6 +426,17 @@
   pointer-events: none;
 }
 
+/* A photo with no stored size: a 4:3 placeholder until it loads, then its own
+   shape, so the pins have a stage to sit on from the first paint. */
+.pub-stage.is-unsized {
+  aspect-ratio: var(--stage-ratio, 4 / 3);
+}
+
+.pub-stage.is-unsized img {
+  height: 100%;
+  object-fit: contain;
+}
+
 /* Never colour alone: the label is on the pin and the state is in its name. */
 .pub-pin {
   position: absolute;
