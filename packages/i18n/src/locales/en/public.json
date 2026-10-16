@@ -25,10 +25,24 @@
     "hours": "Opening hours"
   },
   "room": {
-    "loading": "Drawing the room…",
     "empty": "This place has not mapped its tables yet.",
     "pick": "Tap a free table to book it",
-    "legendLabel": "What the colours mean"
+    "legendLabel": "What the colours mean",
+    "rooms": "Rooms",
+    "photoOf": "{{room}}, photo {{index}} of {{count}}",
+    "previous": "Previous photo",
+    "next": "Next photo",
+    "pin": "Table {{label}}, {{status}}",
+    "status": {
+      "free": "free",
+      "booked": "booked",
+      "occupied": "occupied"
+    },
+    "legend": {
+      "free": "Free",
+      "booked": "Booked",
+      "occupied": "Occupied"
+    }
   },
   "menu": {
     "empty": "No menu published yet.",
