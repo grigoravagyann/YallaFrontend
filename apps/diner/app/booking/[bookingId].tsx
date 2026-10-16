@@ -4,7 +4,7 @@ import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge } from '../../src/components/bookings/BookingCard';
@@ -158,6 +158,17 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
     cancel.mutate(booking.id, { onSuccess: () => setConfirming(false) });
   };
 
+  // Closed from the mutation's own state as well as the per-call callback:
+  // the sheet stayed open over a booking the server had already cancelled.
+  useEffect(() => {
+    if (cancel.isSuccess) setConfirming(false);
+  }, [cancel.isSuccess]);
+
+  // Whatever closed the sheet, a booking that can no longer be cancelled has
+  // nothing to confirm: the venue may have cancelled it while the sheet was up.
+  const cancellable = canCancel(booking.status);
+  const sheetOpen = confirming && cancellable;
+
   return (
     <>
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -263,7 +274,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
           />
           {/* One cancel, and only while the booking still holds a table — what
               the server will accept. */}
-          {canCancel(booking.status) ? (
+          {cancellable ? (
             <Button
               label={t('bookings.detail.cancel')}
               variant="destructive"
@@ -280,7 +291,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
           worse than one extra tap. Never blocks a late cancellation, and does
           not scold: a late cancel is far better for the venue than a no-show. */}
       <ConfirmSheet
-        visible={confirming}
+        visible={sheetOpen}
         title={t('bookings.detail.cancelTitle')}
         body={isLate ? t('bookings.detail.cancelLate') : t('bookings.detail.cancelFree')}
         confirmLabel={t('bookings.detail.cancelConfirm')}
