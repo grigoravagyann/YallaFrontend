@@ -2957,9 +2957,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async clearPinLockout({ branchId, staffMemberId }) {
       await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/staff`);
       const venueId = venueOfBranch(branchId);
       const list = venueId ? staffFor(venueId) : [];
-      const index = list.findIndex((member) => member.id === staffMemberId);
+      // `ClearPinLockoutAsync`: only somebody this branch's tablets would lock
+      // out — at this branch, or venue-wide. A sibling branch's is cleared there.
+      const index = list.findIndex(
+        (member) =>
+          member.id === staffMemberId && (member.branchId === null || member.branchId === branchId),
+      );
       if (index < 0) throw new NotFoundError({ url: URL_TAG });
       list[index] = { ...list[index]!, isPinLocked: false };
     },
@@ -2974,6 +2980,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async createEnrolmentCode(branchId) {
       await wait();
+      // `ManagerOrAbove` and `BranchScoped`, as every tablet route.
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/devices`);
       /*
        * A fresh code every time, and the old one is not retrievable — the same
        * promise the server makes, which is why "regenerate" is a new code
@@ -3000,6 +3008,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async revokeDevice({ branchId, deviceId }) {
       await wait();
+      requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/devices`);
       const list = devicesFor(branchId);
       const index = list.findIndex((device) => device.id === deviceId);
       if (index < 0) throw new NotFoundError({ url: URL_TAG });
