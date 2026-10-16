@@ -1521,6 +1521,8 @@ export interface paths {
          * Set a first password, or change the current one
          * @description An account the code flow created has no password and sets one without `currentPassword` - the bearer token is the proof. An account that has one must send it, and a wrong one is `401 invalid-credentials`.
          *
+         *     **Forgot it?** Sign in again with a code (`verify-code`) or the Telegram bot: for ten minutes after that sign-in, `currentPassword` may be left out. Past that, or from a password sign-in or a refreshed token, leaving it out is `422 validation-failed` with `context.field` = `currentPassword`.
+         *
          *     The new password is under the same rule as registration: 8-128 characters, and not the username or the email.
          *
          *     **Every access token the account holds ends, this one included**: the next call with it answers `401 session-revoked`. **Every other sign-in's refresh token is revoked**, so other devices are signed out; the sign-in this token came from keeps its refresh token, so the app refreshes and carries on.
@@ -2972,7 +2974,7 @@ export interface paths {
         };
         /**
          * The venue you work in, with the branches your account covers
-         * @description The read the console opens a venue with. **Which branches come back is decided from the caller's own staff record, not from the token**: an owner covers every branch of the venue, whether or not their record names a home branch; a manager whose record names no branch covers every branch; a manager whose record names a branch is given that branch only; a platform admin is given everything.
+         * @description The read the console opens a venue with. **Which branches come back is decided from the caller's own staff record, not from the token**: an owner covers every branch of the venue, whether or not their record names a home branch; a general manager covers every branch; a branch manager is given their own branch only - the only one the server lets them act on; a platform admin is given everything.
          *
          *     Branches are listed active first, then by name. An inactive branch is listed and flagged rather than hidden.
          *
@@ -2994,12 +2996,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Everyone who works for the venue */
+        /**
+         * Everyone who works for the venue
+         * @description Most senior first, then by name. An owner, general manager or platform admin sees the whole venue; a branch manager sees the people at their own branch.
+         */
         get: operations["listStaff"];
         put?: never;
         /**
          * Add a staff member, with a PIN
-         * @description A manager may create waiters and kitchen staff; an owner or platform admin may create managers and owners. Nobody creates a role above their own.
+         * @description Roles: 1 Owner, 6 GeneralManager, 2 Manager (a branch manager), 3 Waiter, 4 Kitchen. A branch manager may create waiters and kitchen staff at their own branch; a general manager may create branch managers, waiters and kitchen at any branch; an owner or platform admin may also create general managers and owners. Nobody creates a role above their own.
+         *
+         *     **The branch suits the role**: a branch manager needs `branchId`, a general manager must not have one - otherwise `422 validation-failed` with `context.field` = `branchId`.
          *
          *     A manager or owner gets their admin-panel sign-in through `issueStaffSignIn` after they exist: it stores the address and returns a link they choose their own password by. Sending `email` and `password` here still works, and is the one path where the caller types a password for somebody else.
          */
@@ -3026,6 +3033,8 @@ export interface paths {
         /**
          * Edit a staff member
          * @description Nobody may change their own role or deactivate their own account. Set `setBranch` to apply `branchId`, including null for venue-wide.
+         *
+         *     The role and the branch are checked as a pair: promoting a branch manager to general manager is `role: 6, setBranch: true, branchId: null` in one request, and the reverse names the branch. A branch manager edits only their own branch's people and cannot move anybody elsewhere.
          */
         patch: operations["updateStaff"];
         trace?: never;
@@ -3060,12 +3069,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Give a manager or owner their admin-panel sign-in
+         * Give an owner, general manager or branch manager their admin-panel sign-in
          * @description Stores the address and returns a link the person opens to choose their own password. Nobody types a password for somebody else: the reset endpoint that consumes the link is the only thing that ever sets one.
          *
          *     The link is returned **once** and this is the only copy - the server keeps the token's hash and never logs it, so a lost link is replaced by issuing another. It is good for 24 hours and exactly one use. Issuing a new link retires any earlier unused one; two links issued at the same instant can both be live until one is used.
          *
-         *     Only somebody the caller strictly outranks: an owner issues for managers, a platform admin for owners and managers, and nobody for a peer or for themselves. A person who already has a password keeps it - and their open sessions - until the link is used, when both are replaced. Their sign-in address changes to the one given as soon as this answers.
+         *     Only somebody the caller strictly outranks: a general manager issues for branch managers, an owner for general and branch managers, a platform admin for owners as well, and nobody for a peer or for themselves. A person who already has a password keeps it - and their open sessions - until the link is used, when both are replaced. Their sign-in address changes to the one given as soon as this answers.
          *
          *     Ten a minute per caller: this mints a credential, so it spends the sign-in budget rather than the global one.
          */
@@ -3591,7 +3600,8 @@ export interface components {
         /** @description Body of `PUT /api/diner/me/password`. */
         "Yalla.Api.Endpoints.SetDinerPasswordRequest": {
             /**
-             * @description Required when the account has a password; ignored when it has none yet. The profile's
+             * @description Required when the account has a password, unless this sign-in proved the phone (a code or the
+             *     Telegram bot) in the last ten minutes; ignored when it has none yet. The profile's
              *     `hasPassword` says which.
              */
             currentPassword?: string | null;
@@ -8169,10 +8179,10 @@ export interface components {
          * Format: int32
          * @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task.
          *
-         *     Values: 0 Unknown, 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin.
+         *     Values: 0 Unknown, 1 Owner, 2 Manager, 3 Waiter, 4 Kitchen, 5 PlatformAdmin, 6 GeneralManager.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.StaffRole": 0 | 1 | 2 | 3 | 4 | 5;
+        "Yalla.Domain.Enums.StaffRole": 0 | 1 | 2 | 3 | 4 | 5 | 6;
         /**
          * Format: int32
          * @description Optional hint from the diner about how long they expect to stay. Advisory only:
@@ -14608,7 +14618,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `invalid-credentials`: the current password is wrong or was needed and not sent. `session-revoked`: the token's session has ended. Or no diner token. */
+            /** @description `invalid-credentials`: the current password was sent and is wrong. `session-revoked`: the token's session has ended. Or no diner token. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -14624,6 +14634,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `currentPassword` was needed and not sent: the account has a password and this sign-in did not prove the phone in the last ten minutes. `context.field` is `currentPassword`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -20202,13 +20221,22 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The role asked for is above what the caller may assign. */
+            /** @description The role asked for is above what the caller may assign, or a branch manager is putting somebody at another branch or at none. */
             403: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A branch manager with no `branchId`, or a general manager with one. `context.field` is `branchId`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
@@ -20274,7 +20302,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Changing your own role, or editing someone you could not have created. */
+            /** @description Changing your own role, editing someone you could not have created, or a branch manager reaching past their branch. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -20290,6 +20318,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The resulting role and branch do not fit: a branch manager with none, or a general manager with one. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

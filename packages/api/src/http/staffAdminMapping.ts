@@ -23,8 +23,6 @@ type WireSignInLink = Schemas['Yalla.Application.Staff.StaffSignInLink'];
  * 6 GeneralManager — and the console speaks in names. The numbers say nothing
  * about rank: 6 sits between 1 and 2 (see `outranks`).
  *
- * TODO(schema): 6 is typed locally until the regenerated schema's `StaffRole`
- * union carries `GeneralManager`.
  * The conversion lives here and in `auth/endpoints`, and nowhere else.
  */
 

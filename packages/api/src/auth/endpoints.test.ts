@@ -114,6 +114,7 @@ describe('staffRoleToUserRole', () => {
     3: 'waiter',
     4: 'kitchen',
     5: 'platformAdmin',
+    6: 'generalManager',
   };
 
   const BY_NAME: Readonly<Record<string, UserRole>> = {
@@ -138,8 +139,6 @@ describe('staffRoleToUserRole', () => {
     }
   });
 
-  // TODO(schema): 6 joins BY_NUMBER once the generated `StaffRole` union
-  // carries it; until the schema is regenerated it cannot be a key there.
   it('maps the general manager, 6 on the wire and GeneralManager in the token', () => {
     expect(staffRoleToUserRole(6)).toBe('generalManager');
     expect(staffRoleToUserRole('GeneralManager')).toBe('generalManager');

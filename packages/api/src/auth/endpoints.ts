@@ -157,8 +157,6 @@ export function staffRoleToUserRole(role: number | string): UserRole {
     case 1:
     case 'owner':
       return 'owner';
-    // TODO(schema): 6 is not in the generated `StaffRole` union yet; the
-    // backend adds `GeneralManager = 6` and the regenerated schema confirms it.
     case 6:
     case 'generalmanager':
       return 'generalManager';

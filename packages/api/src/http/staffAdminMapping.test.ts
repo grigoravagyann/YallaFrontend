@@ -76,8 +76,6 @@ describe('the create body', () => {
 });
 
 describe('the general manager on the wire', () => {
-  // TODO(schema): `StaffRole.GeneralManager = 6` is typed locally until the
-  // generated union carries it.
   it('reads 6 as a general manager and writes a general manager as 6', () => {
     expect(staffRole(6)).toBe('generalManager');
     expect(staffRoleCode('generalManager')).toBe(6);

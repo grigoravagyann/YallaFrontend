@@ -146,7 +146,7 @@ const SIGN_IN: Readonly<
   generalManager: {
     email: 'general-manager@e2e.local',
     fullName: 'Probe General Manager',
-    // TODO(schema): 6 is `StaffRole.GeneralManager`, not yet in the generated union.
+    // 6 is `StaffRole.GeneralManager`.
     role: 6,
     venueId: V,
   },
