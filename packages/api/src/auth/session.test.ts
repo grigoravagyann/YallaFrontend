@@ -194,3 +194,34 @@ describe('sign-out', () => {
     expect(session.getState()).toBe('signedOut');
   });
 });
+
+describe('a refresh racing a sign-in', () => {
+  it('neither spends nor signs out a session that began while it was in flight', async () => {
+    const inner = createMemoryTokenStorage('refresh-old');
+    const storage = {
+      ...inner,
+      read: async () => {
+        const value = await inner.read();
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return value;
+      },
+    };
+    const refreshTokens = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      throw new UnauthorizedError({ url: '/api/auth/venue/refresh' });
+    });
+    const onSignedOut = vi.fn();
+    const session = createAuthSession({ storage, refreshTokens, onSignedOut, now: () => NOW });
+
+    // The old session's refresh starts; the next person signs in while it runs.
+    const stale = session.refresh();
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    await session.signIn(pair(2));
+
+    expect(await stale).toBe(pair(2).accessToken);
+    expect(onSignedOut).not.toHaveBeenCalled();
+    expect(session.peekAccessToken()).toBe(pair(2).accessToken);
+    expect(await inner.read()).toBe('refresh-2');
+    expect(session.getState()).toBe('signedIn');
+  });
+});

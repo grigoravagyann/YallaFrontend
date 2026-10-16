@@ -69,6 +69,14 @@ export function createAuthSession(config: AuthSessionConfig): AuthSession {
   let accessToken: string | null = null;
   let accessExpiresAtMs = 0;
   let inflight: Promise<string | null> | null = null;
+  /**
+   * Moves on every sign-in and sign-out. A refresh that began under an older
+   * generation must not touch the session that replaced it: reading the new
+   * person's refresh token, spending it, and signing them out when the
+   * refresh is refused is how one person's stray 401 ended the next person's
+   * session on a shared tab.
+   */
+  let generation = 0;
 
   function setState(next: AuthState) {
     if (state === next) return;
@@ -81,6 +89,7 @@ export function createAuthSession(config: AuthSessionConfig): AuthSession {
   }
 
   async function adopt(pair: TokenPair): Promise<void> {
+    generation += 1;
     accessToken = pair.accessToken;
     accessExpiresAtMs = jwtExpiresAtMs(pair.accessToken) ?? now() + pair.expiresInSeconds * 1000;
     await config.storage.write(pair.refreshToken);
@@ -88,6 +97,7 @@ export function createAuthSession(config: AuthSessionConfig): AuthSession {
   }
 
   async function forget(reason: SignOutReason): Promise<void> {
+    generation += 1;
     accessToken = null;
     accessExpiresAtMs = 0;
     await config.storage.clear();
@@ -99,7 +109,11 @@ export function createAuthSession(config: AuthSessionConfig): AuthSession {
     if (inflight) return inflight;
 
     inflight = (async () => {
+      const started = generation;
+      const superseded = () => generation !== started;
       const refreshToken = await config.storage.read();
+      // Somebody signed in or out while the token was read: theirs is the session now.
+      if (superseded()) return accessToken;
       if (!refreshToken) {
         // Nothing to refresh with. Not a sign-out event: nobody was signed in.
         accessToken = null;
@@ -109,9 +123,11 @@ export function createAuthSession(config: AuthSessionConfig): AuthSession {
 
       try {
         const pair = await config.refreshTokens(refreshToken);
+        if (superseded()) return accessToken;
         await adopt(pair);
         return pair.accessToken;
       } catch (error) {
+        if (superseded()) return accessToken;
         // Could not reach the server, or the server fell over: the token may
         // well still be good, so keep it and let the caller report the outage.
         if (error instanceof NetworkError || error instanceof TimeoutError) throw error;
