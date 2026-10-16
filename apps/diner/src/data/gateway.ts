@@ -24,6 +24,15 @@ export const gateway: YallaGateway = resolveGateway({
   // Set EXPO_PUBLIC_SIMULATE_TABLE_TAKEN=1 to make the next booking lose the
   // race, so the 409 path can be walked without a second device. Mock only.
   simulateTableTaken: process.env['EXPO_PUBLIC_SIMULATE_TABLE_TAKEN'] === '1',
+  // On the web build the mock world survives a full page load (QA F2); a
+  // phone keeps the app alive between screens and has no localStorage.
+  persist:
+    dataSource === 'mock' &&
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined' &&
+    process.env['NODE_ENV'] !== 'test'
+      ? { key: 'yalla.mock.diner' }
+      : undefined,
 });
 
 /** True when the app is running on mock data. Drives the dev-only banner. */

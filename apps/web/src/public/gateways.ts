@@ -10,6 +10,7 @@ import {
   type YallaGateway,
 } from '@yalla/api';
 import { readConfig } from '../config';
+import { mockPersistence } from '../data/mockWorld';
 
 /**
  * The public page's gateways, built on first use rather than on import.
@@ -81,6 +82,7 @@ function publicRuntime(): PublicRuntime {
     auth,
     audience: 'diner',
     mockLatencyMs: 200,
+    persist: mockPersistence('diner.public'),
   });
 
   /** The unauthenticated half: slug resolution, the published profile, the manage link. */

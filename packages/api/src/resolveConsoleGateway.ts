@@ -9,6 +9,23 @@ import {
   type ConsoleIdentityStore,
 } from './http/consoleHttpGateway';
 import { createConsoleMockGateway } from './mocks/consoleMock';
+import {
+  browserMockStorage,
+  persistMockGateway,
+  type MockJournalStorage,
+} from './mocks/persistence';
+
+/**
+ * Keep the mock world across a full page load (QA F2).
+ *
+ * `key` names the world; `storage` defaults to the browser's `localStorage`
+ * and may be `null` to keep the world in memory. Absent: in memory, which is
+ * what every test wants.
+ */
+export interface MockPersistence {
+  readonly key: string;
+  readonly storage?: MockJournalStorage | null | undefined;
+}
 
 export interface ResolveConsoleGatewayOptions {
   readonly dataSource: DataSource;
@@ -27,6 +44,8 @@ export interface ResolveConsoleGatewayOptions {
    * be walked in development without four accounts.
    */
   readonly mockRole?: UserRole | undefined;
+  /** Mock only: keep the world across a reload. See {@link MockPersistence}. */
+  readonly persist?: MockPersistence | undefined;
 }
 
 /**
@@ -38,9 +57,20 @@ export interface ResolveConsoleGatewayOptions {
  */
 export function resolveConsoleGateway(options: ResolveConsoleGatewayOptions): ConsoleGateway {
   if (options.dataSource === 'mock') {
+    const role = options.mockRole ? { role: options.mockRole } : {};
+    if (options.persist) {
+      return persistMockGateway<ConsoleGateway>({
+        key: options.persist.key,
+        storage: options.persist.storage === undefined ? browserMockStorage() : options.persist.storage,
+        latencyMs: options.mockLatencyMs ?? 200,
+        // The menu report is deliberately the slow one; see the mock.
+        slow: { getMenuReport: 3 },
+        create: (inner) => createConsoleMockGateway({ now: inner.now, latencyMs: 0, ...role }),
+      });
+    }
     return createConsoleMockGateway({
       latencyMs: options.mockLatencyMs ?? 200,
-      ...(options.mockRole ? { role: options.mockRole } : {}),
+      ...role,
     });
   }
 

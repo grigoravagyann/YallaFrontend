@@ -164,6 +164,7 @@
     "title": "Yalla console",
     "signedInAs": "Signed in as {{name}}",
     "devRole": "Dev only — view as",
+    "devReset": "Reset mock data",
     "openMenu": "Menu",
     "signOut": "Sign out"
   },

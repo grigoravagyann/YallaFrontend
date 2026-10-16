@@ -2,6 +2,7 @@ import { USER_ROLES, type UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useNavigate } from 'react-router-dom';
 import { usingMockData } from '../data/gateway';
+import { resetMockWorld } from '../data/mockWorld';
 import { useDevRole } from './session';
 import { landingPathFor } from './useCurrentUser';
 
@@ -57,6 +58,10 @@ export function DevRoleSwitcher({ variant = 'sidebar' }: DevRoleSwitcherProps) {
           </option>
         ))}
       </select>
+      {/* The mock world survives a reload (QA F2); this is the way back to the fixture. */}
+      <button type="button" className="button button-small button-ghost" onClick={resetMockWorld}>
+        {t('shell.devReset')}
+      </button>
     </label>
   );
 }
