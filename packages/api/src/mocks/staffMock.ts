@@ -970,9 +970,12 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       if (!state) throw new NotFoundError({ url });
       // A tab hangs off a sitting, exactly as on the server: a free or held
       // table has nobody to bill.
-      if (state.physicalStatus !== 'occupied' || !state.sessionId) {
+      if (state.physicalStatus !== 'occupied') {
         throw new TableNotSeatedError({ url, tableId: command.tableId });
       }
+      // Occupied with no sitting: the party paid in full and is still there.
+      // The new bill gets a sitting of its own, for the same people.
+      if (!state.sessionId) state.sessionId = id('session');
 
       // Somebody scanned first, or this is the second tap: that tab.
       const existing = state.tabId ? tabs.get(state.tabId) : undefined;
@@ -1253,6 +1256,14 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       if (closed && tab.status !== 'closed') {
         tab.status = 'closed';
         tab.closedAtUtc = iso(at);
+        // As on the server: paying in full closes the sitting, not the table. The party is
+        // usually still there, so the table stays occupied with no sitting and no tab.
+        for (const state of tables.values()) {
+          if (state.tabId === tab.id) {
+            state.tabId = null;
+            state.sessionId = null;
+          }
+        }
       }
       pushEvent(tab, 'paymentRecorded', at);
 

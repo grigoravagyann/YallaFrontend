@@ -56,4 +56,33 @@ describe('starting a tab from the tablet', () => {
     });
     expect(again.id).toBe(tab.id);
   });
+
+  it('gives a party that paid in full and sits on a new tab, on the same occupied table', async () => {
+    const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
+    const floor = await gateway.getFloor(BRANCH);
+    const seated = floor?.details.find((detail) => detail.openTabId !== null);
+    if (!seated?.openTabId) throw new Error('The staff fixture has no table with a tab.');
+    const tableId = seated.tableId;
+
+    const paidTab = await gateway.getStaffTab(seated.openTabId);
+    await gateway.recordCashPayment({
+      tabId: seated.openTabId,
+      amountDram: paidTab!.totals.remainingDram,
+      tipDram: 0,
+      clientCommandId: 'pay-1',
+    });
+
+    // Paid: the table stays occupied, with no tab on it.
+    const after = (await gateway.getFloor(BRANCH))?.details.find((d) => d.tableId === tableId);
+    expect(after?.physicalStatus).toBe('occupied');
+    expect(after?.openTabId).toBeNull();
+
+    const fresh = await gateway.openTabForStaff({
+      branchId: BRANCH,
+      tableId,
+      clientCommandId: 'cmd-after-pay',
+    });
+    expect(fresh.id).not.toBe(seated.openTabId);
+    expect(fresh.status).toBe('open');
+  });
 });
