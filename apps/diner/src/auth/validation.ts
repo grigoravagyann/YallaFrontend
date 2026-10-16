@@ -26,7 +26,7 @@ const LOCAL_MAX_DIGITS = 12;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/u;
 const EMAIL_MAX_LENGTH = 254;
 
-const NAME_MAX_LENGTH = 60;
+export const NAME_MAX_LENGTH = 60;
 
 /**
  * The country code and the local number as one E.164 string, or `null` when
@@ -79,6 +79,22 @@ export function normalizeName(value: string): string | null {
     .replace(/\s+/gu, ' ');
   if (tidy.length === 0 || tidy.length > NAME_MAX_LENGTH) return null;
   return tidy;
+}
+
+/**
+ * Why a name is refused, so the form can say which: nothing typed, or more
+ * than the sixty characters the venue's door list has room for. A 114-character
+ * paste used to get the same "enter the name" line as an empty field.
+ */
+export function nameProblem(value: string): 'required' | 'tooLong' | null {
+  const tidy = value
+    .normalize('NFC')
+    .replace(/\p{Cf}/gu, '')
+    .trim()
+    .replace(/\s+/gu, ' ');
+  if (tidy.length === 0) return 'required';
+  if (tidy.length > NAME_MAX_LENGTH) return 'tooLong';
+  return null;
 }
 
 /**

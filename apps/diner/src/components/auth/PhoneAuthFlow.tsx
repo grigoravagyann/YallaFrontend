@@ -18,7 +18,13 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { isValidEmail, normalizeName, normalizePhone } from '../../auth/validation';
+import {
+  NAME_MAX_LENGTH,
+  isValidEmail,
+  nameProblem,
+  normalizeName,
+  normalizePhone,
+} from '../../auth/validation';
 import {
   useRequestPhoneCode,
   useTelegramVerification,
@@ -161,7 +167,13 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
     touched.phone && localNumber.trim().length > 0 && !phoneE164
       ? t('auth.error.phoneInvalid')
       : null;
-  const nameError = touched.name && !tidyName ? t('auth.error.nameRequired') : null;
+  const nameIssue = touched.name ? nameProblem(name) : null;
+  const nameError =
+    nameIssue === 'tooLong'
+      ? t('auth.error.nameTooLong', { max: NAME_MAX_LENGTH })
+      : nameIssue
+        ? t('auth.error.nameRequired')
+        : null;
   const emailError = touched.email && !emailOk ? t('auth.error.emailInvalid') : null;
 
   const touch = (field: keyof typeof touched) => setTouched((prev) => ({ ...prev, [field]: true }));

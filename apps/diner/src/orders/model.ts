@@ -58,6 +58,16 @@ export interface Order {
 
 // ---------------------------------------------------------------------------
 // Helpers. Pure, tested in `model.test.ts`.
+
+/**
+ * What the detail screen prints as the order's number. The backend has no
+ * short order number, only the GUID, and a GUID on a receipt is noise nobody
+ * can read out to a waiter: the last six characters are enough to tell one
+ * order from another at one table.
+ */
+export function shortOrderCode(id: string): string {
+  return id.slice(-6).toUpperCase();
+}
 // ---------------------------------------------------------------------------
 
 const ACTIVE_STATUSES: ReadonlySet<OrderStatus> = new Set([

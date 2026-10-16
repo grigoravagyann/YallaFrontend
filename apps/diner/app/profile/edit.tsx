@@ -20,7 +20,9 @@ import {
   type AccountField,
 } from '../../src/auth/accountErrors';
 import {
+  NAME_MAX_LENGTH,
   isValidPassword,
+  nameProblem,
   normalizeEmail,
   normalizeName,
   normalizeUsername,
@@ -193,7 +195,14 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
   const detailsValid = tidyName !== null && usernameOk && emailOk;
   const canSave = changed && detailsValid && !update.isPending;
 
-  const nameError = detailErrors.name ?? (tidyName ? null : t('auth.error.nameRequired'));
+  const nameIssue = nameProblem(name);
+  const nameError =
+    detailErrors.name ??
+    (nameIssue === 'tooLong'
+      ? t('auth.error.nameTooLong', { max: NAME_MAX_LENGTH })
+      : nameIssue
+        ? t('auth.error.nameRequired')
+        : null);
   const usernameError =
     detailErrors.username ?? (usernameOk ? null : t('auth.error.usernameInvalid'));
   const emailError = detailErrors.email ?? (emailOk ? null : t('auth.error.emailInvalid'));
@@ -340,7 +349,7 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
               autoComplete="name"
               invalid={nameError !== null}
               accessibilityLabel={t('auth.nameLabel')}
-              maxLength={100}
+              maxLength={NAME_MAX_LENGTH}
             />
           </Field>
           <Field
