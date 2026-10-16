@@ -25,8 +25,10 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
 
   await page.getByRole('button', { name: tomorrowLabel() }).click();
   // An evening slot well inside the demo branch's hours (09:00 to midnight), so a table fits.
-  await page.getByRole('button', { name: '19:00', exact: true }).click();
-  await page.getByRole('button', { name: '2', exact: true }).first().click();
+  // Time slots and party sizes are radios in named groups (their selected
+  // state reaches screen readers), not plain buttons.
+  await page.getByRole('radio', { name: '19:00', exact: true }).click();
+  await page.getByRole('radio', { name: '2', exact: true }).first().click();
   await expect(page.getByText(/No free table seats/)).toHaveCount(0);
   await page.getByLabel('Note for the venue').fill(note);
 
