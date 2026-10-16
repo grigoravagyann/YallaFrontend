@@ -1,17 +1,25 @@
 import { expect, test } from '@playwright/test';
 
-import { branchDetail, demoBranch, newApi, uniqueTag } from '../../support/api';
+import {
+  branchDetail,
+  branchRooms,
+  demoBranch,
+  newApi,
+  roomPins,
+  uniqueTag,
+} from '../../support/api';
 import { signInConsole } from '../../support/console';
 import { env } from '../../support/env';
 import { gradientPng } from '../../support/png';
 
 /**
- * Plan E1 console spec, as the platform admin, on the demo branch's public page
- * through the platform route: listing fields persist; a new cover is uploaded
- * and saved; and a new address and pin reach the public details. (Table pins
- * moved to the rooms editor, on room photos.)
+ * Plan E1 console spec, as the platform admin, on the demo branch through the
+ * platform routes: listing fields persist; a new cover is uploaded and saved; a
+ * new address and pin reach the public details; and in the rooms editor (the
+ * floor-plan route) a table's pin moved with the keyboard reaches the rooms a
+ * diner reads, on the same photo.
  */
-test('Platform admin edits the demo branch public page: listing, cover and address', async ({
+test('Platform admin edits the demo branch: listing, cover, address and a table pin', async ({
   page,
 }) => {
   const api = await newApi();
@@ -92,6 +100,29 @@ test('Platform admin edits the demo branch public page: listing, cover and addre
   await expect
     .poll(async () => (await branchDetail(api, demo.branchId)).listing.address, { timeout: 30_000 })
     .toBe(address);
+
+  // --- Rooms: table 1's pin, moved down with the keyboard, reaches the rooms read -----
+  const before = roomPins(await branchRooms(api, demo.branchId)).find((p) => p.label === '1');
+  expect(before, 'the seed pins table 1 on a room photo').toBeTruthy();
+  await page.goto(`/platform/venues/${demo.venueId}/branches/${demo.branchId}/floorplan`);
+  const tableOne = page.getByRole('button', { name: /^Table 1 · / });
+  await tableOne.click();
+  // Shift+arrow moves a pin by a twentieth of the photo; up when there is no room below.
+  const key = before!.photoY <= 0.9 ? 'Shift+ArrowDown' : 'Shift+ArrowUp';
+  await tableOne.press(key);
+  await page.getByRole('button', { name: 'Save rooms' }).click();
+  await expect(page.getByText('Rooms saved.')).toBeVisible();
+
+  const expectedY = before!.photoY + (key === 'Shift+ArrowDown' ? 0.05 : -0.05);
+  await expect
+    .poll(async () => {
+      const after = roomPins(await branchRooms(api, demo.branchId)).find((p) => p.label === '1');
+      return after && after.photoId === before!.photoId
+        ? Math.abs(after.photoY - expectedY) <= 0.002 &&
+            Math.abs(after.photoX - before!.photoX) <= 0.002
+        : false;
+    })
+    .toBe(true);
 
   await api.dispose();
 });

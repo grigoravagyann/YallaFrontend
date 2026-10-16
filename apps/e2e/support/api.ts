@@ -310,24 +310,44 @@ export async function publicReviews(
   return page.reviews;
 }
 
-export interface TableMarkers {
-  readonly photo?: { readonly photoId: string };
-  readonly tables: readonly {
-    tableId: string;
-    label: string;
-    photoX: number;
-    photoY: number;
-    state: number;
+/** A table pinned on a room photo, as `GET /api/public/branches/{id}/rooms` sends it. */
+export interface RoomPin {
+  readonly tableId: string;
+  readonly label: string;
+  readonly seats: number;
+  readonly isBookable: boolean;
+  readonly state: number;
+  readonly photoX: number;
+  readonly photoY: number;
+}
+
+export interface BranchRooms {
+  readonly branchId: string;
+  readonly rooms: readonly {
+    readonly roomId: string;
+    readonly name: string;
+    readonly displayOrder: number;
+    readonly photos: readonly {
+      readonly photo: { readonly photoId: string };
+      readonly tables: readonly RoomPin[];
+    }[];
   }[];
 }
 
-export async function tableMarkers(
-  api: APIRequestContext,
-  branchId: string,
-): Promise<TableMarkers> {
+/** The rooms a diner picks from, each photo with its live pins: what the place page draws. */
+export async function branchRooms(api: APIRequestContext, branchId: string): Promise<BranchRooms> {
   return body(
-    await api.get(`/api/public/branches/${branchId}/table-markers`),
-    'GET /api/public/branches/{id}/table-markers',
+    await api.get(`/api/public/branches/${branchId}/rooms`),
+    'GET /api/public/branches/{id}/rooms',
+  );
+}
+
+/** Every pin of every room, with the photo it is on. */
+export function roomPins(rooms: BranchRooms): (RoomPin & { readonly photoId: string })[] {
+  return rooms.rooms.flatMap((room) =>
+    room.photos.flatMap((entry) =>
+      entry.tables.map((table) => ({ ...table, photoId: entry.photo.photoId })),
+    ),
   );
 }
 
