@@ -1380,7 +1380,7 @@ real is in the backend's swagger document (`packages/api/src/generated/swagger.j
 | Diner: search                               | real   | `GET /api/public/branches/search?q=&category=`                                                       |
 | Diner: place details                        | real   | `GET /api/public/branches/{branchId}`                                                                |
 | Diner: reviews                              | real   | `GET /api/public/branches/{branchId}/reviews`                                                        |
-| Diner: pins on the table photo              | real   | `GET /api/public/branches/{branchId}/table-markers`                                                  |
+| Diner: rooms with pinned tables             | real   | `GET /api/public/branches/{branchId}/rooms`                                                          |
 | Diner: writing a review                     | real   | `GET`/`POST`/`PUT /api/diner/branches/{branchId}/review`                                             |
 | Diner: orders                               | real   | `GET /api/diner/orders`, `GET /api/diner/orders/{orderId}`                                           |
 | Diner: bookings                             | real   | `POST /api/reservations`, `GET /api/reservations/mine`, `POST /api/reservations/{id}/cancel`         |
