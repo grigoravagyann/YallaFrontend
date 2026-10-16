@@ -938,9 +938,7 @@
       "set": "Set a password",
       "changed": "Password changed.",
       "setDone": "Password set. You can log in with it now.",
-      "wrongCurrent": "That isn't your current password.",
-      "resetHint": "You logged in with a code. Set a new password below.",
-      "currentNeeded": "Your current password is still needed to change it."
+      "wrongCurrent": "That isn't your current password."
     },
     "phone": {
       "title": "Phone",
