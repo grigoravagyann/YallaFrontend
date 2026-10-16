@@ -25,7 +25,8 @@ import { defineConfig } from 'vitest/config';
  * runs every package's suite at once (`pnpm -r test`), and on a busy laptop the
  * first jsdom render of a screen, or the first import of the i18n bundle, has
  * taken 5-7s with nothing wrong: the same files pass alone in under a second.
- * 20s still catches a real hang.
+ * The same goes for hooks (default 10s): the repository tests' beforeAll
+ * imports have timed out at 10s under that load. 20s still catches a real hang.
  */
 const LOADED_MACHINE_TIMEOUT_MS = 20_000;
 
@@ -37,6 +38,7 @@ export default defineConfig({
           name: 'node',
           globals: true,
           testTimeout: LOADED_MACHINE_TIMEOUT_MS,
+          hookTimeout: LOADED_MACHINE_TIMEOUT_MS,
           environment: 'node',
           include: ['src/**/*.test.ts'],
         },
@@ -77,6 +79,7 @@ export default defineConfig({
           // Globals give @testing-library/react its automatic cleanup.
           globals: true,
           testTimeout: LOADED_MACHINE_TIMEOUT_MS,
+          hookTimeout: LOADED_MACHINE_TIMEOUT_MS,
           environment: 'jsdom',
           include: ['src/**/*.test.tsx'],
         },

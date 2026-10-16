@@ -1577,7 +1577,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const unknownAreas = command.tables
         .filter(
           (t) =>
-            t.floorAreaName !== null &&
+            t.floorAreaName != null &&
             !keptAreaNames.has(t.floorAreaName.trim().toLocaleLowerCase()),
         )
         .map((t) => `${t.label} -> ${t.floorAreaName}`);
