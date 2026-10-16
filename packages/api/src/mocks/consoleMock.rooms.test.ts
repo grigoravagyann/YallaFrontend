@@ -486,3 +486,105 @@ describe('matching rooms in a plan save in the console mock', () => {
     );
   });
 });
+
+describe('matching tables in a plan save in the console mock', () => {
+  const entry = (label: string): ReplaceFloorTableInput => ({
+    label,
+    seats: 2,
+    floorAreaName: null,
+    isBookable: false,
+    pin: null,
+  });
+
+  it('refuses one table id sent by two entries, naming both', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const command = asCommand(await gateway.getFloorPlan(BRANCH));
+    const two = command.tables.find((t) => t.label === '2')!;
+    command.tables.push({ ...two, label: '42' });
+
+    const error = await caught(save(gateway, command));
+
+    expect(error).toBeInstanceOf(FloorPlanInvalidError);
+    expect((error as FloorPlanInvalidError).errors).toEqual([
+      'Table 2 is matched by more than one entry in the plan: 2 and 42.',
+    ]);
+  });
+
+  it('makes two tables when one is renamed and a new one takes its old label in the same save', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const command = asCommand(await gateway.getFloorPlan(BRANCH));
+    const two = command.tables.find((t) => t.label === '2')!;
+    command.tables = [
+      ...command.tables.map((t) => (t.id === two.id ? { ...t, label: '20' } : t)),
+      entry('2'),
+    ];
+
+    const result = await save(gateway, command);
+
+    expect(result.plan.tables.find((t) => t.label === '20')!.id).toBe(two.id);
+    const fresh = result.plan.tables.find((t) => t.label === '2')!;
+    expect(fresh.id).not.toBe(two.id);
+    expect(result.deactivatedTables).toEqual([]);
+    expect(result.removedTables).toEqual([]);
+  });
+
+  it("refuses a new table under an out-of-service table's label, in the server sentence", async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const one = (await gateway.getFloorPlan(BRANCH)).tables.find((t) => t.label === '1')!;
+    await gateway.deleteTable({ branchId: BRANCH, tableId: one.id });
+    const command = asCommand(await gateway.getFloorPlan(BRANCH));
+    command.tables.push(entry('1'));
+
+    const error = await caught(save(gateway, command));
+
+    expect(error).toBeInstanceOf(FloorPlanInvalidError);
+    expect((error as FloorPlanInvalidError).errors).toEqual([
+      'Table 1 is out of service. Put it back instead of adding a new table with the same label.',
+    ]);
+  });
+
+  it("refuses renaming a table to an out-of-service table's label, in the server sentence", async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const one = (await gateway.getFloorPlan(BRANCH)).tables.find((t) => t.label === '1')!;
+    await gateway.deleteTable({ branchId: BRANCH, tableId: one.id });
+    const command = asCommand(await gateway.getFloorPlan(BRANCH));
+    command.tables = command.tables.map((t) => (t.label === '2' ? { ...t, label: '1' } : t));
+
+    const error = await caught(save(gateway, command));
+
+    expect(error).toBeInstanceOf(FloorPlanInvalidError);
+    expect((error as FloorPlanInvalidError).errors).toEqual([
+      'Table 1 is out of service and keeps its label. Put it back, or give table 2 another label.',
+    ]);
+  });
+
+  it('refuses renaming a table to the label of a table with history the save leaves out', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const command = asCommand(await gateway.getFloorPlan(BRANCH));
+    command.tables = command.tables
+      .filter((t) => t.label !== '7')
+      .map((t) => (t.label === '2' ? { ...t, label: '7' } : t));
+
+    const error = await caught(save(gateway, command));
+
+    expect(error).toBeInstanceOf(FloorPlanInvalidError);
+    expect((error as FloorPlanInvalidError).errors).toEqual([
+      'Table 7 has history, so leaving it out of the plan takes it out of service with its label. ' +
+        'Keep it in the plan, or give the other table another label.',
+    ]);
+  });
+
+  it('lists as deactivated only the tables this save took out of service', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const one = (await gateway.getFloorPlan(BRANCH)).tables.find((t) => t.label === '1')!;
+    await gateway.deleteTable({ branchId: BRANCH, tableId: one.id });
+
+    const unchanged = await save(gateway, asCommand(await gateway.getFloorPlan(BRANCH)));
+    expect(unchanged.deactivatedTables).toEqual([]);
+
+    const command = asCommand(unchanged.plan);
+    command.tables = command.tables.filter((t) => t.label !== '7');
+    const result = await save(gateway, command);
+    expect(result.deactivatedTables).toEqual(['7']);
+  });
+});

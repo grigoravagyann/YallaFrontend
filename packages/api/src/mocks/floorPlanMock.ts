@@ -26,8 +26,9 @@ import { validationFailed, type MockViolation } from './problems';
  * 4. Room photos: more than ten, a photo twice or in two rooms (422 `validation-failed`).
  * 5. Pins: half of one, outside 0–1, on another room's photo (same).
  * 6. A photo that is not this branch's (404).
- * 7. A table matched twice, a new table reusing a retained label, a seated
- *    table left out (422 `floor-plan-invalid`).
+ * 7. A table id sent twice, an entry taking the label of a table the save
+ *    leaves out (out of service, or deactivated by it), a seated table left
+ *    out (422 `floor-plan-invalid`).
  */
 
 export interface FloorPlanMockContext {
@@ -264,6 +265,79 @@ function matchAreas(
   return matched;
 }
 
+/**
+ * `MatchTables`: the stored table each entry is, or `null` for a new one — by
+ * id first for every entry (active or not), and only then by label among the
+ * active tables no id claimed. An id claimed twice is refused naming both.
+ */
+function matchTables(
+  tables: readonly ReplaceFloorTableInput[],
+  stored: readonly EditorFloorTable[],
+  errors: string[],
+): (EditorFloorTable | null)[] {
+  const matched: (EditorFloorTable | null)[] = tables.map(() => null);
+  const claimedBy = new Map<string, number>();
+  tables.forEach((input, i) => {
+    const table = input.id ? stored.find((t) => t.id === input.id) : undefined;
+    if (!table) return;
+    const first = claimedBy.get(table.id);
+    if (first !== undefined) {
+      errors.push(
+        `Table ${table.label} is matched by more than one entry in the plan: ` +
+          `${tables[first]!.label.trim()} and ${input.label.trim()}.`,
+      );
+      return;
+    }
+    claimedBy.set(table.id, i);
+    matched[i] = table;
+  });
+  tables.forEach((input, i) => {
+    if (matched[i] || (input.id && claimedBy.has(input.id))) return;
+    const label = key(input.label);
+    const table = stored.find((t) => t.isActive && !claimedBy.has(t.id) && key(t.label) === label);
+    if (table) {
+      claimedBy.set(table.id, i);
+      matched[i] = table;
+    }
+  });
+  return matched;
+}
+
+/**
+ * `LabelsHeldByOmittedTables`: entries that take the label of a table this
+ * save leaves out but that keeps its label — one already out of service, or
+ * one with history that this save deactivates.
+ */
+function labelsHeldByOmittedTables(
+  tables: readonly ReplaceFloorTableInput[],
+  storedTables: readonly (EditorFloorTable | null)[],
+  omitted: readonly EditorFloorTable[],
+  hasHistory: (tableId: string) => boolean,
+): string[] {
+  const errors: string[] = [];
+  tables.forEach((input, i) => {
+    const label = key(input.label);
+    const holder = omitted.find((t) => (!t.isActive || hasHistory(t.id)) && key(t.label) === label);
+    if (!holder) return;
+    const renamed = storedTables[i];
+    if (!holder.isActive && !renamed) {
+      errors.push(
+        `Table ${holder.label} is out of service. Put it back instead of adding a new table with the same label.`,
+      );
+    } else if (!holder.isActive) {
+      errors.push(
+        `Table ${holder.label} is out of service and keeps its label. Put it back, or give table ${renamed!.label} another label.`,
+      );
+    } else {
+      errors.push(
+        `Table ${holder.label} has history, so leaving it out of the plan takes it out of service with its label. ` +
+          'Keep it in the plan, or give the other table another label.',
+      );
+    }
+  });
+  return errors;
+}
+
 /** Lowest `displayOrder` first, then by name — the server's read order. */
 export function sortAreas(areas: readonly EditorFloorArea[]): EditorFloorArea[] {
   return [...areas].sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
@@ -357,40 +431,20 @@ export function applyFloorPlan(
     keptAreas.map((area) => [area.id, new Set(area.photos.map((photo) => photo.photoId))]),
   );
 
-  // Tables: by id, then by label; anything else is new.
-  const matched = new Set<string>();
+  // Tables: by id, then by label among the active tables no id claimed; anything else is new.
+  const storedTables = matchTables(tablesInput, existing.tables, errors);
+  const matched = new Set(storedTables.filter((t) => t !== null).map((t) => t.id));
   const updates: { index: number; input: ReplaceFloorTableInput; table: EditorFloorTable }[] = [];
   const creates: { index: number; input: ReplaceFloorTableInput }[] = [];
   tablesInput.forEach((input, index) => {
-    const label = input.label.trim();
-    const table =
-      (input.id ? existing.tables.find((t) => t.id === input.id) : undefined) ??
-      existing.tables.find((t) => key(t.label) === key(label));
-    if (table && matched.has(table.id)) {
-      errors.push(`Table ${label} is matched by more than one entry in the plan.`);
-      return;
-    }
-    if (table) {
-      matched.add(table.id);
-      updates.push({ index, input, table });
-    } else {
-      creates.push({ index, input });
-    }
+    const table = storedTables[index];
+    if (table) updates.push({ index, input, table });
+    else creates.push({ index, input });
   });
 
+  // Tables left out: history decides delete versus deactivate.
   const omitted = existing.tables.filter((t) => !matched.has(t.id));
-  const retainedLabels = new Set(
-    omitted.filter((t) => context.hasHistory(t.id)).map((t) => key(t.label)),
-  );
-  const clashing = creates
-    .filter((c) => retainedLabels.has(key(c.input.label)))
-    .map((c) => c.input.label.trim());
-  if (clashing.length > 0) {
-    errors.push(
-      `Label(s) ${clashing.join(', ')} belong to tables with history that this plan omits. ` +
-        'Those tables are deactivated, not deleted, and keep their labels - reuse them by keeping the table (with its id) instead.',
-    );
-  }
+  errors.push(...labelsHeldByOmittedTables(tablesInput, storedTables, omitted, context.hasHistory));
   const seated = omitted.filter((t) => t.status === 'occupied').map((t) => t.label);
   if (seated.length > 0) {
     errors.push(
@@ -416,7 +470,9 @@ export function applyFloorPlan(
       floorAreaId !== null &&
       (photosByArea.get(floorAreaId)?.has(table.pin.photoId) ?? false);
     tables.push({ ...table, isActive: false, floorAreaId, pin: keepsPin ? table.pin : null });
-    deactivated.push(table.label);
+    // Only when this save is the one that took it out of service: an
+    // out-of-service table is left out of every save.
+    if (table.isActive) deactivated.push(table.label);
   }
 
   const areaIdOf = (name: string | null | undefined) =>
