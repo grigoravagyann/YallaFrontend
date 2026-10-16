@@ -1,7 +1,14 @@
 import { useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { FlatList, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { Badge } from '../src/components/Badge';
 import { Card } from '../src/components/Card';
 import { EmptyState } from '../src/components/EmptyState';
@@ -149,37 +156,46 @@ function FavoriteRow({
       ? place.branchName
       : null;
   return (
-    <Card onPress={onPress} accessibilityLabel={place.name} style={style}>
+    <Card style={style}>
+      {/* The summary is the button and the heart its sibling: a button inside a
+          button is invalid on the web build and nests them for a screen reader. */}
       <View style={styles.row}>
-        {photo ? (
-          <PhotoImage source={photo} style={styles.thumb} accessibilityLabel={place.name} />
-        ) : (
-          <View style={[styles.thumb, styles.thumbFallback]}>
-            <Ionicons
-              name={actionIcon.imageFallback}
-              size={iconSize.lg}
-              color={colors.textSubtle}
-            />
-          </View>
-        )}
-        <View style={styles.body}>
-          <View style={styles.nameRow}>
-            <Text numberOfLines={1} style={styles.name}>
-              {venue}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={place.name}
+          onPress={onPress}
+          style={({ pressed }) => [styles.summary, pressed && styles.summaryPressed]}
+        >
+          {photo ? (
+            <PhotoImage source={photo} style={styles.thumb} accessibilityLabel={place.name} />
+          ) : (
+            <View style={[styles.thumb, styles.thumbFallback]}>
+              <Ionicons
+                name={actionIcon.imageFallback}
+                size={iconSize.lg}
+                color={colors.textSubtle}
+              />
+            </View>
+          )}
+          <View style={styles.body}>
+            <View style={styles.nameRow}>
+              <Text numberOfLines={1} style={styles.name}>
+                {venue}
+              </Text>
+              {badge ? <Badge variant={badge} size="sm" /> : null}
+            </View>
+            {branch ? (
+              <Text numberOfLines={1} style={styles.branch}>
+                {branch}
+              </Text>
+            ) : null}
+            <Text numberOfLines={1} style={styles.detail}>
+              {copy.typeLine}
             </Text>
-            {badge ? <Badge variant={badge} size="sm" /> : null}
+            <PlaceMetaRow place={place} order="ratingFirst" />
+            <Badge variant={place.openState.isOpen ? 'open' : 'closed'} tone="soft" size="sm" />
           </View>
-          {branch ? (
-            <Text numberOfLines={1} style={styles.branch}>
-              {branch}
-            </Text>
-          ) : null}
-          <Text numberOfLines={1} style={styles.detail}>
-            {copy.typeLine}
-          </Text>
-          <PlaceMetaRow place={place} order="ratingFirst" />
-          <Badge variant={place.openState.isOpen ? 'open' : 'closed'} tone="soft" size="sm" />
-        </View>
+        </Pressable>
         <IconButton
           icon={actionIcon.favorited}
           onPress={onRemove}
@@ -210,6 +226,8 @@ const styles = StyleSheet.create({
   },
   card: { marginBottom: layout.cardGap },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  summary: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  summaryPressed: { opacity: 0.85 },
   thumb: { width: THUMB, height: THUMB, borderRadius: radius.chip },
   thumbFallback: {
     backgroundColor: colors.surfaceMuted,
