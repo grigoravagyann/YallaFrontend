@@ -8,7 +8,9 @@ import type {
   TableActionKind,
   TableStatus,
 } from '@yalla/api';
+import type { DayAndTime } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
+import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useBranchFormat } from './useBranchFormat';
 
@@ -134,7 +136,9 @@ export function TableActionPanel(props: TableActionPanelProps) {
         {bookingStart && !bookingLate ? (
           <div>
             <dt>{t('table.nextBooking')}</dt>
-            <dd>{format.time(bookingStart)}</dd>
+            {/* A bare time reads as tonight; a booking days away said so is
+                how a waiter seats nobody over it (QA 2026-10-16). */}
+            <dd>{nextBookingText(t, format.dayAndTime(bookingStart))}</dd>
           </div>
         ) : null}
         {balance !== null && balance > 0 ? (
@@ -478,4 +482,10 @@ function physicalFrom(state: DerivedTableState): TableStatus {
       // waiter most often has to seat against a booking.
       return 'free';
   }
+}
+
+function nextBookingText(t: TFunction, when: DayAndTime): string {
+  if (when.day === 'today') return when.time;
+  if (when.day === 'tomorrow') return t('table.nextBookingTomorrow', { time: when.time });
+  return t('table.nextBookingOn', { date: when.date, time: when.time });
 }

@@ -3,6 +3,7 @@ import {
   InvalidInstantError,
   branchDayKey,
   formatDate,
+  formatDayAndTime,
   formatTime,
   formatTimeRange,
 } from './datetime';
@@ -79,5 +80,25 @@ describe('branchDayKey', () => {
 
   it('always returns a zero-padded YYYY-MM-DD', () => {
     expect(branchDayKey('2026-01-05T09:00:00Z', YEREVAN)).toBe('2026-01-05');
+  });
+});
+
+describe('formatDayAndTime (QA 2026-10-16: a booking days away read as tonight)', () => {
+  // Friday 16 Oct, 22:45 in Yerevan.
+  const NOW = new Date('2026-10-16T18:45:00Z');
+
+  it('says today, tomorrow, or the weekday and date, in the branch timezone', () => {
+    expect(formatDayAndTime('2026-10-16T19:30:00Z', YEREVAN, 'en', NOW)).toEqual({
+      day: 'today',
+      time: '23:30',
+      date: 'Fri 16 Oct',
+    });
+    // 01:00 Saturday in Yerevan is tomorrow there, whatever UTC says.
+    expect(formatDayAndTime('2026-10-16T21:00:00Z', YEREVAN, 'en', NOW).day).toBe('tomorrow');
+    expect(formatDayAndTime('2026-10-18T16:00:00Z', YEREVAN, 'en', NOW)).toEqual({
+      day: 'other',
+      time: '20:00',
+      date: 'Sun 18 Oct',
+    });
   });
 });

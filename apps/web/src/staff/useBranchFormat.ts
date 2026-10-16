@@ -1,9 +1,11 @@
 import {
   formatDram,
   formatDramAmount,
+  formatDayAndTime,
   formatRelativeMinutes,
   formatTime,
   minutesBetween,
+  type DayAndTime,
   type TimeZone,
 } from '@yalla/format';
 import { useLocale } from '@yalla/i18n';
@@ -25,6 +27,8 @@ import { useMemo } from 'react';
  */
 export interface BranchFormat {
   readonly time: (value: string | Date | number) => string;
+  /** The time and its day as the branch counts days: today, tomorrow, or a date. */
+  readonly dayAndTime: (value: string | Date | number) => DayAndTime;
   readonly dram: (amount: number) => string;
   /** Digits with no currency sign, for a keypad's own display. */
   readonly dramAmount: (amount: number) => string;
@@ -40,6 +44,7 @@ export function useBranchFormat(timeZoneId: TimeZone): BranchFormat {
   return useMemo(
     () => ({
       time: (value) => formatTime(value, timeZoneId, locale),
+      dayAndTime: (value) => formatDayAndTime(value, timeZoneId, locale),
       dram: (amount) => formatDram(amount, locale),
       dramAmount: (amount) => formatDramAmount(amount, locale),
       since: (utc) => formatRelativeMinutes(-minutesBetween(utc, new Date()), locale),

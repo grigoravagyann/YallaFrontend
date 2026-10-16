@@ -9,11 +9,12 @@ export {
   formatTime,
   formatTimeRange,
   formatDate,
+  formatDayAndTime,
   branchDayKey,
   instantFromZonedClock,
   InvalidInstantError,
 } from './datetime';
-export type { Instant, ZonedClock } from './datetime';
+export type { DayAndTime, Instant, ZonedClock } from './datetime';
 
 export { formatRelativeMinutes, formatDuration, minutesBetween } from './duration';
 

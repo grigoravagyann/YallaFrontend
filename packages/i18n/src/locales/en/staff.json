@@ -59,7 +59,9 @@
       "release": "Release — our doing"
     },
     "noTab": "No tab is open on this table yet.",
-    "noTabWhy": "A tab opens when a guest scans the code on the table, and orders go on it from there. This tablet cannot open one."
+    "noTabWhy": "A tab opens when a guest scans the code on the table, and orders go on it from there. This tablet cannot open one.",
+    "nextBookingTomorrow": "Tomorrow {{time}}",
+    "nextBookingOn": "{{date}}, {{time}}"
   },
   "queue": {
     "pending_one": "{{count}} action waiting to sync",
