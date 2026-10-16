@@ -33,12 +33,6 @@
     "comingSoon": "This screen is coming soon."
   },
   "floorPlan": {
-    "overview": "Overview",
-    "otherTables": "Other tables",
-    "freeCount_one": "{{count}} free",
-    "freeCount_other": "{{count}} free",
-    "areaFree_one": "{{area}}, {{count}} table free",
-    "areaFree_other": "{{area}}, {{count}} tables free",
     "table_one": "Table {{label}}, {{count}} seat, {{status}}",
     "table_other": "Table {{label}}, {{count}} seats, {{status}}"
   }

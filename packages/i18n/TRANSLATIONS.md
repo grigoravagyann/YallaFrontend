@@ -39,6 +39,16 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   and the cover-photo pins: every other `floorPlan.*` key and
   `publicPage.markers.*`, so the `publicPage.markers.*` notes above describe
   keys that no longer exist.
+- Rooms on the staff floor and the public page (2026-10-16), provisional and
+  **not** reviewed: `staff` `floor.legend.label`, `floor.legend.booked` (one
+  colour for booked soon **and** held) and `floor.noRoom`; `public`
+  `room.rooms`, `room.photoOf`, `room.previous`, `room.next`, `room.pin`,
+  `room.status.*` (lower case, read after the table number: "Table 4, free")
+  and `room.legend.*`. Written ungendered; ru `room.status.*` agree with
+  `стол`, and hy `room.photoOf` writes "{{index}} / {{count}}" rather than
+  gluing a suffix onto a number. Removed with the drawn floor plan: `public`
+  `room.loading` and `common` `floorPlan.overview`, `.otherTables`,
+  `.freeCount_*` and `.areaFree_*`.
 - `diner` — the real-data review fixes (2026-09-14), provisional and **not**
   reviewed: `place.review.loadFailed`, `orders.signedOut.*` (orders live on
   the account — never phrase it as the order being gone) and

@@ -33,16 +33,6 @@
     "comingSoon": "Этот экран скоро появится."
   },
   "floorPlan": {
-    "overview": "Весь зал",
-    "otherTables": "Другие столы",
-    "freeCount_one": "{{count}} свободен",
-    "freeCount_few": "{{count}} свободно",
-    "freeCount_many": "{{count}} свободно",
-    "freeCount_other": "{{count}} свободно",
-    "areaFree_one": "{{area}}, свободен {{count}} стол",
-    "areaFree_few": "{{area}}, свободно {{count}} стола",
-    "areaFree_many": "{{area}}, свободно {{count}} столов",
-    "areaFree_other": "{{area}}, свободно {{count}} стола",
     "table_one": "Стол {{label}}, {{count}} место, {{status}}",
     "table_few": "Стол {{label}}, {{count}} места, {{status}}",
     "table_many": "Стол {{label}}, {{count}} мест, {{status}}",
