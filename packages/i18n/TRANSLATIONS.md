@@ -183,12 +183,30 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `venue.tier.toPaid`, `venue.tier.toFree` and the refusal `venue.tier.notReady_*`,
   which quotes how many dishes are unfinished and must keep pointing at the
   menu rather than reading as "cannot upgrade". Provisional, **not** reviewed.
+- `admin` — editing a venue and adding a branch on the platform venue page
+  (2026-10-16): `venue.edit.*` and `venue.addBranch.*`. The fields reuse the
+  create form's `create.*` labels, so the two forms cannot drift apart. hy keeps
+  `վայր` for venue, as everywhere else in the console. Provisional, **not**
+  reviewed.
 - `staff` — the kitchen screen (2026-09-11): its header title `kitchen.title`
   ("Kitchen" / "Խոհանոց" / "Кухня"). Provisional, **not** reviewed.
 - `staff` — the floor screen: connection and sync states, the order and seating
   panel frames, and the install prompt. **Not** reviewed, and this set matters
   most of all: it is read by a waiter at arm's length during a rush, in Armenian
   far more often than in anything else.
+- The QA sweep fixes (2026-10-16), provisional and **not** reviewed. `public`
+  `page.opensOn` (the next opening on another day — the weekday comes from
+  `hours.day.*`), `page.closedNow` (replaces `closedToday`, which was a guess)
+  and `booking.closedNotice` (now one short sentence under the status line).
+  `common` `floorPlan.table_*`, the accessible name of a table on every floor
+  plan ("Table 4, 2 seats, free" — label, seats, then the legend's own state
+  word). `staff` `table.noTab` / `table.noTabWhy` and `order.noTab` /
+  `order.noTabWhy`, which must keep saying the **guest** opens the tab by
+  scanning and that **this tablet cannot**; `connection.pollingHint` and
+  `connection.refreshQueue` (the kitchen refreshes orders, not a floor);
+  `panel.orders.awaitingWaiter`. Removed: `connection.notWired`,
+  `connection.notWiredHint`, `order.tabWillOpen` — each promised something the
+  screen could not do.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

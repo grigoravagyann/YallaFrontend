@@ -61,6 +61,14 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
   const [zoom, setZoom] = useState(1);
   const [regenerating, setRegenerating] = useState<EditorTable | null>(null);
   const [confirmText, setConfirmText] = useState('');
+  /** The label of the table whose QR was just replaced, for the status line. */
+  const [qrReplaced, setQrReplaced] = useState<string | null>(null);
+  /**
+   * The table to select again once the plan reloads after a regenerate. The
+   * reload is a wholesale `loaded`, which clears the selection — and the
+   * person who just replaced a code is looking at that table's panel.
+   */
+  const reselect = useRef<string | null>(null);
   const [saveResult, setSaveResult] = useState<{
     warnings: readonly string[];
     deactivated: readonly string[];
@@ -77,6 +85,10 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
     if (loadedFor.current === query.data.branchId) return;
     loadedFor.current = query.data.branchId;
     dispatch({ type: 'loaded', plan: query.data });
+    if (reselect.current) {
+      dispatch({ type: 'select', ids: [reselect.current] });
+      reselect.current = null;
+    }
   }, [query.data, dispatch]);
 
   const dirty = isDirty(state);
@@ -323,6 +335,12 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
         </div>
       ) : null}
 
+      {qrReplaced && !saveResult ? (
+        <div className="notice notice-offline" role="status">
+          <p>{t('floorPlan.qr.regenerated', { label: qrReplaced })}</p>
+        </div>
+      ) : null}
+
       {saveResult ? (
         <div className="notice notice-offline" role="status">
           <p>
@@ -409,8 +427,10 @@ export function FloorPlanEditorRoute({ branchId, timeZoneId }: FloorPlanEditorRo
                 onClick={() => {
                   const table = regenerating;
                   void regenerate.mutateAsync({ tableId: table.id }).then(() => {
-                    void query.refetch();
+                    reselect.current = table.id;
+                    setQrReplaced(table.label);
                     loadedFor.current = null;
+                    void query.refetch();
                     setRegenerating(null);
                   });
                 }}

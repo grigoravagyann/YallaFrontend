@@ -319,7 +319,8 @@ describe('readiness in the mock', () => {
       staffEnrolled: true,
       deviceEnrolled: true,
       deviceCount: 1,
-      acceptsWebBookings: false,
+      // Seeded from the public fixture, where Cascade takes bookings (QA F5).
+      acceptsWebBookings: true,
       isReadyForDiners: false,
     });
     // The fixture seeds one dish without a photo, which is what the to-do list is for.

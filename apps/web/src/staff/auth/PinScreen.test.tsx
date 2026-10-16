@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { NetworkError, type EnrolledDevice } from '@yalla/api';
+import { NetworkError, PinRejectedError, type EnrolledDevice } from '@yalla/api';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -104,5 +104,27 @@ describe('the branch roster on the PIN screen', () => {
     await waitFor(() =>
       expect(fake.signInWithPin).toHaveBeenCalledWith({ staffMemberId: 'typed-id', pin: '5678' }),
     );
+  });
+});
+
+/**
+ * The SMS code screen says "4 attempts left" after the first wrong code. The
+ * PIN screen said nothing until the attempt before the lockout, so a waiter
+ * read "not recognised" four times and then "locked" with no warning between.
+ */
+describe('a wrong PIN', () => {
+  it('says how many attempts are left from the first one', async () => {
+    fake.roster.mockResolvedValue([
+      { staffMemberId: 'id-anna', fullName: 'Anna Hakobyan', role: 'waiter' },
+    ]);
+    fake.signInWithPin.mockRejectedValue(new PinRejectedError({ url: '/api/auth/staff/pin' }));
+    const user = userEvent.setup();
+    renderPin();
+
+    await user.click(await screen.findByRole('button', { name: 'Anna Hakobyan' }));
+    await tapPin(user, '0000');
+
+    expect(await screen.findByText('That PIN was not recognised.')).toBeTruthy();
+    expect(screen.getByText('4 attempts left.')).toBeTruthy();
   });
 });

@@ -419,3 +419,24 @@ function setRange(from: string, to: string): void {
   fireEvent.change(screen.getByLabelText('To'), { target: { value: to } });
   fireEvent.change(screen.getByLabelText('From'), { target: { value: from } });
 }
+
+describe('the summary heading', () => {
+  it('names the preset that is selected, and the range when it is custom', async () => {
+    /*
+     * It said "This week" whatever was pressed: the page opens on last week
+     * and the card above the numbers contradicted the pill beside it.
+     */
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderReports();
+    await waitForSummary();
+    expect(screen.getByRole('heading', { name: 'Last week' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'This week' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'This week' })).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: 'Custom' }));
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Selected range' })).toBeTruthy(),
+    );
+  });
+});

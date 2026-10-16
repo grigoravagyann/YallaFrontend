@@ -100,7 +100,13 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
     [branchId, queryClient, queue],
   );
 
-  const state = useConnectionState({ lastError: ordersQuery.error, offline: !queue.online });
+  // The queue is this screen's only live read, so its polls are the
+  // connection: answered means live, a failure means reconnecting.
+  const state = useConnectionState({
+    lastError: ordersQuery.error,
+    offline: !queue.online,
+    polling: ordersQuery.isError ? 'failing' : ordersQuery.data ? 'ok' : 'unknown',
+  });
 
   return (
     <div className="floor" data-surface="staff">
@@ -121,6 +127,7 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
         online={queue.online}
         onOpenConflicts={() => setConflictsOpen(true)}
         onRefresh={() => void refetch()}
+        refreshLabel={t('connection.refreshQueue')}
       />
 
       <div className="floor-body kitchen-body">

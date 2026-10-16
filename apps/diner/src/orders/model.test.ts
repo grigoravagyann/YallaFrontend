@@ -108,3 +108,11 @@ describe('status helpers', () => {
     }
   });
 });
+
+describe('shortOrderCode', () => {
+  it('is the last six characters of the id, upper-cased, so a GUID is never shown whole', async () => {
+    const { shortOrderCode } = await import('./model');
+    expect(shortOrderCode('3f2504e0-4f89-11d3-9a0c-0305e82c3301')).toBe('2C3301');
+    expect(shortOrderCode('o-7')).toBe('O-7');
+  });
+});

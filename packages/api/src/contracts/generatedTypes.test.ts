@@ -21,7 +21,8 @@ const SEARCHED = ['packages', 'apps'];
 
 function* sourceFiles(dir: string): Generator<string> {
   for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === 'dist' || entry === '.expo') continue;
+    if (entry === 'node_modules' || entry === 'dist' || entry === 'dist-web' || entry === '.expo')
+      continue;
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) {
       yield* sourceFiles(path);

@@ -67,8 +67,19 @@ export type { ResolveGatewayOptions } from './resolveGateway';
 
 export { createMockGateway } from './mocks/mockGateway';
 export type { MockGateway, MockGatewayOptions } from './mocks/mockGateway';
+export { MOCK_JOURNAL_PREFIX, clearMockJournal, persistMockGateway } from './mocks/persistence';
+export { browserMockStorage, resetBrowserMockWorlds } from './mocks/browserStorage';
+export type { MockJournalStorage, PersistedMock, PersistedMockOptions } from './mocks/persistence';
+export type { MockPersistence } from './resolveConsoleGateway';
+export { createMockRegistry, mockRegistry } from './mocks/mockRegistry';
+export type { MockRegistry } from './mocks/mockRegistry';
+export { createMockStaffAuth } from './mocks/staffAuthMock';
+export type { StaffAuthMockOptions } from './mocks/staffAuthMock';
+export { createMockVenueUserAuth } from './mocks/venueAuthMock';
+export type { VenueAuthMockOptions } from './mocks/venueAuthMock';
+export { MOCK_STAFF_PIN, fixtureStaffFor } from './mocks/staffFixture';
 export { createHttpGateway } from './http/httpGateway';
-export type { GatewayAudience, HttpGatewayOptions } from './http/httpGateway';
+export type { GatewayAudience, HttpGatewayOptions, TabTokenStorage } from './http/httpGateway';
 
 export type {
   AvailabilityWindowDto,
@@ -296,7 +307,7 @@ export type { ResolvePublicGatewayOptions } from './resolvePublicGateway';
 export { createPublicMockGateway, manageTokenFor } from './mocks/publicMock';
 export type { PublicMockOptions } from './mocks/publicMock';
 export { createPublicHttpGateway } from './http/publicHttpGateway';
-export { openStateFrom } from './mocks/openState';
+export { openStateFrom } from './contracts/openState';
 export type {
   ManagedBooking,
   OpenState,
@@ -387,6 +398,7 @@ export { createConsoleHttpGateway, createMemoryIdentityStore } from './http/cons
 export type { ConsoleHttpGatewayOptions, ConsoleIdentityStore } from './http/consoleHttpGateway';
 
 export type {
+  AddBranchCommand,
   ConsoleBranch,
   ConsoleStaffMember,
   ConsoleUser,
@@ -399,6 +411,7 @@ export type {
   Page,
   StaffRole,
   SubscriptionTier,
+  UpdateVenueCommand,
   UserRole,
   UserScope,
   VenueStatus,

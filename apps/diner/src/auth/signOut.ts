@@ -15,8 +15,8 @@ import { useSession } from '../stores/session';
  * greets whoever uses this phone next. A server that cannot be reached is no
  * reason to leave somebody signed in on a phone they handed back.
  *
- * The remembered number, name and email stay, as the store intends: prefill,
- * not a session.
+ * The remembered number, name and email go with it: a phone handed back must
+ * not offer the last person's details to the next one's sign-up form.
  */
 export async function signOut(queryClient: QueryClient, auth: AuthSession): Promise<void> {
   try {

@@ -8,9 +8,11 @@ import { createMockGateway } from './mockGateway';
  * verifying its own number while signed in keeps it.
  */
 
+// Not `ani`: that account is seeded now (QA F10, 2026-10-16), and this test
+// registers a fresh person.
 const FORM = {
-  username: 'ani',
-  email: 'ani@example.com',
+  username: 'ani.k',
+  email: 'ani.k@example.com',
   password: 'correct horse',
   phoneE164: '+37499000011',
   displayName: 'Ani',

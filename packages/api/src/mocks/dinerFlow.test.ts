@@ -14,9 +14,16 @@ import { mockTableCode } from './tableCodes';
 
 const COMMAND = (n: number) => `${n}0000000-0000-4000-8000-000000000000`;
 
+/**
+ * Wednesday 14:00 in Yerevan: Lumen North is open. The mock refuses an order
+ * at a shut branch since the 2026-10-16 QA sweep (F9), and this loop used to
+ * run on the wall clock, which passed only during opening hours.
+ */
+const MID_SERVICE = () => new Date('2026-09-16T10:00:00.000Z');
+
 describe('a diner ordering from their own phone', () => {
   it('scans, orders, and sees the bill with the service charge from the first item', async () => {
-    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
+    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false, now: MID_SERVICE });
 
     const scan = await gateway.scanTableCode({
       tableCode: mockTableCode('b-lumen-north-t4'),
@@ -82,7 +89,7 @@ describe('a diner ordering from their own phone', () => {
   });
 
   it('replays a repeated send rather than doubling the round', async () => {
-    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
+    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false, now: MID_SERVICE });
     const scan = await gateway.scanTableCode({
       tableCode: mockTableCode('b-lumen-north-t5'),
       commandId: COMMAND(3),
@@ -117,7 +124,7 @@ describe('a diner ordering from their own phone', () => {
   });
 
   it('shows what the shares endpoint says, summing to the total', async () => {
-    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
+    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false, now: MID_SERVICE });
     const scan = await gateway.scanTableCode({
       tableCode: mockTableCode('b-lumen-north-t6'),
       commandId: COMMAND(5),
@@ -155,7 +162,7 @@ describe('a diner ordering from their own phone', () => {
   });
 
   it('lets the host pick how the bill splits', async () => {
-    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
+    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false, now: MID_SERVICE });
     const scan = await gateway.scanTableCode({
       tableCode: mockTableCode('b-lumen-north-t7'),
       commandId: COMMAND(7),
@@ -172,7 +179,7 @@ describe('a diner ordering from their own phone', () => {
   });
 
   it('records a waiter call so the counter is actually pinged', async () => {
-    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false });
+    const gateway = createMockGateway({ latencyMs: 0, simulateJoiners: false, now: MID_SERVICE });
     const scan = await gateway.scanTableCode({
       tableCode: mockTableCode('b-lumen-north-t8'),
       commandId: COMMAND(9),

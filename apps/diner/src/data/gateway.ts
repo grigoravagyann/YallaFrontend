@@ -1,7 +1,8 @@
-import { resolveGateway, type YallaGateway } from '@yalla/api';
+import { browserMockStorage, resolveGateway, type YallaGateway } from '@yalla/api';
 import { authSession } from '../auth/session';
 import { apiConfig, dataSource } from '../config';
 import { installDeviceId } from '../lib/deviceId';
+import { tabTokenStorage } from '../lib/tabMemory';
 
 /**
  * The app's single data source.
@@ -19,11 +20,23 @@ export const gateway: YallaGateway = resolveGateway({
   // One id per install, kept in the secure store. Opening or joining a tab
   // requires it: it is how the server knows a re-scan is the same phone.
   deviceId: installDeviceId,
+  // The participant token each tab issued this install, so a reload or a tab's
+  // link re-attaches instead of saying the tab closed.
+  tabTokens: tabTokenStorage,
   // Enough delay that loading states are actually visible while developing.
   mockLatencyMs: 250,
   // Set EXPO_PUBLIC_SIMULATE_TABLE_TAKEN=1 to make the next booking lose the
   // race, so the 409 path can be walked without a second device. Mock only.
   simulateTableTaken: process.env['EXPO_PUBLIC_SIMULATE_TABLE_TAKEN'] === '1',
+  // On the web build the mock world survives a full page load (QA F2); a
+  // phone keeps the app alive between screens and has no localStorage.
+  persist:
+    dataSource === 'mock' &&
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined' &&
+    process.env['NODE_ENV'] !== 'test'
+      ? { key: 'yalla.mock.diner', storage: browserMockStorage() }
+      : undefined,
 });
 
 /** True when the app is running on mock data. Drives the dev-only banner. */

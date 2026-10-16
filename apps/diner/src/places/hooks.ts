@@ -116,13 +116,14 @@ export function useMenuDetail(placeId: string | undefined) {
  * Every review of a place, twenty at a time, newest first. The next page is
  * asked for only while the last one was full and the total says there is more.
  */
-export function useReviewPages(placeId: string | undefined) {
+export function useReviewPages(placeId: string | undefined, timeZoneId: string | undefined) {
   return useInfiniteQuery({
     queryKey: placeKeys.reviews(placeId ?? ''),
-    queryFn: ({ pageParam }) => placeRepository.reviewPage(placeId!, pageParam),
+    queryFn: ({ pageParam }) => placeRepository.reviewPage(placeId!, pageParam, timeZoneId!),
     initialPageParam: 1,
     getNextPageParam: (last) => nextReviewPage(last),
-    enabled: Boolean(placeId),
+    // Waits for the place: its zone is what dates each review.
+    enabled: Boolean(placeId) && Boolean(timeZoneId),
     staleTime: staleTime.frequent,
   });
 }

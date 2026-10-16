@@ -9,6 +9,7 @@ import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { usePageTitle } from './meta';
 import { FailedPage, LoadingPage } from './PageStates';
 
 /**
@@ -44,6 +45,17 @@ export function ManageBookingRoute() {
   // Subscribed to rather than read during render, so the deadline actually
   // passes on a page somebody left open — and so the render stays pure.
   const now = useNow(30_000);
+  // What the booking is, in the tab bar: the manage page, the cancelled page
+  // and the dead link each name themselves rather than leaving "Yalla".
+  const booked = bookingQuery.data;
+  usePageTitle(
+    !booked
+      ? t('manage.gone.title')
+      : booked.status === 'cancelled'
+        ? t('manage.cancelled')
+        : t('manage.title'),
+    t('appName', { ns: 'common' }),
+  );
 
   if (bookingQuery.isLoading) return <LoadingPage />;
   if (bookingQuery.isError || isOfflinePaused(bookingQuery)) {
@@ -129,7 +141,9 @@ export function ManageBookingRoute() {
           </div>
           <div>
             <dt>{td('confirm.tableRow')}</dt>
-            <dd>{booking.tableLabel}</dd>
+            {/* "Table 2", not a bare "2": read on its own by a screen reader
+                the digit says nothing. */}
+            <dd>{td('table.title', { label: booking.tableLabel })}</dd>
           </div>
         </dl>
 

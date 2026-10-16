@@ -20,7 +20,12 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { useNow } from '../../src/hooks/useNow';
 import { useCancelOrder, useOrder } from '../../src/orders/hooks';
-import { canCancelOrder, type Order, type OrderStatus } from '../../src/orders/model';
+import {
+  canCancelOrder,
+  shortOrderCode,
+  type Order,
+  type OrderStatus,
+} from '../../src/orders/model';
 import { usePlace } from '../../src/places/hooks';
 import { useSession } from '../../src/stores/session';
 import {
@@ -187,6 +192,7 @@ export default function OrderDetailScreen() {
  * name, table and party (or Takeaway), when, and the status pill.
  */
 function PlaceSummary({ order }: { readonly order: Order }) {
+  const { t } = useTranslation('diner');
   const now = useNow();
   const where = useOrderWhere(order);
   const when = useOrderWhen(order, now);
@@ -212,7 +218,11 @@ function PlaceSummary({ order }: { readonly order: Order }) {
       </View>
       <View style={styles.summaryFooter}>
         <Badge variant={order.status} tone="soft" />
-        <Text style={styles.orderId}>#{order.id}</Text>
+        {/* The last six characters: the server has no short number, and a
+            whole GUID is nothing a waiter can be told. */}
+        <Text style={styles.orderId}>
+          {t('orders.detail.number', { code: shortOrderCode(order.id) })}
+        </Text>
       </View>
     </Card>
   );

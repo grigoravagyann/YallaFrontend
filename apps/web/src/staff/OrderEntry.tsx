@@ -131,14 +131,18 @@ export function OrderEntry(props: OrderEntryProps) {
   const anyToTable = lines.some((line) => line.participantId === null);
 
   return (
-    <div className="staff-overlay order-entry" role="dialog" aria-label={t('order.title')}>
+    <div
+      className="staff-overlay order-entry"
+      role="dialog"
+      aria-label={t('order.title', { label: tableLabel })}
+    >
       <header className="staff-overlay-head">
         <div>
           <h1>{t('order.title', { label: tableLabel })}</h1>
+          {/* Never "a tab will be opened": nothing on this screen can open
+              one. Either the tab is here, with when it opened, or it is not. */}
           <p>
-            {tab
-              ? t('order.tabOpen', { time: format.time(tab.openedAtUtc) })
-              : t('order.tabWillOpen')}
+            {tab ? t('order.tabOpen', { time: format.time(tab.openedAtUtc) }) : t('order.noTab')}
           </p>
         </div>
         <button type="button" className="button big" onClick={props.onClose}>
@@ -206,6 +210,15 @@ export function OrderEntry(props: OrderEntryProps) {
                   className="order-item"
                   disabled={!item.isAvailable}
                   onClick={() => add(item)}
+                  // Name, price, and whether it is off: the three things a
+                  // sighted waiter reads off the tile, in that order.
+                  aria-label={[
+                    item.name,
+                    format.dram(item.priceDram),
+                    item.isAvailable ? null : t('order.unavailable'),
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
                 >
                   <span className="order-item-name">{item.name}</span>
                   <span className="order-item-price">{format.dram(item.priceDram)}</span>

@@ -10,7 +10,7 @@ import type {
   PublicVenueHeader,
 } from '../contracts/publicBranch';
 import type { Booking } from '../contracts/booking';
-import { openStateFrom } from './openState';
+import { openStateFrom } from '../contracts/openState';
 import {
   publicBranchFixtures,
   publicVenueFixtures,

@@ -202,6 +202,41 @@ function newTable(over: Partial<EditorTable>, tables: readonly EditorTable[]): E
   };
 }
 
+/**
+ * The first spot, scanning rows from the top-left, that no table covers.
+ *
+ * A new table used to land at (40, 40) every time, which on any room already
+ * drawn is on top of table 1 — and the next one on top of that. The scan is
+ * in grid steps so the result snaps like a dragged table would, with half a
+ * step of air around each neighbour; the fallback is the old corner, for a
+ * room with no space left.
+ */
+function freeSpot(
+  tables: readonly EditorTable[],
+  plan: PlanSnapshot,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  const step = 40;
+  const air = step / 2;
+  const clear = (x: number, y: number) =>
+    tables.every(
+      (table) =>
+        !(
+          x < table.x + table.width + air &&
+          table.x < x + width + air &&
+          y < table.y + table.height + air &&
+          table.y < y + height + air
+        ),
+    );
+  for (let y = step; y + height <= plan.floorHeight; y += step) {
+    for (let x = step; x + width <= plan.floorWidth; x += step) {
+      if (clear(x, y)) return { x, y };
+    }
+  }
+  return { x: step, y: step };
+}
+
 function mapSelected(
   state: EditorState,
   change: (table: EditorTable) => EditorTable,
@@ -386,7 +421,9 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
     }
 
     case 'addTable': {
-      const table = clampToCanvas(newTable(action.table ?? {}, state.plan.tables), state.plan);
+      const over = action.table ?? {};
+      const spot = freeSpot(state.plan.tables, state.plan, over.width ?? 80, over.height ?? 80);
+      const table = clampToCanvas(newTable({ ...spot, ...over }, state.plan.tables), state.plan);
       return {
         ...applyPlan(state, { ...state.plan, tables: [...state.plan.tables, table] }),
         selection: [table.id],

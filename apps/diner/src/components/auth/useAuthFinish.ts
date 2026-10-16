@@ -23,6 +23,12 @@ export type AuthRouteParams = {
    * spent on arrival and never carried forward.
    */
   tg?: string;
+  /**
+   * Why the code screen was opened, when it is not a plain log-in:
+   * `forgotPassword` from the password log-in's "Forgot your password?".
+   * Changes the copy only, and is not carried on to another screen.
+   */
+  reason?: string;
 };
 
 /** The value of `from` when the welcome screen is underneath. */
@@ -89,8 +95,12 @@ export function useAuthFinish(params: AuthRouteParams) {
 
   /** Another way in, in this screen's place, with the same booking and `from`. */
   const switchTo = useCallback(
-    (target: AuthRoute) => {
-      const carried = { ...forward, ...(from === FROM_WELCOME ? { from: FROM_WELCOME } : {}) };
+    (target: AuthRoute, extra?: Readonly<Record<string, string>>) => {
+      const carried = {
+        ...forward,
+        ...(from === FROM_WELCOME ? { from: FROM_WELCOME } : {}),
+        ...extra,
+      };
       router.replace({ pathname: target, params: carried });
     },
     [router, forward, from],

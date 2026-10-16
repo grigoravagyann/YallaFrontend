@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { PublicBranch, TableAvailability } from '@yalla/api';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { PublicApp } from './PublicApp';
@@ -132,5 +132,43 @@ describe('the manage-booking link', () => {
       expect(screen.getByRole('link', { name: 'See the venue' })).toBeDefined();
       cleanup();
     }
+  });
+});
+
+/**
+ * Every page in this route group left the shell's `<title>Yalla</title>` in
+ * place, so a tab bar full of them was a row of identical labels — and the
+ * table row read as "Table" with a bare digit beside it.
+ */
+describe('the manage page in the browser chrome', () => {
+  it('titles the tab after the booking and names the table in full', async () => {
+    const harness = createHarness();
+    const { url } = await bookedLink(harness);
+
+    render(harness.wrap(<PublicApp />, url));
+    await screen.findByText('Your booking');
+
+    await waitFor(() => expect(document.title).toBe('Your booking · Yalla'));
+    expect(screen.getByText(/^Table \S+$/u)).toBeTruthy();
+  });
+
+  it('retitles the tab once the booking is cancelled', async () => {
+    const harness = createHarness();
+    const { url } = await bookedLink(harness);
+    const user = userEvent.setup();
+
+    render(harness.wrap(<PublicApp />, url));
+    await user.click(await screen.findByRole('button', { name: 'Cancel this booking' }));
+    await user.click(screen.getByRole('button', { name: 'Yes, cancel' }));
+
+    await waitFor(() => expect(document.title).toBe('Cancelled · Yalla'));
+  });
+
+  it('titles a dead link as one', async () => {
+    const harness = createHarness();
+    render(harness.wrap(<PublicApp />, '/lumen-coffee/northern-avenue/booking/mbk_nope'));
+
+    await screen.findByText('This link no longer works');
+    await waitFor(() => expect(document.title).toBe('This link no longer works · Yalla'));
   });
 });

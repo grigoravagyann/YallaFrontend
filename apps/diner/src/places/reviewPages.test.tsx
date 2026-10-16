@@ -35,7 +35,7 @@ describe('useReviewPages', () => {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useReviewPages('b1'), { wrapper });
+    const { result } = renderHook(() => useReviewPages('b1', 'Asia/Yerevan'), { wrapper });
 
     await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
     expect(result.current.data?.pages[0]?.reviews).toHaveLength(20);
@@ -54,8 +54,8 @@ describe('useReviewPages', () => {
     });
     expect(placeRepository.reviewPage).toHaveBeenCalledTimes(2);
     expect(vi.mocked(placeRepository.reviewPage).mock.calls).toEqual([
-      ['b1', 1],
-      ['b1', 2],
+      ['b1', 1, 'Asia/Yerevan'],
+      ['b1', 2, 'Asia/Yerevan'],
     ]);
   });
 });

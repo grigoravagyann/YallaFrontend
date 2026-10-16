@@ -20,7 +20,27 @@ import { FloorPlanEditorRoute } from './FloorPlanEditorRoute';
 
 vi.mock('./EditorCanvas', () => ({ EditorCanvas: () => null }));
 vi.mock('./EditorPreview', () => ({ EditorPreview: () => null }));
-vi.mock('./PropertiesPanel', () => ({ PropertiesPanel: () => null }));
+// The panel is reduced to what these tests need from it: which table is
+// selected, and a way to ask for a new QR for the first one.
+vi.mock('./PropertiesPanel', () => ({
+  PropertiesPanel: ({
+    plan,
+    selection,
+    onRegenerateQr,
+  }: {
+    plan: { tables: readonly { id: string; label: string; qrToken: string }[] };
+    selection: readonly string[];
+    onRegenerateQr: (table: { id: string; label: string; qrToken: string }) => void;
+  }) => (
+    <div>
+      <span data-testid="selection">{selection.join(',')}</span>
+      <span data-testid="first-token">{plan.tables[0]?.qrToken ?? ''}</span>
+      <button type="button" onClick={() => onRegenerateQr(plan.tables[0]!)}>
+        new qr for first
+      </button>
+    </div>
+  ),
+}));
 
 class NoopResizeObserver {
   observe() {}
@@ -110,5 +130,33 @@ describe('saving a floor plan somebody else changed', () => {
     await waitFor(() => expect(replace).toHaveBeenCalledTimes(2));
     expect(replace.mock.calls[1]![0].command.expectedVersion).toBe(current.version);
     await screen.findByText(/plan saved/i);
+  });
+});
+
+describe("regenerating a table's QR", () => {
+  it('keeps the table selected, shows the new code, and says it was done', async () => {
+    /*
+     * The reload after the call reset the editor wholesale: the properties
+     * panel fell back to "Select a table to edit it" with nothing said, and
+     * the person had to reselect the table to see that anything happened.
+     */
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const user = userEvent.setup();
+    renderEditor(gateway);
+    await screen.findByRole('button', { name: /new qr for first/i });
+    const before = screen.getByTestId('first-token').textContent;
+    const plan = await gateway.getFloorPlan(BRANCH);
+    const first = plan.tables[0]!;
+
+    await user.click(screen.getByRole('button', { name: /new qr for first/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/type .* to confirm/i), first.label);
+    await user.click(within(dialog).getByRole('button', { name: /regenerate it/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(screen.getByTestId('first-token').textContent).not.toBe(before));
+    expect(screen.getByTestId('selection').textContent).toBe(first.id);
+    expect(screen.getByRole('status').textContent).toMatch(new RegExp(`${first.label}`));
+    expect(screen.getByRole('status').textContent).toMatch(/new qr|regenerated/i);
   });
 });

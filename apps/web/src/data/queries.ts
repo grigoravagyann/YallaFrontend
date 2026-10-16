@@ -5,6 +5,7 @@
  */
 export {
   queryKeys as keys,
+  useAddBranch,
   useConsoleVenue,
   useConsoleVenues,
   useCreateVenue,
@@ -13,4 +14,5 @@ export {
   useResumeVenue,
   useSetBranchTier,
   useSuspendVenue,
+  useUpdateVenue,
 } from '@yalla/api/react';

@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { describeAccountFailure, type AccountField } from '../../src/auth/accountErrors';
 import {
+  NAME_MAX_LENGTH,
   isValidPassword,
+  nameProblem,
   normalizeEmail,
   normalizeName,
   normalizePhone,
@@ -85,8 +87,14 @@ export default function SignupScreen() {
   };
 
   // Field errors appear once a field has been left, not while it is typed in.
+  const nameIssue = touched.name ? nameProblem(name) : null;
   const nameError =
-    serverErrors.name ?? (touched.name && !tidyName ? t('auth.error.nameRequired') : null);
+    serverErrors.name ??
+    (nameIssue === 'tooLong'
+      ? t('auth.error.nameTooLong', { max: NAME_MAX_LENGTH })
+      : nameIssue
+        ? t('auth.error.nameRequired')
+        : null);
   const usernameError =
     serverErrors.username ??
     (touched.username && !tidyUsername ? t('auth.error.usernameInvalid') : null);
@@ -162,7 +170,7 @@ export default function SignupScreen() {
           autoFocus
           invalid={nameError !== null}
           accessibilityLabel={t('auth.nameLabel')}
-          maxLength={100}
+          maxLength={NAME_MAX_LENGTH}
         />
       </Field>
       <Field label={t('auth.usernameLabel')} hint={t('auth.usernameHint')} error={usernameError}>

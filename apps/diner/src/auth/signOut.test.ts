@@ -119,14 +119,15 @@ describe('signOut', () => {
     expectSignedOut();
   });
 
-  it('keeps the remembered number and name as prefill, not as a session', async () => {
+  it('forgets the remembered number, name and email, so the next person is not prefilled with them', async () => {
     const auth = { signOut: () => Promise.resolve() } as unknown as AuthSession;
     seed();
-    useSession.setState({ guestName: 'Anahit' });
+    useSession.setState({ guestName: 'Anahit', email: 'anahit@example.test' });
 
     await signOut(queryClient, auth);
 
-    expect(useSession.getState().phoneE164).toBe('+37491000123');
-    expect(useSession.getState().guestName).toBe('Anahit');
+    expect(useSession.getState().phoneE164).toBeNull();
+    expect(useSession.getState().guestName).toBeNull();
+    expect(useSession.getState().email).toBeNull();
   });
 });

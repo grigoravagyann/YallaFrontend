@@ -20,6 +20,16 @@ import { defineConfig } from 'vitest/config';
  *
  * Keep test files out of `app/`: Expo Router would treat them as routes.
  */
+/**
+ * Vitest's 5s default is a hang detector, not a speed budget. `./verify.sh`
+ * runs every package's suite at once (`pnpm -r test`), and on a busy laptop the
+ * first jsdom render of a screen, or the first import of the i18n bundle, has
+ * taken 5-7s with nothing wrong: the same files pass alone in under a second.
+ * The same goes for hooks (default 10s): the repository tests' beforeAll
+ * imports have timed out at 10s under that load. 20s still catches a real hang.
+ */
+const LOADED_MACHINE_TIMEOUT_MS = 20_000;
+
 export default defineConfig({
   test: {
     projects: [
@@ -27,6 +37,8 @@ export default defineConfig({
         test: {
           name: 'node',
           globals: true,
+          testTimeout: LOADED_MACHINE_TIMEOUT_MS,
+          hookTimeout: LOADED_MACHINE_TIMEOUT_MS,
           environment: 'node',
           include: ['src/**/*.test.ts'],
         },
@@ -66,6 +78,8 @@ export default defineConfig({
           name: 'ui',
           // Globals give @testing-library/react its automatic cleanup.
           globals: true,
+          testTimeout: LOADED_MACHINE_TIMEOUT_MS,
+          hookTimeout: LOADED_MACHINE_TIMEOUT_MS,
           environment: 'jsdom',
           include: ['src/**/*.test.tsx'],
         },

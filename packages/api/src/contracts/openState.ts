@@ -1,22 +1,25 @@
 import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/format';
-import {
-  closesNextDay,
-  toMinutes,
-  type WeekdayIndex,
-  type WeeklyHours,
-} from '../contracts/branchSettings';
-import type { OpenState } from '../contracts/publicBranch';
+import { closesNextDay, toMinutes, type WeekdayIndex, type WeeklyHours } from './branchSettings';
+import type { OpenState } from './publicBranch';
 
 /**
  * "Open until 23:00", derived from a week of opening hours.
  *
- * This lives in the mock, not in the page, and that is deliberate. The real
- * `OpenState` is computed by the backend, because the honest version of this
- * question needs the venue's holiday closures and its actual clock — neither of
- * which a browser has — and because a client that derived it would let a phone
- * with a wrong date tell a visitor a shut venue is open. What the mock needs is
- * something *consistent with the fixture*, so that a page reading "open until
- * 01:00" is reading the same week the hours list below it shows.
+ * The open/closed VERDICT belongs to the backend: the honest version of that
+ * question needs the venue's holiday closures and its actual clock, neither of
+ * which a browser has, and a client that decided it would let a phone with a
+ * wrong date tell a visitor a shut venue is open. Two callers use this anyway,
+ * each within that rule:
+ *
+ * - the mock, which has no backend and needs a state *consistent with its
+ *   fixture*, so a page reading "open until 01:00" reads the same week the
+ *   hours list below it shows;
+ * - the real public mapping (`http/publicMapping.ts`), which keeps the server's
+ *   `isOpenNow` and borrows only the times ("opens at 09:00") from the hours,
+ *   dropping them whenever this disagrees with the server.
+ *
+ * It sits in `contracts/` rather than `mocks/` so production code never imports
+ * from the mock.
  *
  * The awkward part, and the reason this is not four lines: a venue that shuts
  * at 01:00 is open at half past midnight **under yesterday's row**. Every rule
@@ -43,6 +46,44 @@ function instantOn(dateKey: string, clock: string, timeZone: TimeZone): Date {
     { year, month, day, hour: Math.floor(minutes / 60), minute: minutes % 60 },
     timeZone,
   );
+}
+
+/**
+ * Does one opening block hold the whole sitting?
+ *
+ * `ReservationRules.CheckOpeningHours`, as the server applies it: the day the
+ * sitting starts and the day before (for an after-midnight closer) are walked,
+ * and the sitting passes when `start >= opensAt && end <= closesAt` for any
+ * block of either day. A sitting that starts inside the hours and runs past
+ * closing is outside them.
+ */
+export function coversSitting(
+  weeklyHours: WeeklyHours,
+  startUtc: Date,
+  endUtc: Date,
+  timeZone: TimeZone,
+): boolean {
+  const dateKey = branchDayKey(startUtc, timeZone);
+  const byDay = new Map<WeekdayIndex, WeeklyHours[number]>();
+  for (const entry of weeklyHours) byDay.set(entry.day, entry);
+
+  for (const offset of [-1, 0]) {
+    const key = dateKeyOffsetBy(dateKey, offset);
+    const entry = byDay.get(weekdayOf(key));
+    if (!entry) continue;
+    for (const block of entry.blocks) {
+      const opens = instantOn(key, block.opensAt, timeZone);
+      const closes = instantOn(
+        closesNextDay(block) ? dateKeyOffsetBy(key, 1) : key,
+        block.closesAt,
+        timeZone,
+      );
+      if (startUtc.getTime() >= opens.getTime() && endUtc.getTime() <= closes.getTime()) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**

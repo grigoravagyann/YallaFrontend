@@ -9,6 +9,7 @@ import { staffAuthAvailable, staffSession } from './auth/staffSession';
 import { useStaffSessionSnapshot, useTouchOnInteraction } from './auth/useStaffSession';
 import { FloorRoute } from './FloorRoute';
 import { KitchenRoute } from './KitchenRoute';
+import { usePageTitle } from '../public/meta';
 
 /**
  * The counter screen and everything that guards it.
@@ -74,6 +75,13 @@ export function StaffRoute() {
 
   const locked = staffAuthAvailable && snapshot.state !== 'signedIn';
 
+  // The tab bar says which screen this is — the floor, the kitchen, or the
+  // PIN gate — rather than "Yalla" three times over.
+  usePageTitle(
+    locked ? t('pin.prompt') : identity?.role === 'kitchen' ? t('kitchen.title') : t('floor.title'),
+    t('common:appName'),
+  );
+
   if (!restored) {
     return (
       <div className="staff-gate" data-surface="staff">
@@ -106,11 +114,10 @@ export function StaffRoute() {
  * The floor — or, for the kitchen, the order queue — given whichever identity
  * this build has.
  *
- * Against a real backend that is the staff session's. Against the mock there is
- * no tablet credential to hold — signing in is the one thing a mock cannot
- * honestly simulate — so the dev role switcher supplies the role and the mock's
- * own branch supplies the scope, exactly as it did before this screen had a
- * sign-in at all.
+ * The staff session's, against a real backend and — since QA F13 — against
+ * the mock too, whose tablet enrols with a code the console mock generated and
+ * signs in with `MOCK_STAFF_PIN`. The dev role switcher's user is the fallback
+ * only for a build with no tablet session at all.
  */
 function StaffFloor({
   paused,

@@ -57,7 +57,9 @@
       "body": "The table is out of service. These people need a phone call — nothing is cancelled automatically.",
       "code": "code {{code}}",
       "release": "Release — our doing"
-    }
+    },
+    "noTab": "No tab is open on this table yet.",
+    "noTabWhy": "A tab opens when a guest scans the code on the table, and orders go on it from there. This tablet cannot open one."
   },
   "queue": {
     "pending_one": "{{count}} action waiting to sync",
@@ -112,7 +114,8 @@
         "served": "Mark served"
       },
       "unreachable": "The order queue could not be read. That is not the same as no orders waiting.",
-      "dueBy": "due {{time}}"
+      "dueBy": "due {{time}}",
+      "awaitingWaiter": "Waiting for a waiter to send it to the kitchen."
     },
     "calls": {
       "title": "Waiting for a waiter",
@@ -188,7 +191,6 @@
   "order": {
     "title": "Order for table {{label}}",
     "tabOpen": "Tab opened {{time}}",
-    "tabWillOpen": "A tab will be opened for this table.",
     "categories": "Categories",
     "search": "Search the menu",
     "unavailable": "Off the menu",
@@ -210,8 +212,8 @@
     "sent_other": "{{count}} items sent.",
     "offlineNote": "Offline. This order is saved on the tablet and sent when the connection returns.",
     "menuOffline": "The menu has not been loaded on this tablet yet, and it cannot be fetched without a connection.",
-    "noTab": "There is no open tab on this table.",
-    "noTabWhy": "A tab opens when a guest scans the code on the table. A waiter's session cannot open one.",
+    "noTab": "No tab is open on this table yet.",
+    "noTabWhy": "A tab opens when a guest scans the code on the table. This tablet cannot open one, so there is nowhere for an order to go yet.",
     "menuFromCache": "Menu from this tablet's own copy. It refreshes when the connection is back."
   },
   "tab": {
@@ -298,9 +300,9 @@
     "exceeds": "{{requested}} is more than this tab owes. {{remaining}} is left on it. Nothing was recorded."
   },
   "connection": {
-    "notWired": "Live updates not connected yet",
-    "notWiredHint": "The floor is refreshed by polling. Refresh to be sure.",
-    "refresh": "Refresh the floor"
+    "refresh": "Refresh the floor",
+    "pollingHint": "Refreshed every few seconds. Refresh to be sure.",
+    "refreshQueue": "Refresh the orders"
   },
   "shell": {
     "title": "Floor",

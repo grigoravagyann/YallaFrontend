@@ -1111,6 +1111,9 @@ describe('deactivating somebody', () => {
     // A waiter the owner may act on.
     const name = 'Ani Hakobyan (Northern Avenue)';
     await chooseAction(user, cardOf(name), /^deactivate$/i);
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /^deactivate$/i }),
+    );
     await waitFor(() => expect(screen.queryByText(name)).toBeNull());
 
     // Still there under the switch, with a working way back. Somebody who
@@ -1768,5 +1771,30 @@ describe('devices', () => {
     const note = await screen.findByText(/stolen tablet is not a stolen till/i);
     // As a note, announced as one.
     expect(note.closest('[role="note"]')).toBeTruthy();
+  });
+});
+
+describe('deactivating asks first', () => {
+  it('names the person in a dialog and changes nothing on Cancel', async () => {
+    /*
+     * Deactivate was immediate: one tap in the overflow menu and the card was
+     * gone, with no confirmation and no undo. The way back exists (Show
+     * deactivated, Reactivate) but a tired thumb should not need it.
+     */
+    const user = userEvent.setup();
+    const harness = renderStaff({ role: 'owner' });
+    const update = vi.spyOn(harness.gateway, 'updateStaff');
+    await waitForList();
+
+    const name = 'Ani Hakobyan (Northern Avenue)';
+    await chooseAction(user, cardOf(name), /^deactivate$/i);
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading').textContent).toContain('Ani Hakobyan');
+    await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(update).not.toHaveBeenCalled();
+    expect(screen.getByText(name)).toBeTruthy();
   });
 });

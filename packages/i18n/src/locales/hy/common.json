@@ -38,6 +38,8 @@
     "freeCount_one": "{{count}} ազատ",
     "freeCount_other": "{{count}} ազատ",
     "areaFree_one": "{{area}}՝ {{count}} ազատ սեղան",
-    "areaFree_other": "{{area}}՝ {{count}} ազատ սեղան"
+    "areaFree_other": "{{area}}՝ {{count}} ազատ սեղան",
+    "table_one": "Սեղան {{label}}, {{count}} տեղ, {{status}}",
+    "table_other": "Սեղան {{label}}, {{count}} տեղ, {{status}}"
   }
 }

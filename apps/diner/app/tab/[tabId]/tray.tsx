@@ -13,6 +13,7 @@ import { orderKeys, useDinerTab, usePlaceOrder } from '../../../src/data/orderQu
 import { newCommandId } from '../../../src/lib/commandId';
 import { useTray } from '../../../src/order/TrayProvider';
 import { sendTray } from '../../../src/order/send';
+import { returnToTab } from '../../../src/tab/navigation';
 import {
   trayItemCount,
   trayLocked,
@@ -176,7 +177,7 @@ export default function TrayScreen() {
           <Button
             label={t('tray.sent.toTab')}
             size="large"
-            onPress={() => router.replace({ pathname: '/tab/[tabId]', params: { tabId } })}
+            onPress={() => returnToTab(router, tabId)}
           />
         </View>
       </SafeAreaView>
@@ -297,7 +298,7 @@ export default function TrayScreen() {
               <Button
                 label={t('tray.failed.toBill')}
                 fullWidth={false}
-                onPress={() => router.replace({ pathname: '/tab/[tabId]', params: { tabId } })}
+                onPress={() => returnToTab(router, tabId)}
                 style={styles.failureAction}
               />
             ) : null}

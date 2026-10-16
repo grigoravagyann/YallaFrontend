@@ -164,7 +164,9 @@
     "title": "Yalla console",
     "signedInAs": "Signed in as {{name}}",
     "devRole": "Dev only — view as",
+    "devReset": "Reset mock data",
     "openMenu": "Menu",
+    "closeMenu": "Close the menu",
     "signOut": "Sign out"
   },
   "role": {
@@ -252,6 +254,17 @@
       "toFree": "Switch to Free",
       "notReady_one": "{{count}} dish is not ready to show a diner. Finish the menu, then switch.",
       "notReady_other": "{{count}} dishes are not ready to show a diner. Finish the menu, then switch."
+    },
+    "edit": {
+      "open": "Edit venue",
+      "title": "Edit venue",
+      "save": "Save"
+    },
+    "addBranch": {
+      "open": "Add a branch",
+      "title": "Add a branch",
+      "submit": "Add",
+      "nameRequired": "Name the branch."
     }
   },
   "create": {
@@ -419,7 +432,8 @@
       "regenerate": "Regenerate the QR",
       "regenerateWarning": "The code printed and stuck to table {{label}} stops working the moment this lands. Somebody has to go and replace it.",
       "typeLabel": "Type {{label}} to confirm",
-      "regenerateConfirm": "Regenerate it"
+      "regenerateConfirm": "Regenerate it",
+      "regenerated": "Table {{label}} has a new QR code. Print it and replace the old sticker."
     },
     "deactivated": {
       "body": "Table {{label}} has bookings against it, so it was kept and deactivated rather than deleted.",
@@ -462,7 +476,10 @@
       "emptyHint": "Start with a category — “Coffee”, say, or “Hot dishes”.",
       "add": "Add a category",
       "addPrompt": "Category name",
-      "rename": "New name for this category",
+      "addTitle": "New category",
+      "renameTitle": "Rename “{{name}}”",
+      "addConfirm": "Add",
+      "nameRequired": "Give the category a name.",
       "itemCount_one": "{{count}} dish",
       "itemCount_other": "{{count}} dishes",
       "confirmEmpty": "Delete “{{name}}”?",
@@ -783,7 +800,7 @@
       "hideTable": "Hide table"
     },
     "summary": {
-      "title": "This week",
+      "customTitle": "Selected range",
       "covers": "Covers",
       "revenue": "Revenue",
       "tabsClosed": "Tabs closed",
@@ -898,6 +915,11 @@
     }
   },
   "staff": {
+    "deactivate": {
+      "title": "Deactivate {{name}}?",
+      "body": "They stop appearing on the tablets and can no longer sign in. Nothing is deleted: when they are back, reactivate them from “Show deactivated”.",
+      "confirm": "Deactivate"
+    },
     "intro": "Who works here, and which devices they sign in on.",
     "add": "Add someone",
     "noVenue": "This account is not attached to a venue.",
@@ -941,7 +963,8 @@
       "branchFixed": "Works at {{name}}.",
       "pin": "PIN (4 digits)",
       "email": "Email",
-      "emailHelp": "They open a link and choose their own password. Nobody types one for them."
+      "emailHelp": "They open a link and choose their own password. Nobody types one for them.",
+      "emailLater": "Leave it empty to issue the sign-in later, from their row."
     },
     "form": {
       "title": "New staff member",

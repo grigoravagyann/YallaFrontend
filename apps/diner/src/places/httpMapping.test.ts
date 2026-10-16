@@ -5,6 +5,7 @@ import {
   menuFromApi,
   placeFromDetail,
   placeFromListing,
+  reviewFromApi,
   reviewPageFromApi,
 } from './httpMapping';
 import { nextReviewPage, tablePhotoOf } from './model';
@@ -278,9 +279,24 @@ describe('review pages', () => {
   });
 
   it('asks for the next page only while the last was full and the total says there is more', () => {
-    expect(nextReviewPage(reviewPageFromApi(page(1, 20, 25)))).toBe(2);
-    expect(nextReviewPage(reviewPageFromApi(page(2, 5, 25)))).toBeUndefined();
-    expect(nextReviewPage(reviewPageFromApi(page(1, 20, 20)))).toBeUndefined();
+    expect(nextReviewPage(reviewPageFromApi(page(1, 20, 25), 'Asia/Yerevan'))).toBe(2);
+    expect(nextReviewPage(reviewPageFromApi(page(2, 5, 25), 'Asia/Yerevan'))).toBeUndefined();
+    expect(nextReviewPage(reviewPageFromApi(page(1, 20, 20), 'Asia/Yerevan'))).toBeUndefined();
     expect(nextReviewPage(null)).toBeUndefined();
+  });
+});
+
+describe('a review posted after midnight in Yerevan', () => {
+  it("carries the branch's date, not the UTC one", () => {
+    const posted = {
+      reviewId: 'r-late',
+      authorName: 'Anahit S.',
+      rating: 5,
+      text: 'late',
+      createdAtUtc: '2026-10-15T21:40:00Z', // 01:40 on the 16th in Yerevan
+      updatedAtUtc: '2026-10-15T21:40:00Z',
+      edited: false,
+    };
+    expect(reviewFromApi(posted, 'Asia/Yerevan').date).toBe('2026-10-16');
   });
 });

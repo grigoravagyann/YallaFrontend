@@ -113,7 +113,7 @@ import { SEEDED_ACCOUNT, createAccountStore } from './accounts';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
-import { openStateFrom } from './openState';
+import { coversSitting, openStateFrom } from '../contracts/openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
 import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
 import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from './venues';
@@ -228,6 +228,13 @@ export interface MockGatewayOptions {
    * writing a review is walkable from the seed.
    */
   readonly visits?: readonly MockVisit[];
+  /**
+   * The seed the booking codes are minted from. Random when absent, as the
+   * server's `ReservationCode.Generate` is: two worlds started fresh must not
+   * hand out the same code (QA F6). The persistence layer records the seed it
+   * drew and passes it back, so a replayed world keeps the codes it issued.
+   */
+  readonly codeSeed?: number | undefined;
 }
 
 function minutesBetween(a: Date, b: Date): number {
@@ -247,7 +254,7 @@ const BOOKING_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 const BOOKING_CODE_LENGTH = 6;
 
 function reservationCode(seed: number): string {
-  let h = Math.imul(seed + 1, 0x9e3779b1) >>> 0;
+  let h = Math.imul((seed >>> 0) + 1, 0x9e3779b1) >>> 0;
   let out = '';
   for (let i = 0; i < BOOKING_CODE_LENGTH; i += 1) {
     out += BOOKING_ALPHABET[h % BOOKING_ALPHABET.length] ?? BOOKING_ALPHABET[0];
@@ -389,9 +396,25 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   let simulateTakenOnce = options.simulateTableTaken ?? false;
   let sequence = 1;
 
+  /**
+   * Where the next booking code comes from. Seeded per world — randomly unless
+   * told — and stepped past any code this world already issued, which is the
+   * server's unique index on `Reservations.Code` as a loop.
+   */
+  let codeState = options.codeSeed ?? Math.floor(Math.random() * 0x7fffffff);
+  function mintBookingCode(): string {
+    for (;;) {
+      codeState = (Math.imul(codeState, 1103515245) + 12345) >>> 0;
+      const code = reservationCode(codeState);
+      if (![...bookings.values()].some((booking) => booking.code === code)) return code;
+    }
+  }
+
   for (const venue of mockVenues) {
     for (const branch of venue.branches) {
-      floors.set(branch.id, structuredClone(branch.floor));
+      // With the branch's name on it, as the staff floor endpoint sends it,
+      // so a screen holding only the room can still say where it is (QA F14).
+      floors.set(branch.id, { ...structuredClone(branch.floor), branchName: branch.name });
     }
   }
 
@@ -485,6 +508,21 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       throw new TabAccessEndedError({ url: `${URL_TAG}/api/tabs/${tabId}`, tabId, status: 403 });
     }
     return tab;
+  }
+
+  /** A 409 whose `message` is the server's sentence and whose `code` is its slug. */
+  function conflict(url: string, code: string, detail: string): ConcurrencyConflictError {
+    return new ConcurrencyConflictError({
+      url,
+      problem: {
+        type: 'about:blank',
+        title: 'Conflicting state',
+        status: 409,
+        detail,
+        code,
+        traceId: 'mock',
+      },
+    });
   }
 
   function findBranch(branchId: string): { venue: MockVenue; branch: MockBranch } | null {
@@ -629,10 +667,32 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    * instead of an empty room when somebody picks a slot that has already
    * happened.
    */
-  function branchRejection(slot: Date, policy: BranchPolicy): TableUnavailableReason | null {
+  function branchRejection(
+    branchId: string,
+    slot: Date,
+    policy: BranchPolicy,
+  ): TableUnavailableReason | null {
     const minutesOut = minutesBetween(now(), slot);
     if (minutesOut < policy.leadTimeMinutes) return 'pastLeadTime';
     if (minutesOut > BOOKING_WINDOW_DAYS * 24 * 60) return 'tooFarAhead';
+    // `ReservationService.Validate`, after the timing rules: the whole sitting
+    // must fall inside the branch's opening hours
+    // (`ReservationRules.CheckOpeningHours`, `reservation-outside-opening-hours`,
+    // which the client reads as `closed`). The mock offered 03:00 (QA F5).
+    const found = findBranch(branchId);
+    const fixture = publicBranchFixtures[branchId];
+    if (
+      found &&
+      fixture &&
+      !coversSitting(
+        fixture.weeklyHours,
+        slot,
+        new Date(slot.getTime() + policy.turnMinutes * 60_000),
+        found.branch.timeZoneId,
+      )
+    ) {
+      return 'closed';
+    }
     return null;
   }
 
@@ -663,7 +723,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     if (!found || !floor) return [];
     const policy = DEFAULT_POLICY;
     const slot = new Date(slotUtc);
-    const rejection = branchRejection(slot, policy);
+    const rejection = branchRejection(branchId, slot, policy);
 
     const freeCancellationUntilUtc = new Date(
       slot.getTime() - policy.freeCancellationMinutes * 60_000,
@@ -710,7 +770,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         })),
       },
       tables,
-      rejection: branchRejection(slot, policy),
+      rejection: branchRejection(branchId, slot, policy),
       slotUtc,
       partySize,
     };
@@ -1295,7 +1355,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async getVenue(venueId) {
       await wait();
-      return publishedVenues().find((venue) => venue.id === venueId) ?? null;
+      // By the published id (the slug) or the venue's own id: the places list
+      // the diner app builds from the fixture carries the latter, and a lookup
+      // that knew only the slug left the confirm screen's "Where" row empty
+      // (QA F14).
+      const own = mockVenues.find((venue) => venue.id === venueId);
+      const published = own ? (publicVenueFixtures[own.id]?.slug ?? own.id) : venueId;
+      return publishedVenues().find((venue) => venue.id === published) ?? null;
     },
 
     async getBookingRules({ venueSlug, branchSlug }) {
@@ -1581,6 +1647,22 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       if (!found || !floor) throw new NotFoundError({ url: `${URL_TAG}/api/reservations` });
       const policy = DEFAULT_POLICY;
 
+      // `ReservationService.RequireWebBookingsAccepted`: a branch that never
+      // agreed to take bookings from its public page does not take them — a
+      // 409 `web-bookings-not-accepted`, before the app gate and every table
+      // rule. The mock booked through a page whose switch was off (QA F5).
+      if (
+        command.channel === 'web' &&
+        !(publicBranchFixtures[command.branchId]?.acceptsWebBookings ?? false)
+      ) {
+        throw conflict(
+          url,
+          'web-bookings-not-accepted',
+          `${found.branch.name} does not take bookings from its public page. ` +
+            'Contact the venue directly to book a table.',
+        );
+      }
+
       // K9: the app channel needs the switch on and a reviewed policy.
       if (command.channel === 'app' && !acceptsAppBookings(command.branchId)) {
         throw new BookingsNotAcceptedError({ url, branchId: command.branchId });
@@ -1593,7 +1675,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
       // The branch-wide rules first, as the server applies them. Lead time:
       // the slot may have become too soon while they were deciding.
-      const rejection = branchRejection(slot, policy);
+      const rejection = branchRejection(command.branchId, slot, policy);
       if (rejection === 'pastLeadTime') {
         throw new LeadTimeExceededError({
           url: URL_TAG,
@@ -1661,10 +1743,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           ? 'pendingApproval'
           : 'confirmed';
 
-      const id = `bk_${sequence}`;
+      const id = `bk_${sequence++}`;
       const booking: Booking = {
         id,
-        code: reservationCode(sequence++),
+        code: mintBookingCode(),
         status,
         venueName: found.venue.name,
         branchId: found.branch.id,
@@ -2022,6 +2104,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         `${URL_TAG}/api/tabs/${command.tabId}/orders`,
         command.clientCommandId,
       );
+      // No clock gate: a seated party keeps ordering after closing time,
+      // because the tab decides and last orders is Mark closing (the server's
+      // OrderingTests pin it; docs/tabs.md "Ordering after closing time").
       return orders.place(tab, command);
     },
 

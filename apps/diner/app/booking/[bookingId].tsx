@@ -158,6 +158,14 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
     cancel.mutate(booking.id, { onSuccess: () => setConfirming(false) });
   };
 
+  // Whatever closed the sheet, a booking that can no longer be cancelled has
+  // nothing to confirm: the venue may have cancelled it while the sheet was up.
+  // Closed from the mutation's own state as well as the per-call callback: the
+  // sheet stayed open over a booking the server had already cancelled.
+  // Reopening resets the mutation first.
+  const cancellable = canCancel(booking.status);
+  const sheetOpen = confirming && cancellable && !cancel.isSuccess;
+
   return (
     <>
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -263,7 +271,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
           />
           {/* One cancel, and only while the booking still holds a table — what
               the server will accept. */}
-          {canCancel(booking.status) ? (
+          {cancellable ? (
             <Button
               label={t('bookings.detail.cancel')}
               variant="destructive"
@@ -280,7 +288,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
           worse than one extra tap. Never blocks a late cancellation, and does
           not scold: a late cancel is far better for the venue than a no-show. */}
       <ConfirmSheet
-        visible={confirming}
+        visible={sheetOpen}
         title={t('bookings.detail.cancelTitle')}
         body={isLate ? t('bookings.detail.cancelLate') : t('bookings.detail.cancelFree')}
         confirmLabel={t('bookings.detail.cancelConfirm')}

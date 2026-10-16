@@ -634,3 +634,22 @@ describe('client-side validation mirrors the server, and no more', () => {
     expect(duplicateLabels(state.plan)).toEqual([]);
   });
 });
+
+describe('where a new table lands', () => {
+  const overlaps = (a: EditorTable, b: EditorTable) =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+  it('is a spot no existing table covers, so it is not dropped over table 1', () => {
+    // The seeded plan has a table at (100, 100); a new one used to land at (40, 40)
+    // and sit under it, and the next one under that.
+    let state = loaded();
+    for (let i = 0; i < 3; i += 1) {
+      state = run(state, { type: 'addTable' });
+      const added = state.plan.tables[state.plan.tables.length - 1]!;
+      for (const other of state.plan.tables) {
+        if (other.id === added.id) continue;
+        expect(overlaps(added, other), `new table ${added.label} over ${other.label}`).toBe(false);
+      }
+    }
+  });
+});

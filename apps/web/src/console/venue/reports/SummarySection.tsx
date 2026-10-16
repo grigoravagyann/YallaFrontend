@@ -6,11 +6,13 @@ import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { ComparisonLegend } from './Comparison';
 import { EmptyRange, ReportSkeleton } from './ReportSection';
 import { Stat } from './Stat';
-import { firstActiveDay, previousRange, daysInRange } from './range';
+import { firstActiveDay, previousRange, daysInRange, type RangePreset } from './range';
 
 export interface SummarySectionProps {
   readonly query: ReportQuery | null;
   readonly locale: Locale;
+  /** What the heading says: the preset's own name, or "Selected range". */
+  readonly preset: RangePreset;
 }
 
 /**
@@ -28,8 +30,12 @@ export interface SummarySectionProps {
  * fetch and sum itself — is exactly the drift that ends with the screen and the
  * CSV disagreeing. So five tiles carry a delta and one does not.
  */
-export function SummarySection({ query, locale }: SummarySectionProps) {
+export function SummarySection({ query, locale, preset }: SummarySectionProps) {
   const { t } = useTranslation(['admin', 'common']);
+  // The heading is the pill that is pressed. It used to say "This week"
+  // whatever the range was, which contradicted the control beside it.
+  const title =
+    preset === 'custom' ? t('reports.summary.customTitle') : t(`reports.range.${preset}`);
 
   const occupancy = useOccupancyReport(query);
   const revenue = useRevenueReport(query);
@@ -44,7 +50,7 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
   if (error) {
     return (
       <section className="report-section report-summary">
-        <h3 className="report-section-title">{t('reports.summary.title')}</h3>
+        <h3 className="report-section-title">{title}</h3>
         <QueryFailureNotice
           error={error}
           onRetry={() => {
@@ -60,7 +66,7 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
   if (loading || !occupancy.data || !revenue.data || !staff.data) {
     return (
       <section className="report-section report-summary">
-        <h3 className="report-section-title">{t('reports.summary.title')}</h3>
+        <h3 className="report-section-title">{title}</h3>
         <ReportSkeleton label={t('reports.loading')} />
       </section>
     );
@@ -79,7 +85,7 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
   return (
     <section className="report-section report-summary" aria-labelledby="report-summary-title">
       <h3 className="report-section-title" id="report-summary-title">
-        {t('reports.summary.title')}
+        {title}
       </h3>
 
       {!traded ? (

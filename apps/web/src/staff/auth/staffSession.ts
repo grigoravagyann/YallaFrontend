@@ -1,5 +1,6 @@
 import {
   createApiClient,
+  createMockStaffAuth,
   createStaffAuth,
   createStaffSession,
   type StaffSession,
@@ -15,11 +16,11 @@ import { staffDeviceStore } from './deviceStore';
  * and then renew, spending a rotating handle that the previous instance may
  * still be holding, which revokes the chain and locks the tablet.
  *
- * Against the mock data source there is no server to enrol with, so this is
- * `null` and the staff screens skip straight to the floor. That is what keeps
- * the mock adapter usable for working without a backend: signing in is the one
- * thing a mock cannot honestly simulate, because the credential it would hand
- * out means nothing.
+ * Against the mock data source the session is backed by the mock staff auth
+ * (QA F13): the tablet enrols with a code the console mock generated, the
+ * keypad shows the branch's roster, and "Tap to sign out" locks it. The
+ * credential it hands out means nothing outside this browser, and is kept in
+ * the same place the mock worlds are, so "reset mock data" forgets it too.
  */
 const config = readConfig();
 
@@ -32,19 +33,18 @@ const config = readConfig();
  */
 const staffAuth = config.api
   ? createStaffAuth(createApiClient({ baseUrl: config.api.baseUrl }))
-  : null;
+  : createMockStaffAuth();
 
-export const staffSession: StaffSession | null = staffAuth
-  ? createStaffSession({
-      auth: staffAuth,
-      storage: staffDeviceStore,
-    })
-  : null;
+export const staffSession: StaffSession | null = createStaffSession({
+  auth: staffAuth,
+  storage: staffDeviceStore,
+});
 
 /**
  * Whether this build has a tablet session at all.
  *
- * `false` on the mock data source. The screens read this rather than testing
- * `staffSession === null` in four places.
+ * Always, now that the mock has one too. Kept as a value — the screens read
+ * this rather than testing `staffSession === null` in four places, and the
+ * type still admits `null` for a host that cannot hold a session.
  */
 export const staffAuthAvailable = staffSession !== null;
