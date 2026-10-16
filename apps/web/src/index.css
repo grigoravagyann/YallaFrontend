@@ -1266,9 +1266,9 @@ select {
 /* A misconfigured base URL. Plain DOM written before React mounts. */
 
 /* --------------------------------------------------------------------------
- * The floor plan editor
+ * The rooms editor
  *
- * Used standing up in a cafe with the owner watching, so the canvas gets the
+ * Used standing up in a cafe with the owner watching, so the photo gets the
  * room and the controls stay out of the way. Denser than the rest of the
  * console on purpose: this is a tool, not a page.
  * -------------------------------------------------------------------------- */
@@ -1276,50 +1276,11 @@ select {
   max-width: none;
 }
 
-.editor-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-}
-
-.editor-divider {
-  width: 1px;
-  align-self: stretch;
-  background: var(--color-border);
-}
-
-.editor-number {
-  width: 88px;
-}
-
 .editor-body {
   display: flex;
   gap: var(--space-lg);
   align-items: flex-start;
   flex-wrap: wrap;
-}
-
-.editor-canvas-frame {
-  flex: 3 1 520px;
-  min-width: 0;
-  height: 62vh;
-  min-height: 380px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-soft);
-  background: var(--color-paper);
-  overflow: hidden;
-}
-
-/* The canvas is a work surface: no text selection while dragging tables. */
-.editor-canvas {
-  display: block;
-  touch-action: none;
-  user-select: none;
 }
 
 .editor-side {
@@ -1400,28 +1361,6 @@ select {
 .editor-dialog .card {
   max-width: 560px;
   width: 100%;
-}
-
-.editor-preview {
-  max-width: 520px;
-}
-
-/* Exactly the width the diner app is designed at, so "the labels fit" here
-   means the same thing it means on a phone. */
-.editor-preview-phone {
-  align-self: center;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-card);
-  background: var(--color-paper);
-  overflow: hidden;
-}
-
-kbd {
-  padding: 0 4px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  font-size: var(--font-size-xs);
-  color: var(--color-muted-foreground);
 }
 
 /* --------------------------------------------------------------------------
@@ -3188,20 +3127,81 @@ kbd {
   gap: var(--space-xs);
 }
 
-.marker-editor {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr);
-  gap: var(--space-md);
-  align-items: start;
+.rooms-list {
+  flex: 1 1 220px;
+  min-width: 220px;
 }
 
-@media (max-width: 48rem) {
-  .marker-editor {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.rooms-list-items,
+.rooms-table-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.marker-stage {
+.rooms-list-items li,
+.rooms-table-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.rooms-list-items .chip {
+  flex: 1;
+  text-align: start;
+}
+
+.rooms-list-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.rooms-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.rooms-room {
+  flex: 3 1 520px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.rooms-room-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-sm);
+}
+
+.rooms-photo-thumb {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-soft);
+  background: none;
+  cursor: pointer;
+}
+
+.rooms-photo-thumb[aria-pressed='true'] {
+  border-color: var(--color-primary-ink);
+}
+
+.rooms-new-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.room-stage {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-soft);
@@ -3211,14 +3211,19 @@ kbd {
   user-select: none;
 }
 
-.marker-stage img {
+.room-stage img {
   display: block;
   width: 100%;
   height: auto;
   pointer-events: none;
 }
 
-.marker-pin {
+/*
+ * Pins in the live palette the staff floor and the diner app draw tables in,
+ * by the state the plan was read with. Never colour alone: the label is on
+ * the pin and the state is in its accessible name and the legend.
+ */
+.room-pin {
   position: absolute;
   min-width: 2rem;
   height: 2rem;
@@ -3234,30 +3239,59 @@ kbd {
   cursor: grab;
 }
 
-.marker-pin.is-selected {
+.room-pin.is-free,
+.rooms-legend-dot.is-free {
+  background: var(--table-free-fill);
+  color: var(--table-free-label);
+}
+
+.room-pin.is-held,
+.rooms-legend-dot.is-held {
+  background: var(--table-reserved-soon-fill);
+  color: var(--table-reserved-soon-label);
+}
+
+.room-pin.is-occupied,
+.rooms-legend-dot.is-occupied {
+  background: var(--table-occupied-fill);
+  color: var(--table-occupied-label);
+}
+
+.room-pin.is-outOfService,
+.rooms-legend-dot.is-outOfService {
+  background: var(--table-out-of-service-fill);
+  color: var(--table-out-of-service-label);
+}
+
+.rooms-legend-dot.is-new {
+  background: var(--color-primary-on-floor-plan);
+}
+
+.room-pin.is-selected {
   border-color: var(--color-primary-ink);
   outline: 3px solid var(--color-primary-ink);
 }
 
-.marker-list {
+.rooms-legend {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
+  flex-wrap: wrap;
+  gap: var(--space-md);
   margin: 0;
   padding: 0;
   list-style: none;
+  font-size: var(--font-size-sm);
 }
 
-.marker-list li {
+.rooms-legend li {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-xs);
 }
 
-.marker-list .chip {
-  flex: 1;
-  text-align: start;
+.rooms-legend-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--radius-pill);
 }
 
 .bulk-drop {

@@ -29,6 +29,16 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `placeInMiddle` and `refused`. Added when a cover change started taking the
   pins off (2026-09-14), **not** reviewed: `publicPage.markers.discarded`,
   which must say it was the **unsaved** pin changes that were dropped.
+- `admin` — the rooms editor (2026-10-16), provisional and **not** reviewed:
+  every `rooms.*` key except `rooms.qr.*` (moved unchanged from
+  `floorPlan.qr.*`), and `nav.floorplan`, now "Rooms" / "Սրահներ" / "Залы".
+  Written ungendered. `rooms.warning.unpinned_*` must keep saying diners can
+  neither **see nor book** the table; `rooms.delete.deactivateBody` must keep
+  saying the table is **kept** for its records. hy avoids gluing suffixes onto
+  interpolated names (`«{{name}}» սրահը`). Removed with the drawn floor plan
+  and the cover-photo pins: every other `floorPlan.*` key and
+  `publicPage.markers.*`, so the `publicPage.markers.*` notes above describe
+  keys that no longer exist.
 - `diner` — the real-data review fixes (2026-09-14), provisional and **not**
   reviewed: `place.review.loadFailed`, `orders.signedOut.*` (orders live on
   the account — never phrase it as the order being gone) and

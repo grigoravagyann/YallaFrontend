@@ -224,7 +224,7 @@ describe('hiring the first owner', () => {
 });
 
 describe('the branch rows', () => {
-  it('link each branch to its public page, floor plan and reviews', async () => {
+  it('link each branch to its public page, rooms and reviews', async () => {
     renderVenue();
     const branches = await screen.findByRole('heading', { name: /^branches$/i });
     const card = branches.closest('.card') as HTMLElement;
@@ -235,7 +235,7 @@ describe('the branch rows', () => {
     const branchId = href.split('/')[5];
     expect(
       within(card)
-        .getAllByRole('link', { name: /floor plan/i })
+        .getAllByRole('link', { name: /^rooms$/i })
         .map((link) => link.getAttribute('href')),
     ).toContain(`/platform/venues/v-lumen/branches/${branchId}/floorplan`);
     expect(

@@ -1,6 +1,6 @@
 {
   "nav": {
-    "floorplan": "Floor plan",
+    "floorplan": "Rooms",
     "menu": "Menu",
     "hours": "Opening hours",
     "policy": "Reservation policy",
@@ -134,30 +134,6 @@
         },
         "generic": "Something in the form was not accepted. Check the fields and try again."
       }
-    },
-    "markers": {
-      "title": "Tables on the cover photo",
-      "intro": "Diners tap a table on your cover photo to book it. Pick a table, then click where it is in the picture. Drag a pin to move it.",
-      "noCover": "Save a cover photo above first — the tables are placed on it.",
-      "noTables": "This branch has no tables yet. Add them in the floor plan editor.",
-      "loading": "Loading tables…",
-      "stage": "Cover photo. Click to place the selected table.",
-      "pin": "Table {{label}}",
-      "selected": "Placing table {{label}}. Click the photo, or use the arrow keys on its pin.",
-      "pickTable": "Pick a table from the list to place it.",
-      "placed": "Placed",
-      "unplaced": "Not placed",
-      "clear": "Take off photo",
-      "summary": "{{placed}} of {{total}} tables placed",
-      "save": "Save positions",
-      "saving": "Saving…",
-      "saved": "Positions saved.",
-      "failed": "The positions did not save. Nothing changed — try again.",
-      "selectedUnplaced": "Table {{label}} is not on the photo yet. Click where it is in the picture, or place it in the middle and move its pin with the arrow keys.",
-      "placeInMiddle": "Place table {{label}} on the photo",
-      "refused": "The floor plan was refused — a table in use is missing, or two tables share a label. Fix it in the floor plan editor, then save the positions again.",
-      "discarded": "The cover photo changed, so the pin changes you had not saved were discarded.",
-      "coverChanged": "The cover photo was changed somewhere else, so these positions were not saved. The new cover is shown now — place the tables on it again."
     }
   },
   "shell": {
@@ -350,83 +326,120 @@
     "signedInTitle": "You are signed in as {{name}}",
     "signedInBody": "This link is for someone else. Opening it here would use it up. Send it on."
   },
-  "floorPlan": {
-    "noBranch": "This account has no branch to draw a plan for.",
-    "summary": "{{tables}} tables across {{areas}} areas",
+  "rooms": {
+    "noBranch": "This account has no branch to set up rooms for.",
+    "intro": "Diners pick a room, swipe through its photos and tap a table to book it. Add your rooms and a few photos of each, then click a photo where each table stands.",
+    "summary": "Rooms: {{rooms}} · Tables: {{tables}}",
     "unsaved": "Unsaved changes",
-    "save": "Save the plan",
+    "save": "Save rooms",
     "saving": "Saving…",
-    "saved": "Plan saved.",
-    "undo": "Undo",
-    "redo": "Redo",
-    "addTable": "Add a table",
-    "duplicate": "Duplicate",
-    "duplicateShortcut": "Ctrl+D",
-    "delete": "Delete",
-    "grid": "Snap to grid",
-    "zoom": "Zoom",
-    "canvasWidth": "Room width",
-    "canvasHeight": "Room depth",
-    "align": {
-      "label": "Align",
-      "left": "Left edges",
-      "right": "Right edges",
-      "top": "Top edges",
-      "bottom": "Bottom edges",
-      "horizontalCentre": "Centre across",
-      "verticalCentre": "Centre down"
+    "saved": "Rooms saved.",
+    "legend": "Pin colours",
+    "result": {
+      "deactivated": "Taken out of service because they have history: {{labels}}.",
+      "removed": "Removed: {{labels}}."
     },
-    "shape": {
-      "rectangle": "Rectangle",
-      "round": "Round"
+    "conflict": {
+      "title": "Someone else changed the rooms",
+      "body": "A newer version was saved while you were editing, so your changes were not saved. Reload to see it; your unsaved changes here will be lost.",
+      "reload": "Reload the rooms"
+    },
+    "list": {
+      "title": "Rooms",
+      "empty": "No rooms yet. Add the first one: the hall, the terrace, the VIP room.",
+      "unnamed": "Unnamed room",
+      "photoCount_one": "{{count}} photo",
+      "photoCount_other": "{{count}} photos",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "newName": "New room",
+      "newPlaceholder": "Terrace",
+      "add": "Add the room"
+    },
+    "room": {
+      "name": "Room name",
+      "noName": "Give the room a name.",
+      "remove": "Delete the room",
+      "removeTitle": "Delete {{name}}?",
+      "removeBody_one": "Its {{photos}} photo(s) go with it. Its {{count}} table stays, with no room and no pin, until you place it again.",
+      "removeBody_other": "Its {{photos}} photo(s) go with it. Its {{count}} tables stay, with no room and no pin, until you place them again.",
+      "removeConfirm": "Delete it"
+    },
+    "photos": {
+      "title": "Photos",
+      "summary": "{{used}} of {{max}} photos",
+      "empty": "No photos of this room yet. Add one to start placing tables.",
+      "add": "Add a photo",
+      "full": "This room has {{max}} photos, the most it can hold.",
+      "show": "Show photo {{position}}",
+      "moveEarlier": "Move earlier",
+      "moveLater": "Move later",
+      "remove": "Remove"
+    },
+    "stage": {
+      "title": "Photo {{position}} · {{name}}",
+      "label": "Photo {{position}} of {{name}}. Click where a table stands to add it.",
+      "hint": "Click where a table stands to add it. Drag a pin, or select it and use the arrow keys, to move it.",
+      "placing": "Click where table {{label}} stands to place it.",
+      "addInMiddle": "Add a table in the middle of the photo",
+      "placeInMiddle": "Place table {{label}} in the middle of the photo"
+    },
+    "pin": {
+      "label": "Table {{label}} · {{state}}",
+      "unsaved": "Not saved yet"
     },
     "field": {
       "label": "Label",
       "seats": "Seats",
-      "shape": "Shape",
-      "width": "Width",
-      "height": "Depth",
-      "rotation": "Rotation",
-      "area": "Floor area",
-      "noArea": "No area",
-      "bookable": "Can be booked",
-      "mixed": "Mixed"
+      "bookable": "Diners can book it"
     },
-    "properties": {
-      "title": "Properties",
-      "none": "Select a table to edit it.",
-      "one": "Table {{label}}",
-      "many": "{{count}} tables selected"
+    "newTable": {
+      "title": "New table",
+      "add": "Add the table"
     },
-    "areas": {
-      "title": "Floor areas",
-      "none": "No areas yet. Tables can sit in none.",
-      "add": "Add",
-      "newPlaceholder": "New area name",
-      "rename": "Rename area",
-      "remove": "Delete",
-      "moveUp": "Move up",
-      "moveDown": "Move down",
-      "assign": "Assign {{count}}",
-      "tableCount_one": "{{count}} table",
-      "tableCount_other": "{{count}} tables",
-      "unassigned_one": "{{count}} table is in no area.",
-      "unassigned_other": "{{count}} tables are in no area."
+    "table": {
+      "panelTitle": "Table",
+      "none": "Select a pin to edit its table.",
+      "title": "Table {{label}}",
+      "inRoom": "In {{name}}",
+      "noRoom": "In no room",
+      "notPinned": "Not on a photo yet. Click where it stands on one of its room's photos.",
+      "unpin": "Take it off the photo",
+      "delete": "Delete the table",
+      "duplicateLabel": "Another table already uses this label.",
+      "noLabel": "Every table needs the label printed on it."
     },
-    "row": {
-      "open": "Add a row",
-      "title": "Add a row of tables",
-      "body": "Twelve identical two-tops along a wall, in one go.",
-      "count": "How many",
-      "spacing": "Gap between tables",
-      "orientation": "Direction",
-      "horizontal": "Left to right",
-      "vertical": "Top to bottom",
-      "startX": "Start across",
-      "startY": "Start down",
-      "add_one": "Add {{count}} table",
-      "add_other": "Add {{count}} tables",
-      "overruns": "That run does not fit inside the room. Shorten it, or make the room bigger first."
+    "unpinned": {
+      "title": "Not on a photo",
+      "noRoom": "Tables in no room",
+      "hint": "Select one, then click where it stands on a photo."
+    },
+    "inactive": {
+      "title": "Out of service",
+      "body": "Kept for their history. They are not in any room and take no bookings.",
+      "restore": "Put it back in service"
+    },
+    "delete": {
+      "title": "Delete table {{label}}?",
+      "removeBody": "It has never been used, so it is removed for good.",
+      "deactivateBody": "It has bookings, seatings or tabs in its history, so it is kept for the records and taken out of service instead: it leaves the rooms and takes no more bookings.",
+      "confirm": "Delete it",
+      "removed": "Table {{label}} was removed.",
+      "deactivated": "Table {{label}} has history, so it was taken out of service instead of deleted.",
+      "seated": "Someone is seated at table {{label}}. Free the table first, then delete it."
+    },
+    "warning": {
+      "unpinned_one": "Table {{labels}} can be booked but is on no photo, so diners cannot see or book it.",
+      "unpinned_other": "Tables {{labels}} can be booked but are on no photo, so diners cannot see or book them.",
+      "duplicates": "These labels are used more than once: {{labels}}."
+    },
+    "error": {
+      "invalid": "These rooms could not be saved.",
+      "tooManyPhotos": "{{name}} has more than {{max}} photos.",
+      "photoInTwoRooms": "A photo of {{name}} is also in another room, or twice in this one.",
+      "pinOtherRoom": "Table {{label}} is pinned on another room's photo.",
+      "pinInvalid": "Table {{label}}'s pin is incomplete or off the photo.",
+      "photoNotFound": "A photo in these rooms was not uploaded for this branch. Remove it and add it again."
     },
     "qr": {
       "title": "QR code",
@@ -439,34 +452,6 @@
       "typeLabel": "Type {{label}} to confirm",
       "regenerateConfirm": "Regenerate it",
       "regenerated": "Table {{label}} has a new QR code. Print it and replace the old sticker."
-    },
-    "deactivated": {
-      "body": "Table {{label}} has bookings against it, so it was kept and deactivated rather than deleted.",
-      "reactivate": "Put it back in service"
-    },
-    "error": {
-      "outsideCanvas": "This table sits outside the room.",
-      "duplicateLabel": "Another table already uses this label.",
-      "willBeRejected": "These tables sit outside the room and the save will be refused: {{labels}}.",
-      "namedOutside": "Outside the room: {{labels}}.",
-      "duplicates": "These labels are used more than once: {{labels}}.",
-      "showFirst": "Show the first"
-    },
-    "result": {
-      "deactivated": "Kept and deactivated because they have bookings: {{labels}}.",
-      "removed": "Removed: {{labels}}."
-    },
-    "preview": {
-      "toggle": "Preview as a diner",
-      "title": "What a diner sees",
-      "body": "The real viewer at phone width. Check the labels survive, and whether the room is dense enough to split into areas.",
-      "partySize": "Party size",
-      "busy": "Show a busy floor"
-    },
-    "conflict": {
-      "title": "Someone else changed the floor plan",
-      "body": "A newer version was saved while you were editing, so your changes were not saved. Reload to see it; your unsaved changes here will be lost.",
-      "reload": "Reload the plan"
     }
   },
   "saving": "Saving…",

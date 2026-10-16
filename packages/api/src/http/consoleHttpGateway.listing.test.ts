@@ -249,16 +249,14 @@ describe('rooms with photos over HTTP (K6)', () => {
   });
 
   it("saves each room's photo ids and each table's pin as the three wire fields", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(
-        json(200, {
-          plan: { ...plan, version: 'v8' },
-          warnings: ['w'],
-          deactivatedTables: [],
-          removedTables: [],
-        }),
-      );
+    const fetchImpl = vi.fn().mockResolvedValue(
+      json(200, {
+        plan: { ...plan, version: 'v8' },
+        warnings: ['w'],
+        deactivatedTables: [],
+        removedTables: [],
+      }),
+    );
 
     const saved = await gatewayOver(fetchImpl).replaceFloorPlan({
       branchId: 'b-1',
