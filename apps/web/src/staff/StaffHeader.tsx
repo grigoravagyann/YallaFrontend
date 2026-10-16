@@ -16,6 +16,8 @@ export interface StaffHeaderProps {
   readonly online: boolean;
   readonly onOpenConflicts: () => void;
   readonly onRefresh: () => void;
+  /** What the refresh button refreshes. The floor, unless the screen says otherwise. */
+  readonly refreshLabel?: string | undefined;
 }
 
 /**
@@ -47,13 +49,11 @@ export function StaffHeader({
   online,
   onOpenConflicts,
   onRefresh,
+  refreshLabel,
 }: StaffHeaderProps) {
   const { t } = useTranslation(['staff', 'common']);
 
   const stale = isStale(state);
-  // `idle` means no socket has ever been opened. Saying "offline" for it would
-  // be wrong; saying "live" would be worse.
-  const notWired = state === 'idle';
 
   return (
     <header className="floor-head">
@@ -63,11 +63,14 @@ export function StaffHeader({
       </div>
 
       <div className="floor-status">
+        {/* "Live" while the polls are answered, "Reconnecting…" the moment one
+            is not. The hint says how live is achieved, for anybody who wants
+            to know; the chip itself only ever says what is true right now. */}
         <span
-          className={`status-chip ${notWired ? 'status-unknown' : stale ? 'status-stale' : 'status-live'}`}
-          title={notWired ? t('connection.notWiredHint') : undefined}
+          className={`status-chip ${stale ? 'status-stale' : 'status-live'}`}
+          title={t('connection.pollingHint')}
         >
-          {notWired ? t('connection.notWired') : t(`common:${connectionStateKey(state)}`)}
+          {t(`common:${connectionStateKey(state)}`)}
         </span>
 
         {/* Connection and count are shown together, never one instead of the
@@ -99,7 +102,7 @@ export function StaffHeader({
         ) : null}
 
         <button type="button" className="floor-button" onClick={onRefresh}>
-          {t('connection.refresh')}
+          {refreshLabel ?? t('connection.refresh')}
         </button>
 
         {/* Whose session is open, and the way to hand the tablet over. One

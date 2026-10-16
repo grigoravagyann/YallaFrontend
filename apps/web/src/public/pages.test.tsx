@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublicApp } from './PublicApp';
 import { createHarness, initTestI18n, stubIntersectionObserverAsNeverVisible } from './testHarness';
 
@@ -27,8 +27,12 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+// Friday 20:00 in Yerevan: inside every fixture's hours, so the pages open on
+// a venue that is open and showing its count.
+const OPEN_HOURS = () => new Date('2026-10-16T16:00:00Z');
+
 function open(path: string) {
-  const harness = createHarness();
+  const harness = createHarness({ now: OPEN_HOURS });
   const view = render(harness.wrap(<PublicApp />, path));
   return { ...harness, ...view };
 }
@@ -155,5 +159,46 @@ describe('the branch chooser', () => {
     // and a dead link wastes the tap.
     expect(screen.queryByRole('link', { name: /Dalma Garden/u })).toBeNull();
     expect(screen.getByRole('link', { name: /Pushkin Street/u })).toBeDefined();
+  });
+});
+
+/**
+ * The page used to open on the next half hour. At 01:21 on a Friday with a
+ * 30-minute lead that is 01:30 — inside the lead and outside the hours — so
+ * the first thing a stranger read was "Too soon to book this table" over a
+ * room they had not touched (QA sweep 2026-10-16, M2). `slots.test.ts` pins
+ * the rule; this pins that the page actually hands the rule the branch's lead
+ * time and hours.
+ */
+describe('the slot the page opens on', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is this morning's opening at 01:21, not a slot the venue would refuse", async () => {
+    // Only the clock is faked: React Query's timers stay real.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T21:21:00Z'));
+
+    render(createHarness().wrap(<PublicApp />, '/lumen-coffee/northern-avenue'));
+    await screen.findByRole('heading', { level: 1 });
+
+    const time = screen.getByLabelText('Time') as HTMLSelectElement;
+    expect(time.value).toBe('09:00');
+    expect(screen.queryByText('Too soon to book this table.')).toBeNull();
+  });
+});
+
+describe('the tab title of a page that is not a venue', () => {
+  it('names a link that does not resolve', async () => {
+    open('/no-such-venue/no-such-branch');
+    await screen.findByText('We could not find that place');
+    await waitFor(() => expect(document.title).toBe('We could not find that place · Yalla'));
+  });
+
+  it('names a suspended branch', async () => {
+    open('/dolmama/dalma-garden');
+    await screen.findByText('Not available');
+    await waitFor(() => expect(document.title).toBe('Not available · Yalla'));
   });
 });

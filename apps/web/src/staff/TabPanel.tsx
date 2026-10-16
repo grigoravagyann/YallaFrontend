@@ -96,7 +96,11 @@ export function TabPanel(props: TabPanelProps) {
   const closing = tab?.status === 'closing';
 
   return (
-    <div className="staff-overlay tab-panel" role="dialog" aria-label={t('tab.title')}>
+    <div
+      className="staff-overlay tab-panel"
+      role="dialog"
+      aria-label={t('tab.title', { label: tableLabel })}
+    >
       <header className="staff-overlay-head">
         <div>
           <h1>{t('tab.title', { label: tableLabel })}</h1>

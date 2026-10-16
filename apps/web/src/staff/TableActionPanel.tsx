@@ -373,12 +373,26 @@ export function TableActionPanel(props: TableActionPanelProps) {
           </section>
         ) : (
           <div className="table-actions">
-            <button type="button" className="floor-button big" onClick={props.onOrder}>
-              {t('table.action.takeOrder')}
-            </button>
-            <button type="button" className="button big" onClick={props.onOpenTab}>
-              {t('table.action.openTab')}
-            </button>
+            {/* A staff session cannot open a tab: `POST /api/tabs/open` takes
+                the QR token printed on the table. "Take an order" on a table
+                with no tab used to lead to a screen saying exactly that, so the
+                two tab actions are withheld until a guest has opened one, and
+                the panel says how that happens. */}
+            {detail && detail.openTabId === null ? (
+              <>
+                <p className="table-warn">{t('table.noTab')}</p>
+                <p className="table-note">{t('table.noTabWhy')}</p>
+              </>
+            ) : (
+              <>
+                <button type="button" className="floor-button big" onClick={props.onOrder}>
+                  {t('table.action.takeOrder')}
+                </button>
+                <button type="button" className="button big" onClick={props.onOpenTab}>
+                  {t('table.action.openTab')}
+                </button>
+              </>
+            )}
             {/* Destructive, so it is separated from the two above rather than
                 sitting under the thumb that just tapped "take an order". */}
             <button

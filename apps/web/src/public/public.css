@@ -378,6 +378,16 @@
   overflow: hidden;
 }
 
+/* A table reached with the keyboard shows where focus is. The group has no
+   box of its own, so the ring goes on the shapes inside it. */
+.pub-plan g[role='button']:focus-visible {
+  outline: none;
+}
+.pub-plan g[role='button']:focus-visible > g > * {
+  stroke: var(--color-foreground);
+  stroke-width: 3;
+}
+
 .pub-plan.is-placeholder {
   background: var(--color-paper);
 }

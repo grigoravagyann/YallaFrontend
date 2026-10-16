@@ -1,4 +1,4 @@
-import { nextHalfHour } from '@yalla/api';
+import { closesNextDay, toMinutes, type WeeklyHours } from '@yalla/api';
 import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/format';
 
 /**
@@ -55,15 +55,96 @@ export function branchClock(instant: Date, timeZoneId: TimeZone): string {
   return `${hour}:${read('minute')}`;
 }
 
+/** What the default slot has to clear: the venue's lead time and its hours. */
+export interface DefaultSlotRules {
+  /** How far ahead a booking must be made. Zero when the branch has no rule. */
+  readonly minLeadMinutes: number;
+  /** The week's hours, as the page prints them. Empty when none are published. */
+  readonly weeklyHours: WeeklyHours;
+}
+
+const HALF_HOUR_MS = SLOT_MINUTES * 60_000;
+
+/** The instant rounded *up* to the next half-hour boundary (unchanged if on one). */
+function ceilToSlot(instant: Date): Date {
+  return new Date(Math.ceil(instant.getTime() / HALF_HOUR_MS) * HALF_HOUR_MS);
+}
+
 /**
- * The defaults the page opens on: today, the next half-hour slot, two people.
+ * Every sitting from yesterday to the day after tomorrow, as instants.
  *
- * `nextHalfHour` is the phone app's rule, imported rather than repeated, so the
- * two surfaces open on the same slot. Two people is the commonest booking by a
- * wide margin and the one that needs the least correcting.
+ * Yesterday because a Friday that closes at 01:00 is still open at 00:30 under
+ * Thursday's row; two days ahead because a venue shut on Mondays still has to
+ * find Tuesday's opening on a Sunday night.
  */
-export function defaultSelection(timeZoneId: TimeZone, now: Date = new Date()): SlotSelection {
-  const slot = nextHalfHour(now);
+function sittingsAround(
+  dateKey: string,
+  weeklyHours: WeeklyHours,
+  timeZoneId: TimeZone,
+): readonly { readonly start: Date; readonly end: Date }[] {
+  const byDay = new Map<number, WeeklyHours[number]>();
+  for (const entry of weeklyHours) byDay.set(entry.day, entry);
+
+  const sittings: { start: Date; end: Date }[] = [];
+  for (const offset of [-1, 0, 1, 2]) {
+    const key = addDays(dateKey, offset);
+    const [year, month, day] = key.split('-').map(Number) as [number, number, number];
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    const entry = byDay.get(weekday);
+    if (!entry) continue;
+
+    for (const block of entry.blocks) {
+      const start = clockInstant(key, block.opensAt, timeZoneId);
+      const end = clockInstant(
+        closesNextDay(block) ? addDays(key, 1) : key,
+        block.closesAt,
+        timeZoneId,
+      );
+      if (end.getTime() > start.getTime()) sittings.push({ start, end });
+    }
+  }
+  return sittings.sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
+function clockInstant(dateKey: string, clock: string, timeZoneId: TimeZone): Date {
+  const [year, month, day] = dateKey.split('-').map(Number) as [number, number, number];
+  const minutes = toMinutes(clock);
+  return instantFromZonedClock(
+    { year, month, day, hour: Math.floor(minutes / 60), minute: minutes % 60 },
+    timeZoneId,
+  );
+}
+
+/**
+ * The defaults the page opens on: the first slot the venue would accept, two
+ * people.
+ *
+ * It used to be the next half hour, which is the phone app's rule. On this
+ * page that was a slot inside the venue's lead time — at 01:21 with a
+ * 30-minute lead, 01:30 — and the first thing a stranger who opened the link
+ * saw was "Too soon to book this table" over a room they had not touched. So
+ * the default now clears the lead, rounds up to the half hour the backend
+ * reasons in, and if that lands outside the hours, moves to the next sitting's
+ * opening — this morning's 09:00 on the same 01:21 page.
+ *
+ * Two people is the commonest booking by a wide margin and the one that needs
+ * the least correcting.
+ */
+export function defaultSelection(
+  timeZoneId: TimeZone,
+  now: Date = new Date(),
+  rules: DefaultSlotRules = { minLeadMinutes: 0, weeklyHours: [] },
+): SlotSelection {
+  const earliest = ceilToSlot(new Date(now.getTime() + rules.minLeadMinutes * 60_000));
+
+  // The first sitting that has not ended by then; the slot is its opening when
+  // the earliest slot falls before it. No sitting in the window — no hours
+  // published, or a venue shut for three days — leaves the earliest slot, which
+  // the availability query then answers honestly.
+  const sittings = sittingsAround(branchDayKey(now, timeZoneId), rules.weeklyHours, timeZoneId);
+  const sitting = sittings.find((span) => earliest.getTime() < span.end.getTime());
+  const slot = sitting && earliest.getTime() < sitting.start.getTime() ? sitting.start : earliest;
+
   return {
     date: branchDayKey(slot, timeZoneId),
     time: branchClock(slot, timeZoneId),

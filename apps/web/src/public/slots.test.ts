@@ -87,3 +87,49 @@ describe('a selection that can', () => {
     ).not.toBeNull();
   });
 });
+
+/**
+ * The page used to open on the next half hour, which at 01:21 with a 30-minute
+ * lead is 01:30 — inside the lead, so the first thing a stranger saw was "Too
+ * soon to book this table" on a room they had not touched. The default is now
+ * the first slot the venue would actually accept.
+ */
+describe('the slot the page opens on', () => {
+  const FRIDAY_HOURS = [
+    { day: 4, blocks: [{ opensAt: '09:00', closesAt: '23:59' }] },
+    { day: 5, blocks: [{ opensAt: '09:00', closesAt: '01:00' }] },
+  ] as const;
+
+  it("skips to this morning's opening when it is 01:21 and the venue opens at 09:00", () => {
+    const picked = defaultSelection(YEREVAN, new Date('2026-10-15T21:21:00Z'), {
+      minLeadMinutes: 30,
+      weeklyHours: FRIDAY_HOURS,
+    });
+    expect(picked).toEqual({ date: '2026-10-16', time: '09:00', partySize: 2 });
+  });
+
+  it('clears the lead time when the venue is open: 20:11 with 30 minutes lead is 21:00', () => {
+    const picked = defaultSelection(YEREVAN, new Date('2026-10-16T16:11:00Z'), {
+      minLeadMinutes: 30,
+      weeklyHours: FRIDAY_HOURS,
+    });
+    expect(picked).toEqual({ date: '2026-10-16', time: '21:00', partySize: 2 });
+  });
+
+  it("rolls to the next day's opening once tonight's last slot has gone", () => {
+    // Friday 00:50 — the Thursday row closed at 23:59; Friday opens at 09:00.
+    const picked = defaultSelection(YEREVAN, new Date('2026-10-15T20:50:00Z'), {
+      minLeadMinutes: 30,
+      weeklyHours: FRIDAY_HOURS,
+    });
+    expect(picked).toEqual({ date: '2026-10-16', time: '09:00', partySize: 2 });
+  });
+
+  it('still clears the lead time when no hours are published', () => {
+    const picked = defaultSelection(YEREVAN, new Date('2026-10-16T16:11:00Z'), {
+      minLeadMinutes: 30,
+      weeklyHours: [],
+    });
+    expect(picked.time).toBe('21:00');
+  });
+});

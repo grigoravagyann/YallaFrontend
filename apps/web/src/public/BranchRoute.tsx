@@ -1,4 +1,4 @@
-import { nextHalfHour, type PublicBranch, type TableAvailability } from '@yalla/api';
+import type { PublicBranch, TableAvailability } from '@yalla/api';
 import {
   isOfflinePaused,
   usePublicBranch,
@@ -9,7 +9,7 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { FindUs, OpeningHours } from './BranchDetails';
-import { FreeTables, OpenBadge } from './LiveCount';
+import { BranchStatus } from './LiveCount';
 import { MenuSection } from './MenuSection';
 import { applyPageMeta } from './meta';
 import { FailedPage, LoadingPage, NotAvailablePage, NotFoundPage } from './PageStates';
@@ -72,8 +72,14 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
   const publicGateway = usePublicGateway();
   const menuQuery = usePublicMenu(branch.id);
 
+  // The first slot the venue would accept — past its lead time and inside its
+  // hours — rather than the next half hour, which at 01:21 is "too soon".
+  const slotRules = useMemo(
+    () => ({ minLeadMinutes: branch.policy.minLeadMinutes, weeklyHours: branch.weeklyHours }),
+    [branch.policy.minLeadMinutes, branch.weeklyHours],
+  );
   const [selection, setSelection] = useState<SlotSelection>(() =>
-    defaultSelection(branch.timeZoneId),
+    defaultSelection(branch.timeZoneId, new Date(), slotRules),
   );
   const [chosen, setChosen] = useState<TableAvailability | null>(null);
   const [takenTableLabel, setTakenTableLabel] = useState<string | null>(null);
@@ -90,8 +96,12 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
    */
   const slotUtc = useMemo(() => {
     const instant = slotInstant(selection, branch.timeZoneId);
-    return (instant ?? nextHalfHour(new Date())).toISOString();
-  }, [selection, branch.timeZoneId]);
+    const fallback = slotInstant(
+      defaultSelection(branch.timeZoneId, new Date(), slotRules),
+      branch.timeZoneId,
+    );
+    return (instant ?? fallback ?? new Date()).toISOString();
+  }, [selection, branch.timeZoneId, slotRules]);
 
   /*
    * The unfurl tags, corrected for anything that runs JavaScript.
@@ -145,12 +155,7 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
           {branch.venue.description ? ` · ${branch.venue.description}` : ''}
         </p>
 
-        <OpenBadge openState={branch.openState} timeZoneId={branch.timeZoneId} locale={locale} />
-        <FreeTables branch={branch} locale={locale} />
-
-        {!branch.openState.isOpen && branch.acceptsWebBookings ? (
-          <p className="pub-muted">{t('booking.closedNotice')}</p>
-        ) : null}
+        <BranchStatus branch={branch} locale={locale} />
       </header>
 
       <RoomSection

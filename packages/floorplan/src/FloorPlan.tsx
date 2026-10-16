@@ -8,7 +8,7 @@ import {
   type TableStatus,
 } from '@yalla/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, type LayoutChangeEvent } from 'react-native';
+import { Platform, View, type LayoutChangeEvent } from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -84,6 +84,12 @@ export interface FloorPlanProps {
   /** Accessible name for the whole plan, already translated. */
   readonly accessibilityLabel?: string;
   /**
+   * Accessible name for one table — "Table 4, 2 seats, free" — already
+   * translated. Without it a table is announced by its label alone, which on
+   * most plans is a bare number. The package holds no copy of its own.
+   */
+  readonly tableAccessibilityLabel?: ((table: LaidOutTable) => string) | undefined;
+  /**
    * Resolves the handful of strings area mode needs. Required only when area
    * mode can actually engage; without it the plan renders whole.
    */
@@ -142,6 +148,7 @@ export function FloorPlan({
   viewport,
   tableAnnotation,
   accessibilityLabel,
+  tableAccessibilityLabel,
   translate,
   areaMode = 'auto',
   areaModeMaxWidthPx = AREA_MODE_MAX_WIDTH_PX,
@@ -426,7 +433,7 @@ export function FloorPlan({
                 width={outline.bounds.width}
                 height={outline.bounds.height}
                 fill="transparent"
-                onPress={() => setSelection(outline.name)}
+                {...pressProps(() => setSelection(outline.name))}
                 {...(outline.name ? { accessibilityLabel: outline.name } : {})}
               />
             </G>
@@ -456,6 +463,7 @@ export function FloorPlan({
               laid={laid}
               selected={laid.id === selectedTableId}
               annotation={tableAnnotation?.(laid) ?? null}
+              name={tableAccessibilityLabel?.(laid) ?? laid.table.label}
               onTap={handleTap}
               anchorOffsetY={areaModeAvailable ? switcherHeight : 0}
               faded={overviewMode}
@@ -541,17 +549,65 @@ export function FloorPlan({
   );
 }
 
+/**
+ * A tap handler for a react-native-svg shape, per platform.
+ *
+ * On native, `onPress`. On the web build `onPress` makes react-native-svg
+ * attach the six responder-system props — `onStartShouldSetResponder` and
+ * friends — to a DOM node that has no responder system, and React logs
+ * "Unknown event handler property" for each of them on every page that draws
+ * a room. `onClick` is what the web build turns `onPress` into anyway, so on
+ * the web it is passed directly and the six warnings never happen.
+ */
+function pressProps(onPress: () => void): Record<string, unknown> {
+  return Platform.OS === 'web' ? { onClick: onPress } : { onPress };
+}
+
+/**
+ * What makes a table reachable without a pointer, on the web.
+ *
+ * A tappable table is a button: focusable, named, and activated by Enter or
+ * Space exactly as the pointer activates it. A table that cannot be picked —
+ * occupied in diner mode, too small for the party — is still named, as an
+ * image, so a screen reader reads a room rather than a silence with a few
+ * buttons in it. Native has its own accessibility props and is left alone.
+ */
+function tableA11yProps(name: string, press: (() => void) | undefined): Record<string, unknown> {
+  if (Platform.OS !== 'web') return {};
+  if (!press) return { role: 'img', 'aria-label': name };
+  return {
+    role: 'button',
+    'aria-label': name,
+    tabIndex: 0,
+    onKeyDown: (event: { key: string; preventDefault(): void }) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      press();
+    },
+  };
+}
+
 interface TableShapeProps {
   readonly laid: LaidOutTable;
   readonly selected: boolean;
   readonly annotation: string | null;
+  /** The accessible name, already translated. */
+  readonly name: string;
   readonly onTap: ((tableId: string, anchor: FloorRect) => void) | undefined;
   /** Added to the anchor's `y`; the area switcher sits above the plan. */
   readonly anchorOffsetY: number;
   readonly faded: boolean;
 }
 
-function TableShape({ laid, selected, annotation, onTap, faded, anchorOffsetY }: TableShapeProps) {
+function TableShape({
+  laid,
+  selected,
+  annotation,
+  name,
+  onTap,
+  faded,
+  anchorOffsetY,
+}: TableShapeProps) {
   const { table, rect, center, hitRect } = laid;
 
   // Selection is its own visual treatment, distinct from all five states, so a
@@ -574,7 +630,7 @@ function TableShape({ laid, selected, annotation, onTap, faded, anchorOffsetY }:
   const ringStrokeWidth = ring ? style.strokeWidth + ring.width * 2 : 0;
 
   return (
-    <G>
+    <G {...tableA11yProps(name, press)}>
       {/* Shape and pattern rotate with the table. */}
       <G transform={transform} opacity={opacity}>
         {ring ? (
@@ -702,8 +758,8 @@ function TableShape({ laid, selected, annotation, onTap, faded, anchorOffsetY }:
           width={hitRect.width}
           height={hitRect.height}
           fill="transparent"
-          onPress={press}
-          accessibilityLabel={table.label}
+          {...pressProps(press)}
+          accessibilityLabel={name}
         />
       ) : null}
     </G>
