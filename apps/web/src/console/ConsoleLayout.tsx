@@ -71,18 +71,17 @@ export function ConsoleLayout({ user }: ConsoleLayoutProps) {
   const { t } = useTranslation(['admin', 'common']);
   const { locale, setLocale } = useLocale();
   const items = navItemsFor(user.role);
-  const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
-
-  // Choosing a destination closes the drawer: the page it opens is the point.
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+  // The drawer is open *for a page*: choosing a destination changes the
+  // pathname and so closes it, with no effect writing state after the fact.
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  const menuOpen = openFor === pathname;
+  const setMenuOpen = (open: boolean) => setOpenFor(open ? pathname : null);
 
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key === 'Escape') setOpenFor(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -97,7 +96,7 @@ export function ConsoleLayout({ user }: ConsoleLayoutProps) {
           className="button button-ghost shell-menu"
           aria-expanded={menuOpen}
           aria-controls={NAV_ID}
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={() => setMenuOpen(!menuOpen)}
         >
           <span className="shell-menu-icon" aria-hidden="true" />
           {t('shell.openMenu')}
