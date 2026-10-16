@@ -222,7 +222,8 @@ describe('the profile', () => {
 
 describe('the password', () => {
   it('is set without a current one by an SMS-made account, then changed with it', async () => {
-    const gateway = createMockGateway();
+    let clock = Date.parse('2026-10-16T12:00:00Z');
+    const gateway = createMockGateway({ now: () => new Date(clock) });
     const challenge = await gateway.requestPhoneCode('+37499000003');
     await gateway.verifyPhoneCode({ challengeId: challenge.challengeId, code: '123456' });
 
@@ -234,8 +235,12 @@ describe('the password', () => {
     );
     expect(wrong.name).toBe('InvalidCredentialsError');
 
+    // Past the ten minutes the code sign-in bought, a missing current
+    // password is the field the server names, not a wrong one.
+    clock += 11 * 60_000;
     const missing = await caught(gateway.setDinerPassword({ newPassword: 'second one' }));
-    expect(missing.name).toBe('InvalidCredentialsError');
+    expect(missing.name).toBe('ValidationError');
+    expect(missing['field']).toBe('currentPassword');
 
     await gateway.setDinerPassword({ currentPassword: 'first one!', newPassword: 'second one' });
   });

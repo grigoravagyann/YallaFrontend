@@ -15,6 +15,14 @@ import {
 import type { Photo } from '../contracts/menuAdmin';
 import { ValidationError } from '../errors';
 import { mockPhoto } from './menuDetail';
+import { validationFailed } from './problems';
+
+/** `DinerProfileService.PhoneProofWindow`: how long a phone proof stands in for the password. */
+export const PHONE_PROOF_WINDOW_MS = 10 * 60_000;
+
+/** `DinerProfileService.CurrentPasswordNeeded`, word for word. */
+const CURRENT_PASSWORD_NEEDED =
+  'Enter your current password, or sign in again with a code to set a new one.';
 
 /**
  * Diner accounts, in memory, with the server's rules.
@@ -167,7 +175,16 @@ export interface AccountStore {
   /** `POST /api/auth/diner/login`. Returns the account's id. */
   login(command: LoginDinerCommand): string;
   update(accountId: string, command: UpdateDinerProfileCommand): DinerProfileView;
-  setPassword(accountId: string, command: SetDinerPasswordCommand): void;
+  /**
+   * `PUT /api/diner/me/password`. `phoneProvedAt` is when this session proved
+   * the phone — a code or the Telegram bot — or null for a password sign-in:
+   * the server's `phone_proved_at` claim, which the mock has no token to carry.
+   */
+  setPassword(
+    accountId: string,
+    command: SetDinerPasswordCommand,
+    session: { readonly phoneProvedAt: number | null },
+  ): void;
   setPhoto(accountId: string, seed: string): Photo;
   removePhoto(accountId: string): void;
   /**
@@ -332,10 +349,25 @@ export function createAccountStore(options: { readonly now: () => Date }): Accou
       return view(account);
     },
 
-    setPassword(accountId, command) {
+    setPassword(accountId, command, session) {
       const url = `${URL_TAG}/api/diner/me/password`;
       const account = byId(accountId);
-      if (account.password !== null && command.currentPassword !== account.password) {
+      const current = command.currentPassword ?? '';
+      if (account.password !== null && current === '') {
+        // Forgot it: a sign-in that proved the phone in the last ten minutes
+        // may set a new one, as the code sign-in itself rests on that proof.
+        // Anything else is told to send the current one or prove the phone.
+        const t = now().getTime();
+        const proved = session.phoneProvedAt;
+        const recently =
+          proved !== null && proved <= t + 60_000 && t - proved <= PHONE_PROOF_WINDOW_MS;
+        if (!recently) {
+          throw validationFailed(url, [
+            { field: 'currentPassword', message: CURRENT_PASSWORD_NEEDED, bound: 'required' },
+          ]);
+        }
+      } else if (account.password !== null && current !== account.password) {
+        // Sent and wrong: still the one 401, recent proof or not.
         throw new InvalidCredentialsError({ url });
       }
       account.password = checkPassword(url, 'newPassword', command.newPassword, account);

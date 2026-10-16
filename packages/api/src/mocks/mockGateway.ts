@@ -333,6 +333,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   const accounts = createAccountStore({ now });
   let signedInAccountId: string | null = null;
   /**
+   * When this session proved the phone — a passed code or a Telegram claim —
+   * or null for a password sign-in. The server carries it on the access token
+   * as `phone_proved_at`; the mock has no token, so the session keeps it.
+   */
+  let sessionPhoneProvedAt: number | null = null;
+  /**
    * Accounts deleted on this device (K2). The mock has no token to revoke, so a
    * session still pointing at one of these answers as the server answers a
    * revoked token, until somebody signs in again.
@@ -374,6 +380,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   /** Signed in: the tokens the server would issue, with the mock's own strings. */
   function signIn(accountId: string, isNewAccount: boolean): DinerSignInResult {
     signedInAccountId = accountId;
+    // A new session proves nothing about the phone until the code paths say so.
+    sessionPhoneProvedAt = null;
     return {
       accessToken: `at_${accountId}_${sequence++}`,
       refreshToken: `rt_${accountId}_${sequence++}`,
@@ -1477,6 +1485,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         signedInAccountId,
       );
       signIn(accountId, isNewAccount);
+      sessionPhoneProvedAt = now().getTime();
       return {
         state: 'verified',
         verified: {
@@ -1516,6 +1525,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         signedInAccountId,
       );
       signIn(accountId, isNewAccount);
+      sessionPhoneProvedAt = now().getTime();
       return {
         verificationToken: `vt_${challenge.phoneE164}_${sequence++}`,
         phoneE164: challenge.phoneE164,
@@ -1548,7 +1558,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async setDinerPassword(command) {
       await wait();
-      accounts.setPassword(me(), command);
+      accounts.setPassword(me(), command, { phoneProvedAt: sessionPhoneProvedAt });
     },
 
     async uploadDinerPhoto(file) {
