@@ -215,6 +215,7 @@ function staffRefusal(error: unknown): never {
       url: error.url,
       detail: error.problem?.detail ?? error.message,
       requestId: error.requestId,
+      problem: error.problem,
     });
   }
   if (error instanceof ApiError && error.status === 403) {

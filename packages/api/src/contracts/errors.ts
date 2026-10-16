@@ -1,5 +1,6 @@
 import type { FloorPlanData } from '@yalla/floorplan/types';
 import { ApiError } from '../errors';
+import type { ProblemDetails } from '../problem';
 import type { TableAvailability, TableUnavailableReason } from './booking';
 import type { ReservationStatusCode } from './push';
 
@@ -1138,8 +1139,9 @@ export class StaffPermissionError extends ApiError {
  * PINs are unique per tablet roster: a branch's people plus the venue-wide
  * owners and general managers who appear on every branch's tablet. Two people
  * on one keypad with one PIN would each be signed in as whichever the tablet
- * matched first, so the server refuses the second one on create, on a new PIN
- * and on a move that would put them on the same tablet.
+ * matched first, so the server refuses the second one when a PIN is set — on
+ * create and on a new PIN. A move to another branch does not re-check it, and
+ * deactivated people do not count.
  *
  * Its own type, with the same `field` the role refusal has, so a staff form
  * puts the server's sentence under the PIN field and keeps everything else
@@ -1148,11 +1150,18 @@ export class StaffPermissionError extends ApiError {
 export class StaffPinTakenError extends ApiError {
   readonly field: string;
 
-  constructor(options: { url: string; detail: string; requestId?: string | undefined }) {
+  constructor(options: {
+    url: string;
+    detail: string;
+    requestId?: string | undefined;
+    /** The problem document, so `code` reads `pin-taken` as the server sent it. */
+    problem?: ProblemDetails | undefined;
+  }) {
     super(options.detail, {
       status: 409,
       url: options.url,
       requestId: options.requestId,
+      problem: options.problem,
     });
     this.name = 'StaffPinTakenError';
     this.field = 'pin';

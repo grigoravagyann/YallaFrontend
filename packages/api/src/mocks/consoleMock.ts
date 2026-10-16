@@ -37,8 +37,11 @@ import {
   NotFoundError,
   ValidationError,
 } from '../errors';
-import { StaffPermissionError } from '../contracts/errors';
+import { StaffPermissionError, StaffPinTakenError } from '../contracts/errors';
 import { assignableRoles, branchBindingFor, isAdminRole, outranks } from '../contracts/staff';
+
+/** `PinTakenException.Sentence`, word for word. */
+const PIN_TAKEN = 'Somebody who signs in on this tablet already uses that PIN. Choose another.';
 
 /** `StaffMember.BranchManagerNeedsBranch`, word for word. */
 const BRANCH_MANAGER_NEEDS_BRANCH = 'A branch manager works at one branch. Choose it.';
@@ -443,6 +446,16 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
    * owner works everywhere) and a tablet is bolted to one counter.
    */
   const staffByVenue = new Map<string, StaffMember[]>();
+
+  /**
+   * The PINs this mock was given, by staff member, as plain values.
+   *
+   * Kept only to answer `pin-taken` as the server does — the server compares
+   * hashes; this compares the digits — and never handed back by any read. The
+   * fixture's people have none here, as the development seed gives its people
+   * "dev-no-pin-set".
+   */
+  const pins = new Map<string, string>();
   const devicesByBranch = new Map<string, StaffDevice[]>();
 
   /**
@@ -617,6 +630,42 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         { field: 'branchId', message: GENERAL_MANAGER_HAS_NO_BRANCH, bound: 'conflict' },
       ]);
     }
+  }
+
+  /**
+   * `PinTakenException`'s rule: the PIN is refused when somebody else who signs
+   * in on the same tablet already uses it. For a person at a branch that is
+   * everyone active at that branch and everyone venue-wide; for a venue-wide
+   * person, every active person in the venue. Deactivated people do not count.
+   */
+  function requirePinFree(
+    venueId: string,
+    subject: { readonly id: string | null; readonly branchId: string | null },
+    pin: string,
+  ): void {
+    const clash = staffFor(venueId).some(
+      (member) =>
+        member.id !== subject.id &&
+        member.isActive &&
+        pins.get(member.id) === pin &&
+        (subject.branchId === null ||
+          member.branchId === null ||
+          member.branchId === subject.branchId),
+    );
+    if (!clash) return;
+    throw new StaffPinTakenError({
+      url: URL_TAG,
+      detail: PIN_TAKEN,
+      problem: {
+        type: 'about:blank',
+        title: 'Conflict',
+        status: 409,
+        detail: PIN_TAKEN,
+        code: 'pin-taken',
+        traceId: 'mock',
+        context: { field: 'pin' },
+      },
+    });
   }
 
   /** A venue's people, seeded from the same names the venue fixture uses. */
@@ -2604,6 +2653,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // The new row's invariants: the branch must suit the role.
       requireBranchSuitsRole(URL_TAG, staff.role, staff.branchId);
 
+      // One PIN per person on a tablet's keypad.
+      requirePinFree(venueId, { id: null, branchId: staff.branchId }, staff.pin);
+
       /*
        * Either both or neither, as the server rules it: an email without a
        * password is a 400 with no field named, and so is a password without
@@ -2657,10 +2709,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         isPinLocked: false,
       };
 
-      // The PIN is *not* kept. Nothing in this mock can hand it back, which is
-      // the same promise the server makes and the reason the screen shows it
-      // once and never again.
+      // The PIN is kept only for the `pin-taken` check. Nothing in this mock
+      // hands it back, which is the same promise the server makes and the
+      // reason the screen shows it once and never again.
       staffFor(venueId).push(created);
+      pins.set(created.id, staff.pin);
       return created;
     },
 
@@ -2778,10 +2831,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         );
       }
 
-      // Setting a PIN clears any lockout, as the server's does. The PIN itself
-      // is discarded: this mock could not return it later if it wanted to.
+      // Your own PIN again clashes with nobody; anyone else's on your tablet does.
+      requirePinFree(venueId, subject, pin);
+
+      // Setting a PIN clears any lockout, as the server's does. The PIN is kept
+      // for the clash check alone; no read returns it.
       const updated = { ...list[index]!, isPinLocked: false };
       list[index] = updated;
+      pins.set(subject.id, pin);
       return updated;
     },
 

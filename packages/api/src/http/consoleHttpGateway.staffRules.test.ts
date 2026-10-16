@@ -65,6 +65,7 @@ describe('a PIN somebody on the same tablet already uses', () => {
     expect((error as StaffPinTakenError).field).toBe('pin');
     expect((error as StaffPinTakenError).message).toBe(PIN_TAKEN);
     expect((error as StaffPinTakenError).status).toBe(409);
+    expect((error as StaffPinTakenError).code).toBe('pin-taken');
   });
 
   it('is the PIN refusal when the PIN is set on its own', async () => {
@@ -73,17 +74,6 @@ describe('a PIN somebody on the same tablet already uses', () => {
     );
     expect(error).toBeInstanceOf(StaffPinTakenError);
     expect((error as StaffPinTakenError).message).toBe(PIN_TAKEN);
-  });
-
-  it('is the PIN refusal on an edit that would put two equal PINs on one tablet', async () => {
-    const error = await caught(
-      gatewayOver(taken()).updateStaff({
-        venueId: 'v-1',
-        staffMemberId: 's-1',
-        patch: { setBranch: true, branchId: 'b-2' },
-      }),
-    );
-    expect(error).toBeInstanceOf(StaffPinTakenError);
   });
 
   it("turns the PIN route's rank refusal into the staff error, as the mock throws it", async () => {
