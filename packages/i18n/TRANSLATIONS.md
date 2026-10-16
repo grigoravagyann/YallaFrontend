@@ -183,6 +183,11 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `venue.tier.toPaid`, `venue.tier.toFree` and the refusal `venue.tier.notReady_*`,
   which quotes how many dishes are unfinished and must keep pointing at the
   menu rather than reading as "cannot upgrade". Provisional, **not** reviewed.
+- `admin` — editing a venue and adding a branch on the platform venue page
+  (2026-10-16): `venue.edit.*` and `venue.addBranch.*`. The fields reuse the
+  create form's `create.*` labels, so the two forms cannot drift apart. hy keeps
+  `վայր` for venue, as everywhere else in the console. Provisional, **not**
+  reviewed.
 - `staff` — the kitchen screen (2026-09-11): its header title `kitchen.title`
   ("Kitchen" / "Խոհանոց" / "Кухня"). Provisional, **not** reviewed.
 - `staff` — the floor screen: connection and sync states, the order and seating

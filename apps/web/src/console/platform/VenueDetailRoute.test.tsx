@@ -379,3 +379,83 @@ describe('hiring an owner who will be given their sign-in later', () => {
     expect(within(row).getByRole('button', { name: /issue sign-in/i })).toBeTruthy();
   });
 });
+
+describe('editing the venue and adding a branch', () => {
+  /*
+   * The page offered tier, staff, suspend and delete, and nothing for the two
+   * things the backend has served all along: PATCH the venue's name, web
+   * address and type, and POST a second branch. A venue with a typo in its
+   * name, or a second site, meant a hand call to the API.
+   */
+  it('saves a new name through "Edit venue" and shows it', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const update = vi.spyOn(gateway, 'updateVenue');
+    const user = userEvent.setup();
+    renderVenue(gateway);
+    await waitForStaff();
+
+    await user.click(screen.getByRole('button', { name: /edit venue/i }));
+    const form = screen.getByRole('form', { name: /edit venue/i });
+    const name = within(form).getByLabelText(/^venue name$/i) as HTMLInputElement;
+    expect(name.value).toBe('Lumen Coffee');
+    await user.clear(name);
+    await user.type(name, 'Lumen Coffee House');
+    await user.selectOptions(within(form).getByLabelText(/type/i), 'restaurant');
+    await user.click(within(form).getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0]![0]).toMatchObject({
+      venueId: 'v-lumen',
+      name: 'Lumen Coffee House',
+      type: 'restaurant',
+    });
+    expect(await screen.findByRole('heading', { name: 'Lumen Coffee House' })).toBeTruthy();
+    expect(screen.queryByRole('form', { name: /edit venue/i })).toBeNull();
+  });
+
+  it('names a web address already in use and keeps the form open', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const user = userEvent.setup();
+    renderVenue(gateway);
+    await waitForStaff();
+
+    await user.click(screen.getByRole('button', { name: /edit venue/i }));
+    const form = screen.getByRole('form', { name: /edit venue/i });
+    const slug = within(form).getByLabelText(/web address/i);
+    await user.clear(slug);
+    await user.type(slug, 'green-bean');
+    await user.click(within(form).getByRole('button', { name: /^save$/i }));
+
+    expect(await within(form).findByText(/"green-bean" is already in use/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Lumen Coffee' })).toBeTruthy();
+  });
+
+  it('adds a branch with its own address, pin and web address', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const add = vi.spyOn(gateway, 'addBranch');
+    const user = userEvent.setup();
+    renderVenue(gateway);
+    await waitForStaff();
+
+    await user.click(screen.getByRole('button', { name: /add a branch/i }));
+    const form = screen.getByRole('form', { name: /add a branch/i });
+    await user.type(within(form).getByLabelText(/branch name/i), 'Komitas');
+    await user.type(within(form).getByLabelText(/street address/i), '5 Komitas Avenue, Yerevan');
+    await user.type(within(form).getByLabelText(/latitude/i), '40.2');
+    await user.type(within(form).getByLabelText(/longitude/i), '44.5');
+    await user.click(within(form).getByRole('button', { name: /^add$/i }));
+
+    await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
+    expect(add.mock.calls[0]![0]).toMatchObject({
+      venueId: 'v-lumen',
+      name: 'Komitas',
+      slug: 'komitas',
+      address: '5 Komitas Avenue, Yerevan',
+      latitude: 40.2,
+      longitude: 44.5,
+      timeZoneId: 'Asia/Yerevan',
+    });
+    expect(await screen.findByText('Komitas')).toBeTruthy();
+    expect(screen.queryByRole('form', { name: /add a branch/i })).toBeNull();
+  });
+});

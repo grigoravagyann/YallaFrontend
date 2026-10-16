@@ -253,6 +253,17 @@
       "toFree": "Switch to Free",
       "notReady_one": "{{count}} dish is not ready to show a diner. Finish the menu, then switch.",
       "notReady_other": "{{count}} dishes are not ready to show a diner. Finish the menu, then switch."
+    },
+    "edit": {
+      "open": "Edit venue",
+      "title": "Edit venue",
+      "save": "Save"
+    },
+    "addBranch": {
+      "open": "Add a branch",
+      "title": "Add a branch",
+      "submit": "Add",
+      "nameRequired": "Name the branch."
     }
   },
   "create": {
