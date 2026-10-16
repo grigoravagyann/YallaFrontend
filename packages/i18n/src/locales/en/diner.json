@@ -109,6 +109,7 @@
       "cancelling": "Cancelling…",
       "cancelFailed": "We could not cancel that. Try again.",
       "cancelledOn": "Cancelled {{date}}",
+      "codeCancelled": "This booking is cancelled, so the code no longer works.",
       "until": "Until {{time}}"
     },
     "signedOut": {

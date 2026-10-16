@@ -111,6 +111,7 @@
       "cancelling": "Отменяем…",
       "cancelFailed": "Не удалось отменить. Попробуйте ещё раз.",
       "cancelledOn": "Отменена {{date}}",
+      "codeCancelled": "Бронь отменена, код больше не действует.",
       "until": "До {{time}}"
     },
     "signedOut": {

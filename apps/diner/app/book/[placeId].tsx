@@ -503,6 +503,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             <Text style={styles.empty}>{t('book.noSlots')}</Text>
           ) : (
             <SlotGrid
+              label={t('book.time')}
               slots={slots}
               selectedKey={activeSlot?.key ?? null}
               onSelect={(key) => {
@@ -518,11 +519,16 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             icon={actionIcon.people}
             style={styles.section}
           />
-          <View style={styles.chips}>
+          <View
+            style={styles.chips}
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('book.partySize')}
+          >
             {PARTY_SIZES.map((size) => (
               <Chip
                 key={size}
                 label={String(size)}
+                accessibilityRole="radio"
                 shape="rounded"
                 selected={!moreOpen && partySize === size}
                 // A table for four to six is not a table for two, any more
@@ -536,6 +542,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             ))}
             <Chip
               label={t('book.partySizeMore', { count: PARTY_MORE_FROM })}
+              accessibilityRole="radio"
               shape="rounded"
               selected={moreOpen}
               disabled={!moreAllowed}
@@ -546,11 +553,16 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             />
           </View>
           {moreOpen && moreSizes.length > 0 ? (
-            <View style={[styles.chips, styles.moreChips]}>
+            <View
+              style={[styles.chips, styles.moreChips]}
+              accessibilityRole="radiogroup"
+              accessibilityLabel={t('book.partySize')}
+            >
               {moreSizes.map((size) => (
                 <Chip
                   key={size}
                   label={String(size)}
+                  accessibilityRole="radio"
                   shape="rounded"
                   size="sm"
                   selected={partySize === size}
@@ -804,6 +816,8 @@ function DayStrip({ days, selectedKey, timeZoneId, onSelect }: DayStripProps) {
 }
 
 interface SlotGridProps {
+  /** The group's name for a screen reader: "Time". */
+  readonly label: string;
   readonly slots: readonly { key: string; at: Date }[];
   readonly selectedKey: string | null;
   readonly onSelect: (key: string) => void;
@@ -811,15 +825,21 @@ interface SlotGridProps {
 }
 
 /** Three slot chips per row; the selected one is brown. */
-function SlotGrid({ slots, selectedKey, onSelect, format }: SlotGridProps) {
+function SlotGrid({ label, slots, selectedKey, onSelect, format }: SlotGridProps) {
   const [width, setWidth] = useState(0);
   const column = width > 0 ? (width - space.sm * (SLOT_COLUMNS - 1)) / SLOT_COLUMNS : undefined;
   return (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={styles.slotGrid}>
+    <View
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={styles.slotGrid}
+    >
       {slots.map((slot) => (
         <Chip
           key={slot.key}
           label={format(slot.at)}
+          accessibilityRole="radio"
           shape="rounded"
           selected={slot.key === selectedKey}
           onPress={() => onSelect(slot.key)}

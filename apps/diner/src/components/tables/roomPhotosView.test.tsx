@@ -92,6 +92,9 @@ describe('RoomPhotosView', () => {
     render(<RoomPhotosView rooms={ROOMS} selectedTableId="4" onSelect={onSelect} />);
 
     expect(screen.getByRole('tablist', { name: 'Rooms' })).toBeTruthy();
+    // The room on show is the selected tab (QA 20261016T2 B5).
+    expect(screen.getByRole('tab', { name: 'Hall', selected: true })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Terrace', selected: false })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Room photo' }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });

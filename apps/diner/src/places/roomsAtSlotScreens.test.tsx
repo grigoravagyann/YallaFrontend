@@ -180,6 +180,12 @@ describe('the Book screen', () => {
 
     expect(await screen.findByText('Selected table')).toBeTruthy();
     expect(screen.getByText(new RegExp(`^Table ${label} ·`, 'u'))).toBeTruthy();
+
+    // The chosen time and party size are exposed as chosen (QA 20261016T2 B5).
+    expect(screen.getByRole('radiogroup', { name: 'Party Size' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: '2', checked: true })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: '3', checked: false })).toBeTruthy();
+    expect(screen.getAllByRole('radio', { name: /^\d{2}:\d{2}$/u, checked: true })).toHaveLength(1);
   });
 
   it('offers no free table too small for the party, and names why', async () => {
@@ -188,7 +194,7 @@ describe('the Book screen', () => {
     await screen.findAllByRole('button', { name: firstFree });
 
     // The mock's two-seaters cannot take three.
-    fireEvent.click(screen.getByRole('button', { name: '3' }));
+    fireEvent.click(screen.getByRole('radio', { name: '3' }));
 
     const unfit = await screen.findAllByRole('button', {
       name: /^Table \w+, free, not for a party of 3$/u,
