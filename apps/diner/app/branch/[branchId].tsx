@@ -338,6 +338,13 @@ export default function BranchFloorPlanScreen() {
           />
         ) : roomsQuery.isLoading ? (
           <Skeleton height={240} borderRadius={radius.card} />
+        ) : isOfflinePaused(roomsQuery) || roomsQuery.isError ? (
+          // A failed read is not a venue without photos: say which, and retry.
+          <QueryErrorState
+            error={roomsQuery.error}
+            offline={isOfflinePaused(roomsQuery)}
+            onRetry={() => void roomsQuery.refetch()}
+          />
         ) : (
           <Text style={styles.noRooms}>{t('tables.notOnPhoto')}</Text>
         )}

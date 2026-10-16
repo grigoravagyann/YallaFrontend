@@ -18,7 +18,12 @@ import type { Place, PlaceRoom } from './model';
 
 const BRANCH = 'b-lumen-north';
 const mock = createMockGateway({ latencyMs: 0 });
-const held = vi.hoisted(() => ({ rooms: [] as unknown[], place: null as unknown }));
+const held = vi.hoisted(() => ({
+  rooms: [] as unknown[],
+  place: null as unknown,
+  roomsFailed: false,
+  refetchRooms: (() => undefined) as () => void,
+}));
 const params = vi.hoisted(() => ({ current: {} as Record<string, string> }));
 const router = vi.hoisted(() => ({
   push: vi.fn(),
@@ -57,12 +62,25 @@ vi.mock('@yalla/i18n', async (importOriginal) => {
 });
 vi.mock('./hooks', () => ({
   placeKeys: { rooms: (id: string) => ['places', 'rooms', id] },
-  usePlaceRooms: () => ({ data: held.rooms, isLoading: false }),
+  usePlaceRooms: () =>
+    held.roomsFailed
+      ? {
+          data: undefined,
+          isLoading: false,
+          isError: true,
+          error: new Error('rooms read failed'),
+          fetchStatus: 'idle',
+          refetch: held.refetchRooms,
+        }
+      : { data: held.rooms, isLoading: false, isError: false, fetchStatus: 'idle' },
   usePlace: () => ({ data: held.place, isLoading: false, isError: false }),
 }));
 vi.mock('../data/accountQueries', () => ({ useDinerProfile: () => ({ data: undefined }) }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  held.roomsFailed = false;
+});
 
 beforeAll(async () => {
   held.rooms = roomsFromApi((await mock.getBranchRooms(BRANCH))!.rooms);
@@ -119,6 +137,17 @@ describe('the branch screen', () => {
 
     fireEvent.click(pins[0]!);
     expect(await screen.findByText('Pick another')).toBeTruthy();
+  });
+
+  it('says the rooms failed to load, with a retry, rather than that there are none', async () => {
+    held.roomsFailed = true;
+    held.refetchRooms = vi.fn();
+    params.current = { branchId: BRANCH, venueId: 'v-lumen', timeZoneId: 'Asia/Yerevan' };
+    renderScreen(<BranchScreen />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+    expect(held.refetchRooms).toHaveBeenCalled();
+    expect(screen.queryByText(/has not put its tables on a photo yet/u)).toBeNull();
   });
 });
 
