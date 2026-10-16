@@ -1,7 +1,6 @@
 import {
   ApiError,
   BranchNotReadyError,
-  StaffPermissionError,
   VenueHasOpenTabsError,
   canIssueSignIn,
   isAdminRole,
@@ -21,6 +20,7 @@ import { SignInLinkDialog } from '../venue/staff/SignInLinkDialog';
 import { SignInPrompt } from '../venue/staff/SignInPrompt';
 import { StaffForm } from '../venue/staff/StaffForm';
 import { issueFailureText } from '../venue/staff/signInIssue';
+import { asStaffRefusal, type StaffRefusal } from '../venue/staff/staffRefusal';
 import type { ShownCredentials, SignInPromptState } from '../venue/staff/StaffScreen';
 import { AddBranchForm } from './AddBranchForm';
 import { EditVenueForm } from './EditVenueForm';
@@ -86,7 +86,7 @@ export function VenueDetailRoute() {
   /** One panel at a time per card: the venue's fields, or a new branch. */
   const [editingVenue, setEditingVenue] = useState(false);
   const [addingBranch, setAddingBranch] = useState(false);
-  const [refusal, setRefusal] = useState<StaffPermissionError | null>(null);
+  const [refusal, setRefusal] = useState<StaffRefusal | null>(null);
   /** The one moment a PIN or a link is on screen; same rule as the venue's staff screen. */
   const [shown, setShown] = useState<ShownCredentials | null>(null);
   const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
@@ -388,7 +388,8 @@ export function VenueDetailRoute() {
                   setHiring(false);
                 }
               } catch (error) {
-                if (error instanceof StaffPermissionError) setRefusal(error);
+                const refused = asStaffRefusal(error);
+                if (refused) setRefusal(refused);
                 else throw error;
               }
             }}

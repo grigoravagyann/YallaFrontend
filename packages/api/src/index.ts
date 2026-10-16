@@ -186,6 +186,7 @@ export { REPORT_MAX_DAYS, REPORT_SECTIONS } from './contracts/reports';
 
 export {
   assignableRoles,
+  branchBindingFor,
   canChooseBranch,
   canEditStaff,
   canSetStaffPin,
@@ -194,10 +195,12 @@ export {
   outranks,
 } from './contracts/staff';
 export type {
+  BranchBinding,
   CreateStaffInput,
   EnrolmentCode,
   StaffDevice,
   StaffMember,
+  StaffActorRef,
   StaffSignInLink,
   UpdateStaffInput,
 } from './contracts/staff';
@@ -433,6 +436,7 @@ export {
   SlugTakenError,
   ReportRangeTooLongError,
   StaffPermissionError,
+  StaffPinTakenError,
   VenueHasOpenTabsError,
   isFloorPlanInvalid,
 } from './contracts/errors';

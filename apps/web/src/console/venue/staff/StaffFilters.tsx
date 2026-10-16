@@ -5,7 +5,14 @@ import { useStaffLabels } from './staffLabels';
 
 export type RoleFilter = StaffRole | 'all';
 
-export const ROLE_ORDER: readonly StaffRole[] = ['owner', 'manager', 'waiter', 'kitchen'];
+/** Seniority, as the server's `StaffRoleRules.Seniority` has it — not the wire numbers. */
+export const ROLE_ORDER: readonly StaffRole[] = [
+  'owner',
+  'generalManager',
+  'manager',
+  'waiter',
+  'kitchen',
+];
 
 export interface StaffFiltersProps {
   readonly search: string;

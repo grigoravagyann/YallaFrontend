@@ -66,9 +66,13 @@ function renderStaff(
   return harness;
 }
 
-/** Waits for the list to arrive: the seeded owner is on every venue's list. */
+/**
+ * Waits for the list to arrive. Northern Avenue's kitchen hand is on every
+ * list these tests open: an owner's, and the branch manager's at Northern
+ * Avenue, who sees their own branch's people and not the venue-wide owner.
+ */
 async function waitForList() {
-  await screen.findByText('Aram Sargsyan', undefined, { timeout: 5000 });
+  await screen.findByText('Sona Vardanyan (Northern Avenue)', undefined, { timeout: 5000 });
 }
 
 /** A person's card, found by the name on it. */
@@ -177,11 +181,12 @@ describe('the role picker', () => {
 
     await startHire(user);
 
-    // Not filtered by CSS and not validated on submit: Manager and Owner are
-    // not in the document at all.
+    // Not filtered by CSS and not validated on submit: the managers and the
+    // owner are not in the document at all.
     const offered = offeredRoles();
     expect(offered).toEqual(['waiter', 'kitchen']);
     expect(offered).not.toContain('manager');
+    expect(offered).not.toContain('generalManager');
     expect(offered).not.toContain('owner');
   });
 
@@ -193,10 +198,11 @@ describe('the role picker', () => {
     await startHire(user);
 
     const offered = offeredRoles();
-    // The server's rule: a co-owner is a normal thing for a family business.
-    expect(offered).toEqual(['owner', 'manager', 'waiter', 'kitchen']);
-    // Offered, not defaulted: the form opens on Manager, so a careless hire
-    // does not mint a partner.
+    // The server's rule: a co-owner is a normal thing for a family business,
+    // and so is a general manager who runs every branch.
+    expect(offered).toEqual(['owner', 'generalManager', 'manager', 'waiter', 'kitchen']);
+    // Offered, not defaulted: the form opens on Branch manager, so a careless
+    // hire mints neither a partner nor somebody who runs every branch.
     expect(checkedRole(addForm())).toBe('manager');
     // And platform admin never, from inside a venue: they have no venue and no
     // branch, so creating one here is a category error.
@@ -269,6 +275,8 @@ describe('the branch field', () => {
     await waitForList();
 
     await startHire(user);
+    // A waiter may work every branch; a branch manager, the default, may not.
+    await user.click(within(addForm()).getByRole('radio', { name: /^waiter/i }));
 
     const select = within(addForm()).getByLabelText(/which branch/i) as HTMLSelectElement;
     const labels = [...select.options].map((option) => option.textContent);
@@ -1186,8 +1194,27 @@ describe('the PIN lockout', () => {
 
 describe('what a manager sees', () => {
   it('cannot act on another manager', async () => {
+    // A second branch manager at the same branch: the only peer a branch
+    // manager's own list can show them.
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'manager' });
+    const list = gateway.listStaff.bind(gateway);
+    vi.spyOn(gateway, 'listStaff').mockImplementation(async (venueId) => [
+      ...(await list(venueId)),
+      {
+        id: 'b-lumen-north-manager-2',
+        venueId,
+        branchId: 'b-lumen-north',
+        fullName: 'Tigran Avetisyan',
+        phone: '+37477201010',
+        role: 'manager',
+        isActive: true,
+        email: null,
+        hasPasswordSignIn: false,
+        isPinLocked: false,
+      },
+    ]);
     const user = userEvent.setup();
-    renderStaff({ role: 'manager', branchCount: 1 });
+    renderStaff({ role: 'manager', branchCount: 1, gateway });
     await waitForList();
 
     const managerCard = cardOf('Tigran Avetisyan');
@@ -1250,9 +1277,11 @@ describe('what a manager sees', () => {
     renderStaff({ role: 'manager', branchCount: 1 });
     await waitForList();
 
-    // Tigran works at Cascade; with one branch in view the name is noise.
-    expect(cardOf('Tigran Avetisyan').textContent).not.toContain('Cascade');
-    expect(screen.queryByText('Cascade')).toBeNull();
+    // Every card is Northern Avenue's; with one branch in view the name is noise.
+    expect(cardOf('Sona Vardanyan (Northern Avenue)').querySelector('.badge')).toBeNull();
+    expect(screen.queryByText('Northern Avenue')).toBeNull();
+    // And another branch's people are not on a branch manager's list at all.
+    expect(screen.queryByText('Tigran Avetisyan')).toBeNull();
     cleanup();
 
     // The same person, seen by an owner who covers three branches, is labelled.
@@ -1273,9 +1302,10 @@ describe('the roster', () => {
       .getAllByRole('heading', { level: 3 })
       .map((heading) => heading.textContent);
     // Owners first, then down the ranks; the counts are the active people.
-    expect(headings.slice(0, 4)).toEqual([
+    expect(headings.slice(0, 5)).toEqual([
       'Owners 1',
-      'Branch managers 4',
+      'General managers 1',
+      'Branch managers 3',
       'Waiters 3',
       'Kitchen 3',
     ]);

@@ -48,6 +48,21 @@ describe('an account request that failed', () => {
     });
   });
 
+  it('says a missing current password can be replaced by a code sign-in', () => {
+    // 422 `validation-failed` on `currentPassword`: the account has a password
+    // and this sign-in did not prove the phone in the last ten minutes. Not
+    // "wrong password" — nothing was typed.
+    const error = make(ValidationError, {
+      url,
+      status: 422,
+      problem: { code: 'validation-failed', context: { field: 'currentPassword' } },
+    });
+    expect(describeAccountFailure(error)).toEqual({
+      field: 'currentPassword',
+      key: 'editProfile.password.currentNeeded',
+    });
+  });
+
   it('leaves anything else to the generic line', () => {
     expect(describeAccountFailure(new Error('boom'))).toEqual({ field: 'form', key: null });
   });

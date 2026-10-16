@@ -188,6 +188,24 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   create form's `create.*` labels, so the two forms cannot drift apart. hy keeps
   `վայր` for venue, as everywhere else in the console. Provisional, **not**
   reviewed.
+- `diner` — a new password after proving the phone (2026-10-16), provisional
+  and **not** reviewed: `auth.newPassword.*` (the step "Forgot your password?"
+  now ends on — its body must keep saying the number is already confirmed),
+  `editProfile.password.currentNeeded` (the server's refusal when the current
+  password was needed: it must keep offering logging in again with a code as
+  the other way) and `editProfile.password.provedRecently` (why the current
+  password field is missing). Ungendered, in the polite plural, like the rest
+  of `auth.*`.
+- `admin` — the general manager and the branch manager (2026-10-16), provisional
+  and **not** reviewed: `role.generalManager` ("General manager" / "Գլխավոր
+  մենեջեր" / "Главный менеджер"), `staff.group.generalManager`,
+  `staff.roleInfo.generalManager` and `staff.field.branchVenueWide`, which must
+  keep saying a general manager works at **every** branch — it is why the form
+  shows no branch picker. `role.manager` and `staff.group.manager` now name the
+  **branch** manager in all three ("Մասնաճյուղի մենեջեր", "Менеджер филиала");
+  the generic "a manager" in the tablet copy still means whoever manages, and
+  stays. The PIN help (`staff.pin.help`, "no shared PINs") is unchanged and now
+  true: the server refuses a PIN somebody on the same tablet already uses.
 - `staff` — the kitchen screen (2026-09-11): its header title `kitchen.title`
   ("Kitchen" / "Խոհանոց" / "Кухня"). Provisional, **not** reviewed.
 - `staff` — the floor screen: connection and sync states, the order and seating

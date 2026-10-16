@@ -275,13 +275,13 @@ describe('scope', () => {
     expect(screen.queryByLabelText('Covering')).toBeNull();
   });
 
-  it('offers no rollup to a manager who sees several branches', async () => {
+  it('offers no rollup when the layout says this person may not have one', async () => {
     /*
-     * A manager created with no branch sees every branch of the venue, but the
-     * server allows the venue-wide rollup to an owner or the platform admin
-     * only (`ReportQuery.cs`). A selector here would offer a query the server
-     * answers 403 to, so the count alone is not enough: the layout says
-     * whether this person may roll up, and the screen believes it.
+     * The server allows the venue-wide rollup to an owner, a general manager
+     * or the platform admin (`ReportQuery.cs`). A selector offered to anybody
+     * else would offer a query the server answers 403 to, so the count alone
+     * is not enough: the layout says whether this person may roll up, and the
+     * screen believes it.
      */
     renderReports({ branchCount: 3, canRollUpVenue: false });
     await waitForSummary();

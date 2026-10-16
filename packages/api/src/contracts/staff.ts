@@ -6,7 +6,7 @@ import type { StaffRole } from './console';
  * Two different scopes on one screen, and the difference is not cosmetic:
  * **staff belong to a venue and devices belong to a branch.** An owner works
  * everywhere, so `StaffMember.branchId` is nullable and null means every branch
- * of the venue — that is how a floating manager is represented. A tablet is
+ * of the venue — that is how a general manager is represented. A tablet is
  * bolted to one counter, so a device is always branch-bound.
  */
 
@@ -17,7 +17,8 @@ export interface StaffMember {
    * The one branch they work at, or **null for every branch of the venue**.
    *
    * Null is a real assignment rather than a missing value: it is how an owner
-   * who works the floor, or a manager who covers three sites, is represented.
+   * who works the floor, or a general manager, is represented. A branch
+   * manager always names their branch.
    * Nothing in the product could reach that state before this screen existed.
    */
   readonly branchId: string | null;
@@ -126,10 +127,11 @@ export interface StaffSignInLink {
  * The server's rule, mirrored: a waiter or kitchen hand taps a PIN on a tablet
  * a manager enrolled and never holds an email or password, because a password
  * mints a venue-scoped identity their PIN on the floor deliberately does not
- * reach. Only these two roles get a sign-in badge, an email field, or a link.
+ * reach. Only an owner, a general manager and a branch manager get a sign-in
+ * badge, an email field, or a link.
  */
 export function isAdminRole(role: StaffRole): boolean {
-  return role === 'owner' || role === 'manager';
+  return role === 'owner' || role === 'generalManager' || role === 'manager';
 }
 
 // ---------------------------------------------------------------------------
@@ -159,11 +161,16 @@ export function assignableRoles(actor: StaffRole | 'platformAdmin'): readonly St
   switch (actor) {
     // Every venue role; the only actor who can give a new venue its first owner.
     case 'platformAdmin':
-      return ['owner', 'manager', 'waiter', 'kitchen'];
+      return ['owner', 'generalManager', 'manager', 'waiter', 'kitchen'];
     // Owner included: a co-owner is a normal thing for a family business.
     case 'owner':
-      return ['owner', 'manager', 'waiter', 'kitchen'];
-    // Floor staff only, and nobody at or above them: a manager cannot mint a peer.
+      return ['owner', 'generalManager', 'manager', 'waiter', 'kitchen'];
+    // Branch managers and floor staff, at any branch. Never an owner, and
+    // never a peer: a general manager cannot mint another general manager.
+    case 'generalManager':
+      return ['manager', 'waiter', 'kitchen'];
+    // Floor staff only, and nobody at or above them: a branch manager cannot
+    // mint a peer, and only hires for their own branch.
     case 'manager':
       return ['waiter', 'kitchen'];
     // A waiter or kitchen hand reaches no part of this screen. Listed so the
@@ -172,6 +179,27 @@ export function assignableRoles(actor: StaffRole | 'platformAdmin'): readonly St
     case 'kitchen':
       return [];
   }
+}
+
+/**
+ * Who is acting, as far as the staff rules care.
+ *
+ * `branchId` is the actor's stored home branch. It matters for one role only:
+ * a branch manager may touch the people of their own branch and nobody else's
+ * (the server's staff service checks it from the stored rows). Left out, a
+ * branch manager is taken to hold no branch the subject could share — refusing
+ * rather than offering something the server would refuse.
+ */
+export interface StaffActorRef {
+  readonly id: string;
+  readonly role: StaffRole | 'platformAdmin';
+  readonly branchId?: string | null | undefined;
+}
+
+/** The branch rule on top of the rank rule: a branch manager stays at their branch. */
+function withinActorsBranch(actor: StaffActorRef, subject: StaffMember): boolean {
+  if (actor.role !== 'manager') return true;
+  return subject.branchId !== null && subject.branchId === (actor.branchId ?? undefined);
 }
 
 /**
@@ -186,12 +214,9 @@ export function assignableRoles(actor: StaffRole | 'platformAdmin'): readonly St
  * That is also what keeps a venue out of its own lockout — an owner cannot
  * demote or deactivate the last owner-level account, themselves.
  */
-export function canEditStaff(
-  actor: { readonly id: string; readonly role: StaffRole | 'platformAdmin' },
-  subject: StaffMember,
-): boolean {
+export function canEditStaff(actor: StaffActorRef, subject: StaffMember): boolean {
   if (actor.id === subject.id) return false;
-  return assignableRoles(actor.role).includes(subject.role);
+  return assignableRoles(actor.role).includes(subject.role) && withinActorsBranch(actor, subject);
 }
 
 /**
@@ -201,12 +226,9 @@ export function canEditStaff(
  * a PIN only for somebody else the actor may not manage, so your own PIN is
  * yours to change even though your own role, branch and deactivation are not.
  */
-export function canSetStaffPin(
-  actor: { readonly id: string; readonly role: StaffRole | 'platformAdmin' },
-  subject: StaffMember,
-): boolean {
+export function canSetStaffPin(actor: StaffActorRef, subject: StaffMember): boolean {
   if (actor.id === subject.id) return true;
-  return assignableRoles(actor.role).includes(subject.role);
+  return assignableRoles(actor.role).includes(subject.role) && withinActorsBranch(actor, subject);
 }
 
 /**
@@ -216,9 +238,10 @@ export function canSetStaffPin(
 const SENIORITY: Readonly<Record<StaffRole | 'platformAdmin', number>> = {
   platformAdmin: 0,
   owner: 1,
-  manager: 2,
-  waiter: 3,
-  kitchen: 4,
+  generalManager: 2,
+  manager: 3,
+  waiter: 4,
+  kitchen: 5,
 };
 
 /** Strictly higher in the hierarchy: the server's `StaffRoleRules.Outranks`. */
@@ -239,10 +262,7 @@ export function outranks(
  * deactivated person — the server refuses all three, and a refused action is
  * not offered.
  */
-export function canIssueSignIn(
-  actor: { readonly id: string; readonly role: StaffRole | 'platformAdmin' },
-  subject: StaffMember,
-): boolean {
+export function canIssueSignIn(actor: StaffActorRef, subject: StaffMember): boolean {
   if (actor.id === subject.id) return false;
   if (!isAdminRole(subject.role) || !subject.isActive) return false;
   return outranks(actor.role, subject.role);
@@ -251,11 +271,37 @@ export function canIssueSignIn(
 /**
  * Whether the branch field is a choice or a fact.
  *
- * A manager holds one branch and everyone they create works at it, so the field
- * is fixed and no selector is shown — a control with one option invites
- * somebody to go looking for the others. An owner picks any branch of their
- * venue, or all of them.
+ * A branch manager holds one branch and everyone they create works at it, so
+ * the field is fixed and no selector is shown — a control with one option
+ * invites somebody to go looking for the others. An owner and a general
+ * manager pick any branch of their venue, or all of them where the role
+ * allows it (see {@link branchBindingFor}).
  */
 export function canChooseBranch(actor: StaffRole | 'platformAdmin'): boolean {
-  return actor === 'owner' || actor === 'platformAdmin';
+  return actor === 'owner' || actor === 'generalManager' || actor === 'platformAdmin';
+}
+
+/**
+ * How a role is bound to a branch — the server's rule for the *person*, not
+ * the actor:
+ *
+ * - `required`: a branch manager works at one branch, and the server refuses
+ *   one with none (422 `validation-failed` on `branchId`). No "All branches".
+ * - `venueWide`: a general manager runs every branch, and the server refuses
+ *   one with a branch. No branch picker at all.
+ * - `either`: one branch, or every branch of the venue (null).
+ */
+export type BranchBinding = 'required' | 'venueWide' | 'either';
+
+export function branchBindingFor(role: StaffRole): BranchBinding {
+  switch (role) {
+    case 'manager':
+      return 'required';
+    case 'generalManager':
+      return 'venueWide';
+    case 'owner':
+    case 'waiter':
+    case 'kitchen':
+      return 'either';
+  }
 }

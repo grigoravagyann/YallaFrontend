@@ -46,8 +46,11 @@ export function useCurrentUser(): CurrentUserResult {
   };
 }
 
-/** Roles that reach the console's venue section. */
-export const VENUE_ROLES: readonly UserRole[] = ['owner', 'manager'];
+/**
+ * Roles that reach the console's venue section: an owner and a general
+ * manager across every branch, a branch manager (`manager`) at their own.
+ */
+export const VENUE_ROLES: readonly UserRole[] = ['owner', 'generalManager', 'manager'];
 
 /** Roles that reach the staff floor screen. */
 export const FLOOR_ROLES: readonly UserRole[] = ['manager', 'waiter', 'kitchen'];

@@ -104,9 +104,10 @@ export interface ConsoleGateway {
    *
    * `GET /api/venues/{venueId}/manage`, `ManagerOrAbove` and `VenueScoped`. The
    * server reads coverage from the caller's own stored row — active, in this
-   * venue, owner or manager — and never from the token's branch claim: an
-   * owner's token carries none, and a manager created with no branch runs the
-   * whole venue. This is the one read the venue section learns its branches
+   * venue, an owner, a general manager or a branch manager — and never from the
+   * token's branch claim: an owner's token carries none, and neither does a
+   * general manager's, who runs the whole venue. A branch manager is given
+   * their own branch alone. This is the one read the venue section learns its branches
    * from; the client never widens or narrows the answer.
    *
    * @throws {ForbiddenError} a waiter or kitchen account, another venue's
@@ -478,8 +479,8 @@ export interface ConsoleGateway {
    * Staff belong to a **venue**, not a branch — an owner works everywhere — so
    * these are addressed by venue while the device methods below are addressed
    * by branch. The two scopes sit on one screen and the difference is real:
-   * `branchId` of `null` means every branch of the venue, which is how a
-   * floating manager is represented and was unreachable before this screen.
+   * `branchId` of `null` means every branch of the venue, which is how an owner
+   * who works the floor or a general manager is represented.
    *
    * Every role guard is enforced server-side from the acting staff member's
    * *stored* role. The client builds its pickers from `assignableRoles` so it

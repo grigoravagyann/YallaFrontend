@@ -1,18 +1,25 @@
 import {
   assignableRoles,
+  branchBindingFor,
   canChooseBranch,
   isAdminRole,
   outranks,
   type ConsoleBranch,
   type CreateStaffInput,
-  type StaffPermissionError,
   type StaffRole,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useDialogFocus } from '../../../components/useDialogFocus';
-import { BranchField, RoleChoices } from './StaffFields';
+import {
+  BranchField,
+  RoleChoices,
+  branchChoiceFor,
+  branchIdFor,
+  defaultRoleFor,
+} from './StaffFields';
 import { ALL_BRANCHES, EMAIL_MAX_LENGTH, EMAIL_SHAPE, type SignInRequest } from './StaffForm';
+import { refusalIsFormLevel, refusalText, type StaffRefusal } from './staffRefusal';
 
 type StepId = 'person' | 'roleBranch' | 'pin' | 'signIn';
 
@@ -29,11 +36,18 @@ export interface AddStaffDialogProps {
   readonly onCreate: (
     input: CreateStaffInput,
     signIn: SignInRequest | null,
-  ) => Promise<StaffPermissionError | null>;
+  ) => Promise<StaffRefusal | null>;
   readonly onCancel: () => void;
-  readonly refusal: StaffPermissionError | null;
+  readonly refusal: StaffRefusal | null;
   readonly isSaving: boolean;
 }
+
+/** The fields whose refusal is shown under the control, rather than at the foot. */
+const STEP_OF_FIELD_SHOWN: Record<string, StepId> = {
+  role: 'roleBranch',
+  branchId: 'roleBranch',
+  pin: 'pin',
+};
 
 /** Which step holds the field a refusal named. */
 const STEP_OF_FIELD: Record<string, StepId> = {
@@ -59,7 +73,9 @@ const STEP_OF_FIELD: Record<string, StepId> = {
  *
  * - The roles offered come from the actor's own role; the default is the
  *   first one below them, never their own.
- * - A manager is told their branch; an owner picks one, "All branches" first.
+ * - A branch manager is told their branch; an owner or a general manager picks
+ *   one — "All branches" first, except for a branch manager being hired, who
+ *   needs one, and a general manager, who has none and is offered no picker.
  * - The PIN is exactly four digits, checked before the step moves on.
  * - The address is asked only for somebody the actor outranks who signs in
  *   (an owner hiring a co-owner gets no fourth step: the server refuses a
@@ -86,7 +102,7 @@ export function AddStaffDialog({
 
   const roles = assignableRoles(actorRole);
   const chooseBranch = canChooseBranch(actorRole);
-  const defaultRole = roles.find((option) => option !== actorRole) ?? roles[0] ?? 'waiter';
+  const defaultRole = defaultRoleFor(actorRole, roles);
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -99,6 +115,8 @@ export function AddStaffDialog({
   const [stepIndex, setStepIndex] = useState(0);
 
   const needsSignIn = isAdminRole(role) && outranks(actorRole, role);
+  // What the select shows: a real branch whenever the role needs one.
+  const shownBranch = branchChoiceFor(role, branchChoice, fixedBranchId, branches);
   const steps: readonly StepId[] = needsSignIn
     ? ['person', 'roleBranch', 'pin', 'signIn']
     : ['person', 'roleBranch', 'pin'];
@@ -164,9 +182,16 @@ export function AddStaffDialog({
       return;
     }
 
-    const branchId = branchChoice === ALL_BRANCHES ? null : branchChoice;
+    // A general manager sends none; a branch manager the one shown.
+    const branchId = branchIdFor(role, shownBranch);
     const refused = await onCreate(
-      { fullName, phone, role, pin, branchId: chooseBranch ? branchId : fixedBranchId },
+      {
+        fullName,
+        phone,
+        role,
+        pin,
+        branchId: chooseBranch || branchBindingFor(role) === 'venueWide' ? branchId : fixedBranchId,
+      },
       needsSignIn ? { email: address } : null,
     );
     // Back to the step that holds what the server named, where the message
@@ -176,7 +201,14 @@ export function AddStaffDialog({
   }
 
   /** A refusal the server aimed at a specific control. */
-  const refusalFor = (field: string) => (refusal?.field === field ? refusal.message : null);
+  const refusalFor = (field: string) => refusalText(refusal, field);
+  const pinRefusal = step === 'pin' ? refusalFor('pin') : null;
+  const pinDescribedBy = [
+    pinError ? 'staff-pin-error' : null,
+    pinRefusal ? 'staff-pin-refusal' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className="scrim" role="presentation">
@@ -265,8 +297,9 @@ export function AddStaffDialog({
                 ) : null}
                 <BranchField
                   chooseBranch={chooseBranch}
+                  binding={branchBindingFor(role)}
                   branches={branches}
-                  value={branchChoice}
+                  value={shownBranch}
                   onChange={setBranchChoice}
                   fixedBranchId={fixedBranchId}
                   error={refusalFor('branchId')}
@@ -292,7 +325,7 @@ export function AddStaffDialog({
                   value={pin}
                   required
                   autoComplete="off"
-                  {...(pinError ? { 'aria-describedby': 'staff-pin-error' } : {})}
+                  {...(pinDescribedBy ? { 'aria-describedby': pinDescribedBy } : {})}
                   onChange={(event) => setPin(event.currentTarget.value.replace(/\D/gu, ''))}
                 />
                 <span className="muted small">{t('staff.pin.help')}</span>
@@ -300,6 +333,12 @@ export function AddStaffDialog({
                 {pinError ? (
                   <span id="staff-pin-error" className="field-error" role="alert">
                     {pinError}
+                  </span>
+                ) : null}
+                {/* The server's: somebody on the same tablet already uses it. */}
+                {pinRefusal && !pinError ? (
+                  <span id="staff-pin-refusal" className="field-error" role="alert">
+                    {pinRefusal}
                   </span>
                 ) : null}
               </div>
@@ -332,8 +371,9 @@ export function AddStaffDialog({
               </div>
             ) : null}
 
-            {/* Only a refusal that named no field lands here. */}
-            {refusal && !refusal.field ? (
+            {/* Only a refusal that named no field, or one with no control in
+                this dialog, lands here. */}
+            {refusal && refusalIsFormLevel(refusal, Object.keys(STEP_OF_FIELD_SHOWN)) ? (
               <p className="field-error" role="alert">
                 {refusal.message}
               </p>

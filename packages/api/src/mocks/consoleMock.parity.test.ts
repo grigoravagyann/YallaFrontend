@@ -82,11 +82,8 @@ describe('F3/F4 — a branch manager is one person at one branch', () => {
     expect(self?.fullName).toBe(user.displayName);
   });
 
-  it('the signed-in owner and the venue-wide manager are their stored rows too', async () => {
-    for (const options of [
-      { role: 'owner' as const },
-      { role: 'manager' as const, managerBranch: 'none' as const },
-    ]) {
+  it('the signed-in owner and the general manager are their stored rows too', async () => {
+    for (const options of [{ role: 'owner' as const }, { role: 'generalManager' as const }]) {
       const gateway = createConsoleMockGateway(options);
       const user = await gateway.getCurrentUser();
       const staff = await gateway.listStaff('v-lumen');

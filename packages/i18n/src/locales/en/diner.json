@@ -252,6 +252,13 @@
       "title": "What should the venue call you?",
       "body": "Shown to staff when you arrive. You can change it later."
     },
+    "newPassword": {
+      "title": "Set a new password",
+      "body": "Your number is confirmed. Choose a new password to log in with your username or email.",
+      "confirmLabel": "New password again",
+      "mismatch": "The two passwords don't match.",
+      "save": "Save password"
+    },
     "continue": "Continue",
     "skipForNow": "Skip for now",
     "error": {
@@ -939,7 +946,9 @@
       "set": "Set a password",
       "changed": "Password changed.",
       "setDone": "Password set. You can log in with it now.",
-      "wrongCurrent": "That isn't your current password."
+      "wrongCurrent": "That isn't your current password.",
+      "currentNeeded": "Enter your current password, or log in again with a code to set a new one.",
+      "provedRecently": "You've just confirmed your number, so your current password isn't needed."
     },
     "phone": {
       "title": "Phone",

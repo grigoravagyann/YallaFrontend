@@ -61,7 +61,7 @@ const VS = '01a08ce0-5000-7000-8000-000000000001';
 /** "Main Street", that venue's only branch. */
 const BS = '01a08ce0-5000-7000-8000-000000000002';
 
-type Account = 'admin' | 'owner' | 'manager' | 'managerNoBranch' | 'soleOwner';
+type Account = 'admin' | 'owner' | 'manager' | 'generalManager' | 'soleOwner';
 type Caller = Account | 'anonymous';
 
 /**
@@ -105,12 +105,14 @@ const CLAIMS: Readonly<Record<Account, Readonly<Record<string, string>>>> = {
     branchId: B2,
     jti: '01a08ce0-44cd-72b1-8c1b-42d9634cd9db',
   },
-  managerNoBranch: {
+  // A general manager (wire 6): venue-wide, so the token names no branch. The
+  // probe's venue-wide manager, whose row the GeneralManager migration moved.
+  generalManager: {
     aud: 'yalla-clients',
     iss: 'yalla',
     ytyp: '5',
     staffMemberId: '01a08ce0-453f-793d-8856-473be7cea15a',
-    role: 'Manager',
+    role: 'GeneralManager',
     sub: '01a08ce0-453f-793d-8856-473be7cea15a',
     venueId: V,
     jti: '01a08ce0-45fe-7971-b43a-98661d2b8cf1',
@@ -131,7 +133,7 @@ const CLAIMS: Readonly<Record<Account, Readonly<Record<string, string>>>> = {
 /**
  * The sign-in response bodies the probe recorded, less the tokens.
  *
- * `role` is the wire integer (Owner 1, Manager 2, PlatformAdmin 5). None of
+ * `role` is the wire integer (Owner 1, Manager 2, PlatformAdmin 5, GeneralManager 6). None of
  * them has a `branchId`, not even the manager's: only the token carries it. The
  * email addresses are placeholders, because the probe's were random.
  */
@@ -141,10 +143,11 @@ const SIGN_IN: Readonly<
   admin: { email: 'admin@e2e.local', fullName: 'Platform Administrator', role: 5 },
   owner: { email: 'owner@e2e.local', fullName: 'Probe Owner', role: 1, venueId: V },
   manager: { email: 'manager@e2e.local', fullName: 'Probe Manager', role: 2, venueId: V },
-  managerNoBranch: {
-    email: 'manager-venue-wide@e2e.local',
-    fullName: 'Probe Manager Venue-wide',
-    role: 2,
+  generalManager: {
+    email: 'general-manager@e2e.local',
+    fullName: 'Probe General Manager',
+    // 6 is `StaffRole.GeneralManager`.
+    role: 6,
     venueId: V,
   },
   soleOwner: { email: 'sole-owner@e2e.local', fullName: 'Sole Owner', role: 1, venueId: VS },
@@ -319,7 +322,7 @@ const toEveryAccount = (answer: Answer): Row => ({
   admin: answer,
   owner: answer,
   manager: answer,
-  managerNoBranch: answer,
+  generalManager: answer,
   soleOwner: answer,
 });
 
@@ -358,7 +361,7 @@ const BACKEND: Readonly<Record<string, Row>> = {
     admin: () => json(200, VENUE_DETAIL),
     owner: () => bare(403),
     manager: () => bare(403),
-    managerNoBranch: () => bare(403),
+    generalManager: () => bare(403),
     soleOwner: () => bare(403),
   },
 
@@ -369,7 +372,7 @@ const BACKEND: Readonly<Record<string, Row>> = {
     admin: () => json(200, managedVenue(V, 'Probe Cafe', 'probe-cafe', [NORTHERN, CASCADE])),
     owner: () => json(200, managedVenue(V, 'Probe Cafe', 'probe-cafe', [NORTHERN, CASCADE])),
     manager: () => json(200, managedVenue(V, 'Probe Cafe', 'probe-cafe', [CASCADE])),
-    managerNoBranch: () =>
+    generalManager: () =>
       json(200, managedVenue(V, 'Probe Cafe', 'probe-cafe', [NORTHERN, CASCADE])),
     // Another venue's owner: VenueScoped says no.
     soleOwner: () => bare(403),
@@ -379,7 +382,7 @@ const BACKEND: Readonly<Record<string, Row>> = {
     admin: () => json(200, managedVenue(VS, 'Sole Cafe', 'sole-cafe', [MAIN_STREET])),
     owner: () => bare(403),
     manager: () => bare(403),
-    managerNoBranch: () => bare(403),
+    generalManager: () => bare(403),
     soleOwner: () => json(200, managedVenue(VS, 'Sole Cafe', 'sole-cafe', [MAIN_STREET])),
   },
 
@@ -399,7 +402,7 @@ const BACKEND: Readonly<Record<string, Row>> = {
     admin: () => json(200, floorPlan(BS)),
     owner: () => bare(403),
     manager: () => bare(403),
-    managerNoBranch: () => bare(403),
+    generalManager: () => bare(403),
     soleOwner: () => json(200, floorPlan(BS)),
   },
   // ...and refuses them on another venue's.
@@ -408,7 +411,7 @@ const BACKEND: Readonly<Record<string, Row>> = {
     admin: () => json(200, floorPlan(BX)),
     owner: () => bare(403),
     manager: () => bare(403),
-    managerNoBranch: () => bare(403),
+    generalManager: () => bare(403),
     soleOwner: () => bare(403),
   },
 
@@ -429,7 +432,7 @@ const BACKEND: Readonly<Record<string, Row>> = {
     admin: () => json(200, readiness(BS)),
     owner: () => bare(403),
     manager: () => bare(403),
-    managerNoBranch: () => bare(403),
+    generalManager: () => bare(403),
     soleOwner: () => json(200, readiness(BS)),
   },
   [`GET /api/branches/${BX}/readiness`]: {
@@ -437,7 +440,7 @@ const BACKEND: Readonly<Record<string, Row>> = {
     admin: () => json(200, readiness(BX)),
     owner: () => bare(403),
     manager: () => bare(403),
-    managerNoBranch: () => bare(403),
+    generalManager: () => bare(403),
     soleOwner: () => bare(403),
   },
 
@@ -732,9 +735,9 @@ describe('a manager whose token names their branch', () => {
   });
 });
 
-describe('a manager created with no branch', () => {
+describe('a general manager', () => {
   it('sees every branch of the venue, with the switcher', async () => {
-    await signInAs('managerNoBranch');
+    await signInAs('generalManager');
     openTheConsoleAt('/venue/floorplan');
 
     const switcher = await waitFor(() => {
@@ -951,15 +954,26 @@ describe('what the layout hands down', () => {
     expect([B1, B2]).toContain(context['branchId']);
   });
 
-  it('gives a manager with no branch every branch and no rollup', async () => {
-    // The server allows the venue-wide rollup to an owner or the platform
-    // admin only; offering it to a manager would be offering a 403.
-    await signInAs('managerNoBranch');
+  it('gives a general manager every branch and the rollup, like an owner', async () => {
+    // `ReportQuery` allows the venue-wide rollup to an owner, a general
+    // manager or the platform admin. Moving a branch stays an owner's (K5).
+    await signInAs('generalManager');
+    const user = await gateways.consoleGatewayFor('generalManager').getCurrentUser();
+    expect(user.role).toBe('generalManager');
+    openTheLayoutWithAProbe(user);
+
+    const context = await outletContext();
+    expect(context).toMatchObject({ branchCount: 2, canRollUpVenue: true, canRelocate: false });
+  });
+
+  it('gives a branch manager their branch and no rollup', async () => {
+    // Offering a branch manager the rollup would be offering a 403.
+    await signInAs('manager');
     const user = await gateways.consoleGatewayFor('manager').getCurrentUser();
     openTheLayoutWithAProbe(user);
 
     const context = await outletContext();
-    expect(context).toMatchObject({ branchCount: 2, canRollUpVenue: false });
+    expect(context).toMatchObject({ branchId: B2, branchCount: 1, canRollUpVenue: false });
   });
 
   it('gives a sole-branch owner no rollup either', async () => {

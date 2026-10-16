@@ -2,8 +2,8 @@ import {
   canEditStaff,
   canIssueSignIn,
   canSetStaffPin,
+  type StaffActorRef,
   type StaffMember,
-  type StaffRole,
 } from '@yalla/api';
 
 export type StaffAction =
@@ -16,10 +16,11 @@ export type StaffAction =
   | 'deactivate'
   | 'changeOwnPin';
 
-export interface StaffActor {
-  readonly id: string;
-  readonly role: StaffRole | 'platformAdmin';
-}
+/**
+ * Who is acting: their id, role and — for a branch manager, who touches their
+ * own branch's people only — their stored branch.
+ */
+export type StaffActor = StaffActorRef;
 
 export interface CardActions {
   /** The one button the card shows: the thing this person most needs now. */

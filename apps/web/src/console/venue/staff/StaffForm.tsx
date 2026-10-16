@@ -1,9 +1,9 @@
 import {
   assignableRoles,
+  branchBindingFor,
   canChooseBranch,
   isAdminRole,
   outranks,
-  type StaffPermissionError,
   type ConsoleBranch,
   type CreateStaffInput,
   type StaffMember,
@@ -12,6 +12,14 @@ import {
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useState, type FormEvent } from 'react';
+import {
+  ALL_BRANCHES,
+  BranchField,
+  branchChoiceFor,
+  branchIdFor,
+  defaultRoleFor,
+} from './StaffFields';
+import { refusalIsFormLevel, refusalText, type StaffRefusal } from './staffRefusal';
 
 /**
  * The admin-panel sign-in a new manager or owner is to be issued.
@@ -38,12 +46,11 @@ export interface StaffFormProps {
   readonly onCreate: (input: CreateStaffInput, signIn: SignInRequest | null) => Promise<void>;
   readonly onUpdate: (patch: UpdateStaffInput) => Promise<void>;
   readonly onCancel: () => void;
-  readonly refusal: StaffPermissionError | null;
+  readonly refusal: StaffRefusal | null;
   readonly isSaving: boolean;
 }
 
-/** The sentinel the branch `<select>` uses for "every branch of the venue". */
-export const ALL_BRANCHES = '__all__';
+export { ALL_BRANCHES };
 
 /**
  * Something with one `@` and no whitespace — the server's own `[EmailAddress]`
@@ -76,7 +83,7 @@ export const EMAIL_MAX_LENGTH = 320;
  *   product is broken rather than that a rule exists.
  * - **The branch field offers "all branches"** where the actor's scope allows.
  *   `StaffMember.branchId` is nullable and null means every branch of the
- *   venue; that is how a floating manager or an owner who works the floor is
+ *   venue; that is how a general manager or an owner who works the floor is
  *   represented, and nothing in the product could reach it before this screen.
  *
  * A manager sees no branch control at all: they hold one branch, everyone they
@@ -101,10 +108,9 @@ export function StaffForm({
 
   const [fullName, setFullName] = useState(editing?.fullName ?? '');
   const [phone, setPhone] = useState(editing?.phone ?? '');
-  // The default is the first role *below* the actor, never their own: an
-  // owner may hire a co-owner, but a form that opens on "Owner" makes a
-  // partner out of a careless waiter hire. Somebody minting an owner picks it.
-  const defaultRole = roles.find((option) => option !== actorRole) ?? roles[0] ?? 'waiter';
+  // Never the actor's own role, nor a general manager: a form that opens on
+  // "Owner" makes a partner out of a careless waiter hire. See defaultRoleFor.
+  const defaultRole = defaultRoleFor(actorRole, roles);
   const [role, setRole] = useState<StaffRole>(editing?.role ?? defaultRole);
   const [branchChoice, setBranchChoice] = useState<string>(
     editing ? (editing.branchId ?? ALL_BRANCHES) : (fixedBranchId ?? ALL_BRANCHES),
@@ -114,7 +120,9 @@ export function StaffForm({
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  const branchId = branchChoice === ALL_BRANCHES ? null : branchChoice;
+  // A real branch whenever the role needs one, and none for a general manager.
+  const shownBranch = branchChoiceFor(role, branchChoice, fixedBranchId, branches);
+  const branchId = branchIdFor(role, shownBranch);
   // Only when hiring, and only for somebody the actor outranks. Editing has
   // no email: the address is changed from the row's "Send new link", because
   // changing it re-points a working sign-in and deserves its own confirmation
@@ -173,14 +181,14 @@ export function StaffForm({
         phone,
         role,
         pin,
-        branchId: chooseBranch ? branchId : fixedBranchId,
+        branchId: chooseBranch || branchBindingFor(role) === 'venueWide' ? branchId : fixedBranchId,
       },
       withSignIn ? { email: address } : null,
     );
   }
 
   /** A refusal the server aimed at a specific control. */
-  const refusalFor = (field: string) => (refusal?.field === field ? refusal.message : null);
+  const refusalFor = (field: string) => refusalText(refusal, field);
 
   return (
     // Named, so it is a landmark: the screen has a role filter and a role field
@@ -246,39 +254,18 @@ export function StaffForm({
         ) : null}
       </div>
 
-      {chooseBranch ? (
-        <div className="labelled">
-          <label htmlFor="staff-branch">{t('staff.field.branch')}</label>
-          <select
-            id="staff-branch"
-            className="field"
-            value={branchChoice}
-            {...(refusalFor('branchId') ? { 'aria-describedby': 'staff-branch-error' } : {})}
-            onChange={(event) => setBranchChoice(event.currentTarget.value)}
-          >
-            {/* The assignment that was unreachable. An owner who works the floor
-                and a manager who covers three sites are both this. */}
-            <option value={ALL_BRANCHES}>{t('staff.allBranches')}</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-          {refusalFor('branchId') ? (
-            <span id="staff-branch-error" className="field-error" role="alert">
-              {refusalFor('branchId')}
-            </span>
-          ) : null}
-        </div>
-      ) : (
-        // Stated rather than offered. A manager hires for their own branch.
-        <p className="muted small">
-          {t('staff.field.branchFixed', {
-            name: branches.find((branch) => branch.id === fixedBranchId)?.name ?? '',
-          })}
-        </p>
-      )}
+      {/* The same field the venue's dialogs use: the role decides whether
+          "All branches" is offered (never for a branch manager) and whether
+          there is a picker at all (none for a general manager). */}
+      <BranchField
+        chooseBranch={chooseBranch}
+        binding={branchBindingFor(role)}
+        branches={branches}
+        value={shownBranch}
+        onChange={setBranchChoice}
+        fixedBranchId={fixedBranchId}
+        error={refusalFor('branchId')}
+      />
 
       {editing ? null : (
         <div className="labelled">
@@ -300,12 +287,17 @@ export function StaffForm({
             value={pin}
             required
             autoComplete="off"
+            {...(pinError || refusalFor('pin')
+              ? { 'aria-describedby': 'staff-form-pin-error' }
+              : {})}
             onChange={(event) => setPin(event.currentTarget.value.replace(/\D/gu, ''))}
           />
           <span className="muted small">{t('staff.pin.help')}</span>
-          {pinError ? (
-            <span className="field-error" role="alert">
-              {pinError}
+          {/* Ours first; the server's — somebody on the same tablet already
+              uses it — when the PIN itself was fine. */}
+          {pinError || refusalFor('pin') ? (
+            <span id="staff-form-pin-error" className="field-error" role="alert">
+              {pinError ?? refusalFor('pin')}
             </span>
           ) : null}
         </div>
@@ -349,7 +341,8 @@ export function StaffForm({
 
       {/* Only a refusal that named no field lands here. One that named a field
           is already under that field, where the next action is obvious. */}
-      {refusal && !refusal.field ? (
+      {refusal &&
+      refusalIsFormLevel(refusal, editing ? ['role', 'branchId'] : ['role', 'branchId', 'pin']) ? (
         <p className="field-error" role="alert">
           {refusal.message}
         </p>

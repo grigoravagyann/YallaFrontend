@@ -114,6 +114,7 @@ describe('staffRoleToUserRole', () => {
     3: 'waiter',
     4: 'kitchen',
     5: 'platformAdmin',
+    6: 'generalManager',
   };
 
   const BY_NAME: Readonly<Record<string, UserRole>> = {
@@ -136,6 +137,12 @@ describe('staffRoleToUserRole', () => {
       expect(staffRoleToUserRole(name), name).toBe(role);
       expect(staffRoleToUserRole(name.toUpperCase()), name.toUpperCase()).toBe(role);
     }
+  });
+
+  it('maps the general manager, 6 on the wire and GeneralManager in the token', () => {
+    expect(staffRoleToUserRole(6)).toBe('generalManager');
+    expect(staffRoleToUserRole('GeneralManager')).toBe('generalManager');
+    expect(staffRoleToUserRole('GENERALMANAGER')).toBe('generalManager');
   });
 
   it('shows the smallest app for a value it has never seen', () => {
