@@ -207,6 +207,9 @@ function overlapsWithin(blocks: readonly HoursBlock[]): boolean {
 
 const DEFAULT_PAGE_SIZE = 10;
 
+/** `System.DayOfWeek` names, as the server's opening-hours refusal spells them. */
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 interface VenueRecord {
   id: string;
   name: string;
@@ -279,6 +282,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   const venues = new Map<string, VenueRecord>();
   let sequence = 0;
+  /** The venues the fixture ships with; only these come with a staff roster. */
+  const FIXTURE_VENUE_IDS = new Set(mockVenues.map((venue) => venue.id));
 
   // --- The menu, the week and the policy, per branch ---------------------------
 
@@ -529,6 +534,21 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     );
   }
 
+  /**
+   * A deleted venue takes no new people and issues no sign-ins: the same 409
+   * `PlatformService` answers a tier change on it with. The mock kept "Add
+   * someone" and "Issue sign-in" live after a delete (QA F11).
+   */
+  // parity: server rule added in fix/qa-2026-10-16-backend
+  function requireVenueNotDeleted(venueId: string): void {
+    const record = venues.get(venueId);
+    if (record?.status === 'deleted') {
+      throw conflict(
+        `Venue '${record.name}' has been deleted, so its people can no longer be changed.`,
+      );
+    }
+  }
+
   function venueOfBranch(branchId: string): string | null {
     for (const record of venues.values()) {
       if (record.branches.some((branch) => branch.id === branchId)) return record.id;
@@ -568,6 +588,16 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     const record = venues.get(venueId);
     const branches = record?.branches ?? [];
+
+    // Only the fixture venues come with people. `PlatformService.CreateVenueAsync`
+    // writes the venue and its first branch and nothing else: a venue made in
+    // the console starts with nobody, and its first owner is added afterwards.
+    // The mock used to relabel Lumen's roster onto every new venue (QA F1).
+    if (!FIXTURE_VENUE_IDS.has(venueId)) {
+      const empty: StaffMember[] = [];
+      staffByVenue.set(venueId, empty);
+      return empty;
+    }
 
     const seeded: StaffMember[] = [
       {
@@ -739,9 +769,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   function profileFor(branchId: string): BranchPublicProfile {
     const existing = profiles.get(branchId);
     if (existing) return existing;
+    // One world: the switch starts where the public page's fixture has it, so
+    // the console cannot say "off" above a page that takes bookings (QA F5).
+    // A branch with no fixture starts off, as every real branch does.
     const seeded: BranchPublicProfile = {
       phoneE164: null,
-      acceptsWebBookings: false,
+      acceptsWebBookings: publicBranchFixtures[branchId]?.acceptsWebBookings ?? false,
       coverPhoto: null,
     };
     profiles.set(branchId, seeded);
@@ -1036,6 +1069,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const firstVenue = [...venues.values()][0];
     const homeBranch = firstVenue?.branches[0]?.id;
 
+    /*
+     * The user's id is their **stored staff row**, as the token's `sub` is on
+     * the server. The staff screen finds "you" by that id and, when nothing
+     * matches, falls back to the first person with your role at the branch
+     * on screen — which is how a manager's identity followed the branch
+     * filter in the mock (QA F4). The ids follow `staffFor`'s naming so the
+     * row exists without seeding it here.
+     */
     switch (role) {
       case 'platformAdmin':
         return {
@@ -1046,14 +1087,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         };
       case 'owner':
         return {
-          id: 'u-owner',
+          id: firstVenue ? `${firstVenue.id}-owner` : 'u-owner',
           displayName: 'Aram Sargsyan',
           role,
           scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
         };
       case 'manager':
         return {
-          id: 'u-manager',
+          id:
+            managerBranch === 'none' || !homeBranch
+              ? firstVenue
+                ? `${firstVenue.id}-manager`
+                : 'u-manager'
+              : `${homeBranch}-manager`,
           displayName: managerBranch === 'none' ? 'Hasmik Karapetyan' : 'Nare Petrosyan',
           role,
           scope: {
@@ -1064,7 +1110,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       default:
         // A waiter or a kitchen account is one branch and no more.
         return {
-          id: `u-${role}`,
+          id: homeBranch
+            ? `${homeBranch}-${role === 'waiter' ? 'waiter-1' : 'kitchen'}`
+            : `u-${role}`,
           displayName: role === 'waiter' ? 'Gor Hakobyan' : 'Kitchen',
           role,
           scope: {
@@ -1583,7 +1631,10 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       if (outside.length > 0 || duplicates.length > 0) {
         const errors: string[] = [];
         if (outside.length > 0) {
-          errors.push(`These tables sit outside the canvas: ${outside.join(', ')}.`);
+          // `FloorPlanRules.Validate`'s sentence, verbatim.
+          errors.push(
+            `Every table must sit inside the ${command.floorWidth}x${command.floorHeight} canvas. Outside it: ${outside.join(', ')}.`,
+          );
         }
         if (duplicates.length > 0) {
           errors.push(
@@ -1819,6 +1870,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         const branch = record.branches[index];
         if (!branch) break;
 
+        // `PlatformService.UpdateBranchAsync`: a deleted venue's branches can
+        // no longer be changed — a DomainStateException (409) before either
+        // tier rule. The mock let "Switch to Paid" through (QA F11).
+        if (record.status === 'deleted') {
+          throw conflict(
+            `Venue '${record.name}' has been deleted, so its branches can no longer be changed.`,
+          );
+        }
+
         // The server's two rules, in its order. Going Free hides live bills
         // from the people who owe them, so it waits for the tabs; going Paid
         // is where an unfinished menu is finally refused, with the count.
@@ -1879,7 +1939,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // and the category cannot go without it. `orderedItemIds` is seeded so
       // the branch is reachable without placing an order first.
       if (category.items.some((item) => orderedItemIds.has(item.id))) {
-        throw new CategoryInUseError({ url: `${URL_TAG}/menu/${categoryId}`, categoryId });
+        throw new CategoryInUseError({
+          url: `${URL_TAG}/menu/${categoryId}`,
+          categoryId,
+          // `MenuService.DeleteCategoryAsync`'s DomainStateException, verbatim.
+          detail:
+            `Category '${category.name}' has items that appear on orders and cannot be deleted. ` +
+            'Mark its items unavailable instead.',
+        });
       }
       const categories = menuFor(branchId);
       categories.splice(categories.indexOf(category), 1);
@@ -2023,6 +2090,29 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async replaceOpeningHours({ branchId, week }): Promise<WeeklyHours> {
       await wait();
+
+      // `OpeningHoursRules.Normalise`, first rule: a block that opens and
+      // closes at the same minute has no length. A 422 naming `[i].closesAt`
+      // — the index of the block in the flat array the wire carries — with
+      // the server's sentence, and nothing written. Checked before overlaps,
+      // as the server checks it. The mock used to save it as a 24h day (QA F7).
+      const equal: MockViolation[] = [];
+      let index = 0;
+      for (const day of week) {
+        for (const block of day.blocks) {
+          if (block.opensAt === block.closesAt) {
+            equal.push({
+              field: `[${index}].closesAt`,
+              message:
+                `Opening and closing time are both ${block.opensAt} on ${DAY_NAMES[day.day]}. ` +
+                'A block must have a length; for a branch that never closes use 00:00 to 23:59.',
+              bound: 'conflict',
+            });
+          }
+          index += 1;
+        }
+      }
+      if (equal.length > 0) throw validationFailed(`${URL_TAG}/opening-hours`, equal);
 
       // The server's own check, so the screen's client-side validation has
       // something to be tested against rather than being the only opinion.
@@ -2445,6 +2535,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async createStaff({ venueId, staff }) {
       await wait();
+      requireVenueNotDeleted(venueId);
       /*
        * The role guard, enforced here as the server enforces it.
        *
@@ -2636,6 +2727,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         throw badAddress('The email field is not a valid e-mail address.');
       }
 
+      requireVenueNotDeleted(venueId);
       const list = staffFor(venueId);
       const index = list.findIndex((member) => member.id === staffMemberId);
       if (index < 0) throw new NotFoundError({ url: URL_TAG });
