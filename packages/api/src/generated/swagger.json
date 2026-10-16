@@ -13138,6 +13138,133 @@
         }
       }
     },
+    "/api/branches/{branchId}/tables/{tableId}/open-tab": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Staff: open the tab on a seated table for a party that is not scanning",
+        "description": "For the walk-in with no phone, or who would rather not: the waiter seats them, opens the tab here, and keys the order in with `staff-orders`. Cash closes it as usual.\n\nThe tab opens with **nobody on it** - staff are not participants, and there is no phone to host it. If somebody at the table scans the QR code later, the **first of them becomes the host**, approved on the spot, exactly as if they had scanned first; anyone after them joins pending as usual.\n\nConvergent: a table that already has a tab - a guest scanned first, or this is the second tap - answers with that tab rather than opening another. A retry with the same `clientCommandId` answers with the same tab.\n\nOnline only. Opening a tab is not one of the floor commands the tablet queues.",
+        "operationId": "openTabForStaff",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "tableId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.OpenTabForStaffRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/branches/{branchId}/tables/{tableId}/open-tab`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Tabs.TabStaffView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing clientCommandId.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not staff at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No table in service with that id at this branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`table-not-seated`: nobody is sitting there - seat the party first. (A table still Occupied after its last bill was paid is not refused: the party gets a new sitting and the new tab on it.) Also returned, with no `context`, when the table is out of service, the branch is not on a tier with tabs, or this `clientCommandId` opened a tab somewhere else.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.TableNotSeatedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/branches/{branchId}/tables/floor": {
       "get": {
         "tags": [
@@ -16289,6 +16416,21 @@
         "additionalProperties": false,
         "description": "Body of `POST /api/tabs/open-by-booking`."
       },
+      "Yalla.Api.Endpoints.OpenTabForStaffRequest": {
+        "required": [
+          "clientCommandId"
+        ],
+        "type": "object",
+        "properties": {
+          "clientCommandId": {
+            "type": "string",
+            "description": "Caller-generated. A double tap with the same id answers with the same tab.",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/branches/{branchId}/tables/{tableId}/open-tab`."
+      },
       "Yalla.Api.Endpoints.OpenTabRequest": {
         "required": [
           "clientCommandId",
@@ -18395,6 +18537,100 @@
         },
         "additionalProperties": false,
         "description": "`table-has-future-bookings`, 409. Move or cancel the bookings first. Nothing was written."
+      },
+      "Yalla.Api.Errors.TableNotSeatedContext": {
+        "required": [
+          "status",
+          "tableId",
+          "tableLabel"
+        ],
+        "type": "object",
+        "properties": {
+          "tableId": {
+            "type": "string",
+            "description": "The table.",
+            "format": "uuid"
+          },
+          "tableLabel": {
+            "type": "string",
+            "description": "What staff call it."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.TableStatus"
+              }
+            ],
+            "description": "The <b>physical</b> state of a table: what somebody did to it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Nobody is seated at the table a tab was asked for."
+      },
+      "Yalla.Api.Errors.TableNotSeatedProblem": {
+        "required": [
+          "code",
+          "context",
+          "detail",
+          "status",
+          "title",
+          "traceId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, stable summary of the kind of problem."
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body.",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong this time, in words."
+          },
+          "instance": {
+            "type": "string",
+            "description": "The request path this happened on.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "The stable kebab-case slug. <b>This is what a client branches on.</b>"
+          },
+          "traceId": {
+            "type": "string",
+            "description": "Correlates this response with the one log entry written for it."
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Field-level complaints, when the failure was about the payload.",
+            "nullable": true
+          },
+          "context": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Api.Errors.TableNotSeatedContext"
+              }
+            ],
+            "description": "Nobody is seated at the table a tab was asked for."
+          }
+        },
+        "additionalProperties": false,
+        "description": "`table-not-seated`, 409. Seat the party first, then open the tab."
       },
       "Yalla.Api.Errors.UnifiedErrorEnvelope": {
         "required": [
@@ -25636,7 +25872,7 @@
           },
           "hostParticipantId": {
             "type": "string",
-            "description": "Who hosts. Null only on a tab built by hand with no host.",
+            "description": "Who hosts. Null on a tab staff opened that nobody has scanned onto yet.",
             "format": "uuid",
             "nullable": true
           },

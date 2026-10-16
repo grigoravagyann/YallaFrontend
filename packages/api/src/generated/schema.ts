@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5096/swagger/v1/swagger.json
+ * Source: http://localhost:5199/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -1190,6 +1190,32 @@ export interface paths {
         put?: never;
         /** Hold a table for a party expected imminently (Free to Held) */
         post: operations["holdTable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/tables/{tableId}/open-tab": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Staff: open the tab on a seated table for a party that is not scanning
+         * @description For the walk-in with no phone, or who would rather not: the waiter seats them, opens the tab here, and keys the order in with `staff-orders`. Cash closes it as usual.
+         *
+         *     The tab opens with **nobody on it** - staff are not participants, and there is no phone to host it. If somebody at the table scans the QR code later, the **first of them becomes the host**, approved on the spot, exactly as if they had scanned first; anyone after them joins pending as usual.
+         *
+         *     Convergent: a table that already has a tab - a guest scanned first, or this is the second tap - answers with that tab rather than opening another. A retry with the same `clientCommandId` answers with the same tab.
+         *
+         *     Online only. Opening a tab is not one of the floor commands the tablet queues.
+         */
+        post: operations["openTabForStaff"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3259,6 +3285,14 @@ export interface components {
             /** @description Optional. As on `/api/tabs/open`. Only used when this opens the tab. */
             settlementMode?: components["schemas"]["Yalla.Domain.Enums.SettlementMode"] | null;
         };
+        /** @description Body of `POST /api/branches/{branchId}/tables/{tableId}/open-tab`. */
+        "Yalla.Api.Endpoints.OpenTabForStaffRequest": {
+            /**
+             * Format: uuid
+             * @description Caller-generated. A double tap with the same id answers with the same tab.
+             */
+            clientCommandId: string;
+        };
         /** @description Body of `POST /api/tabs/open`. */
         "Yalla.Api.Endpoints.OpenTabRequest": {
             /**
@@ -4238,6 +4272,44 @@ export interface components {
             code: string;
             /** @description The tables a delete or a plan save would have taken away, and the bookings that hold them. */
             context: components["schemas"]["Yalla.Api.Errors.TableHasFutureBookingsContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
+        /** @description Nobody is seated at the table a tab was asked for. */
+        "Yalla.Api.Errors.TableNotSeatedContext": {
+            /** @description The <b>physical</b> state of a table: what somebody did to it. */
+            status: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
+            /**
+             * Format: uuid
+             * @description The table.
+             */
+            tableId: string;
+            /** @description What staff call it. */
+            tableLabel: string;
+        };
+        /** @description `table-not-seated`, 409. Seat the party first, then open the tab. */
+        "Yalla.Api.Errors.TableNotSeatedProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /** @description Nobody is seated at the table a tab was asked for. */
+            context: components["schemas"]["Yalla.Api.Errors.TableNotSeatedContext"];
             /** @description What went wrong this time, in words. */
             detail: string;
             /** @description Field-level complaints, when the failure was about the payload. */
@@ -7960,7 +8032,7 @@ export interface components {
             hideTotalFromGuests: boolean;
             /**
              * Format: uuid
-             * @description Who hosts. Null only on a tab built by hand with no host.
+             * @description Who hosts. Null on a tab staff opened that nobody has scanned onto yet.
              */
             hostParticipantId?: string | null;
             /**
@@ -12853,6 +12925,96 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    openTabForStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+                tableId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.OpenTabForStaffRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Tabs.TabStaffView"];
+                };
+            };
+            /** @description Missing clientCommandId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not staff at this branch. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No table in service with that id at this branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `table-not-seated`: nobody is sitting there - seat the party first. (A table still Occupied after its last bill was paid is not refused: the party gets a new sitting and the new tab on it.) Also returned, with no `context`, when the table is out of service, the branch is not on a tier with tabs, or this `clientCommandId` opened a tab somewhere else. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.TableNotSeatedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

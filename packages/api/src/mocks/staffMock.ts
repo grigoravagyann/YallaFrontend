@@ -2,7 +2,7 @@ import type { DerivedTableState, FloorPlanData } from '../contracts/tableFloor';
 import { cafeFloorPlan } from './roomFloors';
 import type { Menu } from '../contracts/menu';
 import { ConcurrencyConflictError, InvalidTransitionError, NotFoundError } from '../errors';
-import { PaymentExceedsRemainingError } from '../contracts/errors';
+import { PaymentExceedsRemainingError, TableNotSeatedError } from '../contracts/errors';
 import type {
   AffectedReservation,
   StaffFloor,
@@ -25,6 +25,7 @@ import type {
   OrderStatus,
   PaymentResult,
   PlaceOrderCommand,
+  OpenTabForStaffCommand,
   PlaceOrderResult,
   ReassignHostCommand,
   RecordCashPaymentCommand,
@@ -234,6 +235,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   /** clientCommandId -> the original response. The idempotency log. */
   const applied = new Map<string, TableActionResult>();
   const releasedCommands = new Map<string, ReservationReleaseResult>();
+  /** Staff tab openings by command id, so a second tap answers with the same tab. */
+  const openedTabs = new Map<string, string>();
   let counter = 0;
 
   const id = (prefix: string) => `${prefix}-${(counter += 1)}`;
@@ -856,8 +859,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           state.nextReservationId = null;
           state.nextReservationStartUtc = null;
         }
-        // A party the waiter sat down has no tab until somebody scans, which is
-        // the real backend's behaviour too — a waiter cannot open one.
+        // A party the waiter sat down has no tab until somebody scans or the
+        // waiter starts one — the real backend's behaviour too.
       } else if (command.kind === 'freeTable') {
         state.sessionId = null;
         state.seatedAtUtc = null;
@@ -956,6 +959,53 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     async getTabLines({ tabId }): Promise<readonly TabLine[]> {
       const tab = tabs.get(tabId);
       return settle(tab ? wireLines(tab) : []);
+    },
+
+    async openTabForStaff(command: OpenTabForStaffCommand): Promise<StaffTab> {
+      const url = `/api/branches/${command.branchId}/tables/${command.tableId}/open-tab`;
+      const replayed = openedTabs.get(command.clientCommandId);
+      if (replayed) return settle(viewTab(requireTab(replayed)));
+
+      const state = tables.get(command.tableId);
+      if (!state) throw new NotFoundError({ url });
+      // A tab hangs off a sitting, exactly as on the server: a free or held
+      // table has nobody to bill.
+      if (state.physicalStatus !== 'occupied') {
+        throw new TableNotSeatedError({ url, tableId: command.tableId });
+      }
+      // Occupied with no sitting: the party paid in full and is still there.
+      // The new bill gets a sitting of its own, for the same people.
+      if (!state.sessionId) state.sessionId = id('session');
+
+      // Somebody scanned first, or this is the second tap: that tab.
+      const existing = state.tabId ? tabs.get(state.tabId) : undefined;
+      if (existing) {
+        openedTabs.set(command.clientCommandId, existing.id);
+        return settle(viewTab(existing));
+      }
+
+      // Nobody on it and no host — staff are not participants.
+      const tab: MockTab = {
+        id: id('tab'),
+        tableId: command.tableId,
+        tableLabel: label(command.tableId),
+        status: 'open',
+        openedAtUtc: iso(now()),
+        closedAtUtc: null,
+        paidDram: 0,
+        tipDram: 0,
+        lines: [],
+        adjustments: [],
+        participants: [],
+        hostParticipantId: null,
+        settlementModeLocked: false,
+        sequence: 1,
+        events: [],
+      };
+      tabs.set(tab.id, tab);
+      state.tabId = tab.id;
+      openedTabs.set(command.clientCommandId, tab.id);
+      return settle(viewTab(tab));
     },
 
     async beginClosing({ tabId }): Promise<StaffTab> {
@@ -1206,6 +1256,14 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       if (closed && tab.status !== 'closed') {
         tab.status = 'closed';
         tab.closedAtUtc = iso(at);
+        // As on the server: paying in full closes the sitting, not the table. The party is
+        // usually still there, so the table stays occupied with no sitting and no tab.
+        for (const state of tables.values()) {
+          if (state.tabId === tab.id) {
+            state.tabId = null;
+            state.sessionId = null;
+          }
+        }
       }
       pushEvent(tab, 'paymentRecorded', at);
 

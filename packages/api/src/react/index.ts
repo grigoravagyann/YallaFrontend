@@ -21,6 +21,7 @@ import type { SetReviewVisibilityCommand, VenueReviewQuery } from '../contracts/
 import type {
   AbandonTabCommand,
   CompCommand,
+  OpenTabForStaffCommand,
   ReassignHostCommand,
   RecordCashPaymentCommand,
   VoidLineCommand,
@@ -841,6 +842,26 @@ export function useAbandonTab() {
     retry: false,
     onSuccess: (_result, command) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(command.tabId) });
+    },
+  });
+}
+
+/**
+ * Staff open the tab on a seated table for a party that is not going to scan.
+ *
+ * The floor is what the tablet finds a tab through — `openTabId` on the table —
+ * so it is refetched before the mutation settles, and the panel that asked
+ * shows "Take an order" the moment the spinner stops.
+ */
+export function useOpenTabForStaff() {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: OpenTabForStaffCommand) => gateway.openTabForStaff(command),
+    retry: false,
+    onSuccess: async (tab, command) => {
+      queryClient.setQueryData(queryKeys.staffTab(tab.id), tab);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(command.branchId) });
     },
   });
 }

@@ -61,7 +61,11 @@ export interface TableActionPanelProps {
   /** Let a booking go, with the outcome the waiter chose. Never a default. */
   readonly onRelease: (reservationId: string, outcome: ReleaseOutcome) => void;
   readonly releasing: boolean;
+  /** Show the tab that is open on this table. */
   readonly onOpenTab: () => void;
+  /** Start a tab for a seated party that is not going to scan. Online only. */
+  readonly onStartTab: () => void;
+  readonly startingTab: boolean;
   readonly onOrder: () => void;
   readonly onClose: () => void;
 }
@@ -361,15 +365,24 @@ export function TableActionPanel(props: TableActionPanelProps) {
           </section>
         ) : (
           <div className="table-actions">
-            {/* A staff session cannot open a tab: `POST /api/tabs/open` takes
-                the QR token printed on the table. "Take an order" on a table
-                with no tab used to lead to a screen saying exactly that, so the
-                two tab actions are withheld until a guest has opened one, and
-                the panel says how that happens. */}
+            {/* Orders need a tab. A guest opens one by scanning; for a party
+                that will not, the waiter starts one here. Online only — it is
+                not a floor command the tablet queues — and not while this
+                table's seating is itself still waiting to sync, because the
+                server has nobody seated there to bill yet. */}
             {detail && detail.openTabId === null ? (
               <>
                 <p className="table-warn">{t('table.noTab')}</p>
                 <p className="table-note">{t('table.noTabWhy')}</p>
+                <button
+                  type="button"
+                  className="floor-button big"
+                  onClick={props.onStartTab}
+                  disabled={!online || pending || props.startingTab}
+                >
+                  {props.startingTab ? t('table.action.startingTab') : t('table.action.startTab')}
+                </button>
+                {!online ? <p className="table-note">{t('table.startTabNeedsOnline')}</p> : null}
               </>
             ) : (
               <>

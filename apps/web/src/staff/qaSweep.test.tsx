@@ -13,7 +13,7 @@ import {
 import { GatewayProvider } from '@yalla/api/react';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -259,7 +259,10 @@ function detail(openTabId: string | null): StaffTableDetail {
   };
 }
 
-function showPanel(openTabId: string | null) {
+function showPanel(
+  openTabId: string | null,
+  options: { online?: boolean; pending?: boolean; onStartTab?: () => void } = {},
+) {
   const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
   render(
     providers(
@@ -270,13 +273,15 @@ function showPanel(openTabId: string | null) {
         timeZoneId="Asia/Yerevan"
         projectedStatus={null}
         tab={null}
-        pending={false}
-        online
+        pending={options.pending ?? false}
+        online={options.online ?? true}
         affectedReservations={[]}
         releasing={false}
         onAct={() => {}}
         onRelease={() => {}}
         onOpenTab={() => {}}
+        onStartTab={options.onStartTab ?? (() => {})}
+        startingTab={false}
         onOrder={() => {}}
         onClose={() => {}}
       />,
@@ -285,17 +290,33 @@ function showPanel(openTabId: string | null) {
 }
 
 describe('a seated walk-in with no tab', () => {
-  it('is not offered "Take an order", and is told how a tab opens', () => {
-    showPanel(null);
+  it('is not offered "Take an order", and is offered a tab of its own', () => {
+    const onStartTab = vi.fn();
+    showPanel(null, { onStartTab });
     expect(screen.queryByRole('button', { name: 'Take an order' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Open the tab' })).toBeNull();
-    expect(screen.getByText(/scans the code on the table/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'View the tab' })).toBeNull();
+    expect(screen.getByText(/scanning the code on the table/u)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start a tab' }));
+    expect(onStartTab).toHaveBeenCalledTimes(1);
   });
 
-  it('gets both once a guest has opened one', () => {
+  it('cannot start one offline, and says why', () => {
+    showPanel(null, { online: false });
+    expect(screen.getByRole('button', { name: 'Start a tab' })).toHaveProperty('disabled', true);
+    expect(screen.getByText('Starting a tab needs a connection.')).toBeTruthy();
+  });
+
+  it('cannot start one while its own seating is still waiting to sync', () => {
+    showPanel(null, { pending: true });
+    expect(screen.getByRole('button', { name: 'Start a tab' })).toHaveProperty('disabled', true);
+  });
+
+  it('gets both once a tab is open', () => {
     showPanel('tab-1');
     expect(screen.getByRole('button', { name: 'Take an order' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Open the tab' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'View the tab' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Start a tab' })).toBeNull();
   });
 });
 
@@ -402,6 +423,8 @@ describe('the next booking on the table panel (QA 2026-10-16, P-B2)', () => {
           onAct={() => {}}
           onRelease={() => {}}
           onOpenTab={() => {}}
+          onStartTab={() => {}}
+          startingTab={false}
           onOrder={() => {}}
           onClose={() => {}}
         />,

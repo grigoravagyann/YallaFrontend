@@ -4,6 +4,7 @@ import {
   MenuItemUnavailableError,
   PaymentExceedsRemainingError,
   TabNotAcceptingOrdersError,
+  TableNotSeatedError,
 } from '../contracts/errors';
 import type { Menu } from '../contracts/menu';
 import type {
@@ -130,6 +131,12 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         throw new TabNotAcceptingOrdersError({
           url: error.url,
           tabId: String(context['tabId'] ?? ''),
+          requestId: error.requestId,
+        });
+      case 'table-not-seated':
+        throw new TableNotSeatedError({
+          url: error.url,
+          tableId: String(context['tableId'] ?? ''),
           requestId: error.requestId,
         });
       case 'line-already-paid':
@@ -268,6 +275,18 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         branchOrders(branchId, 'voided'),
       ]);
       return tabLinesFromOrders([...outstanding, ...served, ...voided], tabId);
+    },
+
+    async openTabForStaff({ branchId, tableId, clientCommandId }): Promise<StaffTab> {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabStaffView']>(
+          `/api/branches/${branchId}/tables/${tableId}/open-tab`,
+          { clientCommandId },
+        );
+        return staffTabFromView(data);
+      } catch (error) {
+        rethrow(error);
+      }
     },
 
     async beginClosing({ tabId, clientCommandId }): Promise<StaffTab> {

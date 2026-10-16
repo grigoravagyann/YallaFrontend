@@ -704,6 +704,16 @@ export interface AbandonTabResult {
   readonly totals: TabTotals;
 }
 
+/**
+ * Staff open the tab on a seated table, for a party that is not going to scan.
+ * The tab starts with nobody on it; the first phone to scan later hosts it.
+ */
+export interface OpenTabForStaffCommand {
+  readonly branchId: string;
+  readonly tableId: string;
+  readonly clientCommandId: string;
+}
+
 export interface ReassignHostCommand {
   readonly tabId: string;
   readonly newHostParticipantId: string;
