@@ -66,3 +66,16 @@ describe('the party size', () => {
     expect(Math.max(...PARTY_SIZES)).toBeGreaterThanOrEqual(12);
   });
 });
+
+describe('the default slot', () => {
+  it('is the first half hour past the lead time, never one the server will refuse as too soon', async () => {
+    const { defaultSlot } = await import('./bookingSlots');
+    // 01:32 Yerevan on the 16th.
+    const now = new Date('2026-10-15T21:32:00Z');
+    expect(defaultSlot(now, 30).toISOString()).toBe('2026-10-15T22:30:00.000Z');
+    expect(defaultSlot(now, 0).toISOString()).toBe('2026-10-15T22:00:00.000Z');
+    expect(defaultSlot(new Date('2026-10-15T21:00:00Z'), 30).toISOString()).toBe(
+      '2026-10-15T21:30:00.000Z',
+    );
+  });
+});

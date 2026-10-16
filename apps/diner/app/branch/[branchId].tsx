@@ -4,13 +4,9 @@ import { FloorPlan, Legend } from '@yalla/floorplan';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import {
-  BookingContextBar,
-  nextHalfHour,
-  type BookingContext,
-} from '../../src/components/BookingContextBar';
+import { BookingContextBar, type BookingContext } from '../../src/components/BookingContextBar';
 import { EmptyState } from '../../src/components/EmptyState';
 import { IconButton } from '../../src/components/IconButton';
 import { QueryErrorState } from '../../src/components/QueryErrorState';
@@ -20,6 +16,8 @@ import { TableSheet } from '../../src/components/TableSheet';
 import { Text } from '../../src/components/Text';
 import { useBranchTimeZone } from '../../src/data/orderQueries';
 import { useBookingRules, useSlotFloor } from '../../src/data/queries';
+import { defaultSlot } from '../../src/lib/bookingSlots';
+import { LEAD_MINUTES } from '../../src/places/slots';
 import { bookingRulesInput, type FloorPlanParams } from '../../src/places/navigation';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
@@ -54,10 +52,13 @@ export default function BranchFloorPlanScreen() {
   const conflictReason = useConflict((c) => c.takenReason);
   const clearConflict = useConflict((c) => c.clear);
 
+  // Past the lead time from the start: opening on the next half hour put the
+  // default inside it, and the room said "too soon to book" before any tap.
   const [booking, setBooking] = useState<BookingContext>(() => ({
-    slotUtc: nextHalfHour(new Date()),
+    slotUtc: defaultSlot(new Date(), LEAD_MINUTES),
     partySize: 2,
   }));
+  const [touchedSlot, setTouchedSlot] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [sheetTableId, setSheetTableId] = useState<string | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -77,6 +78,16 @@ export default function BranchFloorPlanScreen() {
   // takes — read by slug, which is how the public page is addressed.
   const rulesQuery = useBookingRules(bookingRulesInput(params));
   const bookingsOff = rulesQuery.data?.acceptsAppBookings === false;
+
+  // The branch's own lead time, once known, moves an untouched default past it.
+  const minLead = rulesQuery.data?.minLeadMinutes;
+  useEffect(() => {
+    if (touchedSlot || minLead === undefined) return;
+    const slotUtc = defaultSlot(new Date(), Math.max(minLead, LEAD_MINUTES));
+    setBooking((prev) =>
+      prev.slotUtc.getTime() >= slotUtc.getTime() ? prev : { ...prev, slotUtc },
+    );
+  }, [minLead, touchedSlot]);
 
   /*
    * One question, one answer: the room **as it will be at the slot**, and every
@@ -266,6 +277,7 @@ export default function BranchFloorPlanScreen() {
       <BookingContextBar
         value={booking}
         onChange={(next) => {
+          setTouchedSlot(true);
           setBooking(next);
           setSelectedTableId(null);
         }}
