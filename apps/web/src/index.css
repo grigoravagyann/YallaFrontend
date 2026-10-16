@@ -790,15 +790,6 @@ select {
   flex-wrap: wrap;
 }
 
-/* A table reached with the keyboard shows where focus is; see public.css. */
-.floor-plan-pane g[role='button']:focus-visible {
-  outline: none;
-}
-.floor-plan-pane g[role='button']:focus-visible > g > * {
-  stroke: var(--color-foreground);
-  stroke-width: 3;
-}
-
 .floor-plan-pane {
   display: flex;
   flex-direction: column;
@@ -808,15 +799,157 @@ select {
   min-height: 320px;
 }
 
-/* The canvas: its own solid surface, so no grain reaches it; a small radius,
-   because the room inside is rectilinear. */
+/* The floor: its own solid surface, so no grain reaches it. The table list
+   scrolls; the action panel sits beside it and stays in view. */
 .floor-plan-frame {
+  display: flex;
   flex: 1;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-lg);
   min-height: 320px;
+  padding: var(--space-md);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-soft);
   background: var(--color-surface);
-  overflow: hidden;
+  overflow-y: auto;
+}
+
+/* --- The table list ---------------------------------------------------------- */
+
+.table-rooms {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.table-room-name {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+}
+
+.table-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A row is a counter-sized button: the dot and the words say the state. */
+.table-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  grid-template-areas:
+    'dot label seats'
+    'dot state state';
+  align-items: center;
+  column-gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--touch-staff);
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--color-border);
+  border-left-width: 8px;
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.table-row[data-tone='free'] {
+  border-left-color: var(--table-free-fill);
+}
+.table-row[data-tone='booked'] {
+  border-left-color: var(--table-reserved-soon-fill);
+}
+.table-row[data-tone='occupied'] {
+  border-left-color: var(--table-occupied-fill);
+}
+.table-row[data-tone='out'] {
+  border-left-color: var(--table-out-of-service-fill);
+  color: var(--color-muted-foreground);
+}
+
+.table-row[aria-pressed='true'] {
+  border-color: var(--color-primary-ink);
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: -1px;
+}
+
+.table-row:focus-visible {
+  outline: 3px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+
+.table-row .table-dot {
+  grid-area: dot;
+}
+
+.table-row-label {
+  grid-area: label;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.table-row-seats {
+  grid-area: seats;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+.table-row-state {
+  grid-area: state;
+  font-size: var(--font-size-sm);
+}
+
+.table-row-pending {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.table-dot {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-pill);
+}
+.table-dot.tone-free {
+  background: var(--table-free-fill);
+}
+.table-dot.tone-booked {
+  background: var(--table-reserved-soon-fill);
+}
+.table-dot.tone-occupied {
+  background: var(--table-occupied-fill);
+}
+.table-dot.tone-out {
+  background: var(--table-out-of-service-fill);
+}
+
+.table-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.table-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
 }
 
 .floor-note {
@@ -1411,11 +1544,6 @@ select {
   border-left: 6px solid var(--color-success);
 }
 
-/* The plan frame is the positioning context for the action panel. */
-.floor-plan-frame {
-  position: relative;
-}
-
 /* --- Buttons, sized for a counter ---------------------------------------- */
 
 .button.big,
@@ -1513,8 +1641,10 @@ select {
 /* --- The table action panel ---------------------------------------------- */
 
 .table-panel {
-  position: absolute;
+  position: sticky;
+  top: 0;
   z-index: 20;
+  flex: 0 1 340px;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
@@ -1523,7 +1653,7 @@ select {
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-float);
-  max-height: calc(100% - 24px);
+  max-height: 100%;
   overflow-y: auto;
   /* A visible scrollbar: at 1024x768 the seat form's confirm sits below the
      fold of this box, and a box that hides its scrollbar looks finished. */

@@ -77,7 +77,12 @@
     "error": "We could not load the floor. Try again.",
     "retry": "Try again",
     "noBranch": "Your account has no branch assigned, so there is no floor to show.",
-    "pendingMark": "not sent"
+    "pendingMark": "not sent",
+    "legend": {
+      "label": "What the colours mean",
+      "booked": "Booked or held"
+    },
+    "noRoom": "No room"
   },
   "kitchen": {
     "title": "Kitchen"

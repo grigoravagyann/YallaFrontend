@@ -4,6 +4,7 @@ import {
   tableDetail,
   type AdjustmentKind,
   type AffectedReservation,
+  type FloorTable,
   type OrderQueueEntry,
   type OrderStatus,
   type PlaceOrderLine,
@@ -34,11 +35,9 @@ import {
   useVoidLine,
 } from '@yalla/api/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { FloorPlan, Legend, type FloorTable, type Rect } from '@yalla/floorplan';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
-import { useElementSize } from '../useElementSize';
 import { ConflictList } from './ConflictList';
 import { useCommandQueue } from './commands/useCommandQueue';
 import type { NewCommand, QueuedCommand } from './commands/types';
@@ -48,6 +47,7 @@ import { OrderEntry } from './OrderEntry';
 import { OrderQueuePanel } from './OrderQueuePanel';
 import { StaffHeader } from './StaffHeader';
 import { TableActionPanel } from './TableActionPanel';
+import { TableLegend, TableList } from './TableList';
 import { TabPanel } from './TabPanel';
 import { useBranchFormat } from './useBranchFormat';
 import { useCachedMenu } from './useCachedMenu';
@@ -60,8 +60,8 @@ import { useConnectionState } from './useConnectionState';
  * minutes of training, on a tablet, sometimes in daylight. Every layout decision
  * below follows from that and not from taste:
  *
- * - **Everything is one tap from the floor.** The action panel opens beside the
- *   tapped table; order entry and the tab open over the floor and close back to
+ * - **Everything is one tap from the floor.** The floor is a list of tables by
+ *   room; the action panel opens beside it for the tapped table; order entry and the tab open over the floor and close back to
  *   it. There are no nested menus and no navigation, because a waiter carrying
  *   two plates cannot find their way back from a third screen.
  * - **Landscape-first, portrait survivable.** The body is a wrapping flex row,
@@ -90,7 +90,6 @@ const UNRESOLVED_KEY = '__unresolved__';
 
 interface Selection {
   readonly tableId: string;
-  readonly anchor: Rect;
 }
 
 interface Notice {
@@ -109,7 +108,6 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   const { t } = useTranslation(['staff', 'admin', 'common']);
   const queryClient = useQueryClient();
   const gateway = useStaffGateway();
-  const [planRef, size] = useElementSize<HTMLDivElement>();
 
   const branchId = identity.branchId;
   const active = !paused;
@@ -596,35 +594,22 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
 
       <div className="floor-body">
         <section className="floor-plan-pane">
-          <Legend mode="staff" translate={(key) => t(`common:${key}`)} />
+          <TableLegend />
 
-          <div ref={planRef} className="floor-plan-frame">
+          <div className="floor-plan-frame">
             {!branchId ? (
               <p className="floor-note">{t('floor.noBranch')}</p>
             ) : plan ? (
               <>
-                <FloorPlan
-                  plan={plan}
-                  mode="staff"
-                  viewport={size}
+                <TableList
+                  tables={plan.tables}
                   selectedTableId={selection?.tableId ?? null}
-                  onTableTap={(tableId, anchor) => setSelection({ tableId, anchor })}
-                  tableAnnotation={(laid) =>
-                    // Pending work is marked on the table itself, not only in
-                    // the header. A synced-looking state that is not real is the
-                    // one thing this screen must never render.
-                    pendingTableIds.has(laid.id) ? t('floor.pendingMark') : null
-                  }
-                  accessibilityLabel={t('floor.title')}
-                  // Named the way the legend names them, so a waiter on a
-                  // keyboard or a screen reader hears "Table 4, 2 seats,
-                  // occupied" rather than "4".
-                  tableAccessibilityLabel={(laid) =>
-                    t('common:floorPlan.table', {
-                      label: laid.table.label,
-                      count: laid.table.seats,
-                      status: t(`common:tableStatus.${laid.table.state}`),
-                    })
+                  pendingTableIds={pendingTableIds}
+                  onSelect={(tableId) => setSelection({ tableId })}
+                  seatedFor={(table) =>
+                    table.occupiedSinceUtc
+                      ? t('table.minutes', { count: format.minutesSince(table.occupiedSinceUtc) })
+                      : null
                   }
                 />
 
@@ -632,8 +617,6 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                   <TableActionPanel
                     table={selectedTable}
                     detail={selectedDetail}
-                    anchor={selection.anchor}
-                    frame={size}
                     timeZoneId={timeZoneId}
                     projectedStatus={queue.projected(selection.tableId)}
                     tab={selectedTabQuery.data ?? null}

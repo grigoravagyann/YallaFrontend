@@ -7,7 +7,7 @@ import {
   type TableActionResult,
   type TableStatus,
 } from '@yalla/api';
-import { cafeFloorPlan } from '@yalla/floorplan/mocks';
+import { cafeFloorPlan } from '@yalla/api';
 import { describe, expect, it, vi } from 'vitest';
 import {
   commandReducer,

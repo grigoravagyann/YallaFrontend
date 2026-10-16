@@ -1,5 +1,4 @@
-import type { FloorChange, StaffFloor, StaffTableDetail } from '@yalla/api';
-import type { DerivedTableState } from '@yalla/floorplan';
+import type { DerivedTableState, FloorChange, StaffFloor, StaffTableDetail } from '@yalla/api';
 import { findSequenceGap } from '@yalla/realtime';
 
 /**

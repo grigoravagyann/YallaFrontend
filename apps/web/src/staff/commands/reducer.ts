@@ -1,5 +1,11 @@
-import type { DerivedTableState, FloorPlanData } from '@yalla/floorplan';
-import type { StaffFloor, TableActionKind, TableConflictState, TableStatus } from '@yalla/api';
+import type {
+  DerivedTableState,
+  FloorPlanData,
+  StaffFloor,
+  TableActionKind,
+  TableConflictState,
+  TableStatus,
+} from '@yalla/api';
 import {
   initialCommandState,
   isQueueable,
