@@ -425,3 +425,28 @@ describe('the next booking on the table panel (QA 2026-10-16, P-B2)', () => {
     expect(showFreeWith('2026-10-18T16:00:00Z')).toBe('Sun 18 Oct, 20:00');
   });
 });
+
+describe('the staff floor, from QA 2026-10-16', () => {
+  it('moves focus into the panel, closes it on Escape, and gives focus back to the row', async () => {
+    signIn('waiter');
+    const user = userEvent.setup();
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+
+    const row = await screen.findByRole('button', { name: /^Table 2, 2 seats, Free/u });
+    await user.click(row);
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 2' });
+    expect(panel.contains(document.activeElement)).toBe(true);
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Actions for table 2' })).toBeNull();
+    expect(document.activeElement).toBe(row);
+  });
+
+  it('names each room as a region', async () => {
+    signIn('waiter');
+    render(providers(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }), <StaffRoute />));
+
+    expect(await screen.findByRole('region', { name: 'Bar' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Windows' })).toBeTruthy();
+  });
+});

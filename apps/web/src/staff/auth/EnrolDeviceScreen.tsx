@@ -1,6 +1,6 @@
 import { EnrolmentCodeSpentError, describeFailure } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { staffSession } from './staffSession';
 
 /**
@@ -32,6 +32,7 @@ function defaultDeviceName(): string {
 
 export function EnrolDeviceScreen({ reason }: EnrolDeviceScreenProps) {
   const { t } = useTranslation(['staff', 'common']);
+  const codeId = useId();
   const [code, setCode] = useState('');
   const [deviceName, setDeviceName] = useState(defaultDeviceName);
   const [busy, setBusy] = useState(false);
@@ -78,9 +79,11 @@ export function EnrolDeviceScreen({ reason }: EnrolDeviceScreenProps) {
         <p className="muted">{reason === 'revoked' ? t('enrol.revoked') : t('enrol.body')}</p>
 
         <form onSubmit={(event) => void submit(event)}>
-          <label className="labelled">
+          {/* Named explicitly: QA read the code field as unnamed. */}
+          <label className="labelled" htmlFor={codeId}>
             {t('enrol.code')}
             <input
+              id={codeId}
               className="field big-field"
               value={code}
               autoFocus

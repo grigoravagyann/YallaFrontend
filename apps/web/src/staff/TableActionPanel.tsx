@@ -11,7 +11,7 @@ import type {
 import type { DayAndTime } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useBranchFormat } from './useBranchFormat';
 
 /**
@@ -85,6 +85,13 @@ export function TableActionPanel(props: TableActionPanelProps) {
     props.projectedStatus ?? detail?.physicalStatus ?? physicalFrom(table.state);
   const balance = tab && tab.status !== 'closed' ? tab.totals.remainingDram : null;
 
+  // Into the panel when it opens, or opens on another table: otherwise its
+  // actions are after every remaining row in the tab order (QA 2026-10-16).
+  const panelRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, [table.id]);
+
   const bookingStart = detail?.nextReservationStartUtc ?? table.nextReservationStartUtc;
   const bookingLate =
     bookingStart !== null &&
@@ -96,9 +103,16 @@ export function TableActionPanel(props: TableActionPanelProps) {
 
   return (
     <aside
+      ref={panelRef}
       className="table-panel"
       role="dialog"
       aria-label={t('table.panelLabel', { label: table.label })}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        event.preventDefault();
+        onClose();
+      }}
     >
       <header className="table-panel-head">
         <div>

@@ -128,3 +128,20 @@ describe('a wrong PIN', () => {
     expect(screen.getByText('4 attempts left.')).toBeTruthy();
   });
 });
+
+describe('the PIN pad and a physical keyboard (QA 2026-10-16)', () => {
+  it('takes digits and Backspace from the keyboard', async () => {
+    fake.roster.mockResolvedValue([
+      { staffMemberId: 'id-anna', fullName: 'Anna Hakobyan', role: 'waiter' },
+    ]);
+    const user = userEvent.setup();
+    renderPin();
+
+    await user.click(await screen.findByRole('button', { name: 'Anna Hakobyan' }));
+    await user.keyboard('19{Backspace}234');
+
+    await waitFor(() =>
+      expect(fake.signInWithPin).toHaveBeenCalledWith({ staffMemberId: 'id-anna', pin: '1234' }),
+    );
+  });
+});
