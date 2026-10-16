@@ -11,7 +11,7 @@ import type {
 } from '../contracts/publicBranch';
 import type { BranchSummary, VenueSummary, VenueType } from '../contracts/booking';
 import type { components } from '../generated/schema';
-import { openStateFrom } from '../mocks/openState';
+import { openStateFrom } from '../contracts/openState';
 import { absolutePhotoUrl } from './photoUrl';
 
 type Schemas = components['schemas'];

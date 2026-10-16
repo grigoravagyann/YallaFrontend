@@ -1570,7 +1570,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           );
         });
 
-      if (outside.length > 0 || duplicates.length > 0) {
+      // A table may only name an area this same plan keeps
+      // (BranchSettingsService: "Tables reference areas that are not in the
+      // plan"). Dropping an area and its tables' reference in one save is fine.
+      const keptAreaNames = new Set(command.areas.map((a) => a.name.trim().toLocaleLowerCase()));
+      const unknownAreas = command.tables
+        .filter(
+          (t) =>
+            t.floorAreaName !== null &&
+            !keptAreaNames.has(t.floorAreaName.trim().toLocaleLowerCase()),
+        )
+        .map((t) => `${t.label} -> ${t.floorAreaName}`);
+
+      if (outside.length > 0 || duplicates.length > 0 || unknownAreas.length > 0) {
         const errors: string[] = [];
         if (outside.length > 0) {
           // `FloorPlanRules.Validate`'s sentence, verbatim.
@@ -1581,6 +1593,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         if (duplicates.length > 0) {
           errors.push(
             `Table labels must be unique within a branch. Repeated: ${duplicates.join(', ')}.`,
+          );
+        }
+        if (unknownAreas.length > 0) {
+          errors.push(
+            `Tables reference areas that are not in the plan: ${unknownAreas.join(', ')}.`,
           );
         }
         throw new FloorPlanInvalidError({

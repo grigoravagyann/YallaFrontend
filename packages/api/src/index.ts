@@ -307,7 +307,7 @@ export type { ResolvePublicGatewayOptions } from './resolvePublicGateway';
 export { createPublicMockGateway, manageTokenFor } from './mocks/publicMock';
 export type { PublicMockOptions } from './mocks/publicMock';
 export { createPublicHttpGateway } from './http/publicHttpGateway';
-export { openStateFrom } from './mocks/openState';
+export { openStateFrom } from './contracts/openState';
 export type {
   ManagedBooking,
   OpenState,

@@ -173,6 +173,74 @@ describe('F8 — the floor plan refuses a table outside the room, in the server 
   });
 });
 
+async function planWithAreas(
+  gateway: ConsoleGateway,
+  branchId: string,
+): Promise<ReplaceFloorPlanCommand> {
+  const plan = await gateway.getFloorPlan(branchId);
+  const nameOf = new Map(plan.areas.map((a) => [a.id, a.name]));
+  return {
+    floorWidth: plan.floorWidth,
+    floorHeight: plan.floorHeight,
+    areas: plan.areas.map((a) => ({ id: a.id, name: a.name, displayOrder: a.displayOrder })),
+    tables: plan.tables
+      .filter((t) => t.isActive)
+      .map((t) => ({
+        ...t,
+        floorAreaName: t.floorAreaId ? (nameOf.get(t.floorAreaId) ?? null) : null,
+      })),
+    expectedVersion: plan.version,
+  };
+}
+
+describe('F8 — a table still filed under an area the plan removed is refused, in the server words', () => {
+  // BranchSettingsService.cs (~346-353): a table naming an area that is not in
+  // the saved plan is a 422 floor-plan-invalid listing `label -> area`. The
+  // mock used to file such a table under no area and save, so a console that
+  // dropped an area and kept its tables passed every test and failed live.
+  it('names the table and the missing area, and writes nothing', async () => {
+    const gateway = createConsoleMockGateway();
+    const branchId = 'b-lumen-cascade';
+    const command = await planWithAreas(gateway, branchId);
+    const filed = command.tables.find((t) => t.floorAreaName !== null);
+    expect(filed, 'the fixture has a table filed under an area').toBeDefined();
+    const area = filed!.floorAreaName!;
+    const before = await gateway.getFloorPlan(branchId);
+    const error = await caught(
+      gateway.replaceFloorPlan({
+        branchId,
+        command: { ...command, areas: command.areas.filter((a) => a.name !== area) },
+      }),
+    );
+    expect(error).toBeInstanceOf(FloorPlanInvalidError);
+    const stillFiled = command.tables
+      .filter((t) => t.floorAreaName === area)
+      .map((t) => `${t.label} -> ${area}`);
+    expect((error as FloorPlanInvalidError).errors).toEqual([
+      `Tables reference areas that are not in the plan: ${stillFiled.join(', ')}.`,
+    ]);
+    expect(await gateway.getFloorPlan(branchId)).toEqual(before);
+  });
+
+  it('keeps every table when the same save moves them to no area', async () => {
+    const gateway = createConsoleMockGateway();
+    const branchId = 'b-lumen-cascade';
+    const command = await planWithAreas(gateway, branchId);
+    const area = command.tables.find((t) => t.floorAreaName !== null)!.floorAreaName!;
+    const result = await gateway.replaceFloorPlan({
+      branchId,
+      command: {
+        ...command,
+        areas: command.areas.filter((a) => a.name !== area),
+        tables: command.tables.map((t) =>
+          t.floorAreaName === area ? { ...t, floorAreaName: null } : t,
+        ),
+      },
+    });
+    expect(result.plan.tables.filter((t) => t.isActive)).toHaveLength(command.tables.length);
+  });
+});
+
 describe('F11 — a deleted venue can no longer be changed', () => {
   async function deletedVenue(gateway: ConsoleGateway) {
     const created = await newVenue(gateway);

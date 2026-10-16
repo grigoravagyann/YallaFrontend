@@ -113,7 +113,7 @@ import { SEEDED_ACCOUNT, createAccountStore } from './accounts';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
-import { coversSitting, openStateFrom } from './openState';
+import { coversSitting, openStateFrom } from '../contracts/openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
 import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
 import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from './venues';
