@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import {
+  NetworkError,
   ValidationError,
   createConsoleMockGateway,
   type ConsoleGateway,
+  type EditorFloorPlan,
   type Photo,
 } from '@yalla/api';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -349,5 +351,197 @@ describe('the rooms editor', () => {
     expect(alert.textContent).toContain('Table 2 is pinned on another room');
     expect(alert.textContent).toContain("Table 1's pin is incomplete or off the photo.");
     expect(alert.textContent).not.toContain('English the reader never sees');
+  });
+});
+
+describe('the rooms editor, from review', () => {
+  it('keeps a regenerated QR in the cached plan, so reopening the editor never shows the dead one', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    const harness = renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · free$/i }));
+    const before = screen.getByTestId('qr-token').textContent;
+    await user.click(screen.getByRole('button', { name: /regenerate the qr/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/type 2 to confirm/i), '2');
+    await user.click(within(dialog).getByRole('button', { name: /regenerate it/i }));
+    await screen.findByText(/has a new qr code/i);
+
+    const fresh = screen.getByTestId('qr-token').textContent;
+    expect(fresh).not.toBe(before);
+    const cached = harness.queryClient.getQueryData<EditorFloorPlan>([
+      'console',
+      'floorPlan',
+      BRANCH,
+    ]);
+    expect(cached!.tables.find((table) => table.label === '2')!.qrToken).toBe(fresh);
+  });
+
+  it('opens on a fresh plan, never a cached one whose QR was replaced since', async () => {
+    const { gateway } = await seededGateway();
+    const harness = createConsoleHarness({ gateway });
+    const plan = await gateway.getFloorPlan(BRANCH);
+    harness.queryClient.setQueryData(['console', 'floorPlan', BRANCH], plan);
+    const two = plan.tables.find((table) => table.label === '2')!;
+    const { qrToken } = await gateway.regenerateTableQr({ tableId: two.id });
+    const user = userEvent.setup();
+
+    render(harness.wrap(<RoomsEditor branchId={BRANCH} />, '/venue/floorplan'));
+    await user.click(await screen.findByRole('button', { name: /^table 2 · free$/i }));
+
+    expect(screen.getByTestId('qr-token').textContent).toBe(qrToken);
+  });
+
+  it('locks the editor while a save is in flight, so no edit is lost to it', async () => {
+    const { gateway } = await seededGateway();
+    const real = gateway.replaceFloorPlan.bind(gateway);
+    let release: () => void = () => undefined;
+    vi.spyOn(gateway, 'replaceFloorPlan').mockImplementation(async (input) => {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return real(input);
+    });
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · free$/i }));
+    await user.type(screen.getByLabelText(/^label$/i), '2');
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+    await screen.findByRole('button', { name: /saving/i });
+
+    // Disabled by the fieldset around the editor, which `.disabled` does not reflect.
+    expect(screen.getByLabelText(/^label$/i).matches(':disabled')).toBe(true);
+    expect(screen.getByLabelText(/^new room$/i).matches(':disabled')).toBe(true);
+    const pin = screen.getByRole('button', { name: /^table 22 · free$/i });
+    const left = pin.style.left;
+    fireEvent.keyDown(pin, { key: 'ArrowRight' });
+    expect(pin.style.left).toBe(left);
+    fireEvent.pointerDown(await stage(), { clientX: 20, clientY: 80, pointerId: 1 });
+    expect(screen.queryByRole('form', { name: /new table/i })).toBeNull();
+
+    release();
+    await screen.findByText(/rooms saved/i);
+    expect(screen.getByLabelText(/^new room$/i).matches(':disabled')).toBe(false);
+  });
+
+  it('drops the half-made table when another photo is shown or its photo is removed', async () => {
+    const { gateway } = await seededGateway();
+    picker.next = await upload(gateway, 'second.png');
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await screen.findByRole('button', { name: /^table 2 · free$/i });
+    await user.click(screen.getByRole('button', { name: /use the queued photo/i }));
+    fireEvent.pointerDown(await stage(), { clientX: 20, clientY: 80, pointerId: 1 });
+    expect(screen.getByRole('form', { name: /new table/i })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /show photo 1/i }));
+    expect(screen.queryByRole('form', { name: /new table/i })).toBeNull();
+
+    fireEvent.pointerDown(await stage(), { clientX: 20, clientY: 80, pointerId: 1 });
+    expect(screen.getByRole('form', { name: /new table/i })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /^remove \(1\)$/i }));
+    expect(screen.queryByRole('form', { name: /new table/i })).toBeNull();
+  });
+
+  it("says what the save warned about, in the reader's language where it knows the warning", async () => {
+    const { gateway } = await seededGateway();
+    const real = gateway.replaceFloorPlan.bind(gateway);
+    vi.spyOn(gateway, 'replaceFloorPlan').mockImplementation(async (input) => ({
+      ...(await real(input)),
+      warnings: [
+        'Table(s) 2, 3 were taken off photos this plan removed from every room.',
+        'Table(s) 4 were taken off photos this plan moved to another room.',
+        'A sentence this client has never seen.',
+      ],
+      deactivatedTables: ['7'],
+    }));
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.type(await screen.findByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+
+    const saved = (await screen.findByText(/rooms saved/i)).closest('[role="status"]')!;
+    expect(saved.textContent).toContain('Taken out of service because they have history: 7.');
+    expect(saved.textContent).toContain(
+      'Tables 2, 3 were on a photo no room keeps any more, so they are off it now.',
+    );
+    expect(saved.textContent).toContain(
+      'Tables 4 were on a photo that moved to another room, so they are off it now.',
+    );
+    expect(saved.textContent).toContain('A sentence this client has never seen.');
+  });
+
+  it('does not report a table already out of service as taken out by the save', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 1 · free$/i }));
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /delete it/i }),
+    );
+    await screen.findByText(/table 1 has history/i);
+
+    await user.type(screen.getByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+
+    const saved = (await screen.findByText(/rooms saved/i)).closest('[role="status"]')!;
+    expect(saved.textContent).not.toMatch(/taken out of service/i);
+  });
+
+  it('keeps the draft and says so when the newer plan cannot be loaded after a conflict', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.type(await screen.findByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await gateway.createFloorArea({ branchId: BRANCH, name: 'Cellar', displayOrder: 7 });
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+    const notice = await screen.findByRole('alert');
+
+    vi.spyOn(gateway, 'getFloorPlan').mockRejectedValue(new NetworkError({ url: '/floor-plan' }));
+    await user.click(within(notice).getByRole('button', { name: /reload the rooms/i }));
+
+    await screen.findByText(/the newer rooms could not be loaded/i);
+    expect(screen.getByRole('button', { name: /^garden · 0 photos$/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^cellar/i })).toBeNull();
+  });
+
+  it('moves focus to the table in the unpinned list after Delete takes its pin off', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    const pin = await screen.findByRole('button', { name: /^table 2 · free$/i });
+    pin.focus();
+    await user.keyboard('{Delete}');
+
+    const list = screen.getByRole('region', { name: /not on a photo/i });
+    expect(document.activeElement).toBe(within(list).getByRole('button', { name: /^table 2$/i }));
+  });
+
+  it('says before saving that two rooms have the same name', async () => {
+    const { gateway, room } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await screen.findByRole('heading', { name: room.name });
+    const other = (await gateway.getFloorPlan(BRANCH)).areas[1]!;
+    const name = screen.getByLabelText(/^room name$/i);
+    await user.clear(name);
+    await user.type(name, ` ${other.name.toUpperCase()} `);
+
+    const alerts = screen.getAllByRole('alert').map((alert) => alert.textContent);
+    expect(alerts).toContain(
+      `More than one room is called ${other.name.toUpperCase()}. Give each room its own name.`,
+    );
+    expect(screen.getByText('Another room already has this name.')).toBeTruthy();
   });
 });

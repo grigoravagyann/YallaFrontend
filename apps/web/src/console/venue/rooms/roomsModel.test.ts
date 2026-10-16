@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bookableUnpinned,
   duplicateLabels,
+  duplicateRoomNames,
   initialState,
   isDirty,
   nextLabel,
@@ -252,6 +253,16 @@ describe('what the rooms editor warns about', () => {
   it('names labels used twice, ignoring case and spaces', () => {
     const state = reducer(loaded(), { type: 'updateTable', id: 't2', patch: { label: ' 1 ' } });
     expect(duplicateLabels(state)).toEqual(['1']);
+  });
+
+  it('names rooms called the same, ignoring case and spaces, and not unnamed ones', () => {
+    let state = reducer(loaded(), { type: 'addRoom', name: 'terrace ' });
+    state = reducer(state, { type: 'addRoom', name: ' TERRACE' });
+    state = reducer(state, { type: 'addRoom', name: 'x' });
+    state = reducer(state, { type: 'renameRoom', id: `new-room-${state.sequence}`, name: ' ' });
+    state = reducer(state, { type: 'addRoom', name: 'y' });
+    state = reducer(state, { type: 'renameRoom', id: `new-room-${state.sequence}`, name: '' });
+    expect(duplicateRoomNames(state)).toEqual(['Terrace']);
   });
 
   it('suggests the next number for a new table', () => {

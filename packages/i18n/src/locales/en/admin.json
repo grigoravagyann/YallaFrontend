@@ -337,12 +337,15 @@
     "legend": "Pin colours",
     "result": {
       "deactivated": "Taken out of service because they have history: {{labels}}.",
-      "removed": "Removed: {{labels}}."
+      "removed": "Removed: {{labels}}.",
+      "unpinnedByRemoval": "Tables {{labels}} were on a photo no room keeps any more, so they are off it now.",
+      "unpinnedByMove": "Tables {{labels}} were on a photo that moved to another room, so they are off it now."
     },
     "conflict": {
       "title": "Someone else changed the rooms",
       "body": "A newer version was saved while you were editing, so your changes were not saved. Reload to see it; your unsaved changes here will be lost.",
-      "reload": "Reload the rooms"
+      "reload": "Reload the rooms",
+      "reloadFailed": "The newer rooms could not be loaded. Your changes are still here; try again."
     },
     "list": {
       "title": "Rooms",
@@ -363,7 +366,8 @@
       "removeTitle": "Delete {{name}}?",
       "removeBody_one": "Its {{photos}} photo(s) go with it. Its {{count}} table stays, with no room and no pin, until you place it again.",
       "removeBody_other": "Its {{photos}} photo(s) go with it. Its {{count}} tables stay, with no room and no pin, until you place them again.",
-      "removeConfirm": "Delete it"
+      "removeConfirm": "Delete it",
+      "duplicateName": "Another room already has this name."
     },
     "photos": {
       "title": "Photos",
@@ -431,7 +435,8 @@
     "warning": {
       "unpinned_one": "Table {{labels}} can be booked but is on no photo, so diners cannot see or book it.",
       "unpinned_other": "Tables {{labels}} can be booked but are on no photo, so diners cannot see or book them.",
-      "duplicates": "These labels are used more than once: {{labels}}."
+      "duplicates": "These labels are used more than once: {{labels}}.",
+      "duplicateRooms": "More than one room is called {{names}}. Give each room its own name."
     },
     "error": {
       "invalid": "These rooms could not be saved.",

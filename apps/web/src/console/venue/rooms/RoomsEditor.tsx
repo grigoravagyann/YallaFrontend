@@ -27,11 +27,13 @@ import { TableQr } from './TableQr';
 import {
   bookableUnpinned,
   duplicateLabels,
+  duplicateRoomNames,
   initialState,
   isDirty,
   isServerId,
   nextLabel,
   reducer,
+  roomOfPhoto,
   toSaveCommand,
   type DraftRoom,
   type DraftTable,
@@ -80,17 +82,26 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   const [savedResult, setSavedResult] = useState<{
     deactivated: readonly string[];
     removed: readonly string[];
+    warnings: readonly string[];
   } | null>(null);
+  const [reloadFailed, setReloadFailed] = useState(false);
+  const [focusListTableId, setFocusListTableId] = useState<string | null>(null);
 
   // Load once into the working copy. Re-running on every refetch would throw
-  // away whatever the person is placing.
+  // away whatever the person is placing. Not while a read is in flight: the
+  // editor opens with a fresh read (`refetchOnMount: 'always'`), and a cached
+  // copy loaded meanwhile could show — and print — a QR code replaced since.
   const loadedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!query.data || loadedFor.current === query.data.branchId) return;
+    if (!query.data || query.isFetching || loadedFor.current === query.data.branchId) return;
     loadedFor.current = query.data.branchId;
     dispatch({ type: 'loaded', plan: query.data });
-  }, [query.data]);
+  }, [query.data, query.isFetching]);
 
+  const loaded = state.version !== '';
+  // Inert while a save is in flight: the save sends the draft as it was, and
+  // its answer replaces the draft, so an edit made meanwhile would be lost.
+  const busy = save.isPending;
   const dirty = isDirty(state);
   useUnsavedChangesGuard(dirty);
 
@@ -103,6 +114,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   const placing = selected && !selected.pin ? selected : null;
   const unpinned = bookableUnpinned(state);
   const duplicates = duplicateLabels(state);
+  const duplicateRooms = duplicateRoomNames(state);
 
   const select = useCallback((id: string | null) => {
     setTableId(id);
@@ -111,6 +123,8 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
 
   function showPhoto(nextRoomId: string, nextPhotoId: string) {
     setPhotoByRoom((current) => ({ ...current, [nextRoomId]: nextPhotoId }));
+    // A table half-added on the photo going off screen would be pinned on it unseen.
+    setDraftPin(null);
   }
 
   function onClickPhoto(pin: EditorTablePin) {
@@ -135,15 +149,25 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
       // New rooms and tables have server ids now: keep the room on screen by name.
       setRoomId(result.plan.areas.find((area) => area.name === keepRoom)?.id ?? null);
       select(null);
-      setSavedResult({ deactivated: result.deactivatedTables, removed: result.removedTables });
+      setSavedResult({
+        deactivated: result.deactivatedTables,
+        removed: result.removedTables,
+        warnings: result.warnings,
+      });
     } catch {
       // Rendered below from the mutation's own error.
     }
   }
 
   async function onReload() {
+    setReloadFailed(false);
     const fresh = await query.refetch();
-    if (!fresh.data) return;
+    // A failed read still hands back the copy it had: the stale one, which
+    // the draft must not be swapped for.
+    if (!fresh.isSuccess) {
+      setReloadFailed(true);
+      return;
+    }
     loadedFor.current = fresh.data.branchId;
     dispatch({ type: 'loaded', plan: fresh.data });
     save.reset();
@@ -186,7 +210,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
     );
   }
 
-  if (query.isLoading) {
+  if (query.isLoading || (!loaded && query.isFetching)) {
     return (
       <section className="page">
         <h1>{t('nav.floorplan')}</h1>
@@ -195,7 +219,8 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
     );
   }
 
-  if (query.isError || !query.data) {
+  // Once loaded, the draft is the screen: a failed read later must not hide it.
+  if (!loaded && (query.isError || !query.data)) {
     return (
       <section className="page">
         <h1>{t('nav.floorplan')}</h1>
@@ -210,6 +235,10 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   const roomUnpinned = roomTables.filter((table) => !table.pin);
   const noRoom = active.filter((table) => table.roomId === null);
   const inactive = state.tables.filter((table) => !table.isActive);
+  const roomNameTaken = (name: string) =>
+    duplicateRooms.some(
+      (duplicate) => duplicate.toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
+    );
 
   return (
     <section className="page editor rooms-editor">
@@ -225,7 +254,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
           <button
             type="button"
             className="button button-primary"
-            disabled={!dirty || save.isPending}
+            disabled={!dirty || busy}
             onClick={() => void onSave()}
           >
             {save.isPending ? t('rooms.saving') : t('rooms.save')}
@@ -243,6 +272,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
           <button type="button" className="button button-small" onClick={() => void onReload()}>
             {t('rooms.conflict.reload')}
           </button>
+          {reloadFailed ? <p className="error">{t('rooms.conflict.reloadFailed')}</p> : null}
         </div>
       ) : save.isError ? (
         <SaveRefusal
@@ -255,6 +285,12 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
       {duplicates.length > 0 ? (
         <div className="notice notice-error" role="alert">
           <p>{t('rooms.warning.duplicates', { labels: duplicates.join(', ') })}</p>
+        </div>
+      ) : null}
+
+      {duplicateRooms.length > 0 ? (
+        <div className="notice notice-error" role="alert">
+          <p>{t('rooms.warning.duplicateRooms', { names: duplicateRooms.join(', ') })}</p>
         </div>
       ) : null}
 
@@ -280,6 +316,13 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
               ? ` ${t('rooms.result.removed', { labels: savedResult.removed.join(', ') })}`
               : ''}
           </p>
+          {savedWarnings(t, savedResult.warnings).length > 0 ? (
+            <ul className="small">
+              {savedWarnings(t, savedResult.warnings).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
@@ -289,7 +332,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
         </div>
       ) : null}
 
-      <div className="editor-body">
+      <fieldset className="editor-body rooms-body" disabled={busy} aria-busy={busy}>
         <aside className="editor-areas rooms-list" aria-labelledby="rooms-list-title">
           <h2 id="rooms-list-title">{t('rooms.list.title')}</h2>
           {state.rooms.length === 0 ? (
@@ -372,6 +415,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                   <input
                     className="field"
                     value={room.name}
+                    aria-invalid={roomNameTaken(room.name) || room.name.trim() === ''}
                     onChange={(event) =>
                       dispatch({ type: 'renameRoom', id: room.id, name: event.target.value })
                     }
@@ -387,6 +431,9 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
               </div>
               {room.name.trim() === '' ? (
                 <p className="error small">{t('rooms.room.noName')}</p>
+              ) : null}
+              {roomNameTaken(room.name) ? (
+                <p className="error small">{t('rooms.room.duplicateName')}</p>
               ) : null}
 
               <h3>{t('rooms.photos.title')}</h3>
@@ -448,13 +495,14 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                           type="button"
                           className="button button-small button-danger"
                           aria-label={`${t('rooms.photos.remove')} (${index + 1})`}
-                          onClick={() =>
+                          onClick={() => {
                             dispatch({
                               type: 'removePhoto',
                               roomId: room.id,
                               photoId: candidate.photoId,
-                            })
-                          }
+                            });
+                            setDraftPin(null);
+                          }}
                         >
                           {t('rooms.photos.remove')}
                         </button>
@@ -503,7 +551,12 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                   onClickAt={onClickPhoto}
                   onSelect={select}
                   onMove={(id, pin) => dispatch({ type: 'placeTable', id, pin })}
-                  onUnpin={(id) => dispatch({ type: 'placeTable', id, pin: null })}
+                  onUnpin={(id) => {
+                    dispatch({ type: 'placeTable', id, pin: null });
+                    // The pin had focus and is gone; the table is in the list below now.
+                    setFocusListTableId(id);
+                  }}
+                  readOnly={busy}
                 />
                 <Legend />
                 <div className="actions">
@@ -541,8 +594,10 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                     suggestedLabel={nextLabel(state)}
                     onCancel={() => setDraftPin(null)}
                     onAdd={(input) => {
-                      dispatch({ type: 'addTable', table: input, pin: draftPin });
                       setDraftPin(null);
+                      // The reducer adds nothing for a photo no room holds any more.
+                      if (!roomOfPhoto(state.rooms, draftPin.photoId)) return;
+                      dispatch({ type: 'addTable', table: input, pin: draftPin });
                       setFocusTableId(`new-table-${state.sequence + 1}`);
                       setTableId(`new-table-${state.sequence + 1}`);
                     }}
@@ -557,6 +612,8 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
                 tables={roomUnpinned}
                 selectedId={selected?.id ?? null}
                 onSelect={select}
+                focusTableId={focusListTableId}
+                onFocused={() => setFocusListTableId(null)}
               />
             ) : null}
           </div>
@@ -626,7 +683,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
             </aside>
           ) : null}
         </div>
-      </div>
+      </fieldset>
 
       {removingRoom ? (
         <div
@@ -923,15 +980,32 @@ function UnpinnedList({
   tables,
   selectedId,
   onSelect,
+  focusTableId = null,
+  onFocused,
 }: {
   readonly title: string;
   readonly tables: readonly DraftTable[];
   readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
+  /** The table whose button should take focus once drawn: its pin just went. */
+  readonly focusTableId?: string | null;
+  readonly onFocused?: () => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  const listRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!focusTableId) return;
+    const button = Array.from(
+      listRef.current?.querySelectorAll<HTMLButtonElement>('button[data-table-id]') ?? [],
+    ).find((candidate) => candidate.dataset['tableId'] === focusTableId);
+    if (!button) return;
+    button.focus();
+    onFocused?.();
+  });
+
   return (
-    <section className="editor-panel" aria-label={title}>
+    <section ref={listRef} className="editor-panel" aria-label={title}>
       <h2>{title}</h2>
       <p className="muted small">{t('rooms.unpinned.hint')}</p>
       <ul className="rooms-table-list">
@@ -939,6 +1013,7 @@ function UnpinnedList({
           <li key={table.id}>
             <button
               type="button"
+              data-table-id={table.id}
               className={`chip${table.id === selectedId ? ' is-on' : ''}`}
               aria-pressed={table.id === selectedId}
               onClick={() => onSelect(table.id)}
@@ -951,6 +1026,34 @@ function UnpinnedList({
     </section>
   );
 }
+
+/**
+ * What a save warned about, in the person's language where the warning is one
+ * the editor knows, and in the server's own sentence otherwise.
+ *
+ * The bookable-but-unpinned warning is left out: the notice above the editor
+ * says the same thing from the same draft, live.
+ */
+function savedWarnings(t: TFunction, warnings: readonly string[]): string[] {
+  const lines: string[] = [];
+  for (const warning of warnings) {
+    if (UNPINNED_BOOKABLE.test(warning)) continue;
+    const removed = UNPINNED_BY_REMOVAL.exec(warning);
+    const moved = UNPINNED_BY_MOVE.exec(warning);
+    if (removed) lines.push(t('rooms.result.unpinnedByRemoval', { labels: removed[1] }));
+    else if (moved) lines.push(t('rooms.result.unpinnedByMove', { labels: moved[1] }));
+    else lines.push(warning);
+  }
+  return lines;
+}
+
+// The server's sentences (`FloorPlanRules.Validate`, `ReplaceFloorPlanAsync`).
+const UNPINNED_BOOKABLE =
+  /^Bookable table\(s\) .+ are not pinned on a room photo, so diners are not offered them\.$/u;
+const UNPINNED_BY_REMOVAL =
+  /^Table\(s\) (.+) were taken off photos this plan removed from every room\.$/u;
+const UNPINNED_BY_MOVE =
+  /^Table\(s\) (.+) were taken off photos this plan moved to another room\.$/u;
 
 /**
  * A refused save, in the person's language.

@@ -418,6 +418,21 @@ export function duplicateLabels(state: RoomsState): readonly string[] {
     .map((entry) => entry.label);
 }
 
+/** Room names used more than once, ignoring case and spaces at the ends. The server refuses these. */
+export function duplicateRoomNames(state: RoomsState): readonly string[] {
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const room of state.rooms) {
+    const name = room.name.trim();
+    const key = name.toLocaleLowerCase();
+    const entry = counts.get(key);
+    if (entry) entry.count += 1;
+    else counts.set(key, { name, count: 1 });
+  }
+  return [...counts.values()]
+    .filter((entry) => entry.count > 1 && entry.name !== '')
+    .map((entry) => entry.name);
+}
+
 /** One past the highest number in use, so a run of clicks numbers a room. */
 export function nextLabel(state: RoomsState): string {
   const numbers = state.tables

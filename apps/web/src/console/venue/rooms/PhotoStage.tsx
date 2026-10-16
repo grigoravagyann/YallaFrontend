@@ -22,6 +22,8 @@ export interface PhotoStageProps {
   readonly onSelect: (tableId: string) => void;
   readonly onMove: (tableId: string, pin: EditorTablePin) => void;
   readonly onUnpin: (tableId: string) => void;
+  /** While a save is in flight: pins neither move nor come off, and a click adds nothing. */
+  readonly readOnly?: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ export function PhotoStage({
   onSelect,
   onMove,
   onUnpin,
+  readOnly = false,
 }: PhotoStageProps) {
   const { t } = useTranslation(['admin', 'common']);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -76,20 +79,21 @@ export function PhotoStage({
   }
 
   function onStagePointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget) return;
+    if (readOnly || event.target !== event.currentTarget) return;
     const pin = pinAt(event);
     if (pin) onClickAt(pin);
   }
 
   function onPinPointerDown(event: PointerEvent<HTMLButtonElement>, tableId: string) {
     event.stopPropagation();
+    if (readOnly) return;
     onSelect(tableId);
     dragging.current = tableId;
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
   function onPinPointerMove(event: PointerEvent<HTMLButtonElement>) {
-    if (!dragging.current) return;
+    if (readOnly || !dragging.current) return;
     const pin = pinAt(event);
     if (pin) onMove(dragging.current, pin);
   }
@@ -100,7 +104,7 @@ export function PhotoStage({
   }
 
   function onPinKeyDown(event: KeyboardEvent<HTMLButtonElement>, table: DraftTable) {
-    if (!table.pin) return;
+    if (readOnly || !table.pin) return;
     if (event.key === 'Delete' || event.key === 'Backspace') {
       event.preventDefault();
       onUnpin(table.id);
@@ -115,7 +119,7 @@ export function PhotoStage({
   return (
     <div
       ref={stageRef}
-      className={`room-stage${placing ? ' is-placing' : ''}`}
+      className={`room-stage${placing && !readOnly ? ' is-placing' : ''}`}
       role="group"
       aria-label={label}
       data-testid="room-stage"
