@@ -12,7 +12,7 @@
  * guesses may depend on knowns, not the other way round.
  */
 
-import type { DerivedTableState, FloorPlanData } from '@yalla/floorplan/types';
+import type { DerivedTableState, FloorPlanData } from './tableFloor';
 
 // ---------------------------------------------------------------------------
 // Table actions

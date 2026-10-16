@@ -1,4 +1,4 @@
-import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { FloorPlanData } from './tableFloor';
 import { ApiError } from '../errors';
 import type { ProblemDetails } from '../problem';
 import type { TableAvailability, TableUnavailableReason } from './booking';

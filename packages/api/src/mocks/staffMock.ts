@@ -1,5 +1,5 @@
-import type { DerivedTableState, FloorPlanData } from '@yalla/floorplan/types';
-import { cafeFloorPlan } from '@yalla/floorplan/mocks';
+import type { DerivedTableState, FloorPlanData } from '../contracts/tableFloor';
+import { cafeFloorPlan } from './roomFloors';
 import type { Menu } from '../contracts/menu';
 import { ConcurrencyConflictError, InvalidTransitionError, NotFoundError } from '../errors';
 import { PaymentExceedsRemainingError } from '../contracts/errors';
@@ -213,11 +213,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
    *
    * Hard-coding the fixture's own branch id would tie this mock to whichever id
    * another mock happens to hand the signed-in waiter, and the two would drift
-   * the first time either changed. The geometry is the cafe fixture either way;
+   * the first time either changed. The tables are the cafe fixture's either way;
    * only the id follows the caller.
    */
   let branchId = options.branchId ?? cafeFloorPlan.branchId;
-  // The fixture has no branch name — it is a geometry fixture — and the floor
+  // The fixture has no branch name — it is a tables fixture — and the floor
   // screen titles itself from one. Without it the header says "Loading…" for
   // the whole session, which is exactly the kind of small permanent lie this
   // screen must not tell.

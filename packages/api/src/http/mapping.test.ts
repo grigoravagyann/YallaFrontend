@@ -125,19 +125,60 @@ describe('floor', () => {
     expect(plan.tables.map((t) => t.id)).toEqual(['a', 'b']);
   });
 
-  it('lays tables out on a grid inside the canvas, now that the server sends no geometry', () => {
+  it('carries each table room and pin from availability, and no geometry', () => {
     const plan = floorFromAvailability(
-      availability(
-        Array.from({ length: 8 }, (_, i) => table({ tableId: `t${i}`, label: String(i + 1) })),
-      ),
+      availability([
+        table({ floorAreaId: 'room-1', floorAreaName: 'Terrace', photoX: 0.25, photoY: 0.75 }),
+      ]),
     );
-    const [first, second, seventh] = [plan.tables[0]!, plan.tables[1]!, plan.tables[6]!];
-    expect(second.x).toBeGreaterThanOrEqual(first.x + first.width);
-    expect(seventh.y).toBeGreaterThanOrEqual(first.y + first.height);
-    for (const t of plan.tables) {
-      expect(t.x + t.width).toBeLessThanOrEqual(plan.canvasWidth);
-      expect(t.y + t.height).toBeLessThanOrEqual(plan.canvasHeight);
-    }
+    expect(plan.tables[0]).toMatchObject({
+      floorAreaId: 'room-1',
+      floorAreaName: 'Terrace',
+      floorAreaDisplayOrder: 1,
+      pin: { photoId: 'p1', x: 0.25, y: 0.75 },
+    });
+    expect(plan.tables[0]).not.toHaveProperty('x');
+    expect(plan).not.toHaveProperty('canvasWidth');
+  });
+
+  it('carries the pin on the slot floor too', () => {
+    const { plan } = slotFloorFromResponse(availability([table({ photoX: 0.5, photoY: 0.4 })]));
+    expect(plan.tables[0]?.pin).toEqual({ photoId: 'p1', x: 0.5, y: 0.4 });
+  });
+
+  it("reads a staff floor table's room and pin, or no pin when it is on no photo", () => {
+    const row = {
+      seats: 2,
+      floorAreaDisplayOrder: 2,
+      isBookable: true,
+      physicalStatus: 1,
+      state: 1,
+      rowVersion: 'AAAAAAAAB9E=',
+    } as const;
+    const plan = floorFromState({
+      asOfUtc: '2026-09-05T15:00:00Z',
+      branchId: 'b1',
+      branchName: 'Yerevan Centre',
+      maxSequence: 1,
+      timeZoneId: 'Asia/Yerevan',
+      tables: [
+        { ...row, tableId: 'a', label: '1', floorAreaId: 'r1', floorAreaName: 'Hall' },
+        {
+          ...row,
+          tableId: 'b',
+          label: '2',
+          floorAreaId: 'r1',
+          floorAreaName: 'Hall',
+          photoId: 'p9',
+          photoX: 0.1,
+          photoY: 0.9,
+        },
+      ],
+    });
+    expect(plan.tables.map((t) => [t.id, t.floorAreaId, t.pin])).toEqual([
+      ['a', 'r1', null],
+      ['b', 'r1', { photoId: 'p9', x: 0.1, y: 0.9 }],
+    ]);
   });
 
   it('carries who was seated when from the staff floor view', () => {

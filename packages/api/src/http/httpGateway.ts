@@ -1,4 +1,4 @@
-import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { FloorPlanData } from '../contracts/tableFloor';
 import { createDinerAuth, type DinerAuth } from '../auth/endpoints';
 import type { AuthSession } from '../auth/session';
 import type { ApiClient, RequestOptions } from '../client';

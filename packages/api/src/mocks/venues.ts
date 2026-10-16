@@ -4,14 +4,11 @@
  * Typed against the shapes the real API will return, so swapping mock for real
  * is a change of data source only — not a change to any component.
  *
- * The floor plan types come from `@yalla/floorplan/types` — the JSX-free data
- * contract, deliberately not the package barrel, which would pull a React
- * renderer into this package's compile. The import is also type-only and so is
- * fully erased at build time (`verbatimModuleSyntax`): no runtime dependency,
- * just a guarantee the mock cannot drift from what the renderer accepts.
+ * A branch's tables are pins on its rooms' photos, as the server models them
+ * — see `roomFloors.ts`.
  */
-import { restaurantFloorPlan } from '@yalla/floorplan/mocks';
-import type { DerivedTableState, FloorPlanData, FloorTable } from '@yalla/floorplan/types';
+import type { DerivedTableState, FloorPlanData } from '../contracts/tableFloor';
+import { restaurantRoomFloor, roomFloor, type MockRoom, type MockTableSeed } from './roomFloors';
 
 export type VenueType = 'cafe' | 'restaurant';
 
@@ -29,6 +26,8 @@ export interface Branch {
   readonly totalTables: number;
   readonly freeTables: number;
   readonly floor: FloorPlanData;
+  /** Its rooms with their photos; `floor`'s tables are pinned on them. */
+  readonly rooms: readonly MockRoom[];
 }
 
 export interface Venue {
@@ -47,18 +46,18 @@ const CLOSES_23 = '2026-09-04T19:00:00Z'; // 23:00 local
 const CLOSES_22 = '2026-09-04T18:00:00Z'; // 22:00 local
 
 /**
- * Build a plausible room: tables on a loose grid, with the first `freeCount`
- * free and the rest spread across the other derived states.
+ * Build a plausible branch: its tables dealt across the named rooms, each room
+ * with two photos the tables are pinned on, the first `freeCount` tables free
+ * and the rest spread across the other derived states.
  */
 function buildFloor(
   branchId: string,
   tableCount: number,
   freeCount: number,
   areas: readonly string[],
-): FloorPlanData {
+): { floor: FloorPlanData; rooms: readonly MockRoom[] } {
   const columns = Math.ceil(Math.sqrt(tableCount));
-  const tables: FloorTable[] = Array.from({ length: tableCount }, (_, i) => {
-    const col = i % columns;
+  const tables: MockTableSeed[] = Array.from({ length: tableCount }, (_, i) => {
     const row = Math.floor(i / columns);
     const isFree = i < freeCount;
     const busyStates: readonly DerivedTableState[] = [
@@ -76,19 +75,12 @@ function buildFloor(
     // A large table must exist or the pending-approval path (party above the
     // branch's instant-confirmation limit) is unreachable in the mock.
     const seats = i % 7 === 0 && i > 0 ? 8 : i % 5 === 0 ? 4 : i % 11 === 0 ? 6 : 2;
-    const round = i % 3 === 0;
 
     return {
       id: `${branchId}-t${i + 1}`,
       label: String(i + 1),
       seats,
-      x: 70 + col * 130,
-      y: 70 + row * 120,
-      width: seats >= 6 ? 150 : seats === 4 ? 110 : 80,
-      height: seats >= 6 ? 90 : 80,
-      rotationDegrees: 0,
-      shape: round ? 'round' : 'rectangle',
-      floorAreaName: areas[row % areas.length] ?? null,
+      room: areas[row % areas.length] ?? 'Hall',
       isBookable: state !== 'outOfService',
       state,
       nextReservationStartUtc: state === 'reservedSoon' ? '2026-09-04T16:00:00Z' : null,
@@ -96,24 +88,12 @@ function buildFloor(
     };
   });
 
-  const rows = Math.ceil(tableCount / columns);
-  return {
+  const built = roomFloor({
     branchId,
-    canvasWidth: 70 * 2 + columns * 130,
-    canvasHeight: 70 * 2 + rows * 120,
-    timeZoneId: YEREVAN,
+    rooms: areas.map((name) => ({ name, photos: 2 })),
     tables,
-    features: [
-      {
-        id: `${branchId}-entrance`,
-        kind: 'entrance',
-        x: 70,
-        y: 70 * 2 + rows * 120 - 30,
-        width: 100,
-        height: 26,
-      },
-    ],
-  };
+  });
+  return { floor: built.plan, rooms: built.rooms };
 }
 
 function branch(
@@ -136,34 +116,12 @@ function branch(
     closesAtUtc,
     totalTables,
     freeTables,
-    floor: buildFloor(id, totalTables, freeTables, areas),
+    ...buildFloor(id, totalTables, freeTables, areas),
   };
 }
 
-/**
- * A branch whose room is the shared 30-table restaurant fixture.
- *
- * Borrowed rather than generated, because that fixture is *tuned*: ten two-tops
- * at an 88-unit pitch down a wall, eight bar stools, and a rotated back row —
- * a room that genuinely does not survive a 380pt phone, which is the case the
- * public page's area-mode fallback exists for. The grid `buildFloor` produces
- * is too generous to reach that state, so a mock built on it would let the
- * fallback rot untested until a real venue hit it.
- *
- * Table ids are re-prefixed: the mock world indexes every table by id across
- * every branch, and the fixture's own `rw1` would collide with a second branch
- * built the same way.
- */
-function borrowedFloor(branchId: string, source: FloorPlanData): FloorPlanData {
-  return {
-    ...source,
-    branchId,
-    tables: source.tables.map((table) => ({ ...table, id: `${branchId}-${table.id}` })),
-    ...(source.features
-      ? { features: source.features.map((f) => ({ ...f, id: `${branchId}-${f.id}` })) }
-      : {}),
-  };
-}
+/** Thirty tables across three rooms, several photos each. */
+const ARARAT = restaurantRoomFloor('b-ararat-opera');
 
 export const mockVenues: readonly Venue[] = [
   // A chain: three branches with genuinely different availability. This venue is
@@ -209,7 +167,7 @@ export const mockVenues: readonly Venue[] = [
     ],
   },
 
-  // Thirty tables across three areas — the room the phone cannot draw whole.
+  // Thirty tables across three rooms, several photos a room.
   // The floor's own free count is what the public page shows, so it is derived
   // from the fixture rather than asserted here.
   {
@@ -225,9 +183,10 @@ export const mockVenues: readonly Venue[] = [
         timeZoneId: YEREVAN,
         opensAtUtc: OPENS,
         closesAtUtc: CLOSES_01,
-        totalTables: restaurantFloorPlan.tables.length,
-        freeTables: restaurantFloorPlan.tables.filter((t) => t.state === 'free').length,
-        floor: borrowedFloor('b-ararat-opera', restaurantFloorPlan),
+        totalTables: ARARAT.plan.tables.length,
+        freeTables: ARARAT.plan.tables.filter((t) => t.state === 'free').length,
+        floor: ARARAT.plan,
+        rooms: ARARAT.rooms,
       },
     ],
   },

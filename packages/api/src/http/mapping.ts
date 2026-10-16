@@ -1,4 +1,10 @@
-import type { DerivedTableState, FloorPlanData, FloorTable } from '@yalla/floorplan/types';
+import {
+  byRoomThenLabel,
+  type DerivedTableState,
+  type FloorPlanData,
+  type FloorTable,
+  type TablePin,
+} from '../contracts/tableFloor';
 import type {
   AvailabilityWindowDto,
   SlotFloor,
@@ -111,68 +117,57 @@ interface TableRow {
   readonly tableId: string;
   readonly label: string;
   readonly seats: number;
+  readonly floorAreaId?: string | null;
   readonly floorAreaName?: string | null;
   readonly floorAreaDisplayOrder: number;
   readonly isBookable: boolean;
   readonly state: number;
   readonly nextReservationStartUtc?: string | null;
+  readonly photoId?: string | null;
+  readonly photoX?: number | null;
+  readonly photoY?: number | null;
+}
+
+/** The table's pin, or `null` unless the photo and both fractions arrived. */
+function pinOf(table: TableRow): TablePin | null {
+  const { photoId, photoX, photoY } = table;
+  if (!photoId || typeof photoX !== 'number' || typeof photoY !== 'number') return null;
+  if (!Number.isFinite(photoX) || !Number.isFinite(photoY)) return null;
+  return { photoId, x: photoX, y: photoY };
 }
 
 /*
- * The drawn floor plan is gone: tables are pins on room photos now, and the
- * server sends no geometry. Until the staff floor and the diner booking
- * screens move to rooms, the tables are laid out on a plain grid in area
- * order, so the existing floor views keep working.
+ * Tables are pins on room photos: the server sends each table's room and pin,
+ * and no geometry. The staff floor lists them by room; the booking screens put
+ * the pins on the photos.
  */
-const GRID_COLUMNS = 6;
-const GRID_CELL = { width: 140, height: 120 } as const;
-const GRID_TABLE = { width: 100, height: 80 } as const;
-
-function gridCanvas(count: number): { canvasWidth: number; canvasHeight: number } {
-  const columns = Math.max(1, Math.min(GRID_COLUMNS, count));
-  const rows = Math.max(1, Math.ceil(count / GRID_COLUMNS));
-  return { canvasWidth: columns * GRID_CELL.width, canvasHeight: rows * GRID_CELL.height };
-}
-
-function toFloorTable(table: TableRow, index: number, occupiedSinceUtc: string | null): FloorTable {
+function toFloorTable(table: TableRow, occupiedSinceUtc: string | null): FloorTable {
   return {
     id: table.tableId,
     label: table.label,
     seats: table.seats,
-    x: (index % GRID_COLUMNS) * GRID_CELL.width + (GRID_CELL.width - GRID_TABLE.width) / 2,
-    y:
-      Math.floor(index / GRID_COLUMNS) * GRID_CELL.height +
-      (GRID_CELL.height - GRID_TABLE.height) / 2,
-    width: GRID_TABLE.width,
-    height: GRID_TABLE.height,
-    rotationDegrees: 0,
-    shape: 'rectangle',
+    floorAreaId: table.floorAreaId ?? null,
     floorAreaName: table.floorAreaName ?? null,
+    floorAreaDisplayOrder: table.floorAreaDisplayOrder,
     isBookable: table.isBookable,
     state: derivedTableState(table.state),
     nextReservationStartUtc: table.nextReservationStartUtc ?? null,
     occupiedSinceUtc,
+    pin: pinOf(table),
   };
 }
 
-/** Area order first, then label, so the plan draws in by area. */
-function byArea<T extends TableRow>(tables: readonly T[]): T[] {
-  return [...tables].sort(
-    (a, b) =>
-      a.floorAreaDisplayOrder - b.floorAreaDisplayOrder ||
-      a.label.localeCompare(b.label, undefined, { numeric: true }),
-  );
-}
+/** Room order first, then label. */
+const byArea = byRoomThenLabel;
 
 /** The staff floor: `GET /api/branches/{id}/tables/floor`. */
 export function floorFromState(state: FloorState): FloorPlanData {
   return {
     branchId: state.branchId,
     branchName: state.branchName,
-    ...gridCanvas(state.tables.length),
     timeZoneId: state.timeZoneId,
-    tables: byArea(state.tables).map((table: FloorTableState, index) =>
-      toFloorTable(table, index, table.seatedAtUtc ?? null),
+    tables: byArea(state.tables).map((table: FloorTableState) =>
+      toFloorTable(table, table.seatedAtUtc ?? null),
     ),
   };
 }
@@ -181,17 +176,16 @@ export function floorFromState(state: FloorState): FloorPlanData {
  * The diner floor, derived from the availability answer.
  *
  * The floor endpoint is staff-only, and the availability endpoint already
- * carries every table's geometry and derived state for the slot asked about.
- * One anonymous round trip gives a diner both the room and the answer.
+ * carries every offered table's room, pin and derived state for the slot asked
+ * about. One anonymous round trip gives a diner both the rooms and the answer.
  */
 export function floorFromAvailability(availability: Availability): FloorPlanData {
   return {
     branchId: availability.branchId,
     branchName: availability.branchName,
-    ...gridCanvas(availability.tables.length),
     timeZoneId: availability.timeZoneId,
-    tables: byArea(availability.tables).map((table: AvailabilityTable, index) =>
-      toFloorTable(table, index, null),
+    tables: byArea(availability.tables).map((table: AvailabilityTable) =>
+      toFloorTable(table, null),
     ),
   };
 }
@@ -250,7 +244,7 @@ export function availabilityFromResponse(response: Availability): readonly Table
 /**
  * The room and its answer for one slot, from the one response that carries both.
  *
- * `floorFromAvailability` above builds the same geometry, but from a call made
+ * `floorFromAvailability` above builds the same tables, but from a call made
  * with no date or time — "now" — which is the shape the diner surfaces were
  * drawing the room from while asking about a slot three days out. This keeps
  * the two together so they cannot be sourced from different questions again.
@@ -269,10 +263,9 @@ export function slotFloorFromResponse(response: Availability): SlotFloor {
   const plan: FloorPlanData = {
     branchId: response.branchId,
     branchName: response.branchName,
-    ...gridCanvas(response.tables.length),
     timeZoneId: response.timeZoneId,
-    tables: byArea(response.tables).map((table: AvailabilityTable, index) => ({
-      ...toFloorTable(table, index, null),
+    tables: byArea(response.tables).map((table: AvailabilityTable) => ({
+      ...toFloorTable(table, null),
       // The server decided this, for this slot and this party size.
       isBookable: answers.get(table.tableId)?.isBookable ?? false,
     })),

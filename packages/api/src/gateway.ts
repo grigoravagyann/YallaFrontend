@@ -1,4 +1,4 @@
-import type { FloorPlanData } from '@yalla/floorplan/types';
+import type { FloorPlanData } from './contracts/tableFloor';
 import type {
   Booking,
   BookingRules,

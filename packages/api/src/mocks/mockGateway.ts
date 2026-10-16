@@ -1,4 +1,4 @@
-import type { DerivedTableState, FloorPlanData, FloorTable } from '@yalla/floorplan/types';
+import type { DerivedTableState, FloorPlanData, FloorTable } from '../contracts/tableFloor';
 import type {
   AvailabilityWindowDto,
   Booking,
@@ -116,6 +116,7 @@ import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail'
 import { coversSitting, openStateFrom } from '../contracts/openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
 import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
+import { publicRooms } from './roomFloors';
 import { mockVenues, type Branch as MockBranch, type Venue as MockVenue } from './venues';
 
 const URL_TAG = 'mock://yalla';
@@ -737,7 +738,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       slot.getTime() - policy.freeCancellationMinutes * 60_000,
     ).toISOString();
 
-    return floor.tables.map((table) => {
+    // Only tables pinned on a photo of their own room are offered, as the
+    // server does: a diner books by tapping a pin.
+    return offeredTables(floor).map((table) => {
       const state = stateAt(table, slot, policy);
       // A branch-level refusal applies to every table and outranks whatever the
       // table itself would have said.
@@ -756,6 +759,16 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     });
   }
 
+  /** The tables a diner may be offered: pinned on a photo of their own room. */
+  function offeredTables(floor: FloorPlanData): readonly FloorTable[] {
+    const rooms = findBranch(floor.branchId)?.branch.rooms ?? [];
+    return floor.tables.filter((table) => {
+      if (!table.pin) return false;
+      const room = rooms.find((candidate) => candidate.roomId === table.floorAreaId);
+      return room?.photos.some((photo) => photo.photoId === table.pin?.photoId) ?? false;
+    });
+  }
+
   /** The room as it will be at the slot, drawn from the same projection. */
   function slotFloorFor(branchId: string, slotUtc: string, partySize: number): SlotFloor | null {
     const floor = floors.get(branchId);
@@ -769,7 +782,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     return {
       plan: {
         ...floor,
-        tables: floor.tables.map((table) => ({
+        tables: offeredTables(floor).map((table) => ({
           ...table,
           state: stateAt(table, slot, policy),
           // The server's decision for this slot and party, not the table's
@@ -1116,8 +1129,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         acceptsAppBookings: acceptsAppBookings(branchId),
         // Newest first written, hidden reviews left out (K8).
         recentReviews: reviewStore.visible(branchId).slice(0, 3).map(toPublicReview),
-        // The mock rooms have no photos, and a room with no photo is not listed.
-        rooms: [],
+        // The same rooms `getBranchRooms` serves, with live pins.
+        rooms: found ? publicRooms(found.branch.rooms, floors.get(branchId)?.tables ?? []) : [],
         asOfUtc: now().toISOString(),
       };
     },
@@ -1147,8 +1160,13 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async getBranchRooms(branchId): Promise<BranchRooms | null> {
       await wait();
-      if (!findBranch(branchId)) return null;
-      return { branchId, asOfUtc: now().toISOString(), rooms: [] };
+      const found = findBranch(branchId);
+      if (!found) return null;
+      return {
+        branchId,
+        asOfUtc: now().toISOString(),
+        rooms: publicRooms(found.branch.rooms, floors.get(branchId)?.tables ?? []),
+      };
     },
 
     async getMyBranchReview(branchId) {
