@@ -27,8 +27,9 @@ export interface TableInfoBarProps {
 
 /**
  * The dark strip that slides over the photo when a table is tapped: thumb,
- * "Table 5", "● Free", "2–4 people", and Book — only when the table is free.
- * Reserved and occupied say so and offer nothing to press.
+ * "Table 5", "● Free", "2–4 people", and Book — only when the table is free
+ * and the venue takes bookings for it. Any other says so and offers nothing
+ * to press.
  */
 export function TableInfoBar({ table, photo, onBook, style }: TableInfoBarProps) {
   const { t } = useTranslation('diner');
@@ -63,7 +64,7 @@ export function TableInfoBar({ table, photo, onBook, style }: TableInfoBarProps)
   const shown = table ?? rendered;
   if (!shown) return null;
 
-  const free = shown.status === 'free';
+  const free = shown.status === 'free' && shown.isBookable;
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [SLIDE, 0] });
 
   return (

@@ -26,14 +26,17 @@ import { SectionHeader } from '../../src/components/SectionHeader';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
 import { PlaceSummaryCard } from '../../src/components/place/PlaceSummaryCard';
+import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
+import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
 import { useDinerProfile } from '../../src/data/accountQueries';
 import { bookingRefusal } from '../../src/data/bookingRefusals';
 import { useBookingRules, useCreateBooking, useSlotFloor } from '../../src/data/queries';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
-import { placeKeys, usePlace, usePlaceTables } from '../../src/places/hooks';
-import type { Place, TablePhotoMarker } from '../../src/places/model';
+import { placeKeys, usePlace, usePlaceRooms } from '../../src/places/hooks';
+import type { Place, PlaceRoom } from '../../src/places/model';
+import { roomsAtSlot } from '../../src/places/rooms';
 import { bookingRulesInput } from '../../src/places/navigation';
 import {
   LEAD_MINUTES,
@@ -78,19 +81,19 @@ function positiveInt(value: string | undefined): number | null {
 }
 
 /**
- * Date, time, party size, the table if one was tapped on the photo, and one
- * press to confirm.
+ * Date, time, party size, the table — tapped on a room photo here or on the
+ * place's page, or left to the server — and one press to confirm.
  *
  * A verified number is asked for here and nowhere earlier: a diner without one
- * is handed to `/auth/login` with the same forward params the floor plan uses, and
- * comes out on the existing confirm screen. A verified diner books from here.
+ * is handed to `/auth/login` with the same forward params the branch screen
+ * uses, and comes out on the existing confirm screen. A verified diner books from here.
  */
 export default function BookingScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
   const params = useLocalSearchParams<BookingParams>();
   const placeQuery = usePlace(params.placeId);
-  const tablesQuery = usePlaceTables(params.placeId);
+  const roomsQuery = usePlaceRooms(params.placeId);
 
   const back = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -147,7 +150,7 @@ export default function BookingScreen() {
   return (
     <BookingForm
       place={place}
-      tables={tablesQuery.data?.tables ?? place.tables}
+      rooms={roomsQuery.data ?? place.rooms}
       params={params}
       onBack={back}
     />
@@ -156,12 +159,13 @@ export default function BookingScreen() {
 
 interface BookingFormProps {
   readonly place: Place;
-  readonly tables: readonly TablePhotoMarker[];
+  /** The rooms, photos and live pins: what the room photos at the slot are drawn on. */
+  readonly rooms: readonly PlaceRoom[];
   readonly params: BookingParams;
   readonly onBack: () => void;
 }
 
-function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
+function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
@@ -169,20 +173,37 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
   const insets = useSafeAreaInsets();
   const capacityLabel = useCapacityLabel();
 
-  // The table from the photo, if the diner came from one.
+  // Every pin's live state, for the moment before the slot has answered.
+  const tables = useMemo(
+    () => rooms.flatMap((room) => room.photos.flatMap((photo) => photo.tables)),
+    [rooms],
+  );
+
+  // The table from a photo: the one the diner came with, or one tapped here.
+  const [pickedTableId, setPickedTableId] = useState<string | null>(params.tableId ?? null);
   const chosenTable = useMemo(() => {
-    if (!params.tableId) return null;
-    const live = tables.find((table) => table.tableId === params.tableId);
-    const min = positiveInt(params.capacityMin) ?? live?.capacityMin ?? 1;
-    const max = positiveInt(params.capacityMax) ?? live?.capacityMax ?? PARTY_MAX;
+    if (!pickedTableId) return null;
+    const live = tables.find((table) => table.tableId === pickedTableId);
+    // The route's figures are for the table the diner arrived with only.
+    const fromRoute = pickedTableId === params.tableId;
+    const min = (fromRoute ? positiveInt(params.capacityMin) : null) ?? live?.capacityMin ?? 1;
+    const max =
+      (fromRoute ? positiveInt(params.capacityMax) : null) ?? live?.capacityMax ?? PARTY_MAX;
     return {
-      tableId: params.tableId,
-      label: params.tableLabel ?? live?.label ?? '',
+      tableId: pickedTableId,
+      label: (fromRoute ? params.tableLabel : undefined) ?? live?.label ?? '',
       capacityMin: min,
       capacityMax: Math.max(min, max),
       live: live ?? null,
     };
-  }, [params.tableId, params.tableLabel, params.capacityMin, params.capacityMax, tables]);
+  }, [
+    pickedTableId,
+    params.tableId,
+    params.tableLabel,
+    params.capacityMin,
+    params.capacityMax,
+    tables,
+  ]);
   const capacityMin = chosenTable?.capacityMin ?? null;
   const capacityMax = chosenTable?.capacityMax ?? null;
   const fits = (size: number): boolean =>
@@ -229,9 +250,9 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
   const slotUtc = activeSlot?.at.toISOString() ?? '';
 
   /*
-   * The room **as it will be at the slot**, from the same read the floor plan
-   * and the confirm screen use. The photo's markers say who is sitting where
-   * right now; a table free tonight is not necessarily free tomorrow at eight,
+   * The rooms **as they will be at the slot**, from the same read the branch
+   * screen and the confirm screen use. The place page's pins say who is
+   * sitting where right now; a table free tonight is not necessarily free tomorrow at eight,
    * and one occupied now may well be. So the tapped table is checked against
    * the slot, and with no table tapped the first one the server would take is
    * booked — never the first one that happens to be empty this minute.
@@ -243,6 +264,18 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
     timeZoneId: place.timeZoneId,
   });
   const slotTables = slotQuery.data?.tables;
+  /*
+   * The rooms as they will be at the slot: every pin coloured by its state
+   * then, and bookable only where the server would give it to this party.
+   */
+  const slotPlan = slotQuery.data?.plan.tables;
+  const slotRooms = useMemo(() => {
+    if (!slotPlan) return [];
+    const verdicts = new Map((slotTables ?? []).map((table) => [table.tableId, table.isBookable]));
+    return roomsAtSlot(rooms, slotPlan, (tableId) => verdicts.get(tableId) ?? false).filter(
+      (room) => room.photos.some((photo) => photo.tables.length > 0),
+    );
+  }, [rooms, slotPlan, slotTables]);
   const chosenAtSlot = useMemo(
     () => slotTables?.find((table) => table.tableId === chosenTable?.tableId) ?? null,
     [slotTables, chosenTable?.tableId],
@@ -356,7 +389,7 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
         // The note goes to the venue with the booking (K9).
         note: note || null,
       });
-      void queryClient.invalidateQueries({ queryKey: placeKeys.tables(place.id) });
+      void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
       router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
     } catch (error) {
       // Not taking app bookings, or a note over the limit: said in their own words.
@@ -370,7 +403,7 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
       if (failure.kind === 'tableTaken') {
         // The photo underneath and the slot answer are told to redraw; the
         // diner picks again.
-        void queryClient.invalidateQueries({ queryKey: placeKeys.tables(place.id) });
+        void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
         void slotQuery.refetch();
       }
       // Nothing was booked; the command id stays for the retry.
@@ -511,6 +544,28 @@ function BookingForm({ place, tables, params, onBack }: BookingFormProps) {
                 />
               ))}
             </View>
+          ) : null}
+
+          {slotRooms.length > 0 ? (
+            <>
+              <SectionHeader
+                label={t('book.pickTable')}
+                icon={actionIcon.table}
+                hint={t('book.optional')}
+                style={styles.section}
+              />
+              <Text style={styles.pickHint}>{t('book.pickTableHint')}</Text>
+              <RoomPhotosView
+                rooms={slotRooms}
+                selectedTableId={pickedTableId}
+                onSelect={(tableId) => {
+                  // The same pin again, or the photo away from any: leave it to us.
+                  setPickedTableId(tableId === pickedTableId ? null : tableId);
+                  setErrorText(null);
+                }}
+              />
+              <TableLegend style={styles.legend} />
+            </>
           ) : null}
 
           {chosenTable ? (
@@ -825,6 +880,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     flexShrink: 1,
   },
+  pickHint: { ...typography.caption, color: colors.textMuted, marginBottom: space.md },
+  legend: { marginTop: space.md },
   warning: {
     ...typography.body,
     color: colors.warningInk,

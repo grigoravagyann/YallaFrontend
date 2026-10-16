@@ -1,4 +1,4 @@
-import type { MenuSection, OpeningHours, Place, TablePhotoMarker, Weekday } from './model';
+import type { MenuSection, OpeningHours, Place, Weekday } from './model';
 
 /**
  * Six places in central Yerevan, photographed and tabled.
@@ -11,21 +11,23 @@ import type { MenuSection, OpeningHours, Place, TablePhotoMarker, Weekday } from
  * Cascade room and Tumanyan Street), so a booking made there comes back from
  * the gateway under the borrowed venue's name. That is a mock-only seam.
  *
- * Markers: each marker is one table on that branch's floor, with the floor's
- * own state and seats — `free` / `reservedSoon` + `held` → reserved /
- * `occupied` + `outOfService` → occupied, `capacityMax` = seats — so a table
- * drawn free on the photo is a table the gateway will actually book right now.
- * `mockPlaces.test.ts` checks every marker against the gateway's floor.
+ * Rooms: not seeded here. The repository reads them from the same gateway —
+ * rooms, photos and live pins from `@yalla/api`'s `roomFloors` — so a pin drawn
+ * free is a table the gateway will actually book, at the same photo the slot
+ * floor puts it on. `mockPlaces.test.ts` checks every place has some.
  *
  * `openState` is not stored: it depends on the clock, so the repository
  * computes it at read time from `hours`.
  */
 
 /**
- * Everything but `openState`, which is derived when read, plus the menu, which
- * the repository hands out on its own read.
+ * Everything but `openState`, which is derived when read, and the rooms, which
+ * come from the gateway; plus the menu, which the repository hands out on its
+ * own read.
  */
-export type PlaceSeed = Omit<Place, 'openState'> & { readonly menu: readonly MenuSection[] };
+export type PlaceSeed = Omit<Place, 'openState' | 'rooms'> & {
+  readonly menu: readonly MenuSection[];
+};
 
 const YEREVAN = 'Asia/Yerevan';
 const ALL_WEEK: readonly Weekday[] = [0, 1, 2, 3, 4, 5, 6];
@@ -37,25 +39,6 @@ function photo(id: string): string {
 
 function everyDay(open: string, close: string): readonly OpeningHours[] {
   return ALL_WEEK.map((day) => ({ day, open, close }));
-}
-
-function marker(
-  placeId: string,
-  table: string,
-  label: string,
-  status: TablePhotoMarker['status'],
-  capacity: readonly [number, number],
-  at: readonly [number, number],
-): TablePhotoMarker {
-  return {
-    tableId: `${placeId}-${table}`,
-    label,
-    status,
-    capacityMin: capacity[0],
-    capacityMax: capacity[1],
-    x: at[0],
-    y: at[1],
-  };
 }
 
 export const mockPlaces: readonly PlaceSeed[] = [
@@ -148,16 +131,6 @@ export const mockPlaces: readonly PlaceSeed[] = [
         date: '2026-08-19',
       },
     ],
-    tables: [
-      marker('b-lumen-cascade', 't1', '1', 'free', [2, 4], [0.16, 0.62]),
-      marker('b-lumen-cascade', 't2', '2', 'free', [1, 2], [0.3, 0.55]),
-      marker('b-lumen-cascade', 't3', '3', 'free', [1, 2], [0.46, 0.6]),
-      marker('b-lumen-cascade', 't4', '4', 'free', [1, 2], [0.62, 0.52]),
-      marker('b-lumen-cascade', 't5', '5', 'free', [1, 2], [0.78, 0.63]),
-      marker('b-lumen-cascade', 't6', '6', 'occupied', [2, 4], [0.24, 0.8]),
-      marker('b-lumen-cascade', 't7', '7', 'reserved', [1, 2], [0.5, 0.82]),
-      marker('b-lumen-cascade', 't8', '8', 'occupied', [6, 8], [0.74, 0.84]),
-    ],
   },
 
   {
@@ -239,16 +212,6 @@ export const mockPlaces: readonly PlaceSeed[] = [
         text: 'Cardamom bun and a cappuccino. That is the order.',
         date: '2026-08-22',
       },
-    ],
-    tables: [
-      marker('b-lumen-north', 't1', '1', 'free', [2, 4], [0.14, 0.58]),
-      marker('b-lumen-north', 't2', '2', 'free', [1, 2], [0.27, 0.6]),
-      marker('b-lumen-north', 't6', '6', 'free', [2, 4], [0.45, 0.54]),
-      marker('b-lumen-north', 't8', '8', 'free', [6, 8], [0.64, 0.56]),
-      marker('b-lumen-north', 't9', '9', 'occupied', [1, 2], [0.82, 0.6]),
-      marker('b-lumen-north', 't10', '10', 'reserved', [1, 2], [0.36, 0.8]),
-      marker('b-lumen-north', 't11', '11', 'occupied', [2, 4], [0.6, 0.82]),
-      marker('b-lumen-north', 't12', '12', 'reserved', [4, 6], [0.8, 0.84]),
     ],
   },
 
@@ -333,17 +296,6 @@ export const mockPlaces: readonly PlaceSeed[] = [
         text: 'Faithful, generous cooking. Prices are at the top end for Yerevan, but fair for what you get.',
         date: '2026-08-15',
       },
-    ],
-    tables: [
-      marker('b-dolmama-pushkin', 't1', '1', 'free', [2, 4], [0.15, 0.6]),
-      marker('b-dolmama-pushkin', 't2', '2', 'free', [1, 2], [0.32, 0.56]),
-      marker('b-dolmama-pushkin', 't3', '3', 'free', [1, 2], [0.5, 0.52]),
-      marker('b-dolmama-pushkin', 't4', '4', 'occupied', [1, 2], [0.68, 0.57]),
-      marker('b-dolmama-pushkin', 't5', '5', 'reserved', [1, 2], [0.85, 0.62]),
-      marker('b-dolmama-pushkin', 't6', '6', 'occupied', [2, 4], [0.22, 0.8]),
-      marker('b-dolmama-pushkin', 't7', '7', 'reserved', [1, 2], [0.47, 0.84]),
-      marker('b-dolmama-pushkin', 't8', '8', 'occupied', [6, 8], [0.7, 0.82]),
-      marker('b-dolmama-pushkin', 't11', '11', 'reserved', [2, 4], [0.88, 0.86]),
     ],
   },
 
@@ -434,16 +386,6 @@ export const mockPlaces: readonly PlaceSeed[] = [
         date: '2026-08-10',
       },
     ],
-    tables: [
-      marker('b-tumanyan-main', 't1', '1', 'occupied', [2, 4], [0.14, 0.58]),
-      marker('b-tumanyan-main', 't2', '2', 'reserved', [1, 2], [0.33, 0.54]),
-      marker('b-tumanyan-main', 't3', '3', 'occupied', [1, 2], [0.52, 0.5]),
-      marker('b-tumanyan-main', 't4', '4', 'reserved', [1, 2], [0.7, 0.55]),
-      marker('b-tumanyan-main', 't5', '5', 'occupied', [1, 2], [0.86, 0.6]),
-      marker('b-tumanyan-main', 't8', '8', 'reserved', [6, 8], [0.25, 0.8]),
-      marker('b-tumanyan-main', 't11', '11', 'occupied', [2, 4], [0.5, 0.84]),
-      marker('b-tumanyan-main', 't12', '12', 'occupied', [4, 6], [0.76, 0.82]),
-    ],
   },
 
   {
@@ -527,16 +469,6 @@ export const mockPlaces: readonly PlaceSeed[] = [
         date: '2026-08-26',
       },
     ],
-    tables: [
-      marker('b-ararat-opera', 'rw1', '1', 'free', [1, 2], [0.12, 0.6]),
-      marker('b-ararat-opera', 'rw2', '2', 'free', [1, 2], [0.28, 0.58]),
-      marker('b-ararat-opera', 'rw3', '3', 'occupied', [1, 2], [0.44, 0.55]),
-      marker('b-ararat-opera', 'rw4', '4', 'free', [1, 2], [0.6, 0.57]),
-      marker('b-ararat-opera', 'rw7', '7', 'reserved', [1, 2], [0.76, 0.6]),
-      marker('b-ararat-opera', 'rt3', '21', 'occupied', [2, 4], [0.36, 0.82]),
-      marker('b-ararat-opera', 'rt4', '22', 'free', [4, 6], [0.62, 0.84]),
-      marker('b-ararat-opera', 'rt5', '23', 'reserved', [2, 4], [0.86, 0.86]),
-    ],
   },
 
   {
@@ -616,14 +548,6 @@ export const mockPlaces: readonly PlaceSeed[] = [
         text: 'Genuinely good vegan options and the lentil bowl is filling.',
         date: '2026-08-12',
       },
-    ],
-    tables: [
-      marker('b-greenbean-main', 't1', '1', 'free', [2, 4], [0.15, 0.6]),
-      marker('b-greenbean-main', 't2', '2', 'free', [1, 2], [0.35, 0.56]),
-      marker('b-greenbean-main', 't3', '3', 'free', [1, 2], [0.55, 0.53]),
-      marker('b-greenbean-main', 't6', '6', 'free', [2, 4], [0.76, 0.58]),
-      marker('b-greenbean-main', 't16', '16', 'occupied', [2, 4], [0.3, 0.82]),
-      marker('b-greenbean-main', 't17', '17', 'reserved', [1, 2], [0.66, 0.84]),
     ],
   },
 ];

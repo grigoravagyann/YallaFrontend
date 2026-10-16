@@ -45,10 +45,12 @@ export interface TableMarkerProps {
 }
 
 /**
- * A numbered circle on the photo: green free, orange reserved, red occupied.
+ * A numbered circle on the photo: green free, orange reserved, red occupied,
+ * grey out of service. Named "Table 4, free" for a screen reader, so the
+ * colour is never the only way to know.
  *
- * Positioned by the marker's normalised `x`/`y` as percentages of the photo,
- * so it lands on the same table at any size and scales with the photo when
+ * Positioned by the pin's `x`/`y` as percentages of the box the photo is drawn
+ * in, so it lands on the same table at any size and scales with the photo when
  * the view is zoomed. Selecting it springs it up and sends a ring of its own
  * colour outwards, so the eye finds the tapped table even on a busy photo.
  */
@@ -81,7 +83,7 @@ export function TableMarker({ table, selected, onPress }: TableMarkerProps) {
     return () => pulse.stop();
   }, [scale, ring, selected]);
 
-  const label = `${t('tables.table', { label: table.label })}, ${t(`tables.status.${table.status}`)}, ${capacity(table)}`;
+  const label = t(`tables.pin.${table.status}`, { label: table.label });
   const color = tableStatusColor[table.status];
   const ringScale = ring.interpolate({ inputRange: [0, 1], outputRange: [1, RING_SCALE] });
   const ringOpacity = ring.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] });
@@ -105,6 +107,7 @@ export function TableMarker({ table, selected, onPress }: TableMarkerProps) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
+        accessibilityHint={capacity(table)}
         accessibilityState={{ selected }}
         hitSlop={8}
         onPress={() => onPress(table)}

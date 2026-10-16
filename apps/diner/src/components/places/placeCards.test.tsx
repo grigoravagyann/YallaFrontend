@@ -37,6 +37,7 @@ const PLACE: Place = {
   badges: [],
   photos: [],
   openState: { isOpen: true, todayLabel: '' },
+  rooms: [],
 };
 
 /** A phone-width column, so the check is about the layout a person sees. */

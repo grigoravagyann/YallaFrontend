@@ -1,9 +1,8 @@
 import { isOfflinePaused } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   FlatList,
   ScrollView,
@@ -30,13 +29,13 @@ import { PlaceActions } from '../../src/components/place/PlaceActions';
 import { ReviewComposer } from '../../src/components/place/ReviewComposer';
 import { PlaceTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
 import { PlaceMetaRow, usePlaceCopy } from '../../src/components/places/placeCopy';
+import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
-import { TablePhotoView } from '../../src/components/tables/TablePhotoView';
-import { placeKeys, usePlace, usePlaceTables } from '../../src/places/hooks';
+import { usePlace, usePlaceRooms } from '../../src/places/hooks';
 import {
   formatClock,
-  tablePhotoOf,
   type Place,
+  type PlaceRoom,
   type TablePhotoMarker,
 } from '../../src/places/model';
 import { floorPlanParams } from '../../src/places/navigation';
@@ -61,11 +60,11 @@ const SHEET_OVERLAP = 20;
 const HERO_FRACTION = 0.4;
 
 /**
- * One place: photos, the facts, the menu and — the core of the product — the
- * live table photo you book from.
+ * One place: photos, the facts, the menu and — the core of the product — its
+ * rooms as photos with every table pinned live, which you book from.
  *
- * `placeId` is the API branch id, so Book, the floor plan and the confirm
- * screen underneath all key on the same thing.
+ * `placeId` is the API branch id, so Book, the room photos at a chosen time
+ * and the confirm screen underneath all key on the same thing.
  */
 export default function PlaceDetailsScreen() {
   const { t } = useTranslation('diner');
@@ -75,21 +74,7 @@ export default function PlaceDetailsScreen() {
   const heroHeight = Math.round(windowHeight * HERO_FRACTION);
 
   const placeQuery = usePlace(placeId);
-  const tablesQuery = usePlaceTables(placeId);
-
-  // The markers are read every few seconds, the place every few minutes. When
-  // the markers name a different cover than the place holds, the cover has
-  // changed: read the place again — once per new cover — so the hero agrees.
-  const queryClient = useQueryClient();
-  const markersPhoto = tablesQuery.data?.photo;
-  const placeCover = placeQuery.data ? tablePhotoOf(placeQuery.data) : undefined;
-  const refreshedFor = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (!placeId || markersPhoto === undefined || placeCover === undefined) return;
-    if (markersPhoto === placeCover || refreshedFor.current === markersPhoto) return;
-    refreshedFor.current = markersPhoto;
-    void queryClient.invalidateQueries({ queryKey: placeKeys.detail(placeId) });
-  }, [placeId, markersPhoto, placeCover, queryClient]);
+  const roomsQuery = usePlaceRooms(placeId);
 
   const openBooking = useCallback(
     (table?: TablePhotoMarker) => {
@@ -117,8 +102,8 @@ export default function PlaceDetailsScreen() {
 
   const retry = useCallback(() => {
     void placeQuery.refetch();
-    void tablesQuery.refetch();
-  }, [placeQuery, tablesQuery]);
+    void roomsQuery.refetch();
+  }, [placeQuery, roomsQuery]);
 
   if (placeQuery.isLoading || (!placeQuery.data && placeQuery.isFetching)) {
     return (
@@ -158,9 +143,8 @@ export default function PlaceDetailsScreen() {
   return (
     <PlaceDetails
       place={place}
-      tables={tablesQuery.data?.tables ?? place.tables}
-      // The markers' own photo once they have answered: their positions refer to it.
-      tablePhoto={tablesQuery.data ? tablesQuery.data.photo : tablePhotoOf(place)}
+      // The live read once it has answered; the page's own until then.
+      rooms={roomsQuery.data ?? place.rooms}
       heroHeight={heroHeight}
       onBack={back}
       onBook={openBooking}
@@ -170,22 +154,13 @@ export default function PlaceDetailsScreen() {
 
 interface PlaceDetailsProps {
   readonly place: Place;
-  readonly tables: readonly TablePhotoMarker[];
-  /** The cover the markers sit on; `null` when there is none. */
-  readonly tablePhoto: string | null;
+  readonly rooms: readonly PlaceRoom[];
   readonly heroHeight: number;
   readonly onBack: () => void;
   readonly onBook: (table?: TablePhotoMarker) => void;
 }
 
-function PlaceDetails({
-  place,
-  tables,
-  tablePhoto,
-  heroHeight,
-  onBack,
-  onBook,
-}: PlaceDetailsProps) {
+function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetailsProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
@@ -228,9 +203,10 @@ function PlaceDetails({
     void Share.share({ message, title: place.name }).catch(() => undefined);
   }, [place.name, place.address, place.website]);
 
-  const openFloorPlan = useCallback(() => {
-    // Slugs, names and the zone travel with it: the floor plan reads the
-    // booking rules by slug and never has to look the venue up again.
+  const openRoomsAtTime = useCallback(() => {
+    // The same rooms at a time the diner picks. Slugs, names and the zone
+    // travel with it: that screen reads the booking rules by slug and never
+    // has to look the venue up again.
     router.push({ pathname: '/branch/[branchId]', params: floorPlanParams(place) });
   }, [router, place]);
 
@@ -351,40 +327,39 @@ function PlaceDetails({
             style={styles.actions}
           />
 
-          {/* The tables: the reason the photo is there. Directly under the
-              hero and the actions, at the same place whichever tab is open —
-              never pushed under a long menu. */}
+          {/* The rooms and their tables: the reason the photos are there.
+              Directly under the hero and the actions, at the same place
+              whichever tab is open — never pushed under a long menu. */}
           <SectionHeader
             label={t('tables.title')}
             icon={actionIcon.table}
             trailing={
               <Button
-                label={t('tables.floorPlan')}
+                label={t('tables.pickTime')}
                 variant="text"
                 fullWidth={false}
-                onPress={openFloorPlan}
-                style={styles.floorPlanLink}
+                onPress={openRoomsAtTime}
+                style={styles.pickTimeLink}
               />
             }
             style={styles.tablesHeader}
           />
-          {tablePhoto && tables.length > 0 ? (
+          {rooms.length > 0 ? (
             <>
               <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
-              <TablePhotoView
-                photo={tablePhoto}
-                tables={tables}
+              <RoomPhotosView
+                rooms={rooms}
                 selectedTableId={selectedTableId}
                 onSelect={setSelectedTableId}
-                onBook={onBook}
+                // Where the app cannot book, the bar says so rather than offer Book.
+                onBook={bookingsOff ? undefined : onBook}
                 style={styles.tablePhoto}
               />
               <TableLegend style={styles.legend} />
             </>
           ) : (
-            // No cover, or no table placed on it yet: say so, rather than draw
-            // a gallery picture or an empty frame the diner is told to tap
-            // tables on. The floor plan link above and Book below still work.
+            // No room photographed yet: say so, rather than draw an empty
+            // frame the diner is told to tap tables on. Book below still works.
             <Text style={[styles.subtitle, styles.noTablePhoto]}>{t('tables.notOnPhoto')}</Text>
           )}
 
@@ -536,7 +511,7 @@ const styles = StyleSheet.create({
   composer: { marginTop: space.lg },
 
   tablesHeader: { marginTop: space.xl },
-  floorPlanLink: { paddingHorizontal: space.sm, minHeight: layout.touchTarget - 8 },
+  pickTimeLink: { paddingHorizontal: space.sm, minHeight: layout.touchTarget - 8 },
   subtitle: { ...typography.caption, color: colors.textMuted, marginTop: space.xs },
   tablePhoto: { marginTop: space.md },
   legend: { marginTop: space.md, marginBottom: space.lg },

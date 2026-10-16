@@ -138,7 +138,24 @@ describe('createHttpPlaceRepository', () => {
     expect(await places.menu('b1')).toEqual([]);
   });
 
-  it("draws the first room photo's pins on that photo, until the screen learns rooms", async () => {
+  it('reads every room and every photo, each with the pins placed on it', async () => {
+    const photo = (photoId: string) => ({
+      photoId,
+      thumbnailUrl: `https://api/${photoId}/t`,
+      cardUrl: `https://api/${photoId}/c`,
+      fullUrl: `https://api/${photoId}/f`,
+      width: 1600,
+      height: 1200,
+    });
+    const pin = {
+      tableId: 't',
+      label: '5',
+      seats: 4,
+      isBookable: true,
+      status: 'free',
+      x: 0.2,
+      y: 0.4,
+    };
     const rooms = {
       branchId: 'b1',
       asOfUtc: '2026-09-14T10:00:00Z',
@@ -148,53 +165,56 @@ describe('createHttpPlaceRepository', () => {
           name: 'Hall',
           displayOrder: 0,
           photos: [
-            {
-              photo: { photoId: 'p1', thumbnailUrl: 't', cardUrl: 'c', fullUrl: 'https://api/p1' },
-              tables: [
-                {
-                  tableId: 't',
-                  label: '5',
-                  seats: 4,
-                  isBookable: true,
-                  status: 'free',
-                  x: 0.2,
-                  y: 0.4,
-                },
-              ],
-            },
+            { photo: photo('p1'), tables: [] },
+            { photo: photo('p2'), tables: [pin] },
           ],
+        },
+        {
+          roomId: 'r2',
+          name: 'Terrace',
+          displayOrder: 1,
+          photos: [{ photo: photo('p3'), tables: [] }],
         },
       ],
     } as unknown as BranchRooms;
     const gateway = fakeGateway({ getBranchRooms: vi.fn(() => Promise.resolve(rooms)) });
     const places = repository.createHttpPlaceRepository({ gateway, ...clock });
 
-    expect(await places.tables('b1')).toEqual({
-      photo: 'https://api/p1',
-      tables: [
-        {
-          tableId: 't',
-          label: '5',
-          status: 'free',
-          capacityMin: 1,
-          capacityMax: 4,
-          x: 0.2,
-          y: 0.4,
-        },
-      ],
-    });
+    const read = await places.rooms('b1');
+
     expect(gateway.getBranchRooms).toHaveBeenCalledWith('b1');
+    expect(read.map((room) => room.photos.map((entry) => entry.photoId))).toEqual([
+      ['p1', 'p2'],
+      ['p3'],
+    ]);
+    expect(read[0]!.photos[1]!.url).toBe('https://api/p2/f');
+    expect(read[0]!.photos[1]!.tables).toEqual([
+      {
+        tableId: 't',
+        label: '5',
+        status: 'free',
+        isBookable: true,
+        capacityMin: 1,
+        capacityMax: 4,
+        x: 0.2,
+        y: 0.4,
+      },
+    ]);
   });
 
-  it('draws no tables when the branch has no room photo to place them on', async () => {
-    const gateway = fakeGateway({
+  it('has no rooms for a branch with none, or one it does not know', async () => {
+    const none = fakeGateway({
       getBranchRooms: vi.fn(() =>
         Promise.resolve({ branchId: 'b1', asOfUtc: '2026-09-14T10:00:00Z', rooms: [] }),
       ),
     });
-    const places = repository.createHttpPlaceRepository({ gateway, ...clock });
-
-    expect(await places.tables('b1')).toEqual({ photo: null, tables: [] });
+    expect(
+      await repository.createHttpPlaceRepository({ gateway: none, ...clock }).rooms('b1'),
+    ).toEqual([]);
+    const unknown = fakeGateway();
+    expect(
+      await repository.createHttpPlaceRepository({ gateway: unknown, ...clock }).rooms('b1'),
+    ).toEqual([]);
   });
 
   it('pages reviews through the reviews route', async () => {

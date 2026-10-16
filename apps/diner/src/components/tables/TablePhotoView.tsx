@@ -8,13 +8,15 @@ import {
   StyleSheet,
   View,
   useWindowDimensions,
+  Image,
   type LayoutChangeEvent,
   type PanResponderGestureState,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { TablePhotoMarker } from '../../places/model';
+import type { RoomPhoto, TablePhotoMarker } from '../../places/model';
+import { photoBox } from '../../places/rooms';
 import { actionIcon, colors, radius, space, typography } from '../../theme';
 import { IconButton } from '../IconButton';
 import { PhotoImage } from '../PhotoImage';
@@ -27,20 +29,29 @@ export const ZOOM_MIN = 1;
 export const ZOOM_MAX = 3;
 export const ZOOM_STEP = 0.5;
 
-/** Photo proportions: the markers' `x`/`y` are normalised on a 4:3 frame. */
+/**
+ * The frame's proportions. Every photo is drawn whole inside it, and its pins
+ * on the box it is actually drawn in (`photoBox`), so a room photo of any shape
+ * keeps its pins on its tables.
+ */
 export const TABLE_PHOTO_ASPECT = 4 / 3;
 
 /** A finger that moves this far is dragging the photo, not tapping a table. */
 const DRAG_THRESHOLD = 6;
 
 export interface TablePhotoViewProps {
-  /** The first photo of the place — the one the markers are placed on. */
-  readonly photo: string;
-  readonly tables: readonly TablePhotoMarker[];
+  /** One photo of a room, with the tables pinned on it. */
+  readonly photo: RoomPhoto;
   readonly selectedTableId: string | null;
   /** `null` when the diner taps the photo away from any table. */
   readonly onSelect: (tableId: string | null) => void;
-  readonly onBook: (table: TablePhotoMarker) => void;
+  /**
+   * Book a free table from the info bar. Without it there is no info bar: the
+   * screen acts on the selection itself.
+   */
+  readonly onBook?: ((table: TablePhotoMarker) => void) | undefined;
+  /** Told whenever the zoom leaves or returns to 1×, so a pager can stop swiping. */
+  readonly onZoomedChange?: ((zoomed: boolean) => void) | undefined;
   /**
    * The larger view inside the fullscreen modal: no expand button, no corner
    * radius, and the Book press closes the modal first.
@@ -62,7 +73,37 @@ function clamp(value: number, limit: number): number {
 }
 
 /**
- * The interior photo with the live table markers on it.
+ * The photo's size: stored with it, or measured once for one stored before
+ * sizes were. `null` until known.
+ */
+function usePhotoSize(photo: RoomPhoto): { width: number; height: number } | null {
+  const stored = photo.width && photo.height ? { width: photo.width, height: photo.height } : null;
+  const [measured, setMeasured] = useState<{
+    url: string;
+    size: { width: number; height: number };
+  } | null>(null);
+  useEffect(() => {
+    if (stored) return;
+    let live = true;
+    Image.getSize(
+      photo.url,
+      (width, height) => {
+        if (live) setMeasured({ url: photo.url, size: { width, height } });
+      },
+      // A photo that cannot be measured cannot be drawn either: no pins on it.
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+    // `stored` is derived from these two.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo.url, photo.width, photo.height]);
+  return stored ?? (measured?.url === photo.url ? measured.size : null);
+}
+
+/**
+ * A room photo with the live table pins on it.
  *
  * Zoom is the +/- pair bottom-right (1× to 3× in half steps) and scales the
  * photo and its markers together, so a marker never drifts off its table. Once
@@ -73,14 +114,16 @@ function clamp(value: number, limit: number): number {
  */
 export function TablePhotoView({
   photo,
-  tables,
   selectedTableId,
   onSelect,
   onBook,
+  onZoomedChange,
   fullscreen = false,
   style,
 }: TablePhotoViewProps) {
   const { t } = useTranslation('diner');
+  const tables = photo.tables;
+  const box = photoBox(usePhotoSize(photo), TABLE_PHOTO_ASPECT);
   const [zoom, setZoom] = useState(ZOOM_MIN);
   const [scale] = useState(() => new Animated.Value(ZOOM_MIN));
   const [pan] = useState(() => new Animated.ValueXY({ x: 0, y: 0 }));
@@ -93,7 +136,8 @@ export function TablePhotoView({
   const zoomRef = useRef(ZOOM_MIN);
   useEffect(() => {
     zoomRef.current = zoom;
-  }, [zoom]);
+    onZoomedChange?.(zoom > ZOOM_MIN);
+  }, [zoom, onZoomedChange]);
 
   const settle = useCallback(
     (next: { x: number; y: number }, animated: boolean) => {
@@ -185,12 +229,12 @@ export function TablePhotoView({
   const handleBook = useCallback(
     (table: TablePhotoMarker) => {
       setExpanded(false);
-      onBook(table);
+      onBook?.(table);
     },
     [onBook],
   );
 
-  const controlsBottom = selected ? TABLE_INFO_BAR_CLEARANCE + space.md : space.md;
+  const controlsBottom = selected && onBook ? TABLE_INFO_BAR_CLEARANCE + space.md : space.md;
 
   return (
     <>
@@ -210,16 +254,37 @@ export function TablePhotoView({
             onPress={() => onSelect(null)}
             style={StyleSheet.absoluteFill}
           >
-            <PhotoImage source={photo} style={StyleSheet.absoluteFill} />
-          </Pressable>
-          {tables.map((table) => (
-            <TableMarker
-              key={table.tableId}
-              table={table}
-              selected={table.tableId === selectedTableId}
-              onPress={handleMarker}
+            <PhotoImage
+              source={photo.url}
+              resizeMode="contain"
+              style={[StyleSheet.absoluteFill, styles.photo]}
             />
-          ))}
+          </Pressable>
+          {box ? (
+            // The box the photo is drawn in: pins at fractions of the photo,
+            // never of the frame and its bars.
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.box,
+                {
+                  left: `${box.left}%`,
+                  top: `${box.top}%`,
+                  width: `${box.width}%`,
+                  height: `${box.height}%`,
+                },
+              ]}
+            >
+              {tables.map((table) => (
+                <TableMarker
+                  key={table.tableId}
+                  table={table}
+                  selected={table.tableId === selectedTableId}
+                  onPress={handleMarker}
+                />
+              ))}
+            </View>
+          ) : null}
         </Animated.View>
 
         {fullscreen ? null : (
@@ -252,7 +317,9 @@ export function TablePhotoView({
           />
         </View>
 
-        <TableInfoBar table={selected} photo={photo} onBook={handleBook} />
+        {onBook ? (
+          <TableInfoBar table={selected} photo={photo.thumbUrl} onBook={handleBook} />
+        ) : null}
       </View>
 
       {fullscreen ? null : (
@@ -260,17 +327,19 @@ export function TablePhotoView({
           visible={expanded}
           onClose={() => setExpanded(false)}
           photo={photo}
-          tables={tables}
           selectedTableId={selectedTableId}
           onSelect={onSelect}
-          onBook={handleBook}
+          onBook={onBook ? handleBook : undefined}
         />
       )}
     </>
   );
 }
 
-interface FullscreenTablesProps extends Omit<TablePhotoViewProps, 'fullscreen' | 'style'> {
+interface FullscreenTablesProps extends Omit<
+  TablePhotoViewProps,
+  'fullscreen' | 'style' | 'onZoomedChange'
+> {
   readonly visible: boolean;
   readonly onClose: () => void;
 }
@@ -325,6 +394,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
   },
   frameFull: { borderRadius: 0, backgroundColor: colors.surfaceDark },
+  photo: { backgroundColor: 'transparent' },
+  box: { position: 'absolute' },
   expand: { position: 'absolute', top: space.md, right: space.md },
   zoom: { position: 'absolute', right: space.md, gap: space.sm },
   modal: { flex: 1, backgroundColor: colors.surfaceDark },

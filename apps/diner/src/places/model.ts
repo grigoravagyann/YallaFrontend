@@ -3,7 +3,7 @@ import { branchDayKey, instantFromZonedClock, intlTag, type Locale } from '@yall
 /**
  * A place the diner can browse: one branch of a venue, photographed.
  *
- * `id` is the API **branch** id. The booking confirmation, the floor plan and
+ * `id` is the API **branch** id. The booking confirmation, the room photos and
  * the scan flow all key on the branch, so a place opened from Explore has to
  * hand the same id on — a second id scheme here would break every one of them.
  */
@@ -96,27 +96,43 @@ export function nextReviewPage(last: ReviewPage | null | undefined): number | un
 }
 
 /**
- * A table drawn on the FIRST photo of the place.
+ * A table pinned on one photo of its room.
  *
- * `x`/`y` are normalised 0..1 across that photo, so the marker lands on the
- * same table however the image is scaled. `tableId` is the floor-plan table id
- * the booking flow takes.
+ * `x`/`y` are fractions (0 left/top to 1) of that photo itself, so the pin
+ * lands on the same table however the photo is scaled — the screen draws it on
+ * the box the photo is actually rendered in, never on a frame around it.
+ * `tableId` is the id the booking flow takes.
  */
 export interface TablePhotoMarker {
   readonly tableId: string;
   readonly label: string;
   readonly status: TableStatus;
+  /** False for a table the venue never takes bookings for: drawn, never offered. */
+  readonly isBookable: boolean;
   readonly capacityMin: number;
   readonly capacityMax: number;
   readonly x: number;
   readonly y: number;
 }
 
-/** The live markers, with the photo their positions were placed on. */
-export interface PlaceTables {
-  /** The cover the markers refer to; `null` when the place has none, and so nothing to draw on. */
-  readonly photo: string | null;
+/** One photo of a room, and the tables pinned on it. */
+export interface RoomPhoto {
+  readonly photoId: string;
+  /** The large rendition, drawn under the pins. */
+  readonly url: string;
+  /** The small one, for a thumb. */
+  readonly thumbUrl: string;
+  /** Pixels; `null` for a photo stored before sizes were — measured once it loads. */
+  readonly width: number | null;
+  readonly height: number | null;
   readonly tables: readonly TablePhotoMarker[];
+}
+
+/** A room a diner picks: Hall, Terrace. Never without a photo; photos in the venue's order. */
+export interface PlaceRoom {
+  readonly roomId: string;
+  readonly name: string;
+  readonly photos: readonly RoomPhoto[];
 }
 
 export interface Place {
@@ -144,12 +160,6 @@ export interface Place {
   readonly openState: OpenState;
   /** Remote URLs. The first is the hero. */
   readonly photos: readonly string[];
-  /**
-   * The cover the table markers sit on, `null` when the place has none — then
-   * `photos[0]` may be a gallery picture, and no table belongs on it. Absent
-   * in the mock seeds, whose first photo is always the cover.
-   */
-  readonly coverPhoto?: string | null;
   /** `null` when the venue has not set a location: no pin, no directions. */
   readonly coords: Coordinates | null;
   readonly address: string;
@@ -173,7 +183,12 @@ export interface Place {
    * `PlaceRepository.menu`, so a menu that fails leaves the place standing.
    */
   readonly reviews: readonly Review[];
-  readonly tables: readonly TablePhotoMarker[];
+  /**
+   * The rooms with their photos and pins, in the venue's order, as the
+   * place's page last read them. Empty on a list card, and for a place that
+   * has not photographed a room yet.
+   */
+  readonly rooms: readonly PlaceRoom[];
 }
 
 /** A place the map can pin: one whose venue has set a location. */
@@ -181,11 +196,6 @@ export type LocatedPlace = Place & { readonly coords: Coordinates };
 
 export function isLocated(place: Place): place is LocatedPlace {
   return place.coords !== null;
-}
-
-/** The photo the table markers are drawn on, or `null` when there is no cover. */
-export function tablePhotoOf(place: Pick<Place, 'coverPhoto' | 'photos'>): string | null {
-  return place.coverPhoto !== undefined ? place.coverPhoto : (place.photos[0] ?? null);
 }
 
 // ---------------------------------------------------------------------------

@@ -804,6 +804,7 @@
   "tables": {
     "title": "Tables right now",
     "subtitle": "Tap a table on the photo to see details",
+    "rooms": "Rooms",
     "status": {
       "free": "Free",
       "reserved": "Reserved",
@@ -817,6 +818,12 @@
       "outOfService": "Out of service"
     },
     "table": "Table {{label}}",
+    "pin": {
+      "free": "Table {{label}}, free",
+      "reserved": "Table {{label}}, reserved",
+      "occupied": "Table {{label}}, occupied",
+      "outOfService": "Table {{label}}, out of service"
+    },
     "capacity": "{{min}}–{{max}} people",
     "capacityOne": "{{max}} people",
     "book": "Book",
@@ -825,8 +832,8 @@
     "zoomOut": "Zoom out",
     "fullscreen": "Full screen",
     "close": "Close",
-    "floorPlan": "Floor plan",
-    "notOnPhoto": "This place has not put its tables on a photo yet. Book a table, or open the floor plan."
+    "pickTime": "Pick a time",
+    "notOnPhoto": "This place has not put its tables on a photo yet. You can still book a table."
   },
   "map": {
     "searchArea": "Search this area",
@@ -853,7 +860,9 @@
     "confirm": "Confirm Booking",
     "noSlots": "No times left today. Pick another day.",
     "noTableForParty_one": "No free table seats {{count}} guest right now. Try another party size.",
-    "noTableForParty_other": "No free table seats {{count}} guests right now. Try another party size."
+    "noTableForParty_other": "No free table seats {{count}} guests right now. Try another party size.",
+    "pickTable": "Choose a table",
+    "pickTableHint": "Tap a free table on the photo, or leave it to us."
   },
   "orders": {
     "title": "Orders",
