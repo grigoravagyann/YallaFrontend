@@ -97,15 +97,25 @@ export function groupByRoom<T extends FloorTable>(tables: readonly T[]): FloorRo
       aNone - bNone ||
       a.floorAreaDisplayOrder - b.floorAreaDisplayOrder ||
       (a.floorAreaName ?? '').localeCompare(b.floorAreaName ?? '') ||
+      // Two rooms with the same order and name stay apart rather than interleave.
+      (a.floorAreaId ?? '').localeCompare(b.floorAreaId ?? '') ||
       a.label.localeCompare(b.label, undefined, { numeric: true })
     );
   });
+  // By id, or by name for a room with no id: an id and a name never collide.
+  const keyOf = (roomId: string | null, roomName: string | null) =>
+    roomId !== null ? `id:${roomId}` : `name:${roomName ?? ''}`;
   const groups: { roomId: string | null; roomName: string | null; tables: T[] }[] = [];
   for (const table of sorted) {
-    const key = table.floorAreaId ?? table.floorAreaName;
     const last = groups[groups.length - 1];
-    if (last && (last.roomId ?? last.roomName) === key) last.tables.push(table);
-    else groups.push({ roomId: table.floorAreaId, roomName: table.floorAreaName, tables: [table] });
+    if (
+      last &&
+      keyOf(last.roomId, last.roomName) === keyOf(table.floorAreaId, table.floorAreaName)
+    ) {
+      last.tables.push(table);
+    } else {
+      groups.push({ roomId: table.floorAreaId, roomName: table.floorAreaName, tables: [table] });
+    }
   }
   return groups;
 }
