@@ -19,7 +19,8 @@
       }
     },
     "loading": "Finding places nearby…",
-    "mapButton": "Open map"
+    "mapButton": "Open map",
+    "clearFilters": "Clear filters"
   },
   "venue": {
     "type": {
@@ -231,7 +232,11 @@
       "title": "Log in",
       "body": "We'll text you a code. No password to remember.",
       "noAccount": "No account yet?",
-      "createOne": "Create one"
+      "createOne": "Create one",
+      "forgot": "Forgot your password?",
+      "forgotBody": "Log in with a code sent to the number on your account.",
+      "confirmTitle": "Confirm your number",
+      "confirmBody": "We'll text a code to the number on your account."
     },
     "signup": {
       "title": "Create account",
@@ -259,7 +264,8 @@
       "phoneInUse": "This number already has an account.",
       "passwordInvalid": "Use at least 8 characters, not your username or email.",
       "invalidCredentials": "That username, email or password isn't right.",
-      "tooManyAttempts": "Too many tries. Wait a few minutes and try again."
+      "tooManyAttempts": "Too many tries. Wait a few minutes and try again.",
+      "nameTooLong": "Use at most {{max}} characters."
     },
     "account": {
       "loginBody": "Welcome back. Use your username or email and your password.",
@@ -436,6 +442,10 @@
       "placeholder": "Name",
       "save": "Save",
       "skip": "Not now"
+    },
+    "notOnDevice": {
+      "title": "This phone is not on that tab",
+      "body": "Scan the code on your table to join it."
     }
   },
   "pending": {
@@ -871,7 +881,8 @@
       "title": "Order details",
       "items": "Items",
       "total": "Total",
-      "timeline": "Status"
+      "timeline": "Status",
+      "number": "Order {{code}}"
     },
     "notFound": {
       "title": "We could not find that order",

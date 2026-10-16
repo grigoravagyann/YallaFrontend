@@ -166,6 +166,20 @@ export interface HttpGatewayOptions {
   /** The zone to convert slots in when the caller did not pass one. */
   readonly defaultTimeZoneId?: string | undefined;
   readonly dinerAuth?: DinerAuth | undefined;
+  /**
+   * Where the participant tokens tabs issued this device are kept between
+   * launches. Absent, they live as long as the gateway.
+   */
+  readonly tabTokens?: TabTokenStorage | undefined;
+}
+
+/**
+ * tabId → participant token, kept where a reload finds it: the keychain on a
+ * phone, localStorage on the web. Read once, written whole on every change.
+ */
+export interface TabTokenStorage {
+  read(): Promise<Readonly<Record<string, string>>>;
+  write(tokens: Readonly<Record<string, string>>): Promise<void>;
 }
 
 /**
@@ -255,14 +269,46 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
    * Kept apart from the diner's `AuthSession` on purpose. Every call on a tab
    * carries this token and `skipAuth`, so the client's refresh-on-401 — which
    * spends the diner's rotating refresh token — can never fire for a tab whose
-   * participant token was refused. In memory only, like the active tab itself:
-   * a tab is a table somebody is sitting at, and it does not outlive the app.
+   * participant token was refused.
+   *
+   * Mirrored to `options.tabTokens` when there is one, so a reload or a deep
+   * link to an open tab re-attaches with the token the scan earned instead of
+   * meeting "the tab has closed". The server's refusal is what drops one.
    */
   const tabTokens = new Map<string, string>();
+  const tabTokenStore = options.tabTokens;
+  const tabTokensLoaded: Promise<void> = tabTokenStore
+    ? tabTokenStore
+        .read()
+        .then((stored) => {
+          for (const [tabId, token] of Object.entries(stored)) {
+            // A token this gateway was handed since launch is newer.
+            if (!tabTokens.has(tabId)) tabTokens.set(tabId, token);
+          }
+        })
+        .catch(() => undefined)
+    : Promise.resolve();
 
-  function tabAuth(tabId: string): Omit<RequestOptions, 'method' | 'body'> {
+  function persistTabTokens(): void {
+    if (!tabTokenStore) return;
+    void tabTokenStore.write(Object.fromEntries(tabTokens)).catch(() => undefined);
+  }
+
+  function keepTabToken(tabId: string, token: string): void {
+    tabTokens.set(tabId, token);
+    persistTabTokens();
+  }
+
+  function forgetTabToken(tabId: string): void {
+    if (tabTokens.delete(tabId)) persistTabTokens();
+  }
+
+  async function tabAuth(tabId: string): Promise<Omit<RequestOptions, 'method' | 'body'>> {
+    await tabTokensLoaded;
     const token = tabTokens.get(tabId);
-    if (!token) throw new TabAccessEndedError({ url: `/api/tabs/${tabId}`, tabId });
+    if (!token) {
+      throw new TabAccessEndedError({ url: `/api/tabs/${tabId}`, tabId, notOnDevice: true });
+    }
     return { skipAuth: true, headers: { authorization: `Bearer ${token}` } };
   }
 
@@ -292,10 +338,13 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
    * 401 that way, because a 403 there is a rule (not the host, bill asked for).
    */
   function ended(error: unknown, tabId: string, statuses: readonly number[] = [401]): unknown {
+    if (error instanceof TabAccessEndedError) return error;
     if (error instanceof ApiError && statuses.includes(error.status) && !error.problem?.code) {
+      forgetTabToken(tabId);
       return new TabAccessEndedError({ url: error.url, tabId, status: error.status });
     }
     if (error instanceof UnauthorizedError) {
+      forgetTabToken(tabId);
       return new TabAccessEndedError({ url: error.url, tabId, status: 401 });
     }
     return error;
@@ -318,7 +367,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
    * "already on", not a pending joiner.
    */
   function admitted(result: Schemas['Yalla.Application.Tabs.TabAccessResult']): ScanResult {
-    tabTokens.set(result.token.tabId, result.token.accessToken);
+    keepTabToken(result.token.tabId, result.token.accessToken);
     const tab = dinerTab(result.tab, new Date().toISOString());
     if (tab.me.status === 'pendingApproval') return { kind: 'joinPending', tab };
     if ((result.outcome === 1 || result.outcome === 2) && !result.wasReplay) {
@@ -455,7 +504,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabParticipantView']>(
         `/api/tabs/${tabId}/participants/${participantId}/${action}`,
         undefined,
-        tabAuth(tabId),
+        await tabAuth(tabId),
       );
       return participantChange(data);
     } catch (error) {
@@ -1404,8 +1453,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async leaveTab({ tabId }): Promise<void> {
       try {
-        await client.post(`/api/tabs/${tabId}/leave`, undefined, tabAuth(tabId));
-        tabTokens.delete(tabId);
+        await client.post(`/api/tabs/${tabId}/leave`, undefined, await tabAuth(tabId));
+        forgetTabToken(tabId);
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           throw new HostCannotLeaveError({ url: error.url, tabId, requestId: error.requestId });
@@ -1423,7 +1472,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabJoinTokenResult']>(
           `/api/tabs/${tabId}/join-tokens`,
           undefined,
-          tabAuth(tabId),
+          await tabAuth(tabId),
         );
         return {
           tabId: data.tabId,
@@ -1446,7 +1495,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         const { data } = await client.post<Schemas['Yalla.Application.Tabs.TabParticipantView']>(
           `/api/tabs/${tabId}/display-name`,
           { displayName } satisfies Schemas['Yalla.Api.Endpoints.SetDisplayNameRequest'],
-          tabAuth(tabId),
+          await tabAuth(tabId),
         );
         return participantChange(data);
       } catch (error) {
@@ -1472,7 +1521,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
             canSeeTableTotal: permissions.canSeeTableTotal,
             canPay: permissions.canPay,
           } satisfies Schemas['Yalla.Api.Endpoints.SetParticipantPermissionsRequest'],
-          tabAuth(tabId),
+          await tabAuth(tabId),
         );
         return participantChange(data);
       } catch (error) {
@@ -1495,7 +1544,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         ({ data } = await client.post<Schemas['Yalla.Application.Ordering.ServiceRequestView']>(
           `/api/tabs/${tabId}/service-requests`,
           { preset: SERVICE_PRESET_CODE[reason] },
-          tabAuth(tabId),
+          await tabAuth(tabId),
         ));
       } catch (error) {
         // Not a failure to report: the table has asked several times in a short
@@ -1648,7 +1697,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       try {
         const { data } = await client.get<Schemas['Yalla.Application.Tabs.TabView']>(
           `/api/tabs/${tabId}`,
-          tabAuth(tabId),
+          await tabAuth(tabId),
         );
         return dinerTab(data, new Date().toISOString());
       } catch (error) {
@@ -1661,7 +1710,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       try {
         const { data } = await client.get<Schemas['Yalla.Application.Ordering.TabEventPage']>(
           `/api/tabs/${tabId}/events`,
-          { ...tabAuth(tabId), query: { afterSequence } },
+          { ...(await tabAuth(tabId)), query: { afterSequence } },
         );
         return tabEventPage(data);
       } catch (error) {
@@ -1689,7 +1738,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
               ...(line.note ? { note: line.note } : {}),
             })),
           } satisfies Schemas['Yalla.Api.Endpoints.PlaceOrderRequest'],
-          tabAuth(command.tabId),
+          await tabAuth(command.tabId),
         );
         return placeOrderResult(data);
       } catch (error) {
@@ -1703,7 +1752,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       try {
         const { data } = await client.get<Schemas['Yalla.Application.Ordering.TabSharesView']>(
           `/api/tabs/${tabId}/shares`,
-          tabAuth(tabId),
+          await tabAuth(tabId),
         );
         // No `hostParticipantId` on this response, so `isHost` is reported false
         // rather than guessed. The screen marks the host from the tab read.
@@ -1726,7 +1775,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
            * required field. Found by check-gateway-schema.
            */
           { settlementMode: settlementModeCode(command.mode) },
-          tabAuth(command.tabId),
+          await tabAuth(command.tabId),
         );
         return dinerTab(data, new Date().toISOString());
       } catch (error) {

@@ -1,9 +1,4 @@
-import {
-  isTabAccessEnded,
-  SETTLEMENT_MODES,
-  type ParticipantShare,
-  type SettlementMode,
-} from '@yalla/api';
+import { SETTLEMENT_MODES, type ParticipantShare, type SettlementMode } from '@yalla/api';
 import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,6 +18,7 @@ import { Text } from '../../../src/components/Text';
 import { useDinerTab, useSetSettlementMode, useTabShares } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { settleLead } from '../../../src/lib/settleLead';
+import { tabAccessCopy } from '../../../src/tab/access';
 import { settlementModeFailureKey, withHost } from '../../../src/tab/settle';
 import { colors, fontWeight, radius, space, tabularNumbers, typography } from '../../../src/theme';
 
@@ -154,9 +150,7 @@ export default function SettleScreen() {
           {isLoading ? (
             <ActivityIndicator color={colors.primary} />
           ) : isError || !shares ? (
-            <Text style={styles.muted}>
-              {isTabAccessEnded(error) ? t('tab.accessEnded.body') : t('settle.error')}
-            </Text>
+            <Text style={styles.muted}>{t(tabAccessCopy(error)?.body ?? 'settle.error')}</Text>
           ) : shares.kind !== 'table' ? (
             // The host has hidden the table total: no aggregate and nobody
             // else's share is in the body. This person's own share still is,

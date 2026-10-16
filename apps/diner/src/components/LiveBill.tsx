@@ -1,4 +1,3 @@
-import { isTabAccessEnded } from '@yalla/api';
 import { formatDram, formatRelativeMinutes, minutesBetween } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { StyleSheet, View } from 'react-native';
@@ -7,6 +6,7 @@ import { Card } from './Card';
 import { Text } from './Text';
 import { useDinerTab, useTabShares, useTabStream } from '../data/orderQueries';
 import { useNow } from '../hooks/useNow';
+import { tabAccessCopy } from '../tab/access';
 import {
   paymentRows,
   projectTab,
@@ -72,11 +72,7 @@ export function LiveBill({ tabId, timeZoneId, active }: LiveBillProps) {
       <Card style={styles.card}>
         <Text style={styles.title}>{t('bill.title')}</Text>
         <Text style={styles.muted}>
-          {isTabAccessEnded(error)
-            ? t('tab.accessEnded.body')
-            : isError
-              ? t('bill.error')
-              : t('bill.empty')}
+          {t(tabAccessCopy(error)?.body ?? (isError ? 'bill.error' : 'bill.empty'))}
         </Text>
       </Card>
     );

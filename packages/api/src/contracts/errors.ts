@@ -487,14 +487,27 @@ export class HostCannotLeaveError extends ApiError {
  */
 export class TabAccessEndedError extends ApiError {
   readonly tabId: string;
+  /**
+   * True when this device never held a participant token for the tab — a link
+   * to somebody else's tab, or one opened before the token was kept between
+   * launches. Nothing the server said: the screen asks for a scan of the table
+   * rather than claiming the tab closed.
+   */
+  readonly notOnDevice: boolean;
 
-  constructor(options: { url: string; tabId: string; status?: number | undefined }) {
+  constructor(options: {
+    url: string;
+    tabId: string;
+    status?: number | undefined;
+    notOnDevice?: boolean | undefined;
+  }) {
     super('This tab is closed, or you are no longer on it.', {
       status: options.status ?? 401,
       url: options.url,
     });
     this.name = 'TabAccessEndedError';
     this.tabId = options.tabId;
+    this.notOnDevice = options.notOnDevice ?? false;
   }
 }
 

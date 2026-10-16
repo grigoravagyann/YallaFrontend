@@ -104,7 +104,10 @@ export interface AppVersion {
  */
 export function appVersionFrom(constants: ConstantsLike, os: string): AppVersion {
   const config = constants.expoConfig ?? null;
-  const version = config?.version?.trim() || null;
+  const configured = config?.version?.trim() || null;
+  // 0.0.0 is the template's placeholder, not a release: better no line than a
+  // version that names no build.
+  const version = configured === '0.0.0' ? null : configured;
   const fromConfig =
     os === 'ios'
       ? config?.ios?.buildNumber

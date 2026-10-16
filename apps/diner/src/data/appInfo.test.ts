@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import appConfig from '../../app.json';
 import { appVersionFrom, legalLinks, supportContact } from './appInfo';
 
 /**
@@ -66,5 +67,15 @@ describe('appVersionFrom', () => {
 
   it('has no version when the config has none', () => {
     expect(appVersionFrom({ expoConfig: null }, 'web')).toEqual({ version: null, build: null });
+  });
+
+  // About said "Version 0.0.0": the scaffold's placeholder, which names no build.
+  it('says nothing rather than the 0.0.0 placeholder', () => {
+    expect(appVersionFrom({ expoConfig: { version: '0.0.0' } }, 'web').version).toBeNull();
+  });
+
+  it('is set in the app config', () => {
+    expect(appConfig.expo.version).toMatch(/^\d+\.\d+\.\d+$/u);
+    expect(appConfig.expo.version).not.toBe('0.0.0');
   });
 });

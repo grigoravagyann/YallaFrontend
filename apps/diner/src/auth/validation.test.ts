@@ -138,3 +138,14 @@ describe('a password', () => {
     expect(isValidPassword('x'.repeat(129))).toBe(false);
   });
 });
+
+describe('a name that is too long', () => {
+  it('is told apart from a missing one, so the message can say the limit', async () => {
+    const { nameProblem, NAME_MAX_LENGTH } = await import('./validation');
+    expect(NAME_MAX_LENGTH).toBe(60);
+    expect(nameProblem('')).toBe('required');
+    expect(nameProblem('   ')).toBe('required');
+    expect(nameProblem('a'.repeat(61))).toBe('tooLong');
+    expect(nameProblem('Anahit')).toBeNull();
+  });
+});

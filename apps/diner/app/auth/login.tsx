@@ -94,6 +94,15 @@ export default function LoginScreen() {
           maxLength={128}
         />
       </Field>
+      {/* No reset by email yet: a forgotten password is a log-in with a code. */}
+      <Button
+        label={t('auth.login.forgot')}
+        variant="text"
+        fullWidth={false}
+        disabled={login.isPending}
+        onPress={() => switchTo('/auth/code', { reason: 'forgotPassword' })}
+        style={styles.forgot}
+      />
       {errorText ? (
         <Text style={styles.error} accessibilityRole="alert">
           {errorText}
@@ -119,4 +128,5 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   error: { ...typography.body, color: colors.errorInk },
   primary: { marginTop: space.lg },
+  forgot: { alignSelf: 'flex-start' },
 });

@@ -1,4 +1,4 @@
-import { HostCannotLeaveError, isTabAccessEnded } from '@yalla/api';
+import { HostCannotLeaveError } from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -20,6 +20,7 @@ import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useLeaveTab } from '../../../src/data/queries';
 import { useActiveTab } from '../../../src/stores/tab';
+import { tabAccessCopy } from '../../../src/tab/access';
 import { canInvite } from '../../../src/tab/invite';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
 import { onTab, roster } from '../../../src/tab/roster';
@@ -64,6 +65,27 @@ export default function TabScreen() {
   } = useDinerTab(tabId, { pollMs: POLL_MS });
   const leaveTab = useLeaveTab();
   const clearActive = useActiveTab((s) => s.clear);
+  const joinActive = useActiveTab((s) => s.join);
+  const activeTabId = useActiveTab((s) => s.activeTabId);
+
+  const lost = tabAccessCopy(error);
+  const over =
+    lost !== null ||
+    view?.me.status === 'removed' ||
+    view?.status === 'closed' ||
+    view?.status === 'abandoned';
+
+  // A tab read with this device's token is the tab this device is on — after a
+  // reload or a tab's link too, so Explore points back to it. One the server
+  // ended is forgotten, so the next launch does not come back to it.
+  useEffect(() => {
+    if (!tabId) return;
+    if (over) {
+      if (activeTabId === tabId) clearActive();
+    } else if (view?.tabId === tabId && activeTabId !== tabId) {
+      joinActive(tabId);
+    }
+  }, [tabId, over, view?.tabId, activeTabId, clearActive, joinActive]);
 
   const people = view ? roster(view) : [];
   const summary = useParticipantSummary(people, locale);
@@ -113,12 +135,15 @@ export default function TabScreen() {
 
   // Taken off, turned away, or the tab closed under this phone. The server
   // answers all three with the same bare 401/403, so this does not guess which.
-  if (isTabAccessEnded(error) || view?.me.status === 'removed') {
+  // A tab this device holds no token for was never refused: it asks for a
+  // scan rather than claiming the tab closed.
+  if (lost || view?.me.status === 'removed') {
+    const copy = lost ?? { title: 'tab.accessEnded.title', body: 'tab.accessEnded.body' };
     return (
       <Shell>
         <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>{t('tab.accessEnded.title')}</Text>
-          <Text style={styles.muted}>{t('tab.accessEnded.body')}</Text>
+          <Text style={styles.emptyTitle}>{t(copy.title)}</Text>
+          <Text style={styles.muted}>{t(copy.body)}</Text>
           <Button label={t('scan.scanAgain')} onPress={scanAgain} />
         </View>
       </Shell>

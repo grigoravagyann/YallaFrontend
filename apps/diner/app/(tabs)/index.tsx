@@ -183,9 +183,13 @@ export default function ExploreScreen() {
                 icon={actionIcon.search}
                 title={t('explore.empty.title')}
                 body={t('explore.empty.body')}
-                {...(query
-                  ? { action: { label: t('explore.searchClear'), onPress: () => setQuery('') } }
-                  : {})}
+                action={{
+                  label: t(query ? 'explore.searchClear' : 'explore.clearFilters'),
+                  onPress: () => {
+                    setQuery('');
+                    setBadge(null);
+                  },
+                }}
               />
             ) : (
               <EmptyState

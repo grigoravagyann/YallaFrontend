@@ -16,6 +16,18 @@ export const PARTY_SIZES: readonly number[] = Array.from({ length: 20 }, (_, ind
 export const DEFAULT_BOOKING_WINDOW_DAYS = 14;
 
 const DAY_MS = 86_400_000;
+const HALF_HOUR_MS = 30 * 60_000;
+
+/**
+ * The slot a screen opens on: the first half hour at or after `now` plus the
+ * branch's lead time. Opening on the next half hour from `now` itself put the
+ * default inside the lead time, so the floor plan said "too soon to book"
+ * before the diner had touched anything.
+ */
+export function defaultSlot(now: Date, leadMinutes: number): Date {
+  const earliest = now.getTime() + leadMinutes * 60_000;
+  return new Date(Math.ceil(earliest / HALF_HOUR_MS) * HALF_HOUR_MS);
+}
 
 function clockAt(instant: Date, timeZone: TimeZone): { hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat('en-CA', {

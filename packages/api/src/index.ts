@@ -79,7 +79,7 @@ export { createMockVenueUserAuth } from './mocks/venueAuthMock';
 export type { VenueAuthMockOptions } from './mocks/venueAuthMock';
 export { MOCK_STAFF_PIN, fixtureStaffFor } from './mocks/staffFixture';
 export { createHttpGateway } from './http/httpGateway';
-export type { GatewayAudience, HttpGatewayOptions } from './http/httpGateway';
+export type { GatewayAudience, HttpGatewayOptions, TabTokenStorage } from './http/httpGateway';
 
 export type {
   AvailabilityWindowDto,

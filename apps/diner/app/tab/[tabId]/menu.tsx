@@ -20,6 +20,7 @@ import { Text, TextInput } from '../../../src/components/Text';
 import { useDinerTab, useMenuDetail } from '../../../src/data/orderQueries';
 import { TrayBar } from '../../../src/order/TrayBar';
 import { useTray } from '../../../src/order/TrayProvider';
+import { returnToTab } from '../../../src/tab/navigation';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
 import {
   colors,
@@ -200,7 +201,7 @@ export default function MenuScreen() {
                 // tourist's phone on Moscow time would put it three hours out.
                 timeZoneId={tab.timeZoneId}
                 onReview={() => router.push({ pathname: '/tab/[tabId]/tray', params: { tabId } })}
-                onSeeBill={() => router.push({ pathname: '/tab/[tabId]', params: { tabId } })}
+                onSeeBill={() => returnToTab(router, tabId)}
               />
             </View>
           ) : null}

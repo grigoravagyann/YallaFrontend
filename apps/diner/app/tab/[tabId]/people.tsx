@@ -1,5 +1,4 @@
 import {
-  isTabAccessEnded,
   setTabPermission,
   togglePullsAlong,
   type TabPermissionKey,
@@ -21,6 +20,7 @@ import { Card } from '../../../src/components/Card';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
 import { ParticipantRow } from '../../../src/components/Participants';
 import { Text } from '../../../src/components/Text';
+import { tabAccessCopy } from '../../../src/tab/access';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import {
   useApproveJoin,
@@ -74,8 +74,7 @@ export default function PeopleScreen() {
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const failureText = useCallback(
-    (caught: unknown) =>
-      isTabAccessEnded(caught) ? t('tab.accessEnded.body') : t('people.failed'),
+    (caught: unknown) => t(tabAccessCopy(caught)?.body ?? 'people.failed'),
     [t],
   );
 
@@ -145,7 +144,7 @@ export default function PeopleScreen() {
         <Stack.Screen options={{ headerShown: true, title: '' }} />
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>
-            {isTabAccessEnded(readError) ? t('tab.accessEnded.body') : t('people.hostOnly')}
+            {t(tabAccessCopy(readError)?.body ?? 'people.hostOnly')}
           </Text>
           <Button
             label={t('floorPlan.back')}
