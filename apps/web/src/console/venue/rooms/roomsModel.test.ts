@@ -289,3 +289,17 @@ describe('pin arithmetic', () => {
     expect(nudge(pin, 'Enter', false)).toBeNull();
   });
 });
+
+describe('the version a table delete moved', () => {
+  it('is taken when the plan read back is the baseline, and not when somebody else saved too', () => {
+    const state = reducer(initialState(), { type: 'loaded', plan: PLAN });
+    const same = reducer(state, { type: 'versionMoved', plan: { ...PLAN, version: '5' } });
+    expect(same.version).toBe('5');
+
+    const changed = reducer(state, {
+      type: 'versionMoved',
+      plan: { ...PLAN, version: '6', areas: PLAN.areas.slice(1) },
+    });
+    expect(changed.version).toBe('4');
+  });
+});

@@ -76,7 +76,8 @@ export type RoomsAction =
   | { type: 'discardTable'; id: string }
   | { type: 'deleted'; result: TableDeletionResult }
   | { type: 'restoreTable'; id: string }
-  | { type: 'qrReplaced'; id: string; qrToken: string };
+  | { type: 'qrReplaced'; id: string; qrToken: string }
+  | { type: 'versionMoved'; plan: EditorFloorPlan };
 
 export function initialState(): RoomsState {
   const empty: Snapshot = { rooms: [], tables: [] };
@@ -342,6 +343,17 @@ export function reducer(state: RoomsState, action: RoomsAction): RoomsState {
         saved: { ...state.saved, tables: apply(state.saved.tables) },
       };
     }
+
+    case 'versionMoved':
+      // A table delete moves the plan's version on the server. The newer
+      // version is taken only when the plan read back is exactly the baseline
+      // this editor already holds: if somebody else saved in between, the
+      // old version stays, and the next save is refused rather than undoing
+      // their work.
+      return JSON.stringify(commandOf(fromPlan(action.plan), '')) ===
+        JSON.stringify(commandOf(state.saved, ''))
+        ? { ...state, version: action.plan.version }
+        : state;
 
     case 'restoreTable':
       return {

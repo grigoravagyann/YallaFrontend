@@ -181,6 +181,11 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
       const result = await remove.mutateAsync(table.id);
       dispatch({ type: 'deleted', result });
       select(null);
+      // The delete moved the plan's version: read it back, or this editor's
+      // next save would be refused as if somebody else had changed the rooms.
+      void query.refetch().then((fresh) => {
+        if (fresh.isSuccess) dispatch({ type: 'versionMoved', plan: fresh.data });
+      });
       setNotice(
         result.deleted
           ? t('rooms.delete.removed', { label: result.label })

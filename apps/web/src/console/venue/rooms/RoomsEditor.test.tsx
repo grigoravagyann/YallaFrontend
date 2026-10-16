@@ -527,6 +527,44 @@ describe('the rooms editor, from review', () => {
     expect(document.activeElement).toBe(within(list).getByRole('button', { name: /^table 2$/i }));
   });
 
+  it('saves after a table delete in this tab, which moved the plan version', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await user.click(await screen.findByRole('button', { name: /^table 2 · free$/i }));
+    await user.click(screen.getByRole('button', { name: /delete the table/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: /delete it/i }),
+    );
+    await screen.findByText('Table 2 was removed.');
+
+    await user.type(screen.getByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+
+    await screen.findByText(/rooms saved/i);
+    expect(screen.queryByText(/someone else changed the rooms/i)).toBeNull();
+    expect((await gateway.getFloorPlan(BRANCH)).tables.some((t) => t.label === '2')).toBe(false);
+  });
+
+  it('refuses the save of a tab that still shows a table another tab deleted', async () => {
+    const { gateway } = await seededGateway();
+    const user = userEvent.setup();
+    renderEditor(gateway);
+
+    await screen.findByRole('button', { name: /^table 2 · free$/i });
+    const two = (await gateway.getFloorPlan(BRANCH)).tables.find((t) => t.label === '2')!;
+    await gateway.deleteTable({ branchId: BRANCH, tableId: two.id });
+
+    await user.type(screen.getByLabelText(/^new room$/i), 'Garden');
+    await user.click(screen.getByRole('button', { name: /add the room/i }));
+    await user.click(screen.getByRole('button', { name: /save rooms/i }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/someone else changed the rooms/i);
+    expect((await gateway.getFloorPlan(BRANCH)).tables.some((t) => t.label === '2')).toBe(false);
+  });
+
   it('says before saving that two rooms have the same name', async () => {
     const { gateway, room } = await seededGateway();
     const user = userEvent.setup();
