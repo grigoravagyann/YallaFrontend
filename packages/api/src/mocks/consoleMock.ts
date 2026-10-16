@@ -542,21 +542,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     );
   }
 
-  /**
-   * A deleted venue takes no new people and issues no sign-ins: the same 409
-   * `PlatformService` answers a tier change on it with. The mock kept "Add
-   * someone" and "Issue sign-in" live after a delete (QA F11).
-   */
-  // parity: server rule added in fix/qa-2026-10-16-backend
-  function requireVenueNotDeleted(venueId: string): void {
-    const record = venues.get(venueId);
-    if (record?.status === 'deleted') {
-      throw conflict(
-        `Venue '${record.name}' has been deleted, so its people can no longer be changed.`,
-      );
-    }
-  }
-
   function venueOfBranch(branchId: string): string | null {
     for (const record of venues.values()) {
       if (record.branches.some((branch) => branch.id === branchId)) return record.id;
@@ -2457,7 +2442,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     async createStaff({ venueId, staff }) {
       await wait();
-      requireVenueNotDeleted(venueId);
       /*
        * The role guard, enforced here as the server enforces it.
        *
@@ -2649,7 +2633,6 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         throw badAddress('The email field is not a valid e-mail address.');
       }
 
-      requireVenueNotDeleted(venueId);
       const list = staffFor(venueId);
       const index = list.findIndex((member) => member.id === staffMemberId);
       if (index < 0) throw new NotFoundError({ url: URL_TAG });

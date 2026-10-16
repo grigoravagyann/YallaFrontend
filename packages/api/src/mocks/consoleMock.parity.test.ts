@@ -193,24 +193,30 @@ describe('F11 — a deleted venue can no longer be changed', () => {
     );
   });
 
-  it('refuses adding somebody and issuing a sign-in', async () => {
+  it('still takes people and issues sign-ins, as the server does', async () => {
+    // StaffManagementService.CreateAsync and IssueSignInAsync do not look at
+    // the venue's deletion, on master or on fix/qa-2026-10-16-backend, so the
+    // mock may not refuse them either: a mock stricter than the server hides
+    // what a real console would let through.
     const gateway = createConsoleMockGateway();
     const venue = await deletedVenue(gateway);
-    const hire = await caught(
-      gateway.createStaff({
-        venueId: venue.id,
-        staff: {
-          fullName: 'Hasmik Sargsyan',
-          phone: '+37477555555',
-          pin: '4821',
-          branchId: null,
-          role: 'owner',
-        },
-      }),
-    );
-    expect(hire).toBeInstanceOf(ConcurrencyConflictError);
-    expect((hire as ConcurrencyConflictError).message).toContain('has been deleted');
-    expect(await gateway.listStaff(venue.id)).toEqual([]);
+    const hired = await gateway.createStaff({
+      venueId: venue.id,
+      staff: {
+        fullName: 'Hasmik Sargsyan',
+        phone: '+37477555555',
+        pin: '4821',
+        branchId: null,
+        role: 'owner',
+      },
+    });
+    expect((await gateway.listStaff(venue.id)).map((member) => member.id)).toEqual([hired.id]);
+    const link = await gateway.issueStaffSignIn({
+      venueId: venue.id,
+      staffMemberId: hired.id,
+      email: 'hasmik@kond.am',
+    });
+    expect(link.staffMemberId).toBe(hired.id);
   });
 });
 

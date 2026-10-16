@@ -2104,18 +2104,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         `${URL_TAG}/api/tabs/${command.tabId}/orders`,
         command.clientCommandId,
       );
-      // A branch that is shut takes no orders: a 409 naming it. The mock sent
-      // an espresso to a kitchen that closed at 01:00 (QA F9).
-      // parity: server rule added in fix/qa-2026-10-16-backend
-      const located = findBranch(tab.branchId);
-      const hours = publicBranchFixtures[tab.branchId]?.weeklyHours;
-      if (located && hours && !openStateFrom(hours, now(), located.branch.timeZoneId).isOpen) {
-        throw conflict(
-          `${URL_TAG}/api/tabs/${command.tabId}/orders`,
-          'branch-closed',
-          `${located.branch.name} is closed right now, so it is not taking orders.`,
-        );
-      }
+      // No clock gate: a seated party keeps ordering after closing time,
+      // because the tab decides and last orders is Mark closing (the server's
+      // OrderingTests pin it; docs/tabs.md "Ordering after closing time").
       return orders.place(tab, command);
     },
 

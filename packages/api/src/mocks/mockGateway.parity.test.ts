@@ -144,32 +144,30 @@ describe('F6 — booking codes are minted, not derived from the booking count', 
   });
 });
 
-describe('F9 — ordering at a closed branch, and what the diner menu publishes', () => {
-  it('refuses an order while the branch is shut', async () => {
-    // parity: server rule added in fix/qa-2026-10-16-backend — a 409 naming the branch.
+describe('F9 — ordering after hours, and what the diner menu publishes', () => {
+  it("keeps taking a seated party's order after closing time", async () => {
+    // The server pins the opposite of what QA F9 asked for: "the tab decides,
+    // not the clock" (fix/qa-2026-10-16-backend 0fa9053, OrderingTests.
+    // A_seated_party_keeps_ordering_after_closing_time_because_the_tab_decides_not_the_clock;
+    // docs/tabs.md "Ordering after closing time"). Last orders is Mark closing.
     const gateway = createMockGateway({ now: THURSDAY_330AM, simulateJoiners: false });
     const scan = await gateway.scanTableCode({
       tableCode: mockTableCode('b-lumen-north-t1'),
       commandId: commandId(),
     });
-    const error = await caught(
-      gateway.placeOrder({
-        tabId: scan.tab.tabId,
-        clientCommandId: commandId(),
-        lines: [
-          {
-            menuItemId: 'espresso',
-            quantity: 1,
-            participantId: scan.tab.me.participantId,
-            isShared: false,
-          },
-        ],
-      }),
-    );
-    expect(error).toBeInstanceOf(ConcurrencyConflictError);
-    expect((error as ConcurrencyConflictError).message).toBe(
-      'Northern Avenue is closed right now, so it is not taking orders.',
-    );
+    const placed = await gateway.placeOrder({
+      tabId: scan.tab.tabId,
+      clientCommandId: commandId(),
+      lines: [
+        {
+          menuItemId: 'espresso',
+          quantity: 1,
+          participantId: scan.tab.me.participantId,
+          isShared: false,
+        },
+      ],
+    });
+    expect(placed.status).toBe('new');
   });
 
   it('publishes only dishes that pass MenuItemCompleteness, and still has a menu', async () => {
