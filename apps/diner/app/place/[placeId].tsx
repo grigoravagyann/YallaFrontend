@@ -2,10 +2,10 @@ import { isOfflinePaused } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  Animated,
   FlatList,
-  ScrollView,
   Share,
   StyleSheet,
   View,
@@ -14,10 +14,12 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
+import { HeartPop, useSavePop } from '../../src/components/HeartPop';
 import { IconButton } from '../../src/components/IconButton';
 import { PhotoImage } from '../../src/components/PhotoImage';
 import { Screen } from '../../src/components/Screen';
@@ -169,20 +171,47 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
   const copy = usePlaceCopy(place);
 
   const favorite = useIsFavorite(place.id);
+  const { popKey, onSavePress } = useSavePop();
   const toggleFavorite = useFavorites((state) => state.toggle);
 
   const [tab, setTab] = useState<PlaceTab>('about');
   const [photoIndex, setPhotoIndex] = useState(0);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
-  // Light status bar over the photo; dark once the white sheet has scrolled
-  // up under it, or the clock would be white on white.
-  const [sheetUnderBar, setSheetUnderBar] = useState(false);
-  const onSheetScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const under = event.nativeEvent.contentOffset.y > heroHeight - insets.top - SHEET_OVERLAP;
-      setSheetUnderBar((current) => (current === under ? current : under));
-    },
-    [heroHeight, insets.top],
+  // The photo lags behind the sheet as it scrolls up (parallax) and swells a
+  // little when pulled down past the top. Both ride the native driver, off the
+  // JS thread, and both stand still for anyone who asked for less motion.
+  const reducedMotion = useReducedMotion();
+  const [scrollY] = useState(() => new Animated.Value(0));
+  const onSheetScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: true,
+      }),
+    [scrollY],
+  );
+  const heroMotion = useMemo(
+    () =>
+      reducedMotion
+        ? undefined
+        : {
+            transform: [
+              {
+                translateY: scrollY.interpolate({
+                  inputRange: [-heroHeight, 0, heroHeight],
+                  outputRange: [-heroHeight / 2, 0, heroHeight * 0.4],
+                  extrapolateRight: 'clamp',
+                }),
+              },
+              {
+                scale: scrollY.interpolate({
+                  inputRange: [-heroHeight, 0],
+                  outputRange: [2, 1],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ],
+          },
+    [heroHeight, reducedMotion, scrollY],
   );
 
   const photos = place.photos.length > 0 ? place.photos : [''];
@@ -230,17 +259,17 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
   return (
     <Screen edges={['left', 'right']} backgroundColor={colors.surface}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style={sheetUnderBar ? 'dark' : 'light'} />
+      <StatusBar style="light" />
 
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         onScroll={onSheetScroll}
-        scrollEventThrottle={32}
+        scrollEventThrottle={16}
       >
         {/* Hero: swipeable photos under the status bar, controls floating on top. */}
-        <View style={{ height: heroHeight }}>
+        <Animated.View style={[{ height: heroHeight }, heroMotion]}>
           <FlatList
             data={photos}
             horizontal
@@ -273,14 +302,19 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
               onPress={onBack}
             />
             <View style={styles.heroRight}>
-              <IconButton
-                icon={favorite ? actionIcon.favorited : actionIcon.favorite}
-                accessibilityLabel={favorite ? t('place.unfavorite') : t('place.favorite')}
-                variant="translucent"
-                // White on the glass either way: the filled heart says saved,
-                // and red on the glass fails 3:1 over a light photo.
-                onPress={() => toggleFavorite(place.id)}
-              />
+              <HeartPop popKey={popKey}>
+                <IconButton
+                  icon={favorite ? actionIcon.favorited : actionIcon.favorite}
+                  accessibilityLabel={favorite ? t('place.unfavorite') : t('place.favorite')}
+                  variant="translucent"
+                  // White on the glass either way: the filled heart says saved,
+                  // and red on the glass fails 3:1 over a light photo.
+                  onPress={() => {
+                    onSavePress(!favorite);
+                    toggleFavorite(place.id);
+                  }}
+                />
+              </HeartPop>
               <IconButton
                 icon={actionIcon.share}
                 accessibilityLabel={t('place.share')}
@@ -296,7 +330,7 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
               </Text>
             </View>
           ) : null}
-        </View>
+        </Animated.View>
 
         {/* The sheet. */}
         <View style={styles.sheet}>
@@ -389,7 +423,7 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
             )}
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
         {bookingsOff ? (

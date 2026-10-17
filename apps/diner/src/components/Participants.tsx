@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   // The ring is the ground the row sits on, so overlapping circles read as cut out.
   avatarStacked: { borderWidth: 2, borderColor: colors.background },
   avatarOverlap: { marginLeft: -space.sm },
-  avatarYou: { backgroundColor: colors.primary },
+  avatarYou: { backgroundColor: colors.brand },
   who: { flex: 1, gap: space.xs },
   name: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },

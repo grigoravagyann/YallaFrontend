@@ -46,6 +46,7 @@ import {
   timeSlots,
   type DayOption,
 } from '../../src/places/slots';
+import { haptics } from '../../src/lib/haptics';
 import { useSession } from '../../src/stores/session';
 import {
   actionIcon,
@@ -588,6 +589,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
                 partySize={partySize}
                 onSelect={(tableId) => {
                   // The same pin again, or the photo away from any: leave it to us.
+                  if (tableId !== null && tableId !== pickedTableId) haptics.select();
                   setPickedTableId(tableId === pickedTableId ? null : tableId);
                   setErrorText(null);
                 }}
@@ -885,10 +887,10 @@ const styles = StyleSheet.create({
   },
   dayIdle: { backgroundColor: colors.surface, borderColor: colors.border },
   dayIdlePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
-  daySelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  daySelected: { backgroundColor: colors.brand, borderColor: colors.brand },
   daySelectedPressed: {
-    backgroundColor: colors.primaryPressed,
-    borderColor: colors.primaryPressed,
+    backgroundColor: colors.brandPressed,
+    borderColor: colors.brandPressed,
   },
   dayName: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.textMuted },
   dayNumber: { ...typography.h3, ...tabularNumbers, color: colors.text },

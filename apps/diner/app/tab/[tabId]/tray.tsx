@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: colors.borderStrong,
   },
   stepPressed: { backgroundColor: colors.primarySoft },
   stepText: { ...typography.h3, color: colors.primary },

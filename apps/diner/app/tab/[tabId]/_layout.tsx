@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { STACK_OPTIONS } from '../../../src/components/nav/stackOptions';
 import { TrayProvider } from '../../../src/order/TrayProvider';
 
 /**
@@ -11,7 +12,7 @@ import { TrayProvider } from '../../../src/order/TrayProvider';
 export default function TabLayout() {
   return (
     <TrayProvider>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={STACK_OPTIONS} />
     </TrayProvider>
   );
 }

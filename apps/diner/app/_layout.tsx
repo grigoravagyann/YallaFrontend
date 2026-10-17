@@ -20,6 +20,7 @@ import { resetDinerQueriesOnSessionChange } from '../src/data/dinerScope';
 import { gateway } from '../src/data/gateway';
 import { bootstrapI18n } from '../src/i18n';
 import { wireQueryManagers } from '../src/lib/queryManagers';
+import { STACK_OPTIONS } from '../src/components/nav/stackOptions';
 import { useWebFontFaces } from '../src/lib/useWebFontFaces';
 import { configureProfileStorage, useSession } from '../src/stores/session';
 import { usePushNotifications } from '../src/push/usePushNotifications';
@@ -157,8 +158,8 @@ export default function RootLayout() {
               route before any screen has mounted. */}
           <PushNotifications />
           <DinerSessionWiring />
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }}>
+          <StatusBar style="light" />
+          <Stack screenOptions={STACK_OPTIONS}>
             <Stack.Screen name="(tabs)" />
             {/* The map draws its own overlay controls over a full-bleed map. */}
             <Stack.Screen name="map" />

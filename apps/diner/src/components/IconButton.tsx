@@ -85,13 +85,13 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   translucent: { backgroundColor: colors.glass },
-  primary: { backgroundColor: colors.primary, ...shadows.float },
+  primary: { backgroundColor: colors.brand, ...shadows.brand },
   ghost: { backgroundColor: 'transparent' },
 });
 
 const pressedStyles: Record<IconButtonVariant, ViewStyle> = {
   surface: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
   translucent: { backgroundColor: colors.overlayDark },
-  primary: { backgroundColor: colors.primaryPressed },
+  primary: { backgroundColor: colors.brandPressed },
   ghost: { backgroundColor: colors.primarySoft },
 };

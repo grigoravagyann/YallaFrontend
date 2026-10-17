@@ -308,10 +308,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.borderStrong,
   },
-  optionOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  optionOn: { borderColor: colors.brandEdge, backgroundColor: colors.brand },
   optionLocked: { opacity: 0.6 },
   optionTitle: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text },
-  optionTitleOn: { color: colors.primary },
+  optionTitleOn: { color: colors.onPrimary },
   optionBody: { ...typography.body, color: colors.textMuted },
   optionBodyOn: { color: colors.text },
 

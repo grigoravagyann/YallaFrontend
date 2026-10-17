@@ -6,6 +6,7 @@ import {
   type DisplayWeightValue,
   type FontWeightValue,
 } from '../theme/typography';
+import { colors } from '../theme/colors';
 import type { Ref } from 'react';
 import {
   Text as RNText,
@@ -72,10 +73,23 @@ export function Text({
   ref,
   ...props
 }: TextProps & { ref?: Ref<RNText>; display?: boolean }) {
-  return <RNText ref={ref} {...props} style={withFace(style, display)} />;
+  return <RNText ref={ref} {...props} style={withFace([styles.ink, style], display)} />;
 }
 
 export type TextInput = RNTextInput;
 export function TextInput({ style, ref, ...props }: TextInputProps & { ref?: Ref<RNTextInput> }) {
-  return <RNTextInput ref={ref} {...props} style={withFace(style, false)} />;
+  return (
+    <RNTextInput
+      ref={ref}
+      placeholderTextColor={colors.textSubtle}
+      selectionColor={colors.primary}
+      {...props}
+      style={withFace([styles.ink, style], false)}
+    />
+  );
 }
+
+const styles = StyleSheet.create({
+  /** The default ink: a caller's colour wins, an unset one is never the platform's black. */
+  ink: { color: colors.text },
+});

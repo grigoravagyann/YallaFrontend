@@ -6,6 +6,7 @@ import {
   iconSize,
   layout,
   radius,
+  shadows,
   space,
   typography,
   type IoniconName,
@@ -44,8 +45,8 @@ const SMALL_HEIGHT = 36;
  * two things: a table's state, or the single element you are meant to act on.
  * `primary` is the brown fill with a white label. `secondary` is a white pill
  * with a thin border — the "View Details" row under an order. `outline` is a
- * brown line and brown label — Log Out, the retry on an error. `text` is a bare
- * brown label. `destructive` is red text, never a red fill: cancelling a
+ * glass pill with an amber label — Log Out, the retry on an error. `text` is a
+ * bare amber label. `destructive` is red text, never a red fill: cancelling a
  * booking is not an alarm.
  */
 export function Button({
@@ -125,25 +126,31 @@ const styles = StyleSheet.create({
   small: { minHeight: SMALL_HEIGHT, paddingHorizontal: space.md },
   smallLabel: { ...typography.body, fontWeight: fontWeight.bold },
   disabled: { opacity: 0.35 },
-  primary: { backgroundColor: colors.primary },
+  primary: {
+    backgroundColor: colors.brand,
+    borderWidth: 1,
+    borderColor: colors.brandEdge,
+    ...shadows.brand,
+  },
   secondary: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
+  // A quiet glass pill: no gold rim (the design keeps borders off buttons).
   outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   text: { minHeight: layout.touchTarget, backgroundColor: 'transparent' },
   destructive: { minHeight: layout.touchTarget, backgroundColor: 'transparent' },
 });
 
 const pressedStyles: Record<ButtonVariant, ViewStyle> = {
-  primary: { backgroundColor: colors.primaryPressed },
+  primary: { backgroundColor: colors.brandPressed },
   secondary: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
-  outline: { backgroundColor: colors.primarySoft },
+  outline: { backgroundColor: colors.primarySoft, borderColor: colors.borderStrong },
   text: { opacity: 0.7 },
   destructive: { opacity: 0.7 },
 };

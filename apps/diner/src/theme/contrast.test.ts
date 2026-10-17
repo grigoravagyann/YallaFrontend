@@ -21,11 +21,15 @@ import { colors, glyphColors, textColors } from './colors';
 const AA_TEXT = 4.5;
 const AA_GLYPH = 3;
 
-/** The grounds text is set on. `surfaceMuted` is the notice and banner fill. */
+/**
+ * The grounds text is set on: the screen, a card, the notice and banner fill,
+ * and a bottom sheet.
+ */
 const grounds = {
   surface: colors.surface,
   background: colors.background,
   surfaceMuted: colors.surfaceMuted,
+  sheet: colors.sheet,
 } as const;
 
 /** `rgba(r,g,b,a)` laid over an opaque hex, as the eye sees it. */
@@ -79,15 +83,25 @@ describe('text', () => {
     expect(contrastRatio(ink, soft)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
-  it('white clears 4.5:1 on the success, error and info inks used as solid fills', () => {
-    for (const fill of [colors.successInk, colors.errorInk, colors.infoInk]) {
-      expect(contrastRatio(colors.onImage, fill)).toBeGreaterThanOrEqual(AA_TEXT);
-    }
+  it.each([
+    ['success', colors.onSuccessStrong, colors.successStrong],
+    ['warning', colors.onWarningStrong, colors.warningStrong],
+    ['error', colors.onErrorStrong, colors.errorStrong],
+    ['info', colors.onInfoStrong, colors.infoStrong],
+    ['neutral', colors.onNeutralStrong, colors.neutralStrong],
+  ] as const)('the %s strong fill carries its label at 4.5:1', (_name, label, fill) => {
+    expect(contrastRatio(label, fill)).toBeGreaterThanOrEqual(AA_TEXT);
   });
 
-  it('dark text clears 4.5:1 on the orange fill, which never carries white', () => {
-    expect(contrastRatio(colors.text, colors.warning)).toBeGreaterThanOrEqual(AA_TEXT);
-    expect(contrastRatio(colors.onImage, colors.warning)).toBeLessThan(AA_TEXT);
+  it('the label on a brand fill clears 4.5:1, at rest and pressed', () => {
+    expect(contrastRatio(colors.onPrimary, colors.brand)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(colors.onPrimary, colors.brandPressed)).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  it('the dark number inside a table marker clears 4.5:1 on every bright state fill', () => {
+    for (const fill of [colors.success, colors.warning, colors.error]) {
+      expect(contrastRatio(colors.onFill, fill)).toBeGreaterThanOrEqual(AA_TEXT);
+    }
   });
 
   it('keeps the bright state fills and textSubtle out of the text colours', () => {

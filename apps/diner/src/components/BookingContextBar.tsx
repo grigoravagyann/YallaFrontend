@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.overlayDark },
   sheet: {
     maxHeight: '60%',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     ...shadows.float,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
   },
-  optionSelected: { backgroundColor: colors.primary },
+  optionSelected: { backgroundColor: colors.brand },
   optionPressed: { backgroundColor: colors.primarySoft },
   optionText: { ...typography.bodyLg, color: colors.text },
   optionTextSelected: { fontWeight: fontWeight.bold, color: colors.onPrimary },

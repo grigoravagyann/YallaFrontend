@@ -31,6 +31,32 @@ export interface PlaceCopy {
  * from here, so "4.0" on one screen can never be "4" on the next. Follows the
  * active locale through `useLocale`, so a language change re-renders it.
  */
+interface NumberFormats {
+  readonly stars: Intl.NumberFormat;
+  readonly count: Intl.NumberFormat;
+  readonly km: Intl.NumberFormat;
+}
+
+/**
+ * One set of formatters per locale, built the first time it is asked for.
+ * Every card on Explore used to build three of its own on each render — on
+ * Hermes, where `Intl` is a polyfill, that is real work for nothing.
+ */
+const formatsByTag = new Map<string, NumberFormats>();
+
+function numberFormats(tag: string): NumberFormats {
+  let formats = formatsByTag.get(tag);
+  if (!formats) {
+    formats = {
+      stars: new Intl.NumberFormat(tag, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      count: new Intl.NumberFormat(tag),
+      km: new Intl.NumberFormat(tag, { maximumFractionDigits: 1 }),
+    };
+    formatsByTag.set(tag, formats);
+  }
+  return formats;
+}
+
 export function usePlaceCopy(place: PlaceCopySource): PlaceCopy {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
@@ -43,18 +69,16 @@ export function usePlaceCopy(place: PlaceCopySource): PlaceCopy {
     // is left out rather than shown from somewhere invented.
     let rating = t('place.noReviews');
     if (place.rating !== null) {
-      const stars = new Intl.NumberFormat(tag, {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-      }).format(place.rating);
-      const count = new Intl.NumberFormat(tag).format(place.ratingCount);
+      const { stars: starsFormat, count: countFormat } = numberFormats(tag);
+      const stars = starsFormat.format(place.rating);
+      const count = countFormat.format(place.ratingCount);
       rating = t('place.rating', { rating: stars, count });
     }
     const distance =
       place.distanceKm === null
         ? ''
         : t('place.distanceKm', {
-            km: new Intl.NumberFormat(tag, { maximumFractionDigits: 1 }).format(place.distanceKm),
+            km: numberFormats(tag).km.format(place.distanceKm),
           });
     return {
       typeLine: cuisine ? `${type} · ${cuisine}` : type,

@@ -1,22 +1,21 @@
-import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps, BottomTabNavigationOptions } from 'expo-router/js-tabs';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import {
   colors,
   fontWeight,
   iconSize,
-  navIcons,
   radius,
   shadows,
   space,
   typography,
-  type IconPair,
   type NavRouteName,
 } from '../../theme';
 import { Text } from '../Text';
 import { tabBarMetrics } from './metrics';
+import { NavGlyph } from './NavGlyph';
 import { ScanFab } from './ScanFab';
 
 export { NAV_CLEARANCE, tabBarMetrics } from './metrics';
@@ -24,11 +23,11 @@ export { NAV_CLEARANCE, tabBarMetrics } from './metrics';
 /** The route whose slot is the FAB rather than an icon + label. */
 const SCAN_ROUTE: NavRouteName = 'scan';
 
-const FALLBACK_ICONS: IconPair = { outline: 'ellipse-outline', filled: 'ellipse' };
-
 /**
- * The floating bottom navigation: a white pill inset from the edges, five
- * slots, labels always on, Scan as a brown circle rising out of the middle.
+ * The floating bottom navigation: a dark espresso pill inset from the edges,
+ * five slots, labels always on, Scan as a glowing circle rising out of the
+ * middle. The current tab sits on a brand-brown highlight that slides from
+ * slot to slot, so a change of tab is a movement, not a blink.
  *
  * Passed to expo-router as `tabBar={(props) => <FloatingTabBar {...props} />}`.
  * It reads the route names under `app/(tabs)/` to pick glyphs, the screen
@@ -37,6 +36,41 @@ const FALLBACK_ICONS: IconPair = { outline: 'ellipse-outline', filled: 'ellipse'
  */
 export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  const [rowWidth, setRowWidth] = useState(0);
+
+  const visible = state.routes.filter((route) => {
+    const options: BottomTabNavigationOptions = descriptors[route.key]?.options ?? {};
+    return !isHidden(options);
+  });
+  const focusedRoute = state.routes[state.index];
+  const focusedSlot = visible.findIndex((route) => route.key === focusedRoute?.key);
+  // The highlight sits under an icon tab. Scan has its own circle and the
+  // highlight steps aside (fades out) while it is the current screen.
+  const highlightOn = focusedSlot >= 0 && focusedRoute?.name !== SCAN_ROUTE;
+  const slotWidth = visible.length > 0 ? rowWidth / visible.length : 0;
+
+  const [slide] = useState(() => new Animated.Value(Math.max(0, focusedSlot)));
+  const [shown] = useState(() => new Animated.Value(highlightOn ? 1 : 0));
+  // One node per width, not one per render: a new node mid-spring is re-attached.
+  const slideX = useMemo(() => Animated.multiply(slide, slotWidth), [slide, slotWidth]);
+  useEffect(() => {
+    if (highlightOn) {
+      if (reducedMotion) slide.setValue(focusedSlot);
+      else
+        Animated.spring(slide, {
+          toValue: focusedSlot,
+          useNativeDriver: true,
+          speed: 18,
+          bounciness: 6,
+        }).start();
+    }
+    Animated.timing(shown, {
+      toValue: highlightOn ? 1 : 0,
+      duration: reducedMotion ? 0 : 160,
+      useNativeDriver: true,
+    }).start();
+  }, [focusedSlot, highlightOn, reducedMotion, shown, slide]);
 
   const press = (routeKey: string, routeName: string, focused: boolean) => {
     const event = navigation.emit({ type: 'tabPress', target: routeKey, canPreventDefault: true });
@@ -56,7 +90,26 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
           scrolls through to the screen underneath. */}
       <View pointerEvents="box-none" style={styles.stage}>
         <View style={styles.pill} />
-        <View pointerEvents="box-none" style={styles.row}>
+        <View
+          pointerEvents="box-none"
+          style={styles.row}
+          onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}
+        >
+          {/* Under the items and deaf to touches, so a press always lands on
+              the tab itself. Drawn only once the row has been measured. */}
+          {slotWidth > 0 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.highlight,
+                {
+                  width: slotWidth - 2 * HIGHLIGHT_INSET,
+                  opacity: shown,
+                  transform: [{ translateX: slideX }],
+                },
+              ]}
+            />
+          ) : null}
           {state.routes.map((route, index) => {
             const descriptor = descriptors[route.key];
             const options: BottomTabNavigationOptions = descriptor?.options ?? {};
@@ -132,24 +185,7 @@ function TabItem({
   onPress,
   onLongPress,
 }: TabItemProps) {
-  const [lift] = useState(() => new Animated.Value(focused ? 1 : 0));
-
-  useEffect(() => {
-    Animated.spring(lift, {
-      toValue: focused ? 1 : 0,
-      useNativeDriver: true,
-      speed: 24,
-      bounciness: 5,
-    }).start();
-  }, [focused, lift]);
-
-  const translateY = lift.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -tabBarMetrics.activeLift],
-  });
-
-  const icons = (navIcons as Record<string, IconPair | undefined>)[routeName] ?? FALLBACK_ICONS;
-  const tint = focused ? colors.primary : colors.textMuted;
+  const tint = focused ? colors.onPrimary : colors.textMuted;
 
   return (
     <Pressable
@@ -161,15 +197,9 @@ function TabItem({
       onLongPress={onLongPress}
       style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
     >
-      <Animated.View
-        style={[styles.pair, { transform: [{ translateY }] }, focused && styles.pairLifted]}
-      >
+      <View style={styles.pair}>
         <View>
-          <Ionicons
-            name={focused ? icons.filled : icons.outline}
-            size={iconSize.nav}
-            color={tint}
-          />
+          <NavGlyph routeName={routeName} size={iconSize.nav} color={tint} />
           {badge !== undefined ? (
             <View style={styles.badge}>
               <Text numberOfLines={1} style={styles.badgeText}>
@@ -193,10 +223,13 @@ function TabItem({
         >
           {label}
         </Text>
-      </Animated.View>
+      </View>
     </Pressable>
   );
 }
+
+/** Gap between the highlight and the edges of its slot and of the pill. */
+const HIGHLIGHT_INSET = 3;
 
 const STAGE_HEIGHT = tabBarMetrics.height + tabBarMetrics.fabRise;
 
@@ -218,10 +251,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: tabBarMetrics.height,
     borderRadius: tabBarMetrics.radius,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.navBar,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     ...shadows.float,
+  },
+  highlight: {
+    position: 'absolute',
+    left: HIGHLIGHT_INSET,
+    bottom: HIGHLIGHT_INSET,
+    height: tabBarMetrics.height - 2 * HIGHLIGHT_INSET,
+    borderRadius: tabBarMetrics.radius - HIGHLIGHT_INSET,
+    backgroundColor: colors.brand,
   },
   row: {
     flexDirection: 'row',
@@ -244,7 +285,6 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
     borderRadius: radius.tile,
   },
-  pairLifted: {},
   label: { maxWidth: '100%' },
   labelActive: { fontWeight: fontWeight.medium },
   scanSlot: { height: STAGE_HEIGHT },
@@ -257,9 +297,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
     borderRadius: radius.pill,
     // The ink as a fill: white on the bright red is 4.3:1, on this 6.5.
-    backgroundColor: colors.errorInk,
+    backgroundColor: colors.errorStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { fontSize: 10, lineHeight: 12, fontWeight: fontWeight.bold, color: colors.onPrimary },
+  badgeText: {
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: fontWeight.bold,
+    color: colors.onErrorStrong,
+  },
 });

@@ -4,7 +4,7 @@ import { isOfflinePaused } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Chip } from '../../src/components/Chip';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
@@ -14,7 +14,7 @@ import { Screen, useNavClearance } from '../../src/components/Screen';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
 import { usePlaces } from '../../src/places/hooks';
-import type { Place, PlaceBadge } from '../../src/places/model';
+import type { Place, PlaceBadge, PlaceType } from '../../src/places/model';
 import { useActiveTab } from '../../src/stores/tab';
 import {
   actionIcon,
@@ -22,6 +22,7 @@ import {
   fontWeight,
   iconSize,
   layout,
+  placeTypeIcon,
   radius,
   shadows,
   space,
@@ -29,6 +30,8 @@ import {
 } from '../../src/theme';
 
 const FILTERS: readonly PlaceBadge[] = ['popular', 'new'];
+/** The kinds of place, after the badges: a café for coffee, a restaurant for dinner. */
+const TYPES: readonly PlaceType[] = ['cafe', 'restaurant'];
 /** Skeleton cards while the list loads — about what fits under the header. */
 const SKELETON_ROWS = 4;
 
@@ -56,13 +59,16 @@ export default function ExploreScreen() {
   const [badge, setBadge] = useState<PlaceBadge | null>(null);
   const activeTabId = useActiveTab((s) => s.activeTabId);
 
-  const placesQuery = usePlaces({ query, ...(badge ? { filter: { badge } } : {}) });
+  // A kind of place narrows the list the same way a badge does; the two combine.
+  const [type, setType] = useState<PlaceType | null>(null);
+  const filter = badge || type ? { ...(badge ? { badge } : {}), ...(type ? { type } : {}) } : null;
+  const placesQuery = usePlaces({ query, ...(filter ? { filter } : {}) });
   const { data, isLoading, isError, isFetching, isPlaceholderData, refetch } = placesQuery;
   // An offline query is paused, never failed: without this the screen spins.
   const offline = isOfflinePaused(placesQuery) && !data;
   // Stable identity, so `?? []` does not hand FlatList a fresh array per render.
   const places: readonly Place[] = useMemo(() => data ?? [], [data]);
-  const filtering = query.trim() !== '' || badge !== null;
+  const filtering = query.trim() !== '' || badge !== null || type !== null;
 
   const openPlace = useCallback(
     (placeId: string) => {
@@ -133,7 +139,13 @@ export default function ExploreScreen() {
         </View>
       </View>
 
-      <View style={styles.chips}>
+      {/* Scrolls sideways: four chips fit in English, not in Armenian. */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipsScroll}
+        contentContainerStyle={styles.chips}
+      >
         {FILTERS.map((value) => (
           <Chip
             key={value}
@@ -144,7 +156,17 @@ export default function ExploreScreen() {
             onPress={() => setBadge(badge === value ? null : value)}
           />
         ))}
-      </View>
+        {TYPES.map((value) => (
+          <Chip
+            key={value}
+            label={t(`place.type.${value}`)}
+            icon={placeTypeIcon[value]}
+            size="sm"
+            selected={type === value}
+            onPress={() => setType(type === value ? null : value)}
+          />
+        ))}
+      </ScrollView>
 
       {offline ? (
         <ErrorState offline onRetry={() => void refetch()} />
@@ -188,6 +210,7 @@ export default function ExploreScreen() {
                   onPress: () => {
                     setQuery('');
                     setBadge(null);
+                    setType(null);
                   },
                 }}
               />
@@ -270,6 +293,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     paddingVertical: 0,
   },
+  chipsScroll: { flexGrow: 0 },
   chips: {
     flexDirection: 'row',
     gap: space.sm,
