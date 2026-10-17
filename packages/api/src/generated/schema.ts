@@ -2538,7 +2538,7 @@ export interface paths {
         /**
          * The tab, as this participant is allowed to see it
          * @description Projected through the caller's own flags by one function, so every rule applies the same way everywhere:
-         *     - The caller's **own items and own subtotal are always present**, whatever the flags. Own means what `/shares` charges them for: their own orders, a waiter's keyed in with `onBehalfOfParticipantId` for them, and the shared and `isTableAttributed` lines they were at the table for.
+         *     - The caller's **own items and own subtotal are always present**, whatever the flags. Own means their own orders, a waiter's keyed in with `onBehalfOfParticipantId` for them, and the shared lines they were at the table for - and, only with `tableTotalVisible`, the `isTableAttributed` lines they were at the table for: a waiter's lines for nobody in particular can be the whole bill. `/shares` charges a part of those either way.
          *     - The **table total and other people's items appear only with `canSeeTableTotal`**, and only once approved. When hidden they are **absent from the body** - not zero, not null - with `tableTotalVisible: false` beside the gap, so no client can render a hidden total as a free bill.
          *     - A **pending** participant sees their own row and nothing else.
          *     - **Nothing silently disappears.** A voided line stays in both arrays with `isVoided`, `voidReason` and `voidedAtUtc`, worth zero and counted toward no total; comps and discounts appear in `adjustments` with the reason the manager typed - all of them with `tableTotalVisible`, otherwise only those on the caller's own lines, because one off the whole tab or another person's dish is the table's money. A bill whose number drops with no visible cause is the fastest way to make somebody distrust the app, and a waiter then has to explain it at the table.
@@ -2655,7 +2655,7 @@ export interface paths {
          *
          *     **Ignore a `type` you do not recognise and keep your position**: new types will be added and an old build must not break on a tab that used one.
          *
-         *     **You read the stream you may see.** Every event is here - the sequence never has a hole - but without `tableTotalVisible` on your tab the payloads carry only your own money: `orderPlaced.lines` holds just your lines (your own, a waiter's on your behalf, and shared or table-attributed items you were at the table for), a void names only your own dish, an adjustment says what, how much and why only when it is off your line, a payment says how much only when it was yours, and `remainingAmd`, `totalAmd` and `writtenOffAmd` are never there. While you wait for the host, other people's `displayName` and `note` are left out too. Redacted members are **absent**, never null or zero. See `docs/tabs.md`, section 7.4.
+         *     **You read the stream you may see.** Every event is here - the sequence never has a hole - but without `tableTotalVisible` on your tab the payloads carry only your own money: `orderPlaced.lines` holds just your lines (your own, a waiter's on your behalf, and shared items you were at the table for - never a waiter's line for the table, which can be the whole bill), a void names only your own dish, an adjustment says what, how much and why only when it is off your line, a payment says how much only when it was yours, and `remainingAmd`, `totalAmd` and `writtenOffAmd` are never there. While you wait for the host, other people's `displayName` and `note` are left out too. Redacted members are **absent**, never null or zero. See `docs/tabs.md`, section 7.4.
          */
         get: operations["getTabEvents"];
         put?: never;
@@ -2811,6 +2811,8 @@ export interface paths {
         /**
          * Host: set one person's three flags
          * @description `canOrder`, `canSeeTableTotal` and `canPay`, together. **`canPay` requires `canSeeTableTotal`** - nobody puts money toward a total they may not see - and the combination that breaks that is refused with 400 rather than silently corrected.
+         *
+         *     **The host always sees the total.** `canSeeTableTotal: false` on the host's own row is `422 validation-failed` with `context.field` `canSeeTableTotal`: only the host sets flags, so nobody could ever turn it back on.
          */
         post: operations["setTabParticipantPermissions"];
         delete?: never;
@@ -8346,14 +8348,15 @@ export interface components {
             /**
              * Format: int64
              * @description What the caller's own unsplit lines come to, in whole dram. Always present. Shared and
-             *     table-attributed lines are listed in MyLines with `isShared` or
-             *     `isTableAttributed` set and are apportioned by `/shares`, not here.
+             *     table-attributed lines on MyLines carry `isShared` or
+             *     `isTableAttributed` and are apportioned by `/shares`, not here.
              */
             myItemsSubtotalAmd: number;
             /**
-             * @description The caller's own items, always present: the lines `/shares` charges them for. One they
-             *     ordered, or a waiter keyed in on their behalf; and a shared or table-attributed line they were at
-             *     the table for. See M:Yalla.Application.Tabs.TabLineSnapshot.IsOnTheBillOf(System.Guid).
+             * @description The caller's own items, always present: one they ordered, or a waiter keyed in on their behalf,
+             *     and a shared item they were at the table for - and a table-attributed line they were at the table
+             *     for only with TableTotalVisible, because those can be the whole bill. See
+             *     M:Yalla.Application.Tabs.TabProjection.IsOwnLine(Yalla.Application.Tabs.TabLineSnapshot,System.Guid,System.Boolean).
              */
             myLines: components["schemas"]["Yalla.Application.Tabs.TabLineView"][];
             /**
@@ -19776,6 +19779,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `canSeeTableTotal` is false on the host's own row. `context.field` is `canSeeTableTotal`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */
