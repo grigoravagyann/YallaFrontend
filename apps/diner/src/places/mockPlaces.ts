@@ -1,7 +1,8 @@
 import type { MenuSection, OpeningHours, Place, Weekday } from './model';
 
 /**
- * Six places in central Yerevan, photographed and tabled.
+ * Eight places in central Yerevan, photographed and tabled: cafés,
+ * restaurants and two bars.
  *
  * Ids: every place is one of `@yalla/api`'s mock branches (`mocks/venues.ts`),
  * because Book, `/reserve/confirm` and the floor plan at `app/branch/[branchId]`
@@ -67,6 +68,7 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     coords: { latitude: 40.1843, longitude: 44.5129 },
     address: '12 Abovyan Street, Yerevan',
+    district: 'Arabkir',
     phone: '+374 10 521 234',
     website: 'https://thegreentable.am',
     timeZoneId: YEREVAN,
@@ -157,6 +159,7 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     coords: { latitude: 40.1838, longitude: 44.5142 },
     address: '5 Northern Avenue, Yerevan',
+    district: 'Kentron',
     phone: '+374 11 440 012',
     website: 'https://lumen.coffee',
     timeZoneId: YEREVAN,
@@ -241,6 +244,7 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     coords: { latitude: 40.1851, longitude: 44.5118 },
     address: '10 Pushkin Street, Yerevan',
+    district: 'Kentron',
     phone: '+374 10 561 354',
     website: 'https://dolmama.am',
     timeZoneId: YEREVAN,
@@ -326,6 +330,7 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     coords: { latitude: 40.1803, longitude: 44.5198 },
     address: '5 Paronyan Street, Yerevan',
+    district: 'Kentron',
     phone: '+374 10 500 505',
     website: 'https://tavernyerevan.am',
     timeZoneId: YEREVAN,
@@ -413,6 +418,7 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     coords: { latitude: 40.1859, longitude: 44.5148 },
     address: '54 Tumanyan Street, Yerevan',
+    district: 'Kentron',
     phone: '+374 60 700 700',
     website: 'https://araratterrace.am',
     timeZoneId: YEREVAN,
@@ -494,6 +500,8 @@ export const mockPlaces: readonly PlaceSeed[] = [
     ],
     coords: { latitude: 40.1839, longitude: 44.5061 },
     address: '33 Mashtots Avenue, Yerevan',
+    // Never set one, like its api-mock branch: the card falls back to the street.
+    district: null,
     phone: '+374 99 333 033',
     timeZoneId: YEREVAN,
     hours: everyDay('08:00', '22:00'),
@@ -547,6 +555,169 @@ export const mockPlaces: readonly PlaceSeed[] = [
         rating: 4,
         text: 'Genuinely good vegan options and the lentil bowl is filling.',
         date: '2026-08-12',
+      },
+    ],
+  },
+
+  {
+    // `@yalla/api` mock: Copper Fox, Saryan Street — one of the two bars.
+    id: 'b-copperfox-saryan',
+    venueId: 'v-copperfox',
+    name: 'Copper Fox',
+    venueSlug: 'copper-fox',
+    branchSlug: 'saryan-street',
+    venueName: 'Copper Fox',
+    branchName: 'Saryan Street',
+    acceptsAppBookings: true,
+    type: 'bar',
+    cuisine: 'Cocktails & small plates',
+    distanceKm: 0.8,
+    rating: 4.7,
+    ratingCount: 64,
+    badges: ['new'],
+    photos: [
+      photo('photo-1514933651103-005eec06c04b'),
+      photo('photo-1470337458703-46ad1756a187'),
+      photo('photo-1572116469696-31de0f17cc34'),
+      photo('photo-1543007630-9710e4a00a20'),
+    ],
+    coords: { latitude: 40.1829, longitude: 44.5031 },
+    address: '12 Saryan Street, Yerevan',
+    district: 'Kentron',
+    phone: '+374 10 522 522',
+    timeZoneId: YEREVAN,
+    hours: everyDay('17:00', '02:00'),
+    amenities: ['cardPayment'],
+    about:
+      'A long copper bar on the wine street, lit low and kept busy until two. The list runs from Armenian brandy flights to apricot sours, and the kitchen sends out small plates until midnight. Book a table for a group; the bar stools are first come.',
+    menu: [
+      {
+        section: 'Cocktails',
+        items: [
+          { name: 'Apricot sour', price: 3200, description: 'Apricot brandy, lemon, egg white' },
+          { name: 'Ararat old fashioned', price: 3600 },
+          { name: 'Tarragon gimlet', price: 3000 },
+        ],
+      },
+      {
+        section: 'Brandy',
+        items: [
+          { name: 'Ararat 10, 40 ml', price: 2800 },
+          { name: 'Brandy flight of three', price: 6900 },
+          { name: 'Mulberry vodka, 40 ml', price: 1800 },
+        ],
+      },
+      {
+        section: 'Small plates',
+        items: [
+          { name: 'Basturma & cheese board', price: 4400 },
+          { name: 'Spiced nuts', price: 1200 },
+          { name: 'Lahmajo bites', price: 2600 },
+        ],
+      },
+    ],
+    reviews: [
+      {
+        id: 'mock-review-19',
+        author: 'Ani K.',
+        rating: 5,
+        text: 'The apricot sour is the best drink on Saryan. Book ahead on Fridays.',
+        date: '2026-09-10',
+      },
+      {
+        id: 'mock-review-20',
+        author: 'David M.',
+        rating: 5,
+        text: 'Knowledgeable bartenders and a brandy list worth working through.',
+        date: '2026-09-02',
+      },
+      {
+        id: 'mock-review-21',
+        author: 'Lusine H.',
+        rating: 4,
+        text: 'Great room, loud after eleven. Small plates are generous.',
+        date: '2026-08-21',
+      },
+    ],
+  },
+
+  {
+    // `@yalla/api` mock: Vinoteka, Komitas Avenue — the quieter bar across town.
+    id: 'b-vinoteka-komitas',
+    venueId: 'v-vinoteka',
+    name: 'Vinoteka',
+    venueSlug: 'vinoteka',
+    branchSlug: 'komitas-avenue',
+    venueName: 'Vinoteka',
+    branchName: 'Komitas Avenue',
+    acceptsAppBookings: true,
+    type: 'bar',
+    cuisine: 'Armenian wine bar',
+    distanceKm: 2.4,
+    rating: 4.6,
+    ratingCount: 41,
+    badges: [],
+    photos: [
+      photo('photo-1510812431401-41d2bd2722f3'),
+      photo('photo-1506377247377-2a5b3b417ebb'),
+      photo('photo-1528823872057-9c018a7a7553'),
+    ],
+    coords: { latitude: 40.2045, longitude: 44.5051 },
+    address: '38 Komitas Avenue, Yerevan',
+    district: 'Arabkir',
+    phone: '+374 10 233 233',
+    timeZoneId: YEREVAN,
+    hours: everyDay('16:00', '00:00'),
+    amenities: ['wifi', 'cardPayment'],
+    about:
+      'A vaulted cellar with Areni, Voskehat and forty more Armenian wines by the glass, poured by people who know the growers. Cheese, bread and a few warm plates; a quiet room for a long conversation.',
+    menu: [
+      {
+        section: 'By the glass',
+        items: [
+          { name: 'Voskehat, Vayots Dzor', price: 2400 },
+          { name: 'Areni Noir', price: 2800 },
+          { name: 'Rosé of Areni', price: 2200 },
+        ],
+      },
+      {
+        section: 'To share',
+        items: [
+          { name: 'Armenian cheese plate', price: 4200, description: 'Lori, chechil, motal' },
+          { name: 'Warm lavash & herbs', price: 1400 },
+          { name: 'Dried fruit & walnuts', price: 1800 },
+        ],
+      },
+      {
+        section: 'Warm',
+        items: [
+          { name: 'Mushroom tolma', price: 3600 },
+          { name: 'Grilled halloumi, honey', price: 3200 },
+          { name: 'Lamb meatballs', price: 3900 },
+        ],
+      },
+    ],
+    reviews: [
+      {
+        id: 'mock-review-22',
+        author: 'Mher S.',
+        rating: 5,
+        text: 'They let us taste three Areni before choosing. A lovely evening.',
+        date: '2026-09-08',
+      },
+      {
+        id: 'mock-review-23',
+        author: 'Claire D.',
+        rating: 4,
+        text: 'Quiet, cosy and a real education in Armenian wine.',
+        date: '2026-08-29',
+      },
+      {
+        id: 'mock-review-24',
+        author: 'Arsen G.',
+        rating: 5,
+        text: 'The cheese plate and a glass of Voskehat. Perfect.',
+        date: '2026-08-17',
       },
     ],
   },

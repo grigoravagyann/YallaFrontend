@@ -36,6 +36,7 @@ import { directionsUrl } from '../place/PlaceActions';
 import { PhotoImage } from '../PhotoImage';
 import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
+import { tableWithRoom } from './bookingText';
 
 /** The photo band across the top of the next booking. */
 export const HERO_PHOTO_HEIGHT = 118;
@@ -98,10 +99,9 @@ function useBookingFacts(booking: Booking, now: Date) {
       : moment.day === 'tomorrow'
         ? t('booking.tomorrow')
         : moment.date;
-  const tableLine = t('orders.tableAndParty', {
-    table: booking.tableLabel,
-    count: booking.partySize,
-  });
+  // "4 · Hall": the room, when the server named one, goes everywhere the table does.
+  const tableValue = tableWithRoom(booking);
+  const tableLine = t('orders.tableAndParty', { table: tableValue, count: booking.partySize });
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${moment.time}`;
   return {
     place,
@@ -111,7 +111,11 @@ function useBookingFacts(booking: Booking, now: Date) {
     date: moment.date,
     time: moment.time,
     guests: t('booking.guests', { count: booking.partySize }),
-    table: t('tables.table', { label: booking.tableLabel }),
+    /** "Table 4 · Hall". */
+    table: t('tables.table', { label: tableValue }),
+    /** "4 · Hall", under the "Table" caption. */
+    tableValue,
+    hasRoom: tableValue !== booking.tableLabel,
     // The code is in the name: it is what the diner reads out at the door, and
     // what the list is searched by.
     label: `${where}, ${t(`bookings.status.${booking.status}`)}, ${tableLine}, ${when}, ${booking.code}`,
@@ -123,8 +127,11 @@ export interface BookingHeroCardProps {
   /** The diner's clock, ticking in the list rather than in every card. */
   readonly now: Date;
   readonly onOpen: () => void;
-  /** The book screen for the same place. */
-  readonly onChange: () => void;
+  /**
+   * The booking screen on this booking, to move it. Offered only while the
+   * server would still accept a change: left out, there is no Change.
+   */
+  readonly onChange?: (() => void) | undefined;
   /** Offered only while the server would still accept a cancellation. */
   readonly onCancel: () => void;
   /** Just cancelled here: the card stays, says so, and offers the place again. */
@@ -187,17 +194,17 @@ export function BookingHeroCard({
         <View style={styles.facts}>
           <Fact label={facts.day} value={facts.time} />
           <Fact label={t('booking.partySize')} value={String(booking.partySize)} />
-          <Fact label={t('confirm.tableRow')} value={booking.tableLabel} />
+          <Fact label={t('confirm.tableRow')} value={facts.tableValue} />
         </View>
       </Pressable>
 
-      <DashedRule />
+      {onBookAgain || coords || onChange || active ? <DashedRule /> : null}
 
       {onBookAgain ? (
         <View style={styles.footer}>
           <Button label={t('bookings.bookAgain')} onPress={onBookAgain} />
         </View>
-      ) : (
+      ) : coords || onChange || active ? (
         <View style={styles.actions}>
           {coords ? (
             <HeroAction
@@ -208,12 +215,14 @@ export function BookingHeroCard({
               }}
             />
           ) : null}
-          <HeroAction icon="pencil-outline" label={t('bookings.change')} onPress={onChange} />
+          {onChange ? (
+            <HeroAction icon="pencil-outline" label={t('bookings.change')} onPress={onChange} />
+          ) : null}
           {active ? (
             <HeroAction label={t('booking.cancel')} onPress={onCancel} destructive />
           ) : null}
         </View>
-      )}
+      ) : null}
     </Card>
   );
 }
@@ -283,7 +292,10 @@ export interface BookingRowProps {
   readonly style?: StyleProp<ViewStyle>;
 }
 
-/** Every other booking: the photo, the name, when and how many, and the status. */
+/**
+ * Every other booking: the photo, the name, when and how many — and the table
+ * and its room when the server named one — and the status.
+ */
 export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
   const facts = useBookingFacts(booking, now);
   return (
@@ -295,7 +307,9 @@ export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
             {facts.where}
           </Text>
           <Text numberOfLines={1} style={styles.rowLine}>
-            {`${facts.day} · ${facts.time} · ${facts.guests}`}
+            {facts.hasRoom
+              ? `${facts.day} · ${facts.time} · ${facts.guests} · ${facts.table}`
+              : `${facts.day} · ${facts.time} · ${facts.guests}`}
           </Text>
           <BookingBadge status={booking.status} tone="solid" />
         </View>

@@ -142,8 +142,12 @@ export function ManageBookingRoute() {
           <div>
             <dt>{td('confirm.tableRow')}</dt>
             {/* "Table 2", not a bare "2": read on its own by a screen reader
-                the digit says nothing. */}
-            <dd>{td('table.title', { label: booking.tableLabel })}</dd>
+                the digit says nothing. The room follows when the table is in
+                one, so "Table 1 · Hall" says which door to walk through. */}
+            <dd>
+              {td('table.title', { label: booking.tableLabel })}
+              {booking.floorAreaName ? ` · ${booking.floorAreaName}` : ''}
+            </dd>
           </div>
         </dl>
 

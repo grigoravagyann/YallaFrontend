@@ -172,6 +172,7 @@ export function CreateVenueRoute() {
             >
               <option value="cafe">{t('create.typeCafe')}</option>
               <option value="restaurant">{t('create.typeRestaurant')}</option>
+              <option value="bar">{t('create.typeBar')}</option>
             </select>
           </label>
         </fieldset>

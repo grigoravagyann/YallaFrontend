@@ -118,6 +118,18 @@ describe('createHttpPlaceRepository', () => {
     expect(gateway.searchBranches).toHaveBeenCalledWith({ query: 'lumen', venueType: 'cafe' });
   });
 
+  it('asks the server for bars when the Bars filter is on, and keeps them bars', async () => {
+    const gateway = fakeGateway({
+      searchBranches: vi.fn(() => Promise.resolve([{ ...LISTING, venueType: 'bar' as const }])),
+    });
+    const places = repository.createHttpPlaceRepository({ gateway, ...clock });
+
+    const found = await places.search('', { type: 'bar' });
+
+    expect(gateway.searchBranches).toHaveBeenCalledWith({ query: '', venueType: 'bar' });
+    expect(found.map((place) => place.type)).toEqual(['bar']);
+  });
+
   it('reads a place without its menu, and surfaces a failed menu instead of an empty one', async () => {
     const failure = new Error('menu is down');
     const gateway = fakeGateway({ getBranchMenuDetail: vi.fn(() => Promise.reject(failure)) });

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { MAX_BOOKING_NOTE, bookingFailure, unavailableCopy } from '@yalla/api';
+import { MAX_BOOKING_NOTE, bookingFailure, unavailableCopy, type CopyLine } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
-import { formatTime, intlTag } from '@yalla/format';
+import { branchDayKey, formatTime, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -25,27 +25,43 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
 import { Rise } from '../../src/components/motion/Rise';
 import { SlidingChoice, type SlidingOption } from '../../src/components/motion/SlidingChoice';
+import { useToast } from '../../src/components/motion/Toast';
+import {
+  isUnchanged,
+  parseChangeParams,
+  type BookingChange,
+} from '../../src/components/bookings/changeBooking';
+import { placeArea, placeTitle } from '../../src/components/places/placeTitle';
 import { BookCta, CtaFooter } from '../../src/components/place/BookCta';
 import { ChoiceGrid, type ChoiceGridOption } from '../../src/components/place/ChoiceGrid';
 import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
 import { useDinerProfile } from '../../src/data/accountQueries';
-import { bookingRefusal } from '../../src/data/bookingRefusals';
-import { useBookingRules, useCreateBooking, useSlotFloor } from '../../src/data/queries';
+import { bookingRefusal, changeFailureLine } from '../../src/data/bookingRefusals';
+import {
+  keys,
+  useBookingRules,
+  useCreateBooking,
+  useDaySlots,
+  useRescheduleBooking,
+  useSlotFloor,
+} from '../../src/data/queries';
 import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
 import { placeKeys, usePlace, usePlaceRooms } from '../../src/places/hooks';
-import type { Place, PlaceRoom } from '../../src/places/model';
+import { shiftDateKey, type Place, type PlaceRoom } from '../../src/places/model';
 import { roomsAtSlot, slotRefusal } from '../../src/places/rooms';
 import { bookingRulesInput } from '../../src/places/navigation';
+import { dayRefusalLine, pickSlot, slotAvailability } from '../../src/places/slotAvailability';
 import {
   LEAD_MINUTES,
   WINDOW_DAYS,
   dayOptions,
   tablesForParty,
   timeSlots,
+  windowReaching,
   type DayOption,
 } from '../../src/places/slots';
 import { haptics } from '../../src/lib/haptics';
@@ -84,6 +100,15 @@ type BookingParams = {
   tableLabel?: string;
   capacityMin?: string;
   capacityMax?: string;
+  /**
+   * Change mode: the booking being moved, and the day (`YYYY-MM-DD`), time
+   * (`HH:mm`) and party it holds now — with `tableId`, its table. See
+   * `changeBookingRoute`.
+   */
+  bookingId?: string;
+  date?: string;
+  time?: string;
+  party?: string;
 };
 
 function positiveInt(value: string | undefined): number | null {
@@ -98,11 +123,21 @@ function positiveInt(value: string | undefined): number | null {
  * A verified number is asked for here and nowhere earlier: a diner without one
  * is handed to `/auth/login` with the same forward params the branch screen
  * uses, and comes out on the existing confirm screen. A verified diner books from here.
+ *
+ * With a `bookingId` the same screen changes that booking instead: opened on
+ * its day, time, party and table, the diner's own table free at its own time,
+ * and "Save changes" moving it — same code, same booking.
  */
 export default function BookingScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
   const params = useLocalSearchParams<BookingParams>();
+  const { bookingId, date, time, party, tableId } = params;
+  const change = useMemo(
+    () => parseChangeParams({ bookingId, date, time, party, tableId }),
+    [bookingId, date, time, party, tableId],
+  );
+  const title = change ? t('book.changeTitle') : t('book.title');
   const placeQuery = usePlace(params.placeId);
   const roomsQuery = usePlaceRooms(params.placeId);
 
@@ -115,7 +150,7 @@ export default function BookingScreen() {
     return (
       <Screen edges={['top', 'left', 'right', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={back} />
+        <Header title={title} onBack={back} />
         <View style={styles.skeleton}>
           <Skeleton height={layout.touchTarget} borderRadius={radius.pill} />
           <Skeleton height={layout.touchTarget} borderRadius={radius.pill} />
@@ -131,7 +166,7 @@ export default function BookingScreen() {
     return (
       <Screen edges={['top', 'left', 'right', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={back} />
+        <Header title={title} onBack={back} />
         <ErrorState
           offline={isOfflinePaused(placeQuery)}
           onRetry={() => void placeQuery.refetch()}
@@ -146,7 +181,7 @@ export default function BookingScreen() {
     return (
       <Screen edges={['top', 'left', 'right', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Header onBack={back} />
+        <Header title={title} onBack={back} />
         <EmptyState
           icon={actionIcon.error}
           title={t('floorPlan.notFound')}
@@ -162,6 +197,8 @@ export default function BookingScreen() {
       place={place}
       rooms={roomsQuery.data ?? place.rooms}
       params={params}
+      change={change}
+      title={title}
       onBack={back}
     />
   );
@@ -172,10 +209,13 @@ interface BookingFormProps {
   /** The rooms, photos and live pins: what the room photos at the slot are drawn on. */
   readonly rooms: readonly PlaceRoom[];
   readonly params: BookingParams;
+  /** The booking being changed, or `null` for a new one. */
+  readonly change: BookingChange | null;
+  readonly title: string;
   readonly onBack: () => void;
 }
 
-function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
+function BookingForm({ place, rooms, params, change, title, onBack }: BookingFormProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
@@ -183,7 +223,11 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   const insets = useSafeAreaInsets();
   const capacityLabel = useCapacityLabel();
   const reducedMotion = useReducedMotion();
+  const showToast = useToast((state) => state.show);
   const dayLabel = useDayLabel(place.timeZoneId);
+  // The booking being changed is left out of every availability read, so its
+  // own table reads free at its own time and at the times around it.
+  const excludeBookingId = change?.bookingId;
   const scrollRef = useRef<ScrollView>(null);
   // Where "Pick a table" starts in the scroll, so a table taken under the
   // diner's finger can bring them back to the photo.
@@ -240,14 +284,24 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
 
   // "Now", read once: the slot list must not reshuffle under a finger.
   const now = useMemo(() => new Date(), []);
+  // A booking being changed may lie beyond the window the strip starts with;
+  // its own day is always on it.
+  const changeDate = change?.date ?? null;
   const days = useMemo(
-    () => dayOptions(now, place.timeZoneId, windowDays),
-    [now, place.timeZoneId, windowDays],
+    () =>
+      dayOptions(
+        now,
+        place.timeZoneId,
+        windowReaching(now, place.timeZoneId, windowDays, changeDate),
+      ),
+    [now, place.timeZoneId, windowDays, changeDate],
   );
 
-  const [dateKey, setDateKey] = useState<string | null>(null);
-  const [slotKey, setSlotKey] = useState<string | null>(null);
+  // A change opens on what the booking holds; a new booking on the defaults.
+  const [dateKey, setDateKey] = useState<string | null>(change?.date ?? null);
+  const [slotKey, setSlotKey] = useState<string | null>(change?.time ?? null);
   const [partySize, setPartySize] = useState(() => {
+    if (change?.partySize) return Math.min(change.partySize, PARTY_MAX);
     const min = chosenTable?.capacityMin ?? PARTY_SIZES[0];
     return Math.min(Math.max(min, PARTY_SIZES[0]), chosenTable?.capacityMax ?? PARTY_MAX);
   });
@@ -268,8 +322,38 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
     () => (activeDateKey ? timeSlots(place, activeDateKey, now, leadMinutes) : []),
     [place, activeDateKey, now, leadMinutes],
   );
-  // The tapped slot while it is still on offer, else the first of the day.
-  const activeSlot = slots.find((slot) => slot.key === slotKey) ?? slots[0] ?? null;
+  /*
+   * Which of those times nobody can have, for this party, from the server's
+   * day of slots: struck, named so, never chosen. Nothing is struck while it
+   * loads or when it fails — the room the diner opens still says whether a
+   * table is free.
+   */
+  const daySlotsQuery = useDaySlots({
+    branchId: place.id,
+    date: activeDateKey ?? undefined,
+    partySize,
+    excludeBookingId,
+  });
+  // A late venue's times after midnight are the next date's, and only that
+  // date's answer can say whether they can be had.
+  const nextDateKey =
+    activeDateKey && slots.some((slot) => branchDayKey(slot.at, place.timeZoneId) !== activeDateKey)
+      ? shiftDateKey(activeDateKey, 1)
+      : undefined;
+  const nextDaySlotsQuery = useDaySlots({
+    branchId: place.id,
+    date: nextDateKey,
+    partySize,
+    excludeBookingId,
+  });
+  const dayAnswer = daySlotsQuery.isError ? null : daySlotsQuery.data;
+  const nextDayAnswer = nextDaySlotsQuery.isError || !nextDateKey ? null : nextDaySlotsQuery.data;
+  const availability = useMemo(
+    () => slotAvailability(slots, [dayAnswer, nextDayAnswer], place.timeZoneId),
+    [slots, dayAnswer, nextDayAnswer, place.timeZoneId],
+  );
+  // The tapped slot while it can still be had, else the first that can.
+  const activeSlot = pickSlot(slots, availability.struck, slotKey);
   const slotUtc = activeSlot?.at.toISOString() ?? '';
 
   /*
@@ -285,13 +369,17 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
     slotUtc,
     partySize,
     timeZoneId: place.timeZoneId,
+    excludeBookingId,
   });
-  const slotTables = slotQuery.data?.tables;
+  // With every time struck there is no slot, and the last slot's room (kept
+  // on screen between answers) is not drawn as if it were this one's.
+  const slotAnswer = activeSlot ? slotQuery.data : undefined;
+  const slotTables = slotAnswer?.tables;
   /*
    * The rooms as they will be at the slot: every pin coloured by its state
    * then, and bookable only where the server would give it to this party.
    */
-  const slotPlan = slotQuery.data?.plan.tables;
+  const slotPlan = slotAnswer?.plan.tables;
   const slotRooms = useMemo(() => {
     if (!slotPlan) return [];
     const verdicts = new Map((slotTables ?? []).map((table) => [table.tableId, table]));
@@ -322,11 +410,11 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
       const line = unavailableCopy(chosenAtSlot.unavailableReason, partySize);
       return t(line.key, line.params);
     }
-    if (slotQuery.data && !chosenAtSlot) return t('confirm.tableMissing');
+    if (slotAnswer && !chosenAtSlot) return t('confirm.tableMissing');
     // No slot answer yet: the photo's live state is the best available word.
     if (chosenTable.live && chosenTable.live.status !== 'free') return t('tables.notBookable');
     return null;
-  }, [chosenTable, chosenAtSlot, slotQuery.data, partySize, t]);
+  }, [chosenTable, chosenAtSlot, slotAnswer, partySize, t]);
 
   // Who books. The number is verified by SMS; the name is remembered from the
   // first booking and asked for once here when it is not.
@@ -338,7 +426,8 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   // A diner who still has to confirm their number gives the name on the confirm
   // screen after the SMS, so it is neither required nor asked twice here.
   const verified = signedIn && Boolean(phoneE164);
-  const needsName = verified && !rememberedName;
+  // A booking being changed already has its name.
+  const needsName = !change && verified && !rememberedName;
   /*
    * An account whose number has never passed the SMS code cannot book. Known
    * from the profile before the tap, or from the server's refusal after it
@@ -349,23 +438,34 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   useDinerProfile();
   const profilePhoneVerified = useSession((s) => s.profile?.phoneVerified);
   const [verifyRefused, setVerifyRefused] = useState(false);
+  // Not for a change: the booking was made on a verified number, and the code
+  // flow ends on the confirm screen, which makes a new booking.
   const mustVerify =
+    !change &&
     verified &&
     (profilePhoneVerified === false || (verifyRefused && profilePhoneVerified !== true));
 
   // One id per screen, reused on every retry — see `confirm.tsx`.
   const commandId = useRef(newCommandId());
   const createBooking = useCreateBooking();
-  const pending = createBooking.isPending;
+  const reschedule = useRescheduleBooking();
+  const pending = createBooking.isPending || reschedule.isPending;
 
   const targetTableId = chosenTable?.tableId ?? autoTableId;
-  const noTableFits = !chosenTable && autoTableId === null;
+  // Said only for a time that can be had: a struck one already says why.
+  const noTableFits = activeSlot !== null && !chosenTable && autoTableId === null;
+  // A change that would move the booking to where it already is.
+  const unchanged =
+    change !== null &&
+    isUnchanged(change, {
+      date: activeDateKey,
+      time: activeSlot?.key ?? null,
+      partySize,
+      tableId: targetTableId,
+    });
   // Shut at that time (or too soon, too far ahead): the time is the problem,
   // not the party, and the banner says so rather than "try another party size".
-  const slotClosed = useMemo(
-    () => (slotQuery.data ? slotRefusal(slotQuery.data) : null),
-    [slotQuery.data],
-  );
+  const slotClosed = useMemo(() => (slotAnswer ? slotRefusal(slotAnswer) : null), [slotAnswer]);
   const noTableText = useMemo(() => {
     if (!slotClosed) return t('book.noTableForParty', { count: partySize });
     const line = unavailableCopy(slotClosed, partySize);
@@ -377,11 +477,104 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
     targetTableId !== null &&
     chosenRefusal === null &&
     !pending &&
-    (!verified || guestName.trim().length > 0);
+    !unchanged &&
+    (change !== null || !verified || guestName.trim().length > 0);
+
+  /**
+   * A failed create or change, said where the diner acts on it: a lost table
+   * over the photo, everything else under the form.
+   */
+  const fail = useCallback(
+    (error: unknown) => {
+      // Not taking app bookings, a note over the limit, a booking that can no
+      // longer move: said in their own words.
+      const refusal = bookingRefusal(error);
+      if (refusal) {
+        setOutcomeUnknown(false);
+        setErrorText(t(refusal.key, refusal.params));
+        if (change) {
+          // Whatever the booking became, its own screen should say it.
+          void queryClient.invalidateQueries({ queryKey: keys.booking(change.bookingId) });
+          void queryClient.invalidateQueries({ queryKey: keys.bookings });
+        }
+        return;
+      }
+      const failure = bookingFailure(error, place.timeZoneId, locale);
+      if (failure.kind === 'tableTaken') {
+        // The photo underneath and the slot answer are told to redraw; the
+        // diner picks again, with the day, time and party kept.
+        void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
+        void slotQuery.refetch();
+        void daySlotsQuery.refetch();
+        if (nextDateKey) void nextDaySlotsQuery.refetch();
+        setOutcomeUnknown(false);
+        setConflictText(t(failure.line.key, failure.line.params));
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, pickTop.current - space.sm),
+          animated: !reducedMotion,
+        });
+        return;
+      }
+      // Nothing was booked; the command id stays for the retry.
+      if (failure.kind === 'phoneNotVerified' && !change) {
+        setVerifyRefused(true);
+        setOutcomeUnknown(false);
+        return;
+      }
+      if (failure.kind === 'commandInUse') commandId.current = newCommandId();
+      setOutcomeUnknown(failure.kind === 'unknown');
+      const line: CopyLine = change ? changeFailureLine(failure) : failure.line;
+      setErrorText(t(line.key, line.params));
+    },
+    [
+      change,
+      queryClient,
+      place.id,
+      place.timeZoneId,
+      locale,
+      slotQuery,
+      daySlotsQuery,
+      nextDaySlotsQuery,
+      nextDateKey,
+      t,
+      reducedMotion,
+      setVerifyRefused,
+    ],
+  );
 
   const confirm = useCallback(async () => {
     if (!activeSlot || !targetTableId || pending || chosenRefusal) return;
     clearErrors();
+
+    // Change mode: move the booking, then back to it with a word of what happened.
+    if (change) {
+      if (unchanged) return;
+      try {
+        const moved = await reschedule.mutateAsync({
+          bookingId: change.bookingId,
+          commandId: commandId.current,
+          tableId: targetTableId,
+          slotUtc,
+          timeZoneId: place.timeZoneId,
+          partySize,
+        });
+        void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
+        haptics.success();
+        // A bigger party may go back to waiting for the venue: said so.
+        const waiting = moved.status === 'pendingApproval';
+        showToast(
+          t(waiting ? 'book.changeSent' : 'book.changed'),
+          waiting ? actionIcon.time : 'checkmark',
+        );
+        // Back to the booking: the detail it came from, or in place of this
+        // screen when it came from the list.
+        router.dismissTo({ pathname: '/booking/[bookingId]', params: { bookingId: moved.id } });
+      } catch (error) {
+        fail(error);
+      }
+      return;
+    }
+
     const note = requests.trim();
     const forward = {
       branchId: place.id,
@@ -429,38 +622,14 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
       void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
       router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
     } catch (error) {
-      // Not taking app bookings, or a note over the limit: said in their own words.
-      const refusal = bookingRefusal(error);
-      if (refusal) {
-        setOutcomeUnknown(false);
-        setErrorText(t(refusal.key, refusal.params));
-        return;
-      }
-      const failure = bookingFailure(error, place.timeZoneId, locale);
-      if (failure.kind === 'tableTaken') {
-        // The photo underneath and the slot answer are told to redraw; the
-        // diner picks again, with the day, time and party kept.
-        void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
-        void slotQuery.refetch();
-        setOutcomeUnknown(false);
-        setConflictText(t(failure.line.key, failure.line.params));
-        scrollRef.current?.scrollTo({
-          y: Math.max(0, pickTop.current - space.sm),
-          animated: !reducedMotion,
-        });
-        return;
-      }
-      // Nothing was booked; the command id stays for the retry.
-      if (failure.kind === 'phoneNotVerified') {
-        setVerifyRefused(true);
-        setOutcomeUnknown(false);
-        return;
-      }
-      if (failure.kind === 'commandInUse') commandId.current = newCommandId();
-      setOutcomeUnknown(failure.kind === 'unknown');
-      setErrorText(t(failure.line.key, failure.line.params));
+      fail(error);
     }
   }, [
+    change,
+    unchanged,
+    reschedule,
+    showToast,
+    fail,
     mustVerify,
     activeSlot,
     targetTableId,
@@ -479,11 +648,8 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
     router,
     createBooking,
     queryClient,
-    slotQuery,
-    locale,
     t,
     clearErrors,
-    reducedMotion,
   ]);
 
   const selectParty = useCallback(
@@ -505,14 +671,32 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   }, [capacityMin, capacityMax]);
   const moreAllowed = moreSizes.length > 0;
 
+  // A struck time is drawn and named — "20:00, no free tables" — never chosen.
+  // One that can be had is named by its time alone.
   const slotOptions = useMemo<readonly ChoiceGridOption[]>(
     () =>
-      slots.map((slot) => ({
-        value: slot.key,
-        label: formatTime(slot.at, place.timeZoneId, locale),
-      })),
-    [slots, place.timeZoneId, locale],
+      slots.map((slot) => {
+        const label = formatTime(slot.at, place.timeZoneId, locale);
+        return availability.struck.has(slot.key)
+          ? {
+              value: slot.key,
+              label,
+              disabled: true,
+              accessibilityLabel: t('book.slotFull', { time: label }),
+            }
+          : { value: slot.key, label };
+      }),
+    [slots, availability.struck, place.timeZoneId, locale, t],
   );
+  // Under the times, when any is struck: why — the day's own reason when the
+  // whole day is refused, else that a struck time has no free table.
+  const lineText = (line: CopyLine) => t(line.key, line.params);
+  const struckHint =
+    availability.struck.size === 0
+      ? null
+      : availability.dayReason
+        ? lineText(dayRefusalLine(availability.dayReason, partySize))
+        : t('book.struckHint');
 
   // A table for four to six is not a table for two, any more than a table
   // for two is a table for six: sizes the chosen table cannot seat are struck.
@@ -546,9 +730,13 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
           guests: t('booking.guests', { count: partySize }),
         })
       : undefined;
+  // What one press does: book, or move the booking being changed.
+  const ctaAction = change ? t('book.saveChanges') : t('book.confirm');
   // The button's state, when it is anything but "book it".
   const ctaState = pending
-    ? t('confirm.submitting')
+    ? change
+      ? t('book.saving')
+      : t('confirm.submitting')
     : mustVerify
       ? t('confirm.verifyMyNumber')
       : outcomeUnknown
@@ -571,7 +759,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Header onBack={onBack} place={place} />
+        <Header title={title} onBack={onBack} place={place} />
         <ScrollView
           ref={scrollRef}
           style={styles.flex}
@@ -594,18 +782,21 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
           {slots.length === 0 ? (
             <Text style={styles.empty}>{t('book.noSlots')}</Text>
           ) : (
-            <ChoiceGrid
-              options={slotOptions}
-              value={activeSlot?.key ?? null}
-              onChange={(key) => {
-                haptics.select();
-                setSlotKey(key);
-                clearErrors();
-              }}
-              columns={SLOT_COLUMNS}
-              gap={SLOT_GAP}
-              accessibilityLabel={t('book.time')}
-            />
+            <View style={styles.times}>
+              <ChoiceGrid
+                options={slotOptions}
+                value={activeSlot?.key ?? null}
+                onChange={(key) => {
+                  haptics.select();
+                  setSlotKey(key);
+                  clearErrors();
+                }}
+                columns={SLOT_COLUMNS}
+                gap={SLOT_GAP}
+                accessibilityLabel={t('book.time')}
+              />
+              {struckHint ? <Text style={styles.struckHint}>{struckHint}</Text> : null}
+            </View>
           )}
 
           {/* Guests: one glass row, the label and the sizes as radios. */}
@@ -734,29 +925,33 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             </View>
           ) : null}
 
-          <View style={styles.field}>
-            <SectionHeader
-              label={t('booking.note.title')}
-              icon={actionIcon.note}
-              hint={t('book.optional')}
-            />
-            <TextInput
-              style={[styles.input, styles.requests]}
-              value={requests}
-              onChangeText={(value) => {
-                setRequests(value);
-                clearErrors();
-              }}
-              placeholder={t('booking.note.placeholder')}
-              placeholderTextColor={colors.textSubtle}
-              multiline
-              maxLength={MAX_BOOKING_NOTE}
-              textAlignVertical="top"
-              accessibilityLabel={t('booking.note.title')}
-            />
-            {/* Honest about where the words go: to the venue, with the booking. */}
-            <Text style={styles.hint}>{t('booking.note.hint')}</Text>
-          </View>
+          {/* The note went to the venue with the booking; a change moves the
+              booking and leaves the note as it was. */}
+          {change ? null : (
+            <View style={styles.field}>
+              <SectionHeader
+                label={t('booking.note.title')}
+                icon={actionIcon.note}
+                hint={t('book.optional')}
+              />
+              <TextInput
+                style={[styles.input, styles.requests]}
+                value={requests}
+                onChangeText={(value) => {
+                  setRequests(value);
+                  clearErrors();
+                }}
+                placeholder={t('booking.note.placeholder')}
+                placeholderTextColor={colors.textSubtle}
+                multiline
+                maxLength={MAX_BOOKING_NOTE}
+                textAlignVertical="top"
+                accessibilityLabel={t('booking.note.title')}
+              />
+              {/* Honest about where the words go: to the venue, with the booking. */}
+              <Text style={styles.hint}>{t('booking.note.hint')}</Text>
+            </View>
+          )}
 
           {mustVerify ? (
             <Text accessibilityRole="alert" style={styles.error}>
@@ -781,13 +976,11 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             </View>
           ) : (
             <BookCta
-              label={ctaState ?? t('tables.book')}
+              label={ctaState ?? (change ? t('book.saveChanges') : t('tables.book'))}
               {...(summary ? { caption: summary } : {})}
               // The action first (what e2e and a screen reader key on), then
               // the summary the caption shows, so it is heard as well as seen.
-              accessibilityLabel={
-                ctaState ?? (summary ? `${t('book.confirm')}, ${summary}` : t('book.confirm'))
-              }
+              accessibilityLabel={ctaState ?? (summary ? `${ctaAction}, ${summary}` : ctaAction)}
               disabled={!canConfirm}
               busy={pending}
               onPress={() => void confirm()}
@@ -827,24 +1020,26 @@ function useDayLabel(timeZoneId: string): (day: DayOption) => string {
 }
 
 /**
- * "Book a Table" over the venue and where it is, so two branches of one venue
- * are never confused here.
+ * "Book a Table" — or "Change booking" — over the venue and where it is:
+ * the district the venue set, else the branch (or the street), as the place
+ * card says it.
  */
 function Header({
+  title,
   onBack,
   place,
 }: {
+  title: string;
   onBack: () => void;
-  place?: Pick<Place, 'name' | 'venueName' | 'branchName' | 'address'> | undefined;
+  place?: Pick<Place, 'name' | 'venueName' | 'branchName' | 'address' | 'district'> | undefined;
 }) {
   const { t } = useTranslation('diner');
   const venue = place ? place.venueName.trim() || place.name : null;
-  const branch =
-    place && venue && place.branchName.trim().toLocaleLowerCase() !== venue.toLocaleLowerCase()
-      ? place.branchName.trim() || null
-      : null;
-  // The branch names the place within the venue; without one, the street does.
-  const where = branch ?? (place?.address.split(',')[0]?.trim() || null);
+  // The district; without one, the branch, else the street.
+  const where = place ? placeArea(place) || null : null;
+  // Heard with the branch as well, so two branches of one venue never sound alike.
+  const branch = place ? placeTitle(place).branch : null;
+  const heard = [title, venue, branch !== where ? branch : null, where];
   return (
     <View style={styles.header}>
       <IconButton
@@ -857,10 +1052,10 @@ function Header({
         style={styles.titleBlock}
         accessible
         accessibilityRole="header"
-        accessibilityLabel={[t('book.title'), venue, where].filter(Boolean).join(', ')}
+        accessibilityLabel={heard.filter(Boolean).join(', ')}
       >
         <Text display numberOfLines={1} style={styles.title}>
-          {t('book.title')}
+          {title}
         </Text>
         {venue ? (
           <Text numberOfLines={1} style={styles.subline}>
@@ -1011,6 +1206,13 @@ const styles = StyleSheet.create({
   dayLabelOn: { fontWeight: fontWeight.bold, color: colors.onPrimary },
 
   empty: { ...typography.body, color: colors.textMuted },
+  // The design's 6 between the times and the hint under them.
+  times: { gap: SLOT_GAP },
+  struckHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    paddingHorizontal: space.xs,
+  },
 
   partyCard: {
     borderRadius: radius.card,

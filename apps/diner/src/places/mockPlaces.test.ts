@@ -26,9 +26,23 @@ vi.mock('./devicePosition', () => ({ readDevicePosition: vi.fn(() => Promise.res
  * app as far as anyone looking at it can tell.
  */
 describe('the mock places', () => {
-  it('has six places with unique branch ids', () => {
-    expect(mockPlaces).toHaveLength(6);
-    expect(new Set(mockPlaces.map((p) => p.id)).size).toBe(6);
+  it('has eight places with unique branch ids', () => {
+    expect(mockPlaces).toHaveLength(8);
+    expect(new Set(mockPlaces.map((p) => p.id)).size).toBe(8);
+  });
+
+  it('has two bars, on the api mock’s own bar branches, so the Bars filter finds them', () => {
+    const bars = mockPlaces.filter((p) => p.type === 'bar');
+    expect(bars.map((p) => p.id).sort()).toEqual(['b-copperfox-saryan', 'b-vinoteka-komitas']);
+  });
+
+  it('names the district its api-mock branch names, and keeps one place without', () => {
+    const byId = new Map(mockPlaces.map((p) => [p.id, p.district]));
+    expect(byId.get('b-lumen-north')).toBe('Kentron');
+    expect(byId.get('b-lumen-cascade')).toBe('Arabkir');
+    expect(byId.get('b-copperfox-saryan')).toBe('Kentron');
+    expect(byId.get('b-vinoteka-komitas')).toBe('Arabkir');
+    expect(byId.get('b-greenbean-main')).toBeNull();
   });
 
   it('keeps the named venues on their own api-mock branches', () => {
@@ -98,6 +112,16 @@ describe('the mock places against the api mock', () => {
       }
     },
   );
+
+  it('narrows to bars, and finds a place by its district', async () => {
+    const bars = await places.search('', { type: 'bar' });
+    expect(bars.map((place) => place.type)).toEqual(['bar', 'bar']);
+    const arabkir = await places.search('arabkir');
+    expect(arabkir.map((place) => place.id).sort()).toEqual([
+      'b-lumen-cascade',
+      'b-vinoteka-komitas',
+    ]);
+  });
 
   it('serves the same rooms on the place page as on the rooms read', async () => {
     const place = await places.getById('b-lumen-north');

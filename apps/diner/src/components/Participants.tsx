@@ -1,8 +1,13 @@
+import type { Photo } from '@yalla/api';
 import { formatNameList, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { colors, fontWeight, radius, space, typography } from '../theme';
+import { PhotoImage } from './PhotoImage';
+import { hasPhotoSource } from './photoSource';
 import { Text } from './Text';
+import { avatarStack, initialOf, peopleLine, stackName } from '../tab/avatarStack';
 import { onTab, type RosterPerson } from '../tab/roster';
 
 /**
@@ -32,6 +37,20 @@ export function useParticipantSummary(people: readonly RosterPerson[], locale: L
   return formatNameList(parts, locale);
 }
 
+/**
+ * "Anna, Gor +1" — the names beside the stack of faces, and the same "+n".
+ * The short form for the people card; the full sentence above stays the
+ * card's accessible name.
+ */
+export function usePeopleLine(people: readonly RosterPerson[]): string {
+  const { t } = useTranslation('diner');
+  return peopleLine(people, {
+    youName: t('tab.youName'),
+    headCount: (count) => t('tab.peopleCount', { count }),
+    namesMore: (names, more) => t('tab.namesMore', { names, more }),
+  });
+}
+
 export interface ParticipantRowProps {
   readonly person: RosterPerson;
   /** Host controls render their buttons here; the read-only list passes none. */
@@ -51,9 +70,7 @@ export function ParticipantRow({ person, children }: ParticipantRowProps) {
 
   return (
     <View style={styles.row}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initial(name)}</Text>
-      </View>
+      <PersonAvatar name={name} photo={person.photo} size={ROW_AVATAR} tone="quiet" />
 
       <View style={styles.who}>
         <Text style={styles.name} numberOfLines={1}>
@@ -82,62 +99,112 @@ function Badge({ label, tone }: { label: string; tone: 'you' | 'host' | 'waiting
   );
 }
 
+export interface PersonAvatarProps {
+  /** Whose face: the initial drawn when there is no photo to show. */
+  readonly name: string;
+  readonly photo: Photo | null;
+  readonly size: number;
+  /** `you` in the brown, `other` on the warm neutral, `quiet` on the muted fill of a list row. */
+  readonly tone: 'you' | 'other' | 'quiet';
+  /** Ringed in the sheet colour, so overlapping faces read as cut out of each other. */
+  readonly ringed?: boolean;
+}
+
+/**
+ * One face: the person's profile photo, or their initial.
+ *
+ * The initial is the common case — a walk-in with no account has no photo —
+ * and also what a photo that never arrives falls back to, rather than an
+ * image glyph where a face should be. Decorative: the name always sits next
+ * to it or in the label of what holds it.
+ */
+export function PersonAvatar({ name, photo, size, tone, ringed = false }: PersonAvatarProps) {
+  const url = photo?.thumbnailUrl ?? null;
+  // The link that failed rather than a flag, so a new photo gets its own try.
+  const [failed, setFailed] = useState<string | null>(null);
+  const showPhoto = hasPhotoSource(url) && failed !== url;
+
+  return (
+    <View
+      // Hidden on every platform: `aria-hidden` is what the web build reads.
+      aria-hidden
+      style={[
+        styles.face,
+        { width: size, height: size },
+        tone === 'you' ? styles.faceYou : tone === 'other' ? styles.faceOther : styles.faceQuiet,
+        ringed && styles.faceRinged,
+      ]}
+    >
+      {showPhoto ? (
+        <PhotoImage
+          source={url}
+          style={styles.facePhoto}
+          // `null` is what a load that failed reports; the initial takes over.
+          onLoad={(loaded) => {
+            if (loaded === null) setFailed(url);
+          }}
+        />
+      ) : (
+        <Text
+          style={[
+            ringed ? styles.stackedText : styles.avatarText,
+            tone === 'you' && styles.avatarTextYou,
+          ]}
+        >
+          {initialOf(name)}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export interface AvatarRowProps {
   readonly people: readonly RosterPerson[];
 }
 
-/** The first character as a person sees it, never half of a surrogate pair. */
-function initial(name: string): string {
-  return (Array.from(name)[0] ?? '').toLocaleUpperCase();
-}
-
-/** Past this the row stops being a glance; the rest fold into the "+n". */
-const MAX_AVATARS = 3;
 /** One circle of the stack. */
 const STACKED = 34;
+/** The face beside a name in the full list. */
+const ROW_AVATAR = 36;
 
 /**
- * Everyone on the tab as a stack of overlapping initials.
+ * Everyone on the tab as a stack of overlapping faces.
  *
  * The tab screen leads with the bill, so the people become a glance rather
- * than a list: you in the brown, everyone else on the warm neutral, anonymous
- * guests folded into a "+n". Each circle is ringed in the sheet colour, so the
- * overlap reads as one cut out of the next. The full list with badges and host
- * controls is one tap away on the people screen.
+ * than a list: a profile photo where somebody signed in with one, otherwise
+ * their initial — you in the brown, everyone else on the warm neutral — and
+ * the rest folded into a "+n". Each circle is ringed in the sheet colour, so
+ * the overlap reads as one cut out of the next. The full list with badges and
+ * host controls is one tap away on the people screen.
  */
 export function AvatarRow({ people }: AvatarRowProps) {
   const { t } = useTranslation('diner');
-  const here = onTab(people);
-  const named = here.filter((p) => p.displayName?.trim() || p.isYou).slice(0, MAX_AVATARS);
-  const folded = here.length - named.length;
+  const { shown, folded } = avatarStack(people);
 
   // Decorative: the pressable around it already names everyone. Left in the
   // tree it announced as a bare "image" on TalkBack.
   return (
-    <View
-      style={styles.avatarRow}
-      importantForAccessibility="no-hide-descendants"
-      accessibilityElementsHidden
-    >
-      {named.map((person, i) => {
-        const name = person.displayName?.trim() || t('tab.youName');
-        return (
-          <View
-            key={person.participantId}
-            style={[
-              styles.stacked,
-              i > 0 && styles.stackedOverlap,
-              person.isYou && styles.avatarYou,
-            ]}
-          >
-            <Text style={[styles.stackedText, person.isYou && styles.avatarTextYou]}>
-              {initial(name)}
-            </Text>
-          </View>
-        );
-      })}
+    <View style={styles.avatarRow} aria-hidden>
+      {shown.map((person, i) => (
+        <View key={person.participantId} style={i > 0 ? styles.stackedOverlap : null}>
+          <PersonAvatar
+            name={stackName(person, t('tab.youName'))}
+            photo={person.photo}
+            size={STACKED}
+            tone={person.isYou ? 'you' : 'other'}
+            ringed
+          />
+        </View>
+      ))}
       {folded > 0 ? (
-        <View style={[styles.stacked, styles.folded, named.length > 0 && styles.stackedOverlap]}>
+        <View
+          style={[
+            styles.face,
+            styles.faceRinged,
+            styles.folded,
+            shown.length > 0 && styles.stackedOverlap,
+          ]}
+        >
           <Text style={styles.foldedText}>{`+${folded}`}</Text>
         </View>
       ) : null}
@@ -152,33 +219,25 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingVertical: space.sm,
   },
-  avatar: {
-    width: 36,
-    height: 36,
+  face: {
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
+    overflow: 'hidden',
   },
+  faceYou: { backgroundColor: colors.brand },
+  faceOther: { backgroundColor: colors.secondary },
+  faceQuiet: { backgroundColor: colors.surfaceMuted },
+  // The ring is the sheet colour, so overlapping circles read as cut out.
+  faceRinged: { borderWidth: 2, borderColor: colors.sheet },
+  facePhoto: { ...StyleSheet.absoluteFill, borderRadius: radius.pill },
   avatarText: { ...typography.buttonMedium, color: colors.text },
   avatarTextYou: { color: colors.onPrimary },
   avatarRow: { flexDirection: 'row', alignItems: 'center' },
-  // The ring is the sheet colour, so overlapping circles read as cut out.
-  stacked: {
-    width: STACKED,
-    height: STACKED,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: colors.sheet,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.secondary,
-  },
   stackedOverlap: { marginLeft: -10 },
   stackedText: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
-  folded: { backgroundColor: colors.surfaceMuted },
+  folded: { width: STACKED, height: STACKED, backgroundColor: colors.surfaceMuted },
   foldedText: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.text },
-  avatarYou: { backgroundColor: colors.brand },
   who: { flex: 1, gap: space.xs },
   name: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },

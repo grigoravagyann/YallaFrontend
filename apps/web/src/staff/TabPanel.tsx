@@ -1,14 +1,17 @@
 import {
   VOID_REASONS,
   type AdjustmentKind,
+  type BillRequest,
   type StaffTab,
   type TabAdjustment,
   type TabLine,
+  type TabStaffParticipant,
   type UserRole,
   type VoidReason,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
+import { billRequestText } from './billRequestText';
 import { CashKeypad } from './CashKeypad';
 import { useBranchFormat } from './useBranchFormat';
 
@@ -57,6 +60,12 @@ export interface TabPanelProps {
   readonly offlineUnknown: boolean;
   /** The last cash attempt was refused for exceeding the balance. */
   readonly cashRefusal: { readonly remainingDram: number; readonly requestedDram: number } | null;
+  /**
+   * What the table asked to pay from the app — the whole bill or one share,
+   * and the tip — while that request is still being handled. The keypad opens
+   * on it.
+   */
+  readonly billRequest?: BillRequest | null;
   readonly onVoid: (line: TabLine, reason: VoidReason, detail?: string) => void;
   readonly onAdjust: (input: {
     lineId: string | null;
@@ -70,6 +79,41 @@ export interface TabPanelProps {
   readonly onAbandon: (reason: string) => void;
   readonly onOrder: () => void;
   readonly onClose: () => void;
+}
+
+/** Two letters for a face with no photo: the first of the first two words that are names. */
+function initialsOf(name: string): string {
+  return name
+    .split(/\s+/u)
+    .filter((word) => /^\p{L}/u.test(word))
+    .slice(0, 2)
+    .map((word) => word[0]!.toLocaleUpperCase())
+    .join('');
+}
+
+/**
+ * The person's own photo when their account has one — the waiter's "who is
+ * who" at a table of six — and their initials otherwise, or when the photo
+ * does not load. Decorative: the name is beside it.
+ */
+function ParticipantAvatar({
+  person,
+  name,
+}: {
+  readonly person: TabStaffParticipant;
+  readonly name: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const photo = failed ? null : person.photo;
+  return (
+    <span className="avatar tab-avatar" aria-hidden="true">
+      {photo ? (
+        <img src={photo.thumbnailUrl} alt="" onError={() => setFailed(true)} />
+      ) : (
+        initialsOf(name)
+      )}
+    </span>
+  );
 }
 
 /** The roles the server lets move money on a tab: a branch manager and everyone above. */
@@ -98,6 +142,8 @@ export function TabPanel(props: TabPanelProps) {
 
   const isManager = isTabManager(role);
   const totals = tab?.totals;
+  const billRequest = props.billRequest ?? null;
+  const tipsDram = tab?.tipsDram ?? null;
   const closed = tab?.status === 'closed' || tab?.status === 'abandoned';
   const closing = tab?.status === 'closing';
 
@@ -151,6 +197,21 @@ export function TabPanel(props: TabPanelProps) {
                 </div>
               ) : null}
             </dl>
+
+            {/* Tips are money the venue took, never money the table owes, so
+                they sit under the balance and outside it — only once there is
+                one, since "tips: 0" next to a bill reads as a hint. */}
+            {tipsDram !== null && tipsDram > 0 ? (
+              <p className="tab-tips">{t('tab.tips', { amount: format.dram(tipsDram) })}</p>
+            ) : null}
+
+            {/* What the table asked for from the app, so the waiter walks over
+                knowing the amount rather than asking for it again. */}
+            {billRequest && !closed ? (
+              <p className="tab-bill-request">
+                {billRequestText(billRequest, t, format.dram, 'wants')}
+              </p>
+            ) : null}
 
             {closed ? (
               // Closed and freed are not the same thing, and conflating them is
@@ -320,15 +381,21 @@ export function TabPanel(props: TabPanelProps) {
               <p className="floor-todo">{t('tab.noPeople')}</p>
             ) : (
               <ul className="tab-shares">
-                {tab.participants.map((person) => (
-                  <li key={person.id}>
-                    <span>
-                      {person.displayName ?? t('order.whoUnnamed')}
-                      {person.isHost ? ` · ${t('tab.host')}` : ''}
-                    </span>
-                    <span className="table-note">{t(`tab.participant.${person.status}`)}</span>
-                  </li>
-                ))}
+                {tab.participants.map((person) => {
+                  const name = person.displayName ?? t('order.whoUnnamed');
+                  return (
+                    <li key={person.id}>
+                      <span className="tab-person">
+                        <ParticipantAvatar person={person} name={name} />
+                        <span>
+                          {name}
+                          {person.isHost ? ` · ${t('tab.host')}` : ''}
+                        </span>
+                      </span>
+                      <span className="table-note">{t(`tab.participant.${person.status}`)}</span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             {/* The per-person split is `TabParticipant`-scoped on the server, so
@@ -501,6 +568,7 @@ export function TabPanel(props: TabPanelProps) {
       {takingCash && totals ? (
         <CashKeypad
           remainingDram={totals.remainingDram}
+          prefill={billRequest}
           timeZoneId={timeZoneId}
           onCancel={() => setTakingCash(false)}
           onConfirm={(input) => {

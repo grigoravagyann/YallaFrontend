@@ -1,4 +1,4 @@
-import type { ReservationPolicy } from '@yalla/api';
+import type { ReservationPolicy, VenueType } from '@yalla/api';
 import { useManagedVenue, useReservationPolicy, useSaveReservationPolicy } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useMemo, useReducer, useState } from 'react';
@@ -46,9 +46,10 @@ export function ReservationPolicyScreen() {
   const { branchId } = useVenueOutlet();
   const { user } = useCurrentUser();
   // The venue read a venue user may make. The platform one answered every
-  // owner 403, and this fell through to 'cafe' for every restaurant.
+  // owner 403, and this fell through to 'cafe' for every restaurant. Until it
+  // loads, the cafe defaults stand in (a bar ships the same ones).
   const venue = useManagedVenue(user?.scope.venueId ?? undefined);
-  const venueType = venue.data?.type === 'restaurant' ? 'restaurant' : 'cafe';
+  const venueType: VenueType = venue.data?.type ?? 'cafe';
 
   const policyQuery = useReservationPolicy(branchId ?? undefined);
   const save = useSaveReservationPolicy(branchId ?? undefined);
@@ -223,7 +224,7 @@ function PolicyField({
 }: {
   readonly spec: PolicyFieldSpec;
   readonly policy: ReservationPolicy;
-  readonly venueType: 'cafe' | 'restaurant';
+  readonly venueType: VenueType;
   readonly invalid: boolean;
   readonly refusal: FieldRefusal | null;
   readonly onChange: <K extends keyof ReservationPolicy>(

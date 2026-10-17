@@ -40,7 +40,11 @@ describe('icon vocabulary', () => {
   });
 
   it('place types and Wi-Fi use their outline glyphs', () => {
-    expect(placeTypeIcon).toEqual({ restaurant: 'restaurant-outline', cafe: 'cafe-outline' });
+    expect(placeTypeIcon).toEqual({
+      restaurant: 'restaurant-outline',
+      cafe: 'cafe-outline',
+      bar: 'beer-outline',
+    });
     expect(amenityIcon.wifi).toBe('wifi-outline');
     expect(actionIcon.star).toBe('star-outline');
   });

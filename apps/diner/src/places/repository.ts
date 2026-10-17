@@ -48,7 +48,7 @@ export interface PlaceRepository {
    * Without its menu: see {@link menu}.
    */
   getById(placeId: string): Promise<Place | null>;
-  /** Name, cuisine and address match, case-insensitive, then `filter` narrows. */
+  /** Name, cuisine, address and district match, case-insensitive, then `filter` narrows. */
   search(query: string, filter?: PlaceFilter): Promise<readonly Place[]>;
   /**
    * The rooms, each photo with its live pins. Refetched more often than the
@@ -94,7 +94,9 @@ function wait(ms: number): Promise<void> {
 
 function matches(place: PlaceSeed, needle: string): boolean {
   if (needle === '') return true;
-  const haystack = `${place.name} ${place.cuisine} ${place.address}`.toLowerCase();
+  // The district too, as the server's search matches it: "Arabkir" finds what is there.
+  const haystack =
+    `${place.name} ${place.cuisine} ${place.address} ${place.district ?? ''}`.toLowerCase();
   return haystack.includes(needle);
 }
 

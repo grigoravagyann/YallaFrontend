@@ -11,6 +11,7 @@ import {
   BookingRowSkeleton,
   BookingSheetSummary,
 } from '../../src/components/bookings/BookingCard';
+import { canChangeBooking, changeBookingRoute } from '../../src/components/bookings/changeBooking';
 import { ConfirmSheet } from '../../src/components/ConfirmSheet';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
@@ -72,8 +73,9 @@ export default function BookingsScreen() {
   };
   const openDetail = (booking: Booking) =>
     router.push({ pathname: '/booking/[bookingId]', params: { bookingId: booking.id } });
-  // There is no changing a booking in place: "Change" and "Book again" open the
-  // place's booking screen.
+  // "Change" moves this booking — same code, same booking — on the booking
+  // screen opened on it; "Book again" is a fresh booking at the same place.
+  const changeBooking = (booking: Booking) => router.push(changeBookingRoute(booking));
   const bookPlace = (booking: Booking) =>
     router.push({ pathname: '/book/[placeId]', params: { placeId: booking.branchId } });
 
@@ -205,7 +207,11 @@ export default function BookingsScreen() {
                 now={now}
                 style={styles.card}
                 onOpen={() => openDetail(hero)}
-                onChange={() => bookPlace(hero)}
+                // Only while the server would still move it: waiting or
+                // confirmed, and not yet started.
+                {...(!justCancelled && canChangeBooking(hero, now)
+                  ? { onChange: () => changeBooking(hero) }
+                  : {})}
                 onCancel={() => openCancel(hero)}
                 {...(justCancelled ? { onBookAgain: () => bookPlace(hero) } : {})}
               />

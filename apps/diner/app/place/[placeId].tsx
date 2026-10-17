@@ -36,6 +36,7 @@ import { PlaceActions, openUrl } from '../../src/components/place/PlaceActions';
 import { ReviewComposer } from '../../src/components/place/ReviewComposer';
 import { PlaceTabs, placeTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
 import { usePlaceCopy } from '../../src/components/places/placeCopy';
+import { placeDistrict } from '../../src/components/places/placeTitle';
 import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { usePlace, usePlaceRooms } from '../../src/places/hooks';
@@ -464,9 +465,9 @@ function PlaceDetails({
     toggleFavorite(place.id);
   }, [favorite, onSavePress, toggleFavorite, place.id]);
 
-  // "Restaurant · Armenian · Kentron": the kind, the cuisine, where.
-  const area = place.address.split(',')[0]?.trim() ?? '';
-  const kindLine = [copy.typeLine, area].filter(Boolean).join(' · ');
+  // "Restaurant · Armenian · Kentron": the kind, the cuisine, the district the
+  // venue set — or the street, for one that has not set it.
+  const kindLine = [copy.typeLine, placeDistrict(place)].filter(Boolean).join(' · ');
 
   // "4.6 · 120 reviews", in the locale's digits.
   const rating = useMemo(() => {

@@ -1,7 +1,7 @@
 import type { BranchListing } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import { placeFromListing } from '../../places/httpMapping';
-import { placeTitle } from './placeTitle';
+import { placeDistrict, placeTitle } from './placeTitle';
 
 describe('placeTitle', () => {
   it('puts the venue and the branch on separate lines, and both in the label', () => {
@@ -70,5 +70,20 @@ describe('placeTitle', () => {
     expect(title.venue).toBe('Lavash Restaurant');
     expect(title.branch).toBe('Northern Avenue');
     expect(title.label).toBe(place.name);
+  });
+});
+
+describe('placeDistrict', () => {
+  it('is the district the venue set, else the street, else nothing', () => {
+    expect(placeDistrict({ address: '5 Paronyan Street, Yerevan', district: 'Kentron' })).toBe(
+      'Kentron',
+    );
+    expect(placeDistrict({ address: '5 Paronyan Street, Yerevan', district: null })).toBe(
+      '5 Paronyan Street',
+    );
+    expect(placeDistrict({ address: '5 Paronyan Street', district: ' ' })).toBe(
+      '5 Paronyan Street',
+    );
+    expect(placeDistrict({ address: '', district: null })).toBe('');
   });
 });

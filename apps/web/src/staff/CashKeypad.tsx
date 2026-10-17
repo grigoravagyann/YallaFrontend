@@ -13,7 +13,10 @@ import { useBranchFormat } from './useBranchFormat';
  *
  * - **The amount** defaults to the remaining balance, because that is the
  *   usual case, and is freely editable, because partial payments are normal —
- *   four people at a table paying in three goes is a Tuesday.
+ *   four people at a table paying in three goes is a Tuesday. When the table
+ *   asked for the bill from the app, it opens on what they said instead — the
+ *   whole bill or one person's share, with the tip they picked — still
+ *   editable, because people change their minds at the table.
  * - **The tip** is its own field, visibly outside the balance. A tip folded
  *   into the amount makes a tab look settled while money is still owed, and the
  *   waiter finds out at the end of the shift.
@@ -24,6 +27,8 @@ import { useBranchFormat } from './useBranchFormat';
 
 export interface CashKeypadProps {
   readonly remainingDram: number;
+  /** The amount and tip of the table's open bill request, when there is one. */
+  readonly prefill?: { readonly amountDram: number; readonly tipDram: number } | null;
   readonly timeZoneId: string;
   readonly onConfirm: (input: { amountDram: number; tipDram: number }) => void;
   readonly onCancel: () => void;
@@ -31,13 +36,19 @@ export interface CashKeypadProps {
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', 'del'] as const;
 
-export function CashKeypad({ remainingDram, timeZoneId, onConfirm, onCancel }: CashKeypadProps) {
+export function CashKeypad({
+  remainingDram,
+  prefill = null,
+  timeZoneId,
+  onConfirm,
+  onCancel,
+}: CashKeypadProps) {
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
 
   const [field, setField] = useState<'amount' | 'tip'>('amount');
-  const [amount, setAmount] = useState(String(remainingDram));
-  const [tip, setTip] = useState('0');
+  const [amount, setAmount] = useState(String(prefill ? prefill.amountDram : remainingDram));
+  const [tip, setTip] = useState(String(prefill ? prefill.tipDram : 0));
 
   const amountDram = Number.parseInt(amount || '0', 10);
   const tipDram = Number.parseInt(tip || '0', 10);
@@ -87,6 +98,7 @@ export function CashKeypad({ remainingDram, timeZoneId, onConfirm, onCancel }: C
         </div>
 
         <p className="table-note">{t('cash.tipNote')}</p>
+        {prefill ? <p className="table-note">{t('billRequest.prefilled')}</p> : null}
 
         <div className="cash-keypad">
           {KEYS.map((key) => (

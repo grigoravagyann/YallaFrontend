@@ -78,6 +78,21 @@ describe('placeFromListing', () => {
     expect(place.acceptsAppBookings).toBeNull();
   });
 
+  it('keeps a bar a bar, rather than listing it as a restaurant', () => {
+    expect(placeFromListing({ ...LISTING, venueType: 'bar' }, CONTEXT).type).toBe('bar');
+    expect(placeFromListing({ ...LISTING, venueType: 'restaurant' }, CONTEXT).type).toBe(
+      'restaurant',
+    );
+  });
+
+  it('carries the district the venue set, and none when it is blank or unset', () => {
+    expect(placeFromListing({ ...LISTING, district: ' Kentron ' }, CONTEXT).district).toBe(
+      'Kentron',
+    );
+    expect(placeFromListing({ ...LISTING, district: '  ' }, CONTEXT).district).toBeNull();
+    expect(placeFromListing(LISTING, CONTEXT).district).toBeNull();
+  });
+
   it('prefers the server distance, and computes one from the phone when there is none', () => {
     const located = { ...LISTING, latitude: 40.1843, longitude: 44.5129 };
     expect(distanceFor({ ...located, distanceKm: 0.3 }, null)).toBe(0.3);

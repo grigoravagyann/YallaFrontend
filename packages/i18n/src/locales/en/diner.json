@@ -40,7 +40,8 @@
   "venue": {
     "type": {
       "cafe": "Cafe",
-      "restaurant": "Restaurant"
+      "restaurant": "Restaurant",
+      "bar": "Bar"
     },
     "openNow": "Open now"
   },
@@ -370,6 +371,7 @@
     "codeHint": "Show this at the door.",
     "share": "Share",
     "shareMessage": "I booked table {{table}} at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
+    "shareMessageRoom": "I booked table {{table}} ({{room}}) at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
     "viewBookings": "See my bookings",
     "atTableHint": "When you arrive, tap “I’m at my table” on your booking — or scan the QR on the table.",
     "expecting": "They're expecting you",
@@ -509,6 +511,32 @@
       "closed": "Bill closed",
       "closedAt": "Closed at {{time}}",
       "rate": "How was it?"
+    },
+    "namesMore": "{{names}} +{{more}}",
+    "billRequested": "Requested",
+    "pay": {
+      "title": "Payment",
+      "what": "What you are paying",
+      "scope": {
+        "whole": "Whole bill",
+        "mine": "My share"
+      },
+      "myShared": "Your part of shared items",
+      "absorbed": "For someone who left",
+      "tip": "Tip",
+      "tipLine": "Tip {{percent}}%",
+      "tipOption": "{{percent}}%",
+      "noTip": "No tip",
+      "youPay": "You pay",
+      "othersNote": "The others pay their part from their own phones.",
+      "how": "A waiter brings the bill to your table and you pay there. The app never takes money.",
+      "cta": "Pay {{amount}}",
+      "nothingLeft": "There is nothing left to pay here.",
+      "sent": {
+        "title": "The waiter is bringing the bill",
+        "breakdown": "{{amount}} + {{tip}} tip",
+        "body": "Pay at the table when they come over."
+      }
     }
   },
   "pending": {
@@ -783,7 +811,8 @@
   "place": {
     "type": {
       "restaurant": "Restaurant",
-      "cafe": "Café"
+      "cafe": "Café",
+      "bar": "Bar"
     },
     "badge": {
       "popular": "Popular",
@@ -914,7 +943,8 @@
     "myLocation": "My location",
     "filter": {
       "restaurant": "Restaurant",
-      "cafe": "Cafe"
+      "cafe": "Cafe",
+      "bar": "Bar"
     },
     "viewDetails": "View Details",
     "directions": "Directions",
@@ -923,20 +953,36 @@
   },
   "book": {
     "title": "Book a Table",
+    "changeTitle": "Change booking",
     "time": "Time",
+    "slotFull": "{{time}}, no free tables",
+    "struckHint": "Struck-out times have no free table",
     "partySize": "Party Size",
     "partySizeMore_one": "{{count}}+",
     "partySizeMore_other": "{{count}}+",
     "selectedTable": "Selected table",
     "optional": "(optional)",
     "confirm": "Confirm Booking",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
     "noSlots": "No times left today. Pick another day.",
     "noTableForParty_one": "No free table seats {{count}} guest right now. Try another party size.",
     "noTableForParty_other": "No free table seats {{count}} guests right now. Try another party size.",
     "pickTable": "Choose a table",
     "pickTableHint": "Tap a free table on the photo, or leave it to us.",
     "anyTable": "Any free table",
-    "summary": "{{table}} · {{day}} {{time}} · {{guests}}"
+    "summary": "{{table}} · {{day}} {{time}} · {{guests}}",
+    "dayUnavailable": {
+      "closed": "Closed that day. Pick another day.",
+      "tooFarAhead": "Too far ahead to book yet. Pick an earlier day."
+    },
+    "changed": "Booking changed",
+    "changeSent": "Change sent for approval",
+    "changeError": {
+      "notChangeable": "This booking can no longer be changed.",
+      "generic": "We could not save that. Your booking is unchanged.",
+      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether your booking moved. Check again — it will not change twice."
+    }
   },
   "orders": {
     "title": "Orders",

@@ -7,6 +7,7 @@ import {
   dayOptions,
   tablesForParty,
   timeSlots,
+  windowReaching,
 } from './slots';
 
 const YEREVAN = 'Asia/Yerevan';
@@ -193,5 +194,23 @@ describe('tables', () => {
     expect(tablesForParty(tables, 3).map((t) => t.label)).toEqual(['1']);
     expect(tablesForParty(tables, 7).map((t) => t.label)).toEqual(['4']);
     expect(tablesForParty(tables, 5)).toEqual([]);
+  });
+});
+
+describe('windowReaching', () => {
+  // 00:30 on Saturday the 12th in Yerevan, still Friday the 11th in UTC.
+  const NOW = new Date('2026-09-11T20:30:00Z');
+
+  it('keeps the window when the date is already on it, or there is none', () => {
+    expect(windowReaching(NOW, YEREVAN, 7, null)).toBe(7);
+    expect(windowReaching(NOW, YEREVAN, 7, '2026-09-12')).toBe(7);
+    expect(windowReaching(NOW, YEREVAN, 7, '2026-09-18')).toBe(7);
+  });
+
+  it('reaches a day further out, counted in the place’s calendar', () => {
+    // The 19th is eight days from the 12th: day one is today.
+    expect(windowReaching(NOW, YEREVAN, 7, '2026-09-19')).toBe(8);
+    const days = dayOptions(NOW, YEREVAN, windowReaching(NOW, YEREVAN, 7, '2026-09-25'));
+    expect(days.at(-1)?.dateKey).toBe('2026-09-25');
   });
 });

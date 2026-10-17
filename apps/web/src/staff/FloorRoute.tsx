@@ -146,6 +146,19 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   const [sessionAdjustments, setSessionAdjustments] = useState<
     ReadonlyMap<string, readonly TabAdjustment[]>
   >(new Map());
+  /**
+   * Bill requests this device answered "On my way" to, per tab.
+   *
+   * The branch's request list drops a request once it is acknowledged, but
+   * that is the moment the waiter sets off with the bill — the amount and the
+   * tip the table asked for are needed at the table, not before. So they are
+   * kept here until cash is taken against them.
+   */
+  const [acknowledgedBills, setAcknowledgedBills] = useState<ReadonlyMap<string, ServiceRequest>>(
+    new Map(),
+  );
+  /** Bill requests cash has been recorded against on this device: handled. */
+  const [settledBillIds, setSettledBillIds] = useState<ReadonlySet<string>>(new Set());
 
   // --- Commands -------------------------------------------------------------
 
@@ -535,6 +548,9 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
 
   const acknowledge = useCallback(
     (request: ServiceRequest) => {
+      if (request.reason === 'bill' && request.bill) {
+        setAcknowledgedBills((current) => new Map(current).set(request.tabId, request));
+      }
       const clientCommandId = newCommandId();
       queue.enqueue({
         id: clientCommandId,
@@ -601,6 +617,21 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   );
 
   const activeTabLabel = plan?.tables.find((table) => table.id === activeTableId)?.label ?? '';
+
+  /**
+   * The table's latest bill request with an amount on it, still unanswered in
+   * the branch list or answered from this device, and not yet paid against.
+   */
+  const activeBillRequest = useMemo(() => {
+    if (!activeTabId) return null;
+    const candidates = [
+      ...(requestsQuery.data ?? []).filter(
+        (request) => request.tabId === activeTabId && request.reason === 'bill',
+      ),
+      ...(acknowledgedBills.has(activeTabId) ? [acknowledgedBills.get(activeTabId)!] : []),
+    ].filter((request) => request.bill !== null && !settledBillIds.has(request.id));
+    return candidates.sort((a, b) => b.requestedAtUtc.localeCompare(a.requestedAtUtc))[0] ?? null;
+  }, [activeTabId, acknowledgedBills, requestsQuery.data, settledBillIds]);
 
   return (
     <div className="floor" data-surface="staff">
@@ -781,6 +812,7 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           // tab this device simply cannot reach right now would send a waiter
           // off to open a second one.
           offlineUnknown={isOfflinePaused(tabQuery) && !tabQuery.data && activeTabId !== null}
+          billRequest={activeBillRequest?.bill ?? null}
           cashRefusal={
             cashRefusal && cashRefusal.tabId === activeTabId
               ? {
@@ -827,11 +859,23 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           onCash={({ amountDram, tipDram }) => {
             if (!activeTabId) return;
             const tabId = activeTabId;
+            const billRequestId = activeBillRequest?.id ?? null;
             setCashRefusal(null);
             recordCash.mutate(
               { tabId, amountDram, tipDram, clientCommandId: newCommandId() },
               {
                 onSuccess: (result) => {
+                  // The request this cash answered is done with, whether or not
+                  // anyone tapped "On my way" for it.
+                  if (billRequestId) {
+                    setSettledBillIds((current) => new Set(current).add(billRequestId));
+                  }
+                  setAcknowledgedBills((current) => {
+                    if (!current.has(tabId)) return current;
+                    const next = new Map(current);
+                    next.delete(tabId);
+                    return next;
+                  });
                   setNotice({
                     kind: 'info',
                     text: result.tabClosed

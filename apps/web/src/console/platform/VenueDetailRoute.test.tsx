@@ -413,6 +413,29 @@ describe('editing the venue and adding a branch', () => {
     expect(screen.queryByRole('form', { name: /edit venue/i })).toBeNull();
   });
 
+  it('offers a bar as a venue type and saves it', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const update = vi.spyOn(gateway, 'updateVenue');
+    const user = userEvent.setup();
+    renderVenue(gateway);
+    await waitForStaff();
+
+    await user.click(screen.getByRole('button', { name: /edit venue/i }));
+    const form = screen.getByRole('form', { name: /edit venue/i });
+    const type = within(form).getByLabelText(/type/i) as HTMLSelectElement;
+    expect([...type.options].map((option) => option.textContent)).toEqual([
+      'Cafe',
+      'Restaurant',
+      'Bar',
+    ]);
+    await user.selectOptions(type, 'bar');
+    await user.click(within(form).getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0]![0]).toMatchObject({ venueId: 'v-lumen', type: 'bar' });
+    expect((await gateway.getVenue('v-lumen'))?.type).toBe('bar');
+  });
+
   it('names a web address already in use and keeps the form open', async () => {
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
     const user = userEvent.setup();

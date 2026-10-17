@@ -35,8 +35,8 @@ export interface PlaceMarkerProps {
 
 /**
  * A brown pin with the place's kind inside — a fork-and-knife for a
- * restaurant, a cup for a café — so the two are told apart at a glance, not
- * by reading a label. Selecting it springs it up a fifth from its tip.
+ * restaurant, a cup for a café, a glass for a bar — so the kinds are told
+ * apart at a glance, not by reading a label. Selecting it springs it up a fifth from its tip.
  */
 export function PlaceMarker({
   type,

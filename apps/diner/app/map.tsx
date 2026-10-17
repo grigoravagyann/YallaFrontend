@@ -31,7 +31,7 @@ import {
   typography,
 } from '../src/theme';
 
-const LEGEND: readonly PlaceType[] = ['restaurant', 'cafe'];
+const LEGEND: readonly PlaceType[] = ['restaurant', 'cafe', 'bar'];
 /** Height of the legend row (a medium chip), which the card sits above. */
 const LEGEND_HEIGHT = chipHeight.md;
 /** How long the "showing Yerevan centre" note stays before it goes on its own. */
@@ -257,7 +257,7 @@ export default function MapScreen() {
         )}
       </BottomSheetCard>
 
-      {/* Legend: two chips that also filter the pins. */}
+      {/* Legend: a chip per kind of place, each also filtering the pins. */}
       <View style={[styles.legend, { bottom: legendBottom }]} pointerEvents="box-none">
         {LEGEND.map((type) => (
           <Chip

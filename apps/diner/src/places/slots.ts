@@ -2,6 +2,7 @@ import { branchDayKey } from '@yalla/format';
 import {
   hoursBlocksOn,
   instantAt,
+  parseDateKey,
   serviceWindow,
   shiftDateKey,
   weekdayOf,
@@ -58,6 +59,27 @@ export function dayOptions(now: Date, timeZoneId: string, days = 7): readonly Da
       isTomorrow: offset === 1,
     };
   });
+}
+
+/**
+ * How many days the strip offers so that `dateKey` is on it: `days`, or more
+ * when the date lies further out. A booking being changed may sit beyond the
+ * window the strip starts with — the default, before the branch's own rules
+ * have loaded — and its own day has to be there to be shown as chosen.
+ */
+export function windowReaching(
+  now: Date,
+  timeZoneId: string,
+  days: number,
+  dateKey: string | null,
+): number {
+  if (!dateKey) return days;
+  const utcDay = (key: string) => {
+    const { year, month, day } = parseDateKey(key);
+    return Date.UTC(year, month - 1, day);
+  };
+  const ahead = Math.round((utcDay(dateKey) - utcDay(branchDayKey(now, timeZoneId))) / 86_400_000);
+  return Math.max(days, ahead + 1);
 }
 
 export interface TimeSlot {
