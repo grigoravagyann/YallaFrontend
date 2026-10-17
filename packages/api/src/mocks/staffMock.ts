@@ -136,6 +136,11 @@ interface MockParticipant {
   readonly isHost: boolean;
   /** The photo of the account they scanned in with, when it has one. */
   readonly photo: Photo | null;
+  /**
+   * Cash a waiter recorded as handed over by this person — the ledger their
+   * share is settled against. A payment with nobody named counts only on the tab.
+   */
+  paidDram: number;
 }
 
 interface MockTab {
@@ -337,12 +342,14 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       displayName: 'Anahit',
       isHost: true,
       photo: mockPhoto('avatar-anahit'),
+      paidDram: 0,
     };
     const other: MockParticipant = {
       id: id('p'),
       displayName: 'Karen',
       isHost: false,
       photo: null,
+      paidDram: 0,
     };
     const tab: MockTab = {
       id: id('tab'),
@@ -384,9 +391,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       placedAtUtc: minutesFrom(start, -12),
       lineIds: [],
     };
-    for (const [itemId, quantity] of [
-      ['cappuccino', 2],
-      ['gata', 1],
+    const [host, guest] = seededTab.participants;
+    // Two things for the table, and one drink that is the guest's own, so the
+    // guest has a share of their own to ask to pay.
+    for (const [itemId, quantity, owner] of [
+      ['cappuccino', 2, null],
+      ['gata', 1, null],
+      ['lemonade', 1, guest?.id ?? null],
     ] as const) {
       const item = menuItems.get(itemId);
       if (!item) continue;
@@ -401,8 +412,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         lineTotalDram: item.priceDram * quantity,
         note: null,
         isShared: false,
-        isTableAttributed: true,
-        ownerParticipantId: null,
+        isTableAttributed: owner === null,
+        ownerParticipantId: owner,
         participantId: null,
         orderedByName: null,
         // Zero, because this line is not shared. The wire's
@@ -432,14 +443,17 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       requestedAtUtc: minutesFrom(start, -3),
       waitingMinutes: 3,
       acknowledgedAtUtc: null,
+      requestedByParticipantId: guest?.id ?? null,
       bill: null,
     });
 
-    // And the table asking for the whole bill with a 5% tip, from the pay
-    // sheet, so the panel's bill line and the prefilled keypad have something
-    // to show. The amounts are the server's rule: the balance with the service
-    // charge, and the tip on the items before it.
-    const { bill: owed } = billFor(seededTab);
+    // And two people asking to pay from the pay sheet: the host the whole
+    // bill with a 5% tip, then the guest their own share with 10%, so the tab
+    // has a choice of which one the keypad opens on. The amounts are the
+    // server's rule with nothing paid yet: the balance with the service charge
+    // and the tip on the items before it; the guest's share with its service
+    // and the tip on their own items.
+    const { bill: owed, shares } = billFor(seededTab);
     const billRequestId = id('req');
     serviceRequests.set(billRequestId, {
       id: billRequestId,
@@ -450,6 +464,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       requestedAtUtc: minutesFrom(start, -1),
       waitingMinutes: 1,
       acknowledgedAtUtc: null,
+      requestedByParticipantId: host?.id ?? null,
       bill: {
         scope: 'whole',
         amountDram: owed.remainingDram,
@@ -457,6 +472,28 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         tipDram: percentOf(owed.subtotalDram, 5),
       },
     });
+
+    const guestShare = shares.find((share) => share.participantId === guest?.id);
+    if (guest && guestShare && guestShare.shareDram > 0) {
+      const shareRequestId = id('req');
+      serviceRequests.set(shareRequestId, {
+        id: shareRequestId,
+        tabId: seededTab.id,
+        tableLabel: seededTab.tableLabel,
+        reason: 'bill',
+        note: null,
+        requestedAtUtc: iso(new Date(start.getTime() - 20_000)),
+        waitingMinutes: 0,
+        acknowledgedAtUtc: null,
+        requestedByParticipantId: guest.id,
+        bill: {
+          scope: 'mine',
+          amountDram: Math.min(guestShare.shareDram - guestShare.paidDram, owed.remainingDram),
+          tipPercent: 10,
+          tipDram: percentOf(guestShare.personalDram, 10),
+        },
+      });
+    }
   }
 
   // --- Helpers --------------------------------------------------------------
@@ -517,7 +554,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         displayName: person.displayName,
         isHost: person.isHost,
         status: 'approved' as const,
-        paidDram: 0,
+        paidDram: person.paidDram,
       })),
       serviceChargePercent: SERVICE_CHARGE_PERCENT,
       paidDram: tab.paidDram,
@@ -1279,6 +1316,15 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const at = now();
       const before = totalsFor(tab);
 
+      // Who handed it over, when the waiter said: somebody on this tab, as on
+      // the server, which answers a stranger's id with a 404.
+      const payer = command.participantId
+        ? tab.participants.find((person) => person.id === command.participantId)
+        : undefined;
+      if (command.participantId && !payer) {
+        throw new NotFoundError({ url: `/api/tabs/${tab.id}/payments/cash` });
+      }
+
       // Refused, with the real balance on the refusal. The waiter is standing at
       // the table holding notes and that number is the whole point.
       if (command.amountDram > before.remainingDram) {
@@ -1293,6 +1339,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       // The tip is added to what the venue holds, never to what the tab owes.
       tab.paidDram += command.amountDram;
       tab.tipDram += command.tipDram;
+      // And against the payer's own share when the waiter named one — the
+      // person who asked to pay their share has paid it.
+      if (payer) payer.paidDram += command.amountDram;
       tab.settlementModeLocked = true;
       const after = totalsFor(tab);
       const closed = after.remainingDram === 0;

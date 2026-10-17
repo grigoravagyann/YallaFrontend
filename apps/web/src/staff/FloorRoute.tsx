@@ -147,12 +147,13 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
     ReadonlyMap<string, readonly TabAdjustment[]>
   >(new Map());
   /**
-   * Bill requests this device answered "On my way" to, per tab.
+   * Bill requests this device answered "On my way" to, by request id.
    *
    * The branch's request list drops a request once it is acknowledged, but
    * that is the moment the waiter sets off with the bill — the amount and the
    * tip the table asked for are needed at the table, not before. So they are
-   * kept here until cash is taken against them.
+   * kept here until cash is taken against them. By request, not by tab: two
+   * people at one table can each have asked.
    */
   const [acknowledgedBills, setAcknowledgedBills] = useState<ReadonlyMap<string, ServiceRequest>>(
     new Map(),
@@ -546,11 +547,12 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
     [branchId, queryClient, queue],
   );
 
-  const acknowledge = useCallback(
+  /**
+   * The staff acknowledgement, through the queue like every other command —
+   * the same call "On my way" makes.
+   */
+  const sendAcknowledge = useCallback(
     (request: ServiceRequest) => {
-      if (request.reason === 'bill' && request.bill) {
-        setAcknowledgedBills((current) => new Map(current).set(request.tabId, request));
-      }
       const clientCommandId = newCommandId();
       queue.enqueue({
         id: clientCommandId,
@@ -566,6 +568,16 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
     },
     [branchId, queryClient, queue],
+  );
+
+  const acknowledge = useCallback(
+    (request: ServiceRequest) => {
+      if (request.reason === 'bill' && request.bill) {
+        setAcknowledgedBills((current) => new Map(current).set(request.id, request));
+      }
+      sendAcknowledge(request);
+    },
+    [sendAcknowledge],
   );
 
   const submitOrder = useCallback(
@@ -619,18 +631,38 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   const activeTabLabel = plan?.tables.find((table) => table.id === activeTableId)?.label ?? '';
 
   /**
-   * The table's latest bill request with an amount on it, still unanswered in
-   * the branch list or answered from this device, and not yet paid against.
+   * The tab's bill requests with an amount on them — still unanswered in the
+   * branch list, or answered from this device — and not yet paid against,
+   * newest first.
+   *
+   * One per person: a new request from somebody replaces their earlier one
+   * (the server drops the superseded one from its list; a copy this device
+   * kept after "On my way" is dropped here the same way).
    */
-  const activeBillRequest = useMemo(() => {
-    if (!activeTabId) return null;
-    const candidates = [
+  const activeBillRequests = useMemo((): readonly ServiceRequest[] => {
+    if (!activeTabId) return [];
+    const byId = new Map<string, ServiceRequest>();
+    for (const request of [
       ...(requestsQuery.data ?? []).filter(
-        (request) => request.tabId === activeTabId && request.reason === 'bill',
+        (candidate) => candidate.tabId === activeTabId && candidate.reason === 'bill',
       ),
-      ...(acknowledgedBills.has(activeTabId) ? [acknowledgedBills.get(activeTabId)!] : []),
-    ].filter((request) => request.bill !== null && !settledBillIds.has(request.id));
-    return candidates.sort((a, b) => b.requestedAtUtc.localeCompare(a.requestedAtUtc))[0] ?? null;
+      ...[...acknowledgedBills.values()].filter((candidate) => candidate.tabId === activeTabId),
+    ]) {
+      if (request.bill !== null && !settledBillIds.has(request.id) && !byId.has(request.id)) {
+        byId.set(request.id, request);
+      }
+    }
+    const newestFirst = [...byId.values()].sort((a, b) =>
+      b.requestedAtUtc.localeCompare(a.requestedAtUtc),
+    );
+    const seen = new Set<string>();
+    return newestFirst.filter((request) => {
+      const who = request.requestedByParticipantId;
+      if (who === null) return true;
+      if (seen.has(who)) return false;
+      seen.add(who);
+      return true;
+    });
   }, [activeTabId, acknowledgedBills, requestsQuery.data, settledBillIds]);
 
   return (
@@ -812,7 +844,7 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           // tab this device simply cannot reach right now would send a waiter
           // off to open a second one.
           offlineUnknown={isOfflinePaused(tabQuery) && !tabQuery.data && activeTabId !== null}
-          billRequest={activeBillRequest?.bill ?? null}
+          billRequests={activeBillRequests}
           cashRefusal={
             cashRefusal && cashRefusal.tabId === activeTabId
               ? {
@@ -856,26 +888,52 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
             if (!activeTabId) return;
             beginClosing.mutate({ tabId: activeTabId, clientCommandId: newCommandId() });
           }}
-          onCash={({ amountDram, tipDram }) => {
+          onCash={({ amountDram, tipDram, billRequestId }) => {
             if (!activeTabId) return;
             const tabId = activeTabId;
-            const billRequestId = activeBillRequest?.id ?? null;
+            const request = billRequestId
+              ? (activeBillRequests.find((candidate) => candidate.id === billRequestId) ?? null)
+              : null;
+            // A "my share" request is one person's money, so the cash is theirs
+            // and the server credits their share. The whole bill names nobody:
+            // whoever hands it over is paying for the table.
+            const payer = request?.bill?.scope === 'mine' ? request.requestedByParticipantId : null;
+            // Whether this device already answered it with "On my way".
+            const acknowledgedHere = request ? acknowledgedBills.has(request.id) : false;
             setCashRefusal(null);
             recordCash.mutate(
-              { tabId, amountDram, tipDram, clientCommandId: newCommandId() },
+              {
+                tabId,
+                amountDram,
+                tipDram,
+                clientCommandId: newCommandId(),
+                ...(payer ? { participantId: payer } : {}),
+              },
               {
                 onSuccess: (result) => {
-                  // The request this cash answered is done with, whether or not
-                  // anyone tapped "On my way" for it.
-                  if (billRequestId) {
-                    setSettledBillIds((current) => new Set(current).add(billRequestId));
+                  if (request) {
+                    // Only the request this cash answered is done with, whether
+                    // or not anyone tapped "On my way" for it. The others at
+                    // the table are still waiting.
+                    setSettledBillIds((current) => new Set(current).add(request.id));
+                    setAcknowledgedBills((current) => {
+                      if (!current.has(request.id)) return current;
+                      const next = new Map(current);
+                      next.delete(request.id);
+                      return next;
+                    });
+                    // And answered on the server when nobody has yet, so a
+                    // reload or the other tablet does not show it again.
+                    const stillOpen = (
+                      queryClient.getQueryData<readonly ServiceRequest[]>(
+                        queryKeys.serviceRequests(branchId),
+                      ) ?? []
+                    ).some(
+                      (candidate) =>
+                        candidate.id === request.id && candidate.acknowledgedAtUtc === null,
+                    );
+                    if (stillOpen && !acknowledgedHere) sendAcknowledge(request);
                   }
-                  setAcknowledgedBills((current) => {
-                    if (!current.has(tabId)) return current;
-                    const next = new Map(current);
-                    next.delete(tabId);
-                    return next;
-                  });
                   setNotice({
                     kind: 'info',
                     text: result.tabClosed

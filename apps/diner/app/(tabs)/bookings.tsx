@@ -11,7 +11,8 @@ import {
   BookingRowSkeleton,
   BookingSheetSummary,
 } from '../../src/components/bookings/BookingCard';
-import { canChangeBooking, changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { ConfirmSheet } from '../../src/components/ConfirmSheet';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
@@ -66,6 +67,9 @@ export default function BookingsScreen() {
   const hero = tab === 'upcoming' ? (justCancelled ?? upcoming[0] ?? null) : null;
   const rows: readonly Booking[] =
     tab === 'upcoming' ? upcoming.filter((booking) => booking.id !== hero?.id) : (data?.past ?? []);
+  // Only while the server would still move it and its own time can still be
+  // chosen: waiting or confirmed, and not yet inside the branch's lead time.
+  const heroChangeable = useCanChangeBooking(justCancelled ? null : hero, now);
 
   const chooseTab = (next: Tab) => {
     setTab(next);
@@ -207,11 +211,7 @@ export default function BookingsScreen() {
                 now={now}
                 style={styles.card}
                 onOpen={() => openDetail(hero)}
-                // Only while the server would still move it: waiting or
-                // confirmed, and not yet started.
-                {...(!justCancelled && canChangeBooking(hero, now)
-                  ? { onChange: () => changeBooking(hero) }
-                  : {})}
+                {...(heroChangeable ? { onChange: () => changeBooking(hero) } : {})}
                 onCancel={() => openCancel(hero)}
                 {...(justCancelled ? { onBookAgain: () => bookPlace(hero) } : {})}
               />

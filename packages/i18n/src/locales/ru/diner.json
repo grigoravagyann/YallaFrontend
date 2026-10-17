@@ -987,6 +987,7 @@
     "time": "Время",
     "slotFull": "{{time}}, нет свободных столов",
     "struckHint": "На зачёркнутое время свободных столов нет",
+    "changeTimeUnavailable": "Ваше время недоступно для такого числа гостей — выберите другое.",
     "partySize": "Количество гостей",
     "partySizeMore_one": "{{count}}+",
     "partySizeMore_few": "{{count}}+",

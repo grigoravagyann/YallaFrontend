@@ -16,7 +16,7 @@ import type {
 } from '../contracts/ordering';
 import type { SettlementMode } from '../contracts/service';
 import type { TabParticipant, TableTab } from '../contracts/tab';
-import { computeBill, type BillingLine } from './billing';
+import { computeBill, quoteBill, type BillQuoteFigures, type BillingLine } from './billing';
 
 /**
  * The ordering and billing half of a mock tab.
@@ -105,6 +105,12 @@ interface TabContent {
   settlementMode: SettlementMode;
   settlementModeLocked: boolean;
   paidDram: number;
+  /**
+   * What each participant paid against their own share. A payment taken
+   * against the table, with nobody named, is in `paidDram` and in nobody's
+   * row here — the server's ledger, `TabLedger.Compute`.
+   */
+  readonly paidByParticipant: Map<string, number>;
   /** Tips left with the payments, kept apart from `paidDram` as the server keeps them. */
   tipsDram: number;
   sequence: number;
@@ -136,6 +142,7 @@ export function createTabOrders(options: TabOrdersOptions) {
         settlementMode: 'everyonePaysOwnItems',
         settlementModeLocked: false,
         paidDram: 0,
+        paidByParticipant: new Map(),
         tipsDram: 0,
         sequence: 0,
       };
@@ -181,10 +188,15 @@ export function createTabOrders(options: TabOrdersOptions) {
             : person.status === 'pending'
               ? ('pendingApproval' as const)
               : ('removed' as const),
-        paidDram: 0,
+        paidDram: record.paidByParticipant.get(person.id) ?? 0,
       }))
-      .sort((a, b) => Number(b.isHost) - Number(a.isHost))
-      .map((person) => ({ ...person, paidDram: person.isHost ? record.paidDram : 0 }));
+      .sort((a, b) => Number(b.isHost) - Number(a.isHost));
+  }
+
+  /** `TabPermissions.MaySeeTableTotal`: approved, and allowed to. */
+  function seesTableTotal(tab: TableTab, participantId: string): boolean {
+    const person = tab.participants.find((entry) => entry.id === participantId);
+    return person?.status === 'active' && person.permissions.canSeeTableTotal;
   }
 
   function bill(tab: TableTab, record: TabContent) {
@@ -398,10 +410,20 @@ export function createTabOrders(options: TabOrdersOptions) {
      * Cash against the balance, and a tip beside it. The tip never touches
      * `paidDram`: a tip folded into what was paid is how a tab looks settled
      * while money is still owed.
+     *
+     * With a participant named, it is credited to their share — what "my
+     * share" settles. Without one it is the table's: the balance goes down and
+     * nobody's share is marked paid, as the server's ledger does it.
      */
-    pay(tab: TableTab, amountDram: number, tipDram = 0): void {
+    pay(tab: TableTab, amountDram: number, tipDram = 0, participantId: string | null = null): void {
       const record = contentFor(tab.id, tab.branchId);
       record.paidDram += amountDram;
+      if (participantId !== null) {
+        record.paidByParticipant.set(
+          participantId,
+          (record.paidByParticipant.get(participantId) ?? 0) + amountDram,
+        );
+      }
       record.tipsDram += tipDram;
       // Locked from the first payment: changing how a bill splits after money
       // has landed against it would re-apportion what somebody already paid.
@@ -463,29 +485,54 @@ export function createTabOrders(options: TabOrdersOptions) {
       };
     },
 
+    /** Whether this participant may see the table's total: approved and allowed to. */
+    seesTableTotal(tab: TableTab, participantId: string): boolean {
+      return seesTableTotal(tab, participantId);
+    },
+
     /**
-     * What a bill request's scope leaves to pay, and the items a tip is a
-     * percent of — the server's rule for `billScope` (diner design gaps).
-     *
-     * `whole`: the tab's remaining balance, and the table's subtotal. `mine`:
-     * the requester's own share less what they paid, and their part of the
-     * subtotal, both from the same split the shares view shows. Somebody with
-     * no share — pending, or not on the tab — has nothing to pay.
+     * A bill request's amount and tip, by the shared money rules (`quoteBill`)
+     * from the same split the shares view shows. Somebody with no share —
+     * pending, or not on the tab — has nothing to pay on `mine`. Whether they
+     * may ask for `whole` at all is the caller's 403.
      */
-    billAmounts(
+    billQuote(
       tab: TableTab,
       participantId: string,
       scope: BillScope,
-    ): { readonly amountDram: number; readonly itemsDram: number } {
+      tipPercent: number,
+    ): BillQuoteFigures {
       const record = contentFor(tab.id, tab.branchId);
       const { bill: computed, shares } = bill(tab, record);
-      if (scope === 'whole') {
-        return { amountDram: computed.remainingDram, itemsDram: computed.subtotalDram };
-      }
-      const mine = shares.find((share) => share.participantId === participantId);
-      return mine
-        ? { amountDram: Math.max(0, mine.shareDram - mine.paidDram), itemsDram: mine.personalDram }
-        : { amountDram: 0, itemsDram: 0 };
+      return quoteBill({
+        bill: computed,
+        share: shares.find((share) => share.participantId === participantId) ?? null,
+        scope,
+        tipPercent,
+        canSeeTableTotal: seesTableTotal(tab, participantId),
+      });
+    },
+
+    /** What the tab still owes, service charge in. */
+    remaining(tab: TableTab): number {
+      return bill(tab, contentFor(tab.id, tab.branchId)).bill.remainingDram;
+    },
+
+    /**
+     * A tab event the ordering half does not cause itself — a service request
+     * raised or acknowledged, the tab closed — on the same stream, so the
+     * sequence a phone follows stays one sequence.
+     */
+    record(
+      tab: TableTab,
+      type: Extract<
+        TabEvent['type'],
+        'serviceRequested' | 'serviceRequestAcknowledged' | 'tabClosed'
+      >,
+      actor: TabEvent['actor'],
+      data: Record<string, unknown> | null,
+    ): void {
+      push(contentFor(tab.id, tab.branchId), type, actor, null, data);
     },
 
     /**

@@ -5,6 +5,8 @@ import {
   WINDOW_DAYS,
   bookableTables,
   dayOptions,
+  largerPartySizes,
+  stripDateFor,
   tablesForParty,
   timeSlots,
   windowReaching,
@@ -212,5 +214,58 @@ describe('windowReaching', () => {
     expect(windowReaching(NOW, YEREVAN, 7, '2026-09-19')).toBe(8);
     const days = dayOptions(NOW, YEREVAN, windowReaching(NOW, YEREVAN, 7, '2026-09-25'));
     expect(days.at(-1)?.dateKey).toBe('2026-09-25');
+  });
+});
+
+describe('stripDateFor', () => {
+  // A bar open 17:00–02:00 every night, and a café open 09:00–22:00.
+  const bar = place(every('17:00', '02:00'));
+  const cafe = place(every('09:00', '22:00'));
+  const TODAY = '2026-10-17';
+
+  it('puts a booking after midnight on the evening before, whose times hold it', () => {
+    // 00:30 on the 19th in Yerevan.
+    expect(stripDateFor(bar, '2026-10-18T20:30:00Z', TODAY)).toBe('2026-10-18');
+    expect(stripDateFor(bar, '2026-10-18T21:30:00Z', TODAY)).toBe('2026-10-18');
+  });
+
+  it('keeps an evening booking on its own date', () => {
+    // 20:00 on the 18th.
+    expect(stripDateFor(bar, '2026-10-18T16:00:00Z', TODAY)).toBe('2026-10-18');
+    expect(stripDateFor(cafe, '2026-10-18T06:00:00Z', TODAY)).toBe('2026-10-18');
+  });
+
+  it('counts a time inside the lead or already gone as on its day all the same', () => {
+    // Today's 17:30, with "now" any time: the day is the booking's, not the picker's.
+    expect(stripDateFor(bar, '2026-10-17T13:30:00Z', TODAY)).toBe(TODAY);
+  });
+
+  it('never picks a day before today, which the strip does not have', () => {
+    // 00:30 today belongs to last night's strip; today's is the one shown.
+    expect(stripDateFor(bar, '2026-10-16T20:30:00Z', TODAY)).toBe(TODAY);
+  });
+
+  it('falls back to the calendar date when the hours no longer hold the time', () => {
+    // 23:00 at a café that closes at 22:00.
+    expect(stripDateFor(cafe, '2026-10-18T19:00:00Z', TODAY)).toBe('2026-10-18');
+  });
+});
+
+describe('largerPartySizes', () => {
+  const any = () => true;
+
+  it('lists the sizes the chosen table seats, from five up to the top', () => {
+    expect(largerPartySizes(5, 8, any)).toEqual([5, 6, 7, 8]);
+    expect(largerPartySizes(5, 8, (size) => size <= 6)).toEqual([5, 6]);
+    expect(largerPartySizes(5, 4, any)).toEqual([]);
+  });
+
+  it('keeps the size of the booking being changed, however large, in its place', () => {
+    expect(largerPartySizes(5, 12, any, 15)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 15]);
+    // One the table's figures would refuse is still the booking's own.
+    expect(largerPartySizes(5, 8, (size) => size <= 6, 7)).toEqual([5, 6, 7]);
+    // Already there, or one of the small sizes the radios carry: nothing added.
+    expect(largerPartySizes(5, 8, any, 6)).toEqual([5, 6, 7, 8]);
+    expect(largerPartySizes(5, 8, any, 3)).toEqual([5, 6, 7, 8]);
   });
 });

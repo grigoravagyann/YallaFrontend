@@ -1,8 +1,18 @@
-import type { TabEvent, TabEventPage } from '@yalla/api';
+import {
+  EndpointNotWiredError,
+  ForbiddenError,
+  NotFoundError,
+  ServerError,
+  TabAccessEndedError,
+  type TabEvent,
+  type TabEventPage,
+} from '@yalla/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   acknowledges,
   billRequestEnded,
+  endsAcknowledgementWatch,
+  tabAccessGone,
   useBillRequests,
   watchAcknowledgement,
   type RequestedBill,
@@ -13,6 +23,8 @@ import {
  * sheet's answer until a waiter acknowledges that request, or the tab moves on
  * to being closed.
  */
+
+const url = 'https://api.test/api/tabs/t1/events';
 
 function request(overrides: Partial<RequestedBill> = {}): RequestedBill {
   return {
@@ -191,5 +203,76 @@ describe('the acknowledgement', () => {
       await vi.advanceTimersByTimeAsync(5000);
       expect(quiet).toHaveBeenCalledTimes(1);
     });
+
+    it.each([
+      ['a 401', new TabAccessEndedError({ url, tabId: 't1', status: 401 })],
+      ['a 403', new TabAccessEndedError({ url, tabId: 't1', status: 403 })],
+      ['no token on this phone', new TabAccessEndedError({ url, tabId: 't1', notOnDevice: true })],
+      ['a 404', new NotFoundError({ url })],
+    ])('stops for good once the events answer %s, and says why', async (_label, refusal) => {
+      const getTabEvents = vi
+        .fn<(input: { tabId: string; afterSequence: number }) => Promise<TabEventPage>>()
+        .mockRejectedValue(refusal);
+      const onGaveUp = vi.fn();
+
+      watchAcknowledgement({
+        tabId: 't1',
+        requestId: 'sr-1',
+        afterSequence: 12,
+        getTabEvents,
+        onAcknowledged: vi.fn(),
+        onGaveUp,
+        intervalMs: 1000,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(getTabEvents).toHaveBeenCalledTimes(1);
+      expect(onGaveUp).toHaveBeenCalledWith(refusal);
+    });
+
+    it('keeps trying through a server error, without giving up', async () => {
+      const getTabEvents = vi
+        .fn<(input: { tabId: string; afterSequence: number }) => Promise<TabEventPage>>()
+        .mockRejectedValueOnce(new ServerError({ url, status: 503 }))
+        .mockResolvedValue(page([]));
+      const onGaveUp = vi.fn();
+
+      watchAcknowledgement({
+        tabId: 't1',
+        requestId: 'sr-1',
+        afterSequence: 12,
+        getTabEvents,
+        onAcknowledged: vi.fn(),
+        onGaveUp,
+        intervalMs: 1000,
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(2000);
+
+      expect(getTabEvents).toHaveBeenCalledTimes(3);
+      expect(onGaveUp).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('when a tab is no longer this phone’s to read', () => {
+  it('is a 401, 403 or 404, or a tab this phone holds no token for', () => {
+    expect(tabAccessGone(new TabAccessEndedError({ url, tabId: 't1', status: 403 }))).toBe(true);
+    expect(tabAccessGone(new TabAccessEndedError({ url, tabId: 't1', notOnDevice: true }))).toBe(
+      true,
+    );
+    expect(tabAccessGone(new ForbiddenError({ url }))).toBe(true);
+    expect(tabAccessGone(new NotFoundError({ url }))).toBe(true);
+    expect(tabAccessGone(new ServerError({ url, status: 500 }))).toBe(false);
+    expect(tabAccessGone(new TypeError('Failed to fetch'))).toBe(false);
+  });
+
+  it('ends the acknowledgement watch, as an unwired stream does', () => {
+    expect(endsAcknowledgementWatch(new NotFoundError({ url }))).toBe(true);
+    expect(
+      endsAcknowledgementWatch(new EndpointNotWiredError({ url, endpoint: 'getTabEvents' })),
+    ).toBe(true);
+    expect(endsAcknowledgementWatch(new TypeError('Failed to fetch'))).toBe(false);
   });
 });

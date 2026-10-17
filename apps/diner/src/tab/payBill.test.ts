@@ -10,19 +10,21 @@ import {
   DEFAULT_TIP_PERCENT,
   TIP_PERCENTS,
   billRequestFailure,
+  myShareAmount,
   othersHaveShares,
   payPreview,
   payScopes,
+  percentOf,
   pickScope,
-  tipOn,
+  proRata,
   type PayPreview,
 } from './payBill';
 
 /**
- * The pay sheet's numbers. Every row comes from the shares read; the tip is
- * the one figure worked out here, as a preview of what the server will
- * confirm. The rows must add up to what is asked for, or the sheet tells a
- * table one number and the waiter brings another.
+ * The pay sheet's numbers. Every row comes from the shares read, priced by the
+ * shared money rules the server's `BillQuote.For` applies — the same vectors
+ * as the mock's `billQuote.test.ts`. The rows must add up to what is asked
+ * for, or the sheet tells a table one number and the waiter brings another.
  */
 
 function share(overrides: Partial<ParticipantShare> = {}): ParticipantShare {
@@ -95,6 +97,13 @@ describe('what the pay sheet offers', () => {
     expect(payScopes(table({}, share({ paidDram: 10560 })))).toEqual(['whole']);
   });
 
+  it('leaves my share out once the table’s payments have covered the balance', () => {
+    // Cash taken against the table settled the tab without touching my share.
+    expect(payScopes(table({ paidDram: 15400, remainingDram: 0 }, share()))).toEqual([]);
+    // Kept from the total, my share is my share: still mine to ask for.
+    expect(payScopes(hidden(share()))).toEqual(['mine']);
+  });
+
   it('offers nothing once the bill is settled, or before the read lands', () => {
     expect(
       payScopes(table({ paidDram: 15400, remainingDram: 0 }, share({ paidDram: 10560 }))),
@@ -153,6 +162,13 @@ describe('the whole bill', () => {
     expect(preview.totalDram).toBe(10400);
   });
 
+  it('tips only the items still unpaid once somebody has paid', () => {
+    // 14,000 × 10,400 / 15,400 = 9,454.5 → 9,455; 10% → 945.5 → 946.
+    const preview = payPreview(table({ paidDram: 5000, remainingDram: 10400 }), 'whole', 10)!;
+    expect(preview.tipDram).toBe(946);
+    expect(preview.totalDram).toBe(11346);
+  });
+
   it('draws no tip row at zero percent', () => {
     const preview = payPreview(table(), 'whole', 0)!;
     expect(preview.lines.some((line) => line.kind === 'tip')).toBe(false);
@@ -202,11 +218,63 @@ describe('my share', () => {
       { kind: 'discount', amountDram: 600 },
       { kind: 'service', amountDram: 540 },
       { kind: 'paid', amountDram: 1000 },
-      { kind: 'tip', amountDram: 810 },
+      // On the unpaid part of my items: 5,400 × 4,940 / 5,940 = 4,490.9 → 4,491; 15% → 674.
+      { kind: 'tip', amountDram: 674 },
     ]);
     expect(preview.amountDram).toBe(4940);
     expect(rowsSum(preview)).toBe(preview.amountDram);
-    expect(preview.totalDram).toBe(5750);
+    expect(preview.totalDram).toBe(5614);
+  });
+
+  it('takes off what I paid, and tips only my items still unpaid', () => {
+    const preview = payPreview(
+      table({ paidDram: 4000, remainingDram: 11400 }, share({ paidDram: 4000 })),
+      'mine',
+      15,
+    )!;
+
+    expect(preview.lines).toEqual([
+      { kind: 'myItems', amountDram: 9000 },
+      { kind: 'myShared', amountDram: 600 },
+      { kind: 'service', amountDram: 960 },
+      { kind: 'paid', amountDram: 4000 },
+      // 9,600 × 6,560 / 10,560 = 5,963.6 → 5,964; 15% → 894.6 → 895.
+      { kind: 'tip', amountDram: 895 },
+    ]);
+    expect(preview.amountDram).toBe(6560);
+    expect(rowsSum(preview)).toBe(preview.amountDram);
+  });
+
+  it('never asks somebody shown the total for more than the tab still owes', () => {
+    // A payment the waiter took against the table, not against me.
+    const shares = table({ paidDram: 12400, remainingDram: 3000 });
+    const preview = payPreview(shares, 'mine', 5)!;
+
+    expect(myShareAmount(shares)).toBe(3000);
+    expect(preview.amountDram).toBe(3000);
+    // What the table covered is said with what was paid, so the rows still add up.
+    expect(preview.lines).toContainEqual({ kind: 'paid', amountDram: 7560 });
+    expect(rowsSum(preview)).toBe(3000);
+    // 9,600 × 3,000 / 10,560 = 2,727.3 → 2,727; 5% → 136.35 → 136.
+    expect(preview.tipDram).toBe(136);
+  });
+
+  it('asks a person kept from the total for their own share, uncapped', () => {
+    expect(myShareAmount(hidden(share()))).toBe(10560);
+    expect(myShareAmount(hidden(share({ paidDram: 4000 })))).toBe(6560);
+    expect(payPreview(hidden(share({ paidDram: 4000 })), 'mine', 15)?.tipDram).toBe(895);
+  });
+
+  it('has nothing to tip on an empty share', () => {
+    const empty = share({
+      ownItemsDram: 0,
+      sharedItemsDram: 0,
+      personalDram: 0,
+      serviceChargeDram: 0,
+      shareDram: 0,
+    });
+    expect(myShareAmount(hidden(empty))).toBe(0);
+    expect(payPreview(hidden(empty), 'mine', 15)?.tipDram).toBe(0);
   });
 
   it('is not available from a read with no share for me', () => {
@@ -215,16 +283,27 @@ describe('my share', () => {
   });
 });
 
-describe('the tip', () => {
-  it('rounds half up once, to whole dram, like the server', () => {
-    expect(tipOn(1010, 5)).toBe(51); // 50.5
-    expect(tipOn(1009, 5)).toBe(50); // 50.45
-    expect(tipOn(3333, 15)).toBe(500); // 499.95
+describe('the rounding', () => {
+  it('takes a percent half up, away from zero, to whole dram, like Money.PercentOf', () => {
+    expect(percentOf(1010, 5)).toBe(51); // 50.5
+    expect(percentOf(1009, 5)).toBe(50); // 50.45
+    expect(percentOf(3333, 15)).toBe(500); // 499.95
+    expect(percentOf(-1010, 5)).toBe(-51);
+  });
+
+  it('takes a fraction half up, like Money.ProRata', () => {
+    expect(proRata(5, 1, 2)).toBe(3); // 2.5
+    expect(proRata(2, 1, 3)).toBe(1); // 0.67
+    expect(proRata(1, 1, 3)).toBe(0); // 0.33
+    expect(proRata(9_999_999, 9_999_999, 10_000_000)).toBe(9_999_998);
   });
 
   it('is nothing on nothing', () => {
-    expect(tipOn(0, 15)).toBe(0);
-    expect(tipOn(5000, 0)).toBe(0);
+    expect(percentOf(0, 15)).toBe(0);
+    expect(percentOf(5000, 0)).toBe(0);
+    expect(proRata(0, 1, 2)).toBe(0);
+    expect(proRata(100, 0, 2)).toBe(0);
+    expect(proRata(100, 1, 0)).toBe(0);
   });
 });
 

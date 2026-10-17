@@ -32,6 +32,11 @@ export interface PhotoImageProps {
    * it does not), or never will (`null` after an error).
    */
   readonly onLoad?: (size: { width: number; height: number } | null) => void;
+  /**
+   * The photo never will arrive. Unlike `onLoad(null)`, which is also what a
+   * load that cannot report a size says, this is only ever a failure.
+   */
+  readonly onError?: () => void;
   /** Overlays — badges, buttons, captions — laid on top of the photo. */
   readonly children?: ReactNode;
 }
@@ -48,6 +53,7 @@ export function PhotoImage({
   resizeMode = 'cover',
   accessibilityLabel,
   onLoad,
+  onError,
   children,
 }: PhotoImageProps) {
   // The source that failed rather than a flag, so a recycled card showing a
@@ -86,6 +92,7 @@ export function PhotoImage({
           onError={() => {
             setFailedSource(source);
             onLoad?.(null);
+            onError?.();
           }}
           {...(onLoad ? { onLoad: handleLoad } : {})}
           style={StyleSheet.absoluteFill}

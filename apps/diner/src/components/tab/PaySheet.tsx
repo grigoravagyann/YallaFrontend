@@ -1,4 +1,4 @@
-import type { BillScope, DinerTabView } from '@yalla/api';
+import { ForbiddenError, type BillScope, type DinerTabView } from '@yalla/api';
 import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useState } from 'react';
@@ -127,8 +127,9 @@ export function PaySheet({ tabId, visible, onClose, tab, onShowShares }: PayShee
     } catch (caught) {
       const why = billRequestFailure(caught);
       setFailure(why);
-      // Nothing left on that scope: the split moved under the sheet.
-      if (why.key === 'tab.pay.nothingLeft') void refetch();
+      // Nothing left on that scope, or the whole bill no longer this person's
+      // to ask for (the host hid the total): the split moved under the sheet.
+      if (why.key === 'tab.pay.nothingLeft' || caught instanceof ForbiddenError) void refetch();
     }
   };
 

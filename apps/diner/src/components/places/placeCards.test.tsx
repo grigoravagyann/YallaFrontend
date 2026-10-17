@@ -114,17 +114,21 @@ describe('the venue / branch split on place cards', () => {
     expect(screen.getByLabelText(/^Lavash Restaurant\./u)).toBeTruthy();
   });
 
-  it('PlaceRowCard: the area line is the district the venue set, else the old fallback', () => {
+  it('PlaceRowCard: the area line is the branch and the district, else the old fallback', () => {
+    // A one-branch venue: the district alone.
     const single = { ...PLACE, branchName: '', name: 'Lavash Restaurant', district: 'Kentron' };
     expect(placeArea(single)).toBe('Kentron');
-    expect(placeArea({ ...PLACE, district: ' Kentron ' })).toBe('Kentron');
+    // A branch of its own: the branch, then the district.
+    expect(placeArea({ ...PLACE, district: ' Kentron ' })).toBe('Northern Avenue · Kentron');
+    // A branch named after its district says it once.
+    expect(placeArea({ ...PLACE, branchName: 'Kentron', district: 'kentron' })).toBe('kentron');
     // Blank is unset: the branch, as before.
     expect(placeArea({ ...PLACE, district: '  ' })).toBe('Northern Avenue');
 
     atPhoneWidth(
       <PlaceRowCard place={{ ...PLACE, district: 'Kentron' }} onPress={() => undefined} />,
     );
-    expect(screen.getByText('Kentron')).toBeTruthy();
+    expect(screen.getByText('Northern Avenue · Kentron')).toBeTruthy();
     // The card is still named by venue and branch, whatever the area line says.
     expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u)).toBeTruthy();
   });

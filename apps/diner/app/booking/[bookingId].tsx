@@ -9,7 +9,8 @@ import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge } from '../../src/components/bookings/BookingCard';
 import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
-import { canChangeBooking, changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { ConfirmSheet } from '../../src/components/ConfirmSheet';
@@ -119,6 +120,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
   const [confirming, setConfirming] = useState(false);
   const now = useNow();
   const { data: place } = usePlace(booking.branchId);
+  const changeable = useCanChangeBooking(booking, now);
   // What the venue sees with the booking (K9).
   const note = booking.note;
 
@@ -275,8 +277,9 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
 
         <View style={styles.actions}>
           {/* Moves this booking — same code — while the server would still
-              accept it: waiting or confirmed, and not yet started. */}
-          {canChangeBooking(booking, now) ? (
+              accept it and its own time can still be chosen: waiting or
+              confirmed, and not yet inside the branch's lead time. */}
+          {changeable ? (
             <Button
               label={t('bookings.change')}
               variant="secondary"

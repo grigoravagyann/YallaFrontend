@@ -135,6 +135,56 @@ export function timeSlots(
   return slots.sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 
+/** Before any `now`: {@link timeSlots} with this and no lead lists every time of a day. */
+const ALWAYS = new Date(0);
+
+/**
+ * The strip day a booking's instant is offered under: the service day whose
+ * times include it. A bar open 17:00–02:00 offers 00:30 on the evening's strip,
+ * so a 00:30 booking opens on the day before its calendar date; the calendar
+ * date itself is tried next. A day before `today` is not on the strip and is
+ * never chosen. When neither day lists the instant — the hours have changed
+ * since — the calendar date, where the screen then says the time is gone.
+ *
+ * Every time of the day counts, lead time or not: a booking about to start is
+ * still on its own day.
+ */
+export function stripDateFor(
+  place: Pick<Place, 'hours' | 'timeZoneId'>,
+  slotUtc: string,
+  today: string,
+): string {
+  const at = Date.parse(slotUtc);
+  const calendar = branchDayKey(new Date(at), place.timeZoneId);
+  return (
+    [shiftDateKey(calendar, -1), calendar]
+      .filter((dateKey) => dateKey >= today)
+      .find((dateKey) =>
+        timeSlots(place, dateKey, ALWAYS, 0).some((slot) => slot.at.getTime() === at),
+      ) ?? calendar
+  );
+}
+
+/**
+ * The sizes under "5+": `from` up to `max`, those the chosen table seats — and
+ * `keep`, the size of the booking being changed, when the list does not have
+ * it (a party bigger than the list, or one the table's figures would refuse).
+ * It is then shown as chosen, and a change to the time alone saves it as it
+ * was rather than shrinking it.
+ */
+export function largerPartySizes(
+  from: number,
+  max: number,
+  fits: (size: number) => boolean,
+  keep: number | null = null,
+): readonly number[] {
+  const sizes = Array.from({ length: Math.max(0, max - from + 1) }, (_, i) => from + i).filter(
+    fits,
+  );
+  if (keep !== null && keep >= from && !sizes.includes(keep)) sizes.push(keep);
+  return sizes.sort((a, b) => a - b);
+}
+
 /** Only a free table the venue takes bookings for can be booked from the photo. */
 export function bookableTables(tables: readonly TablePhotoMarker[]): readonly TablePhotoMarker[] {
   return tables.filter((table) => table.status === 'free' && table.isBookable);

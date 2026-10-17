@@ -957,6 +957,7 @@
     "time": "Time",
     "slotFull": "{{time}}, no free tables",
     "struckHint": "Struck-out times have no free table",
+    "changeTimeUnavailable": "Your current time isn't available for this party — pick another.",
     "partySize": "Party Size",
     "partySizeMore_one": "{{count}}+",
     "partySizeMore_other": "{{count}}+",

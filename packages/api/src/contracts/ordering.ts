@@ -658,6 +658,11 @@ export interface ServiceRequest {
   readonly waitingMinutes: number;
   readonly acknowledgedAtUtc: string | null;
   /**
+   * The tab participant who asked, when the server says — their name is on
+   * the tab's roster, and a "my share" request is paid by exactly them.
+   */
+  readonly requestedByParticipantId: string | null;
+  /**
    * What the table wants to pay and tip, on a `bill` request that said.
    * `null` on every other request, and on a bill request with no scope.
    */

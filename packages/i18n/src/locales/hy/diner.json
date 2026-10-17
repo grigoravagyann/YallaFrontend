@@ -957,6 +957,7 @@
     "time": "Ժամ",
     "slotFull": "{{time}}, տեղեր չկան",
     "struckHint": "Գծված ժամերին ազատ սեղան չկա",
+    "changeTimeUnavailable": "Ձեր ժամն այս քանակի հյուրերի համար հասանելի չէ — ընտրեք այլ ժամ։",
     "partySize": "Հյուրերի թիվը",
     "partySizeMore_one": "{{count}}+",
     "partySizeMore_other": "{{count}}+",

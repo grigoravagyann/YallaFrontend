@@ -604,6 +604,7 @@ export function serviceRequest(view: RequestView): ServiceRequest {
     requestedAtUtc: view.createdAtUtc,
     waitingMinutes: view.waitingMinutes,
     acknowledgedAtUtc: view.acknowledgedAtUtc ?? null,
+    requestedByParticipantId: view.requestedByParticipantId ?? null,
     bill: billRequest(view),
   };
 }

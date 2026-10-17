@@ -123,7 +123,6 @@ import { SEEDED_ACCOUNT, createAccountStore } from './accounts';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
 import { mockBranchMenu, publishedBranchMenu, mockMenuItem, mockPhoto } from './menuDetail';
-import { percentOf } from './billing';
 import { coversSitting, openStateFrom } from '../contracts/openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
 import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
@@ -246,6 +245,14 @@ export interface MockGatewayOptions {
    * the host controls have something to approve on a single device.
    */
   readonly simulateJoiners?: boolean;
+  /**
+   * Play the floor for a bill asked for from the pay sheet: a waiter
+   * acknowledges it a few seconds later, then takes the cash — the amount and
+   * the tip the request named — and closes the tab once nothing is left, so
+   * "on its way", the acknowledgement and the receipt's tip row can all be
+   * walked on one phone. Follows `simulateJoiners` when absent.
+   */
+  readonly simulateWaiter?: boolean;
   /**
    * The review store, shared with a console mock so a review written here can
    * be moderated there and a takedown there drops it from the list here. A
@@ -581,10 +588,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
   /**
    * The amounts on a bill request, as the server works them out (diner design
-   * gaps): the scope's balance with the service charge and without the tip,
-   * and the tip as a percent of the items before service. The rules first, in
-   * the server's order — only with the bill, a whole percent from 0 to 25 —
-   * then a scope with nothing left to pay is refused naming `billScope`.
+   * gaps, `BillQuote.For`): the scope's balance with the service charge and
+   * without the tip, and the tip on the unpaid part of the items (`quoteBill`).
+   * The rules first, in the server's order — only with the bill, a whole
+   * percent from 0 to 25 — then the whole bill only for somebody shown the
+   * table total (a 403 otherwise, the server's `TabPermissionException`), then
+   * a scope with nothing left to pay is refused naming `billScope`.
    */
   function billRequestFor(
     tabId: string,
@@ -614,16 +623,113 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     }
     const tab = readableTab(tabId);
     if (!tab) throw new NotFoundError({ url });
-    const { amountDram, itemsDram } = orders.billAmounts(tab, tab.yourParticipantId, input.scope);
+    if (input.scope === 'whole' && !orders.seesTableTotal(tab, tab.yourParticipantId)) {
+      throw new ForbiddenError({
+        url,
+        problem: {
+          type: 'about:blank',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Asking for the whole bill requires somebody who can see the table total.',
+          code: 'forbidden',
+          traceId: 'mock',
+          context: {
+            operation: 'Asking for the whole bill',
+            requirement: 'somebody who can see the table total',
+          },
+        },
+      });
+    }
+    const { amountDram, tipDram } = orders.billQuote(
+      tab,
+      tab.yourParticipantId,
+      input.scope,
+      input.tipPercent,
+    );
     if (amountDram <= 0) {
       throw validationFailed(url, [{ field: 'billScope', message: 'Nothing left to pay.' }]);
     }
-    return {
-      scope: input.scope,
-      amountDram,
-      tipPercent: input.tipPercent,
-      tipDram: percentOf(itemsDram, input.tipPercent),
-    };
+    return { scope: input.scope, amountDram, tipPercent: input.tipPercent, tipDram };
+  }
+
+  /** The wire's `ServiceRequestPreset`, for the `serviceRequested` event's payload. */
+  const SERVICE_PRESET: Readonly<Record<WaiterCallReason, 1 | 2 | 3 | 4>> = {
+    napkins: 1,
+    water: 2,
+    bill: 3,
+    other: 4,
+  };
+
+  /** How long a mock waiter takes to see a bill request, and then to settle it. */
+  const WAITER_ACKNOWLEDGES_AFTER_MS = 5_000;
+  const WAITER_SETTLES_AFTER_MS = 12_000;
+  const simulateWaiter = options.simulateWaiter ?? options.simulateJoiners ?? true;
+  /** Bill requests the mock waiter has already taken the cash for. */
+  const servedCalls = new Set<string>();
+
+  /**
+   * The floor, played by the mock (`simulateWaiter`): run before every read of
+   * a tab and every scan, the way the simulated joiner is run on reads.
+   *
+   * A bill request from the pay sheet is acknowledged a few seconds after it
+   * was raised — the `serviceRequestAcknowledged` event the phone watches for
+   * — and a few seconds later the waiter takes the cash: what the request
+   * named, never more than the scope still owes, credited to the requester on
+   * "my share" and to the table on the whole bill, with the tip beside it.
+   * Once nothing is left the tab closes, the table is free for the next scan,
+   * and the phone reads the receipt. A request replaced by a newer one is
+   * never served.
+   *
+   * Every tab, not only the one read: a reload replays the journal, which
+   * holds the scans and the requests but not the reads that served them, so
+   * a scan has to find the floor already served or it would land back on a
+   * tab about to close.
+   */
+  function serveFloor(): void {
+    if (!simulateWaiter) return;
+    const waiting = new Set(
+      world
+        .calls()
+        .filter((call) => call.reason === 'bill' && call.bill && !servedCalls.has(call.id))
+        .map((call) => call.tabId),
+    );
+    for (const tabId of waiting) serveTable(tabId);
+  }
+
+  function serveTable(tabId: string): void {
+    const tab = world.get(tabId);
+    if (!tab || tab.status !== 'open') return;
+    const at = now().getTime();
+
+    for (const entry of world.floorCalls(tabId)) {
+      const { call } = entry;
+      if (call.reason !== 'bill' || !call.bill || entry.supersededAtUtc !== null) continue;
+      if (servedCalls.has(call.id)) continue;
+      const age = at - Date.parse(call.requestedAtUtc);
+
+      if (age >= WAITER_ACKNOWLEDGES_AFTER_MS && world.acknowledgeCall(call.id)) {
+        orders.record(tab, 'serviceRequestAcknowledged', 'staff', { serviceRequestId: call.id });
+      }
+      if (age < WAITER_SETTLES_AFTER_MS) continue;
+
+      servedCalls.add(call.id);
+      const requester = entry.requestedByParticipantId;
+      const owed = orders.billQuote(tab, requester, call.bill.scope, 0).amountDram;
+      const amountDram = Math.min(call.bill.amountDram, owed, orders.remaining(tab));
+      if (amountDram > 0) {
+        orders.pay(
+          tab,
+          amountDram,
+          call.bill.tipDram,
+          call.bill.scope === 'mine' ? requester : null,
+        );
+      }
+      if (orders.remaining(tab) <= 0) {
+        world.close(tabId);
+        orders.record(tab, 'tabClosed', 'staff', null);
+        return;
+      }
+    }
   }
 
   /** A 409 whose `message` is the server's sentence and whose `code` is its slug. */
@@ -2317,6 +2423,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
       await wait();
       requireClientCommandId(`${URL_TAG}/api/tabs/open`, command.commandId);
+      serveFloor();
       const result = world.scan(command);
       linkParticipant(result.tab);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
@@ -2336,6 +2443,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       requireVerifiedPhone(url);
       // After the policy, as there: VerifiedDiner answers before the body is bound.
       requireClientCommandId(url, command.commandId);
+      serveFloor();
       const wanted = normaliseBookingCode(command.bookingCode);
       /*
        * Over this diner's own bookings — which *is* the ownership rule, not an
@@ -2400,6 +2508,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async joinTab(command): Promise<ScanResult> {
       await wait();
+      serveFloor();
       const result = world.join(command);
       linkParticipant(result.tab);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
@@ -2461,13 +2570,32 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       bill?: BillRequestInput | undefined;
     }): Promise<WaiterCall> {
       await wait();
+      // A repeated command id is the same request, answered as it was — not
+      // priced again against a bill that may have moved since.
+      const replayed = world.findCall(input.commandId);
+      if (replayed) return replayed;
       const bill = input.bill ? billRequestFor(input.tabId, input.reason, input.bill) : null;
-      return world.call({
+      const tab = world.get(input.tabId);
+      const call = world.call({
         tabId: input.tabId,
         reason: input.reason,
         commandId: input.commandId,
         bill,
+        ...(tab ? { participantId: tab.yourParticipantId } : {}),
       });
+      // On the tab's stream as the server puts it there: who asked and what
+      // for, and no amounts — those reach the floor, not the other phones.
+      if (tab) {
+        orders.record(tab, 'serviceRequested', 'diner', {
+          serviceRequestId: call.id,
+          preset: SERVICE_PRESET[input.reason],
+          note: null,
+          requestedByParticipantId: tab.yourParticipantId,
+          billScope: bill ? (bill.scope === 'whole' ? 1 : 2) : null,
+          tipPercent: bill?.tipPercent ?? null,
+        });
+      }
+      return call;
     },
 
     // --- Ordering and the bill ---------------------------------------------
@@ -2483,12 +2611,14 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async getDinerTab(tabId): Promise<DinerTabView | null> {
       await wait();
+      serveFloor();
       const tab = readableTab(tabId);
       return tab ? dinerViewOf(tab) : null;
     },
 
     async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
       await wait();
+      serveFloor();
       const tab = world.get(tabId);
       if (tab) orders.ensure(tab.id, tab.branchId);
       return orders.events(tabId, afterSequence);
@@ -2515,6 +2645,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async getTabShares(tabId): Promise<TabShares | null> {
       await wait();
+      serveFloor();
       const tab = world.get(tabId);
       return tab ? orders.shares(tab, tab.yourParticipantId) : null;
     },

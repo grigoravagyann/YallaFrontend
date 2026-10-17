@@ -30,6 +30,7 @@ import { haptics } from '../../../src/lib/haptics';
 import { useTray } from '../../../src/order/TrayProvider';
 import { useActiveTab } from '../../../src/stores/tab';
 import { tabAccessCopy } from '../../../src/tab/access';
+import { tabAccessGone } from '../../../src/tab/billRequest';
 import { canInvite } from '../../../src/tab/invite';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
 import { projectTab } from '../../../src/tab/projection';
@@ -119,8 +120,13 @@ export default function TabScreen() {
   }, [tabId, over, view?.tabId, activeTabId, clearActive, joinActive]);
 
   // The bill asked for from the pay sheet, until a waiter acknowledges it or
-  // the tab moves on to closing.
-  const billRequested = useBillRequestWatch(tabId, view?.status);
+  // the tab moves on to closing — or this phone can no longer read the tab
+  // (401/403, or 404: the read answers `null`), which ends it for good.
+  const billRequested = useBillRequestWatch(
+    tabId,
+    view?.status,
+    tabAccessGone(error) || view === null,
+  );
 
   const people = view ? roster(view) : [];
   const summary = useParticipantSummary(people, locale);

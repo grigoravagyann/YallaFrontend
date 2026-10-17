@@ -19,20 +19,27 @@ vi.mock('@yalla/i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof I18nModule>()),
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-// The photo as a marker; a link with "broken" in it fails the way a dead
-// image does — `PhotoImage` reports a load of `null`.
+// The photo as a marker. A link with "broken" in it fails the way a dead
+// image does — `PhotoImage` reports a load of `null` and an error; one with
+// "nosize" arrives on a platform that cannot say its size — a load of `null`
+// and no error.
 vi.mock('./PhotoImage', () => ({
   PhotoImage: ({
     source,
     onLoad,
+    onError,
   }: {
     readonly source: string;
     readonly onLoad?: (size: { width: number; height: number } | null) => void;
+    readonly onError?: () => void;
   }) => {
     useEffect(() => {
-      if (source.includes('broken')) onLoad?.(null);
+      if (source.includes('broken')) {
+        onLoad?.(null);
+        onError?.();
+      } else if (source.includes('nosize')) onLoad?.(null);
       else onLoad?.({ width: 120, height: 120 });
-    }, [source, onLoad]);
+    }, [source, onLoad, onError]);
     return <span data-testid="photo" data-src={source} />;
   },
 }));
@@ -95,6 +102,19 @@ describe('AvatarRow', () => {
 
     expect(screen.queryByTestId('photo')).toBeNull();
     expect(screen.getByText('A')).toBeTruthy();
+  });
+
+  it('keeps a photo that arrived without saying its size', () => {
+    render(
+      <AvatarRow
+        people={[person('p1', 'Anna', { photo: photo('https://cdn.test/nosize.jpg') })]}
+      />,
+    );
+
+    expect(screen.getByTestId('photo').getAttribute('data-src')).toBe(
+      'https://cdn.test/nosize.jpg',
+    );
+    expect(screen.queryByText('A')).toBeNull();
   });
 
   it('draws no +n when everyone fits', () => {

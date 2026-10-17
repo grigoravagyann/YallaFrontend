@@ -59,6 +59,8 @@ import {
   LEAD_MINUTES,
   WINDOW_DAYS,
   dayOptions,
+  largerPartySizes,
+  stripDateFor,
   tablesForParty,
   timeSlots,
   windowReaching,
@@ -101,13 +103,11 @@ type BookingParams = {
   capacityMin?: string;
   capacityMax?: string;
   /**
-   * Change mode: the booking being moved, and the day (`YYYY-MM-DD`), time
-   * (`HH:mm`) and party it holds now — with `tableId`, its table. See
-   * `changeBookingRoute`.
+   * Change mode: the booking being moved, and the instant (ISO) and party it
+   * holds now — with `tableId`, its table. See `changeBookingRoute`.
    */
   bookingId?: string;
-  date?: string;
-  time?: string;
+  slotUtc?: string;
   party?: string;
 };
 
@@ -132,10 +132,10 @@ export default function BookingScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
   const params = useLocalSearchParams<BookingParams>();
-  const { bookingId, date, time, party, tableId } = params;
+  const { bookingId, slotUtc, party, tableId } = params;
   const change = useMemo(
-    () => parseChangeParams({ bookingId, date, time, party, tableId }),
-    [bookingId, date, time, party, tableId],
+    () => parseChangeParams({ bookingId, slotUtc, party, tableId }),
+    [bookingId, slotUtc, party, tableId],
   );
   const title = change ? t('book.changeTitle') : t('book.title');
   const placeQuery = usePlace(params.placeId);
@@ -284,9 +284,20 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
 
   // "Now", read once: the slot list must not reshuffle under a finger.
   const now = useMemo(() => new Date(), []);
+  /*
+   * The booking being changed, by its instant: the strip day whose times hold
+   * it (a bar's 00:30 is the evening before's), and the instant itself, which
+   * is what is chosen — never a clock reading another night shares.
+   */
+  const ownSlotUtc = change?.slotUtc ?? null;
+  const ownSlotMs = ownSlotUtc ? Date.parse(ownSlotUtc) : null;
+  const changeDate = useMemo(
+    () =>
+      ownSlotUtc ? stripDateFor(place, ownSlotUtc, branchDayKey(now, place.timeZoneId)) : null,
+    [ownSlotUtc, place, now],
+  );
   // A booking being changed may lie beyond the window the strip starts with;
   // its own day is always on it.
-  const changeDate = change?.date ?? null;
   const days = useMemo(
     () =>
       dayOptions(
@@ -298,10 +309,12 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   );
 
   // A change opens on what the booking holds; a new booking on the defaults.
-  const [dateKey, setDateKey] = useState<string | null>(change?.date ?? null);
-  const [slotKey, setSlotKey] = useState<string | null>(change?.time ?? null);
+  const [dateKey, setDateKey] = useState<string | null>(changeDate);
+  // The time the diner tapped, as an instant; `null` until they tap one.
+  const [pickedMs, setPickedMs] = useState<number | null>(null);
+  // Never shrunk: a party bigger than the list is shown as chosen as it is.
   const [partySize, setPartySize] = useState(() => {
-    if (change?.partySize) return Math.min(change.partySize, PARTY_MAX);
+    if (change?.partySize) return change.partySize;
     const min = chosenTable?.capacityMin ?? PARTY_SIZES[0];
     return Math.min(Math.max(min, PARTY_SIZES[0]), chosenTable?.capacityMax ?? PARTY_MAX);
   });
@@ -352,9 +365,25 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
     () => slotAvailability(slots, [dayAnswer, nextDayAnswer], place.timeZoneId),
     [slots, dayAnswer, nextDayAnswer, place.timeZoneId],
   );
-  // The tapped slot while it can still be had, else the first that can.
-  const activeSlot = pickSlot(slots, availability.struck, slotKey);
+  // The times the venue offers at all: one the server leaves out is not drawn.
+  const shownSlots = useMemo(
+    () => slots.filter((slot) => !availability.hidden.has(slot.at.getTime())),
+    [slots, availability.hidden],
+  );
+  /*
+   * The tapped time while it can be had. Before a tap, a change wants the
+   * booking's own time and a new booking the first time that can be had.
+   * A new booking whose time is gone gets the nearest one that can be; a
+   * change never gets a time nobody chose — nothing is chosen, and it says so.
+   */
+  const wantedMs = pickedMs ?? (change ? ownSlotMs : null);
+  const activeSlot = pickSlot(slots, availability, wantedMs, change === null);
   const slotUtc = activeSlot?.at.toISOString() ?? '';
+  // The time a change was opened on, or the one tapped since, is not on offer.
+  const changeTimeGone =
+    change !== null &&
+    activeSlot === null &&
+    (pickedMs !== null || (ownSlotMs !== null && activeDateKey === changeDate));
 
   /*
    * The rooms **as they will be at the slot**, from the same read the branch
@@ -458,8 +487,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   const unchanged =
     change !== null &&
     isUnchanged(change, {
-      date: activeDateKey,
-      time: activeSlot?.key ?? null,
+      slotUtc: activeSlot ? slotUtc : null,
       partySize,
       tableId: targetTableId,
     });
@@ -660,33 +688,40 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
     [clearErrors],
   );
 
-  const moreSizes = useMemo(() => {
-    const top = Math.min(PARTY_MAX, capacityMax ?? PARTY_MAX);
-    return Array.from(
-      { length: Math.max(0, top - PARTY_MORE_FROM + 1) },
-      (_, i) => PARTY_MORE_FROM + i,
-    ).filter(fits);
+  // The booking being changed keeps its own size on offer, however large.
+  const keepSize = change?.partySize ?? null;
+  const moreSizes = useMemo(
+    () =>
+      largerPartySizes(
+        PARTY_MORE_FROM,
+        Math.min(PARTY_MAX, capacityMax ?? PARTY_MAX),
+        fits,
+        keepSize,
+      ),
     // `fits` reads the same two bounds this depends on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capacityMin, capacityMax]);
+    [capacityMin, capacityMax, keepSize],
+  );
   const moreAllowed = moreSizes.length > 0;
 
   // A struck time is drawn and named — "20:00, no free tables" — never chosen.
-  // One that can be had is named by its time alone.
+  // One that can be had is named by its time alone. Each is keyed by its
+  // instant: a late night's 00:30 is not the evening's own.
   const slotOptions = useMemo<readonly ChoiceGridOption[]>(
     () =>
-      slots.map((slot) => {
+      shownSlots.map((slot) => {
         const label = formatTime(slot.at, place.timeZoneId, locale);
-        return availability.struck.has(slot.key)
+        const value = String(slot.at.getTime());
+        return availability.struck.has(slot.at.getTime())
           ? {
-              value: slot.key,
+              value,
               label,
               disabled: true,
               accessibilityLabel: t('book.slotFull', { time: label }),
             }
-          : { value: slot.key, label };
+          : { value, label };
       }),
-    [slots, availability.struck, place.timeZoneId, locale, t],
+    [shownSlots, availability.struck, place.timeZoneId, locale, t],
   );
   // Under the times, when any is struck: why — the day's own reason when the
   // whole day is refused, else that a struck time has no free table.
@@ -774,21 +809,21 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
             label={dayLabel}
             onSelect={(key) => {
               setDateKey(key);
-              setSlotKey(null);
+              setPickedMs(null);
               clearErrors();
             }}
           />
 
-          {slots.length === 0 ? (
+          {shownSlots.length === 0 ? (
             <Text style={styles.empty}>{t('book.noSlots')}</Text>
           ) : (
             <View style={styles.times}>
               <ChoiceGrid
                 options={slotOptions}
-                value={activeSlot?.key ?? null}
-                onChange={(key) => {
+                value={activeSlot ? String(activeSlot.at.getTime()) : null}
+                onChange={(value) => {
                   haptics.select();
-                  setSlotKey(key);
+                  setPickedMs(Number(value));
                   clearErrors();
                 }}
                 columns={SLOT_COLUMNS}
@@ -798,6 +833,15 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
               {struckHint ? <Text style={styles.struckHint}>{struckHint}</Text> : null}
             </View>
           )}
+          {/* A change whose time is gone: nothing is chosen for it, and why. */}
+          {changeTimeGone ? (
+            <Rise>
+              <View accessibilityRole="alert" style={styles.timeGone}>
+                <Ionicons name={actionIcon.time} size={iconSize.sm} color={colors.warningInk} />
+                <Text style={styles.timeGoneText}>{t('book.changeTimeUnavailable')}</Text>
+              </View>
+            </Rise>
+          ) : null}
 
           {/* Guests: one glass row, the label and the sizes as radios. */}
           <View style={styles.partyCard}>
@@ -1020,9 +1064,9 @@ function useDayLabel(timeZoneId: string): (day: DayOption) => string {
 }
 
 /**
- * "Book a Table" — or "Change booking" — over the venue and where it is:
- * the district the venue set, else the branch (or the street), as the place
- * card says it.
+ * "Book a Table" — or "Change booking" — over the venue and where it is, the
+ * same area line the place card shows: "Lavash Restaurant · Northern Avenue ·
+ * Kentron".
  */
 function Header({
   title,
@@ -1034,12 +1078,11 @@ function Header({
   place?: Pick<Place, 'name' | 'venueName' | 'branchName' | 'address' | 'district'> | undefined;
 }) {
   const { t } = useTranslation('diner');
-  const venue = place ? place.venueName.trim() || place.name : null;
-  // The district; without one, the branch, else the street.
+  const venue = place ? placeTitle(place).venue : null;
+  // The branch and the district; the branch alone, or the street, without one.
+  // It carries the branch, so two branches of one venue never sound alike.
   const where = place ? placeArea(place) || null : null;
-  // Heard with the branch as well, so two branches of one venue never sound alike.
-  const branch = place ? placeTitle(place).branch : null;
-  const heard = [title, venue, branch !== where ? branch : null, where];
+  const heard = [title, venue, where];
   return (
     <View style={styles.header}>
       <IconButton
@@ -1213,6 +1256,14 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     paddingHorizontal: space.xs,
   },
+  timeGone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    marginTop: -space.sm,
+    paddingHorizontal: space.xs,
+  },
+  timeGoneText: { ...typography.caption, flex: 1, color: colors.warningInk },
 
   partyCard: {
     borderRadius: radius.card,

@@ -1,7 +1,7 @@
 import {
   VOID_REASONS,
   type AdjustmentKind,
-  type BillRequest,
+  type ServiceRequest,
   type StaffTab,
   type TabAdjustment,
   type TabLine,
@@ -10,7 +10,7 @@ import {
   type VoidReason,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { billRequestText } from './billRequestText';
 import { CashKeypad } from './CashKeypad';
 import { useBranchFormat } from './useBranchFormat';
@@ -61,11 +61,12 @@ export interface TabPanelProps {
   /** The last cash attempt was refused for exceeding the balance. */
   readonly cashRefusal: { readonly remainingDram: number; readonly requestedDram: number } | null;
   /**
-   * What the table asked to pay from the app — the whole bill or one share,
-   * and the tip — while that request is still being handled. The keypad opens
-   * on it.
+   * What people at the table asked to pay from the app — the whole bill or
+   * their own share, and the tip — while those requests are still being
+   * handled, newest first. Only requests with amounts (`bill` set). The waiter
+   * picks the one the keypad opens on; the newest by default.
    */
-  readonly billRequest?: BillRequest | null;
+  readonly billRequests?: readonly ServiceRequest[];
   readonly onVoid: (line: TabLine, reason: VoidReason, detail?: string) => void;
   readonly onAdjust: (input: {
     lineId: string | null;
@@ -74,7 +75,16 @@ export interface TabPanelProps {
     amountDram: number | null;
     reason: string;
   }) => void;
-  readonly onCash: (input: { amountDram: number; tipDram: number }) => void;
+  /**
+   * Cash taken. `billRequestId` is the request the keypad was opened on, or
+   * null when the waiter picked none of them: then nobody is named as the
+   * payer and no request is marked handled.
+   */
+  readonly onCash: (input: {
+    amountDram: number;
+    tipDram: number;
+    billRequestId: string | null;
+  }) => void;
   readonly onAskForBill: () => void;
   readonly onAbandon: (reason: string) => void;
   readonly onOrder: () => void;
@@ -95,26 +105,33 @@ function initialsOf(name: string): string {
  * The person's own photo when their account has one — the waiter's "who is
  * who" at a table of six — and their initials otherwise, or when the photo
  * does not load. Decorative: the name is beside it.
+ *
+ * A failed load is remembered for that photo only. Keyed by its link, so a
+ * new photo (the person changed it, or the tab refetched with fresh links)
+ * gets its own try instead of inheriting the old one's failure.
  */
-function ParticipantAvatar({
+export function ParticipantAvatar({
   person,
   name,
 }: {
   readonly person: TabStaffParticipant;
   readonly name: string;
 }) {
+  const url = person.photo?.thumbnailUrl ?? null;
+  return <AvatarFace key={url ?? ''} url={url} initials={initialsOf(name)} />;
+}
+
+function AvatarFace({ url, initials }: { readonly url: string | null; readonly initials: string }) {
   const [failed, setFailed] = useState(false);
-  const photo = failed ? null : person.photo;
   return (
     <span className="avatar tab-avatar" aria-hidden="true">
-      {photo ? (
-        <img src={photo.thumbnailUrl} alt="" onError={() => setFailed(true)} />
-      ) : (
-        initialsOf(name)
-      )}
+      {url && !failed ? <img src={url} alt="" onError={() => setFailed(true)} /> : initials}
     </span>
   );
 }
+
+/** The radio value for "none of these requests": the keypad starts from the balance. */
+const NO_REQUEST = '__none__';
 
 /** The roles the server lets move money on a tab: a branch manager and everyone above. */
 const MANAGER_ROLES: readonly UserRole[] = ['owner', 'generalManager', 'manager', 'platformAdmin'];
@@ -136,14 +153,37 @@ export function TabPanel(props: TabPanelProps) {
   const [adjustKind, setAdjustKind] = useState<AdjustmentKind>('comp');
   const [adjustPercent, setAdjustPercent] = useState('100');
   const [adjustReason, setAdjustReason] = useState('');
-  const [takingCash, setTakingCash] = useState(false);
+  /**
+   * The keypad, and the request it was opened on — fixed at the tap, so a
+   * request arriving while the waiter types cannot change whose cash this is.
+   */
+  const [takingCash, setTakingCash] = useState<{ readonly request: ServiceRequest | null } | null>(
+    null,
+  );
+  /** The waiter's pick among the bill requests: an id, {@link NO_REQUEST}, or null for the newest. */
+  const [billChoice, setBillChoice] = useState<string | null>(null);
+  const pickId = useId();
   const [abandoning, setAbandoning] = useState(false);
   const [abandonConfirm, setAbandonConfirm] = useState('');
 
   const isManager = isTabManager(role);
   const totals = tab?.totals;
-  const billRequest = props.billRequest ?? null;
+  const billRequests = (props.billRequests ?? []).filter((request) => request.bill !== null);
+  // A pick that has since been handled elsewhere falls back to the newest.
+  const chosenBill =
+    billChoice === NO_REQUEST
+      ? null
+      : (billRequests.find((request) => request.id === billChoice) ?? billRequests[0] ?? null);
   const tipsDram = tab?.tipsDram ?? null;
+
+  /** Whose request it is, by the tab's own roster. */
+  const requesterName = (request: ServiceRequest): string => {
+    const person = request.requestedByParticipantId
+      ? tab?.participants.find((candidate) => candidate.id === request.requestedByParticipantId)
+      : undefined;
+    if (!person) return t('billRequest.someone');
+    return person.displayName ?? t('order.whoUnnamed');
+  };
   const closed = tab?.status === 'closed' || tab?.status === 'abandoned';
   const closing = tab?.status === 'closing';
 
@@ -205,12 +245,55 @@ export function TabPanel(props: TabPanelProps) {
               <p className="tab-tips">{t('tab.tips', { amount: format.dram(tipsDram) })}</p>
             ) : null}
 
-            {/* What the table asked for from the app, so the waiter walks over
-                knowing the amount rather than asking for it again. */}
-            {billRequest && !closed ? (
-              <p className="tab-bill-request">
-                {billRequestText(billRequest, t, format.dram, 'wants')}
-              </p>
+            {/* What people asked for from the app, each with their name, so the
+                waiter walks over knowing who wants to pay what rather than
+                asking again. Two people can ask at once — the host the whole
+                bill, a guest their own share — so the waiter picks whose cash
+                the keypad is for, and "none of these" keeps a payment nobody
+                asked for from being credited to somebody who did. */}
+            {billRequests.length > 0 && !closed ? (
+              <fieldset className="choice-list tab-bill-requests">
+                <legend className="choice-legend">{t('billRequest.pickTitle')}</legend>
+                <p className="table-note">{t('billRequest.pickNote')}</p>
+                {/* Named by the person, described by what they asked for: two
+                    spans run together would read "KarenWants to pay…". */}
+                {billRequests.map((request) => (
+                  <label key={request.id} className="choice-card">
+                    <input
+                      type="radio"
+                      name="tab-bill-request"
+                      value={request.id}
+                      checked={chosenBill?.id === request.id}
+                      onChange={() => setBillChoice(request.id)}
+                      aria-labelledby={`${pickId}-${request.id}-who`}
+                      aria-describedby={`${pickId}-${request.id}-what`}
+                    />
+                    <span className="choice-title" id={`${pickId}-${request.id}-who`}>
+                      {requesterName(request)}
+                    </span>
+                    <span id={`${pickId}-${request.id}-what`}>
+                      {billRequestText(request.bill!, t, format.dram, 'wants')}
+                    </span>
+                  </label>
+                ))}
+                <label className="choice-card">
+                  <input
+                    type="radio"
+                    name="tab-bill-request"
+                    value={NO_REQUEST}
+                    checked={chosenBill === null}
+                    onChange={() => setBillChoice(NO_REQUEST)}
+                    aria-labelledby={`${pickId}-none-who`}
+                    aria-describedby={`${pickId}-none-what`}
+                  />
+                  <span className="choice-title" id={`${pickId}-none-who`}>
+                    {t('billRequest.noneTitle')}
+                  </span>
+                  <span id={`${pickId}-none-what`}>
+                    {t('billRequest.noneBody', { amount: format.dram(totals.remainingDram) })}
+                  </span>
+                </label>
+              </fieldset>
             ) : null}
 
             {closed ? (
@@ -238,7 +321,7 @@ export function TabPanel(props: TabPanelProps) {
                 type="button"
                 className="floor-button big full"
                 disabled={!online || closed}
-                onClick={() => setTakingCash(true)}
+                onClick={() => setTakingCash({ request: chosenBill })}
               >
                 {t('tab.takeCash')}
               </button>
@@ -568,12 +651,12 @@ export function TabPanel(props: TabPanelProps) {
       {takingCash && totals ? (
         <CashKeypad
           remainingDram={totals.remainingDram}
-          prefill={billRequest}
+          prefill={takingCash.request?.bill ?? null}
           timeZoneId={timeZoneId}
-          onCancel={() => setTakingCash(false)}
+          onCancel={() => setTakingCash(null)}
           onConfirm={(input) => {
-            props.onCash(input);
-            setTakingCash(false);
+            props.onCash({ ...input, billRequestId: takingCash.request?.id ?? null });
+            setTakingCash(null);
           }}
         />
       ) : null}

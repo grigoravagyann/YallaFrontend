@@ -12,10 +12,20 @@ import {
  * The pay sheet's arithmetic and choices, as pure functions.
  *
  * Every figure here comes from the shares read — the table's totals and this
- * person's own share, both as the server split them. The one number the phone
- * works out itself is the tip, and only as a preview: the sheet sends a scope
- * and a percent, never an amount, and the success state shows what the server
- * answered. The tip is rounded half-up once, the server's `Money.PercentOf`.
+ * person's own share, both as the server split them — priced by the shared
+ * money rules the server's `BillQuote.For` applies, so the preview is the
+ * figure the waiter brings. The sheet still sends a scope and a percent,
+ * never an amount, and the success state shows what the server answered.
+ *
+ * - Whole bill: the tab's remaining balance.
+ * - My share: what is left of it (share less paid), capped at the tab's
+ *   remaining balance only for somebody shown the table total.
+ * - The tip is a percent of the unpaid part of the items: the scope's items
+ *   before service, in the proportion the amount bears to the scope's full
+ *   figure — exactly the items when nothing is paid yet.
+ *
+ * Rounding is the server's: half-up, away from zero, to whole dram
+ * (`Money.PercentOf`, `Money.ProRata`).
  */
 
 /** The four tips the sheet offers, as the design draws them. */
@@ -49,15 +59,55 @@ export interface PayPreview {
   readonly totalDram: number;
 }
 
-/** A tip as a whole-dram percent of the items before service, half-up. */
-export function tipOn(itemsDram: number, percent: number): number {
-  if (itemsDram <= 0 || percent <= 0) return 0;
-  return Math.round((itemsDram * percent) / 100);
+/** An integer over a positive integer, rounded half away from zero, exactly. */
+function divideHalfUp(dividend: number, divisor: number): number {
+  const size = Math.abs(dividend);
+  let quotient = Math.floor(size / divisor);
+  let remainder = size - quotient * divisor;
+  // The float division can land a whole step out for very large values.
+  if (remainder < 0) {
+    quotient -= 1;
+    remainder += divisor;
+  } else if (remainder >= divisor) {
+    quotient += 1;
+    remainder -= divisor;
+  }
+  const rounded = remainder * 2 >= divisor ? quotient + 1 : quotient;
+  return dividend < 0 ? -rounded : rounded;
+}
+
+/** `percent` of an amount, half-up to whole dram — `Money.PercentOf`. */
+export function percentOf(amountDram: number, percent: number): number {
+  if (amountDram === 0 || percent === 0) return 0;
+  return divideHalfUp(amountDram * percent, 100);
+}
+
+/**
+ * `numerator`/`denominator` of an amount, half-up to whole dram —
+ * `Money.ProRata`. Nothing when the fraction or the amount is nothing.
+ */
+export function proRata(amountDram: number, numerator: number, denominator: number): number {
+  if (denominator <= 0 || numerator <= 0 || amountDram === 0) return 0;
+  return divideHalfUp(amountDram * numerator, denominator);
 }
 
 /** What this person still owes of their own share. */
 function owed(share: ParticipantShare): number {
   return Math.max(0, share.shareDram - share.paidDram);
+}
+
+/**
+ * What "my share" asks for: what is left of it, and never more than the tab
+ * still owes — but that cap only for somebody shown the table total, so a
+ * person the host keeps it from never reads the table's balance off their
+ * own figure. A payment the waiter took against the table, not a person,
+ * lowers the balance without lowering anybody's share; the cap is why.
+ */
+export function myShareAmount(shares: TabShares | null | undefined): number {
+  const share = shares?.yourShare;
+  if (!shares || !share) return 0;
+  const left = owed(share);
+  return shares.kind === 'table' ? Math.min(left, shares.totals.remainingDram) : left;
 }
 
 /**
@@ -73,7 +123,7 @@ export function payScopes(shares: TabShares | null | undefined): readonly BillSc
   if (!shares) return [];
   const scopes: BillScope[] = [];
   if (shares.kind === 'table' && shares.totals.remainingDram > 0) scopes.push('whole');
-  if (shares.yourShare && owed(shares.yourShare) > 0) scopes.push('mine');
+  if (myShareAmount(shares) > 0) scopes.push('mine');
   return scopes;
 }
 
@@ -105,9 +155,10 @@ export function pickScope(
  * Whole: the table's items and service charge, less what has been paid. Mine:
  * this person's own items, their part of the shared ones, anything that fell
  * to them from somebody who left, a discount when the split took one off, the
- * service charge, less what they paid. The rows always add up to the amount,
- * the amount plus the tip to the total. `null` when the read cannot answer
- * for that scope.
+ * service charge, less what has been paid toward it (their own payments, and
+ * what the table's payments covered once the balance is below their share).
+ * The rows always add up to the amount, the amount plus the tip to the total.
+ * `null` when the read cannot answer for that scope.
  */
 export function payPreview(
   shares: TabShares | null | undefined,
@@ -126,7 +177,8 @@ export function payPreview(
     lines.push({ kind: 'service', amountDram: totals.serviceChargeDram });
     if (totals.paidDram > 0) lines.push({ kind: 'paid', amountDram: totals.paidDram });
     amountDram = totals.remainingDram;
-    tipDram = tipOn(totals.subtotalDram, tipPercent);
+    // The tip on the items still unpaid: all of them until somebody pays.
+    tipDram = percentOf(proRata(totals.subtotalDram, amountDram, totals.totalDram), tipPercent);
   } else {
     const share = shares.yourShare;
     if (!share) return null;
@@ -146,9 +198,16 @@ export function payPreview(
       share.personalDram;
     if (discount > 0) lines.push({ kind: 'discount', amountDram: discount });
     lines.push({ kind: 'service', amountDram: share.serviceChargeDram });
-    if (share.paidDram > 0) lines.push({ kind: 'paid', amountDram: share.paidDram });
-    amountDram = owed(share);
-    tipDram = tipOn(share.personalDram, tipPercent);
+    amountDram = myShareAmount(shares);
+    // What has been paid toward it: this person's own payments, and — when
+    // the table's balance is below what they owe — what the table's payments
+    // already covered. Said as one row, so the rows add up to the amount.
+    const covered = share.shareDram - amountDram;
+    if (covered > 0) lines.push({ kind: 'paid', amountDram: covered });
+    tipDram =
+      share.shareDram > 0
+        ? percentOf(proRata(share.personalDram, amountDram, share.shareDram), tipPercent)
+        : 0;
   }
 
   if (tipDram > 0) lines.push({ kind: 'tip', amountDram: tipDram });

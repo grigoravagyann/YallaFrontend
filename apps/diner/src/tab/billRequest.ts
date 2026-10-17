@@ -1,4 +1,12 @@
-import type { BillRequest, DinerTabView, TabEvent, TabEventPage } from '@yalla/api';
+import {
+  ApiError,
+  isEndpointNotWired,
+  isTabAccessEnded,
+  type BillRequest,
+  type DinerTabView,
+  type TabEvent,
+  type TabEventPage,
+} from '@yalla/api';
 import { create } from 'zustand';
 
 /**
@@ -73,14 +81,41 @@ export function acknowledges(events: readonly TabEvent[], requestId: string): bo
   );
 }
 
+/**
+ * Whether a refused tab read means this phone's hold on the tab is over: a
+ * 401, 403 or 404 — taken off, left, the tab gone, or no token for it here.
+ * Nothing a later read will answer differently, so a watch stops for good.
+ */
+export function tabAccessGone(error: unknown): boolean {
+  if (isTabAccessEnded(error)) return true;
+  return (
+    error instanceof ApiError &&
+    (error.status === 401 || error.status === 403 || error.status === 404)
+  );
+}
+
+/**
+ * Whether the acknowledgement watch should stop for good on this error: the
+ * tab is no longer this phone's to read, or the backend has no event stream.
+ * Anything else — offline, a 5xx — is tried again on the next tick.
+ */
+export function endsAcknowledgementWatch(error: unknown): boolean {
+  return tabAccessGone(error) || isEndpointNotWired(error);
+}
+
 export interface AcknowledgementWatchDeps {
   readonly tabId: string;
   readonly requestId: string;
   readonly afterSequence: number;
   readonly getTabEvents: (input: { tabId: string; afterSequence: number }) => Promise<TabEventPage>;
   readonly onAcknowledged: () => void;
-  /** Stops for good — the backend has no event stream to read. */
+  /**
+   * Stops for good on this error. {@link endsAcknowledgementWatch} unless
+   * said otherwise: the tab's access ended, or there is no stream to read.
+   */
   readonly isUnavailable?: ((error: unknown) => boolean) | undefined;
+  /** Told once, with the error, when the watch stops for good on one. */
+  readonly onGaveUp?: ((error: unknown) => void) | undefined;
   readonly intervalMs?: number | undefined;
   readonly setInterval?: typeof globalThis.setInterval | undefined;
   readonly clearInterval?: typeof globalThis.clearInterval | undefined;
@@ -124,7 +159,10 @@ export function watchAcknowledgement(deps: AcknowledgementWatchDeps): () => void
         if (!result.hasMore || result.events.length === 0) break;
       }
     } catch (error) {
-      if (deps.isUnavailable?.(error)) stop();
+      if ((deps.isUnavailable ?? endsAcknowledgementWatch)(error)) {
+        stop();
+        deps.onGaveUp?.(error);
+      }
     } finally {
       busy = false;
     }

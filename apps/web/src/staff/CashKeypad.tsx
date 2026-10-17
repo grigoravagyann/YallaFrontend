@@ -27,7 +27,12 @@ import { useBranchFormat } from './useBranchFormat';
 
 export interface CashKeypadProps {
   readonly remainingDram: number;
-  /** The amount and tip of the table's open bill request, when there is one. */
+  /**
+   * The amount and tip of the bill request the waiter picked, when there is
+   * one. The amount opens capped at what the tab still owes: a share priced
+   * before somebody else paid can be more than is left, and the server
+   * refuses a payment over the balance.
+   */
   readonly prefill?: { readonly amountDram: number; readonly tipDram: number } | null;
   readonly timeZoneId: string;
   readonly onConfirm: (input: { amountDram: number; tipDram: number }) => void;
@@ -47,7 +52,9 @@ export function CashKeypad({
   const format = useBranchFormat(timeZoneId);
 
   const [field, setField] = useState<'amount' | 'tip'>('amount');
-  const [amount, setAmount] = useState(String(prefill ? prefill.amountDram : remainingDram));
+  const [amount, setAmount] = useState(() =>
+    String(prefill ? Math.max(0, Math.min(prefill.amountDram, remainingDram)) : remainingDram),
+  );
   const [tip, setTip] = useState(String(prefill ? prefill.tipDram : 0));
 
   const amountDram = Number.parseInt(amount || '0', 10);

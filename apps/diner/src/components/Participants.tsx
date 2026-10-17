@@ -139,10 +139,10 @@ export function PersonAvatar({ name, photo, size, tone, ringed = false }: Person
         <PhotoImage
           source={url}
           style={styles.facePhoto}
-          // `null` is what a load that failed reports; the initial takes over.
-          onLoad={(loaded) => {
-            if (loaded === null) setFailed(url);
-          }}
+          // Only a load that failed hands over to the initial. A photo that
+          // arrived without saying its size (`onLoad(null)` on some
+          // platforms) is still a face.
+          onError={() => setFailed(url)}
         />
       ) : (
         <Text

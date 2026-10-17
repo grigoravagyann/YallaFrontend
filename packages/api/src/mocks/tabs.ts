@@ -83,6 +83,22 @@ interface TabRecord {
   simulatedGuestArrived: boolean;
 }
 
+/** A raised hand as the floor tracks it: who asked, and whether it is still open. */
+interface CallState {
+  readonly participantId: string;
+  acknowledgedAtUtc: string | null;
+  /** A newer bill request from the same person replaced it (`ServiceRequest.Supersede`). */
+  supersededAtUtc: string | null;
+}
+
+/** A call with what the floor knows of it — for the mock's simulated waiter and the tests. */
+export interface FloorCall {
+  readonly call: WaiterCall;
+  readonly requestedByParticipantId: string;
+  readonly acknowledgedAtUtc: string | null;
+  readonly supersededAtUtc: string | null;
+}
+
 /** A scan, in the world's own terms: the tab the mock holds, not the diner's view of it. */
 export interface WorldScan {
   readonly kind: ScanResult['kind'];
@@ -122,6 +138,8 @@ export function createTabWorld(options: TabWorldOptions) {
   /** commandId -> invite token, so a double tap on refresh does not churn it. */
   const inviteCommandLog = new Map<string, string>();
   const waiterCalls: WaiterCall[] = [];
+  /** What the floor knows of each call beyond its public shape, by call id. */
+  const callState = new Map<string, CallState>();
 
   let sequence = 0;
   let seeded = false;
@@ -260,6 +278,20 @@ export function createTabWorld(options: TabWorldOptions) {
     const record = tabs.get(tabId);
     if (!record) throw new UnknownTableCodeError({ url: URL_TAG });
     return record;
+  }
+
+  function floorCallsOf(tabId: string): readonly FloorCall[] {
+    return waiterCalls
+      .filter((call) => call.tabId === tabId)
+      .map((call) => {
+        const state = callState.get(call.id);
+        return {
+          call,
+          requestedByParticipantId: state?.participantId ?? DEVICE_PARTICIPANT_ID,
+          acknowledgedAtUtc: state?.acknowledgedAtUtc ?? null,
+          supersededAtUtc: state?.supersededAtUtc ?? null,
+        };
+      });
   }
 
   function mutateParticipant(
@@ -574,21 +606,85 @@ export function createTabWorld(options: TabWorldOptions) {
       reason: WaiterCallReason;
       commandId: string;
       bill?: BillRequest | null | undefined;
+      /** Who asked. This device unless said otherwise. */
+      participantId?: string | undefined;
     }): WaiterCall {
       const record = requireTab(input.tabId);
 
       const existing = waiterCalls.find((c) => c.id === input.commandId);
       if (existing) return existing;
 
+      const at = now().toISOString();
+      const participantId = input.participantId ?? DEVICE_PARTICIPANT_ID;
+
+      // A new request for the bill with a scope replaces the same person's
+      // request still open on this tab: the floor brings one bill, the last
+      // one asked for.
+      if (input.reason === 'bill' && input.bill) {
+        for (const earlier of waiterCalls) {
+          const state = callState.get(earlier.id);
+          if (
+            earlier.tabId === record.id &&
+            earlier.reason === 'bill' &&
+            state?.participantId === participantId &&
+            state.acknowledgedAtUtc === null &&
+            state.supersededAtUtc === null
+          ) {
+            state.supersededAtUtc = at;
+          }
+        }
+      }
+
       const call: WaiterCall = {
         id: input.commandId,
         tabId: record.id,
         reason: input.reason,
-        requestedAtUtc: now().toISOString(),
+        requestedAtUtc: at,
         bill: input.bill ?? null,
       };
       waiterCalls.push(call);
+      callState.set(call.id, { participantId, acknowledgedAtUtc: null, supersededAtUtc: null });
       return call;
+    },
+
+    /** A call already raised with this command id — what a replay answers with. */
+    findCall(commandId: string): WaiterCall | null {
+      return waiterCalls.find((c) => c.id === commandId) ?? null;
+    },
+
+    /** Every call on a tab with what the floor knows of it, oldest first. */
+    floorCalls(tabId: string): readonly FloorCall[] {
+      return floorCallsOf(tabId);
+    },
+
+    /** The calls on a tab nobody has dealt with: not acknowledged, not replaced. */
+    openCalls(tabId: string): readonly WaiterCall[] {
+      return floorCallsOf(tabId)
+        .filter((entry) => entry.acknowledgedAtUtc === null && entry.supersededAtUtc === null)
+        .map((entry) => entry.call);
+    },
+
+    /** A waiter saw it. True the first time; a second tap changes nothing. */
+    acknowledgeCall(callId: string): boolean {
+      const state = callState.get(callId);
+      if (!state || state.acknowledgedAtUtc !== null) return false;
+      state.acknowledgedAtUtc = now().toISOString();
+      return true;
+    },
+
+    /**
+     * Staff closed the tab: settled, so the receipt is what the people on it
+     * read now. The table is free again — the next scan there opens a new tab
+     * rather than landing on this one.
+     */
+    close(tabId: string): void {
+      const record = tabs.get(tabId);
+      if (!record || record.status === 'closed') return;
+      record.status = 'closed';
+      record.closedAtUtc = now().toISOString();
+      if (tabByTable.get(record.location.table.id) === record.id) {
+        tabByTable.delete(record.location.table.id);
+      }
     },
 
     /** For tests: every call raised so far, newest last. */
