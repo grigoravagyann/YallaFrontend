@@ -7,6 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { splitStyle } from './motion/splitStyle';
 import { usePressScale } from './motion/usePressScale';
 import {
   colors,
@@ -78,8 +79,10 @@ export function Button({
       ? typography.buttonMedium
       : typography.button;
   const press = usePressScale();
+  // Placement on the squeezing wrapper; padding, height and fill on the pill.
+  const placed = splitStyle(style);
   return (
-    <Animated.View style={[fullWidth ? styles.fullWidth : styles.hug, press.style, style]}>
+    <Animated.View style={[fullWidth ? styles.fullWidth : styles.hug, press.style, placed.outer]}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled, busy }}
@@ -98,6 +101,7 @@ export function Button({
           small && styles.small,
           pressed && pressedStyles[variant],
           disabled && styles.disabled,
+          placed.inner,
         ]}
       >
         <View style={styles.content}>

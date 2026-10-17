@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { colors, radius, shadows, space } from '../theme';
+import { splitStyle } from './motion/splitStyle';
 import { usePressScale } from './motion/usePressScale';
 
 export interface CardProps {
@@ -64,15 +65,16 @@ function PressableCard({
   readonly children: ReactNode;
 }) {
   const press = usePressScale();
+  const placed = splitStyle(style);
   return (
-    <Animated.View style={[press.style, style]}>
+    <Animated.View style={[press.style, placed.outer]}>
       <Pressable
         accessibilityRole="button"
         {...(accessibilityLabel ? { accessibilityLabel } : {})}
         onPress={onPress}
         onPressIn={press.onPressIn}
         onPressOut={press.onPressOut}
-        style={({ pressed }) => [base, pressed && styles.pressed]}
+        style={({ pressed }) => [base, pressed && styles.pressed, placed.inner]}
       >
         {children}
       </Pressable>

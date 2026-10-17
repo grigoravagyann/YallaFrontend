@@ -451,7 +451,7 @@ function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDo
     // The place page's Reviews section, where the composer is.
     router.push({
       pathname: '/place/[placeId]',
-      params: { placeId: view.branchId, section: 'reviews' },
+      params: { placeId: view.branchId, section: 'reviews', rating: String(stars) },
     });
   };
 

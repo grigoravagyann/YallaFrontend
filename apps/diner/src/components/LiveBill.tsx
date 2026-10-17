@@ -327,14 +327,19 @@ function useStaffAdditions(
     );
     if (placed.length === 0) return;
     const at = Date.now();
+    // The event names the order it placed: the waiter's lines are exactly
+    // that order's. Only a marker without one (an older server) falls back to
+    // "appeared in the last few seconds", and even then never claims a line
+    // a diner ordered, so another guest's order is not credited to the waiter.
+    const placedOrders = new Set(
+      placed.flatMap((marker) => (marker.orderId ? [marker.orderId] : [])),
+    );
+    const byTime = placed.some((marker) => !marker.orderId);
     const claimed = lines.filter((line) => {
+      if (line.isVoided || ownOrders.current.has(line.orderId)) return false;
+      if (placedOrders.has(line.orderId)) return true;
       const since = appeared.current.get(line.id);
-      return (
-        since !== undefined &&
-        at - since <= CLAIM_WINDOW_MS &&
-        !line.isVoided &&
-        !ownOrders.current.has(line.orderId)
-      );
+      return byTime && since !== undefined && at - since <= CLAIM_WINDOW_MS && !line.orderedByName;
     });
     for (const marker of placed) handled.current.add(marker.sequence);
     for (const line of claimed) appeared.current.delete(line.id);

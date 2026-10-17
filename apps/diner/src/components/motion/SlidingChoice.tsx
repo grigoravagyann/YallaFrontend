@@ -125,9 +125,11 @@ export function SlidingChoice<T extends string>({
                 }}
                 style={({ pressed }) => [
                   styles.cell,
-                  // A fixed width, not `flex: 1`: a short last row keeps the
-                  // same cell size as the rows above, so the thumb still fits.
-                  cell > 0 && { width: cell, flex: 0 },
+                  // Measured: a fixed width, so a short last row keeps the same
+                  // cell size as the rows above and the thumb still fits. Only
+                  // before the first layout do the cells share the row. Never
+                  // both: `flex` and a width fight differently on Yoga and web.
+                  cell > 0 ? { width: cell } : styles.cellShare,
                   !selected && styles.cellIdle,
                   pressed && !selected && styles.cellPressed,
                   option.disabled && styles.cellDisabled,
@@ -171,13 +173,13 @@ const styles = StyleSheet.create({
     ...shadows.brand,
   },
   cell: {
-    flex: 1,
     minWidth: 0,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.xs,
   },
+  cellShare: { flex: 1 },
   cellIdle: { backgroundColor: colors.surface },
   cellPressed: { backgroundColor: colors.surfaceMuted },
   cellDisabled: { opacity: 0.45 },

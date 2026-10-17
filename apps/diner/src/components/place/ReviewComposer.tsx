@@ -25,6 +25,11 @@ const MAX_TEXT = 1000;
 export interface ReviewComposerProps {
   /** The branch id — the place's own id. */
   readonly placeId: string;
+  /**
+   * Stars already chosen elsewhere — the rating on a closed bill — so the
+   * form opens with them filled in. The diner still writes and saves.
+   */
+  readonly initialRating?: number | undefined;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -40,7 +45,7 @@ export interface ReviewComposerProps {
  * review needs a visit in the last 180 days (K8), and the refusal says exactly
  * that. The review is public under the name shown above the stars.
  */
-export function ReviewComposer({ placeId, style }: ReviewComposerProps) {
+export function ReviewComposer({ placeId, initialRating, style }: ReviewComposerProps) {
   const { t } = useTranslation('diner');
   const signedIn = useSession((state) => state.signedIn);
   const profile = useSession((state) => state.profile);
@@ -65,10 +70,16 @@ export function ReviewComposer({ placeId, style }: ReviewComposerProps) {
       </View>
     );
   }
-  return <VerifiedComposer placeId={placeId} {...(style ? { style } : {})} />;
+  return (
+    <VerifiedComposer
+      placeId={placeId}
+      initialRating={initialRating}
+      {...(style ? { style } : {})}
+    />
+  );
 }
 
-function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
+function VerifiedComposer({ placeId, initialRating, style }: ReviewComposerProps) {
   const { t } = useTranslation('diner');
   const gateway = useGateway();
   const queryClient = useQueryClient();
@@ -81,7 +92,11 @@ function VerifiedComposer({ placeId, style }: ReviewComposerProps) {
   });
 
   // What the diner has touched; every other field shows the saved review.
-  const [draft, setDraft] = useState<ReviewDraft>({});
+  const [draft, setDraft] = useState<ReviewDraft>(() =>
+    initialRating !== undefined && initialRating >= 1 && initialRating <= 5
+      ? { rating: Math.round(initialRating) }
+      : {},
+  );
   const { rating, text, touched } = reviewForm(draft, mine.data ?? null);
 
   const save = useMutation({

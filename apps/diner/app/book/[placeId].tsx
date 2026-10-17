@@ -783,7 +783,11 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
             <BookCta
               label={ctaState ?? t('tables.book')}
               {...(summary ? { caption: summary } : {})}
-              accessibilityLabel={ctaState ?? t('book.confirm')}
+              // The action first (what e2e and a screen reader key on), then
+              // the summary the caption shows, so it is heard as well as seen.
+              accessibilityLabel={
+                ctaState ?? (summary ? `${t('book.confirm')}, ${summary}` : t('book.confirm'))
+              }
               disabled={!canConfirm}
               busy={pending}
               onPress={() => void confirm()}

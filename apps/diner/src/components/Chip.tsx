@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Animated, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { splitStyle } from './motion/splitStyle';
 import { usePressScale } from './motion/usePressScale';
 import {
   colors,
@@ -59,8 +60,9 @@ export function Chip({
   const foreground = selected ? colors.onPrimary : colors.text;
   const interactive = onPress !== undefined && !disabled;
   const press = usePressScale();
+  const placed = splitStyle(style);
   return (
-    <Animated.View style={[styles.wrap, press.style, style]}>
+    <Animated.View style={[styles.wrap, press.style, placed.outer]}>
       <Pressable
         accessibilityRole={onPress ? accessibilityRole : 'text'}
         accessibilityState={{ selected, disabled }}
@@ -79,6 +81,7 @@ export function Chip({
           selected ? styles.selected : styles.idle,
           pressed && interactive && (selected ? styles.selectedPressed : styles.idlePressed),
           disabled && styles.disabled,
+          placed.inner,
         ]}
       >
         {icon ? <Ionicons name={icon} size={iconSize.sm} color={foreground} /> : null}

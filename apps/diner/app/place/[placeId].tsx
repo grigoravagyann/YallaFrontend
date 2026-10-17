@@ -71,6 +71,8 @@ const BAR_ROW = layout.touchTarget + space.lg * 2;
 const BAR_FADE_FROM = 120;
 const BAR_FADE_TO = 180;
 const BAR_LIVE_AT = (BAR_FADE_FROM + BAR_FADE_TO) / 2;
+/** How long a section asked for on open is chased while the page fills in. */
+const PENDING_SECTION_MS = 2500;
 /** How far under the compact bar a section's top must be to count as the one being read. */
 const SECTION_PROBE = space.xxl;
 
@@ -86,7 +88,11 @@ export default function PlaceDetailsScreen() {
   const router = useRouter();
   // `section` opens the page already scrolled to a part of it — the rating
   // stars on a closed bill land on Reviews, where the composer is.
-  const { placeId, section } = useLocalSearchParams<{ placeId: string; section?: string }>();
+  const { placeId, section, rating } = useLocalSearchParams<{
+    placeId: string;
+    section?: string;
+    rating?: string;
+  }>();
   const { height: windowHeight } = useWindowDimensions();
   const heroHeight = Math.round(windowHeight * HERO_FRACTION);
 
@@ -164,6 +170,7 @@ export default function PlaceDetailsScreen() {
       rooms={roomsQuery.data ?? place.rooms}
       heroHeight={heroHeight}
       initialSection={placeTabs.find((key) => key === section) ?? null}
+      initialRating={rating ? Number(rating) : undefined}
       onBack={back}
       onBook={openBooking}
     />
@@ -176,6 +183,8 @@ interface PlaceDetailsProps {
   readonly heroHeight: number;
   /** Scroll here once the page has laid out; null opens at the top. */
   readonly initialSection: PlaceTab | null;
+  /** Stars to start the review form with (from a closed bill). */
+  readonly initialRating: number | undefined;
   readonly onBack: () => void;
   readonly onBook: (table?: TablePhotoMarker) => void;
 }
@@ -185,6 +194,7 @@ function PlaceDetails({
   rooms,
   heroHeight,
   initialSection,
+  initialRating,
   onBack,
   onBook,
 }: PlaceDetailsProps) {
@@ -302,9 +312,19 @@ function PlaceDetails({
     for (const key of placeTabs) measureSection(key);
   }, [measureSection]);
 
-  /** The section asked for on open, chased until reached or the diner scrolls. */
+  /**
+   * The section asked for on open. Sections above it arrive late and push it
+   * down, so it is chased on each content change — for a short while only,
+   * and never once the diner has touched, scrolled or picked a tab.
+   */
   const pendingSection = useRef<PlaceTab | null>(initialSection);
-
+  const pendingUntil = useRef(0);
+  useEffect(() => {
+    pendingUntil.current = Date.now() + PENDING_SECTION_MS;
+  }, []);
+  const takeOver = useCallback(() => {
+    pendingSection.current = null;
+  }, []);
   const goTo = useCallback(
     (next: PlaceTab) => {
       shownTab.current = next;
@@ -318,6 +338,22 @@ function PlaceDetails({
       });
     },
     [measureSection, reducedMotion],
+  );
+  const chase = useCallback(() => {
+    const section = pendingSection.current;
+    if (!section) return;
+    if (Date.now() > pendingUntil.current) {
+      pendingSection.current = null;
+      return;
+    }
+    goTo(section);
+  }, [goTo]);
+  const pickTab = useCallback(
+    (next: PlaceTab) => {
+      takeOver();
+      goTo(next);
+    },
+    [goTo, takeOver],
   );
 
   const frameStretch = useMemo(
@@ -475,9 +511,12 @@ function PlaceDetails({
         onScroll={onScroll}
         onScrollBeginDrag={() => {
           heading.current = null;
-          // The diner took over: stop chasing the section asked for on open.
-          pendingSection.current = null;
+          takeOver();
         }}
+        // The web build never fires onScrollBeginDrag: a touch or a wheel
+        // there is the diner taking over just the same.
+        onTouchStart={takeOver}
+        {...({ onWheel: takeOver } as object)}
         onLayout={(event) => {
           frame.current.viewport = event.nativeEvent.layout.height;
         }}
@@ -487,7 +526,7 @@ function PlaceDetails({
           // Sections above it (the menu, the rooms) arrive after the first
           // layout and push it down, so the scroll is re-aimed each time the
           // content grows until the diner scrolls themselves.
-          if (pendingSection.current) goTo(pendingSection.current);
+          chase();
         }}
         scrollEventThrottle={16}
       >
@@ -606,11 +645,11 @@ function PlaceDetails({
 
           <PlaceActions
             place={place}
-            onMenu={() => goTo('menu')}
+            onMenu={() => pickTab('menu')}
             style={[styles.pad, styles.actions]}
           />
 
-          <PlaceTabs value={tab} onChange={goTo} style={[styles.pad, styles.tabs]} />
+          <PlaceTabs value={tab} onChange={pickTab} style={[styles.pad, styles.tabs]} />
 
           {/* Menu: the dishes, section by section. */}
           <View
@@ -688,7 +727,11 @@ function PlaceDetails({
                   style={styles.seeAll}
                 />
               ) : null}
-              <ReviewComposer placeId={place.id} style={styles.composer} />
+              <ReviewComposer
+                placeId={place.id}
+                initialRating={initialRating}
+                style={styles.composer}
+              />
             </View>
           </View>
 

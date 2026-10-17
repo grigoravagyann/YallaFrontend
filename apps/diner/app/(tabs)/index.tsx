@@ -178,8 +178,11 @@ export default function ExploreScreen() {
   const stale = isPlaceholderData;
   const renderItem = useCallback(
     ({ item, index }: { item: Place; index: number }) => (
-      <Rise delay={riseDelay(index)} style={stale && styles.stale}>
-        <PlaceRowCard place={item} onPress={openPlace} />
+      <Rise delay={riseDelay(index)}>
+        {/* Inside the Rise: its own opacity would override a dim set on it. */}
+        <View style={stale && styles.stale}>
+          <PlaceRowCard place={item} onPress={openPlace} />
+        </View>
       </Rise>
     ),
     [openPlace, stale],

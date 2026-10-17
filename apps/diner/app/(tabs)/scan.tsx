@@ -3,7 +3,7 @@ import { MOCK_DEMO_TABLES, formatTableCode, resetBrowserMockWorlds } from '@yall
 import { useTranslation } from '@yalla/i18n';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { openSettings } from 'expo-linking';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -121,6 +121,11 @@ export default function ScanScreen() {
   const [typed, setTyped] = useState('');
   const [focused, setFocused] = useState(false);
   const [torch, setTorch] = useState(false);
+  // The torch is for this visit: leaving the tab turns it off, so coming back
+  // does not light the room before anyone asked. A navigation event rather
+  // than the focus effect's cleanup, which also runs on unrelated re-renders.
+  const navigation = useNavigation();
+  useEffect(() => navigation.addListener('blur', () => setTorch(false)), [navigation]);
   const [stage, setStage] = useState<{ width: number; height: number } | null>(null);
   /** One decode is enough; the camera fires this many times a second. */
   const handled = useRef(false);
