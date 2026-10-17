@@ -78,6 +78,7 @@ function signIn(): void {
 
 function renderFloor(gateway: StaffGateway) {
   const queryClient = createQueryClient({ retry: false, mutationNetworkMode: 'always' });
+  renderedClient = queryClient;
   render(
     <I18nextProvider i18n={i18next}>
       <QueryClientProvider client={queryClient}>
@@ -90,6 +91,9 @@ function renderFloor(gateway: StaffGateway) {
     </I18nextProvider>,
   );
 }
+
+/** The last floor's query client, to make it read again as a poll would. */
+let renderedClient: ReturnType<typeof createQueryClient> | null = null;
 
 /** As the text matchers read it: the formatter's no-break space is a space to them. */
 const dram = (amount: number) => formatDram(amount, 'en').replace(/\s/gu, ' ');
@@ -278,6 +282,34 @@ describe('a bill request from the app', () => {
     const open = await gateway.listServiceRequests(BRANCH);
     expect(open.map((request) => request.id)).toContain(whole.id);
     expect(open.map((request) => request.id)).not.toContain(mine.id);
+  });
+
+  it('credits the person whose request the keypad opened on, even if it leaves the list while the waiter types', async () => {
+    signIn();
+    const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
+    const { mine, tableLabel } = await seededBills(gateway);
+    const record = vi.spyOn(gateway, 'recordCashPayment');
+    const user = userEvent.setup();
+    renderFloor(gateway);
+
+    const tab = await openTabOf(user, tableLabel);
+    // Karen is the default: the newest.
+    const { press } = await openKeypad(user, tab);
+    // Another tablet answers her request meanwhile, and the next poll drops it.
+    await gateway.acknowledgeServiceRequest({
+      requestId: mine.id,
+      clientCommandId: 'other-tablet',
+    });
+    await renderedClient!.invalidateQueries();
+    await waitFor(() => expect(within(tab).queryByRole('radio', { name: 'Karen' })).toBeNull());
+    await press('Record it');
+
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      amountDram: mine.bill!.amountDram,
+      tipDram: mine.bill!.tipDram,
+      participantId: mine.requestedByParticipantId,
+    });
   });
 
   it('caps the prefilled amount at what the tab still owes', async () => {

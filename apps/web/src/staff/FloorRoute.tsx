@@ -888,12 +888,9 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
             if (!activeTabId) return;
             beginClosing.mutate({ tabId: activeTabId, clientCommandId: newCommandId() });
           }}
-          onCash={({ amountDram, tipDram, billRequestId }) => {
+          onCash={({ amountDram, tipDram, billRequest: request }) => {
             if (!activeTabId) return;
             const tabId = activeTabId;
-            const request = billRequestId
-              ? (activeBillRequests.find((candidate) => candidate.id === billRequestId) ?? null)
-              : null;
             // A "my share" request is one person's money, so the cash is theirs
             // and the server credits their share. The whole bill names nobody:
             // whoever hands it over is paying for the table.
@@ -916,11 +913,20 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                     // or not anyone tapped "On my way" for it. The others at
                     // the table are still waiting.
                     setSettledBillIds((current) => new Set(current).add(request.id));
+                    // With it go this device's copies of the same person's
+                    // earlier requests on the tab: they were already replaced,
+                    // and must not resurface as the newest once this one is gone.
+                    const answered = (candidate: ServiceRequest) =>
+                      candidate.id === request.id ||
+                      (request.requestedByParticipantId !== null &&
+                        candidate.tabId === request.tabId &&
+                        candidate.requestedByParticipantId === request.requestedByParticipantId &&
+                        candidate.requestedAtUtc <= request.requestedAtUtc);
                     setAcknowledgedBills((current) => {
-                      if (!current.has(request.id)) return current;
-                      const next = new Map(current);
-                      next.delete(request.id);
-                      return next;
+                      const next = new Map(
+                        [...current].filter(([, candidate]) => !answered(candidate)),
+                      );
+                      return next.size === current.size ? current : next;
                     });
                     // And answered on the server when nobody has yet, so a
                     // reload or the other tablet does not show it again.

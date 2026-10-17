@@ -76,14 +76,17 @@ export interface TabPanelProps {
     reason: string;
   }) => void;
   /**
-   * Cash taken. `billRequestId` is the request the keypad was opened on, or
-   * null when the waiter picked none of them: then nobody is named as the
-   * payer and no request is marked handled.
+   * Cash taken. `billRequest` is the request the keypad was opened on, as it
+   * stood then — not looked up again, because it can leave the open list
+   * while the waiter types (another tablet answers it, or the diner asks
+   * again) and the cash is still that person's. Null when the waiter picked
+   * none of them: then nobody is named as the payer and no request is marked
+   * handled.
    */
   readonly onCash: (input: {
     amountDram: number;
     tipDram: number;
-    billRequestId: string | null;
+    billRequest: ServiceRequest | null;
   }) => void;
   readonly onAskForBill: () => void;
   readonly onAbandon: (reason: string) => void;
@@ -655,7 +658,7 @@ export function TabPanel(props: TabPanelProps) {
           timeZoneId={timeZoneId}
           onCancel={() => setTakingCash(null)}
           onConfirm={(input) => {
-            props.onCash({ ...input, billRequestId: takingCash.request?.id ?? null });
+            props.onCash({ ...input, billRequest: takingCash.request });
             setTakingCash(null);
           }}
         />
