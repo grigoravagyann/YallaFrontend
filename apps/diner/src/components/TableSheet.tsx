@@ -1,10 +1,11 @@
 import { tableCopy, type CopyLine, type TableAvailability, type TableCopy } from '@yalla/api';
 import type { Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadows, space, typography } from '../theme';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { colors, radius, space, typography } from '../theme';
 import { Button } from './Button';
+import { SheetModal } from './motion/SheetModal';
 import { Text } from './Text';
 
 export interface TableSheetProps {
@@ -32,52 +33,54 @@ export function TableSheet({
   onClose,
 }: TableSheetProps) {
   const { t } = useTranslation('diner');
-  const insets = useSafeAreaInsets();
   const open = availability !== null;
+  // The last table shown, kept while the sheet slides away: closing clears
+  // `availability` at once, and an emptied sheet would drop out of sight
+  // before its own way out had played.
+  const [shown, setShown] = useState(availability);
+  if (availability !== null && availability !== shown) setShown(availability);
+  const table = availability ?? shown;
 
   // Every sentence on this sheet comes from one call, shared with the confirm
   // screen and with the public web page. See `contracts/reservation.ts`.
-  const copy = availability ? tableCopy(availability, { partySize, timeZoneId, locale }) : null;
+  const copy = table ? tableCopy(table, { partySize, timeZoneId, locale }) : null;
+  const title = copy ? t(copy.title.key, copy.title.params) : '';
 
   return (
-    <Modal
+    <SheetModal
       visible={open}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose} // Android hardware back closes the sheet.
+      // The backdrop and Android's hardware back both close the sheet.
+      onRequestClose={onClose}
+      closeLabel={t('table.close')}
+      accessibilityLabel={title}
+      style={styles.sheet}
     >
-      {/* Backdrop is only lightly tinted so the room photos stay readable. */}
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={t('table.close')} />
+      {table && copy ? (
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          <Text display style={styles.title} accessibilityRole="header">
+            {title}
+          </Text>
+          <Text style={styles.seats}>{t(copy.seats.key, copy.seats.params)}</Text>
 
-      {availability && copy ? (
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
-          <View style={styles.grabber} />
-          <ScrollView contentContainerStyle={styles.content}>
-            <Text display style={styles.title} accessibilityRole="header">
-              {t(copy.title.key, copy.title.params)}
+          {copy.unavailable ? (
+            // One line, no action. Explaining why beats a dead button.
+            <Text style={styles.unavailable}>
+              {t(copy.unavailable.key, copy.unavailable.params)}
             </Text>
-            <Text style={styles.seats}>{t(copy.seats.key, copy.seats.params)}</Text>
-
-            {copy.unavailable ? (
-              // One line, no action. Explaining why beats a dead button.
-              <Text style={styles.unavailable}>
-                {t(copy.unavailable.key, copy.unavailable.params)}
-              </Text>
-            ) : (
-              <BookableBody copy={copy} tableId={availability.tableId} onReserve={onReserve} />
-            )}
-            {/* The way out, said. Tapping the room behind the sheet also works,
-                but a sheet with one button and no visible exit reads as a trap. */}
-            <Button
-              label={t('table.pickAnother')}
-              variant="text"
-              onPress={onClose}
-              style={styles.pickAnother}
-            />
-          </ScrollView>
-        </View>
+          ) : (
+            <BookableBody copy={copy} tableId={table.tableId} onReserve={onReserve} />
+          )}
+          {/* The way out, said. Tapping the room behind the sheet also works,
+              but a sheet with one button and no visible exit reads as a trap. */}
+          <Button
+            label={t('table.pickAnother')}
+            variant="text"
+            onPress={onClose}
+            style={styles.pickAnother}
+          />
+        </ScrollView>
       ) : null}
-    </Modal>
+    </SheetModal>
   );
 }
 
@@ -134,23 +137,9 @@ function BookableBody({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: colors.overlayDark },
-  sheet: {
-    maxHeight: '70%',
-    backgroundColor: colors.sheet,
-    ...shadows.float,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-  },
-  grabber: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-    marginVertical: space.sm,
-  },
-  content: { paddingHorizontal: space.xl, gap: space.xs },
+  sheet: { maxHeight: '70%' },
+  scroll: { flexGrow: 0, flexShrink: 1 },
+  content: { paddingHorizontal: space.xs, gap: space.xs },
   title: { ...typography.heading, color: colors.text },
   seats: { ...typography.body, color: colors.textMuted },
   windowBlock: {

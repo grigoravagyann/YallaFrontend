@@ -3,8 +3,7 @@ import { branchDayKey, formatDate, formatTime, type Locale } from '@yalla/format
 import { useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useNow } from '../hooks/useNow';
 import {
   DEFAULT_BOOKING_WINDOW_DAYS,
@@ -19,12 +18,12 @@ import {
   iconSize,
   layout,
   radius,
-  shadows,
   space,
   typography,
   type IoniconName,
 } from '../theme';
 import { Button } from './Button';
+import { SheetModal } from './motion/SheetModal';
 import { Text } from './Text';
 
 /** The three values the room photos at a time filter and annotate on. */
@@ -216,47 +215,43 @@ function PickerSheet({
   empty?: string;
 }) {
   const { t } = useTranslation('diner');
-  const insets = useSafeAreaInsets();
 
   return (
-    <Modal
+    <SheetModal
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose} // Android hardware back closes the sheet.
+      onRequestClose={onClose} // The backdrop and Android's hardware back close the sheet.
+      closeLabel={t('action.close', { ns: 'common' })}
+      accessibilityLabel={title}
+      style={styles.sheet}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
-        <View style={styles.grabber} />
-        <Text style={styles.sheetTitle} accessibilityRole="header">
-          {title}
-        </Text>
-        <ScrollView style={styles.sheetScroll}>
-          {options.length === 0 && empty ? <Text style={styles.empty}>{empty}</Text> : null}
-          {options.map((option) => (
-            <Pressable
-              key={option.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: option.selected }}
-              onPress={() => {
-                option.onSelect();
-                onClose();
-              }}
-              style={({ pressed }) => [
-                styles.option,
-                option.selected && styles.optionSelected,
-                pressed && !option.selected && styles.optionPressed,
-              ]}
-            >
-              <Text style={[styles.optionText, option.selected && styles.optionTextSelected]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <Button label={t('booking.done')} onPress={onClose} style={styles.close} />
-      </View>
-    </Modal>
+      <Text style={styles.sheetTitle} accessibilityRole="header">
+        {title}
+      </Text>
+      <ScrollView style={styles.sheetScroll}>
+        {options.length === 0 && empty ? <Text style={styles.empty}>{empty}</Text> : null}
+        {options.map((option) => (
+          <Pressable
+            key={option.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected: option.selected }}
+            onPress={() => {
+              option.onSelect();
+              onClose();
+            }}
+            style={({ pressed }) => [
+              styles.option,
+              option.selected && styles.optionSelected,
+              pressed && !option.selected && styles.optionPressed,
+            ]}
+          >
+            <Text style={[styles.optionText, option.selected && styles.optionTextSelected]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Button label={t('booking.done')} onPress={onClose} />
+    </SheetModal>
   );
 }
 
@@ -289,26 +284,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     flexShrink: 1,
   },
-  backdrop: { flex: 1, backgroundColor: colors.overlayDark },
-  sheet: {
-    maxHeight: '60%',
-    backgroundColor: colors.sheet,
-    ...shadows.float,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    paddingHorizontal: space.lg,
-    paddingTop: space.sm,
-  },
-  grabber: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-    marginBottom: space.md,
-  },
-  sheetTitle: { ...typography.h3, color: colors.text, marginBottom: space.md },
-  sheetScroll: { flexGrow: 0 },
+  sheet: { maxHeight: '60%' },
+  sheetTitle: { ...typography.h3, color: colors.text },
+  sheetScroll: { flexGrow: 0, flexShrink: 1 },
   empty: { paddingVertical: space.md, ...typography.body, color: colors.textMuted },
   option: {
     minHeight: layout.touchTarget,
@@ -320,5 +298,4 @@ const styles = StyleSheet.create({
   optionPressed: { backgroundColor: colors.primarySoft },
   optionText: { ...typography.bodyLg, color: colors.text },
   optionTextSelected: { fontWeight: fontWeight.bold, color: colors.onPrimary },
-  close: { marginTop: space.md },
 });

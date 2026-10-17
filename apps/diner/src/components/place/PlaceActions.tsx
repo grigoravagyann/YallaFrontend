@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@yalla/i18n';
 import {
+  Animated,
   Linking,
   Platform,
   Pressable,
@@ -10,24 +11,14 @@ import {
   type ViewStyle,
 } from 'react-native';
 import type { Coordinates, Place } from '../../places/model';
-import {
-  actionIcon,
-  colors,
-  fontWeight,
-  iconSize,
-  layout,
-  radius,
-  space,
-  typography,
-  type IoniconName,
-} from '../../theme';
+import { actionIcon, colors, radius, space, type IoniconName } from '../../theme';
+import { usePressScale } from '../motion/usePressScale';
 import { Text } from '../Text';
 
 export interface PlaceActionsProps {
-  readonly place: Pick<Place, 'name' | 'phone' | 'website' | 'coords'>;
-  /** Whether the place is already in the diner's favourites. */
-  readonly saved: boolean;
-  readonly onToggleSave: () => void;
+  readonly place: Pick<Place, 'name' | 'phone' | 'coords'>;
+  /** The Menu tile: the page moves to the menu. */
+  readonly onMenu: () => void;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -47,15 +38,14 @@ export function directionsUrl(coords: Coordinates, name: string): string {
   });
 }
 
-function open(url: string): void {
+export function openUrl(url: string): void {
   void Linking.openURL(url).catch(() => undefined);
 }
 
-/** Call · Directions · Website · Save — four square tiles, icon over label. */
-export function PlaceActions({ place, saved, onToggleSave, style }: PlaceActionsProps) {
+/** Call · Directions · Menu — three glass tiles, the glyph over a small label. */
+export function PlaceActions({ place, onMenu, style }: PlaceActionsProps) {
   const { t } = useTranslation('diner');
   const phone = place.phone?.trim() ?? '';
-  const website = place.website?.trim() ?? '';
 
   return (
     <View style={[styles.row, style]}>
@@ -63,29 +53,17 @@ export function PlaceActions({ place, saved, onToggleSave, style }: PlaceActions
         icon={actionIcon.call}
         label={t('place.action.call')}
         disabled={phone === ''}
-        onPress={() => open(`tel:${phone.replace(/\s+/g, '')}`)}
+        onPress={() => openUrl(`tel:${phone.replace(/\s+/g, '')}`)}
       />
       <Tile
         icon={actionIcon.directions}
         label={t('place.action.directions')}
         disabled={place.coords === null}
         onPress={() => {
-          if (place.coords) open(directionsUrl(place.coords, place.name));
+          if (place.coords) openUrl(directionsUrl(place.coords, place.name));
         }}
       />
-      <Tile
-        icon={actionIcon.website}
-        label={t('place.action.website')}
-        disabled={website === ''}
-        onPress={() => open(/^https?:\/\//i.test(website) ? website : `https://${website}`)}
-      />
-      <Tile
-        icon={saved ? actionIcon.saved : actionIcon.save}
-        label={t('place.action.save')}
-        accessibilityLabel={saved ? t('place.unfavorite') : t('place.favorite')}
-        selected={saved}
-        onPress={onToggleSave}
-      />
+      <Tile icon={MENU_ICON} label={t('place.tab.menu')} onPress={onMenu} />
     </View>
   );
 }
@@ -94,56 +72,59 @@ interface TileProps {
   readonly icon: IoniconName;
   readonly label: string;
   readonly onPress: () => void;
-  readonly accessibilityLabel?: string;
   readonly disabled?: boolean;
-  readonly selected?: boolean;
 }
 
-function Tile({
-  icon,
-  label,
-  onPress,
-  accessibilityLabel,
-  disabled = false,
-  selected = false,
-}: TileProps) {
+function Tile({ icon, label, onPress, disabled = false }: TileProps) {
+  const press = usePressScale();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled, selected }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.tile,
-        selected && styles.tileSelected,
-        pressed && styles.tilePressed,
-        disabled && styles.tileDisabled,
-      ]}
-    >
-      <Ionicons name={icon} size={iconSize.lg} color={colors.primary} />
-      <Text numberOfLines={1} style={styles.label}>
-        {label}
-      </Text>
-    </Pressable>
+    <Animated.View style={[styles.cell, press.style]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={({ pressed }) => [
+          styles.tile,
+          pressed && styles.tilePressed,
+          disabled && styles.tileDisabled,
+        ]}
+      >
+        <Ionicons name={icon} size={TILE_GLYPH} color={colors.text} />
+        <Text numberOfLines={1} style={styles.label}>
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
+/** A menu card with its lines: the design's glyph for the Menu tile. */
+const MENU_ICON: IoniconName = 'reader-outline';
+
+/** The design's 56px tile with an 18px glyph. */
+const TILE_HEIGHT = 56;
+const TILE_GLYPH = 18;
+
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: space.sm },
+  cell: { flex: 1, minWidth: 0 },
   tile: {
-    flex: 1,
-    height: layout.actionTile,
+    height: TILE_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space.xs + 2,
-    borderRadius: radius.tile,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: 3,
+    paddingHorizontal: space.xs,
+    borderRadius: radius.card,
     backgroundColor: colors.surface,
+    // The glass's lit top edge.
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  tileSelected: { backgroundColor: colors.primarySoft, borderColor: colors.borderStrong },
-  tilePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  tilePressed: { backgroundColor: colors.surfaceMuted },
   tileDisabled: { opacity: 0.45 },
-  label: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.text },
+  label: { fontSize: 12, lineHeight: 16, color: colors.text },
 });

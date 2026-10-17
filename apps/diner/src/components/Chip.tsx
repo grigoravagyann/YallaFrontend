@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { splitStyle } from './motion/splitStyle';
+import { usePressScale } from './motion/usePressScale';
 import {
   colors,
   fontWeight,
@@ -57,49 +59,53 @@ export function Chip({
 }: ChipProps) {
   const foreground = selected ? colors.onPrimary : colors.text;
   const interactive = onPress !== undefined && !disabled;
+  const press = usePressScale();
+  const placed = splitStyle(style);
   return (
-    <Pressable
-      accessibilityRole={onPress ? accessibilityRole : 'text'}
-      accessibilityState={{ selected, disabled }}
-      // The web build reads none of accessibilityState: say "chosen" in the
-      // terms of the role, a selected tab or a checked radio (QA B5).
-      {...(onPress && accessibilityRole === 'tab' ? { 'aria-selected': selected } : {})}
-      {...(onPress && accessibilityRole === 'radio' ? { 'aria-checked': selected } : {})}
-      {...(accessibilityLabel ? { accessibilityLabel } : {})}
-      disabled={!interactive}
-      hitSlop={Math.max(0, (layout.touchTarget - chipHeight[size]) / 2)}
-      {...(onPress ? { onPress } : {})}
-      style={({ pressed }) => [
-        styles.base,
-        size === 'sm' ? styles.sm : styles.md,
-        { borderRadius: shape === 'pill' ? radius.pill : radius.chip },
-        selected ? styles.selected : styles.idle,
-        pressed && interactive && (selected ? styles.selectedPressed : styles.idlePressed),
-        disabled && styles.disabled,
-        style,
-      ]}
-    >
-      {icon ? <Ionicons name={icon} size={iconSize.sm} color={foreground} /> : null}
-      <Text
-        numberOfLines={1}
-        style={[
-          typography.body,
-
-          { color: foreground, fontWeight: selected ? fontWeight.bold : fontWeight.medium },
+    <Animated.View style={[styles.wrap, press.style, placed.outer]}>
+      <Pressable
+        accessibilityRole={onPress ? accessibilityRole : 'text'}
+        accessibilityState={{ selected, disabled }}
+        // The web build reads none of accessibilityState: say "chosen" in the
+        // terms of the role, a selected tab or a checked radio (QA B5).
+        {...(onPress && accessibilityRole === 'tab' ? { 'aria-selected': selected } : {})}
+        {...(onPress && accessibilityRole === 'radio' ? { 'aria-checked': selected } : {})}
+        {...(accessibilityLabel ? { accessibilityLabel } : {})}
+        disabled={!interactive}
+        hitSlop={Math.max(0, (layout.touchTarget - chipHeight[size]) / 2)}
+        {...(onPress ? { onPress, onPressIn: press.onPressIn, onPressOut: press.onPressOut } : {})}
+        style={({ pressed }) => [
+          styles.base,
+          size === 'sm' ? styles.sm : styles.md,
+          { borderRadius: shape === 'pill' ? radius.pill : radius.chip },
+          selected ? styles.selected : styles.idle,
+          pressed && interactive && (selected ? styles.selectedPressed : styles.idlePressed),
+          disabled && styles.disabled,
+          placed.inner,
         ]}
       >
-        {label}
-      </Text>
-    </Pressable>
+        {icon ? <Ionicons name={icon} size={iconSize.sm} color={foreground} /> : null}
+        <Text
+          numberOfLines={1}
+          style={[
+            typography.body,
+
+            { color: foreground, fontWeight: selected ? fontWeight.bold : fontWeight.medium },
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: { alignSelf: 'flex-start' },
   base: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-start',
     gap: space.xs + 2,
     borderWidth: 1,
   },

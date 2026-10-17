@@ -35,6 +35,8 @@ export interface ChangeMarker {
   readonly atUtc: string;
   /** The line it belongs to, when the event names one. */
   readonly lineId: string | null;
+  /** The order it placed, for an `orderPlaced` event — which lines on the bill are the waiter's. */
+  readonly orderId: string | null;
   /**
    * The line's name as this device last saw it. `null` when the phone never
    * held the line — it joined late, or the line was never theirs to see.
@@ -142,12 +144,14 @@ export function applyTabEvents(
     .filter((event) => event.actor === 'staff')
     .map((event): ChangeMarker => {
       const lineId = typeof event.data?.['lineId'] === 'string' ? event.data['lineId'] : null;
+      const orderId = typeof event.data?.['orderId'] === 'string' ? event.data['orderId'] : null;
       return {
         type: event.type,
         actor: event.actor,
         actorName: event.actorName,
         atUtc: event.atUtc,
         lineId,
+        orderId,
         // Resolved by the caller against what it currently holds, because after
         // the refetch the line is gone. `nameLine` is passed in rather than
         // read here so this stays a pure fold over the page.

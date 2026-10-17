@@ -42,7 +42,7 @@ export function TableLegend({ tone = 'light', partyFit = false, style }: TableLe
             {/* The same corner mark the pin carries, in small. */}
             {MARK[status] ? (
               <View style={styles.mark}>
-                <Ionicons name={MARK[status]!} size={6} color={colors.onImage} />
+                <Ionicons name={MARK[status]!} size={7} color={colors.onImage} />
               </View>
             ) : null}
           </View>
@@ -59,7 +59,9 @@ export function TableLegend({ tone = 'light', partyFit = false, style }: TableLe
   );
 }
 
-const DOT = 10;
+/** The pin in small: its fill inside the same white ring. */
+const DOT = 14;
+const MARK_SIZE = 11;
 
 const MARK: Partial<Record<TableStatus, 'close' | 'time-outline'>> = {
   occupied: 'close',
@@ -67,17 +69,29 @@ const MARK: Partial<Record<TableStatus, 'close' | 'time-outline'>> = {
 };
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.lg },
-  item: { flexDirection: 'row', alignItems: 'center', gap: space.xs + 2 },
-  dot: { width: DOT, height: DOT, borderRadius: radius.pill },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    columnGap: space.lg,
+    rowGap: space.sm,
+  },
+  item: { flexDirection: 'row', alignItems: 'center', gap: space.xs + 3 },
+  dot: {
+    width: DOT,
+    height: DOT,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.onImage,
+  },
   /** Room for the corner mark, so it never touches the word. */
   dotMarked: { marginRight: space.xs },
   mark: {
     position: 'absolute',
-    top: -5,
-    right: -6,
-    width: 10,
-    height: 10,
+    top: -6,
+    right: -7,
+    width: MARK_SIZE,
+    height: MARK_SIZE,
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceDark,
     borderWidth: 1,

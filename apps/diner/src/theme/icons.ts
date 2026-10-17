@@ -96,6 +96,8 @@ export const actionIcon = {
   note: 'create-outline',
   table: 'grid-outline',
   offline: 'cloud-offline-outline',
+  /** The retry button after a failed load. */
+  refresh: 'refresh-outline',
   error: 'alert-circle-outline',
   imageFallback: 'image-outline',
   /** The glyph standing in for the brand on the welcome screen. */

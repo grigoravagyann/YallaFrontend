@@ -4,10 +4,16 @@ import { useLocale, useTranslation } from '@yalla/i18n';
 import { onlineManager, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
 import { Chip } from '../../../src/components/Chip';
+import { IconButton } from '../../../src/components/IconButton';
+import { Rise, riseDelay } from '../../../src/components/motion/Rise';
+import { SuccessMark } from '../../../src/components/motion/SuccessMark';
+import { Screen } from '../../../src/components/Screen';
 import { Text, TextInput } from '../../../src/components/Text';
 import { orderKeys, useDinerTab, usePlaceOrder } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
@@ -27,10 +33,14 @@ import {
   type OrderingBlock,
 } from '../../../src/tab/ordering';
 import {
+  actionIcon,
   colors,
+  displayWeight,
   fontWeight,
+  iconSize,
   layout,
   radius,
+  shadows,
   space,
   tabularNumbers,
   typography,
@@ -77,6 +87,7 @@ export default function TrayScreen() {
   const { locale } = useLocale();
   const router = useRouter();
   const { tabId } = useLocalSearchParams<{ tabId: string }>();
+  const insets = useSafeAreaInsets();
 
   const queryClient = useQueryClient();
   const { data: view, refetch: refetchTab } = useDinerTab(tabId);
@@ -154,12 +165,18 @@ export default function TrayScreen() {
     setFailure({ kind: kind === 'soldOut' ? 'error' : kind });
   }
 
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else if (tabId) returnToTab(router, tabId);
+  };
+
   if (sent) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <Stack.Screen options={{ headerShown: true, title: '' }} />
+      <Screen edges={['top', 'left', 'right', 'bottom']}>
+        <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.centered}>
-          <Text display style={styles.sentTitle}>
+          <SuccessMark />
+          <Text display style={styles.sentTitle} accessibilityRole="header">
             {t('tray.sent.title')}
           </Text>
           {/* Stated once, at order time. Worth more than a progress bar that
@@ -178,20 +195,28 @@ export default function TrayScreen() {
             label={t('tray.sent.toTab')}
             size="large"
             onPress={() => returnToTab(router, tabId)}
+            style={styles.sentAction}
           />
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: true, title: '' }} />
+    <Screen edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text display style={styles.title}>
-          {t('tray.title')}
-        </Text>
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <IconButton
+            icon={actionIcon.back}
+            onPress={goBack}
+            accessibilityLabel={t('floorPlan.back')}
+          />
+          <Text display style={styles.title} accessibilityRole="header">
+            {t('tray.title')}
+          </Text>
+        </View>
 
         {block ? <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text> : null}
         {locked ? <Text style={styles.blocked}>{t('tray.lockedHint')}</Text> : null}
@@ -199,78 +224,80 @@ export default function TrayScreen() {
         {count === 0 ? (
           <Text style={styles.muted}>{t('tray.empty')}</Text>
         ) : (
-          tray.lines.map((line) => (
-            <Card key={line.key} style={styles.line}>
-              <View style={styles.lineHead}>
-                <Text style={styles.lineName}>{line.item.name}</Text>
-                <Text style={styles.lineTotal}>
-                  {formatDram(line.item.priceDram * line.quantity, locale)}
-                </Text>
-              </View>
-
-              <View style={[styles.controls, frozen && styles.controlsLocked]}>
-                {/* A stepper on the line already added, never a dialog before
-                    adding: two coffees is two taps, not a decision. */}
-                <View style={styles.stepper}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('tray.fewer')}
-                    disabled={frozen}
-                    onPress={() => dispatch({ type: 'decrement', key: line.key })}
-                    style={({ pressed }) => [styles.stepButton, pressed && styles.stepPressed]}
-                  >
-                    <Text style={styles.stepText}>−</Text>
-                  </Pressable>
-                  <Text style={styles.quantity}>{line.quantity}</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('tray.more')}
-                    disabled={frozen}
-                    onPress={() => dispatch({ type: 'increment', key: line.key })}
-                    style={({ pressed }) => [styles.stepButton, pressed && styles.stepPressed]}
-                  >
-                    <Text style={styles.stepText}>+</Text>
-                  </Pressable>
+          tray.lines.map((line, index) => (
+            <Rise key={line.key} delay={riseDelay(index)}>
+              <Card radiusToken="hero" style={styles.line}>
+                <View style={styles.lineHead}>
+                  <Text style={styles.lineName}>{line.item.name}</Text>
+                  <Text style={styles.lineTotal}>
+                    {formatDram(line.item.priceDram * line.quantity, locale)}
+                  </Text>
                 </View>
 
-                <Chip
-                  label={t('tray.shared')}
-                  size="sm"
-                  selected={line.isShared}
-                  disabled={frozen}
-                  onPress={() => dispatch({ type: 'toggleShared', key: line.key })}
-                />
+                <View style={[styles.controls, frozen && styles.controlsLocked]}>
+                  {/* A stepper on the line already added, never a dialog before
+                    adding: two coffees is two taps, not a decision. */}
+                  <View style={styles.stepper}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('tray.fewer')}
+                      disabled={frozen}
+                      onPress={() => dispatch({ type: 'decrement', key: line.key })}
+                      style={({ pressed }) => [styles.stepButton, pressed && styles.stepPressed]}
+                    >
+                      <Ionicons name="remove" size={iconSize.md} color={colors.onPrimary} />
+                    </Pressable>
+                    <Text style={styles.quantity}>{line.quantity}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={t('tray.more')}
+                      disabled={frozen}
+                      onPress={() => dispatch({ type: 'increment', key: line.key })}
+                      style={({ pressed }) => [styles.stepButton, pressed && styles.stepPressed]}
+                    >
+                      <Ionicons name="add" size={iconSize.md} color={colors.onPrimary} />
+                    </Pressable>
+                  </View>
 
-                <Chip
-                  label={t('tray.note')}
-                  size="sm"
-                  selected={Boolean(line.note)}
-                  disabled={frozen}
-                  onPress={() => setNoteFor(noteFor === line.key ? null : line.key)}
-                />
-              </View>
+                  <Chip
+                    label={t('tray.shared')}
+                    size="sm"
+                    selected={line.isShared}
+                    disabled={frozen}
+                    onPress={() => dispatch({ type: 'toggleShared', key: line.key })}
+                  />
 
-              {/* Explained the first time it is used, and "right now" is the
+                  <Chip
+                    label={t('tray.note')}
+                    size="sm"
+                    selected={Boolean(line.note)}
+                    disabled={frozen}
+                    onPress={() => setNoteFor(noteFor === line.key ? null : line.key)}
+                  />
+                </View>
+
+                {/* Explained the first time it is used, and "right now" is the
                   load-bearing word: the split is snapshotted when the order is
                   sent, so a friend who arrives later is not on it. */}
-              {line.isShared && !tray.sharedExplained ? (
-                <Text style={styles.hint}>{t('tray.sharedExplained')}</Text>
-              ) : null}
+                {line.isShared && !tray.sharedExplained ? (
+                  <Text style={styles.hint}>{t('tray.sharedExplained')}</Text>
+                ) : null}
 
-              {noteFor === line.key && !frozen ? (
-                <TextInput
-                  style={styles.noteInput}
-                  value={line.note}
-                  autoFocus
-                  placeholder={t('tray.notePlaceholder')}
-                  placeholderTextColor={colors.textSubtle}
-                  onChangeText={(note) => dispatch({ type: 'setNote', key: line.key, note })}
-                  onBlur={() => setNoteFor(null)}
-                />
-              ) : line.note ? (
-                <Text style={styles.note}>{line.note}</Text>
-              ) : null}
-            </Card>
+                {noteFor === line.key && !frozen ? (
+                  <TextInput
+                    style={styles.noteInput}
+                    value={line.note}
+                    autoFocus
+                    placeholder={t('tray.notePlaceholder')}
+                    placeholderTextColor={colors.textSubtle}
+                    onChangeText={(note) => dispatch({ type: 'setNote', key: line.key, note })}
+                    onBlur={() => setNoteFor(null)}
+                  />
+                ) : line.note ? (
+                  <Text style={styles.note}>{line.note}</Text>
+                ) : null}
+              </Card>
+            </Rise>
           ))
         )}
 
@@ -280,7 +307,9 @@ export default function TrayScreen() {
                 tab's totals. These items have not been ordered: there is no
                 service charge on them and no share to read from the server. */}
             <Text style={styles.totalLabel}>{t('tray.subtotal')}</Text>
-            <Text style={styles.totalValue}>{formatDram(subtotal, locale)}</Text>
+            <Text display style={styles.totalValue}>
+              {formatDram(subtotal, locale)}
+            </Text>
           </View>
         ) : null}
 
@@ -307,7 +336,7 @@ export default function TrayScreen() {
       </ScrollView>
 
       {count > 0 ? (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
           <Button
             label={
               placeOrder.isPending
@@ -323,7 +352,7 @@ export default function TrayScreen() {
           />
         </View>
       ) : null}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -366,67 +395,74 @@ function failureHintKey(failure: Failure): string {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
-  body: { padding: space.lg, gap: space.md, paddingBottom: space.xxxl },
+  body: {
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.md,
+    gap: layout.cardGap,
+    paddingBottom: space.xxxl,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space.lg,
+    gap: space.md,
     padding: space.xl,
   },
-  title: { ...typography.title, color: colors.text },
-  muted: { ...typography.bodyLg, color: colors.textMuted },
+  title: { flex: 1, fontSize: 24, lineHeight: 32, color: colors.text },
+  muted: { ...typography.body, color: colors.textMuted },
   blocked: {
     padding: space.md,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     ...typography.body,
     color: colors.text,
   },
 
-  line: { gap: space.sm },
+  line: { gap: space.sm, padding: space.md + 2 },
   lineHead: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
-  lineName: { flex: 1, ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
+  lineName: { flex: 1, ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
   lineTotal: {
-    ...typography.bodyLg,
+    ...typography.body,
     fontWeight: fontWeight.bold,
-    color: colors.text,
+    color: colors.primary,
     ...tabularNumbers,
   },
   controls: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
   controlsLocked: { opacity: 0.5 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  // The menu's stepper: one brand pill, − n +.
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: layout.touchTarget,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand,
+    ...shadows.brand,
+  },
   stepButton: {
     width: layout.touchTarget,
     height: layout.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
   },
-  stepPressed: { backgroundColor: colors.primarySoft },
-  stepText: { ...typography.h3, color: colors.primary },
+  stepPressed: { backgroundColor: colors.brandPressed },
   quantity: {
-    minWidth: 32,
+    minWidth: 20,
     textAlign: 'center',
-    ...typography.h3,
-    color: colors.text,
+    ...typography.body,
+    fontWeight: fontWeight.bold,
+    color: colors.onPrimary,
     ...tabularNumbers,
   },
-  hint: { ...typography.body, color: colors.textMuted },
-  note: { ...typography.body, color: colors.textMuted, fontStyle: 'italic' },
+  hint: { ...typography.caption, color: colors.textMuted },
+  note: { ...typography.caption, color: colors.textMuted, fontStyle: 'italic' },
   noteInput: {
-    minHeight: layout.controlHeight,
+    minHeight: layout.touchTarget,
     paddingHorizontal: space.md,
     borderRadius: radius.chip,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     ...typography.body,
     color: colors.text,
   },
@@ -434,33 +470,42 @@ const styles = StyleSheet.create({
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'baseline',
     paddingTop: space.md,
+    paddingHorizontal: space.xs,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderStrong,
   },
-  totalLabel: { ...typography.bodyLg, color: colors.textMuted },
-  totalValue: { ...typography.h3, color: colors.text, ...tabularNumbers },
+  totalLabel: { ...typography.body, color: colors.textMuted },
+  totalValue: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: displayWeight.semibold,
+    color: colors.primary,
+    ...tabularNumbers,
+  },
 
+  // Tinted, not rimmed: red for a definite refusal, amber for "we cannot tell".
   failure: {
     gap: space.xs,
     padding: space.lg,
-    borderRadius: radius.card,
-    borderWidth: 2,
-    borderColor: colors.error,
-    backgroundColor: colors.surface,
+    borderRadius: radius.hero,
+    backgroundColor: colors.errorSoft,
   },
-  failureUnsure: { borderColor: colors.warning },
-  failureText: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.errorInk },
-  unsureText: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text },
+  failureUnsure: { backgroundColor: colors.warningSoft },
+  failureText: { ...typography.body, fontWeight: fontWeight.bold, color: colors.errorInk },
+  unsureText: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
   failureHint: { ...typography.body, color: colors.textMuted },
   failureAction: { marginTop: space.sm },
 
-  footer: {
-    padding: space.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+  footer: { paddingHorizontal: layout.screenPadding, paddingTop: space.md },
+  sentTitle: {
+    marginTop: space.sm,
+    fontSize: 25,
+    lineHeight: 32,
+    color: colors.text,
+    textAlign: 'center',
   },
-  sentTitle: { ...typography.heading, color: colors.text, textAlign: 'center' },
-  sentBody: { ...typography.bodyLg, color: colors.textMuted, textAlign: 'center' },
+  sentBody: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  sentAction: { alignSelf: 'stretch', marginTop: space.md },
 });

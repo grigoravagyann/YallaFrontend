@@ -1,7 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, iconSize, radius, space, typography, type IoniconName } from '../theme';
+import { colors, space, typography, type IoniconName } from '../theme';
 import { Button } from './Button';
+import { Rise } from './motion/Rise';
+import { StateGlow } from './StateGlow';
 import { Text } from './Text';
 
 export interface EmptyStateAction {
@@ -24,19 +25,28 @@ export interface EmptyStateProps {
 export function EmptyState({ icon, title, body, action, style }: EmptyStateProps) {
   return (
     <View style={[styles.root, style]}>
-      <View style={styles.iconWell}>
-        <Ionicons name={icon} size={iconSize.xl} color={colors.primary} />
-      </View>
-      <Text style={styles.title}>{title}</Text>
-      {body ? <Text style={styles.body}>{body}</Text> : null}
+      <Rise>
+        <StateGlow icon={icon} />
+      </Rise>
+      <Rise delay={80}>
+        <Text display style={styles.title}>
+          {title}
+        </Text>
+      </Rise>
+      {body ? (
+        <Rise delay={140}>
+          <Text style={styles.body}>{body}</Text>
+        </Rise>
+      ) : null}
       {action ? (
-        <Button
-          label={action.label}
-          onPress={action.onPress}
-          variant="outline"
-          fullWidth={false}
-          style={styles.action}
-        />
+        <Rise delay={200}>
+          <Button
+            label={action.label}
+            onPress={action.onPress}
+            fullWidth={false}
+            style={styles.action}
+          />
+        </Rise>
       ) : null}
     </View>
   );
@@ -49,16 +59,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     gap: space.sm,
   },
-  iconWell: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.sm,
-  },
-  title: { ...typography.h3, color: colors.text, textAlign: 'center' },
+  title: { ...typography.heading, color: colors.text, textAlign: 'center', marginTop: space.md },
   body: { ...typography.body, color: colors.textMuted, textAlign: 'center', maxWidth: 280 },
   action: { marginTop: space.md, alignSelf: 'center' },
 });

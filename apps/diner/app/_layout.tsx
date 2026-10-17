@@ -21,6 +21,7 @@ import { gateway } from '../src/data/gateway';
 import { bootstrapI18n } from '../src/i18n';
 import { wireQueryManagers } from '../src/lib/queryManagers';
 import { STACK_OPTIONS } from '../src/components/nav/stackOptions';
+import { ToastHost } from '../src/components/motion/Toast';
 import { useWebFontFaces } from '../src/lib/useWebFontFaces';
 import { configureProfileStorage, useSession } from '../src/stores/session';
 import { usePushNotifications } from '../src/push/usePushNotifications';
@@ -159,6 +160,7 @@ export default function RootLayout() {
           <PushNotifications />
           <DinerSessionWiring />
           <StatusBar style="light" />
+          <ToastHost />
           <Stack screenOptions={STACK_OPTIONS}>
             <Stack.Screen name="(tabs)" />
             {/* The map draws its own overlay controls over a full-bleed map. */}

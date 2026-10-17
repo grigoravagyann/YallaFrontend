@@ -3,21 +3,14 @@ import { useGateway } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Button } from '../components/Button';
 import { Field, FieldInput, PasswordInput } from '../components/auth/Field';
+import { SheetModal } from '../components/motion/SheetModal';
 import { Text } from '../components/Text';
 import { useRequestPhoneCode } from '../data/queries';
-import { colors, radius, shadows, space, typography } from '../theme';
+import { useKeyboardInset } from '../hooks/useKeyboardInset';
+import { colors, layout, radius, space, typography } from '../theme';
 import { deleteAccountErrorKey } from './deleteAccountError';
 
 export interface DeleteAccountSheetProps {
@@ -43,18 +36,32 @@ export function DeleteAccountSheet({
   onClose,
   onDeleted,
 }: DeleteAccountSheetProps) {
+  // A fresh form every time the sheet opens — no half-typed password from the
+  // last attempt — while the one on screen stays drawn as the sheet slides away.
+  const [opened, setOpened] = useState({ visible, count: 0 });
+  if (opened.visible !== visible) {
+    setOpened({ visible, count: visible ? opened.count + 1 : opened.count });
+  }
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      {visible ? <DeleteForm profile={profile} onClose={onClose} onDeleted={onDeleted} /> : null}
-    </Modal>
+    <DeleteForm
+      key={opened.count}
+      visible={visible}
+      profile={profile}
+      onClose={onClose}
+      onDeleted={onDeleted}
+    />
   );
 }
 
-function DeleteForm({ profile, onClose, onDeleted }: Omit<DeleteAccountSheetProps, 'visible'>) {
+/** The share of the screen the sheet may take before its form scrolls. */
+const MAX_HEIGHT = 0.9;
+
+function DeleteForm({ visible, profile, onClose, onDeleted }: DeleteAccountSheetProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const gateway = useGateway();
-  const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardInset();
+  const { height } = useWindowDimensions();
   const [secret, setSecret] = useState('');
 
   const withPassword = profile.hasPassword;
@@ -75,135 +82,116 @@ function DeleteForm({ profile, onClose, onDeleted }: Omit<DeleteAccountSheetProp
   const devCode = __DEV__ ? requestCode.data?.devCode : undefined;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.fill}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <SheetModal
+      visible={visible}
+      // The veil closes it, except while the deletion is in flight.
+      {...(busy ? {} : { onRequestClose: onClose })}
+      closeLabel={t('profile.deleteAccount.cancel')}
+      accessibilityLabel={t('profile.deleteAccount.title')}
+      // Stands on the iOS keyboard, so the password is never typed blind.
+      style={{ bottom: keyboard, maxHeight: height * MAX_HEIGHT - keyboard }}
     >
-      <Pressable
-        style={styles.backdrop}
-        accessibilityLabel={t('profile.deleteAccount.cancel')}
-        onPress={busy ? undefined : onClose}
-      />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
-        <View style={styles.grabber} />
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
-          <Text style={styles.title} accessibilityRole="header">
-            {t('profile.deleteAccount.title')}
-          </Text>
-          <Text style={styles.text}>{t('profile.deleteAccount.body')}</Text>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
+        <Text display style={styles.title} accessibilityRole="header">
+          {t('profile.deleteAccount.title')}
+        </Text>
+        <Text style={styles.text}>{t('profile.deleteAccount.body')}</Text>
 
-          {withPassword ? (
-            <Field label={t('profile.deleteAccount.passwordLabel')}>
-              <PasswordInput
+        {withPassword ? (
+          <Field label={t('profile.deleteAccount.passwordLabel')}>
+            <PasswordInput
+              value={secret}
+              onChangeText={(value) => {
+                deletion.reset();
+                setSecret(value);
+              }}
+              showLabel={t('auth.showPassword')}
+              hideLabel={t('auth.hidePassword')}
+              autoComplete="current-password"
+              textContentType="password"
+              accessibilityLabel={t('profile.deleteAccount.passwordLabel')}
+              editable={!busy}
+            />
+          </Field>
+        ) : (
+          <>
+            <Button
+              label={t('profile.deleteAccount.sendCode')}
+              variant="outline"
+              busy={requestCode.isPending}
+              disabled={requestCode.isPending || busy}
+              onPress={() => {
+                deletion.reset();
+                requestCode.mutate({ phoneE164: profile.phoneE164, localeCode: locale });
+              }}
+            />
+            {requestCode.isSuccess ? (
+              <Text style={styles.text}>
+                {t('profile.deleteAccount.codeSent', { phone: profile.phoneE164 })}
+              </Text>
+            ) : null}
+            {devCode ? (
+              <Text style={styles.text}>{t('verify.devBanner', { code: devCode })}</Text>
+            ) : null}
+            <Text style={styles.text}>{t('profile.deleteAccount.noCodeHint')}</Text>
+            <Field label={t('profile.deleteAccount.codeLabel')}>
+              <FieldInput
                 value={secret}
                 onChangeText={(value) => {
                   deletion.reset();
-                  setSecret(value);
+                  setSecret(value.replace(/\D/gu, ''));
                 }}
-                showLabel={t('auth.showPassword')}
-                hideLabel={t('auth.hidePassword')}
-                autoComplete="current-password"
-                textContentType="password"
-                accessibilityLabel={t('profile.deleteAccount.passwordLabel')}
+                keyboardType="number-pad"
+                maxLength={6}
+                tabular
+                autoComplete="one-time-code"
+                textContentType="oneTimeCode"
+                accessibilityLabel={t('profile.deleteAccount.codeLabel')}
                 editable={!busy}
               />
             </Field>
-          ) : (
-            <>
-              <Button
-                label={t('profile.deleteAccount.sendCode')}
-                variant="outline"
-                busy={requestCode.isPending}
-                disabled={requestCode.isPending || busy}
-                onPress={() => {
-                  deletion.reset();
-                  requestCode.mutate({ phoneE164: profile.phoneE164, localeCode: locale });
-                }}
-              />
-              {requestCode.isSuccess ? (
-                <Text style={styles.text}>
-                  {t('profile.deleteAccount.codeSent', { phone: profile.phoneE164 })}
-                </Text>
-              ) : null}
-              {devCode ? (
-                <Text style={styles.text}>{t('verify.devBanner', { code: devCode })}</Text>
-              ) : null}
-              <Text style={styles.text}>{t('profile.deleteAccount.noCodeHint')}</Text>
-              <Field label={t('profile.deleteAccount.codeLabel')}>
-                <FieldInput
-                  value={secret}
-                  onChangeText={(value) => {
-                    deletion.reset();
-                    setSecret(value.replace(/\D/gu, ''));
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  tabular
-                  autoComplete="one-time-code"
-                  textContentType="oneTimeCode"
-                  accessibilityLabel={t('profile.deleteAccount.codeLabel')}
-                  editable={!busy}
-                />
-              </Field>
-            </>
-          )}
+          </>
+        )}
 
-          {failure ? (
-            <Text style={styles.error} accessibilityRole="alert">
-              {t(deleteAccountErrorKey(failure, withPassword))}
-            </Text>
-          ) : null}
+        {failure ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {t(deleteAccountErrorKey(failure, withPassword))}
+          </Text>
+        ) : null}
 
-          <View style={styles.actions}>
-            <Button
-              label={t('profile.deleteAccount.confirm')}
-              variant="destructive"
-              busy={busy}
-              disabled={!canConfirm}
-              onPress={() => deletion.mutate()}
-              style={styles.destructive}
-            />
-            <Button
-              label={t('profile.deleteAccount.cancel')}
-              variant="secondary"
-              disabled={busy}
-              onPress={onClose}
-            />
-          </View>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+        {/* The way out first, in the fill; the deletion as a soft red pill. */}
+        <View style={styles.actions}>
+          <Button
+            label={t('profile.deleteAccount.cancel')}
+            size="large"
+            disabled={busy}
+            onPress={onClose}
+          />
+          <Button
+            label={t('profile.deleteAccount.confirm')}
+            variant="destructive"
+            busy={busy}
+            disabled={!canConfirm}
+            onPress={() => deletion.mutate()}
+            style={styles.destructive}
+          />
+        </View>
+      </ScrollView>
+    </SheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
-  backdrop: { flex: 1, backgroundColor: colors.overlayDark },
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    maxHeight: '90%',
-    paddingHorizontal: space.xl,
-    paddingTop: space.md,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.sheet,
-    ...shadows.float,
-  },
-  grabber: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-    marginBottom: space.sm,
-  },
   body: { gap: space.md },
-  title: { ...typography.h3, color: colors.text },
+  title: { ...typography.h3, fontSize: 19, color: colors.text },
   text: { ...typography.body, color: colors.textMuted },
   error: { ...typography.body, color: colors.errorInk },
   actions: { gap: space.sm, marginTop: space.sm },
-  destructive: { borderWidth: 1, borderColor: colors.border },
+  // A soft red pill under the label, so the red still reads as a button.
+  destructive: {
+    minHeight: layout.touchTarget + 6,
+    justifyContent: 'center',
+    backgroundColor: colors.errorSoft,
+    borderRadius: radius.pill,
+  },
 });

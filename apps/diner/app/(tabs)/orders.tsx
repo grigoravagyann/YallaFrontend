@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
+import { Rise, riseDelay } from '../../src/components/motion/Rise';
 import { OrderCard, OrderCardSkeleton } from '../../src/components/orders/OrderCard';
 import { Screen, useNavClearance } from '../../src/components/Screen';
 import { SegmentedControl } from '../../src/components/SegmentedControl';
@@ -14,7 +15,7 @@ import { useNow } from '../../src/hooks/useNow';
 import { useOrders } from '../../src/orders/hooks';
 import { splitOrders, type Order } from '../../src/orders/model';
 import { useSession } from '../../src/stores/session';
-import { colors, layout, navIcons, space, typography } from '../../src/theme';
+import { colors, displayWeight, layout, navIcons, space, typography } from '../../src/theme';
 
 type Segment = 'active' | 'history';
 
@@ -110,26 +111,31 @@ export default function OrdersScreen() {
         contentContainerStyle={[styles.list, { paddingBottom }]}
         refreshing={isRefetching}
         onRefresh={() => void refetch()}
-        renderItem={({ item }) => (
-          <OrderCard
-            order={item}
-            now={now}
-            style={styles.card}
-            onViewDetails={() => openDetail(item)}
-            // Cancelling asks for a confirmation, which lives on the detail
-            // screen; the card takes the diner there rather than cancelling
-            // on a single tap in a list.
-            onCancel={() => openDetail(item)}
-            onTrack={() => openDetail(item)}
-          />
+        renderItem={({ item, index }) => (
+          <Rise delay={riseDelay(index)}>
+            <OrderCard
+              order={item}
+              now={now}
+              style={styles.card}
+              onViewDetails={() => openDetail(item)}
+              // Cancelling asks for a confirmation, which lives on the detail
+              // screen; the card takes the diner there rather than cancelling
+              // on a single tap in a list.
+              onCancel={() => openDetail(item)}
+              onTrack={() => openDetail(item)}
+            />
+          </Rise>
         )}
         ListEmptyComponent={
           segment === 'active' ? (
             <EmptyState
-              icon={navIcons.orders.outline}
+              icon={navIcons.scan.outline}
               title={t('orders.empty.active.title')}
               body={t('orders.empty.active.body')}
-              action={{ label: t('scan.tabTitle'), onPress: () => router.push('/(tabs)/scan') }}
+              action={{
+                label: t('orders.empty.active.action'),
+                onPress: () => router.push('/(tabs)/scan'),
+              }}
             />
           ) : (
             <EmptyState
@@ -148,10 +154,16 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.lg,
-    paddingBottom: space.md,
+    paddingBottom: space.lg,
     gap: space.lg,
   },
-  title: { ...typography.title, color: colors.text },
+  title: {
+    ...typography.heading,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: displayWeight.semibold,
+    color: colors.text,
+  },
   list: { paddingHorizontal: layout.screenPadding, paddingTop: space.xs },
   card: { marginBottom: layout.cardGap },
 });

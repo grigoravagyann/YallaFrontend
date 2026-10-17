@@ -108,8 +108,8 @@ describe('the manage-booking link', () => {
 
     // Asked once, with the consequence spelled out — and never refused for
     // lateness, which is a sentence rather than a disabled button.
-    expect(screen.getByText('Cancel this booking?')).toBeDefined();
-    await user.click(screen.getByRole('button', { name: 'Yes, cancel' }));
+    expect(screen.getByText('Cancel the booking?')).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Cancel booking' }));
 
     expect(await screen.findByText('Cancelled')).toBeDefined();
     expect(screen.getByText(/table has gone back to the venue/u)).toBeDefined();
@@ -165,7 +165,7 @@ describe('the manage page in the browser chrome', () => {
 
     render(harness.wrap(<PublicApp />, url));
     await user.click(await screen.findByRole('button', { name: 'Cancel this booking' }));
-    await user.click(screen.getByRole('button', { name: 'Yes, cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel booking' }));
 
     await waitFor(() => expect(document.title).toBe('Cancelled · Yalla'));
   });

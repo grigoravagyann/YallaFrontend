@@ -1,8 +1,9 @@
 import { useTranslation } from '@yalla/i18n';
-import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { actionIcon, colors, iconSize, radius, space, typography } from '../theme';
+import { actionIcon, colors, space, typography } from '../theme';
 import { Button } from './Button';
+import { Rise } from './motion/Rise';
+import { StateGlow } from './StateGlow';
 import { Text } from './Text';
 
 export interface ErrorStateProps {
@@ -26,23 +27,29 @@ export function ErrorState({ offline = false, title, body, onRetry, style }: Err
 
   return (
     <View accessibilityRole="alert" style={[styles.root, style]}>
-      <View style={styles.iconWell}>
-        <Ionicons
-          name={offline ? actionIcon.offline : actionIcon.error}
-          size={iconSize.xl}
-          color={offline ? colors.textMuted : colors.errorInk}
-        />
-      </View>
-      <Text style={styles.title}>{heading}</Text>
-      {detail ? <Text style={styles.body}>{detail}</Text> : null}
+      <Rise>
+        <StateGlow icon={offline ? actionIcon.offline : actionIcon.error} />
+      </Rise>
+      <Rise delay={80}>
+        <Text display style={styles.title}>
+          {heading}
+        </Text>
+      </Rise>
+      {detail ? (
+        <Rise delay={140}>
+          <Text style={styles.body}>{detail}</Text>
+        </Rise>
+      ) : null}
       {onRetry ? (
-        <Button
-          label={t('net.retry')}
-          onPress={onRetry}
-          variant="outline"
-          fullWidth={false}
-          style={styles.action}
-        />
+        <Rise delay={200}>
+          <Button
+            label={t('net.retry')}
+            icon={actionIcon.refresh}
+            onPress={onRetry}
+            fullWidth={false}
+            style={styles.action}
+          />
+        </Rise>
       ) : null}
     </View>
   );
@@ -55,16 +62,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     gap: space.sm,
   },
-  iconWell: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.sm,
-  },
-  title: { ...typography.h3, color: colors.text, textAlign: 'center' },
+  title: { ...typography.heading, color: colors.text, textAlign: 'center', marginTop: space.md },
   body: { ...typography.body, color: colors.textMuted, textAlign: 'center', maxWidth: 280 },
   action: { marginTop: space.md },
 });

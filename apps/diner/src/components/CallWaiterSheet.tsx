@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
   ServiceRequestRateLimitedError,
   WAITER_CALL_REASONS,
@@ -5,12 +6,22 @@ import {
   type WaiterCallReason,
 } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadows, space, typography } from '../theme';
-import { Button } from './Button';
-import { Chip } from './Chip';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, View } from 'react-native';
+import {
+  actionIcon,
+  colors,
+  fontWeight,
+  iconSize,
+  radius,
+  shadows,
+  space,
+  typography,
+  type IoniconName,
+} from '../theme';
+import { IconButton } from './IconButton';
+import { SheetModal } from './motion/SheetModal';
+import { usePressScale } from './motion/usePressScale';
 import { Text } from './Text';
 import { useCallWaiter } from '../data/queries';
 import { newCommandId } from '../lib/commandId';
@@ -29,15 +40,17 @@ export interface CallWaiterSheetProps {
   readonly initialReason?: WaiterCallReason | undefined;
   /** The table number, so the confirmation says where the counter was pinged. */
   readonly tableLabel?: string | undefined;
+  /** The floor has been told — the tab screen turns its Call button into "Called". */
+  readonly onSent?: ((reason: WaiterCallReason) => void) | undefined;
 }
 
-/** The veil fades; the sheet rises. Separate timings, so the sheet never drags a grey box up with it. */
-const BACKDROP_IN_MS = 180;
-const BACKDROP_OUT_MS = 160;
-const SHEET_IN_MS = 260;
-const SHEET_OUT_MS = 200;
-/** Far enough to start below any phone's bottom edge. */
-const SHEET_TRAVEL = 480;
+/** A glyph for each preset, in the tile above its label. */
+const REASON_ICON: Record<WaiterCallReason, IoniconName> = {
+  napkins: 'layers-outline',
+  water: 'water-outline',
+  bill: 'receipt-outline',
+  other: 'hand-left-outline',
+};
 
 /**
  * Raise a hand, in software.
@@ -58,9 +71,9 @@ export function CallWaiterSheet({
   onClose,
   initialReason,
   tableLabel,
+  onSent,
 }: CallWaiterSheetProps) {
   const { t } = useTranslation('diner');
-  const insets = useSafeAreaInsets();
   const call = useCallWaiter();
 
   const [sent, setSent] = useState<WaiterCallReason | null>(null);
@@ -68,32 +81,17 @@ export function CallWaiterSheet({
   /** The rate limit's answer: not an error, the floor already knows. */
   const [notice, setNotice] = useState<string | null>(null);
 
-  const [backdrop] = useState(() => new Animated.Value(0));
-  const [rise] = useState(() => new Animated.Value(0));
-  // Mounted the moment `visible` turns on (state adjusted during render, so
-  // the modal exists for the way in); unmounted only once the way out ends.
-  const [mounted, setMounted] = useState(visible);
-  if (visible && !mounted) setMounted(true);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const animation = Animated.parallel([
-      Animated.timing(backdrop, {
-        toValue: visible ? 1 : 0,
-        duration: visible ? BACKDROP_IN_MS : BACKDROP_OUT_MS,
-        useNativeDriver: true,
-      }),
-      Animated.timing(rise, {
-        toValue: visible ? 1 : 0,
-        duration: visible ? SHEET_IN_MS : SHEET_OUT_MS,
-        useNativeDriver: true,
-      }),
-    ]);
-    animation.start(({ finished }) => {
-      if (finished && !visible) setMounted(false);
-    });
-    return () => animation.stop();
-  }, [visible, mounted, backdrop, rise]);
+  // A fresh sheet every time it opens. Cleared on the way in rather than the
+  // way out, so the confirmation stays put while the sheet slides away.
+  const [shown, setShown] = useState(visible);
+  if (visible !== shown) {
+    setShown(visible);
+    if (visible) {
+      setSent(null);
+      setError(null);
+      setNotice(null);
+    }
+  }
 
   const raise = useCallback(
     async (reason: WaiterCallReason) => {
@@ -103,6 +101,7 @@ export function CallWaiterSheet({
         await call.mutateAsync({ tabId, reason, commandId: newCommandId() });
         haptics.tap();
         setSent(reason);
+        onSent?.(reason);
       } catch (caught) {
         // The one branch that must never be silent.
         if (caught instanceof ServiceRequestRateLimitedError) {
@@ -118,125 +117,144 @@ export function CallWaiterSheet({
         }
       }
     },
-    [call, tabId, t],
+    [call, tabId, t, onSent],
   );
 
-  const close = useCallback(() => {
-    setSent(null);
-    setError(null);
-    setNotice(null);
-    onClose();
-  }, [onClose]);
-
-  const translateY = rise.interpolate({ inputRange: [0, 1], outputRange: [SHEET_TRAVEL, 0] });
-
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={close}>
-      <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
-        <Pressable
-          style={styles.fill}
-          accessibilityRole="button"
-          accessibilityLabel={t('waiter.close')}
-          onPress={close}
-        />
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.sheet,
-          { paddingBottom: insets.bottom + space.xl, transform: [{ translateY }] },
-        ]}
-      >
-        <View style={styles.grabber} />
-        <Text style={styles.title} accessibilityRole="header">
+    <SheetModal
+      visible={visible}
+      onRequestClose={onClose}
+      closeLabel={t('waiter.close')}
+      accessibilityLabel={t('waiter.title')}
+    >
+      <View style={styles.head}>
+        <Text display style={styles.title} accessibilityRole="header">
           {t('waiter.title')}
         </Text>
-        <Text style={styles.body}>{t('waiter.body')}</Text>
+        <IconButton
+          icon={actionIcon.close}
+          accessibilityLabel={t('waiter.close')}
+          onPress={onClose}
+        />
+      </View>
 
-        {sent === null ? (
-          <View style={styles.presets}>
-            {WAITER_CALL_REASONS.map((reason) => (
-              <Chip
-                key={reason}
-                label={t(`waiter.${reason}`)}
-                selected={reason === initialReason}
-                disabled={call.isPending}
-                onPress={() => void raise(reason)}
-                style={styles.preset}
-              />
-            ))}
-          </View>
-        ) : (
+      {sent === null ? (
+        <View style={styles.grid}>
+          {WAITER_CALL_REASONS.map((reason) => (
+            <ReasonTile
+              key={reason}
+              icon={REASON_ICON[reason]}
+              label={t(`waiter.${reason}`)}
+              selected={reason === initialReason}
+              disabled={call.isPending}
+              onPress={() => void raise(reason)}
+            />
+          ))}
+        </View>
+      ) : (
+        <View style={styles.sentRow}>
+          <Ionicons name="checkmark-circle-outline" size={iconSize.lg} color={colors.successInk} />
           <Text style={styles.sent} accessibilityRole="alert">
             {tableLabel
               ? t('waiter.sentAtTable', { what: t(`waiter.${sent}`), label: tableLabel })
               : t('waiter.sent', { what: t(`waiter.${sent}`) })}
           </Text>
-        )}
+        </View>
+      )}
 
-        {call.isPending ? (
-          <View style={styles.busyRow}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.body}>{t('waiter.sending')}</Text>
-          </View>
-        ) : null}
+      {call.isPending ? (
+        <View style={styles.busyRow}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.hint}>{t('waiter.sending')}</Text>
+        </View>
+      ) : null}
 
-        {notice ? <Text style={styles.sent}>{notice}</Text> : null}
-        {error ? (
-          <Text style={styles.error} accessibilityRole="alert">
-            {error}
-          </Text>
-        ) : null}
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      {error ? (
+        <Text style={styles.error} accessibilityRole="alert">
+          {error}
+        </Text>
+      ) : null}
 
-        <Button label={t('waiter.close')} variant="text" onPress={close} style={styles.close} />
-      </Animated.View>
-    </Modal>
+      {sent === null ? <Text style={[styles.hint, styles.centred]}>{t('waiter.body')}</Text> : null}
+    </SheetModal>
   );
 }
 
+/** One preset: the glyph over its label on a glass tile; brand-filled when it is the one asked for. */
+function ReasonTile({
+  icon,
+  label,
+  selected,
+  disabled,
+  onPress,
+}: {
+  readonly icon: IoniconName;
+  readonly label: string;
+  readonly selected: boolean;
+  readonly disabled: boolean;
+  readonly onPress: () => void;
+}) {
+  const press = usePressScale();
+  const ink = selected ? colors.onPrimary : colors.text;
+  return (
+    <Animated.View style={[styles.tileWrap, press.style]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ selected, disabled }}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={({ pressed }) => [
+          styles.tile,
+          selected && styles.tileSelected,
+          pressed && (selected ? styles.tileSelectedPressed : styles.tilePressed),
+          disabled && styles.tileDisabled,
+        ]}
+      >
+        <Ionicons name={icon} size={iconSize.md + 2} color={ink} />
+        <Text numberOfLines={1} style={[styles.tileLabel, { color: ink }]}>
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+const TILE_HEIGHT = 76;
+
 const styles = StyleSheet.create({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.overlayDark,
-  },
-  fill: { flex: 1 },
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: space.xl,
-    paddingTop: space.md,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.sheet,
-    gap: space.sm,
-    ...shadows.float,
-  },
-  grabber: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-    marginBottom: space.sm,
-  },
-  title: { ...typography.h3, color: colors.text },
-  body: { ...typography.body, color: colors.textMuted },
-  presets: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 19, lineHeight: 26, color: colors.text, flexShrink: 1 },
   // Two to a row, each taking half, so four presets read as a grid of choices.
-  preset: { flexGrow: 1, flexBasis: '45%' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  tileWrap: { flexGrow: 1, flexBasis: '45%' },
+  tile: {
+    height: TILE_HEIGHT,
+    borderRadius: radius.hero,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs + 2,
+    backgroundColor: colors.surface,
+    paddingHorizontal: space.sm,
+  },
+  tilePressed: { backgroundColor: colors.surfaceMuted },
+  tileSelected: { backgroundColor: colors.brand, ...shadows.brand },
+  tileSelectedPressed: { backgroundColor: colors.brandPressed },
+  tileDisabled: { opacity: 0.5 },
+  tileLabel: { ...typography.body, fontWeight: fontWeight.medium },
+  sentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
   sent: {
-    marginTop: space.sm,
+    flex: 1,
     ...typography.bodyLg,
-    fontWeight: typography.buttonMedium.fontWeight,
+    fontWeight: fontWeight.medium,
     color: colors.successInk,
   },
+  notice: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.successInk },
   busyRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  hint: { ...typography.caption, color: colors.textMuted },
+  centred: { textAlign: 'center' },
   error: { ...typography.body, color: colors.errorInk },
-  close: { marginTop: space.xs },
 });

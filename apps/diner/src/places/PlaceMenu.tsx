@@ -5,7 +5,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Button } from '../components/Button';
 import { Skeleton } from '../components/Skeleton';
 import { Text } from '../components/Text';
-import { colors, fontWeight, space, tabularNumbers, typography } from '../theme';
+import { colors, fontWeight, radius, space, tabularNumbers, typography } from '../theme';
 import { useMenuDetail } from './hooks';
 
 export interface PlaceMenuProps {
@@ -68,7 +68,9 @@ export function PlaceMenu({ placeId, style }: PlaceMenuProps) {
     <View style={[styles.menu, style]}>
       {data.map((section) => (
         <View key={section.section} style={styles.menuSection}>
-          <Text style={styles.menuSectionTitle}>{section.section}</Text>
+          <Text display accessibilityRole="header" style={styles.menuSectionTitle}>
+            {section.section}
+          </Text>
           {section.items.map((item) => (
             <View key={item.name} style={styles.menuItem}>
               <View style={styles.menuItemBody}>
@@ -94,29 +96,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: space.sm,
   },
-  menu: { gap: space.lg },
-  menuSection: { gap: space.xs },
+  menu: { gap: space.md + 2 },
+  menuSection: { gap: space.sm },
+  // The design's serif section name over its dishes.
   menuSectionTitle: {
-    ...typography.bodyLg,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: fontWeight.bold,
     color: colors.text,
-    marginBottom: space.xs,
   },
+  // Each dish its own glass card.
   menuItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: space.md,
-    paddingVertical: space.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingVertical: space.sm + 2,
+    paddingHorizontal: space.md,
+    borderRadius: radius.tile,
+    backgroundColor: colors.surface,
   },
-  menuItemBody: { flex: 1, gap: 2 },
-  menuItemName: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
-  menuItemDescription: { ...typography.caption, color: colors.textMuted },
-  menuItemPrice: {
-    ...typography.body,
-    ...tabularNumbers,
+  menuItemBody: { flex: 1, minWidth: 0, gap: 2 },
+  menuItemName: {
+    fontSize: 13.5,
+    lineHeight: 18,
     fontWeight: fontWeight.medium,
     color: colors.text,
+  },
+  menuItemDescription: { ...typography.caption, color: colors.textMuted },
+  menuItemPrice: {
+    fontSize: 13,
+    lineHeight: 18,
+    ...tabularNumbers,
+    fontWeight: fontWeight.bold,
+    color: colors.primary,
   },
 });

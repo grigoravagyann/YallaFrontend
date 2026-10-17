@@ -194,6 +194,15 @@ describe('what the diner is told', () => {
     expect(update.markers).toEqual([]);
   });
 
+  it('carries the order an orderPlaced names, so the bill can tell whose lines are new', () => {
+    const update = applyTabEvents(4, [
+      event(5, { type: 'orderPlaced', actor: 'staff', data: { orderId: 'ord-9', lines: [] } }),
+    ]);
+    expect(update.kind).toBe('refetch');
+    if (update.kind !== 'refetch') return;
+    expect(update.markers[0]?.orderId).toBe('ord-9');
+  });
+
   it('keeps a marker long enough to read, then drops it', () => {
     const at = Date.parse('2026-09-06T10:00:00Z');
     const markers = [
@@ -203,6 +212,7 @@ describe('what the diner is told', () => {
         actorName: 'Aram',
         atUtc: '2026-09-06T10:00:00Z',
         lineId: 'l7',
+        orderId: null,
         lineName: 'Khorovats',
         sequence: 5,
         arrivedAtMs: at,

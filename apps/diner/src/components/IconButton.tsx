@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { splitStyle } from './motion/splitStyle';
+import { usePressScale } from './motion/usePressScale';
 import { colors, iconSize, layout, radius, shadows, type IoniconName } from '../theme';
 
 export type IconButtonVariant = 'surface' | 'translucent' | 'primary' | 'ghost';
@@ -53,25 +55,35 @@ export function IconButton({
 }: IconButtonProps) {
   const side = SIZE[size];
   const slop = Math.max(0, (layout.touchTarget - side) / 2);
+  const press = usePressScale();
+  const placed = splitStyle(style);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      hitSlop={slop}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.base,
-        { width: side, height: side, borderRadius: shape === 'circle' ? radius.pill : radius.tile },
-        styles[variant],
-        pressed && pressedStyles[variant],
-        disabled && styles.disabled,
-        style,
-      ]}
-    >
-      <Ionicons name={icon} size={GLYPH[size]} color={iconColor ?? glyphColor[variant]} />
-    </Pressable>
+    <Animated.View style={[press.style, placed.outer]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        hitSlop={slop}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={({ pressed }) => [
+          styles.base,
+          {
+            width: side,
+            height: side,
+            borderRadius: shape === 'circle' ? radius.pill : radius.tile,
+          },
+          styles[variant],
+          pressed && pressedStyles[variant],
+          disabled && styles.disabled,
+          placed.inner,
+        ]}
+      >
+        <Ionicons name={icon} size={GLYPH[size]} color={iconColor ?? glyphColor[variant]} />
+      </Pressable>
+    </Animated.View>
   );
 }
 

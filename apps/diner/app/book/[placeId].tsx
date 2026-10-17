@@ -5,8 +5,9 @@ import { formatTime, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,9 +16,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button } from '../../src/components/Button';
-import { Card } from '../../src/components/Card';
-import { Chip } from '../../src/components/Chip';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
 import { IconButton } from '../../src/components/IconButton';
@@ -25,13 +23,17 @@ import { Screen } from '../../src/components/Screen';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text, TextInput } from '../../src/components/Text';
-import { PlaceSummaryCard } from '../../src/components/place/PlaceSummaryCard';
+import { Rise } from '../../src/components/motion/Rise';
+import { SlidingChoice, type SlidingOption } from '../../src/components/motion/SlidingChoice';
+import { BookCta, CtaFooter } from '../../src/components/place/BookCta';
+import { ChoiceGrid, type ChoiceGridOption } from '../../src/components/place/ChoiceGrid';
 import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
 import { useDinerProfile } from '../../src/data/accountQueries';
 import { bookingRefusal } from '../../src/data/bookingRefusals';
 import { useBookingRules, useCreateBooking, useSlotFloor } from '../../src/data/queries';
+import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
 import { placeKeys, usePlace, usePlaceRooms } from '../../src/places/hooks';
@@ -55,8 +57,8 @@ import {
   iconSize,
   layout,
   radius,
+  shadows,
   space,
-  tabularNumbers,
   typography,
 } from '../../src/theme';
 
@@ -64,7 +66,15 @@ import {
 const PARTY_SIZES = [2, 3, 4] as const;
 const PARTY_MORE_FROM = 5;
 const PARTY_MAX = 12;
-const SLOT_COLUMNS = 3;
+/** The design's five times to a row, and four days in view at once. */
+const SLOT_COLUMNS = 5;
+const SLOT_GAP = 6;
+const DAYS_IN_VIEW = 4;
+const DAY_GAP = space.sm;
+/** The party pill: four 44pt choices with 4 between them. */
+const PARTY_CELL = layout.touchTarget;
+const PARTY_GAP = space.xs;
+const PARTY_PILL_WIDTH = PARTY_CELL * 4 + PARTY_GAP * 3;
 
 // A type alias, not an interface: `useLocalSearchParams` wants an implicit
 // index signature, which only object literal types carry.
@@ -107,12 +117,11 @@ export default function BookingScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <Header onBack={back} />
         <View style={styles.skeleton}>
-          <Skeleton height={88} borderRadius={radius.card} />
-          <Skeleton width="30%" height={18} />
-          <Skeleton height={64} borderRadius={radius.chip} />
-          <Skeleton width="30%" height={18} />
-          <Skeleton height={40} borderRadius={radius.chip} />
-          <Skeleton height={40} borderRadius={radius.chip} />
+          <Skeleton height={layout.touchTarget} borderRadius={radius.pill} />
+          <Skeleton height={layout.touchTarget} borderRadius={radius.pill} />
+          <Skeleton height={56} borderRadius={radius.card} />
+          <Skeleton width="40%" height={20} />
+          <Skeleton height={240} borderRadius={radius.card + 2} />
         </View>
       </Screen>
     );
@@ -173,6 +182,12 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const capacityLabel = useCapacityLabel();
+  const reducedMotion = useReducedMotion();
+  const dayLabel = useDayLabel(place.timeZoneId);
+  const scrollRef = useRef<ScrollView>(null);
+  // Where "Pick a table" starts in the scroll, so a table taken under the
+  // diner's finger can bring them back to the photo.
+  const pickTop = useRef(0);
 
   // Every pin's live state, for the moment before the slot has answered.
   const tables = useMemo(
@@ -239,7 +254,14 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   const [moreOpen, setMoreOpen] = useState(partySize >= PARTY_MORE_FROM);
   const [requests, setRequests] = useState('');
   const [errorText, setErrorText] = useState<string | null>(null);
+  // The table went to someone else between the photo and the tap (409): said
+  // over the photo, where the next pick is made.
+  const [conflictText, setConflictText] = useState<string | null>(null);
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+  const clearErrors = useCallback(() => {
+    setErrorText(null);
+    setConflictText(null);
+  }, []);
 
   const activeDateKey = dateKey ?? days[0]?.dateKey ?? null;
   const slots = useMemo(
@@ -359,7 +381,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
 
   const confirm = useCallback(async () => {
     if (!activeSlot || !targetTableId || pending || chosenRefusal) return;
-    setErrorText(null);
+    clearErrors();
     const note = requests.trim();
     const forward = {
       branchId: place.id,
@@ -417,9 +439,16 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
       const failure = bookingFailure(error, place.timeZoneId, locale);
       if (failure.kind === 'tableTaken') {
         // The photo underneath and the slot answer are told to redraw; the
-        // diner picks again.
+        // diner picks again, with the day, time and party kept.
         void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
         void slotQuery.refetch();
+        setOutcomeUnknown(false);
+        setConflictText(t(failure.line.key, failure.line.params));
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, pickTop.current - space.sm),
+          animated: !reducedMotion,
+        });
+        return;
       }
       // Nothing was booked; the command id stays for the retry.
       if (failure.kind === 'phoneNotVerified') {
@@ -453,12 +482,17 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
     slotQuery,
     locale,
     t,
+    clearErrors,
+    reducedMotion,
   ]);
 
-  const selectParty = useCallback((size: number) => {
-    setPartySize(size);
-    setErrorText(null);
-  }, []);
+  const selectParty = useCallback(
+    (size: number) => {
+      setPartySize(size);
+      clearErrors();
+    },
+    [clearErrors],
+  );
 
   const moreSizes = useMemo(() => {
     const top = Math.min(PARTY_MAX, capacityMax ?? PARTY_MAX);
@@ -471,6 +505,65 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
   }, [capacityMin, capacityMax]);
   const moreAllowed = moreSizes.length > 0;
 
+  const slotOptions = useMemo<readonly ChoiceGridOption[]>(
+    () =>
+      slots.map((slot) => ({
+        value: slot.key,
+        label: formatTime(slot.at, place.timeZoneId, locale),
+      })),
+    [slots, place.timeZoneId, locale],
+  );
+
+  // A table for four to six is not a table for two, any more than a table
+  // for two is a table for six: sizes the chosen table cannot seat are struck.
+  const partyOptions: readonly SlidingOption<string>[] = [
+    ...PARTY_SIZES.map((size) => ({
+      value: String(size),
+      label: String(size),
+      disabled: !fits(size),
+    })),
+    {
+      value: MORE,
+      label: t('book.partySizeMore', { count: PARTY_MORE_FROM }),
+      disabled: !moreAllowed,
+    },
+  ];
+  const moreOptions: readonly ChoiceGridOption[] = moreSizes.map((size) => ({
+    value: String(size),
+    label: String(size),
+  }));
+
+  // "Table 4 · Tomorrow 19:00 · 2 guests": what one press of Book books.
+  const activeDay = days.find((day) => day.dateKey === activeDateKey) ?? null;
+  const summary =
+    activeSlot && activeDay
+      ? t('book.summary', {
+          table: chosenTable?.label
+            ? t('tables.table', { label: chosenTable.label })
+            : t('book.anyTable'),
+          day: dayLabel(activeDay),
+          time: formatTime(activeSlot.at, place.timeZoneId, locale),
+          guests: t('booking.guests', { count: partySize }),
+        })
+      : undefined;
+  // The button's state, when it is anything but "book it".
+  const ctaState = pending
+    ? t('confirm.submitting')
+    : mustVerify
+      ? t('confirm.verifyMyNumber')
+      : outcomeUnknown
+        ? t('confirm.checkAgain')
+        : null;
+
+  const conflict = conflictText ? (
+    <Rise>
+      <View accessibilityRole="alert" style={styles.conflict}>
+        <Ionicons name={actionIcon.error} size={iconSize.md - 2} color={colors.errorInk} />
+        <Text style={styles.conflictText}>{conflictText}</Text>
+      </View>
+    </Rise>
+  ) : null;
+
   return (
     <Screen edges={['top', 'left', 'right']}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -480,145 +573,143 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
       >
         <Header onBack={onBack} place={place} />
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <PlaceSummaryCard place={place} />
-
-          <SectionHeader label={t('book.date')} icon={actionIcon.calendar} style={styles.section} />
           <DayStrip
             days={days}
             selectedKey={activeDateKey}
             timeZoneId={place.timeZoneId}
+            label={dayLabel}
             onSelect={(key) => {
               setDateKey(key);
               setSlotKey(null);
-              setErrorText(null);
+              clearErrors();
             }}
           />
 
-          <SectionHeader label={t('book.time')} icon={actionIcon.time} style={styles.section} />
           {slots.length === 0 ? (
             <Text style={styles.empty}>{t('book.noSlots')}</Text>
           ) : (
-            <SlotGrid
-              label={t('book.time')}
-              slots={slots}
-              selectedKey={activeSlot?.key ?? null}
-              onSelect={(key) => {
+            <ChoiceGrid
+              options={slotOptions}
+              value={activeSlot?.key ?? null}
+              onChange={(key) => {
+                haptics.select();
                 setSlotKey(key);
-                setErrorText(null);
+                clearErrors();
               }}
-              format={(at) => formatTime(at, place.timeZoneId, locale)}
+              columns={SLOT_COLUMNS}
+              gap={SLOT_GAP}
+              accessibilityLabel={t('book.time')}
             />
           )}
 
-          <SectionHeader
-            label={t('book.partySize')}
-            icon={actionIcon.people}
-            style={styles.section}
-          />
-          <View
-            style={styles.chips}
-            accessibilityRole="radiogroup"
-            accessibilityLabel={t('book.partySize')}
-          >
-            {PARTY_SIZES.map((size) => (
-              <Chip
-                key={size}
-                label={String(size)}
-                accessibilityRole="radio"
-                shape="rounded"
-                selected={!moreOpen && partySize === size}
-                // A table for four to six is not a table for two, any more
-                // than a table for two is a table for six.
-                disabled={!fits(size)}
-                onPress={() => {
+          {/* Guests: one glass row, the label and the sizes as radios. */}
+          <View style={styles.partyCard}>
+            <View style={styles.partyRow}>
+              <Text numberOfLines={1} style={styles.partyLabel}>
+                {t('book.partySize')}
+              </Text>
+              <SlidingChoice
+                options={partyOptions}
+                value={moreOpen ? MORE : String(partySize)}
+                onChange={(value) => {
+                  if (value === MORE) {
+                    setMoreOpen(true);
+                    if (partySize < PARTY_MORE_FROM) {
+                      selectParty(moreSizes[0] ?? PARTY_MORE_FROM);
+                    }
+                    return;
+                  }
                   setMoreOpen(false);
-                  selectParty(size);
+                  selectParty(Number(value));
                 }}
+                columns={partyOptions.length}
+                gap={PARTY_GAP}
+                accessibilityLabel={t('book.partySize')}
+                style={styles.partyChoice}
               />
-            ))}
-            <Chip
-              label={t('book.partySizeMore', { count: PARTY_MORE_FROM })}
-              accessibilityRole="radio"
-              shape="rounded"
-              selected={moreOpen}
-              disabled={!moreAllowed}
-              onPress={() => {
-                setMoreOpen(true);
-                if (partySize < PARTY_MORE_FROM) selectParty(moreSizes[0] ?? PARTY_MORE_FROM);
-              }}
-            />
-          </View>
-          {moreOpen && moreSizes.length > 0 ? (
-            <View
-              style={[styles.chips, styles.moreChips]}
-              accessibilityRole="radiogroup"
-              accessibilityLabel={t('book.partySize')}
-            >
-              {moreSizes.map((size) => (
-                <Chip
-                  key={size}
-                  label={String(size)}
-                  accessibilityRole="radio"
-                  shape="rounded"
-                  size="sm"
-                  selected={partySize === size}
-                  onPress={() => selectParty(size)}
-                />
-              ))}
             </View>
-          ) : null}
+            {moreOpen && moreSizes.length > 0 ? (
+              <ChoiceGrid
+                options={moreOptions}
+                value={String(partySize)}
+                onChange={(value) => selectParty(Number(value))}
+                columns={4}
+                gap={SLOT_GAP}
+                accessibilityLabel={t('book.partySize')}
+                style={styles.moreChoice}
+              />
+            ) : null}
+          </View>
 
           {slotRooms.length > 0 ? (
-            <>
-              <SectionHeader
-                label={t('book.pickTable')}
-                icon={actionIcon.table}
-                hint={t('book.optional')}
-                style={styles.section}
-              />
-              <Text style={styles.pickHint}>{t('book.pickTableHint')}</Text>
+            <View
+              onLayout={(event) => {
+                pickTop.current = event.nativeEvent.layout.y;
+              }}
+            >
               <RoomPhotosView
                 rooms={slotRooms}
                 selectedTableId={pickedTableId}
                 // A table the slot will not give this party is drawn, not offered.
                 partySize={partySize}
+                title={
+                  <Text display accessibilityRole="header" numberOfLines={1} style={styles.pick}>
+                    {t('book.pickTable')}
+                  </Text>
+                }
+                notice={
+                  <>
+                    <Text style={styles.pickHint}>{t('book.pickTableHint')}</Text>
+                    {conflict}
+                  </>
+                }
+                photoStyle={styles.roomPhoto}
                 onSelect={(tableId) => {
                   // The same pin again, or the photo away from any: leave it to us.
                   if (tableId !== null && tableId !== pickedTableId) haptics.select();
                   setPickedTableId(tableId === pickedTableId ? null : tableId);
-                  setErrorText(null);
+                  clearErrors();
                 }}
               />
               <TableLegend partyFit style={styles.legend} />
-            </>
-          ) : null}
+            </View>
+          ) : (
+            // No photo to draw it over: the conflict still has to be said.
+            conflict
+          )}
 
           {chosenTable ? (
-            <>
-              <SectionHeader
-                label={t('book.selectedTable')}
-                icon={actionIcon.table}
-                style={styles.section}
-              />
-              <Card style={styles.tableCard}>
+            <View>
+              <View style={styles.tableCard}>
                 <View style={styles.tableIcon}>
                   <Ionicons name={actionIcon.table} size={iconSize.md} color={colors.primary} />
                 </View>
-                <Text numberOfLines={1} style={styles.tableText}>
-                  {`${t('tables.table', { label: chosenTable.label })} · ${capacityLabel(chosenTable)}`}
-                </Text>
-              </Card>
+                <View style={styles.tableBody}>
+                  <Text style={styles.tableCaption}>{t('book.selectedTable')}</Text>
+                  <View style={styles.tableLine}>
+                    {chosenTable.label ? (
+                      <Text numberOfLines={1} style={styles.tableText}>
+                        {t('tables.table', { label: chosenTable.label })}
+                      </Text>
+                    ) : null}
+                    <Text numberOfLines={1} style={styles.tableSeats}>
+                      {capacityLabel(chosenTable)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
               {chosenRefusal ? (
                 <Text accessibilityRole="alert" style={styles.warning}>
                   {chosenRefusal}
                 </Text>
               ) : null}
-            </>
+            </View>
           ) : noTableFits ? (
             <Text accessibilityRole="alert" style={styles.warning}>
               {noTableText}
@@ -626,8 +717,8 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
           ) : null}
 
           {needsName ? (
-            <>
-              <SectionHeader label={t('confirm.nameLabel')} style={styles.section} />
+            <View style={styles.field}>
+              <SectionHeader label={t('confirm.nameLabel')} />
               <TextInput
                 style={styles.input}
                 value={guestName}
@@ -640,31 +731,32 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
                 textContentType="name"
                 accessibilityLabel={t('confirm.nameLabel')}
               />
-            </>
+            </View>
           ) : null}
 
-          <SectionHeader
-            label={t('booking.note.title')}
-            icon={actionIcon.note}
-            hint={t('book.optional')}
-            style={styles.section}
-          />
-          <TextInput
-            style={[styles.input, styles.requests]}
-            value={requests}
-            onChangeText={(value) => {
-              setRequests(value);
-              setErrorText(null);
-            }}
-            placeholder={t('booking.note.placeholder')}
-            placeholderTextColor={colors.textSubtle}
-            multiline
-            maxLength={MAX_BOOKING_NOTE}
-            textAlignVertical="top"
-            accessibilityLabel={t('booking.note.title')}
-          />
-          {/* Honest about where the words go: to the venue, with the booking. */}
-          <Text style={styles.hint}>{t('booking.note.hint')}</Text>
+          <View style={styles.field}>
+            <SectionHeader
+              label={t('booking.note.title')}
+              icon={actionIcon.note}
+              hint={t('book.optional')}
+            />
+            <TextInput
+              style={[styles.input, styles.requests]}
+              value={requests}
+              onChangeText={(value) => {
+                setRequests(value);
+                clearErrors();
+              }}
+              placeholder={t('booking.note.placeholder')}
+              placeholderTextColor={colors.textSubtle}
+              multiline
+              maxLength={MAX_BOOKING_NOTE}
+              textAlignVertical="top"
+              accessibilityLabel={t('booking.note.title')}
+            />
+            {/* Honest about where the words go: to the venue, with the booking. */}
+            <Text style={styles.hint}>{t('booking.note.hint')}</Text>
+          </View>
 
           {mustVerify ? (
             <Text accessibilityRole="alert" style={styles.error}>
@@ -679,7 +771,7 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
           ) : null}
         </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
+        <CtaFooter bottomInset={insets.bottom}>
           {bookingsOff ? (
             // Where the app cannot book, the button is not offered at all; the
             // same words the place page shows say why.
@@ -688,37 +780,62 @@ function BookingForm({ place, rooms, params, onBack }: BookingFormProps) {
               <Text style={styles.bookingsOffBody}>{t('place.bookingsOff.body')}</Text>
             </View>
           ) : (
-            <Button
-              label={
-                pending
-                  ? t('confirm.submitting')
-                  : mustVerify
-                    ? t('confirm.verifyMyNumber')
-                    : outcomeUnknown
-                      ? t('confirm.checkAgain')
-                      : t('book.confirm')
+            <BookCta
+              label={ctaState ?? t('tables.book')}
+              {...(summary ? { caption: summary } : {})}
+              // The action first (what e2e and a screen reader key on), then
+              // the summary the caption shows, so it is heard as well as seen.
+              accessibilityLabel={
+                ctaState ?? (summary ? `${t('book.confirm')}, ${summary}` : t('book.confirm'))
               }
-              size="large"
               disabled={!canConfirm}
+              busy={pending}
               onPress={() => void confirm()}
             />
           )}
-        </View>
+        </CtaFooter>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
+/** The value of the "5+" radio: it opens the larger sizes under the row. */
+const MORE = 'more';
+
+/** "Today", "Tomorrow", then "Sat 18" in the place's zone and the diner's language. */
+function useDayLabel(timeZoneId: string): (day: DayOption) => string {
+  const { t } = useTranslation('diner');
+  const { locale } = useLocale();
+  const short = useMemo(
+    () =>
+      new Intl.DateTimeFormat(intlTag(locale), {
+        weekday: 'short',
+        day: 'numeric',
+        timeZone: timeZoneId,
+      }),
+    [locale, timeZoneId],
+  );
+  return useCallback(
+    (day: DayOption) =>
+      day.isToday
+        ? t('booking.today')
+        : day.isTomorrow
+          ? t('booking.tomorrow')
+          : short.format(day.date),
+    [short, t],
+  );
+}
+
 /**
- * "Book a Table" until the place is known; then the venue on one line and the
- * branch on the next, so two branches of one venue are never confused here.
+ * "Book a Table" over the venue and where it is, so two branches of one venue
+ * are never confused here.
  */
 function Header({
   onBack,
   place,
 }: {
   onBack: () => void;
-  place?: Pick<Place, 'name' | 'venueName' | 'branchName'> | undefined;
+  place?: Pick<Place, 'name' | 'venueName' | 'branchName' | 'address'> | undefined;
 }) {
   const { t } = useTranslation('diner');
   const venue = place ? place.venueName.trim() || place.name : null;
@@ -726,35 +843,31 @@ function Header({
     place && venue && place.branchName.trim().toLocaleLowerCase() !== venue.toLocaleLowerCase()
       ? place.branchName.trim() || null
       : null;
+  // The branch names the place within the venue; without one, the street does.
+  const where = branch ?? (place?.address.split(',')[0]?.trim() || null);
   return (
     <View style={styles.header}>
       <IconButton
         icon={actionIcon.back}
         accessibilityLabel={t('floorPlan.back')}
-        variant="ghost"
+        variant="surface"
         onPress={onBack}
       />
-      {venue ? (
-        <View
-          style={styles.titleBlock}
-          accessible
-          accessibilityRole="header"
-          accessibilityLabel={[t('book.title'), venue, branch].filter(Boolean).join(', ')}
-        >
-          <Text display numberOfLines={1} style={styles.title}>
-            {venue}
-          </Text>
-          {branch ? (
-            <Text numberOfLines={1} style={styles.branch}>
-              {branch}
-            </Text>
-          ) : null}
-        </View>
-      ) : (
-        <Text display numberOfLines={1} style={styles.title} accessibilityRole="header">
+      <View
+        style={styles.titleBlock}
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={[t('book.title'), venue, where].filter(Boolean).join(', ')}
+      >
+        <Text display numberOfLines={1} style={styles.title}>
           {t('book.title')}
         </Text>
-      )}
+        {venue ? (
+          <Text numberOfLines={1} style={styles.subline}>
+            {[venue, where].filter(Boolean).join(' · ')}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -763,16 +876,18 @@ interface DayStripProps {
   readonly days: readonly DayOption[];
   readonly selectedKey: string | null;
   readonly timeZoneId: string;
+  readonly label: (day: DayOption) => string;
   readonly onSelect: (dateKey: string) => void;
 }
 
-/** "Tue 22" cards in a row; the selected one is brown. */
-function DayStrip({ days, selectedKey, timeZoneId, onSelect }: DayStripProps) {
+/**
+ * Four equal day cells in view, the rest a swipe away, with one brand thumb
+ * that slides under the chosen day. Each cell is a button named by the whole
+ * date ("Saturday, 18 October"), which is what a screen reader should say.
+ */
+function DayStrip({ days, selectedKey, timeZoneId, label, onSelect }: DayStripProps) {
   const { locale } = useLocale();
-  const weekday = useMemo(
-    () => new Intl.DateTimeFormat(intlTag(locale), { weekday: 'short', timeZone: timeZoneId }),
-    [locale, timeZoneId],
-  );
+  const reduced = useReducedMotion();
   const full = useMemo(
     () =>
       new Intl.DateTimeFormat(intlTag(locale), {
@@ -783,76 +898,70 @@ function DayStrip({ days, selectedKey, timeZoneId, onSelect }: DayStripProps) {
       }),
     [locale, timeZoneId],
   );
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.dayStrip}
-    >
-      {days.map((day) => {
-        const selected = day.dateKey === selectedKey;
-        return (
-          <Pressable
-            key={day.dateKey}
-            accessibilityRole="button"
-            accessibilityLabel={full.format(day.date)}
-            accessibilityState={{ selected }}
-            onPress={() => onSelect(day.dateKey)}
-            style={({ pressed }) => [
-              styles.day,
-              selected ? styles.daySelected : styles.dayIdle,
-              pressed && (selected ? styles.daySelectedPressed : styles.dayIdlePressed),
-            ]}
-          >
-            <Text style={[styles.dayName, selected && styles.onPrimary]}>
-              {weekday.format(day.date)}
-            </Text>
-            <Text style={[styles.dayNumber, selected && styles.onPrimary]}>
-              {String(day.dayOfMonth)}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
-interface SlotGridProps {
-  /** The group's name for a screen reader: "Time". */
-  readonly label: string;
-  readonly slots: readonly { key: string; at: Date }[];
-  readonly selectedKey: string | null;
-  readonly onSelect: (key: string) => void;
-  readonly format: (at: Date) => string;
-}
-
-/** Three slot chips per row; the selected one is brown. */
-function SlotGrid({ label, slots, selectedKey, onSelect, format }: SlotGridProps) {
   const [width, setWidth] = useState(0);
-  const column = width > 0 ? (width - space.sm * (SLOT_COLUMNS - 1)) / SLOT_COLUMNS : undefined;
+  const cell = width > 0 ? (width - DAY_GAP * (DAYS_IN_VIEW - 1)) / DAYS_IN_VIEW : 0;
+  const index = days.findIndex((day) => day.dateKey === selectedKey);
+  const [x] = useState(() => new Animated.Value(0));
+  // The first placement is a jump; only a new choice slides.
+  const placed = useRef(false);
+
+  useEffect(() => {
+    if (cell <= 0 || index < 0) return;
+    const to = index * (cell + DAY_GAP);
+    if (reduced || !placed.current) {
+      x.setValue(to);
+      placed.current = true;
+      return;
+    }
+    Animated.spring(x, { toValue: to, useNativeDriver: true, speed: 16, bounciness: 7 }).start();
+  }, [cell, index, reduced, x]);
+
   return (
-    <View
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
-      accessibilityRole="radiogroup"
-      accessibilityLabel={label}
-      style={styles.slotGrid}
-    >
-      {slots.map((slot) => (
-        <Chip
-          key={slot.key}
-          label={format(slot.at)}
-          accessibilityRole="radio"
-          shape="rounded"
-          selected={slot.key === selectedKey}
-          onPress={() => onSelect(slot.key)}
-          style={[styles.slot, column !== undefined && { width: column }]}
-        />
-      ))}
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.dayStrip}
+      >
+        {cell > 0 && index >= 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.dayThumb, { width: cell, transform: [{ translateX: x }] }]}
+          />
+        ) : null}
+        {days.map((day) => {
+          const selected = day.dateKey === selectedKey;
+          return (
+            <Pressable
+              key={day.dateKey}
+              accessibilityRole="button"
+              accessibilityLabel={full.format(day.date)}
+              accessibilityState={{ selected }}
+              onPress={() => {
+                if (selected) return;
+                haptics.select();
+                onSelect(day.dateKey);
+              }}
+              style={({ pressed }) => [
+                styles.day,
+                { width: cell > 0 ? cell : DAY_FALLBACK },
+                !selected && styles.dayIdle,
+                pressed && !selected && styles.dayPressed,
+              ]}
+            >
+              <Text numberOfLines={1} style={[styles.dayLabel, selected && styles.dayLabelOn]}>
+                {label(day)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
 
-const DAY_WIDTH = 60;
+/** A day cell's width before the strip has been measured. */
+const DAY_FALLBACK = 84;
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
@@ -860,75 +969,106 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
+    gap: space.md,
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.md,
+    paddingBottom: space.sm,
   },
-  title: { ...typography.heading, color: colors.text, flexShrink: 1 },
+  title: { fontSize: 20, lineHeight: 26, fontWeight: fontWeight.bold, color: colors.text },
   titleBlock: { flexShrink: 1 },
-  branch: { ...typography.body, color: colors.textMuted },
+  subline: { ...typography.caption, color: colors.textMuted },
   content: {
     paddingHorizontal: layout.screenPadding,
-    paddingTop: space.sm,
+    paddingTop: space.xs,
     paddingBottom: space.xl,
+    gap: space.lg,
   },
-  skeleton: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm, gap: space.md },
-  section: { marginTop: space.xl, marginBottom: space.md },
+  skeleton: { paddingHorizontal: layout.screenPadding, paddingTop: space.sm, gap: space.lg },
 
-  dayStrip: { gap: space.sm },
+  // Room above and below for the thumb's glow, which the scroller would clip.
+  dayStrip: { gap: DAY_GAP, paddingVertical: space.xs },
+  dayThumb: {
+    position: 'absolute',
+    top: space.xs,
+    left: 0,
+    height: layout.touchTarget,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand,
+    borderWidth: 1,
+    borderColor: colors.brandEdge,
+    ...shadows.brand,
+  },
   day: {
-    width: DAY_WIDTH,
-    paddingVertical: space.sm + 2,
+    height: layout.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
-    borderRadius: radius.chip,
-    borderWidth: 1,
+    paddingHorizontal: space.xs,
+    borderRadius: radius.pill,
   },
-  dayIdle: { backgroundColor: colors.surface, borderColor: colors.border },
-  dayIdlePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
-  daySelected: { backgroundColor: colors.brand, borderColor: colors.brand },
-  daySelectedPressed: {
-    backgroundColor: colors.brandPressed,
-    borderColor: colors.brandPressed,
-  },
-  dayName: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.textMuted },
-  dayNumber: { ...typography.h3, ...tabularNumbers, color: colors.text },
-  onPrimary: { color: colors.onPrimary },
+  dayIdle: { backgroundColor: colors.surface },
+  dayPressed: { backgroundColor: colors.surfaceMuted },
+  dayLabel: { fontSize: 12.5, lineHeight: 16, color: colors.textMuted },
+  dayLabelOn: { fontWeight: fontWeight.bold, color: colors.onPrimary },
 
-  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  slot: { alignSelf: 'auto', paddingHorizontal: space.sm },
   empty: { ...typography.body, color: colors.textMuted },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  moreChips: { marginTop: space.sm },
+  partyCard: {
+    borderRadius: radius.card,
+    backgroundColor: colors.surface,
+    paddingLeft: space.md + 2,
+    paddingRight: space.xs + 2,
+    paddingVertical: space.xs + 2,
+    gap: space.sm,
+  },
+  partyRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  partyLabel: { flex: 1, fontSize: 13.5, lineHeight: 18, color: colors.text },
+  partyChoice: { width: PARTY_PILL_WIDTH },
+  moreChoice: { marginRight: space.sm, marginBottom: space.xs },
 
-  tableCard: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md },
+  pick: { fontSize: 16, lineHeight: 22, fontWeight: fontWeight.bold, color: colors.text },
+  pickHint: { ...typography.caption, color: colors.textMuted },
+  roomPhoto: { borderRadius: radius.card + 2 },
+  legend: { marginTop: space.md },
+  conflict: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm + 2,
+    paddingVertical: space.sm + 2,
+    paddingHorizontal: space.md,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.error,
+    backgroundColor: colors.errorSoft,
+  },
+  conflictText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: colors.errorInk },
+
+  tableCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderRadius: radius.card,
+    backgroundColor: colors.surface,
+  },
   tableIcon: {
     width: 36,
     height: 36,
-    borderRadius: radius.small,
+    borderRadius: radius.pill,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tableText: {
-    ...typography.body,
-    fontWeight: fontWeight.medium,
-    color: colors.text,
-    flexShrink: 1,
-  },
-  pickHint: { ...typography.caption, color: colors.textMuted, marginBottom: space.md },
-  legend: { marginTop: space.md },
-  warning: {
-    ...typography.body,
-    color: colors.warningInk,
-    marginTop: space.md,
-  },
+  tableBody: { flex: 1, gap: 2 },
+  tableCaption: { ...typography.caption, color: colors.textMuted },
+  tableLine: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  tableText: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text, flexShrink: 1 },
+  tableSeats: { ...typography.caption, color: colors.textMuted, flexShrink: 1 },
+  warning: { ...typography.body, color: colors.warningInk, marginTop: space.sm },
 
+  field: { gap: space.sm },
   input: {
     minHeight: layout.controlHeight,
-    paddingHorizontal: space.md,
+    paddingHorizontal: space.md + 2,
     paddingVertical: space.md,
     borderRadius: radius.card,
     borderWidth: 1,
@@ -938,17 +1078,9 @@ const styles = StyleSheet.create({
     ...typography.body,
   },
   requests: { minHeight: 96 },
-  hint: { ...typography.caption, color: colors.textMuted, marginTop: space.sm },
-  error: { ...typography.body, color: colors.errorInk, marginTop: space.lg },
+  hint: { ...typography.caption, color: colors.textMuted },
+  error: { ...typography.body, color: colors.errorInk },
   bookingsOff: { gap: space.xs, paddingVertical: space.xs },
   bookingsOffTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
   bookingsOffBody: { ...typography.body, color: colors.textMuted },
-
-  footer: {
-    paddingHorizontal: layout.screenPadding,
-    paddingTop: space.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
 });
