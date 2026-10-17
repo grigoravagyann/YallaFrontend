@@ -271,7 +271,7 @@ function Timeline({ order }: { readonly order: Order }) {
                 ]}
               >
                 {current ? null : (
-                  <Ionicons name="checkmark" size={iconSize.sm - 6} color={colors.onPrimary} />
+                  <Ionicons name="checkmark" size={iconSize.sm - 6} color={colors.primary} />
                 )}
               </View>
               {current ? null : <View style={styles.line} />}
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dotPast: { backgroundColor: colors.primary },
+  dotPast: { backgroundColor: colors.brand, borderWidth: 1, borderColor: colors.primary },
   line: { flex: 1, width: 2, minHeight: space.lg, backgroundColor: colors.border },
   stepBody: { flex: 1, paddingBottom: space.lg, paddingTop: 1 },
   stepLabel: { ...typography.body, fontWeight: fontWeight.medium, color: colors.textMuted },

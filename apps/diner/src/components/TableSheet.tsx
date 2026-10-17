@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.overlayDark },
   sheet: {
     maxHeight: '70%',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     ...shadows.float,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,

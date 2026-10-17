@@ -14,6 +14,7 @@ import { Chip } from './Chip';
 import { Text } from './Text';
 import { useCallWaiter } from '../data/queries';
 import { newCommandId } from '../lib/commandId';
+import { haptics } from '../lib/haptics';
 
 export interface CallWaiterSheetProps {
   readonly tabId: string;
@@ -100,6 +101,7 @@ export function CallWaiterSheet({
       setNotice(null);
       try {
         await call.mutateAsync({ tabId, reason, commandId: newCommandId() });
+        haptics.tap();
         setSent(reason);
       } catch (caught) {
         // The one branch that must never be silent.
@@ -211,7 +213,7 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     gap: space.sm,
     ...shadows.float,
   },

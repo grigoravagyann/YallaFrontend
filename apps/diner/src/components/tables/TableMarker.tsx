@@ -1,7 +1,8 @@
 import { unavailableCopy, type TableUnavailableReason } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useState } from 'react';
-import { Animated, Pressable, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import type { TablePhotoMarker } from '../../places/model';
 import { isPartyFitReason } from '../../places/rooms';
 import {
@@ -188,13 +189,40 @@ export function TableMarker({ table, selected, onPress, partySize }: TableMarker
           pressed && styles.markerPressed,
         ]}
       >
-        <Text numberOfLines={1} style={styles.label}>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.label,
+            { color: unfit || !STATE_MARK_ON_FILL[table.status] ? colors.onImage : colors.onFill },
+          ]}
+        >
           {table.label}
         </Text>
+        {/* Colour is never the only cue: a taken table also carries a mark —
+            a cross when someone is sitting there, a clock when it is booked. */}
+        {STATE_GLYPH[table.status] ? (
+          <View pointerEvents="none" style={styles.stateMark}>
+            <Ionicons name={STATE_GLYPH[table.status]!} size={9} color={colors.onImage} />
+          </View>
+        ) : null}
       </Pressable>
     </Animated.View>
   );
 }
+
+/** The small mark a taken table carries on its corner. */
+const STATE_GLYPH: Partial<Record<TablePhotoMarker['status'], 'close' | 'time-outline'>> = {
+  occupied: 'close',
+  reserved: 'time-outline',
+};
+
+/** States whose fill is bright enough to carry the dark number (the grey one is not). */
+const STATE_MARK_ON_FILL: Record<TablePhotoMarker['status'], boolean> = {
+  free: true,
+  reserved: true,
+  occupied: true,
+  outOfService: false,
+};
 
 const styles = StyleSheet.create({
   anchor: {
@@ -232,7 +260,19 @@ const styles = StyleSheet.create({
     ...typography.caption,
     lineHeight: 14,
     fontWeight: fontWeight.bold,
-    color: colors.onImage,
     ...tabularNumbers,
+  },
+  stateMark: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 15,
+    height: 15,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceDark,
+    borderWidth: 1,
+    borderColor: colors.onImage,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -12,7 +12,7 @@ import { useDinerTab } from '../../../src/data/orderQueries';
 import { useTabInvite } from '../../../src/data/queries';
 import { useNow } from '../../../src/hooks/useNow';
 import { inviteFailure } from '../../../src/tab/invite';
-import { colors, fontWeight, space, typography } from '../../../src/theme';
+import { colors, fontWeight, radius, space, typography } from '../../../src/theme';
 
 /** The QR is read across a table, in a dim room, off a phone held at an angle. */
 const QR_SIZE = 220;
@@ -115,8 +115,8 @@ export default function InviteScreen() {
                 <QRCode
                   value={invite.url}
                   size={QR_SIZE}
-                  backgroundColor={colors.surface}
-                  color={colors.text}
+                  backgroundColor={colors.qrBackground}
+                  color={colors.qrForeground}
                 />
               </View>
               <Text style={styles.url} numberOfLines={2}>
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   title: { ...typography.title, color: colors.text },
   lead: { ...typography.bodyLg, color: colors.textMuted },
   qrCard: { marginTop: space.lg, alignItems: 'center', gap: space.md },
-  qrFrame: { padding: space.md, backgroundColor: colors.surface },
+  qrFrame: { padding: space.md, borderRadius: radius.card, backgroundColor: colors.qrBackground },
   url: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
   expiry: { marginTop: space.sm, ...typography.body, color: colors.textMuted },
   expired: {

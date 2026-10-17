@@ -317,11 +317,11 @@ function PersonPermissions({
             value={draft[key]}
             disabled={busy}
             onValueChange={(value) => toggle(key, value)}
-            // On is the brown thumb on a firmer track; off is a white thumb
-            // on the muted one. Position and colour both say which.
-            trackColor={{ true: colors.borderStrong, false: colors.surfaceMuted }}
+            // On is the amber thumb on the brand track; off is a muted thumb
+            // on the dim one. Position and colour both say which.
+            trackColor={{ true: colors.brand, false: colors.surfaceMuted }}
             ios_backgroundColor={colors.surfaceMuted}
-            thumbColor={draft[key] ? colors.primary : colors.surface}
+            thumbColor={draft[key] ? colors.primary : colors.textSubtle}
             accessibilityLabel={t(`people.${key}`)}
           />
         </View>

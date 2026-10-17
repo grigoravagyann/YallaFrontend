@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     width: BADGE,
     height: BADGE,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.brand,
     borderWidth: 2,
     borderColor: colors.surface,
     alignItems: 'center',
@@ -640,7 +640,7 @@ const styles = StyleSheet.create({
     padding: space.lg,
     gap: space.sm,
     borderRadius: radius.card,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     ...shadows.float,
   },
 });

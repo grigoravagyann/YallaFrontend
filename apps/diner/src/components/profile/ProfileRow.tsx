@@ -125,9 +125,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xs + 2,
     borderRadius: radius.pill,
     // The ink as a fill: white on the bright red is 4.3:1, on this 6.5.
-    backgroundColor: colors.errorInk,
+    backgroundColor: colors.errorStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countText: { ...typography.caption, fontWeight: fontWeight.bold, color: colors.onPrimary },
+  countText: { ...typography.caption, fontWeight: fontWeight.bold, color: colors.onErrorStrong },
 });

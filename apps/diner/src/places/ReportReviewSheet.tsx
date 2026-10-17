@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     ...shadows.float,
   },
   grabber: {

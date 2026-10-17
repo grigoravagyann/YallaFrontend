@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import {
   Animated,
@@ -8,17 +8,9 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import {
-  colors,
-  fabSize,
-  iconSize,
-  navIcons,
-  radius,
-  shadows,
-  space,
-  typography,
-} from '../../theme';
+import { colors, fabSize, iconSize, radius, shadows, space, typography } from '../../theme';
 import { Text } from '../Text';
+import { NavGlyph } from './NavGlyph';
 
 export interface ScanFabProps {
   readonly onPress: () => void;
@@ -33,8 +25,8 @@ export interface ScanFabProps {
 }
 
 /**
- * The Scan button: a brown circle rising out of the tab bar with a white QR
- * glyph. Larger than the other four on purpose — it is the one thing a diner
+ * The Scan button: a glowing espresso circle rising out of the tab bar with
+ * a cream QR glyph. Larger than the other four on purpose — it is the one thing a diner
  * who has just sat down needs, held in one hand, from any screen.
  *
  * Pressing it squeezes the circle with a spring, so the tap reads before the
@@ -73,11 +65,16 @@ export function ScanFab({
       style={[styles.slot, style]}
     >
       <Animated.View style={[styles.circle, { transform: [{ scale }] }]}>
-        <Ionicons
-          name={active ? navIcons.scan.filled : navIcons.scan.outline}
-          size={iconSize.fab}
-          color={colors.onPrimary}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[colors.fabTop, colors.fabBottom]}
+          style={styles.fill}
         />
+        {/* In a View of its own: a positioned sibling, so it paints above the
+            gradient on web as well as native. */}
+        <View>
+          <NavGlyph routeName="scan" size={iconSize.fab} color={colors.onPrimary} />
+        </View>
       </Animated.View>
       <View style={styles.labelWrap}>
         <Text
@@ -97,11 +94,14 @@ const styles = StyleSheet.create({
     width: fabSize,
     height: fabSize,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.brand,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.fab,
   },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: radius.pill },
   labelWrap: { marginTop: space.xs + 2 },
   label: { color: colors.textMuted },
   labelActive: { color: colors.primary },

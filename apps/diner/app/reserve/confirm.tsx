@@ -21,6 +21,7 @@ import { branchZoneSource } from '../../src/lib/browse';
 import { newCommandId } from '../../src/lib/commandId';
 import { GUEST_NAME_MAX_LENGTH, canSubmit, confirmState } from '../../src/lib/confirm';
 import { bookingRefusal } from '../../src/data/bookingRefusals';
+import { haptics } from '../../src/lib/haptics';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
 import { actionIcon, colors, fontWeight, layout, radius, space, typography } from '../../src/theme';
@@ -153,6 +154,7 @@ export default function ConfirmScreen() {
         note: requests?.trim() || null,
       });
 
+      haptics.success();
       router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
     } catch (error) {
       // Not taking app bookings, or a note over the limit: said in their own words.

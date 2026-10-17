@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   sm: { minHeight: chipHeight.sm, paddingHorizontal: space.md },
   idle: { backgroundColor: colors.surface, borderColor: colors.border },
   idlePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
-  selected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  selectedPressed: { backgroundColor: colors.primaryPressed, borderColor: colors.primaryPressed },
+  selected: { backgroundColor: colors.brand, borderColor: colors.brand },
+  selectedPressed: { backgroundColor: colors.brandPressed, borderColor: colors.brandPressed },
   disabled: { opacity: 0.45 },
 });

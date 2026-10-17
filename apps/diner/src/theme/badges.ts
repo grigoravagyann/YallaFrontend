@@ -23,7 +23,7 @@ export interface BadgeSpec {
   readonly solid: string;
   /** The label and dot on `solid`. */
   readonly onSolid: string;
-  /** The tinted fill when soft — on white cards. */
+  /** The tinted fill when soft — on cards. */
   readonly soft: string;
   /** The label and dot on `soft`: the hue's ink, never its bright fill. */
   readonly ink: string;
@@ -32,30 +32,29 @@ export interface BadgeSpec {
 }
 
 const success = {
-  solid: colors.successInk,
-  onSolid: colors.onImage,
+  solid: colors.successStrong,
+  onSolid: colors.onSuccessStrong,
   soft: colors.successSoft,
   ink: colors.successInk,
 } as const;
 
-/** Orange is light: the solid pill carries dark text, the soft one the ink. */
 const warning = {
-  solid: colors.warning,
-  onSolid: colors.text,
+  solid: colors.warningStrong,
+  onSolid: colors.onWarningStrong,
   soft: colors.warningSoft,
   ink: colors.warningInk,
 } as const;
 
 const error = {
-  solid: colors.errorInk,
-  onSolid: colors.onImage,
+  solid: colors.errorStrong,
+  onSolid: colors.onErrorStrong,
   soft: colors.errorSoft,
   ink: colors.errorInk,
 } as const;
 
 const neutral = {
-  solid: colors.neutralBadge,
-  onSolid: colors.onImage,
+  solid: colors.neutralStrong,
+  onSolid: colors.onNeutralStrong,
   soft: colors.neutralSoft,
   ink: colors.neutralBadge,
 } as const;
@@ -65,7 +64,7 @@ const neutral = {
  *
  * Open / Free / Confirmed / Ready are green; Reserved / Preparing / In progress
  * are orange; Occupied / Cancelled are red; Closed / Completed / Out of service are grey;
- * Popular is the brown and New the blue. Availability (Open / Closed) and
+ * Popular is the brand brown and New the blue. Availability (Open / Closed) and
  * content (Popular / New) are separate variants so a card can carry both.
  *
  * Pure data, apart from the component, so `contrast.test.ts` can hold every
@@ -75,15 +74,15 @@ export const badgeVariants: Record<BadgeVariant, BadgeSpec> = {
   open: { ...success, labelKey: 'place.status.open' },
   closed: { ...neutral, labelKey: 'place.status.closed' },
   popular: {
-    solid: colors.primary,
+    solid: colors.brand,
     onSolid: colors.onPrimary,
     soft: colors.primarySoft,
     ink: colors.primary,
     labelKey: 'place.badge.popular',
   },
   new: {
-    solid: colors.infoInk,
-    onSolid: colors.onImage,
+    solid: colors.infoStrong,
+    onSolid: colors.onInfoStrong,
     soft: colors.infoSoft,
     ink: colors.infoInk,
     labelKey: 'place.badge.new',

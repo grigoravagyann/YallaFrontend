@@ -27,7 +27,7 @@ export interface SegmentedControlProps<T extends string> {
 const THUMB_MS = 180;
 
 /**
- * A pill with a brown thumb that slides under the chosen segment.
+ * A pill with a brand-brown thumb that slides under the chosen segment.
  */
 export function SegmentedControl<T extends string>({
   options,
@@ -118,10 +118,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.brand,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    ...shadows.card,
+    borderColor: colors.brandEdge,
+    ...shadows.brand,
   },
   segment: {
     flex: 1,
@@ -134,5 +134,5 @@ const styles = StyleSheet.create({
   segmentPressed: { backgroundColor: colors.primarySoft },
   label: { fontWeight: fontWeight.medium },
   labelIdle: { color: colors.textMuted },
-  labelSelected: { color: colors.primary, fontWeight: fontWeight.bold },
+  labelSelected: { color: colors.onPrimary, fontWeight: fontWeight.bold },
 });

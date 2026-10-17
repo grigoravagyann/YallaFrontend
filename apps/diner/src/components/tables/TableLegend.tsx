@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '@yalla/i18n';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { TableStatus } from '../../places/model';
@@ -7,7 +8,7 @@ import { Text } from '../Text';
 const STATUSES: readonly TableStatus[] = ['free', 'reserved', 'occupied', 'outOfService'];
 
 export interface TableLegendProps {
-  /** `light` text on white; `dark` white text for the fullscreen view. */
+  /** `light` muted text on the ground; `dark` white text for the fullscreen photo view. */
   readonly tone?: 'light' | 'dark';
   /**
    * Booking for a party: also explain the hollow, dashed pin of a free table
@@ -31,7 +32,20 @@ export function TableLegend({ tone = 'light', partyFit = false, style }: TableLe
     >
       {STATUSES.map((status) => (
         <View key={status} style={styles.item}>
-          <View style={[styles.dot, { backgroundColor: tableStatusColor[status] }]} />
+          <View
+            style={[
+              styles.dot,
+              MARK[status] && styles.dotMarked,
+              { backgroundColor: tableStatusColor[status] },
+            ]}
+          >
+            {/* The same corner mark the pin carries, in small. */}
+            {MARK[status] ? (
+              <View style={styles.mark}>
+                <Ionicons name={MARK[status]!} size={6} color={colors.onImage} />
+              </View>
+            ) : null}
+          </View>
           <Text style={[styles.label, { color }]}>{t(`tables.legend.${status}`)}</Text>
         </View>
       ))}
@@ -47,10 +61,30 @@ export function TableLegend({ tone = 'light', partyFit = false, style }: TableLe
 
 const DOT = 10;
 
+const MARK: Partial<Record<TableStatus, 'close' | 'time-outline'>> = {
+  occupied: 'close',
+  reserved: 'time-outline',
+};
+
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.lg },
   item: { flexDirection: 'row', alignItems: 'center', gap: space.xs + 2 },
   dot: { width: DOT, height: DOT, borderRadius: radius.pill },
+  /** Room for the corner mark, so it never touches the word. */
+  dotMarked: { marginRight: space.xs },
+  mark: {
+    position: 'absolute',
+    top: -5,
+    right: -6,
+    width: 10,
+    height: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceDark,
+    borderWidth: 1,
+    borderColor: colors.onImage,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // The unfit pin in small: the free colour as a dashed ring, never a fill.
   hollow: { borderWidth: 1.5, borderStyle: 'dashed' },
   label: { ...typography.caption },
