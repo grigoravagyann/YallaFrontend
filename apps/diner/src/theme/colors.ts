@@ -34,6 +34,10 @@ export const colors = {
   sheet: '#24110A',
   /** The floating tab bar. */
   navBar: '#2D1307',
+  /** The halo behind an empty state's glyph: bright at the top, fading into the ground. */
+  glowPeak: 'rgba(240,150,70,0.30)',
+  glowMid: 'rgba(90,44,20,0.35)',
+  glowClear: 'rgba(40,20,10,0)',
   /** Dark translucent scrim over photos (gradient end, table info bar, sheet backdrop). */
   overlayDark: 'rgba(10,4,2,0.70)',
   /** Same hue as `overlayDark` at zero alpha, so a gradient from it never greys. */

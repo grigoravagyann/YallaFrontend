@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { colors, radius, shadows, space } from '../theme';
+import { usePressScale } from './motion/usePressScale';
 
 export interface CardProps {
   readonly children: ReactNode;
@@ -31,14 +39,44 @@ export function Card({
     return <View style={[base, style]}>{children}</View>;
   }
   return (
-    <Pressable
-      accessibilityRole="button"
-      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+    <PressableCard
+      base={base}
       onPress={onPress}
-      style={({ pressed }) => [base, pressed && styles.pressed, style]}
+      accessibilityLabel={accessibilityLabel}
+      style={style}
     >
       {children}
-    </Pressable>
+    </PressableCard>
+  );
+}
+
+function PressableCard({
+  base,
+  onPress,
+  accessibilityLabel,
+  style,
+  children,
+}: {
+  readonly base: StyleProp<ViewStyle>;
+  readonly onPress: () => void;
+  readonly accessibilityLabel?: string | undefined;
+  readonly style?: StyleProp<ViewStyle>;
+  readonly children: ReactNode;
+}) {
+  const press = usePressScale();
+  return (
+    <Animated.View style={[press.style, style]}>
+      <Pressable
+        accessibilityRole="button"
+        {...(accessibilityLabel ? { accessibilityLabel } : {})}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={({ pressed }) => [base, pressed && styles.pressed]}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
   );
 }
 

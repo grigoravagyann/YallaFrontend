@@ -1,5 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { usePressScale } from './motion/usePressScale';
 import {
   colors,
   fontWeight,
@@ -69,36 +77,39 @@ export function Button({
     : quiet
       ? typography.buttonMedium
       : typography.button;
+  const press = usePressScale();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled, busy }}
-      // Named by its label outright: a text-only button had no name in the
-      // web build's accessibility tree ("Pick a time", QA 20261016T2 B5).
-      accessibilityLabel={accessibilityLabel ?? label}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={small ? (layout.touchTarget - SMALL_HEIGHT) / 2 : undefined}
-      style={({ pressed }) => [
-        styles.base,
-        styles[variant],
-        size === 'large' && styles.large,
-        small && styles.small,
-        fullWidth ? styles.fullWidth : styles.hug,
-        pressed && pressedStyles[variant],
-        disabled && styles.disabled,
-        style,
-      ]}
-    >
-      <View style={styles.content}>
-        {icon ? (
-          <Ionicons name={icon} size={small ? iconSize.sm : iconSize.md} color={color} />
-        ) : null}
-        <Text numberOfLines={1} style={[labelStyle, { color }]}>
-          {label}
-        </Text>
-      </View>
-    </Pressable>
+    <Animated.View style={[fullWidth ? styles.fullWidth : styles.hug, press.style, style]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled, busy }}
+        // Named by its label outright: a text-only button had no name in the
+        // web build's accessibility tree ("Pick a time", QA 20261016T2 B5).
+        accessibilityLabel={accessibilityLabel ?? label}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        hitSlop={small ? (layout.touchTarget - SMALL_HEIGHT) / 2 : undefined}
+        style={({ pressed }) => [
+          styles.base,
+          styles[variant],
+          size === 'large' && styles.large,
+          small && styles.small,
+          pressed && pressedStyles[variant],
+          disabled && styles.disabled,
+        ]}
+      >
+        <View style={styles.content}>
+          {icon ? (
+            <Ionicons name={icon} size={small ? iconSize.sm : iconSize.md} color={color} />
+          ) : null}
+          <Text numberOfLines={1} style={[labelStyle, { color }]}>
+            {label}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
