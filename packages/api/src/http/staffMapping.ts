@@ -510,7 +510,8 @@ export function placeOrderResult(view: OrderView): PlaceOrderResult {
     placedAtUtc: view.placedAtUtc,
     estimatedReadyAtUtc: view.estimatedReadyAtUtc ?? null,
     wasReplay: view.wasReplay,
-    totals: totals(view.totals),
+    // Absent for a diner the table total is hidden from; staff always get it.
+    totals: view.totals ? totals(view.totals) : null,
   };
 }
 

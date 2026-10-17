@@ -54,8 +54,11 @@ function dinerLine(line: TabLine): DinerTabLine {
     quantity: line.quantity,
     unitPriceDram: line.unitPriceDram,
     lineTotalDram: line.lineTotalDram,
-    isShared: line.isShared || line.isTableAttributed,
+    isShared: line.isShared,
     participantId: line.participantId,
+    // The mock files a waiter's order for one guest under that guest already.
+    onBehalfOfParticipantId: null,
+    isTableAttributed: line.isTableAttributed,
     orderedByName: line.orderedByName,
     note: line.note,
     orderStatus: line.orderStatus,
