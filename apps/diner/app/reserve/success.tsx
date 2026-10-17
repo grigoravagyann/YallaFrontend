@@ -111,7 +111,7 @@ export default function SuccessScreen() {
             <Ionicons
               name={pending ? actionIcon.time : 'checkmark'}
               size={iconSize.xl}
-              color={colors.onPrimary}
+              color={pending ? colors.onInfoStrong : colors.onSuccessStrong}
             />
           </View>
           <Text display style={styles.title} accessibilityRole="header">
@@ -213,12 +213,12 @@ const styles = StyleSheet.create({
     width: MARK,
     height: MARK,
     borderRadius: radius.pill,
-    backgroundColor: colors.success,
+    backgroundColor: colors.successStrong,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: space.xs,
   },
-  markPending: { backgroundColor: colors.info },
+  markPending: { backgroundColor: colors.infoStrong },
   title: { ...typography.title, color: colors.text, textAlign: 'center' },
   pendingBody: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   codeCard: {

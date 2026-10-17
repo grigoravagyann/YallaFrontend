@@ -138,6 +138,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkSelected: { backgroundColor: colors.brand, borderColor: colors.primary },
+  checkSelected: { backgroundColor: colors.brand, borderColor: colors.brandEdge },
   hint: { ...typography.caption, color: colors.textMuted, marginTop: space.xs },
 });

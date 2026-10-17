@@ -1,5 +1,5 @@
 import type { BottomTabBarProps, BottomTabNavigationOptions } from 'expo-router/js-tabs';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
@@ -52,6 +52,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
 
   const [slide] = useState(() => new Animated.Value(Math.max(0, focusedSlot)));
   const [shown] = useState(() => new Animated.Value(highlightOn ? 1 : 0));
+  // One node per width, not one per render: a new node mid-spring is re-attached.
+  const slideX = useMemo(() => Animated.multiply(slide, slotWidth), [slide, slotWidth]);
   useEffect(() => {
     if (highlightOn) {
       if (reducedMotion) slide.setValue(focusedSlot);
@@ -103,7 +105,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
                 {
                   width: slotWidth - 2 * HIGHLIGHT_INSET,
                   opacity: shown,
-                  transform: [{ translateX: Animated.multiply(slide, slotWidth) }],
+                  transform: [{ translateX: slideX }],
                 },
               ]}
             />

@@ -19,7 +19,7 @@ import { Badge } from '../../src/components/Badge';
 import { Button } from '../../src/components/Button';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
-import { HeartPop } from '../../src/components/HeartPop';
+import { HeartPop, useSavePop } from '../../src/components/HeartPop';
 import { IconButton } from '../../src/components/IconButton';
 import { PhotoImage } from '../../src/components/PhotoImage';
 import { Screen } from '../../src/components/Screen';
@@ -171,6 +171,7 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
   const copy = usePlaceCopy(place);
 
   const favorite = useIsFavorite(place.id);
+  const { popKey, onSavePress } = useSavePop();
   const toggleFavorite = useFavorites((state) => state.toggle);
 
   const [tab, setTab] = useState<PlaceTab>('about');
@@ -301,14 +302,17 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
               onPress={onBack}
             />
             <View style={styles.heroRight}>
-              <HeartPop active={favorite}>
+              <HeartPop popKey={popKey}>
                 <IconButton
                   icon={favorite ? actionIcon.favorited : actionIcon.favorite}
                   accessibilityLabel={favorite ? t('place.unfavorite') : t('place.favorite')}
                   variant="translucent"
                   // White on the glass either way: the filled heart says saved,
                   // and red on the glass fails 3:1 over a light photo.
-                  onPress={() => toggleFavorite(place.id)}
+                  onPress={() => {
+                    onSavePress(!favorite);
+                    toggleFavorite(place.id);
+                  }}
                 />
               </HeartPop>
               <IconButton

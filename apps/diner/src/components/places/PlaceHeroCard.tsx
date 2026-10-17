@@ -6,7 +6,7 @@ import { useFavorites, useIsFavorite } from '../../stores/favorites';
 import { actionIcon, colors, fontWeight, layout, radius, space } from '../../theme';
 import { Badge } from '../Badge';
 import { Card } from '../Card';
-import { HeartPop } from '../HeartPop';
+import { HeartPop, useSavePop } from '../HeartPop';
 import { IconButton } from '../IconButton';
 import { PhotoImage } from '../PhotoImage';
 import { Text } from '../Text';
@@ -47,6 +47,7 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
   const copy = usePlaceCopy(place);
   const favorited = useIsFavorite(place.id);
   const toggleFavorite = useFavorites((state) => state.toggle);
+  const { popKey, onSavePress } = useSavePop();
   const contentBadge = place.badges[0];
   const status = place.openState.isOpen ? 'open' : 'closed';
   const photo = place.photos[0];
@@ -97,7 +98,7 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
         style={({ pressed }) => [styles.tap, pressed && styles.tapPressed]}
       />
 
-      <HeartPop active={favorited} style={styles.heart}>
+      <HeartPop popKey={popKey} style={styles.heart}>
         <IconButton
           icon={favorited ? actionIcon.favorited : actionIcon.favorite}
           size="sm"
@@ -107,7 +108,10 @@ export const PlaceHeroCard = memo(function PlaceHeroCard({
           // red on the glass is about 1.3:1 over a light photo.
           variant="translucent"
           accessibilityLabel={t(favorited ? 'place.unfavorite' : 'place.favorite')}
-          onPress={() => toggleFavorite(place.id)}
+          onPress={() => {
+            onSavePress(!favorited);
+            toggleFavorite(place.id);
+          }}
           iconColor={colors.onImage}
         />
       </HeartPop>
