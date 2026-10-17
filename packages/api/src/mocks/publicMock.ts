@@ -179,8 +179,12 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       addressLine: fixture?.addressLine ?? '',
       timeZoneId: booking.timeZoneId,
       tableLabel: booking.tableLabel,
+      // The booking's own room, as `PublicBookingView.roomName` carries it; the
+      // floor's for a booking made before bookings knew their room.
       floorAreaName:
-        floor?.tables.find((table) => table.id === booking.tableId)?.floorAreaName ?? null,
+        booking.roomName ??
+        floor?.tables.find((table) => table.id === booking.tableId)?.floorAreaName ??
+        null,
       partySize: booking.partySize,
       slotUtc: booking.slotUtc,
       endsAtUtc: booking.endUtc,

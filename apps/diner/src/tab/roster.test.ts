@@ -18,6 +18,7 @@ function entry(participantId: string, overrides: Partial<TabRosterEntry> = {}): 
     displayName: participantId,
     role: 'guest',
     status: 'approved',
+    photo: null,
     ...overrides,
   };
 }
@@ -38,6 +39,7 @@ function view(
       canPay: true,
       canSeeTableTotal: true,
       joinedAtUtc: '2026-09-11T09:00:00Z',
+      photo: null,
     },
   };
 }

@@ -12,6 +12,7 @@
  * guesses may depend on knowns, not the other way round.
  */
 
+import type { Photo } from './menuAdmin';
 import type { DerivedTableState, FloorPlanData } from './tableFloor';
 
 // ---------------------------------------------------------------------------
@@ -243,6 +244,11 @@ export interface TabStaffParticipant {
   readonly canOrderNow: boolean;
   /** Whether they may see the table aggregate and other people's items. */
   readonly canSeeTableTotal: boolean;
+  /**
+   * Their profile photo, links absolute — only when they scanned in signed in
+   * to an account that has one. The waiter's "who is who" at a table of six.
+   */
+  readonly photo: Photo | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -50,6 +50,7 @@ export function describeConsoleListingContract(subject: ContractSubject): void {
         amenities: listing.amenities,
         galleryPhotoIds: null,
         address: listing.address,
+        district: listing.district,
         latitude: listing.latitude,
         longitude: listing.longitude,
         ...changes,

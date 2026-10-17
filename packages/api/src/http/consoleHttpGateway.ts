@@ -97,6 +97,7 @@ import {
   spiceCode,
   weeklyHours,
 } from './venueSettingsMapping';
+import { venueTypeCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
 type WireDetail = Schemas['Yalla.Application.Platform.VenueDetail'];
@@ -116,8 +117,18 @@ function publicProfile(view: WirePublicProfile, baseUrl: string): BranchPublicPr
     coverPhoto: view.coverPhoto ? absolutePhoto(baseUrl, photo(view.coverPhoto)) : null,
   };
 }
-type WireListing = Schemas['Yalla.Application.BranchSettings.BranchListingView'];
-type WireListingCommand = Schemas['Yalla.Application.BranchSettings.BranchListingCommand'];
+/*
+ * `district` on both is the backend branch's for the diner design gaps and not
+ * yet in `generated/schema.ts`. The intersections become no-ops once it is
+ * regenerated; until then the command is built by name, so check-gateway-schema
+ * does not read a key the stale schema has never heard of.
+ */
+type WireListing = Schemas['Yalla.Application.BranchSettings.BranchListingView'] & {
+  district?: string | null;
+};
+type WireListingCommand = Schemas['Yalla.Application.BranchSettings.BranchListingCommand'] & {
+  district?: string | null;
+};
 
 /** The listing with absent fields made explicit and gallery links made absolute. */
 function branchListing(view: WireListing, baseUrl: string): VenueListing {
@@ -128,6 +139,7 @@ function branchListing(view: WireListing, baseUrl: string): VenueListing {
     websiteUrl: view.websiteUrl ?? null,
     amenities: view.amenities ?? [],
     address: view.address,
+    district: view.district?.trim() || null,
     latitude: view.latitude,
     longitude: view.longitude,
     gallery: (view.gallery ?? []).map((item) => absolutePhoto(baseUrl, photo(item))),
@@ -448,7 +460,7 @@ export function createConsoleHttpGateway(
         const { data } = await client.post<WireDetail>(`${PLATFORM}/venues`, {
           name: command.name,
           slug: command.slug,
-          type: command.type === 'restaurant' ? 2 : 1,
+          type: venueTypeCode(command.type),
           firstBranch: {
             name: command.firstBranch.name,
             slug: command.firstBranch.slug,
@@ -472,7 +484,7 @@ export function createConsoleHttpGateway(
         const { data } = await client.patch<WireDetail>(`${PLATFORM}/venues/${command.venueId}`, {
           name: command.name,
           slug: command.slug,
-          type: command.type === 'restaurant' ? 2 : 1,
+          type: venueTypeCode(command.type),
         });
         return venueDetailFromWire(data);
       } catch (error) {
@@ -913,6 +925,9 @@ export function createConsoleHttpGateway(
         amenities: [...listing.amenities],
         galleryPhotoIds: listing.galleryPhotoIds === null ? null : [...listing.galleryPhotoIds],
         address: blankToNull(listing.address),
+        // Always sent: every field here is replaced, and an absent district
+        // would clear the one the venue set.
+        district: blankToNull(listing.district),
         latitude: listing.latitude,
         longitude: listing.longitude,
       };

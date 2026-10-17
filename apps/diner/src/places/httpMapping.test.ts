@@ -22,6 +22,7 @@ const LISTING: BranchListing = {
   cuisine: null,
   priceLevel: null,
   address: '12 Abovyan Street',
+  district: null,
   latitude: null,
   longitude: null,
   distanceKm: null,

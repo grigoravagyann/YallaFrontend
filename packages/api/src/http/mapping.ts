@@ -7,6 +7,8 @@ import {
 } from '../contracts/tableFloor';
 import type {
   AvailabilityWindowDto,
+  DaySlot,
+  DaySlots,
   SlotFloor,
   TableAvailability,
   TableUnavailableReason,
@@ -277,6 +279,77 @@ export function slotFloorFromResponse(response: Availability): SlotFloor {
     rejection,
     slotUtc: response.requestedStartUtc,
     partySize: response.partySize,
+  };
+}
+
+// --- A day of slots ------------------------------------------------------------
+
+/**
+ * `BranchDaySlots`, from `GET /api/branches/{id}/availability/slots`.
+ *
+ * Written by hand against the wire contract the backend is building for the
+ * diner design gaps: the route is not in `generated/schema.ts` yet. When it is,
+ * these two become aliases of the generated schemas and the mapper below stays.
+ */
+export interface WireDaySlots {
+  branchId: string;
+  /** `YYYY-MM-DD`. */
+  date: string;
+  partySize: number;
+  stepMinutes?: number;
+  /** `ReservationRejectionReason` for the whole day, or absent. */
+  unavailableReason?: number | null;
+  slots?: WireDaySlot[] | null;
+}
+
+export interface WireDaySlot {
+  /** `HH:mm`. */
+  time: string;
+  startUtc: string;
+  isAvailable: boolean;
+  requiresApproval?: boolean;
+  freeTableCount?: number;
+  unavailableReason?: number | null;
+}
+
+/** The server's slot spacing when an answer omits it — the one it uses today. */
+const DEFAULT_STEP_MINUTES = 30;
+
+/**
+ * One day of slots, in the screen's vocabulary.
+ *
+ * A day-level refusal outranks every slot, as `rejection` does on
+ * {@link SlotFloor}: a slot is available only when the server said so **and**
+ * the day was not refused. Reasons go through the same {@link unavailableReason}
+ * as a table's, read as of a free table, so `TableAlreadyBooked` arrives as
+ * `alreadyBooked` — the slot collides with bookings, nobody is sitting there.
+ */
+export function daySlotsFromWire(wire: WireDaySlots): DaySlots {
+  const dayReason = unavailableReason(wire.unavailableReason ?? null, 'free');
+
+  return {
+    branchId: wire.branchId,
+    date: wire.date,
+    partySize: wire.partySize,
+    stepMinutes: wire.stepMinutes ?? DEFAULT_STEP_MINUTES,
+    unavailableReason: dayReason,
+    slots: [...(wire.slots ?? [])]
+      .sort((a, b) => Date.parse(a.startUtc) - Date.parse(b.startUtc))
+      .map((slot): DaySlot => {
+        const available = slot.isAvailable && dayReason === null;
+        return {
+          // Seconds are noise on a time chip, and a server that sends them must
+          // not make "19:30:00" and "19:30" two different slots.
+          time: slot.time.slice(0, 5),
+          slotUtc: slot.startUtc,
+          isAvailable: available,
+          requiresApproval: Boolean(slot.requiresApproval),
+          freeTableCount: available ? (slot.freeTableCount ?? 0) : 0,
+          unavailableReason: available
+            ? null
+            : (unavailableReason(slot.unavailableReason ?? null, 'free') ?? dayReason),
+        };
+      }),
   };
 }
 

@@ -10,7 +10,9 @@
 import type { DerivedTableState, FloorPlanData } from '../contracts/tableFloor';
 import { restaurantRoomFloor, roomFloor, type MockRoom, type MockTableSeed } from './roomFloors';
 
-export type VenueType = 'cafe' | 'restaurant';
+import type { VenueType } from '../contracts/booking';
+
+export type { VenueType };
 
 export interface Branch {
   readonly id: string;
@@ -200,6 +202,30 @@ export const mockVenues: readonly Venue[] = [
       branch('v-greenbean', 'b-greenbean-main', 'Mashtots Avenue', 1.7, 20, 15, CLOSES_22, [
         'Windows',
         'Hall',
+      ]),
+    ],
+  },
+
+  // Two bars, so the Bars filter has something to find and something to
+  // choose between: one late and busy, one quieter across town.
+  {
+    id: 'v-copperfox',
+    name: 'Copper Fox',
+    type: 'bar',
+    branches: [
+      branch('v-copperfox', 'b-copperfox-saryan', 'Saryan Street', 0.8, 14, 6, CLOSES_01, [
+        'Bar',
+        'Lounge',
+      ]),
+    ],
+  },
+  {
+    id: 'v-vinoteka',
+    name: 'Vinoteka',
+    type: 'bar',
+    branches: [
+      branch('v-vinoteka', 'b-vinoteka-komitas', 'Komitas Avenue', 2.4, 10, 7, CLOSES_01, [
+        'Cellar',
       ]),
     ],
   },

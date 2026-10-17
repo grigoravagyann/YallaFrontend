@@ -22,6 +22,7 @@ const host: DinerTabView['me'] = {
   canPay: true,
   canSeeTableTotal: true,
   joinedAtUtc: '2026-09-11T09:00:00Z',
+  photo: null,
 };
 
 describe('who is offered Invite', () => {

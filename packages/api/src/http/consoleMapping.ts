@@ -14,6 +14,7 @@ import type { ReservationStatusCode } from '../contracts/push';
 import type { BranchReadiness } from '../contracts/readiness';
 import type { ModeratedReview, VenueModeratedReview } from '../contracts/reviews';
 import type { components } from '../generated/schema';
+import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
 type WireReservation = Schemas['Yalla.Application.Reservations.ReservationView'];
@@ -39,9 +40,9 @@ type WirePage =
  * here so a screen never sees a wire shape, and so a renamed field is one edit.
  */
 
-/** `Yalla.Domain.Enums.VenueType`: 1 Cafe, 2 Restaurant. */
+/** `Yalla.Domain.Enums.VenueType`: 1 Cafe, 2 Restaurant, 3 Bar — the one shared decoder. */
 export function venueType(value: number): VenueType {
-  return value === 2 ? 'restaurant' : 'cafe';
+  return venueTypeFromCode(value);
 }
 
 /** `Yalla.Domain.Enums.SubscriptionTier`: 1 Free, 2 Paid. */

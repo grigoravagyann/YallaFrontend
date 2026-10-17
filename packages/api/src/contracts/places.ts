@@ -34,6 +34,11 @@ export interface BranchListing {
   /** 1–4. */
   readonly priceLevel: number | null;
   readonly address: string;
+  /**
+   * The area of town the venue names for itself — "Kentron", "Arabkir". Shown
+   * beside the cuisine on a card; `null` until the venue sets one.
+   */
+  readonly district: string | null;
   readonly latitude: number | null;
   readonly longitude: number | null;
   /** Only when the caller sent a position. */

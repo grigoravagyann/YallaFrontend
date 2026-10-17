@@ -1,3 +1,4 @@
+import type { VenueType } from '../contracts/booking';
 import type { Photo } from '../contracts/menuAdmin';
 import type { Menu } from '../contracts/menu';
 import type {
@@ -259,7 +260,7 @@ function detailed(
   };
 }
 
-export function mockBranchMenu(branchId: string, venueType: 'cafe' | 'restaurant'): BranchMenu {
+export function mockBranchMenu(branchId: string, venueType: VenueType): BranchMenu {
   const menu = mockMenuFor(branchId, venueType);
   const categories: MenuCategoryView[] = menu.sections.map((section, sectionIndex) => ({
     id: section.id,
@@ -315,7 +316,7 @@ export function publishedBranchMenu(menu: BranchMenu): BranchMenu {
 /** One item, for snapshotting a name and price onto an order line. */
 export function mockMenuItem(
   branchId: string,
-  venueType: 'cafe' | 'restaurant',
+  venueType: VenueType,
   itemId: string,
 ): MenuItemDetail | undefined {
   return mockBranchMenu(branchId, venueType)

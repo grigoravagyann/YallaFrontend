@@ -1,4 +1,4 @@
-import type { DinerTabView, TabParticipantStatusCode } from './ordering';
+import type { BillRequest, DinerTabView, TabParticipantStatusCode } from './ordering';
 
 /**
  * Domain contracts for the shared tab — scanning in, the people on it, and who
@@ -243,4 +243,9 @@ export interface WaiterCall {
   readonly tabId: string;
   readonly reason: WaiterCallReason;
   readonly requestedAtUtc: string;
+  /**
+   * On a `bill` call made from the pay sheet: what the server worked out that
+   * scope leaves to pay, and the tip on top. `null` for every other call.
+   */
+  readonly bill: BillRequest | null;
 }

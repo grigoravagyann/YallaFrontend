@@ -59,6 +59,15 @@ export interface ContractSubject {
   /** GET a photo variant the way a phone would, and say what came back. */
   readonly fetchPhoto: (url: string) => Promise<PhotoProbe>;
   /**
+   * The printed codes of the fixture branch's tables, as a phone scans them.
+   *
+   * What a suite needs to put a diner on a tab through the interface under test
+   * — the scan — without inventing a code. Supplied by the runner because the
+   * codes are not on any diner read: the mock prints its own, and a live
+   * backend's are on the console's floor plan.
+   */
+  readonly tableCodes: () => Promise<readonly string[]>;
+  /**
    * Why a capability cannot be exercised against this subject, or `null` when
    * it can.
    *

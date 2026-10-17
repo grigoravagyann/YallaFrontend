@@ -42,8 +42,10 @@ import type {
   ReservationReleaseResult,
   StaffGateway,
 } from '../staffGateway';
+import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
-import { computeBill, type BillingLine } from './billing';
+import { mockPhoto } from './menuDetail';
+import { computeBill, percentOf, type BillingLine } from './billing';
 
 /**
  * A whole service, in memory.
@@ -132,6 +134,8 @@ interface MockParticipant {
   readonly id: string;
   readonly displayName: string | null;
   readonly isHost: boolean;
+  /** The photo of the account they scanned in with, when it has one. */
+  readonly photo: Photo | null;
 }
 
 interface MockTab {
@@ -326,8 +330,20 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   }
 
   function openTab(tableId: string, tableLabel: string, at: Date): MockTab {
-    const host: MockParticipant = { id: id('p'), displayName: 'Anahit', isHost: true };
-    const other: MockParticipant = { id: id('p'), displayName: 'Karen', isHost: false };
+    // The host scanned in signed in to an account with a photo; the guest is
+    // a walk-in with none, which is the common case and draws initials.
+    const host: MockParticipant = {
+      id: id('p'),
+      displayName: 'Anahit',
+      isHost: true,
+      photo: mockPhoto('avatar-anahit'),
+    };
+    const other: MockParticipant = {
+      id: id('p'),
+      displayName: 'Karen',
+      isHost: false,
+      photo: null,
+    };
     const tab: MockTab = {
       id: id('tab'),
       tableId,
@@ -416,6 +432,30 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       requestedAtUtc: minutesFrom(start, -3),
       waitingMinutes: 3,
       acknowledgedAtUtc: null,
+      bill: null,
+    });
+
+    // And the table asking for the whole bill with a 5% tip, from the pay
+    // sheet, so the panel's bill line and the prefilled keypad have something
+    // to show. The amounts are the server's rule: the balance with the service
+    // charge, and the tip on the items before it.
+    const { bill: owed } = billFor(seededTab);
+    const billRequestId = id('req');
+    serviceRequests.set(billRequestId, {
+      id: billRequestId,
+      tabId: seededTab.id,
+      tableLabel: seededTab.tableLabel,
+      reason: 'bill',
+      note: null,
+      requestedAtUtc: minutesFrom(start, -1),
+      waitingMinutes: 1,
+      acknowledgedAtUtc: null,
+      bill: {
+        scope: 'whole',
+        amountDram: owed.remainingDram,
+        tipPercent: 5,
+        tipDram: percentOf(owed.subtotalDram, 5),
+      },
     });
   }
 
@@ -519,8 +559,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         canOrder: true,
         canOrderNow: tab.status === 'open',
         canSeeTableTotal: true,
+        photo: person.photo,
       })),
       totals: bill,
+      // What `recordCashPayment` took as tips, beside the totals, never in them.
+      tipsDram: tab.tipDram,
       serviceChargePercent: SERVICE_CHARGE_PERCENT,
       lines: [],
       linesKnown: false,

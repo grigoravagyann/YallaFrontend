@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_DISTRICT_LENGTH } from '../contracts/listing';
+import { VENUE_TYPES } from '../contracts/booking';
 import type { ContractSubject } from './subject';
 
 /**
@@ -27,8 +29,33 @@ export function describePlacesContract(subject: ContractSubject): void {
         expect(listing.latitude === null).toBe(listing.longitude === null);
         // Only when lat/lng were sent, and they were not.
         expect(listing.distanceKm).toBeNull();
-        expect(['cafe', 'restaurant']).toContain(listing.venueType);
+        // `VenueType`: 1 Cafe, 2 Restaurant, 3 Bar.
+        expect(VENUE_TYPES).toContain(listing.venueType);
+        // An area of town, or nothing — never a blank standing in for none.
+        if (listing.district !== null) {
+          expect(listing.district.trim()).toBe(listing.district);
+          expect(listing.district.length).toBeGreaterThan(0);
+          expect(listing.district.length).toBeLessThanOrEqual(MAX_DISTRICT_LENGTH);
+        }
       }
+    });
+
+    it('lists each kind of place on its own: the Bars filter finds bars and nothing else', async () => {
+      // `category=3` is a bar. Every kind is asked, so a filter that ignored
+      // the category — or read 3 as a cafe — lists the wrong places here.
+      for (const venueType of VENUE_TYPES) {
+        const listings = await gateway.listBranches({ venueType });
+        for (const listing of listings) expect(listing.venueType, listing.branchId).toBe(venueType);
+      }
+    });
+
+    it('finds a branch by its district', async () => {
+      const named = (await gateway.listBranches()).find((listing) => listing.district !== null);
+      // A backend whose branches have named no area has nothing to search for.
+      if (!named) return;
+
+      const found = await gateway.searchBranches({ query: named.district!.toUpperCase() });
+      expect(found.map((listing) => listing.branchId)).toContain(named.branchId);
     });
 
     it('adds a distance for a position, and puts the nearest first', async () => {

@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { ConsoleGateway } from '../consoleGateway';
+import type { Booking, RescheduleBookingCommand } from '../contracts/booking';
 import type {
   AddBranchCommand,
   ConsoleVenueDetail,
@@ -193,8 +194,39 @@ export const queryKeys = {
   // Under `availability` on purpose: every mutation that already invalidates
   // `['availability', branchId]` invalidates the slot-aware room with it, and
   // one that forgot would leave the drawn room stale after a booking landed.
-  slotFloor: (branchId: string, slotUtc: string, partySize: number, timeZoneId: string) =>
-    ['availability', branchId, 'slotFloor', slotUtc, partySize, timeZoneId] as const,
+  // The booking being changed is in the key: the same slot asked without it
+  // is a different answer, with that booking's own table taken.
+  slotFloor: (
+    branchId: string,
+    slotUtc: string,
+    partySize: number,
+    timeZoneId: string,
+    excludeBookingId?: string | undefined,
+  ) =>
+    [
+      'availability',
+      branchId,
+      'slotFloor',
+      slotUtc,
+      partySize,
+      timeZoneId,
+      excludeBookingId ?? null,
+    ] as const,
+  /** A day of slots. Under `availability` for the same reason as `slotFloor`. */
+  daySlots: (
+    branchId: string,
+    date: string,
+    partySize: number,
+    excludeBookingId?: string | undefined,
+  ) => ['availability', branchId, 'daySlots', date, partySize, excludeBookingId ?? null] as const,
+  /*
+   * The diner's own bookings. The diner app spreads these in under the same
+   * names from `apps/diner/src/data/bookingKeys.ts`, so a booking mutation here
+   * and the bookings screens there read and invalidate one cache entry.
+   */
+  bookings: ['bookings'] as const,
+  booking: (bookingId: string) => ['booking', bookingId] as const,
+  reservationState: (reservationId: string) => ['reservationState', reservationId] as const,
   consoleVenues: (query: ListVenuesQuery) => ['console', 'venues', query] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
   // Its own key, not `consoleVenue`'s: the two reads answer different shapes
@@ -367,9 +399,21 @@ export function useSlotFloor(input: {
    * refetches on focus, which is when a diner is actually looking.
    */
   readonly pollMs?: number;
+  /**
+   * The booking being changed, when the screen is changing one: the server
+   * leaves it out, so the diner's own table reads free at nearby times.
+   */
+  readonly excludeBookingId?: string | undefined;
 }) {
   const gateway = useGateway();
-  const { branchId, slotUtc, timeZoneId, debounceMs = PARTY_SIZE_DEBOUNCE_MS, pollMs } = input;
+  const {
+    branchId,
+    slotUtc,
+    timeZoneId,
+    excludeBookingId,
+    debounceMs = PARTY_SIZE_DEBOUNCE_MS,
+    pollMs,
+  } = input;
   const partySize = useSettled(input.partySize, debounceMs);
 
   return useQuery({
@@ -377,8 +421,21 @@ export function useSlotFloor(input: {
     // actually sent. It resolves a beat after the first render, and without it
     // here that first answer — computed in the fallback zone — would be cached
     // and never corrected.
-    queryKey: queryKeys.slotFloor(branchId ?? '', slotUtc, partySize, timeZoneId ?? ''),
-    queryFn: () => gateway.getSlotFloor({ branchId: branchId!, slotUtc, partySize, timeZoneId }),
+    queryKey: queryKeys.slotFloor(
+      branchId ?? '',
+      slotUtc,
+      partySize,
+      timeZoneId ?? '',
+      excludeBookingId,
+    ),
+    queryFn: () =>
+      gateway.getSlotFloor({
+        branchId: branchId!,
+        slotUtc,
+        partySize,
+        timeZoneId,
+        excludeBookingId,
+      }),
     enabled: Boolean(branchId),
     staleTime: staleTime.live,
     placeholderData: keepPreviousData,
@@ -390,6 +447,47 @@ export function useSlotFloor(input: {
           refetchIntervalInBackground: false,
         }
       : {}),
+  });
+}
+
+/**
+ * Every time on one day, each with whether the party can still get a table —
+ * what the booking screen strikes its time chips from.
+ *
+ * Disabled until there is a branch and a date. The party size settles first,
+ * as for {@link useSlotFloor}, so stepping from 2 to 6 is one request. The
+ * previous answer stays on screen while a new party size loads **for the same
+ * day only**: another day's struck times drawn over this day's chips would
+ * strike the wrong ones, so a new date starts from nothing struck.
+ *
+ * A loading or failed read strikes nothing; the room the diner opens still
+ * says whether a table is free.
+ */
+export function useDaySlots(input: {
+  readonly branchId: string | undefined;
+  /** `YYYY-MM-DD` in the branch's calendar. */
+  readonly date: string | undefined;
+  readonly partySize: number;
+  /** The booking being changed, so its own table reads free. */
+  readonly excludeBookingId?: string | undefined;
+  /** Override for tests. `0` disables the wait entirely. */
+  readonly debounceMs?: number;
+  readonly enabled?: boolean;
+}) {
+  const gateway = useGateway();
+  const { branchId, date, excludeBookingId, debounceMs = PARTY_SIZE_DEBOUNCE_MS } = input;
+  const partySize = useSettled(input.partySize, debounceMs);
+
+  return useQuery({
+    queryKey: queryKeys.daySlots(branchId ?? '', date ?? '', partySize, excludeBookingId),
+    queryFn: () =>
+      gateway.getDaySlots({ branchId: branchId!, date: date!, partySize, excludeBookingId }),
+    enabled: Boolean(branchId) && Boolean(date) && (input.enabled ?? true),
+    staleTime: staleTime.live,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === (branchId ?? '') && previousQuery.queryKey[3] === (date ?? '')
+        ? previous
+        : undefined,
   });
 }
 
@@ -422,6 +520,33 @@ export function useInvalidateFloor() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.floor(branchId) });
     void queryClient.invalidateQueries({ queryKey: ['availability', branchId] });
   };
+}
+
+// --- Diner: changing a booking ------------------------------------------------
+
+/**
+ * Move a booking to another time, size or table, keeping its code.
+ *
+ * Retry is off, as for every booking mutation: the `commandId` makes a
+ * *deliberate* retry safe, and the screen must show what happened in between.
+ * On success the booking's own cache entry takes the answer — its status may
+ * now be "waiting for the venue" — and every list and room that showed the old
+ * time is read again, at both the old and the new slot.
+ */
+export function useRescheduleBooking() {
+  const gateway = useGateway();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (command: RescheduleBookingCommand) => gateway.rescheduleBooking(command),
+    retry: false,
+    onSuccess: (booking: Booking) => {
+      queryClient.setQueryData(queryKeys.booking(booking.id), booking);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.bookings });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.reservationState(booking.id) });
+      void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
+    },
+  });
 }
 
 // --- Console -------------------------------------------------------------------

@@ -64,43 +64,7 @@ describe('the mock tab', () => {
   });
 
   it('keeps a voided line on the bill, marked, with its reason', () => {
-    const branchId = 'b-lumen-north';
-    const orders = createTabOrders({
-      now: () => NOW,
-      menuItem: (branch, itemId) => mockMenuItem(branch, 'cafe', itemId),
-      branchMenu: (branch) => mockBranchMenu(branch, 'cafe'),
-    });
-    const itemId = mockBranchMenu(branchId, 'cafe')?.categories[0]?.items[0]?.id ?? '';
-    const tab: TableTab = {
-      id: 'tab-1',
-      status: 'open',
-      venueId: 'v-lumen',
-      venueName: 'Lumen Coffee',
-      branchId,
-      branchName: 'Northern Avenue',
-      timeZoneId: 'Asia/Yerevan',
-      tableId: 'b-lumen-north-t1',
-      tableLabel: '1',
-      floorAreaName: null,
-      openedAtUtc: NOW.toISOString(),
-      closedAtUtc: null,
-      participants: [
-        {
-          id: 'p-you',
-          displayName: 'Ani',
-          role: 'host',
-          status: 'active',
-          isYou: true,
-          joinedAtUtc: NOW.toISOString(),
-          permissions: { canOrder: true, canSeeTableTotal: true, canPay: true },
-        },
-      ],
-      yourParticipantId: 'p-you',
-      yourRole: 'host',
-      yourStatus: 'active',
-      yourPermissions: { canOrder: true, canSeeTableTotal: true, canPay: true },
-      defaultPermissions: { canOrder: true, canSeeTableTotal: true, canPay: false },
-    };
+    const { orders, tab, itemId } = oneHostTab();
 
     orders.place(tab, {
       tabId: tab.id,
@@ -116,4 +80,87 @@ describe('the mock tab', () => {
     expect(line).toMatchObject({ isVoided: true, voidReason: 'Spilled', lineTotalDram: 0 });
     expect(view.tableLines?.some((entry) => entry.id === lineId)).toBe(true);
   });
+
+  it('sums the tips beside the bill, and never into what was paid', () => {
+    const { orders, tab, itemId } = oneHostTab();
+    orders.place(tab, {
+      tabId: tab.id,
+      clientCommandId: '0d2c3b8e-6a55-4f0b-9b8e-1f3f2e0c7a11',
+      lines: [{ menuItemId: itemId, quantity: 2, isShared: false, participantId: 'p-you' }],
+    });
+
+    orders.pay(tab, 500, 100);
+    orders.pay(tab, 300);
+    orders.pay(tab, 200, 50);
+
+    const { money } = orders.dinerView(tab, 'p-you');
+    if (money.kind !== 'table') throw new Error('the host sees the table total');
+    expect(money.tipsDram).toBe(150);
+    expect(money.bill.paidDram).toBe(1000);
+  });
+
+  it("puts each participant's photo on the roster, by the gateway's rule", () => {
+    const photo = {
+      photoId: 'ph',
+      thumbnailUrl: '/t',
+      cardUrl: '/c',
+      fullUrl: '/f',
+      width: null,
+      height: null,
+    };
+    const { tab } = oneHostTab();
+    const orders = createTabOrders({
+      now: () => NOW,
+      menuItem: () => undefined,
+      branchMenu: () => null,
+      participantPhoto: (tabId, participantId) =>
+        tabId === tab.id && participantId === 'p-you' ? photo : null,
+    });
+
+    const view = orders.dinerView(tab, 'p-you');
+    expect(view.me.photo).toEqual(photo);
+    expect(view.participants[0]?.photo).toEqual(photo);
+  });
 });
+
+/** One tab with this device its host, beside a fresh orders half. */
+function oneHostTab() {
+  const branchId = 'b-lumen-north';
+  const orders = createTabOrders({
+    now: () => NOW,
+    menuItem: (branch, itemId) => mockMenuItem(branch, 'cafe', itemId),
+    branchMenu: (branch) => mockBranchMenu(branch, 'cafe'),
+  });
+  const itemId = mockBranchMenu(branchId, 'cafe')?.categories[0]?.items[0]?.id ?? '';
+  const tab: TableTab = {
+    id: 'tab-1',
+    status: 'open',
+    venueId: 'v-lumen',
+    venueName: 'Lumen Coffee',
+    branchId,
+    branchName: 'Northern Avenue',
+    timeZoneId: 'Asia/Yerevan',
+    tableId: 'b-lumen-north-t1',
+    tableLabel: '1',
+    floorAreaName: null,
+    openedAtUtc: NOW.toISOString(),
+    closedAtUtc: null,
+    participants: [
+      {
+        id: 'p-you',
+        displayName: 'Ani',
+        role: 'host',
+        status: 'active',
+        isYou: true,
+        joinedAtUtc: NOW.toISOString(),
+        permissions: { canOrder: true, canSeeTableTotal: true, canPay: true },
+      },
+    ],
+    yourParticipantId: 'p-you',
+    yourRole: 'host',
+    yourStatus: 'active',
+    yourPermissions: { canOrder: true, canSeeTableTotal: true, canPay: true },
+    defaultPermissions: { canOrder: true, canSeeTableTotal: true, canPay: false },
+  };
+  return { orders, tab, itemId };
+}

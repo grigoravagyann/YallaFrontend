@@ -49,6 +49,7 @@ const LISTING: BranchListing = {
   cuisine: 'Coffee',
   priceLevel: null,
   address: '12 Abovyan Street',
+  district: null,
   latitude: 40.18,
   longitude: 44.51,
   distanceKm: null,

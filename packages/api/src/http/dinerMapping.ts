@@ -12,17 +12,34 @@ import type {
 import type { TabParticipantChange, TabParticipantRole } from '../contracts/tab';
 import type { Booking } from '../contracts/booking';
 import type { DinerProfileView } from '../contracts/dinerAccount';
+import type { Photo } from '../contracts/menuAdmin';
 import type { ReservationState, ReservationStatusCode } from '../contracts/push';
 import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
 import { photo } from './venueSettingsMapping';
 
 type Schemas = components['schemas'];
-type TabView = Schemas['Yalla.Application.Tabs.TabView'];
+type WirePhoto = Schemas['Yalla.Application.Media.PhotoView'];
 type LineView = Schemas['Yalla.Application.Tabs.TabLineView'];
-type ParticipantView = Schemas['Yalla.Application.Tabs.TabParticipantView'];
-type ParticipantSummary = Schemas['Yalla.Application.Tabs.TabParticipantSummary'];
 type AdjustmentView = Schemas['Yalla.Application.Tabs.TabAdjustmentView'];
+
+/*
+ * Fields the backend is adding for the diner design gaps that are not yet in
+ * `generated/schema.ts`: a participant's `photo` and the tab's `tipsAmd`.
+ * Optional, so today's server reads as "none"; the additions become no-ops
+ * when the schema is regenerated.
+ */
+type ParticipantView = Schemas['Yalla.Application.Tabs.TabParticipantView'] & {
+  photo?: WirePhoto | null;
+};
+type ParticipantSummary = Schemas['Yalla.Application.Tabs.TabParticipantSummary'] & {
+  photo?: WirePhoto | null;
+};
+type TabView = Omit<Schemas['Yalla.Application.Tabs.TabView'], 'me' | 'participants'> & {
+  me: ParticipantView;
+  participants: ParticipantSummary[];
+  tipsAmd?: number | null;
+};
 
 /**
  * The diner's tab, from the wire.
@@ -146,7 +163,12 @@ export function participantChange(view: ParticipantView): TabParticipantChange {
   };
 }
 
-function me(view: ParticipantView): DinerTabMe {
+/** A participant's account photo, links made absolute against the API. */
+function participantPhoto(view: { photo?: WirePhoto | null }, baseUrl: string): Photo | null {
+  return view.photo ? absolutePhoto(baseUrl, photo(view.photo)) : null;
+}
+
+function me(view: ParticipantView, baseUrl: string): DinerTabMe {
   return {
     participantId: view.participantId,
     displayName: view.displayName,
@@ -157,15 +179,17 @@ function me(view: ParticipantView): DinerTabMe {
     canPay: view.canPay,
     canSeeTableTotal: view.canSeeTableTotal,
     joinedAtUtc: view.joinedAtUtc,
+    photo: participantPhoto(view, baseUrl),
   };
 }
 
-function rosterEntry(view: ParticipantSummary): TabRosterEntry {
+function rosterEntry(view: ParticipantSummary, baseUrl: string): TabRosterEntry {
   return {
     participantId: view.participantId,
     displayName: view.displayName,
     role: ROLE[view.role] ?? 'guest',
     status: STATUS[view.status] ?? 'pendingApproval',
+    photo: participantPhoto(view, baseUrl),
   };
 }
 
@@ -184,7 +208,13 @@ function rosterEntry(view: ParticipantSummary): TabRosterEntry {
  */
 export function tabMoney(view: TabView): TabMoney {
   if (view.tableTotalVisible && view.tableTotal) {
-    return { kind: 'table', bill: totals(view.tableTotal) };
+    return {
+      kind: 'table',
+      bill: totals(view.tableTotal),
+      // Beside the totals, never inside them: a tip is not part of what the
+      // table owes. Absent from a server that predates it, and then unknown.
+      tipsDram: typeof view.tipsAmd === 'number' ? view.tipsAmd : null,
+    };
   }
   return { kind: 'ownItemsOnly', yourItemsSubtotalDram: view.myItemsSubtotalAmd };
 }
@@ -196,8 +226,11 @@ export function tabMoney(view: TabView): TabMoney {
  * mapper stays pure and a test can pin it. `TabView` carries no server
  * timestamp for "as of", and inventing one from `openedAtUtc` would put a stale
  * banner an evening out of date.
+ *
+ * `baseUrl` is the API's origin, for the participants' photos: their links
+ * arrive server-relative like every photo's and leave absolute.
  */
-export function dinerTab(view: TabView, fetchedAtUtc: string): DinerTabView {
+export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): DinerTabView {
   return {
     tabId: view.tabId,
     branchId: view.branchId,
@@ -210,8 +243,8 @@ export function dinerTab(view: TabView, fetchedAtUtc: string): DinerTabView {
     settlementModeLocked: view.settlementModeLocked,
     hostParticipantId: view.hostParticipantId ?? null,
     hideTotalFromGuests: view.hideTotalFromGuests,
-    me: me(view.me),
-    participants: view.participants.map(rosterEntry),
+    me: me(view.me, baseUrl),
+    participants: view.participants.map((entry) => rosterEntry(entry, baseUrl)),
     myLines: view.myLines.map(dinerTabLine),
     // Absent, not empty. `null` is "you are not shown the table's items"; `[]`
     // would be "the table has ordered nothing", and a screen cannot tell those
@@ -234,7 +267,15 @@ export function dinerTab(view: TabView, fetchedAtUtc: string): DinerTabView {
 
 // --- Reservations, for the notification actions ------------------------------
 
-type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'];
+/**
+ * `roomId` and `roomName` are on the backend branch for the diner design gaps
+ * and not yet in `generated/schema.ts`; the intersection is a no-op once it is
+ * regenerated.
+ */
+type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] & {
+  roomId?: string | null;
+  roomName?: string | null;
+};
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,
@@ -278,6 +319,8 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     timeZoneId: view.timeZoneId,
     tableId: view.tableId,
     tableLabel: view.tableLabel,
+    roomId: view.roomId ?? null,
+    roomName: view.roomName?.trim() || null,
     partySize: view.partySize,
     slotUtc: view.startUtc,
     endUtc: view.endUtc,

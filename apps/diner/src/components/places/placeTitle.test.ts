@@ -49,6 +49,7 @@ describe('placeTitle', () => {
       cuisine: null,
       priceLevel: null,
       address: '1 Northern Avenue, Yerevan',
+      district: null,
       latitude: null,
       longitude: null,
       distanceKm: null,

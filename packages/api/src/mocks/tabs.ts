@@ -23,6 +23,7 @@ import type {
   WaiterCall,
   WaiterCallReason,
 } from '../contracts/tab';
+import type { BillRequest } from '../contracts/ordering';
 import { mockTableCode, normalizeTableCode } from './tableCodes';
 
 const URL_TAG = 'mock://yalla';
@@ -564,7 +565,16 @@ export function createTabWorld(options: TabWorldOptions) {
       return project(record);
     },
 
-    call(input: { tabId: string; reason: WaiterCallReason; commandId: string }): WaiterCall {
+    /**
+     * A raised hand. `bill` is the amounts the gateway worked out for a pay
+     * sheet's request — the world keeps them, it does not do the arithmetic.
+     */
+    call(input: {
+      tabId: string;
+      reason: WaiterCallReason;
+      commandId: string;
+      bill?: BillRequest | null | undefined;
+    }): WaiterCall {
       const record = requireTab(input.tabId);
 
       const existing = waiterCalls.find((c) => c.id === input.commandId);
@@ -575,6 +585,7 @@ export function createTabWorld(options: TabWorldOptions) {
         tabId: record.id,
         reason: input.reason,
         requestedAtUtc: now().toISOString(),
+        bill: input.bill ?? null,
       };
       waiterCalls.push(call);
       return call;

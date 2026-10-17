@@ -417,6 +417,12 @@ export interface TabRosterEntry {
   readonly displayName: string;
   readonly role: TabParticipantRole;
   readonly status: TabParticipantStatusCode;
+  /**
+   * Their profile photo, links already absolute — only for somebody who scanned
+   * in signed in to an account that has one. A walk-in with no account has
+   * none, which is the common case and not a failure: draw their initials.
+   */
+  readonly photo: Photo | null;
 }
 
 /**
@@ -438,6 +444,8 @@ export interface DinerTabMe {
   readonly canPay: boolean;
   readonly canSeeTableTotal: boolean;
   readonly joinedAtUtc: string;
+  /** This phone's own photo on the tab, by the roster's rule. */
+  readonly photo: Photo | null;
 }
 
 /**
@@ -468,6 +476,15 @@ export type TabMoney =
       readonly kind: 'table';
       /** The table aggregate. `TabTotalsView`, in dram. */
       readonly bill: TabTotals;
+      /**
+       * Tips left with the payments so far, in dram — `TabView.tipsAmd`.
+       *
+       * **Outside the bill**, on purpose: a tip folded into `paidDram` makes a
+       * tab look settled while money is owed. On this branch only, because it
+       * is an aggregate of the table like the rest. `null` from a server that
+       * does not say; a screen shows a tip row only when this is above zero.
+       */
+      readonly tipsDram: number | null;
     }
   | {
       readonly kind: 'ownItemsOnly';
@@ -581,6 +598,46 @@ export type TabShares =
 /** `Yalla.Domain.Enums.ServiceRequestPreset`: 1 Napkins, 2 Water, 3 TheBill, 4 Other. */
 export type ServiceRequestReason = 'napkins' | 'water' | 'bill' | 'other';
 
+/**
+ * What a bill request is for — `BillScope`: 1 WholeBill, 2 MyShare.
+ *
+ * `whole` is what the table still owes; `mine` is what the person asking still
+ * owes of their own share, from the shares view.
+ */
+export type BillScope = 'whole' | 'mine';
+
+export const BILL_SCOPES: readonly BillScope[] = ['whole', 'mine'];
+
+/** The highest tip, in percent, a bill request may carry. The server refuses more with a 422. */
+export const MAX_TIP_PERCENT = 25;
+
+/**
+ * Asking for the bill with a scope and a tip — the pay sheet's "Pay X".
+ *
+ * Only with the `bill` reason; any other reason carrying one is a 422 naming
+ * `billScope`. Whole percent, 0 to {@link MAX_TIP_PERCENT}. The amounts are
+ * the server's to work out: the client sends the choice, never a number.
+ */
+export interface BillRequestInput {
+  readonly scope: BillScope;
+  readonly tipPercent: number;
+}
+
+/**
+ * A bill request as the server worked it out, so the waiter walks over knowing
+ * what to bring and the diner sees the number they agreed to.
+ *
+ * `amountDram` is what that scope leaves to pay, service charge included and
+ * the tip **not** — the tip is its own number, as it is on a cash payment.
+ * `tipDram` is the percent of the items before service.
+ */
+export interface BillRequest {
+  readonly scope: BillScope;
+  readonly amountDram: number;
+  readonly tipPercent: number;
+  readonly tipDram: number;
+}
+
 export const SERVICE_REQUEST_REASONS: readonly ServiceRequestReason[] = [
   'napkins',
   'water',
@@ -600,12 +657,19 @@ export interface ServiceRequest {
   readonly requestedAtUtc: string;
   readonly waitingMinutes: number;
   readonly acknowledgedAtUtc: string | null;
+  /**
+   * What the table wants to pay and tip, on a `bill` request that said.
+   * `null` on every other request, and on a bill request with no scope.
+   */
+  readonly bill: BillRequest | null;
 }
 
 export interface CallWaiterCommand {
   readonly tabId: string;
   readonly reason: ServiceRequestReason;
   readonly clientCommandId: string;
+  /** Only with the `bill` reason. */
+  readonly bill?: BillRequestInput | undefined;
 }
 
 export interface AcknowledgeServiceRequestCommand {
@@ -855,6 +919,12 @@ export interface StaffTab {
   readonly hostParticipantId: string | null;
   readonly participants: readonly TabStaffParticipant[];
   readonly totals: TabTotals;
+  /**
+   * Tips taken with the payments so far — `TabStaffView.tipsAmd`. Outside
+   * `totals`, as a tip is never part of what the table owes. `null` from a
+   * server that does not say.
+   */
+  readonly tipsDram: number | null;
   /**
    * The branch percentage, snapshotted when the tab opened.
    *

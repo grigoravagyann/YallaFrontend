@@ -1,3 +1,4 @@
+import type { VenueType } from '../contracts/booking';
 import type { Menu, MenuItem, MenuSection } from '../contracts/menu';
 
 /**
@@ -84,13 +85,21 @@ const DRINKS: MenuSection = {
 
 const CAFE_MENU: readonly MenuSection[] = [COFFEE, PASTRY, BREAKFAST, DRINKS];
 const RESTAURANT_MENU: readonly MenuSection[] = [MAINS, COFFEE, DRINKS];
+/** Drinks first and something to eat with them, from the sections that already exist. */
+const BAR_MENU: readonly MenuSection[] = [DRINKS, MAINS, COFFEE];
+
+const MENU_BY_TYPE: Readonly<Record<VenueType, readonly MenuSection[]>> = {
+  cafe: CAFE_MENU,
+  restaurant: RESTAURANT_MENU,
+  bar: BAR_MENU,
+};
 
 const UPDATED = '2026-09-04T06:00:00Z';
 
-export function mockMenuFor(branchId: string, venueType: 'cafe' | 'restaurant'): Menu {
+export function mockMenuFor(branchId: string, venueType: VenueType): Menu {
   return {
     branchId,
     updatedAtUtc: UPDATED,
-    sections: venueType === 'cafe' ? CAFE_MENU : RESTAURANT_MENU,
+    sections: MENU_BY_TYPE[venueType],
   };
 }

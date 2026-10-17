@@ -3,8 +3,10 @@ import type {
   Booking,
   BookingRules,
   CreateBookingCommand,
+  DaySlots,
   MyBookings,
   PhoneChallenge,
+  RescheduleBookingCommand,
   SlotFloor,
   TableAvailability,
   TelegramChallenge,
@@ -50,6 +52,7 @@ import type {
   ReservationState,
 } from './contracts/push';
 import type {
+  BillRequestInput,
   BranchMenu,
   DinerTabView,
   PlaceOrderCommand,
@@ -149,13 +152,38 @@ export interface YallaGateway {
    * outright — in the past, beyond the booking window, outside opening hours —
    * is **not** null: it comes back with `rejection` set and the room intact, so
    * a surface can say why instead of showing an empty room.
+   *
+   * `excludeBookingId` is the booking being changed: it is ignored, so the
+   * diner moving their own booking sees their own table free.
    */
   getSlotFloor(input: {
     branchId: string;
     slotUtc: string;
     partySize: number;
     timeZoneId?: string | undefined;
+    excludeBookingId?: string | undefined;
   }): Promise<SlotFloor | null>;
+
+  /**
+   * Every time on one day, each with whether the party can still get a table —
+   * `GET /api/branches/{id}/availability/slots`. Anonymous.
+   *
+   * What the booking screen strikes its time chips from. Decided by the same
+   * per-table rules as {@link getSlotFloor}, so a time offered here opens a
+   * room with a free table in it.
+   *
+   * `date` is `YYYY-MM-DD` in the branch's calendar. `excludeBookingId` as for
+   * {@link getSlotFloor}.
+   *
+   * @returns `null` when there is no such branch. A day the branch refuses
+   * whole — shut, beyond the window — is not null: `unavailableReason` says why.
+   */
+  getDaySlots(input: {
+    branchId: string;
+    date: string;
+    partySize: number;
+    excludeBookingId?: string | undefined;
+  }): Promise<DaySlots | null>;
 
   // --- Places: the Explore list, search, details, reviews -------------------
   /**
@@ -167,7 +195,7 @@ export interface YallaGateway {
    */
   listBranches(query?: BranchSearchQuery): Promise<readonly BranchListing[]>;
 
-  /** `GET /api/public/branches/search`: name, venue, cuisine and address, case-insensitive. */
+  /** `GET /api/public/branches/search`: name, venue, cuisine, address and district, case-insensitive. */
   searchBranches(query: BranchSearchQuery): Promise<readonly BranchListing[]>;
 
   /**
@@ -458,6 +486,26 @@ export interface YallaGateway {
    */
   cancelBooking(bookingId: string): Promise<Booking>;
 
+  /**
+   * Move a booking to another time, party size or table, keeping its code —
+   * see {@link RescheduleBookingCommand}. Idempotent on `commandId`.
+   *
+   * The status comes back decided afresh: a change may need the venue's
+   * approval where the original did not, which is a normal result.
+   *
+   * @throws {BookingNotChangeableError} it is not waiting or confirmed any more,
+   * or it has started.
+   * @throws {NotFoundError} no booking of the diner's has that id. Somebody
+   * else's answers the same, on purpose.
+   * @throws {TableTakenError} the new table is booked or sat at then.
+   * @throws {LeadTimeExceededError} the new time is too soon.
+   * @throws {BookingRejectedError} a rule refused it; carries the reason.
+   * @throws {BookingBusyError} the table was locked; tap again, same command.
+   * @throws {ConcurrencyConflictError} the booking changed underneath — read it again.
+   * @throws {PhoneNotVerifiedError} the account's number is not confirmed.
+   */
+  rescheduleBooking(command: RescheduleBookingCommand): Promise<Booking>;
+
   // --- Notifications ------------------------------------------------------
 
   /**
@@ -614,15 +662,20 @@ export interface YallaGateway {
   /**
    * Raise a hand, in software. Presets only, no free text, no reply expected.
    *
-   * @throws {EndpointNotWiredError} from the HTTP gateway until the backend
-   * ships this endpoint. Screens must surface that rather than pretending the
-   * call landed — a diner who thinks a waiter is coming and is wrong is worse
-   * off than one who was told to raise a hand.
+   * With `reason: 'bill'` the pay sheet adds `bill` — whose bill and what tip —
+   * and the answer carries the amounts the server worked out from them.
+   *
+   * @throws {ValidationError} `bill` with any other reason (`billScope`), a tip
+   * outside 0–25 (`tipPercent`), or nothing left to pay for that scope
+   * (`billScope`).
+   * @throws {ServiceRequestRateLimitedError} the table has asked several times
+   * in a short window; a waiter already knows.
    */
   callWaiter(input: {
     tabId: string;
     reason: WaiterCallReason;
     commandId: string;
+    bill?: BillRequestInput | undefined;
   }): Promise<WaiterCall>;
 
   // --- Ordering and the bill ----------------------------------------------

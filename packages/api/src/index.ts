@@ -106,9 +106,12 @@ export type {
   BookingChannel,
   BookingRules,
   CreateBookingCommand,
+  DaySlot,
+  DaySlots,
   KnownTableUnavailableReason,
   MyBookings,
   PhoneChallenge,
+  RescheduleBookingCommand,
   SlotFloor,
   TableAvailability,
   TableUnavailableReason,
@@ -144,7 +147,7 @@ export type { MockVisit } from './mocks/mockGateway';
 export { clampBranchSearch, MAX_BRANCH_SEARCH_LENGTH } from './contracts/places';
 
 // --- Hardening contract K0 and the 2026-09-14 addendum ------------------------
-export { MAX_BOOKING_NOTE } from './contracts/booking';
+export { MAX_BOOKING_NOTE, VENUE_TYPES } from './contracts/booking';
 export { MAX_FAVORITES } from './contracts/favorites';
 export type { FavoriteBranch } from './contracts/favorites';
 export {
@@ -180,6 +183,7 @@ export type {
 } from './contracts/reviews';
 export type { BranchReadiness } from './contracts/readiness';
 export {
+  BookingNotChangeableError,
   BookingsNotAcceptedError,
   CannotReportOwnReviewError,
   FloorPlanChangedError,
@@ -440,7 +444,7 @@ export type {
 export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
 export type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 export type { AmenityKey, VenueListing, VenueListingInput } from './contracts/listing';
-export { AMENITY_KEYS, MAX_GALLERY_PHOTOS } from './contracts/listing';
+export { AMENITY_KEYS, MAX_DISTRICT_LENGTH, MAX_GALLERY_PHOTOS } from './contracts/listing';
 export type {
   ApprovalTrigger,
   ConsoleBooking,
@@ -610,6 +614,8 @@ export type {
 // Ordering, the bill and the two streams. No longer guesses: every shape is
 // built from the generated schema by `http/staffMapping.ts`.
 export {
+  BILL_SCOPES,
+  MAX_TIP_PERCENT,
   ORDER_STATUS_FLOW,
   SERVICE_REQUEST_REASONS,
   SPICE_LEVELS,
@@ -621,6 +627,9 @@ export type {
   AbandonTabResult,
   AcknowledgeServiceRequestCommand,
   AdjustmentKind,
+  BillRequest,
+  BillRequestInput,
+  BillScope,
   BranchMenu,
   CallWaiterCommand,
   CompCommand,

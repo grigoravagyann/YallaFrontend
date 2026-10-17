@@ -171,7 +171,9 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
     venueName: listing.venueName,
     branchName: listing.branchName,
     name: placeName(listing),
-    type: listing.venueType,
+    // The place model has no bar yet (diner design gaps: the places UI adds
+    // it). Until then a bar is listed as a restaurant rather than not at all.
+    type: listing.venueType === 'bar' ? 'restaurant' : listing.venueType,
     cuisine: listing.cuisine ?? '',
     distanceKm: distanceFor(listing, context.position),
     rating: listing.rating,

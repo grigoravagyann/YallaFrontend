@@ -109,6 +109,9 @@ describe('the listing section', () => {
       galleryPhotoIds: [second, first],
       // The address travels with the pin, as the server requires (K5).
       address: current.address,
+      // Sent back as stored: every field is replaced, and the form has no
+      // district input of its own yet.
+      district: current.district,
       latitude: 40.2,
       longitude: current.longitude,
     });

@@ -416,6 +416,28 @@ export class BookingTableOccupiedError extends ApiError {
   }
 }
 
+/**
+ * The booking can no longer be changed — `reservation-not-changeable`, 409.
+ *
+ * Only a booking still waiting for the venue, or confirmed and not yet started,
+ * can move. Cancelled, seated, finished or missed ones cannot, and neither can
+ * one whose start has passed. The screen goes back to the booking, which will
+ * say which of those it is.
+ */
+export class BookingNotChangeableError extends ApiError {
+  readonly reservationId: string | null;
+
+  constructor(options: BookingRefusal) {
+    super('That booking can no longer be changed.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'BookingNotChangeableError';
+    this.reservationId = options.reservationId ?? null;
+  }
+}
+
 /** The action needs the host, and the caller is not it. */
 export class NotTabHostError extends ApiError {
   constructor(options: { url: string }) {

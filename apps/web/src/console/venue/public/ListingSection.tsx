@@ -230,6 +230,9 @@ function ListingForm({
       amenities,
       galleryPhotoIds: gallery.map((p) => p.photoId),
       address: hasPin ? addressText : null,
+      // Every field is replaced, so the stored district is sent back until the
+      // form has a District input of its own (diner design gaps).
+      district: saved.district,
       latitude: lat,
       longitude: lng,
     };

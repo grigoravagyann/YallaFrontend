@@ -8,7 +8,15 @@
  * over one backend is cheaper than one interface nobody can read.
  */
 
-export type VenueType = 'cafe' | 'restaurant';
+import type { VenueType } from './booking';
+
+/**
+ * The kind of place — one union for both surfaces. A cafe a diner browses and a
+ * cafe the console edits are the same `Venue.Type`, and two spellings of it
+ * were how the console's create form went on offering two kinds after the
+ * server had three.
+ */
+export type { VenueType };
 
 /**
  * What a branch is paying for. Set per *branch*, not per venue: a chain

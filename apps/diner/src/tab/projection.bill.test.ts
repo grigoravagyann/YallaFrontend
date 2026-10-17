@@ -49,8 +49,11 @@ function tab(overrides: Partial<DinerTabView> = {}): DinerTabView {
       canPay: true,
       canSeeTableTotal: true,
       joinedAtUtc: '2026-09-06T09:00:00Z',
+      photo: null,
     },
-    participants: [{ participantId: 'p-me', displayName: 'Ani', role: 'host', status: 'approved' }],
+    participants: [
+      { participantId: 'p-me', displayName: 'Ani', role: 'host', status: 'approved', photo: null },
+    ],
     myLines: [line('l1')],
     tableLines: [line('l1')],
     money: {
@@ -62,6 +65,7 @@ function tab(overrides: Partial<DinerTabView> = {}): DinerTabView {
         paidDram: 0,
         remainingDram: 4950,
       },
+      tipsDram: 0,
     },
     serviceChargePercent: 10,
     adjustments: [],
@@ -146,6 +150,7 @@ describe('the bill, as the server now sends it', () => {
             paidDram: 2000,
             remainingDram: 2950,
           },
+          tipsDram: 0,
         },
       }),
       ZONE,

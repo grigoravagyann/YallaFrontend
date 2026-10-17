@@ -7,6 +7,9 @@ export type AmenityKey = (typeof AMENITY_KEYS)[number];
 /** The most gallery photos a branch may have beyond its cover. */
 export const MAX_GALLERY_PHOTOS = 12;
 
+/** `FieldLengths.District`: the longest area name the server keeps, after trimming. */
+export const MAX_DISTRICT_LENGTH = 60;
+
 /**
  * What a branch says about itself on the diner app's browse screens.
  *
@@ -21,6 +24,8 @@ export interface VenueListing {
   readonly websiteUrl: string | null;
   readonly amenities: readonly string[];
   readonly address: string;
+  /** The area of town — "Kentron" — shown on the diner's cards. `null` when unset. */
+  readonly district: string | null;
   readonly latitude: number;
   readonly longitude: number;
   /** Pictures beyond the cover, in display order. */
@@ -43,6 +48,15 @@ export interface VenueListingInput {
    * admin may make; a manager repeating the stored values is not one.
    */
   readonly address: string | null;
+  /**
+   * The area of town. Unlike the address it is not a move: anybody who may edit
+   * the listing may set it. Trimmed; blank clears it; over
+   * {@link MAX_DISTRICT_LENGTH} characters is a 422 naming `district`.
+   *
+   * Required rather than optional because every field here is replaced: a
+   * form that left it out would clear it.
+   */
+  readonly district: string | null;
   /** Latitude and longitude together or neither. */
   readonly latitude: number | null;
   readonly longitude: number | null;
