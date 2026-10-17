@@ -125,6 +125,9 @@ export function SlidingChoice<T extends string>({
                 }}
                 style={({ pressed }) => [
                   styles.cell,
+                  // A fixed width, not `flex: 1`: a short last row keeps the
+                  // same cell size as the rows above, so the thumb still fits.
+                  cell > 0 && { width: cell, flex: 0 },
                   !selected && styles.cellIdle,
                   pressed && !selected && styles.cellPressed,
                   option.disabled && styles.cellDisabled,

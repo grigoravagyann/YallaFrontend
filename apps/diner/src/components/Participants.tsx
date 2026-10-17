@@ -92,15 +92,18 @@ function initial(name: string): string {
 }
 
 /** Past this the row stops being a glance; the rest fold into the "+n". */
-const MAX_AVATARS = 5;
+const MAX_AVATARS = 3;
+/** One circle of the stack. */
+const STACKED = 34;
 
 /**
- * Everyone on the tab as a row of overlapping initials.
+ * Everyone on the tab as a stack of overlapping initials.
  *
  * The tab screen leads with the bill, so the people become a glance rather
- * than a list: you in the brown, everyone else on the neutral fill, anonymous
- * guests folded into a "+n". The full list with badges and host controls is
- * one tap away on the people screen.
+ * than a list: you in the brown, everyone else on the warm neutral, anonymous
+ * guests folded into a "+n". Each circle is ringed in the sheet colour, so the
+ * overlap reads as one cut out of the next. The full list with badges and host
+ * controls is one tap away on the people screen.
  */
 export function AvatarRow({ people }: AvatarRowProps) {
   const { t } = useTranslation('diner');
@@ -122,23 +125,20 @@ export function AvatarRow({ people }: AvatarRowProps) {
           <View
             key={person.participantId}
             style={[
-              styles.avatar,
-              styles.avatarStacked,
-              i > 0 && styles.avatarOverlap,
+              styles.stacked,
+              i > 0 && styles.stackedOverlap,
               person.isYou && styles.avatarYou,
             ]}
           >
-            <Text style={[styles.avatarText, person.isYou && styles.avatarTextYou]}>
+            <Text style={[styles.stackedText, person.isYou && styles.avatarTextYou]}>
               {initial(name)}
             </Text>
           </View>
         );
       })}
       {folded > 0 ? (
-        <View
-          style={[styles.avatar, styles.avatarStacked, named.length > 0 && styles.avatarOverlap]}
-        >
-          <Text style={styles.avatarText}>{`+${folded}`}</Text>
+        <View style={[styles.stacked, styles.folded, named.length > 0 && styles.stackedOverlap]}>
+          <Text style={styles.foldedText}>{`+${folded}`}</Text>
         </View>
       ) : null}
     </View>
@@ -163,9 +163,21 @@ const styles = StyleSheet.create({
   avatarText: { ...typography.buttonMedium, color: colors.text },
   avatarTextYou: { color: colors.onPrimary },
   avatarRow: { flexDirection: 'row', alignItems: 'center' },
-  // The ring is the ground the row sits on, so overlapping circles read as cut out.
-  avatarStacked: { borderWidth: 2, borderColor: colors.background },
-  avatarOverlap: { marginLeft: -space.sm },
+  // The ring is the sheet colour, so overlapping circles read as cut out.
+  stacked: {
+    width: STACKED,
+    height: STACKED,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.sheet,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.secondary,
+  },
+  stackedOverlap: { marginLeft: -10 },
+  stackedText: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
+  folded: { backgroundColor: colors.surfaceMuted },
+  foldedText: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.text },
   avatarYou: { backgroundColor: colors.brand },
   who: { flex: 1, gap: space.xs },
   name: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },

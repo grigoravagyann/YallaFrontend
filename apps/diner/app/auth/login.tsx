@@ -20,7 +20,7 @@ export default function LoginScreen() {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const params = useLocalSearchParams<AuthRouteParams>();
-  const { finish, switchTo, leave } = useAuthFinish(params);
+  const { forward, finish, switchTo, leave } = useAuthFinish(params);
   const login = useLoginDiner();
 
   const [identifier, setIdentifier] = useState('');
@@ -54,6 +54,7 @@ export default function LoginScreen() {
       title={t('auth.login.title')}
       body={t('auth.account.loginBody')}
       onBack={leave}
+      booking={forward}
       footer={{
         prompt: t('auth.login.noAccount'),
         action: t('auth.login.createOne'),

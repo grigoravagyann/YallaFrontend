@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
   TelegramUnavailableError,
   verificationFailureCopy,
@@ -6,10 +7,12 @@ import {
 } from '@yalla/api';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { Stack, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -34,9 +37,9 @@ import {
 } from '../../data/queries';
 import { useSession } from '../../stores/session';
 import {
-  actionIcon,
   colors,
   fontWeight,
+  iconSize,
   layout,
   radius,
   space,
@@ -44,15 +47,22 @@ import {
   typography,
 } from '../../theme';
 import { Button } from '../Button';
-import { IconButton } from '../IconButton';
+import { Rise } from '../motion/Rise';
+import { usePressScale } from '../motion/usePressScale';
 import { Screen } from '../Screen';
 import { Text, TextInput } from '../Text';
 import { accountKeys, useSetDinerPassword } from '../../data/accountQueries';
+import { AuthHeader } from './AuthHeader';
+import { BookingSummary } from './BookingSummary';
 import { Field, FieldInput, PasswordInput } from './Field';
 import { FROM_WELCOME, useAuthFinish, type AuthRouteParams } from './useAuthFinish';
 
 const DEFAULT_PREFIX = '+374';
 const CODE_LENGTH = 6;
+/** What the empty code field shows: one dot per digit to come. */
+const CODE_PLACEHOLDER = '•'.repeat(CODE_LENGTH);
+/** The code field and the paste tile beside it. */
+const CODE_FIELD_HEIGHT = 60;
 /** The resend wait is never shown as more than this, whatever the server says. */
 const MAX_RESEND_WAIT_SECONDS = 120;
 
@@ -108,7 +118,7 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   const { locale } = useLocale();
   const router = useRouter();
   const navigation = useNavigation();
-  const { finish: leaveFlow, switchTo } = useAuthFinish(params);
+  const { forward, finish: leaveFlow, switchTo } = useAuthFinish(params);
   const queryClient = useQueryClient();
 
   const rememberedName = useSession((s) => s.guestName);
@@ -534,6 +544,41 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
   );
 
   const firstStep = step === 'phone' || step === 'details';
+  const forBooking = Boolean(forward['tableId']);
+
+  /** Fill the code from the clipboard: what Telegram or a message left there, digits only. */
+  const pasteCode = useCallback(async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (alive.current && /\d/u.test(text)) onCodeChange(text);
+    } catch {
+      // Nothing to paste, or the browser said no: the field is still there.
+    }
+  }, [onCodeChange]);
+
+  const headerTitle =
+    step === 'details'
+      ? t('auth.signup.title')
+      : step === 'code'
+        ? mode === 'signup'
+          ? t('auth.signup.title')
+          : t(phoneCopy.title)
+        : step === 'telegram'
+          ? telegramStatus === 'expired'
+            ? t('verify.telegramExpired')
+            : t('verify.telegramWaitingTitle')
+          : step === 'newPassword'
+            ? t('auth.newPassword.title')
+            : step === 'name'
+              ? t('auth.nameStep.title')
+              : t(phoneCopy.title);
+
+  const codeHint =
+    code.length === 0
+      ? t('verify.codeHint.empty')
+      : code.length < CODE_LENGTH
+        ? t('verify.codeHint.left', { count: CODE_LENGTH - code.length })
+        : t('verify.codeHint.ready');
 
   return (
     <Screen edges={['top', 'left', 'right', 'bottom']}>
@@ -542,347 +587,478 @@ export function PhoneAuthFlow({ mode, params }: PhoneAuthFlowProps) {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.header}>
-          {/* No arrow at the name step: the number is verified, and "Skip for
-              now" is the honest name for leaving. */}
-          {step === 'name' || step === 'newPassword' ? (
-            <View style={styles.headerSpacer} />
-          ) : (
-            <IconButton
-              icon={actionIcon.back}
-              accessibilityLabel={t('floorPlan.back')}
-              variant="ghost"
-              onPress={back}
-            />
-          )}
-        </View>
+        {/* No arrow at the name or new-password step: the number is verified,
+            and "Skip for now" is the honest name for leaving. */}
+        <AuthHeader
+          title={headerTitle}
+          subline={forBooking ? t('verify.beforeBooking') : null}
+          {...(step === 'name' || step === 'newPassword' ? {} : { onBack: back })}
+        />
 
         <ScrollView
           contentContainerStyle={styles.body}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {step === 'phone' ? (
-            <>
-              <Text display style={styles.title} accessibilityRole="header">
-                {t(phoneCopy.title)}
-              </Text>
-              {/* Considerate framing: says why, not just what. */}
-              <Text style={styles.blurb}>{t(phoneCopy.body)}</Text>
-              {phoneField}
-            </>
-          ) : null}
+          {forBooking ? <BookingSummary booking={forward} /> : null}
 
-          {step === 'details' ? (
-            <>
-              <Text display style={styles.title} accessibilityRole="header">
-                {t('auth.signup.title')}
-              </Text>
-              <Text style={styles.blurb}>{t('auth.signup.body')}</Text>
-              {nameField}
-              {phoneField}
-              <Field label={t('auth.emailLabel')} hint={t('auth.emailHint')} error={emailError}>
-                <FieldInput
-                  value={email}
-                  onChangeText={setEmail}
-                  onBlur={() => touch('email')}
-                  placeholder={t('auth.emailPlaceholder')}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  textContentType="emailAddress"
-                  autoComplete="email"
-                  invalid={emailError !== null}
-                  accessibilityLabel={t('auth.emailLabel')}
-                />
-              </Field>
-            </>
-          ) : null}
+          {/* Each step rises in on its own, so moving on reads as moving on. */}
+          <Rise key={step} style={styles.step}>
+            {step === 'phone' ? (
+              <>
+                {/* Considerate framing: says why, not just what. */}
+                <Text style={styles.blurb}>{t(phoneCopy.body)}</Text>
+                {phoneField}
+              </>
+            ) : null}
 
-          {firstStep ? (
-            <>
-              {errorText ? (
-                <Text style={styles.error} accessibilityRole="alert">
-                  {errorText}
-                </Text>
-              ) : null}
-              <Button
-                label={t('verify.sendCode')}
-                size="large"
-                disabled={!canSend}
-                onPress={() => void send()}
-                style={styles.primary}
-              />
-              {telegramHidden ? null : (
-                <Button
-                  label={t('verify.telegramButton')}
-                  variant="secondary"
-                  size="large"
-                  disabled={!canTelegram}
-                  onPress={startTelegram}
-                  style={styles.secondary}
-                />
-              )}
-              {/* Signed in already: confirming a number, not choosing an account. */}
-              {accountPhone ? null : (
-                <View style={styles.footer}>
-                  <Text style={styles.footerText}>
-                    {mode === 'login' ? t('auth.login.noAccount') : t('auth.signup.haveAccount')}
-                  </Text>
-                  <Button
-                    label={mode === 'login' ? t('auth.login.createOne') : t('auth.logIn')}
-                    variant="text"
-                    fullWidth={false}
-                    disabled={busy}
-                    onPress={() => switchTo(mode === 'login' ? '/auth/signup' : '/auth/login')}
+            {step === 'details' ? (
+              <>
+                <Text style={styles.blurb}>{t('auth.signup.body')}</Text>
+                {nameField}
+                {phoneField}
+                <Field label={t('auth.emailLabel')} hint={t('auth.emailHint')} error={emailError}>
+                  <FieldInput
+                    value={email}
+                    onChangeText={setEmail}
+                    onBlur={() => touch('email')}
+                    placeholder={t('auth.emailPlaceholder')}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="emailAddress"
+                    autoComplete="email"
+                    invalid={emailError !== null}
+                    accessibilityLabel={t('auth.emailLabel')}
                   />
-                </View>
-              )}
-            </>
-          ) : null}
+                </Field>
+              </>
+            ) : null}
 
-          {step === 'code' ? (
-            <>
-              <Text display style={styles.title} accessibilityRole="header">
-                {t('verify.codeTitle')}
-              </Text>
-              {/* The number the code actually went to, not whatever the field holds now. */}
-              <Text style={styles.blurb}>
-                {t('verify.codeBody', { phone: challenge?.phoneE164 ?? phoneE164 ?? '' })}
-              </Text>
-
-              {/*
-                Dev-only. Double-gated: the backend returns `devCode` only outside
-                production, AND this render is behind __DEV__, so a production
-                bundle cannot show it even if a misconfigured server sends one.
-              */}
-              {__DEV__ && challenge?.devCode ? (
-                <View style={styles.devBanner}>
-                  <Text style={styles.devBannerText}>
-                    {t('verify.devBanner', { code: challenge.devCode })}
-                  </Text>
-                </View>
-              ) : null}
-
-              {/* One grouped input with six boxes drawn over it: a single caret and
-                  real auto-advance, without six refs fighting each other. The boxes
-                  are decoration for sighted eyes; the input is the one control. */}
-              <Pressable
-                onPress={() => codeInput.current?.focus()}
-                style={styles.codeRow}
-                accessible={false}
-                importantForAccessibility="no-hide-descendants"
-              >
-                {Array.from({ length: CODE_LENGTH }, (_, i) => (
-                  <View
-                    key={i}
-                    style={[styles.codeCell, code.length === i && styles.codeCellActive]}
-                  >
-                    <Text style={styles.codeDigit}>{code[i] ?? ''}</Text>
-                  </View>
-                ))}
-              </Pressable>
-              <TextInput
-                ref={codeInput}
-                style={styles.hiddenInput}
-                value={code}
-                onChangeText={onCodeChange}
-                keyboardType="number-pad"
-                textContentType="oneTimeCode"
-                autoComplete={Platform.OS === 'web' ? 'one-time-code' : 'sms-otp'}
-                maxLength={CODE_LENGTH}
-                autoFocus
-                editable={!verifyCode.isPending}
-                accessibilityLabel={t('verify.codeTitle')}
-                accessibilityValue={{ text: code }}
-              />
-
-              {verifyCode.isPending ? <ActivityIndicator color={colors.primary} /> : null}
-              {errorText ? (
-                <Text style={styles.error} accessibilityRole="alert">
-                  {errorText}
-                </Text>
-              ) : null}
-
-              <Button
-                label={
-                  secondsLeft > 0
-                    ? t('verify.resendIn', { seconds: secondsLeft })
-                    : t('verify.resend')
-                }
-                variant="text"
-                disabled={secondsLeft > 0 || busy}
-                onPress={() => void send()}
-                style={styles.secondary}
-              />
-              <Button label={t('verify.changeNumber')} variant="text" onPress={back} />
-            </>
-          ) : null}
-
-          {step === 'telegram' ? (
-            <>
-              <Text display style={styles.title} accessibilityRole="header">
-                {telegramStatus === 'expired'
-                  ? t('verify.telegramExpired')
-                  : t('verify.telegramWaitingTitle')}
-              </Text>
-              {telegramStatus === 'expired' ? null : (
-                <>
-                  <Text style={styles.blurb}>{t('verify.telegramWaitingBody')}</Text>
-                  <ActivityIndicator color={colors.primary} />
-                </>
-              )}
-
-              {/* No app to hand over to: the https link works in any browser. */}
-              {telegramNotInstalled && telegramUrl ? (
-                <>
+            {firstStep ? (
+              <>
+                {errorText ? (
                   <Text style={styles.error} accessibilityRole="alert">
-                    {t('verify.telegramNotInstalled')}
+                    {errorText}
                   </Text>
-                  <Text selectable style={styles.link}>
-                    {telegramUrl}
-                  </Text>
-                </>
-              ) : null}
-
-              {telegramStatus === 'expired' ? (
+                ) : null}
                 <Button
-                  label={t('verify.telegramTryAgain')}
+                  label={t('verify.sendCode')}
+                  icon="paper-plane-outline"
                   size="large"
-                  onPress={startTelegram}
+                  disabled={!canSend}
+                  busy={requestCode.isPending}
+                  onPress={() => void send()}
                   style={styles.primary}
                 />
-              ) : telegramUrl ? (
+                {telegramHidden ? null : (
+                  <>
+                    <Button
+                      label={t('verify.telegramButton')}
+                      variant="secondary"
+                      size="large"
+                      disabled={!canTelegram}
+                      busy={telegramStatus === 'starting'}
+                      onPress={startTelegram}
+                    />
+                    <Text style={styles.hint}>{t('verify.telegramHint')}</Text>
+                  </>
+                )}
+                <WhyVerify />
+                {/* Signed in already: confirming a number, not choosing an account. */}
+                {accountPhone ? null : (
+                  <View style={styles.footer}>
+                    <Text style={styles.footerText}>
+                      {mode === 'login' ? t('auth.login.noAccount') : t('auth.signup.haveAccount')}
+                    </Text>
+                    <Button
+                      label={mode === 'login' ? t('auth.login.createOne') : t('auth.logIn')}
+                      variant="text"
+                      fullWidth={false}
+                      disabled={busy}
+                      onPress={() => switchTo(mode === 'login' ? '/auth/signup' : '/auth/login')}
+                    />
+                  </View>
+                )}
+              </>
+            ) : null}
+
+            {step === 'code' ? (
+              <>
+                {/* The number the code actually went to, not whatever the field holds now. */}
+                <View style={styles.sent} role="status" accessibilityLiveRegion="polite" accessible>
+                  <Ionicons
+                    name="checkmark-circle-outline"
+                    size={iconSize.md}
+                    color={colors.successInk}
+                  />
+                  <Text style={styles.sentText}>
+                    {t('verify.codeBody', { phone: challenge?.phoneE164 ?? phoneE164 ?? '' })}
+                  </Text>
+                </View>
+
+                {/*
+                  Dev-only. Double-gated: the backend returns `devCode` only outside
+                  production, AND this render is behind __DEV__, so a production
+                  bundle cannot show it even if a misconfigured server sends one.
+                */}
+                {__DEV__ && challenge?.devCode ? (
+                  <View style={styles.devBanner}>
+                    <Text style={styles.devBannerText}>
+                      {t('verify.devBanner', { code: challenge.devCode })}
+                    </Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.codeField}>
+                  <Text style={styles.label}>{t('verify.codeTitle')}</Text>
+                  <View style={styles.codeRow}>
+                    {/* One wide field rather than six boxes: one caret, a paste
+                        that lands whole, and the phone's own code suggestion. */}
+                    <TextInput
+                      ref={codeInput}
+                      style={styles.codeInput}
+                      value={code}
+                      onChangeText={onCodeChange}
+                      placeholder={CODE_PLACEHOLDER}
+                      placeholderTextColor={colors.textSubtle}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      textContentType="oneTimeCode"
+                      autoComplete={Platform.OS === 'web' ? 'one-time-code' : 'sms-otp'}
+                      autoFocus
+                      editable={!verifyCode.isPending}
+                      accessibilityLabel={t('verify.codeTitle')}
+                      accessibilityHint={codeHint}
+                      accessibilityValue={{ text: code }}
+                    />
+                    <PasteButton
+                      label={t('verify.paste')}
+                      disabled={verifyCode.isPending}
+                      onPress={() => void pasteCode()}
+                    />
+                  </View>
+                  {verifyCode.isPending ? (
+                    <ActivityIndicator color={colors.primary} style={styles.pending} />
+                  ) : (
+                    <Text style={styles.hint} accessibilityLiveRegion="polite">
+                      {codeHint}
+                    </Text>
+                  )}
+                </View>
+
+                {errorText ? (
+                  <Text style={styles.error} accessibilityRole="alert">
+                    {errorText}
+                  </Text>
+                ) : null}
+
+                {/* The sixth digit sends the code by itself; this is the same
+                    press, for whoever looks for one. */}
                 <Button
-                  label={t('verify.telegramOpenAgain')}
+                  label={t('auth.continue')}
+                  size="large"
+                  disabled={code.length !== CODE_LENGTH || verifyCode.isPending}
+                  busy={verifyCode.isPending}
+                  onPress={() => void submitCode(code)}
+                />
+
+                <View style={styles.codeActions}>
+                  <Button
+                    label={
+                      secondsLeft > 0
+                        ? t('verify.resendIn', { seconds: secondsLeft })
+                        : t('verify.resend')
+                    }
+                    variant="text"
+                    size="small"
+                    fullWidth={false}
+                    disabled={secondsLeft > 0 || busy}
+                    onPress={() => void send()}
+                  />
+                  <Button
+                    label={t('verify.changeNumber')}
+                    variant="text"
+                    size="small"
+                    fullWidth={false}
+                    onPress={back}
+                  />
+                </View>
+              </>
+            ) : null}
+
+            {step === 'telegram' ? (
+              <>
+                {telegramStatus === 'expired' ? null : (
+                  <View style={styles.waiting}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={styles.waitingText}>{t('verify.telegramWaitingBody')}</Text>
+                  </View>
+                )}
+
+                {/* No app to hand over to: the https link works in any browser. */}
+                {telegramNotInstalled && telegramUrl ? (
+                  <>
+                    <Text style={styles.error} accessibilityRole="alert">
+                      {t('verify.telegramNotInstalled')}
+                    </Text>
+                    <Text selectable style={styles.link}>
+                      {telegramUrl}
+                    </Text>
+                  </>
+                ) : null}
+
+                {telegramStatus === 'expired' ? (
+                  <Button
+                    label={t('verify.telegramTryAgain')}
+                    size="large"
+                    onPress={startTelegram}
+                    style={styles.primary}
+                  />
+                ) : telegramUrl ? (
+                  <Button
+                    label={t('verify.telegramOpenAgain')}
+                    variant="secondary"
+                    size="large"
+                    onPress={() => openTelegram(telegramUrl)}
+                  />
+                ) : null}
+                <Button label={t('verify.telegramUseCode')} variant="text" onPress={back} />
+              </>
+            ) : null}
+
+            {step === 'newPassword' ? (
+              <>
+                <Text style={styles.blurb}>{t('auth.newPassword.body')}</Text>
+                <Field
+                  label={t('editProfile.password.new')}
+                  hint={t('auth.passwordHint')}
+                  error={newPasswordError}
+                >
+                  <PasswordInput
+                    value={newPassword}
+                    onChangeText={(value) => {
+                      setNewPassword(value);
+                      setPasswordError(null);
+                    }}
+                    textContentType="newPassword"
+                    autoComplete="new-password"
+                    autoFocus
+                    invalid={newPasswordError !== null}
+                    accessibilityLabel={t('editProfile.password.new')}
+                    showLabel={t('auth.showPassword')}
+                    hideLabel={t('auth.hidePassword')}
+                    maxLength={128}
+                  />
+                </Field>
+                <Field label={t('auth.newPassword.confirmLabel')}>
+                  <PasswordInput
+                    value={newPasswordAgain}
+                    onChangeText={(value) => {
+                      setNewPasswordAgain(value);
+                      setPasswordError(null);
+                    }}
+                    textContentType="newPassword"
+                    autoComplete="new-password"
+                    returnKeyType="done"
+                    onSubmitEditing={() => void saveNewPassword()}
+                    accessibilityLabel={t('auth.newPassword.confirmLabel')}
+                    showLabel={t('auth.showPassword')}
+                    hideLabel={t('auth.hidePassword')}
+                    maxLength={128}
+                  />
+                </Field>
+                <Button
+                  label={t('auth.newPassword.save')}
+                  size="large"
+                  disabled={!isValidPassword(newPassword) || setPassword.isPending}
+                  onPress={() => void saveNewPassword()}
+                  style={styles.primary}
+                />
+                {/* Signed in by the code already: the password can wait. */}
+                <Button
+                  label={t('auth.skipForNow')}
                   variant="text"
-                  onPress={() => openTelegram(telegramUrl)}
-                  style={styles.secondary}
+                  disabled={setPassword.isPending}
+                  onPress={finish}
                 />
-              ) : null}
-              <Button label={t('verify.telegramUseCode')} variant="text" onPress={back} />
-            </>
-          ) : null}
+              </>
+            ) : null}
 
-          {step === 'newPassword' ? (
-            <>
-              <Text display style={styles.title} accessibilityRole="header">
-                {t('auth.newPassword.title')}
-              </Text>
-              <Text style={styles.blurb}>{t('auth.newPassword.body')}</Text>
-              <Field
-                label={t('editProfile.password.new')}
-                hint={t('auth.passwordHint')}
-                error={newPasswordError}
-              >
-                <PasswordInput
-                  value={newPassword}
-                  onChangeText={(value) => {
-                    setNewPassword(value);
-                    setPasswordError(null);
-                  }}
-                  textContentType="newPassword"
-                  autoComplete="new-password"
-                  autoFocus
-                  invalid={newPasswordError !== null}
-                  accessibilityLabel={t('editProfile.password.new')}
-                  showLabel={t('auth.showPassword')}
-                  hideLabel={t('auth.hidePassword')}
-                  maxLength={128}
+            {step === 'name' ? (
+              <>
+                <Text style={styles.blurb}>{t('auth.nameStep.body')}</Text>
+                {nameField}
+                <Button
+                  label={t('auth.continue')}
+                  size="large"
+                  disabled={!tidyName}
+                  onPress={saveName}
+                  style={styles.primary}
                 />
-              </Field>
-              <Field label={t('auth.newPassword.confirmLabel')}>
-                <PasswordInput
-                  value={newPasswordAgain}
-                  onChangeText={(value) => {
-                    setNewPasswordAgain(value);
-                    setPasswordError(null);
-                  }}
-                  textContentType="newPassword"
-                  autoComplete="new-password"
-                  returnKeyType="done"
-                  onSubmitEditing={() => void saveNewPassword()}
-                  accessibilityLabel={t('auth.newPassword.confirmLabel')}
-                  showLabel={t('auth.showPassword')}
-                  hideLabel={t('auth.hidePassword')}
-                  maxLength={128}
-                />
-              </Field>
-              <Button
-                label={t('auth.newPassword.save')}
-                size="large"
-                disabled={!isValidPassword(newPassword) || setPassword.isPending}
-                onPress={() => void saveNewPassword()}
-                style={styles.primary}
-              />
-              {/* Signed in by the code already: the password can wait. */}
-              <Button
-                label={t('auth.skipForNow')}
-                variant="text"
-                disabled={setPassword.isPending}
-                onPress={finish}
-                style={styles.secondary}
-              />
-            </>
-          ) : null}
-
-          {step === 'name' ? (
-            <>
-              <Text display style={styles.title} accessibilityRole="header">
-                {t('auth.nameStep.title')}
-              </Text>
-              <Text style={styles.blurb}>{t('auth.nameStep.body')}</Text>
-              {nameField}
-              <Button
-                label={t('auth.continue')}
-                size="large"
-                disabled={!tidyName}
-                onPress={saveName}
-                style={styles.primary}
-              />
-              <Button
-                label={t('auth.skipForNow')}
-                variant="text"
-                onPress={finish}
-                style={styles.secondary}
-              />
-            </>
-          ) : null}
+                <Button label={t('auth.skipForNow')} variant="text" onPress={finish} />
+              </>
+            ) : null}
+          </Rise>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
+/** "Why verify?" and, once asked, the answer under it. */
+function WhyVerify() {
+  const { t } = useTranslation('diner');
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t('verify.why')}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((value) => !value)}
+        style={({ pressed }) => [styles.why, pressed && styles.whyPressed]}
+      >
+        <Text style={styles.whyText}>{t('verify.why')}</Text>
+      </Pressable>
+      {open ? (
+        <Rise>
+          <View style={styles.whyCard}>
+            <Text style={styles.whyBody}>{t('verify.whyBody')}</Text>
+          </View>
+        </Rise>
+      ) : null}
+    </>
+  );
+}
+
+/** The glass tile beside the code field that fills it from the clipboard. */
+function PasteButton({
+  label,
+  disabled,
+  onPress,
+}: {
+  readonly label: string;
+  readonly disabled: boolean;
+  readonly onPress: () => void;
+}) {
+  const press = usePressScale();
+  return (
+    <Animated.View style={press.style}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={({ pressed }) => [
+          styles.paste,
+          pressed && styles.pastePressed,
+          disabled && styles.pasteDisabled,
+        ]}
+      >
+        <Ionicons name="clipboard-outline" size={iconSize.md} color={colors.text} />
+        <Text style={styles.pasteText}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { paddingHorizontal: space.sm, paddingVertical: space.xs },
-  headerSpacer: { width: layout.touchTarget, height: layout.touchTarget },
   body: {
     paddingHorizontal: layout.screenPadding,
     paddingTop: space.sm,
     paddingBottom: space.xl,
-    gap: space.md,
+    gap: space.lg,
   },
-  title: { ...typography.title, color: colors.text },
-  blurb: { ...typography.body, color: colors.textMuted, marginBottom: space.sm },
+  step: { gap: space.md + 2 },
+  blurb: { ...typography.body, color: colors.textMuted },
+  hint: { ...typography.caption, color: colors.textMuted },
   phoneRow: { flexDirection: 'row', gap: space.sm },
   prefix: { width: 92 },
   number: { flex: 1 },
-  codeRow: { flexDirection: 'row', gap: space.sm, marginVertical: space.lg },
-  codeCell: {
+  sent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm + 2,
+    paddingVertical: space.sm + 2,
+    paddingHorizontal: space.md,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: colors.successStrong,
+    backgroundColor: colors.successSoft,
+  },
+  sentText: { ...typography.caption, color: colors.successInk, flex: 1 },
+  codeField: { gap: space.xs + 2 },
+  label: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.textMuted },
+  codeRow: { flexDirection: 'row', gap: space.sm },
+  codeInput: {
     flex: 1,
-    height: layout.controlHeightLarge,
+    minWidth: 0,
+    height: CODE_FIELD_HEIGHT,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    ...typography.heading,
+    ...tabularNumbers,
+    letterSpacing: 10,
+    textAlign: 'center',
+  },
+  paste: {
+    height: CODE_FIELD_HEIGHT,
+    minWidth: layout.touchTarget + space.lg,
+    paddingHorizontal: space.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.chip,
-    borderWidth: 2,
+    gap: space.xs - 1,
+  },
+  pastePressed: { backgroundColor: colors.surfaceMuted, borderColor: colors.borderStrong },
+  pasteDisabled: { opacity: 0.45 },
+  pasteText: { ...typography.caption, color: colors.text },
+  pending: { alignSelf: 'flex-start' },
+  codeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+  },
+  waiting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.lg,
+    borderRadius: radius.card,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  codeCellActive: { borderColor: colors.primary },
-  codeDigit: { ...typography.heading, ...tabularNumbers, color: colors.text },
-  hiddenInput: { position: 'absolute', opacity: 0, height: 1, width: 1 },
+  waitingText: { ...typography.body, color: colors.textMuted, flex: 1 },
+  why: {
+    alignSelf: 'center',
+    minHeight: layout.touchTarget,
+    justifyContent: 'center',
+    paddingHorizontal: space.sm,
+    borderRadius: radius.pill,
+  },
+  whyPressed: { opacity: 0.7 },
+  whyText: { ...typography.body, color: colors.primary },
+  whyCard: {
+    paddingVertical: space.md,
+    paddingHorizontal: space.md + 2,
+    borderRadius: radius.tile,
+    backgroundColor: colors.surface,
+  },
+  whyBody: { ...typography.caption, color: colors.textMuted },
   devBanner: {
     padding: space.sm,
     borderRadius: radius.card,
@@ -894,15 +1070,13 @@ const styles = StyleSheet.create({
   devBannerText: { ...typography.caption, fontWeight: fontWeight.medium, color: colors.warningInk },
   error: { ...typography.body, color: colors.errorInk },
   link: { ...typography.body, ...tabularNumbers, color: colors.primary },
-  primary: { marginTop: space.lg },
-  secondary: { marginTop: space.sm },
+  primary: { marginTop: space.sm },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'wrap',
     gap: space.xs,
-    marginTop: space.sm,
   },
   footerText: { ...typography.body, color: colors.textMuted },
 });

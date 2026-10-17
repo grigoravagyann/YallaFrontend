@@ -1,18 +1,20 @@
 import { minutesBetween } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import * as Clipboard from 'expo-clipboard';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
+import { IconButton } from '../../../src/components/IconButton';
+import { Screen } from '../../../src/components/Screen';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useTabInvite } from '../../../src/data/queries';
 import { useNow } from '../../../src/hooks/useNow';
 import { inviteFailure } from '../../../src/tab/invite';
-import { colors, fontWeight, radius, space, typography } from '../../../src/theme';
+import { actionIcon, colors, fontWeight, radius, space, typography } from '../../../src/theme';
 
 /** The QR is read across a table, in a dim room, off a phone held at an angle. */
 const QR_SIZE = 220;
@@ -28,6 +30,7 @@ const QR_SIZE = 220;
 export default function InviteScreen() {
   const { t } = useTranslation('diner');
   const { tabId } = useLocalSearchParams<{ tabId: string }>();
+  const router = useRouter();
 
   // Bumping the nonce is what "new link" means: a different command id, so the
   // backend mints a fresh token rather than replaying the old one.
@@ -80,14 +83,27 @@ export default function InviteScreen() {
     setNotice(t('invite.copied'));
   }, [invite, t]);
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: true, title: '' }} />
+  const back = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace({ pathname: '/tab/[tabId]', params: { tabId } });
+  };
 
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text display style={styles.title}>
+  return (
+    <Screen edges={['top', 'left', 'right', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.header}>
+        <IconButton
+          icon={actionIcon.back}
+          accessibilityLabel={t('floorPlan.back')}
+          variant="surface"
+          onPress={back}
+        />
+        <Text display style={styles.title} accessibilityRole="header" numberOfLines={2}>
           {t('invite.title')}
         </Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.body}>
         <Text style={styles.lead}>{t('invite.body')}</Text>
 
         {isLoading ? (
@@ -153,14 +169,28 @@ export default function InviteScreen() {
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
-  body: { padding: space.xl, paddingBottom: space.xxxl, gap: space.sm, alignItems: 'stretch' },
-  title: { ...typography.title, color: colors.text },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    // In line with the body below, which keeps its own wider margin.
+    paddingHorizontal: space.xl,
+    paddingTop: space.xl,
+    paddingBottom: space.sm,
+  },
+  title: { ...typography.heading, color: colors.text, flex: 1 },
+  body: {
+    paddingHorizontal: space.xl,
+    paddingTop: space.sm,
+    paddingBottom: space.xxxl,
+    gap: space.sm,
+    alignItems: 'stretch',
+  },
   lead: { ...typography.bodyLg, color: colors.textMuted },
   qrCard: { marginTop: space.lg, alignItems: 'center', gap: space.md },
   qrFrame: { padding: space.md, borderRadius: radius.card, backgroundColor: colors.qrBackground },

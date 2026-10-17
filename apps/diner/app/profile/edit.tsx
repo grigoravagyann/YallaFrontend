@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -32,6 +31,7 @@ import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { ErrorState } from '../../src/components/ErrorState';
 import { IconButton } from '../../src/components/IconButton';
+import { SheetModal } from '../../src/components/motion/SheetModal';
 import { PhotoImage } from '../../src/components/PhotoImage';
 import { Screen } from '../../src/components/Screen';
 import { Text } from '../../src/components/Text';
@@ -51,7 +51,6 @@ import {
   iconSize,
   layout,
   radius,
-  shadows,
   space,
   typography,
 } from '../../src/theme';
@@ -128,18 +127,26 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
   };
 
   const pick = async (source: 'library' | 'camera') => {
-    setSheetOpen(false);
+    // On a phone the picker opens over the sheet, and the sheet goes once the
+    // picker is back: a sheet still sliding away when the picker appeared
+    // would take the picker with it on iOS, where closing a modal closes
+    // whatever was presented over it. The browser's file dialog is not a
+    // modal, and its cancel is not always reported, so there it goes first.
+    const closeSheet = () => setSheetOpen(false);
+    if (Platform.OS === 'web') closeSheet();
     setPhotoError(null);
     try {
       if (source === 'camera') {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
+          closeSheet();
           setPhotoError(t('editProfile.permission.camera'));
           return;
         }
       } else if (Platform.OS !== 'web') {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permission.granted) {
+          closeSheet();
           setPhotoError(t('editProfile.permission.library'));
           return;
         }
@@ -148,6 +155,7 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
         source === 'camera'
           ? await ImagePicker.launchCameraAsync(PICKER_OPTIONS)
           : await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
+      closeSheet();
       const asset = result.canceled ? undefined : result.assets[0];
       if (!asset) return;
       // The web picker hands back a blob: URL; multipart there needs the bytes.
@@ -157,6 +165,7 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
           : { uri: asset.uri, name: 'avatar.jpg', type: asset.mimeType ?? 'image/jpeg' };
       await upload.mutateAsync(file);
     } catch (error) {
+      closeSheet();
       const key = photoFailureKey(error);
       setPhotoError(key ? t(key) : t('editProfile.photoError.generic'));
     }
@@ -519,51 +528,42 @@ function EditForm({ profile }: { readonly profile: DinerProfileView }) {
         </Card>
       </ScrollView>
 
-      <Modal
+      {/* The veil is its own button beside the sheet: no button inside a button. */}
+      <SheetModal
         visible={sheetOpen}
-        transparent
-        animationType="fade"
         onRequestClose={() => setSheetOpen(false)}
+        closeLabel={t('editProfile.cancel')}
+        accessibilityLabel={t('editProfile.changePhoto')}
+        style={styles.sheet}
       >
-        <View style={styles.sheetRoot}>
-          {/* The backdrop and the card are siblings: no button inside a button. */}
-          <Pressable
-            style={styles.backdrop}
-            accessibilityRole="button"
-            accessibilityLabel={t('editProfile.cancel')}
-            onPress={() => setSheetOpen(false)}
+        <Button
+          label={t('editProfile.chooseFromLibrary')}
+          variant="secondary"
+          icon="images-outline"
+          onPress={() => void pick('library')}
+        />
+        {Platform.OS === 'web' ? null : (
+          <Button
+            label={t('editProfile.takePhoto')}
+            variant="secondary"
+            icon="camera-outline"
+            onPress={() => void pick('camera')}
           />
-          <View style={styles.sheet}>
-            <Button
-              label={t('editProfile.chooseFromLibrary')}
-              variant="secondary"
-              icon="images-outline"
-              onPress={() => void pick('library')}
-            />
-            {Platform.OS === 'web' ? null : (
-              <Button
-                label={t('editProfile.takePhoto')}
-                variant="secondary"
-                icon="camera-outline"
-                onPress={() => void pick('camera')}
-              />
-            )}
-            {profile.photo ? (
-              <Button
-                label={t('editProfile.removePhoto')}
-                variant="destructive"
-                icon="trash-outline"
-                onPress={() => void remove()}
-              />
-            ) : null}
-            <Button
-              label={t('editProfile.cancel')}
-              variant="text"
-              onPress={() => setSheetOpen(false)}
-            />
-          </View>
-        </View>
-      </Modal>
+        )}
+        {profile.photo ? (
+          <Button
+            label={t('editProfile.removePhoto')}
+            variant="destructive"
+            icon="trash-outline"
+            onPress={() => void remove()}
+          />
+        ) : null}
+        <Button
+          label={t('editProfile.cancel')}
+          variant="text"
+          onPress={() => setSheetOpen(false)}
+        />
+      </SheetModal>
     </KeyboardAvoidingView>
   );
 }
@@ -626,21 +626,5 @@ const styles = StyleSheet.create({
   verified: { ...typography.body, color: colors.successInk },
   unverified: { ...typography.body, color: colors.warningInk },
   inlineButton: { paddingHorizontal: space.xs },
-  sheetRoot: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.overlayDark,
-  },
-  sheet: {
-    margin: space.lg,
-    padding: space.lg,
-    gap: space.sm,
-    borderRadius: radius.card,
-    backgroundColor: colors.sheet,
-    ...shadows.float,
-  },
+  sheet: { gap: space.sm },
 });

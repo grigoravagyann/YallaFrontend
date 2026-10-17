@@ -11,6 +11,9 @@ import { colors, fontWeight, layout, radius, space, tabularNumbers, typography }
 import { IconButton } from '../IconButton';
 import { Text, TextInput } from '../Text';
 
+/** A form field's well: a touch taller than a button, so a number reads at arm's length. */
+const FIELD_HEIGHT = 54;
+
 export interface FieldProps {
   readonly label: string;
   /** A quiet line under the input — why the email is asked for, say. Replaced by the error when there is one. */
@@ -52,8 +55,8 @@ export interface FieldInputProps extends TextInputProps {
 }
 
 /**
- * The pill text input of the reference design: white, thin border, at least
- * 48 tall, brown border while focused, red while invalid.
+ * The glass text input of the reference design: a warm well with a faint
+ * edge, 54 tall, an amber edge while focused, red while invalid.
  */
 export function FieldInput({
   ref,
@@ -129,10 +132,10 @@ const styles = StyleSheet.create({
   hint: { ...typography.caption, color: colors.textMuted },
   error: { ...typography.caption, color: colors.errorInk },
   input: {
-    minHeight: layout.controlHeight,
+    minHeight: FIELD_HEIGHT,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
-    borderRadius: radius.pill,
+    borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,

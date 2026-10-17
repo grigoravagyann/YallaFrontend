@@ -5,7 +5,6 @@ import {
   colors,
   fontWeight,
   iconSize,
-  layout,
   radius,
   space,
   typography,
@@ -24,6 +23,10 @@ export interface ProfileRowProps {
   readonly onPress?: () => void;
   /** A red count on the right — unread notifications. Hidden at zero. */
   readonly badgeCount?: number;
+  /** The current choice behind the row, quiet on the right — "Հայերեն" on Settings. */
+  readonly value?: string;
+  /** `danger` inks the glyph and label red — Delete account. */
+  readonly tone?: 'default' | 'danger';
   /** Briefly tinted, e.g. when the gear button points at the Settings row. */
   readonly highlighted?: boolean;
   /** Draws the hairline under the row. Off for the last row of a card. */
@@ -32,37 +35,48 @@ export interface ProfileRowProps {
   readonly style?: StyleProp<ViewStyle>;
 }
 
+/** The row's height: a list a thumb runs down, not a form. */
+const ROW_HEIGHT = 54;
+
 /**
- * One line of the Profile list: a leading glyph in a soft square, the label,
- * an optional red count, and — when it opens something — the chevron.
+ * One line of the Profile list: an amber glyph, the label, an optional value
+ * or red count, and — when it opens something — the chevron.
  */
 export function ProfileRow({
   icon,
   label,
   onPress,
   badgeCount = 0,
+  value,
+  tone = 'default',
   highlighted = false,
   divider = true,
   accessibilityLabel,
   style,
 }: ProfileRowProps) {
   const countLabel = badgeCount > 99 ? '99+' : String(badgeCount);
-  const a11yLabel = accessibilityLabel ?? (badgeCount > 0 ? `${label}, ${countLabel}` : label);
+  const a11yLabel =
+    accessibilityLabel ??
+    (badgeCount > 0 ? `${label}, ${countLabel}` : value ? `${label}, ${value}` : label);
+  const danger = tone === 'danger';
   const content = (
     <>
-      <View style={styles.iconWell}>
-        <Ionicons name={icon} size={iconSize.md} color={colors.primary} />
-      </View>
-      <Text numberOfLines={1} style={styles.label}>
+      <Ionicons name={icon} size={iconSize.md} color={danger ? colors.errorInk : colors.primary} />
+      <Text numberOfLines={1} style={[styles.label, danger && styles.labelDanger]}>
         {label}
       </Text>
+      {value ? (
+        <Text numberOfLines={1} style={styles.value}>
+          {value}
+        </Text>
+      ) : null}
       {badgeCount > 0 ? (
         <View style={styles.count} accessibilityElementsHidden importantForAccessibility="no">
           <Text style={styles.countText}>{countLabel}</Text>
         </View>
       ) : null}
       {onPress ? (
-        <Ionicons name={actionIcon.chevron} size={iconSize.md} color={colors.textSubtle} />
+        <Ionicons name={actionIcon.chevron} size={iconSize.sm} color={colors.textMuted} />
       ) : null}
     </>
   );
@@ -97,28 +111,20 @@ export function ProfileRow({
   );
 }
 
-const WELL = 36;
-
 const styles = StyleSheet.create({
   row: {
-    minHeight: layout.controlHeightLarge,
+    minHeight: ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.md + 2,
     paddingVertical: space.sm,
   },
   divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   pressed: { backgroundColor: colors.surfaceMuted },
-  iconWell: {
-    width: WELL,
-    height: WELL,
-    borderRadius: radius.small + 2,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text, flex: 1 },
+  label: { ...typography.body, color: colors.text, flex: 1 },
+  labelDanger: { color: colors.errorInk },
+  value: { ...typography.caption, fontSize: 12.5, color: colors.textMuted, flexShrink: 1 },
   count: {
     minWidth: 22,
     height: 22,

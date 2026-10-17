@@ -35,7 +35,7 @@ export default function WelcomeScreen() {
         <IconButton
           icon={actionIcon.back}
           accessibilityLabel={t('floorPlan.back')}
-          variant="ghost"
+          variant="surface"
           onPress={leave}
         />
       </View>
@@ -75,7 +75,7 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: space.sm, paddingVertical: space.xs },
+  header: { paddingHorizontal: layout.screenPadding, paddingTop: space.xl },
   body: {
     flex: 1,
     paddingHorizontal: layout.screenPadding,

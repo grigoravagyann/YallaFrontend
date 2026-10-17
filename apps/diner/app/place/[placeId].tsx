@@ -1,17 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
 import { isOfflinePaused } from '@yalla/api/react';
+import { intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   FlatList,
+  Pressable,
   Share,
   StyleSheet,
   View,
   useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../src/hooks/useReducedMotion';
@@ -23,14 +28,14 @@ import { HeartPop, useSavePop } from '../../src/components/HeartPop';
 import { IconButton } from '../../src/components/IconButton';
 import { PhotoImage } from '../../src/components/PhotoImage';
 import { Screen } from '../../src/components/Screen';
-import { SectionHeader } from '../../src/components/SectionHeader';
 import { Skeleton } from '../../src/components/Skeleton';
 import { Text } from '../../src/components/Text';
 import { AmenityChips } from '../../src/components/place/AmenityChips';
-import { PlaceActions } from '../../src/components/place/PlaceActions';
+import { BookCta, CtaFooter } from '../../src/components/place/BookCta';
+import { PlaceActions, openUrl } from '../../src/components/place/PlaceActions';
 import { ReviewComposer } from '../../src/components/place/ReviewComposer';
-import { PlaceTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
-import { PlaceMetaRow, usePlaceCopy } from '../../src/components/places/placeCopy';
+import { PlaceTabs, placeTabs, type PlaceTab } from '../../src/components/place/PlaceTabs';
+import { usePlaceCopy } from '../../src/components/places/placeCopy';
 import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { usePlace, usePlaceRooms } from '../../src/places/hooks';
@@ -48,18 +53,26 @@ import {
   actionIcon,
   colors,
   fontWeight,
+  iconSize,
   layout,
   radius,
   shadows,
   space,
   tabularNumbers,
   typography,
+  type IoniconName,
 } from '../../src/theme';
 
-/** How far the white sheet climbs over the hero photo. */
-const SHEET_OVERLAP = 20;
-/** The hero is about two fifths of the screen. */
-const HERO_FRACTION = 0.4;
+/** The hero is about a third of the screen (292 of 844 in the design). */
+const HERO_FRACTION = 0.35;
+/** The compact bar's row under the status bar: a 44 button with 16 above and below. */
+const BAR_ROW = layout.touchTarget + space.lg * 2;
+/** The compact bar fades in over this stretch of scroll, and takes taps past its middle. */
+const BAR_FADE_FROM = 120;
+const BAR_FADE_TO = 180;
+const BAR_LIVE_AT = (BAR_FADE_FROM + BAR_FADE_TO) / 2;
+/** How far under the compact bar a section's top must be to count as the one being read. */
+const SECTION_PROBE = space.xxl;
 
 /**
  * One place: photos, the facts, the menu and — the core of the product — its
@@ -71,7 +84,9 @@ const HERO_FRACTION = 0.4;
 export default function PlaceDetailsScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
-  const { placeId } = useLocalSearchParams<{ placeId: string }>();
+  // `section` opens the page already scrolled to a part of it — the rating
+  // stars on a closed bill land on Reviews, where the composer is.
+  const { placeId, section } = useLocalSearchParams<{ placeId: string; section?: string }>();
   const { height: windowHeight } = useWindowDimensions();
   const heroHeight = Math.round(windowHeight * HERO_FRACTION);
 
@@ -148,6 +163,7 @@ export default function PlaceDetailsScreen() {
       // The live read once it has answered; the page's own until then.
       rooms={roomsQuery.data ?? place.rooms}
       heroHeight={heroHeight}
+      initialSection={placeTabs.find((key) => key === section) ?? null}
       onBack={back}
       onBook={openBooking}
     />
@@ -158,11 +174,20 @@ interface PlaceDetailsProps {
   readonly place: Place;
   readonly rooms: readonly PlaceRoom[];
   readonly heroHeight: number;
+  /** Scroll here once the page has laid out; null opens at the top. */
+  readonly initialSection: PlaceTab | null;
   readonly onBack: () => void;
   readonly onBook: (table?: TablePhotoMarker) => void;
 }
 
-function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetailsProps) {
+function PlaceDetails({
+  place,
+  rooms,
+  heroHeight,
+  initialSection,
+  onBack,
+  onBook,
+}: PlaceDetailsProps) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
@@ -174,32 +199,140 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
   const { popKey, onSavePress } = useSavePop();
   const toggleFavorite = useFavorites((state) => state.toggle);
 
-  const [tab, setTab] = useState<PlaceTab>('about');
   const [photoIndex, setPhotoIndex] = useState(0);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
-  // The photo lags behind the sheet as it scrolls up (parallax) and swells a
-  // little when pulled down past the top. Both ride the native driver, off the
-  // JS thread, and both stand still for anyone who asked for less motion.
+
+  /*
+   * Motion off the scroll, all on the native driver: the photo drifts down
+   * inside its frame as the page climbs (parallax) and the frame stretches
+   * when pulled down past the top; the compact bar fades in once the name
+   * has gone under it. Nothing moves for anyone who asked for less motion
+   * except the bar's fade, which follows the finger.
+   */
   const reducedMotion = useReducedMotion();
   const [scrollY] = useState(() => new Animated.Value(0));
-  const onSheetScroll = useMemo(
+  const barHeight = insets.top + BAR_ROW;
+
+  // The page is one long read — Menu, Rooms, Reviews, About — and the tabs
+  // jump to a section and follow the one being read. The scroll is read on
+  // every event but React only hears when the answer changes.
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionTops = useRef<Partial<Record<PlaceTab, number>>>({});
+  const frame = useRef({ viewport: 0, content: 0, barHeight });
+  const [tab, setTab] = useState<PlaceTab>('menu');
+  const shownTab = useRef<PlaceTab>('menu');
+  /** The section a tap is scrolling to; the tabs hold still until it arrives. */
+  const heading = useRef<PlaceTab | null>(null);
+  const [barLive, setBarLive] = useState(false);
+  const barLiveRef = useRef(false);
+  useEffect(() => {
+    frame.current.barHeight = barHeight;
+  }, [barHeight]);
+
+  const onScrollAt = useCallback((y: number) => {
+    const live = y > BAR_LIVE_AT;
+    if (live !== barLiveRef.current) {
+      barLiveRef.current = live;
+      setBarLive(live);
+    }
+    const { viewport, content, barHeight: bar } = frame.current;
+    let active: PlaceTab = placeTabs[0]!;
+    if (y > 0 && viewport > 0 && y + viewport >= content - 2) {
+      // At the very end the last section is the one being read, however short.
+      for (const key of placeTabs) if (sectionTops.current[key] !== undefined) active = key;
+    } else {
+      for (const key of placeTabs) {
+        const top = sectionTops.current[key];
+        if (top !== undefined && top <= y + bar + SECTION_PROBE) active = key;
+      }
+    }
+    if (heading.current) {
+      if (heading.current !== active) return;
+      heading.current = null;
+    }
+    if (active !== shownTab.current) {
+      shownTab.current = active;
+      setTab(active);
+    }
+  }, []);
+
+  const onScroll = useMemo(
     () =>
       Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
         useNativeDriver: true,
       }),
     [scrollY],
   );
-  const heroMotion = useMemo(
+  // The native driver still reports the offset back to a JS listener.
+  useEffect(() => {
+    const id = scrollY.addListener(({ value }) => onScrollAt(value));
+    return () => scrollY.removeListener(id);
+  }, [scrollY, onScrollAt]);
+
+  /*
+   * Where each section starts in the scroll. Measured against the content
+   * rather than read from `onLayout`: on the web `onLayout` only fires when a
+   * block's size changes, so a section pushed down by the menu arriving would
+   * keep its old place.
+   */
+  const contentRef = useRef<View>(null);
+  const menuRef = useRef<View>(null);
+  const roomsRef = useRef<View>(null);
+  const reviewsRef = useRef<View>(null);
+  const aboutRef = useRef<View>(null);
+  const measureSection = useCallback((key: PlaceTab, then?: (top: number) => void) => {
+    const content = contentRef.current;
+    const node = {
+      menu: menuRef,
+      rooms: roomsRef,
+      reviews: reviewsRef,
+      about: aboutRef,
+    }[key].current;
+    if (!content || !node) return;
+    node.measureLayout(
+      content,
+      (_x, y) => {
+        sectionTops.current[key] = y;
+        then?.(y);
+      },
+      () => undefined,
+    );
+  }, []);
+  const measureSections = useCallback(() => {
+    for (const key of placeTabs) measureSection(key);
+  }, [measureSection]);
+
+  /** The section asked for on open, chased until reached or the diner scrolls. */
+  const pendingSection = useRef<PlaceTab | null>(initialSection);
+
+  const goTo = useCallback(
+    (next: PlaceTab) => {
+      shownTab.current = next;
+      setTab(next);
+      measureSection(next, (top) => {
+        heading.current = next;
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, top - frame.current.barHeight - space.sm),
+          animated: !reducedMotion,
+        });
+      });
+    },
+    [measureSection, reducedMotion],
+  );
+
+  const frameStretch = useMemo(
     () =>
       reducedMotion
         ? undefined
         : {
+            // Pulled down past the top: the frame grows from its bottom edge,
+            // its clip with it, so no gap opens above the photo.
             transform: [
               {
                 translateY: scrollY.interpolate({
-                  inputRange: [-heroHeight, 0, heroHeight],
-                  outputRange: [-heroHeight / 2, 0, heroHeight * 0.4],
-                  extrapolateRight: 'clamp',
+                  inputRange: [-heroHeight, 0],
+                  outputRange: [-heroHeight / 2, 0],
+                  extrapolate: 'clamp',
                 }),
               },
               {
@@ -212,6 +345,53 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
             ],
           },
     [heroHeight, reducedMotion, scrollY],
+  );
+  const photoParallax = useMemo(
+    () =>
+      reducedMotion
+        ? undefined
+        : {
+            transform: [
+              {
+                translateY: scrollY.interpolate({
+                  inputRange: [0, heroHeight],
+                  outputRange: [0, heroHeight * 0.45],
+                  extrapolate: 'clamp',
+                }),
+              },
+              {
+                scale: scrollY.interpolate({
+                  inputRange: [0, heroHeight],
+                  outputRange: [1, 1 + heroHeight / 2400],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ],
+          },
+    [heroHeight, reducedMotion, scrollY],
+  );
+  const barMotion = useMemo(
+    () => ({
+      opacity: scrollY.interpolate({
+        inputRange: [BAR_FADE_FROM, BAR_FADE_TO],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+      }),
+      ...(reducedMotion
+        ? {}
+        : {
+            transform: [
+              {
+                translateY: scrollY.interpolate({
+                  inputRange: [BAR_FADE_FROM, BAR_FADE_TO],
+                  outputRange: [-8, 0],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ],
+          }),
+    }),
+    [reducedMotion, scrollY],
   );
 
   const photos = place.photos.length > 0 ? place.photos : [''];
@@ -243,199 +423,372 @@ function PlaceDetails({ place, rooms, heroHeight, onBack, onBook }: PlaceDetails
     router.push({ pathname: '/place/[placeId]/reviews', params: { placeId: place.id } });
   }, [router, place.id]);
 
+  const toggleSave = useCallback(() => {
+    onSavePress(!favorite);
+    toggleFavorite(place.id);
+  }, [favorite, onSavePress, toggleFavorite, place.id]);
+
+  // "Restaurant · Armenian · Kentron": the kind, the cuisine, where.
+  const area = place.address.split(',')[0]?.trim() ?? '';
+  const kindLine = [copy.typeLine, area].filter(Boolean).join(' · ');
+
+  // "4.6 · 120 reviews", in the locale's digits.
+  const rating = useMemo(() => {
+    if (place.rating === null) return t('place.noReviews');
+    const tag = intlTag(locale);
+    return t('place.ratingReviews', {
+      count: place.ratingCount,
+      rating: new Intl.NumberFormat(tag, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(place.rating),
+      countLabel: new Intl.NumberFormat(tag).format(place.ratingCount),
+    });
+  }, [locale, place.rating, place.ratingCount, t]);
+
   const { isOpen, opensAt, closesAt } = place.openState;
-  const hours =
-    opensAt && closesAt
-      ? t('place.todayHours', {
-          open: formatClock(opensAt, locale),
-          close: formatClock(closesAt, locale),
-        })
-      : null;
-  const badge = place.badges[0];
+  // Open: until when. Shut: today's hours, if it opens today at all.
+  const hoursNote =
+    isOpen && closesAt
+      ? t('place.until', { time: formatClock(closesAt, locale) })
+      : !isOpen && opensAt && closesAt
+        ? t('place.todayHours', {
+            open: formatClock(opensAt, locale),
+            close: formatClock(closesAt, locale),
+          })
+        : null;
+  const website = place.website?.trim() ?? '';
   // Known from the place's own page (K9). Book is not offered where the app
   // cannot book, and the page says why instead.
   const bookingsOff = place.acceptsAppBookings === false;
 
   return (
-    <Screen edges={['left', 'right']} backgroundColor={colors.surface}>
+    <Screen edges={['left', 'right']}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="light" />
 
       <Animated.ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        onScroll={onSheetScroll}
+        onScroll={onScroll}
+        onScrollBeginDrag={() => {
+          heading.current = null;
+          // The diner took over: stop chasing the section asked for on open.
+          pendingSection.current = null;
+        }}
+        onLayout={(event) => {
+          frame.current.viewport = event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_, height) => {
+          frame.current.content = height;
+          measureSections();
+          // Sections above it (the menu, the rooms) arrive after the first
+          // layout and push it down, so the scroll is re-aimed each time the
+          // content grows until the diner scrolls themselves.
+          if (pendingSection.current) goTo(pendingSection.current);
+        }}
         scrollEventThrottle={16}
       >
-        {/* Hero: swipeable photos under the status bar, controls floating on top. */}
-        <Animated.View style={[{ height: heroHeight }, heroMotion]}>
-          <FlatList
-            data={photos}
-            horizontal
-            pagingEnabled
-            bounces={false}
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(uri, index) => `${index}-${uri}`}
-            renderItem={({ item }) => (
-              <PhotoImage
-                source={item}
-                gradient={0.45}
-                accessibilityLabel={place.name}
-                style={{ width: windowWidth, height: heroHeight }}
+        <View ref={contentRef} collapsable={false}>
+          {/* Hero: swipeable photos under the status bar, fading into the page. */}
+          <Animated.View style={[styles.heroFrame, { height: heroHeight }, frameStretch]}>
+            <Animated.View style={[StyleSheet.absoluteFill, photoParallax]}>
+              <FlatList
+                data={photos}
+                horizontal
+                pagingEnabled
+                bounces={false}
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(uri, index) => `${index}-${uri}`}
+                renderItem={({ item }) => (
+                  <PhotoImage
+                    source={item}
+                    accessibilityLabel={place.name}
+                    style={{ width: windowWidth, height: heroHeight }}
+                  />
+                )}
+                getItemLayout={(_, index) => ({
+                  length: windowWidth,
+                  offset: windowWidth * index,
+                  index,
+                })}
+                onScroll={onHeroScroll}
+                onMomentumScrollEnd={onHeroScroll}
+                scrollEventThrottle={16}
               />
-            )}
-            getItemLayout={(_, index) => ({
-              length: windowWidth,
-              offset: windowWidth * index,
-              index,
-            })}
-            onScroll={onHeroScroll}
-            onMomentumScrollEnd={onHeroScroll}
-            scrollEventThrottle={16}
-          />
-          <View style={[styles.heroControls, { top: insets.top + space.sm }]}>
-            <IconButton
-              icon={actionIcon.back}
-              accessibilityLabel={t('floorPlan.back')}
-              variant="translucent"
-              onPress={onBack}
+            </Animated.View>
+            <LinearGradient
+              pointerEvents="none"
+              colors={[
+                colors.glass,
+                colors.overlayClear,
+                colors.overlayClear,
+                colors.backgroundMid,
+              ]}
+              locations={[0, 0.3, 0.55, 1]}
+              style={StyleSheet.absoluteFill}
             />
-            <View style={styles.heroRight}>
-              <HeartPop popKey={popKey}>
-                <IconButton
-                  icon={favorite ? actionIcon.favorited : actionIcon.favorite}
-                  accessibilityLabel={favorite ? t('place.unfavorite') : t('place.favorite')}
-                  variant="translucent"
-                  // White on the glass either way: the filled heart says saved,
-                  // and red on the glass fails 3:1 over a light photo.
-                  onPress={() => {
-                    onSavePress(!favorite);
-                    toggleFavorite(place.id);
-                  }}
-                />
-              </HeartPop>
-              <IconButton
-                icon={actionIcon.share}
-                accessibilityLabel={t('place.share')}
-                variant="translucent"
-                onPress={share}
-              />
-            </View>
-          </View>
-          {photos.length > 1 ? (
-            <View pointerEvents="none" style={styles.counter}>
-              <Text style={styles.counterText}>
-                {t('place.photoCounter', { index: photoIndex + 1, total: photos.length })}
-              </Text>
-            </View>
-          ) : null}
-        </Animated.View>
+          </Animated.View>
 
-        {/* The sheet. */}
-        <View style={styles.sheet}>
-          <View style={styles.titleRow}>
-            <Text display numberOfLines={2} style={styles.title}>
+          {/* On the photo, but neither stretched nor drifting with it. */}
+          <View pointerEvents="box-none" style={[styles.heroOverlay, { height: heroHeight }]}>
+            <View style={[styles.heroControls, { top: insets.top + space.sm }]}>
+              <IconButton
+                icon={actionIcon.back}
+                accessibilityLabel={t('floorPlan.back')}
+                variant="translucent"
+                onPress={onBack}
+              />
+              <View style={styles.heroRight}>
+                <IconButton
+                  icon={actionIcon.share}
+                  accessibilityLabel={t('place.share')}
+                  variant="translucent"
+                  onPress={share}
+                />
+                <HeartPop popKey={popKey}>
+                  <IconButton
+                    icon={favorite ? actionIcon.favorited : actionIcon.favorite}
+                    accessibilityLabel={favorite ? t('place.unfavorite') : t('place.favorite')}
+                    variant="translucent"
+                    // White on the glass either way: the filled heart says saved,
+                    // and amber on the glass fails 3:1 over a light photo.
+                    onPress={toggleSave}
+                  />
+                </HeartPop>
+              </View>
+            </View>
+            {photos.length > 1 ? (
+              <>
+                <View pointerEvents="none" style={styles.dots}>
+                  {photos.map((uri, index) => (
+                    <View
+                      key={`${index}-${uri}`}
+                      style={[styles.dot, index === photoIndex && styles.dotActive]}
+                    />
+                  ))}
+                </View>
+                <View pointerEvents="none" style={styles.counter}>
+                  <Text style={styles.counterText}>
+                    {t('place.photoCounter', { index: photoIndex + 1, total: photos.length })}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+          </View>
+
+          {/* Name, kind and where, rating, distance, open now. */}
+          <View style={[styles.pad, styles.titleBlock]}>
+            <Text display accessibilityRole="header" numberOfLines={2} style={styles.title}>
               {place.name}
             </Text>
-            {badge ? <Badge variant={badge} size="sm" style={styles.titleBadge} /> : null}
-          </View>
-          <Text numberOfLines={1} style={styles.typeLine}>
-            {copy.typeLine}
-          </Text>
-          <PlaceMetaRow place={place} order="ratingFirst" style={styles.metaRow} />
-
-          <View style={styles.openRow}>
-            <Badge variant={isOpen ? 'open' : 'closed'} size="sm" />
-            {hours ? (
-              <Text numberOfLines={1} style={styles.hours}>
-                {hours}
-              </Text>
-            ) : null}
+            <Text numberOfLines={1} style={styles.kindLine}>
+              {kindLine}
+            </Text>
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                {place.rating !== null ? (
+                  <Ionicons name={actionIcon.star} size={13} color={colors.warningInk} />
+                ) : null}
+                <Text style={styles.metaText}>{rating}</Text>
+              </View>
+              {copy.distance ? <Text style={styles.metaText}>{copy.distance}</Text> : null}
+              <Badge variant={isOpen ? 'open' : 'closed'} size="sm" />
+              {hoursNote ? (
+                <Text numberOfLines={1} style={[styles.metaText, styles.hours]}>
+                  {hoursNote}
+                </Text>
+              ) : null}
+            </View>
           </View>
 
           <PlaceActions
             place={place}
-            saved={favorite}
-            onToggleSave={() => toggleFavorite(place.id)}
-            style={styles.actions}
+            onMenu={() => goTo('menu')}
+            style={[styles.pad, styles.actions]}
           />
 
-          {/* The rooms and their tables: the reason the photos are there.
-              Directly under the hero and the actions, at the same place
-              whichever tab is open — never pushed under a long menu. */}
-          <SectionHeader
-            label={t('tables.title')}
-            icon={actionIcon.table}
-            trailing={
+          <PlaceTabs value={tab} onChange={goTo} style={[styles.pad, styles.tabs]} />
+
+          {/* Menu: the dishes, section by section. */}
+          <View
+            ref={menuRef}
+            collapsable={false}
+            onLayout={measureSections}
+            style={[styles.pad, styles.firstSection]}
+          >
+            <PlaceMenu placeId={place.id} />
+          </View>
+
+          {/* Rooms: the photos, every table pinned where it stands, live. */}
+          <View
+            ref={roomsRef}
+            collapsable={false}
+            onLayout={measureSections}
+            style={[styles.pad, styles.section]}
+          >
+            <View style={styles.sectionHead}>
+              <Text
+                display
+                accessibilityRole="header"
+                numberOfLines={1}
+                style={styles.sectionTitle}
+              >
+                {t('tables.title')}
+              </Text>
               <Button
                 label={t('tables.pickTime')}
                 variant="text"
                 fullWidth={false}
                 onPress={openRoomsAtTime}
-                style={styles.pickTimeLink}
+                style={styles.pickTime}
               />
-            }
-            style={styles.tablesHeader}
-          />
-          {rooms.length > 0 ? (
-            <>
-              <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
-              <RoomPhotosView
-                rooms={rooms}
-                selectedTableId={selectedTableId}
-                onSelect={setSelectedTableId}
-                onBook={onBook}
-                // Where the app cannot book, the bar says so rather than offer Book.
-                canBook={!bookingsOff}
-                style={styles.tablePhoto}
-              />
-              <TableLegend style={styles.legend} />
-            </>
-          ) : (
-            // No room photographed yet: say so, rather than draw an empty
-            // frame the diner is told to tap tables on. Book below still works.
-            <Text style={[styles.subtitle, styles.noTablePhoto]}>{t('tables.notOnPhoto')}</Text>
-          )}
-
-          <PlaceTabs value={tab} onChange={setTab} style={styles.tabs} />
-          <View style={styles.tabBody}>
-            {tab === 'about' ? (
+            </View>
+            {rooms.length > 0 ? (
               <>
-                <Text style={styles.about}>{place.about}</Text>
-                <AmenityChips amenities={place.amenities} style={styles.amenities} />
+                <Text style={styles.subtitle}>{t('tables.subtitle')}</Text>
+                <RoomPhotosView
+                  rooms={rooms}
+                  selectedTableId={selectedTableId}
+                  onSelect={setSelectedTableId}
+                  onBook={onBook}
+                  // Where the app cannot book, the bar says so rather than offer Book.
+                  canBook={!bookingsOff}
+                  photoStyle={styles.roomPhoto}
+                  style={styles.roomPhotos}
+                />
+                <TableLegend style={styles.legend} />
               </>
-            ) : tab === 'menu' ? (
-              <PlaceMenu placeId={place.id} />
             ) : (
-              <>
-                <ReviewList placeId={place.id} reviews={place.reviews} />
-                {place.ratingCount > place.reviews.length ? (
-                  <Button
-                    label={t('place.reviews.seeAll', { count: place.ratingCount })}
-                    variant="outline"
-                    onPress={openAllReviews}
-                    style={styles.seeAll}
+              // No room photographed yet: say so, rather than draw an empty
+              // frame the diner is told to tap tables on. Book below still works.
+              <Text style={styles.subtitle}>{t('tables.notOnPhoto')}</Text>
+            )}
+          </View>
+
+          {/* Reviews, and the diner's own. */}
+          <View
+            ref={reviewsRef}
+            collapsable={false}
+            onLayout={measureSections}
+            style={[styles.pad, styles.section]}
+          >
+            <Text display accessibilityRole="header" style={styles.sectionTitle}>
+              {t('place.tab.reviews')}
+            </Text>
+            <View style={styles.sectionBody}>
+              <ReviewList placeId={place.id} reviews={place.reviews} />
+              {place.ratingCount > place.reviews.length ? (
+                <Button
+                  label={t('place.reviews.seeAll', { count: place.ratingCount })}
+                  variant="outline"
+                  onPress={openAllReviews}
+                  style={styles.seeAll}
+                />
+              ) : null}
+              <ReviewComposer placeId={place.id} style={styles.composer} />
+            </View>
+          </View>
+
+          {/* About: the venue's words, what it offers, where and when. */}
+          <View
+            ref={aboutRef}
+            collapsable={false}
+            onLayout={measureSections}
+            style={[styles.pad, styles.section]}
+          >
+            <Text display accessibilityRole="header" style={styles.sectionTitle}>
+              {t('place.tab.about')}
+            </Text>
+            <View style={styles.sectionBody}>
+              {place.about ? <Text style={styles.about}>{place.about}</Text> : null}
+              <AmenityChips amenities={place.amenities} />
+              <View style={styles.facts}>
+                {place.address ? <Fact icon={actionIcon.location} text={place.address} /> : null}
+                {place.openState.todayLabel ? (
+                  <Fact icon={actionIcon.time} text={place.openState.todayLabel} />
+                ) : null}
+                {website ? (
+                  <Fact
+                    icon={actionIcon.website}
+                    text={website.replace(/^https?:\/\//iu, '').replace(/\/$/u, '')}
+                    accessibilityLabel={`${t('place.action.website')}: ${website}`}
+                    onPress={() =>
+                      openUrl(/^https?:\/\//iu.test(website) ? website : `https://${website}`)
+                    }
                   />
                 ) : null}
-                <ReviewComposer placeId={place.id} style={styles.composer} />
-              </>
-            )}
+              </View>
+            </View>
           </View>
         </View>
       </Animated.ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
+      {/* The compact bar, once the name has scrolled under it. Out of the
+          accessibility tree, and untappable, until it is there. */}
+      <Animated.View
+        pointerEvents={barLive ? 'auto' : 'none'}
+        aria-hidden={!barLive}
+        style={[styles.bar, { height: barHeight, paddingTop: insets.top }, barMotion]}
+      >
+        <View pointerEvents="none" style={styles.barGround} />
+        <IconButton
+          icon={actionIcon.back}
+          accessibilityLabel={t('floorPlan.back')}
+          variant="surface"
+          onPress={onBack}
+          style={styles.barBack}
+        />
+        <Text display numberOfLines={1} style={styles.barTitle}>
+          {place.name}
+        </Text>
+      </Animated.View>
+
+      <CtaFooter bottomInset={insets.bottom}>
         {bookingsOff ? (
           <View style={styles.bookingsOff} accessibilityRole="summary">
             <Text style={styles.bookingsOffTitle}>{t('place.bookingsOff.title')}</Text>
             <Text style={styles.bookingsOffBody}>{t('place.bookingsOff.body')}</Text>
           </View>
         ) : (
-          <Button label={t('place.bookTable')} size="large" onPress={() => onBook()} />
+          <BookCta label={t('place.bookTable')} glyph onPress={() => onBook()} />
         )}
-      </View>
+      </CtaFooter>
     </Screen>
+  );
+}
+
+/** One line of the About section: a glyph and a fact, pressable when it opens something. */
+function Fact({
+  icon,
+  text,
+  onPress,
+  accessibilityLabel,
+}: {
+  icon: IoniconName;
+  text: string;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+}) {
+  const body = (
+    <>
+      <Ionicons name={icon} size={iconSize.sm} color={colors.textMuted} />
+      <Text style={[styles.factText, onPress && styles.factLink]}>{text}</Text>
+    </>
+  );
+  return onPress ? (
+    <Pressable
+      accessibilityRole="link"
+      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+      onPress={onPress}
+      style={({ pressed }) => [styles.fact, pressed && styles.factPressed]}
+    >
+      {body}
+    </Pressable>
+  ) : (
+    <View style={styles.fact}>{body}</View>
   );
 }
 
@@ -467,35 +820,34 @@ function DetailsSkeleton({ heroHeight, onBack }: { heroHeight: number; onBack: (
           onPress={onBack}
         />
       </View>
-      <View style={[styles.sheet, styles.skeletonSheet]}>
-        <Skeleton width="70%" height={28} />
+      <View style={[styles.pad, styles.skeletonBody]}>
+        <Skeleton width="70%" height={30} />
         <Skeleton width="55%" height={14} />
         <Skeleton width="45%" height={14} />
         <View style={styles.skeletonTiles}>
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton
-              key={i}
-              height={layout.actionTile}
-              borderRadius={radius.tile}
-              style={styles.skeletonTile}
-            />
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} height={56} borderRadius={radius.card} style={styles.skeletonTile} />
           ))}
         </View>
-        <Skeleton height={44} />
-        <Skeleton height={14} />
-        <Skeleton height={14} />
-        <Skeleton width="80%" height={14} />
+        <Skeleton height={layout.touchTarget} />
+        <Skeleton height={56} borderRadius={radius.tile} />
+        <Skeleton height={56} borderRadius={radius.tile} />
       </View>
     </View>
   );
 }
+
+const DOT = 6;
 
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: space.xl },
   centered: { flex: 1, justifyContent: 'center' },
   plainHeader: { paddingHorizontal: space.sm, paddingVertical: space.xs },
+  pad: { marginHorizontal: layout.screenPadding },
 
+  heroFrame: { overflow: 'hidden', backgroundColor: colors.surfaceMuted },
+  heroOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
   heroControls: {
     position: 'absolute',
     left: space.lg,
@@ -504,66 +856,122 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  heroRight: { flexDirection: 'row', gap: space.sm },
+  heroRight: { flexDirection: 'row', gap: space.sm + 2 },
+  dots: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: space.xl - 2,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  dot: {
+    width: DOT,
+    height: DOT,
+    borderRadius: DOT / 2,
+    backgroundColor: colors.onPrimary,
+    opacity: 0.45,
+  },
+  dotActive: { width: DOT * 3, opacity: 1 },
   counter: {
     position: 'absolute',
     right: space.lg,
-    bottom: SHEET_OVERLAP + space.md,
+    bottom: space.lg,
+    height: 24,
+    justifyContent: 'center',
     paddingHorizontal: space.sm + 2,
-    paddingVertical: space.xs,
     borderRadius: radius.pill,
     backgroundColor: colors.glass,
   },
   counterText: {
     ...typography.caption,
     ...tabularNumbers,
-    fontWeight: fontWeight.medium,
     color: colors.onImage,
   },
 
-  sheet: {
-    marginTop: -SHEET_OVERLAP,
+  titleBlock: { gap: space.xs, paddingTop: space.xs },
+  title: { fontSize: 26, lineHeight: 32, fontWeight: fontWeight.bold, color: colors.text },
+  kindLine: { fontSize: 13, lineHeight: 18, color: colors.textMuted },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    columnGap: space.md,
+    rowGap: space.xs,
+    marginTop: space.xs,
+  },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  metaText: { fontSize: 12.5, lineHeight: 18, ...tabularNumbers, color: colors.text },
+  hours: { flexShrink: 1 },
+
+  actions: { marginTop: space.md + 2 },
+  tabs: { marginTop: space.md + 2 },
+  firstSection: { marginTop: space.md + 2 },
+  section: { marginTop: space.xxl },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  sectionTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    flexShrink: 1,
+  },
+  sectionBody: { marginTop: space.md, gap: space.md },
+  pickTime: { marginLeft: 'auto', paddingHorizontal: space.sm, minHeight: layout.touchTarget },
+  subtitle: { ...typography.caption, color: colors.textMuted, marginTop: space.xs },
+  roomPhotos: { marginTop: space.md },
+  roomPhoto: { borderRadius: radius.card + 2 },
+  legend: { marginTop: space.md },
+  seeAll: { marginTop: space.xs },
+  composer: { marginTop: space.sm },
+  about: { ...typography.body, color: colors.text },
+  facts: { gap: space.xs },
+  fact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: layout.touchTarget - 8,
+    borderRadius: radius.small,
+  },
+  factPressed: { opacity: 0.7 },
+  factText: { ...typography.body, color: colors.text, flexShrink: 1 },
+  factLink: { color: colors.primary },
+
+  bar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
     paddingHorizontal: layout.screenPadding,
-    paddingTop: space.xl,
-    borderTopLeftRadius: radius.sheet,
-    borderTopRightRadius: radius.sheet,
-    backgroundColor: colors.surface,
     ...shadows.float,
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  title: { ...typography.heading, color: colors.text, flexShrink: 1 },
-  titleBadge: { alignSelf: 'center' },
-  typeLine: { ...typography.body, color: colors.textMuted, marginTop: space.xs },
-  metaRow: { marginTop: space.sm },
-  openRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
-  hours: { ...typography.body, color: colors.text, flexShrink: 1 },
-  actions: { marginTop: space.lg },
-  tabs: { marginTop: space.sm },
-  tabBody: { paddingTop: space.lg, paddingBottom: space.sm },
-  about: { ...typography.body, color: colors.text },
-  amenities: { marginTop: space.md },
-  seeAll: { marginTop: space.md },
-  composer: { marginTop: space.lg },
-
-  tablesHeader: { marginTop: space.xl },
-  pickTimeLink: { paddingHorizontal: space.sm, minHeight: layout.touchTarget - 8 },
-  subtitle: { ...typography.caption, color: colors.textMuted, marginTop: space.xs },
-  tablePhoto: { marginTop: space.md },
-  legend: { marginTop: space.md, marginBottom: space.lg },
-  noTablePhoto: { marginBottom: space.lg },
-
-  footer: {
-    paddingHorizontal: layout.screenPadding,
-    paddingTop: space.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+  barGround: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.sheet,
+    opacity: 0.94,
   },
+  barBack: { flexShrink: 0 },
+  barTitle: {
+    flex: 1,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+  },
+
   bookingsOff: { gap: space.xs, paddingVertical: space.xs },
   bookingsOffTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
   bookingsOffBody: { ...typography.body, color: colors.textMuted },
 
-  skeletonSheet: { gap: space.md, paddingBottom: space.xl },
+  skeletonBody: { gap: space.md, paddingTop: space.md, paddingBottom: space.xl },
   skeletonTiles: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
   skeletonTile: { flex: 1 },
 });

@@ -1,26 +1,36 @@
 import { SETTLEMENT_MODES, type ParticipantShare, type SettlementMode } from '@yalla/api';
 import { formatDram, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '../../../src/components/Button';
 import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
 import { Card } from '../../../src/components/Card';
+import { IconButton } from '../../../src/components/IconButton';
+import { Rise, riseDelay } from '../../../src/components/motion/Rise';
+import { Screen } from '../../../src/components/Screen';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab, useSetSettlementMode, useTabShares } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { settleLead } from '../../../src/lib/settleLead';
 import { tabAccessCopy } from '../../../src/tab/access';
+import { returnToTab } from '../../../src/tab/navigation';
 import { settlementModeFailureKey, withHost } from '../../../src/tab/settle';
-import { colors, fontWeight, radius, space, tabularNumbers, typography } from '../../../src/theme';
+import {
+  actionIcon,
+  colors,
+  displayWeight,
+  fontWeight,
+  iconSize,
+  layout,
+  radius,
+  shadows,
+  space,
+  tabularNumbers,
+  typography,
+} from '../../../src/theme';
 
 /**
  * Settling up, as far as it goes today.
@@ -56,14 +66,33 @@ export default function SettleScreen() {
   // them; otherwise the number that leads is this person's own share.
   const lead = settleLead(shares);
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: true, title: '' }} />
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else if (tabId) returnToTab(router, tabId);
+  };
 
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text display style={styles.title}>
-          {t('settle.title')}
-        </Text>
+  return (
+    <Screen edges={['top', 'left', 'right', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <IconButton
+            icon={actionIcon.back}
+            onPress={goBack}
+            accessibilityLabel={t('floorPlan.back')}
+          />
+          <View style={styles.headerText}>
+            <Text display style={styles.title} accessibilityRole="header">
+              {t('settle.title')}
+            </Text>
+            {view ? (
+              <Text numberOfLines={1} style={styles.where}>
+                {`${view.venueName} · ${t('tab.title', { label: view.tableLabel })}`}
+              </Text>
+            ) : null}
+          </View>
+        </View>
 
         {/* Not while the last read failed: React Query keeps the previous
             answer through an error, and a 40px number over "could not load"
@@ -76,7 +105,9 @@ export default function SettleScreen() {
             accessibilityLabel={`${t(lead.labelKey)}: ${formatDram(lead.amount, locale)}`}
           >
             <Text style={styles.leadLabel}>{t(lead.labelKey)}</Text>
-            <Text style={styles.leadAmount}>{formatDram(lead.amount, locale)}</Text>
+            <Text display style={styles.leadAmount}>
+              {formatDram(lead.amount, locale)}
+            </Text>
             {lead.total !== null && lead.paid !== null ? (
               <Text style={styles.leadOf}>
                 {lead.paid > 0
@@ -95,123 +126,139 @@ export default function SettleScreen() {
             has been read: a default drawn while loading named a mode this tab
             may not use. */}
         {!view ? (
-          <Card style={styles.card}>
+          <Card radiusToken="hero" style={styles.card}>
             <ActivityIndicator color={colors.primary} />
           </Card>
         ) : isHost ? (
-          <Card style={styles.card}>
-            <Text style={styles.cardTitle}>{t('settle.mode.title')}</Text>
-            {SETTLEMENT_MODES.map((option: SettlementMode) => {
-              const selected = option === view.settlementMode;
-              const locked = view.settlementModeLocked;
-              return (
-                <Pressable
-                  key={option}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected, disabled: locked }}
-                  disabled={locked || setMode.isPending}
-                  onPress={() =>
-                    setMode.mutate({
-                      tabId: view.tabId,
-                      mode: option,
-                      clientCommandId: newCommandId(),
-                    })
-                  }
-                  style={[
-                    styles.option,
-                    selected && styles.optionOn,
-                    locked && styles.optionLocked,
-                  ]}
-                >
-                  <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>
-                    {t(`settle.mode.${option}.title`)}
-                  </Text>
-                  <Text style={[styles.optionBody, selected && styles.optionBodyOn]}>
-                    {t(`settle.mode.${option}.body`)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-            {view.settlementModeLocked ? (
-              <Text style={styles.muted}>{t('settle.mode.locked')}</Text>
-            ) : null}
-            {/* A refused change is said. It used to vanish: no handler, nothing
+          <Rise delay={riseDelay(0)}>
+            <Card radiusToken="hero" style={styles.card}>
+              <Text style={styles.cardTitle}>{t('settle.mode.title')}</Text>
+              {SETTLEMENT_MODES.map((option: SettlementMode) => {
+                const selected = option === view.settlementMode;
+                const locked = view.settlementModeLocked;
+                return (
+                  <Pressable
+                    key={option}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected, disabled: locked }}
+                    // The web build reads none of accessibilityState.
+                    aria-checked={selected}
+                    disabled={locked || setMode.isPending}
+                    onPress={() =>
+                      setMode.mutate({
+                        tabId: view.tabId,
+                        mode: option,
+                        clientCommandId: newCommandId(),
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.option,
+                      pressed && !selected && styles.optionPressed,
+                      selected && styles.optionOn,
+                      locked && styles.optionLocked,
+                    ]}
+                  >
+                    <Ionicons
+                      name={selected ? 'radio-button-on-outline' : 'radio-button-off-outline'}
+                      size={iconSize.md}
+                      color={selected ? colors.onPrimary : colors.textMuted}
+                    />
+                    <View style={styles.optionText}>
+                      <Text style={[styles.optionTitle, selected && styles.optionTitleOn]}>
+                        {t(`settle.mode.${option}.title`)}
+                      </Text>
+                      <Text style={[styles.optionBody, selected && styles.optionBodyOn]}>
+                        {t(`settle.mode.${option}.body`)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+              {view.settlementModeLocked ? (
+                <Text style={styles.muted}>{t('settle.mode.locked')}</Text>
+              ) : null}
+              {/* A refused change is said. It used to vanish: no handler, nothing
                 rendered, and the host tapped again and again. */}
-            {setMode.error ? (
-              <Text style={styles.error}>{t(settlementModeFailureKey(setMode.error))}</Text>
-            ) : null}
-          </Card>
+              {setMode.error ? (
+                <Text style={styles.error}>{t(settlementModeFailureKey(setMode.error))}</Text>
+              ) : null}
+            </Card>
+          </Rise>
         ) : null}
 
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>{t('settle.shares.title')}</Text>
-          <Text style={styles.muted}>{t('settle.shares.body')}</Text>
+        <Rise delay={riseDelay(1)}>
+          <Card radiusToken="hero" style={styles.card}>
+            <Text style={styles.cardTitle}>{t('settle.shares.title')}</Text>
+            <Text style={styles.muted}>{t('settle.shares.body')}</Text>
 
-          {isLoading ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : isError || !shares ? (
-            <Text style={styles.muted}>{t(tabAccessCopy(error)?.body ?? 'settle.error')}</Text>
-          ) : shares.kind !== 'table' ? (
-            // The host has hidden the table total: no aggregate and nobody
-            // else's share is in the body. This person's own share still is,
-            // and on the screen for "what do I owe" it is the thing to show.
-            <View style={styles.shares}>
-              {shares.yourShare ? (
-                <ShareRow share={shares.yourShare} locale={locale} first isYou />
-              ) : null}
-              <Text style={styles.muted}>{t('settle.shares.hidden')}</Text>
-            </View>
-          ) : (
-            <View style={styles.shares}>
-              {shares.shares.map((share, i) => (
-                <ShareRow
-                  key={share.participantId}
-                  share={share}
-                  locale={locale}
-                  first={i === 0}
-                  isYou={share.participantId === view?.me.participantId}
-                />
-              ))}
-              <View style={styles.shareTotal}>
-                <Text style={styles.shareTotalLabel}>{t('settle.shares.total')}</Text>
-                <Text style={styles.shareTotalValue}>
-                  {formatDram(shares.totals.totalDram, locale)}
-                </Text>
+            {isLoading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : isError || !shares ? (
+              <Text style={styles.muted}>{t(tabAccessCopy(error)?.body ?? 'settle.error')}</Text>
+            ) : shares.kind !== 'table' ? (
+              // The host has hidden the table total: no aggregate and nobody
+              // else's share is in the body. This person's own share still is,
+              // and on the screen for "what do I owe" it is the thing to show.
+              <View style={styles.shares}>
+                {shares.yourShare ? (
+                  <ShareRow share={shares.yourShare} locale={locale} first isYou />
+                ) : null}
+                <Text style={styles.muted}>{t('settle.shares.hidden')}</Text>
               </View>
-              {/* Once money has changed hands the table needs what is left,
+            ) : (
+              <View style={styles.shares}>
+                {shares.shares.map((share, i) => (
+                  <ShareRow
+                    key={share.participantId}
+                    share={share}
+                    locale={locale}
+                    first={i === 0}
+                    isYou={share.participantId === view?.me.participantId}
+                  />
+                ))}
+                <View style={styles.shareTotal}>
+                  <Text style={styles.shareTotalLabel}>{t('settle.shares.total')}</Text>
+                  <Text display style={styles.shareTotalValue}>
+                    {formatDram(shares.totals.totalDram, locale)}
+                  </Text>
+                </View>
+                {/* Once money has changed hands the table needs what is left,
                   not the whole bill stated again as owed. */}
-              {shares.totals.paidDram > 0 ? (
-                <>
-                  <View style={styles.shareTotalRow}>
-                    <Text style={styles.shareTotalLabel}>{t('bill.paid')}</Text>
-                    <Text style={styles.shareTotalLabel}>
-                      {formatDram(shares.totals.paidDram, locale)}
-                    </Text>
-                  </View>
-                  <View style={styles.shareTotalRow}>
-                    <Text style={styles.remaining}>{t('bill.remaining')}</Text>
-                    <Text style={styles.remaining}>
-                      {formatDram(shares.totals.remainingDram, locale)}
-                    </Text>
-                  </View>
-                </>
-              ) : null}
-            </View>
-          )}
-        </Card>
+                {shares.totals.paidDram > 0 ? (
+                  <>
+                    <View style={styles.shareTotalRow}>
+                      <Text style={styles.shareTotalLabel}>{t('bill.paid')}</Text>
+                      <Text style={styles.shareTotalLabel}>
+                        {formatDram(shares.totals.paidDram, locale)}
+                      </Text>
+                    </View>
+                    <View style={styles.shareTotalRow}>
+                      <Text style={styles.remainingLabel}>{t('bill.remaining')}</Text>
+                      <Text display style={styles.remaining}>
+                        {formatDram(shares.totals.remainingDram, locale)}
+                      </Text>
+                    </View>
+                  </>
+                ) : null}
+              </View>
+            )}
+          </Card>
+        </Rise>
 
         {/* Not a fallback. Cash is a first-class way to pay here, and the app's
             job is to make the numbers clear and then get somebody to the table. */}
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>{t('settle.pay.title')}</Text>
-          <Text style={styles.payBody}>{t('settle.pay.body')}</Text>
-          <Button
-            label={t('settle.pay.askForBill')}
-            size="large"
-            onPress={() => setWaiterOpen(true)}
-            style={styles.askForBill}
-          />
-        </Card>
+        <Rise delay={riseDelay(2)}>
+          <Card radiusToken="hero" style={styles.card}>
+            <Text style={styles.cardTitle}>{t('settle.pay.title')}</Text>
+            <Text style={styles.payBody}>{t('settle.pay.body')}</Text>
+            <Button
+              label={t('settle.pay.askForBill')}
+              size="large"
+              onPress={() => setWaiterOpen(true)}
+              style={styles.askForBill}
+            />
+          </Card>
+        </Rise>
 
         {isHost ? (
           <Button
@@ -229,7 +276,7 @@ export default function SettleScreen() {
         initialReason="bill"
         tableLabel={view?.tableLabel}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -281,75 +328,114 @@ function ShareRow({
           </Text>
         ) : null}
       </View>
-      <Text style={styles.shareAmount}>{formatDram(share.shareDram, locale)}</Text>
+      <Text display style={styles.shareAmount}>
+        {formatDram(share.shareDram, locale)}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
-  body: { padding: space.lg, gap: space.md, paddingBottom: space.xxxl },
-  title: { ...typography.title, color: colors.text },
+  body: {
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.md,
+    paddingBottom: space.xxxl,
+    gap: layout.cardGap,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  headerText: { flex: 1, minWidth: 0 },
+  title: { fontSize: 24, lineHeight: 32, color: colors.text },
+  where: { ...typography.caption, color: colors.textMuted },
   // The hero number: the one figure read from further away than anything
   // else on the screen.
-  lead: { gap: 2, paddingBottom: space.xs },
+  lead: { gap: 2, paddingVertical: space.xs },
   leadLabel: { ...typography.body, color: colors.textMuted },
-  leadAmount: { ...typography.metric, color: colors.text, ...tabularNumbers },
+  leadAmount: {
+    ...typography.metric,
+    fontWeight: displayWeight.semibold,
+    color: colors.primary,
+    ...tabularNumbers,
+  },
   leadOf: { ...typography.body, color: colors.textMuted, ...tabularNumbers },
-  card: { gap: space.sm },
-  cardTitle: { ...typography.h3, color: colors.text },
+  card: { gap: space.sm, padding: space.md + 2 },
+  cardTitle: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text },
   muted: { ...typography.body, color: colors.textMuted },
   error: { ...typography.body, color: colors.errorInk },
 
+  // Glass at rest, the brand fill once chosen: no rims either way.
   option: {
-    gap: 2,
-    padding: space.md,
-    borderRadius: radius.chip,
-    borderWidth: 2,
-    borderColor: colors.borderStrong,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm + 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    paddingVertical: space.md,
+    paddingHorizontal: space.md + 2,
+    borderRadius: radius.tile,
+    backgroundColor: colors.surfaceMuted,
   },
-  optionOn: { borderColor: colors.brandEdge, backgroundColor: colors.brand },
+  optionPressed: { backgroundColor: colors.primarySoft },
+  optionOn: { backgroundColor: colors.brand, borderColor: colors.brandEdge, ...shadows.brand },
+  optionText: { flex: 1, gap: 2 },
   optionLocked: { opacity: 0.6 },
-  optionTitle: { ...typography.bodyLg, fontWeight: fontWeight.bold, color: colors.text },
+  optionTitle: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
   optionTitleOn: { color: colors.onPrimary },
-  optionBody: { ...typography.body, color: colors.textMuted },
-  optionBodyOn: { color: colors.text },
+  optionBody: { ...typography.caption, color: colors.textMuted },
+  optionBodyOn: { color: colors.onPrimary },
 
   shares: { paddingTop: space.xs },
   shareRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: space.md,
     paddingVertical: space.md,
   },
   shareRowRuled: { borderTopWidth: 1, borderTopColor: colors.border },
   shareWho: { flex: 1, gap: 2 },
-  shareName: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
+  shareName: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
   shareBreakdown: { ...typography.caption, color: colors.textMuted, ...tabularNumbers },
   sharePaid: { ...typography.caption, color: colors.successInk, ...tabularNumbers },
-  shareAmount: { ...typography.h3, color: colors.text, ...tabularNumbers },
+  shareAmount: {
+    ...typography.h3,
+    fontWeight: displayWeight.semibold,
+    color: colors.text,
+    ...tabularNumbers,
+  },
   shareTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'baseline',
     paddingTop: space.md,
     borderTopWidth: 1,
     borderTopColor: colors.borderStrong,
   },
-  shareTotalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: space.xs },
+  shareTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingTop: space.xs,
+  },
   shareTotalLabel: {
-    ...typography.bodyLg,
+    ...typography.body,
     fontWeight: fontWeight.medium,
     color: colors.text,
     ...tabularNumbers,
   },
   shareTotalValue: {
-    ...typography.bodyLg,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
+    ...typography.h3,
+    fontWeight: displayWeight.semibold,
+    color: colors.primary,
     ...tabularNumbers,
   },
-  remaining: { ...typography.h3, color: colors.text, ...tabularNumbers },
+  remainingLabel: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text },
+  remaining: {
+    ...typography.h3,
+    fontWeight: displayWeight.semibold,
+    color: colors.primary,
+    ...tabularNumbers,
+  },
 
-  payBody: { ...typography.bodyLg, color: colors.text },
+  payBody: { ...typography.body, color: colors.textMuted },
   askForBill: { marginTop: space.xs },
 });

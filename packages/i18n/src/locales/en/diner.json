@@ -1,6 +1,5 @@
 {
   "explore": {
-    "title": "Explore",
     "searchPlaceholder": "Search cafes, restaurants, or cuisine…",
     "searchClear": "Clear search",
     "filter": {
@@ -8,7 +7,8 @@
       "cafes": "Cafes",
       "restaurants": "Restaurants",
       "popular": "Popular",
-      "new": "New"
+      "new": "New",
+      "bars": "Bars"
     },
     "empty": {
       "title": "Nothing matches that",
@@ -16,11 +16,26 @@
       "nearby": {
         "title": "No places nearby",
         "body": "Try widening the search or check back later."
-      }
+      },
+      "fewerFilters": "Try removing a filter or two."
     },
     "loading": "Finding places nearby…",
     "mapButton": "Open map",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "map": "Map",
+    "greeting": {
+      "morning": "Good morning,",
+      "afternoon": "Good afternoon,",
+      "evening": "Good evening,"
+    },
+    "quick": {
+      "openNow": "Open now",
+      "nearby": "Nearby"
+    },
+    "sections": {
+      "categories": "Categories",
+      "nearby": "Nearby"
+    }
   },
   "venue": {
     "type": {
@@ -91,7 +106,7 @@
     "empty": {
       "title": "No bookings yet",
       "body": "Find a table and it will show up here.",
-      "action": "Explore places"
+      "action": "Find a place"
     },
     "emptyPast": {
       "title": "Nothing here yet",
@@ -101,11 +116,11 @@
     "detail": {
       "title": "Your booking",
       "cancel": "Cancel booking",
-      "cancelTitle": "Cancel this booking?",
+      "cancelTitle": "Cancel the booking?",
       "cancelFree": "It is free to cancel now, and the table goes back to others.",
       "cancelLate": "This is past the free-cancellation time, but cancelling still helps far more than not turning up.",
-      "cancelConfirm": "Yes, cancel",
-      "cancelKeep": "Keep it",
+      "cancelConfirm": "Cancel booking",
+      "cancelKeep": "Keep booking",
       "cancelling": "Cancelling…",
       "cancelFailed": "We could not cancel that. Try again.",
       "cancelledOn": "Cancelled {{date}}",
@@ -116,6 +131,15 @@
       "title": "Your bookings are kept under your number",
       "body": "Log in to see them.",
       "action": "Log in"
+    },
+    "next": "Next",
+    "change": "Change",
+    "bookAgain": "Book again",
+    "cancelledToast": "Booking cancelled",
+    "countdown": {
+      "hoursMinutes": "in {{hours}} h {{minutes}} min",
+      "hours": "in {{hours}} h",
+      "minutes": "in {{minutes}} min"
     }
   },
   "profile": {
@@ -152,7 +176,8 @@
       "wrongPassword": "That password isn't right. Nothing was deleted.",
       "wrongCode": "That code isn't right. Nothing was deleted.",
       "tooManyAttempts": "Too many tries. Wait a few minutes and try again."
-    }
+    },
+    "verified": "Number verified"
   },
   "table": {
     "titleWithArea": "Table {{label}} · {{area}}",
@@ -219,7 +244,18 @@
     "telegramNotInstalled": "Telegram did not open. Install it, or open this link in a browser:",
     "telegramExpired": "The Telegram link has expired. Start again to get a new one.",
     "telegramTryAgain": "Try again",
-    "telegramUnavailable": "Verifying through Telegram is not available right now."
+    "telegramUnavailable": "Verifying through Telegram is not available right now.",
+    "beforeBooking": "The last step before your booking",
+    "telegramHint": "The Yalla bot opens in Telegram by itself: just press Start and share your number.",
+    "why": "Why verify?",
+    "whyBody": "A booking under a verified number is real to the venue, and your table is held for you. Only the venue you book with sees your number.",
+    "paste": "Paste",
+    "codeHint": {
+      "empty": "The code is 6 digits",
+      "ready": "Ready",
+      "left_one": "{{count}} digit left",
+      "left_other": "{{count}} digits left"
+    }
   },
   "auth": {
     "welcome": {
@@ -335,7 +371,13 @@
     "share": "Share",
     "shareMessage": "I booked table {{table}} at {{venue}} ({{branch}}) for {{time}}. Code {{code}}.",
     "viewBookings": "See my bookings",
-    "atTableHint": "When you arrive, tap “I’m at my table” on your booking — or scan the QR on the table."
+    "atTableHint": "When you arrive, tap “I’m at my table” on your booking — or scan the QR on the table.",
+    "expecting": "They're expecting you",
+    "when": "Day & time",
+    "table": "Table",
+    "address": "Address",
+    "copy": "Copy",
+    "copied": "Copied"
   },
   "net": {
     "offline": "You are offline.",
@@ -349,9 +391,8 @@
   },
   "scan": {
     "tabTitle": "Scan",
-    "title": "Scan your table",
-    "lead": "The code is on your table, usually on a little stand.",
-    "noAccount": "No sign-up and no phone number. Scan and you are in.",
+    "title": "Scan",
+    "lead": "The code is printed on the table card. It scans by itself.",
     "why": "The camera is used for one thing: reading the code on your table.",
     "allow": "Turn on the camera",
     "deniedTitle": "The camera is off",
@@ -359,8 +400,8 @@
     "openSettings": "Open settings",
     "unavailableTitle": "No camera here",
     "unavailableBody": "This device cannot scan, so type your table code or booking code.",
-    "aiming": "Point the camera at the code on your table",
-    "manualToggle": "Type the code instead",
+    "aiming": "Point the camera at the table's QR code",
+    "manualToggle": "Enter the code by hand",
     "manualTitle": "Type the code",
     "manualBody": "The long code printed under the QR on your table, your booking code, or a link from the host.",
     "manualPlaceholder": "Table code, booking code or link",
@@ -402,7 +443,8 @@
         "unknownCode": "not a table",
         "tabClosed": "already closed"
       }
-    }
+    },
+    "torch": "Torch"
   },
   "tab": {
     "title": "Table {{label}}",
@@ -419,9 +461,8 @@
     "waiting": "waiting",
     "guest": "Guest",
     "people": "People",
-    "invite": "Invite someone",
+    "invite": "Invite",
     "manage": "Manage people",
-    "menu": "See the menu",
     "leave": "Leave this tab",
     "leaveTitle": "Leave this tab?",
     "leaveBody": "You can scan the code again to come back.",
@@ -436,8 +477,8 @@
     "notFoundBody": "Scan the code on your table to open a new one.",
     "offline": "No connection. This is the last state we saw.",
     "refresh": "Refresh",
-    "order": "Order something",
-    "settle": "Settling up",
+    "order": "Order more",
+    "settle": "Pay",
     "accessEnded": {
       "title": "You are not on this tab any more",
       "body": "The tab has closed, or you were taken off it. Scan the code on your table to join again."
@@ -454,6 +495,20 @@
     "notOnDevice": {
       "title": "This phone is not on that tab",
       "body": "Scan the code on your table to join it."
+    },
+    "bill": "Bill",
+    "openedAt": "opened {{time}}",
+    "closingChip": "Bill asked",
+    "youHost": "You host this bill",
+    "call": "Call",
+    "called": "Called",
+    "staffAddedToast": "The waiter added {{line}}",
+    "paid": {
+      "title": "Paid",
+      "thanks": "Thank you for coming",
+      "closed": "Bill closed",
+      "closedAt": "Closed at {{time}}",
+      "rate": "How was it?"
     }
   },
   "pending": {
@@ -518,7 +573,6 @@
     "noMatches": "Nothing matches that.",
     "error": "We could not load the menu.",
     "offlineNoCache": "The menu has not been loaded on this phone yet, and there is no signal to fetch it.",
-    "add": "Add",
     "ingredients": "What is in it",
     "allergens": "Allergens",
     "noAllergens": "No allergens listed.",
@@ -528,7 +582,10 @@
       "mild": "Mildly spicy",
       "medium": "Spicy",
       "hot": "Very spicy"
-    }
+    },
+    "title": "Menu",
+    "addItem": "Add {{name}}",
+    "quantity": "{{name}}, quantity"
   },
   "waiter": {
     "call": "Call a waiter",
@@ -575,13 +632,14 @@
     "bar": {
       "count_one": "{{count}} item",
       "count_other": "{{count}} items",
-      "send": "Send to kitchen",
       "notSent": "Not sent yet",
       "stillNotSent": "Still here — nothing has gone to the kitchen",
       "sentTitle": "Order sent",
       "sentReady": "Ready around {{time}}",
       "sentNoEstimate": "The kitchen has it",
-      "seeBill": "See bill"
+      "seeBill": "See bill",
+      "addToBill": "Add to bill",
+      "empty": "Pick some dishes"
     },
     "sent": {
       "title": "Sent to the kitchen",
@@ -608,7 +666,6 @@
     "lockedHint": "We could not tell whether your last send reached the kitchen. Check before changing anything."
   },
   "bill": {
-    "title": "The bill so far",
     "loading": "Loading the bill…",
     "empty": "Nothing ordered yet.",
     "error": "We could not load the bill.",
@@ -643,6 +700,11 @@
     "adjustment": {
       "discount": "Discount",
       "comp": "On the house"
+    },
+    "orders": "Orders",
+    "lineStatus": {
+      "new": "Ordered",
+      "served": "Served"
     }
   },
   "settle": {
@@ -773,13 +835,13 @@
     "action": {
       "call": "Call",
       "directions": "Directions",
-      "website": "Website",
-      "save": "Save"
+      "website": "Website"
     },
     "tab": {
       "about": "About",
       "menu": "Menu",
-      "reviews": "Reviews"
+      "reviews": "Reviews",
+      "rooms": "Rooms"
     },
     "bookTable": "Book a Table",
     "amenity": {
@@ -800,7 +862,10 @@
     "bookingsOff": {
       "title": "Not taking bookings in the app",
       "body": "You can still look at the menu and the opening hours, but tables here cannot be booked in the app right now."
-    }
+    },
+    "ratingReviews_one": "{{rating}} · {{countLabel}} review",
+    "ratingReviews_other": "{{rating}} · {{countLabel}} reviews",
+    "until": "until {{time}}"
   },
   "tables": {
     "title": "Tables right now",
@@ -858,7 +923,6 @@
   },
   "book": {
     "title": "Book a Table",
-    "date": "Date",
     "time": "Time",
     "partySize": "Party Size",
     "partySizeMore_one": "{{count}}+",
@@ -870,7 +934,9 @@
     "noTableForParty_one": "No free table seats {{count}} guest right now. Try another party size.",
     "noTableForParty_other": "No free table seats {{count}} guests right now. Try another party size.",
     "pickTable": "Choose a table",
-    "pickTableHint": "Tap a free table on the photo, or leave it to us."
+    "pickTableHint": "Tap a free table on the photo, or leave it to us.",
+    "anyTable": "Any free table",
+    "summary": "{{table}} · {{day}} {{time}} · {{guests}}"
   },
   "orders": {
     "title": "Orders",
@@ -896,7 +962,8 @@
     "empty": {
       "active": {
         "title": "No active orders",
-        "body": "Scan the code on your table to order."
+        "body": "Scan the code on your table to order.",
+        "action": "Scan the QR"
       },
       "history": {
         "title": "No past orders yet",
@@ -983,7 +1050,7 @@
     "title": "Notifications",
     "empty": "No notifications yet",
     "emptyBody": "Booking updates and ready orders will show up here.",
-    "markAllRead": "Mark all as read",
+    "markAllRead": "Mark all read",
     "loadFailed": "We could not load your notifications. Try again.",
     "unread": "Unread",
     "kind": {
@@ -1015,7 +1082,9 @@
         "title": "Update",
         "body": "Something changed. Open it to see what."
       }
-    }
+    },
+    "yesterday": "Yesterday",
+    "earlier": "Earlier"
   },
   "help": {
     "title": "Help & Support",

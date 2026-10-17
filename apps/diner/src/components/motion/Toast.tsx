@@ -49,11 +49,9 @@ export function ToastHost() {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [progress] = useState(() => new Animated.Value(0));
-  const [shown, setShown] = useState<string | null>(null);
 
   useEffect(() => {
     if (!text) return;
-    setShown(text);
     progress.setValue(0);
     const run = Animated.sequence([
       Animated.timing(progress, {
@@ -68,16 +66,15 @@ export function ToastHost() {
         useNativeDriver: true,
       }),
     ]);
+    // The store keeps the text until the way out has played, so the host stays
+    // drawn while it fades; a newer message restarts the run instead.
     run.start(({ finished }) => {
-      if (finished) {
-        setShown(null);
-        hide();
-      }
+      if (finished) hide();
     });
     return () => run.stop();
   }, [text, stamp, progress, reduced, hide]);
 
-  if (!shown) return null;
+  if (!text) return null;
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [-16, 0] });
   return (
     <Animated.View
@@ -90,7 +87,7 @@ export function ToastHost() {
     >
       <Ionicons name={icon} size={iconSize.md} color={colors.onPrimary} />
       <Text numberOfLines={2} style={styles.text}>
-        {shown}
+        {text}
       </Text>
     </Animated.View>
   );

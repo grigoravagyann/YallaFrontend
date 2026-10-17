@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, type StyleProp, type TextStyle } from 'react-native';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { Text } from '../Text';
@@ -8,6 +8,8 @@ export interface CountUpProps {
   readonly value: number;
   /** Turns the in-between number into the string on screen (currency, grouping). */
   readonly format: (value: number) => string;
+  /** Set in the display serif, like the other big figures. */
+  readonly display?: boolean;
   readonly style?: StyleProp<TextStyle>;
   readonly accessibilityLabel?: string;
 }
@@ -20,39 +22,36 @@ const ROLL_MS = 700;
  * changes roll. A JS-driven value: text cannot be animated on the UI thread,
  * and seven hundred milliseconds of a dozen updates is nothing.
  */
-export function CountUp({ value, format, style, accessibilityLabel }: CountUpProps) {
+export function CountUp({
+  value,
+  format,
+  display = false,
+  style,
+  accessibilityLabel,
+}: CountUpProps) {
   const reduced = useReducedMotion();
+  const [animated] = useState(() => new Animated.Value(value));
   const [shown, setShown] = useState(value);
-  const animated = useRef(new Animated.Value(value)).current;
-  const previous = useRef(value);
 
+  // The display follows the animated value; subscribed once for the life of the figure.
   useEffect(() => {
-    if (previous.current === value) return;
-    const from = previous.current;
-    previous.current = value;
-    if (reduced) {
-      setShown(value);
-      return;
-    }
-    animated.setValue(from);
     const id = animated.addListener(({ value: current }) => setShown(current));
+    return () => animated.removeListener(id);
+  }, [animated]);
+
+  // A new value rolls there (instantly under reduced motion); the same value is a no-op.
+  useEffect(() => {
     const run = Animated.timing(animated, {
       toValue: value,
-      duration: ROLL_MS,
+      duration: reduced ? 0 : ROLL_MS,
       useNativeDriver: false,
     });
-    run.start(() => {
-      animated.removeListener(id);
-      setShown(value);
-    });
-    return () => {
-      run.stop();
-      animated.removeListener(id);
-    };
+    run.start();
+    return () => run.stop();
   }, [animated, reduced, value]);
 
   return (
-    <Text style={style} accessibilityLabel={accessibilityLabel ?? format(value)}>
+    <Text display={display} style={style} accessibilityLabel={accessibilityLabel ?? format(value)}>
       {format(Math.round(shown))}
     </Text>
   );

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { View } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Place } from '../../places/model';
@@ -6,6 +6,7 @@ import { mockPlaces } from '../../places/mockPlaces';
 import { PlaceSummaryCard } from '../place/PlaceSummaryCard';
 import { PlaceHeroCard } from './PlaceHeroCard';
 import { PlaceRow } from './PlaceRow';
+import { PlaceRowCard, placeArea } from './PlaceRowCard';
 import type * as I18nModule from '@yalla/i18n';
 
 /**
@@ -72,6 +73,53 @@ describe('the venue / branch split on place cards', () => {
     );
     const label = screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u);
     expect(label.getAttribute('aria-label')).not.toMatch(/\.\s*\./u);
+  });
+
+  it('PlaceRowCard: venue and branch on separate lines, both in the label', () => {
+    atPhoneWidth(<PlaceRowCard place={PLACE} onPress={() => undefined} />);
+
+    expectSeparateLines();
+    expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./)).toBeTruthy();
+  });
+
+  it('PlaceRowCard: no empty part in the label when the distance is not known', () => {
+    atPhoneWidth(<PlaceRowCard place={{ ...PLACE, distanceKm: null }} onPress={() => undefined} />);
+    const label = screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u);
+    expect(label.getAttribute('aria-label')).not.toMatch(/\.\s*\./u);
+  });
+
+  it('PlaceRowCard: one button for the place, named by it first, and the heart beside it', () => {
+    const onPress = vi.fn();
+    atPhoneWidth(<PlaceRowCard place={PLACE} onPress={onPress} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      expect.stringMatching(/^Lavash Restaurant · Northern Avenue\./u),
+      'place.favorite',
+    ]);
+    fireEvent.click(buttons[0]!);
+    expect(onPress).toHaveBeenCalledWith(PLACE.id);
+  });
+
+  it('PlaceRowCard: the area line is the address up to its first comma for a one-branch venue', () => {
+    const single = { ...PLACE, branchName: '', name: 'Lavash Restaurant' };
+    expect(placeArea(single)).toBe('5 Northern Avenue');
+    expect(placeArea(PLACE)).toBe('Northern Avenue');
+
+    atPhoneWidth(<PlaceRowCard place={single} onPress={() => undefined} />);
+    expect(screen.getByText('5 Northern Avenue')).toBeTruthy();
+    expect(screen.getByLabelText(/^Lavash Restaurant\./u)).toBeTruthy();
+  });
+
+  it('PlaceRowCard: today’s hours beside the Open badge', () => {
+    atPhoneWidth(
+      <PlaceRowCard
+        place={{ ...PLACE, openState: { isOpen: true, todayLabel: '08:00 – 23:00' } }}
+        onPress={() => undefined}
+      />,
+    );
+    expect(screen.getByText('08:00 – 23:00')).toBeTruthy();
+    expect(screen.getByText('place.status.open')).toBeTruthy();
   });
 
   it('PlaceRow: venue and branch on separate lines, both in the label', () => {

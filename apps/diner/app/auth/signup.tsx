@@ -46,7 +46,7 @@ export default function SignupScreen() {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const params = useLocalSearchParams<AuthRouteParams>();
-  const { finish, switchTo, leave } = useAuthFinish(params);
+  const { forward, finish, switchTo, leave } = useAuthFinish(params);
   const register = useRegisterDiner();
   const rememberedName = useSession((s) => s.guestName);
   const rememberedEmail = useSession((s) => s.email);
@@ -149,6 +149,7 @@ export default function SignupScreen() {
       title={t('auth.signup.title')}
       body={t('auth.account.signupBody')}
       onBack={leave}
+      booking={forward}
       footer={{
         prompt: t('auth.signup.haveAccount'),
         action: t('auth.logIn'),

@@ -1,30 +1,49 @@
-import { HostCannotLeaveError } from '@yalla/api';
+import { Ionicons } from '@expo/vector-icons';
+import { HostCannotLeaveError, type DinerTabView } from '@yalla/api';
+import { formatDram, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Animated, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Badge } from '../../../src/components/Badge';
 import { Button } from '../../../src/components/Button';
 import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
+import { Card } from '../../../src/components/Card';
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet';
+import { IconButton } from '../../../src/components/IconButton';
 import { LiveBill } from '../../../src/components/LiveBill';
+import { Rise, riseDelay } from '../../../src/components/motion/Rise';
+import { SuccessMark } from '../../../src/components/motion/SuccessMark';
+import { usePressScale } from '../../../src/components/motion/usePressScale';
 import { AvatarRow, useParticipantSummary } from '../../../src/components/Participants';
+import { Screen } from '../../../src/components/Screen';
 import { TabNamePrompt } from '../../../src/components/TabNamePrompt';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
 import { useLeaveTab } from '../../../src/data/queries';
+import { haptics } from '../../../src/lib/haptics';
+import { useTray } from '../../../src/order/TrayProvider';
 import { useActiveTab } from '../../../src/stores/tab';
 import { tabAccessCopy } from '../../../src/tab/access';
 import { canInvite } from '../../../src/tab/invite';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
+import { projectTab } from '../../../src/tab/projection';
 import { onTab, roster } from '../../../src/tab/roster';
-import { colors, fontWeight, layout, radius, space, typography } from '../../../src/theme';
+import {
+  actionIcon,
+  colors,
+  displayWeight,
+  fontWeight,
+  iconSize,
+  layout,
+  radius,
+  ratingIcon,
+  shadows,
+  space,
+  tabularNumbers,
+  typography,
+  type IoniconName,
+} from '../../../src/theme';
 
 /** Slow enough not to be a battery problem, quick enough to feel current. */
 const POLL_MS = 8_000;
@@ -33,10 +52,11 @@ const POLL_MS = 8_000;
  * The tab — the main screen for anyone sitting at the table.
  *
  * The bill leads, because it is the thing that changes while you sit here.
- * The people on the tab are a row of initials under the table name rather
- * than a list: who is here is a glance, and the full roster with host
- * controls lives one tap away. Ordering is the one brown press; calling a
- * waiter never leaves the bottom edge.
+ * The people on the tab are a stack of initials in one glass card rather than
+ * a list: who is here is a glance, and the full roster with host controls lives
+ * one tap away. Under the bill sit the three things a table does — call
+ * somebody over, order more, pay — so a waiter is never more than two taps
+ * from the bill.
  *
  * Everything here is read from the diner's own tab read (`GET /api/tabs/{id}`
  * with this phone's participant token): who is on the tab, the bill, and
@@ -49,6 +69,8 @@ export default function TabScreen() {
   const { tabId } = useLocalSearchParams<{ tabId: string }>();
 
   const [waiterOpen, setWaiterOpen] = useState(false);
+  /** A call went through from this screen: the Call button says so. */
+  const [called, setCalled] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
@@ -67,6 +89,8 @@ export default function TabScreen() {
   const clearActive = useActiveTab((s) => s.clear);
   const joinActive = useActiveTab((s) => s.join);
   const activeTabId = useActiveTab((s) => s.activeTabId);
+  // The order this phone last sent, so the bill never announces it as a waiter's.
+  const { state: tray } = useTray();
 
   const lost = tabAccessCopy(error);
   const over =
@@ -103,6 +127,11 @@ export default function TabScreen() {
     clearActive();
     router.replace('/(tabs)/scan');
   }, [clearActive, router]);
+
+  const goBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }, [router]);
 
   const confirmLeave = useCallback(async () => {
     if (!tabId) return;
@@ -167,7 +196,12 @@ export default function TabScreen() {
     );
   }
 
-  if (view.status === 'closed' || view.status === 'abandoned') {
+  // Settled and closed by staff: the receipt, and a way to say how it was.
+  if (view.status === 'closed') {
+    return <PaidView view={view} onDone={() => router.replace('/')} />;
+  }
+
+  if (view.status === 'abandoned') {
     return (
       <Shell>
         <View style={styles.centered}>
@@ -183,38 +217,74 @@ export default function TabScreen() {
   const goTo = (screen: 'invite' | 'people' | 'menu' | 'settle') =>
     router.push({ pathname: `/tab/[tabId]/${screen}`, params: { tabId: view.tabId } });
 
+  // "Table 4" stays its own words in the line: it is what a person (and the
+  // end-to-end suite) looks for.
+  const where = [
+    view.venueName,
+    t('tab.title', { label: view.tableLabel }),
+    t('tab.openedAt', { time: formatTime(view.openedAtUtc, view.timeZoneId, locale) }),
+  ].join(' · ');
+
   return (
     <Shell>
-      <ScrollView contentContainerStyle={styles.body}>
-        <View style={styles.header}>
-          <Text style={styles.where}>
-            {t('tab.where', { venue: view.venueName, branch: view.branchName })}
-          </Text>
-          <Text display style={styles.table}>
-            {t('tab.title', { label: view.tableLabel })}
-          </Text>
-
-          {/* Who is here, as initials and one sentence. Tapping it opens the
-              full roster: the host's controls and the people asking to join. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={[t('tab.peopleCount', { count }), summary]
-              .filter(Boolean)
-              .join('. ')}
-            onPress={() => goTo('people')}
-            style={({ pressed }) => [styles.people, pressed && styles.pressed]}
-          >
-            <AvatarRow people={people} />
-            <View style={styles.peopleText}>
-              <Text style={styles.count}>{t('tab.peopleCount', { count })}</Text>
-              {summary ? (
-                <Text style={styles.summary} numberOfLines={2}>
-                  {summary}
-                </Text>
-              ) : null}
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <Rise delay={riseDelay(0)}>
+          <View style={styles.header}>
+            <IconButton
+              icon={actionIcon.back}
+              onPress={goBack}
+              accessibilityLabel={t('floorPlan.back')}
+            />
+            <View style={styles.headerText}>
+              <Text display style={styles.title} accessibilityRole="header">
+                {t('tab.bill')}
+              </Text>
+              <Text style={styles.where}>{where}</Text>
             </View>
-          </Pressable>
-        </View>
+            {view.status === 'closing' ? (
+              <Badge variant="reserved" dot label={t('tab.closingChip')} style={styles.chip} />
+            ) : (
+              <Badge variant="open" dot style={styles.chip} />
+            )}
+          </View>
+        </Rise>
+
+        {/* Who is here, as initials and one sentence. Tapping it opens the
+            full roster: the host's controls and the people asking to join. */}
+        <Rise delay={riseDelay(1)}>
+          <Card padded={false} radiusToken="hero" style={styles.people}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={[t('tab.peopleCount', { count }), summary]
+                .filter(Boolean)
+                .join('. ')}
+              onPress={() => goTo('people')}
+              style={({ pressed }) => [styles.peopleTap, pressed && styles.pressed]}
+            >
+              <AvatarRow people={people} />
+              <View style={styles.peopleText}>
+                <Text style={styles.names} numberOfLines={1}>
+                  {summary || t('tab.peopleCount', { count })}
+                </Text>
+                <Text style={styles.role} numberOfLines={1}>
+                  {isHost ? t('tab.youHost') : t('tab.peopleCount', { count })}
+                </Text>
+              </View>
+            </Pressable>
+            {/* Host-only, because the server's invitation route is: offered to a
+                guest, it was a button whose every tap ended in a refusal. */}
+            {canInvite(view) ? (
+              <Button
+                label={t('tab.invite')}
+                variant="outline"
+                size="small"
+                icon="qr-code-outline"
+                fullWidth={false}
+                onPress={() => goTo('invite')}
+              />
+            ) : null}
+          </Card>
+        </Rise>
 
         {/* Somebody the tab only knows as "Guest 2" is offered a name, once. */}
         <TabNamePrompt tabId={view.tabId} currentName={view.me.displayName} />
@@ -230,56 +300,57 @@ export default function TabScreen() {
         {/* The bill as it grows. Live through the tab's event sequence, so a
             waiter adding a spoken order on the tablet appears here without
             anybody refreshing anything. */}
-        <LiveBill
-          tabId={view.tabId}
-          timeZoneId={view.timeZoneId}
-          active={view.me.status === 'approved'}
-        />
+        <Rise delay={riseDelay(2)}>
+          <LiveBill
+            tabId={view.tabId}
+            timeZoneId={view.timeZoneId}
+            active={view.me.status === 'approved'}
+            ownOrderId={tray.lastSent?.orderId ?? null}
+          />
+        </Rise>
 
-        <View style={styles.actions}>
-          {/* The menu is readable by everyone at the table. Ordering is not,
-              and when this person cannot order the reason is said here rather
-              than discovered as a refusal after building a tray. */}
-          <Button label={block ? t('tab.menu') : t('tab.order')} onPress={() => goTo('menu')} />
+        <Rise delay={riseDelay(3)} style={styles.actionsBlock}>
+          <View style={styles.actions}>
+            <ActionButton
+              icon="notifications-outline"
+              label={called ? t('tab.called') : t('tab.call')}
+              accessibilityLabel={called ? t('tab.called') : t('waiter.call')}
+              tone={called ? 'success' : 'glass'}
+              onPress={() => setWaiterOpen(true)}
+            />
+            {/* The menu is readable by everyone at the table. Ordering is not,
+                and when this person cannot order the reason is said here
+                rather than discovered as a refusal after building a tray. */}
+            <ActionButton
+              label={block ? t('menu.title') : t('tab.order')}
+              tone="glass"
+              onPress={() => goTo('menu')}
+            />
+            <ActionButton label={t('tab.settle')} tone="brand" onPress={() => goTo('settle')} />
+          </View>
           {block ? <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text> : null}
+        </Rise>
 
-          <Button label={t('tab.settle')} variant="secondary" onPress={() => goTo('settle')} />
-
-          {/* Host-only, because the server's invitation route is: offered to a
-              guest, it was a button whose every tap ended in a refusal. */}
-          {canInvite(view) ? (
-            <Button label={t('tab.invite')} variant="secondary" onPress={() => goTo('invite')} />
-          ) : null}
+        <View style={styles.quiet}>
           {isHost ? (
             <Button label={t('tab.manage')} variant="text" onPress={() => goTo('people')} />
           ) : null}
-
           <Button
             label={isFetching ? t('pending.checking') : t('tab.refresh')}
             variant="text"
             busy={isFetching}
             onPress={() => void refetch()}
           />
-
           <Button label={t('tab.leave')} variant="destructive" onPress={() => setLeaveOpen(true)} />
         </View>
       </ScrollView>
-
-      {/* One tap from the floor, always visible, never behind a menu. */}
-      <View style={styles.footer}>
-        <Button
-          label={t('waiter.call')}
-          variant="outline"
-          onPress={() => setWaiterOpen(true)}
-          style={styles.waiter}
-        />
-      </View>
 
       <CallWaiterSheet
         tabId={view.tabId}
         visible={waiterOpen}
         onClose={() => setWaiterOpen(false)}
         tableLabel={view.tableLabel}
+        onSent={() => setCalled(true)}
       />
 
       <ConfirmSheet
@@ -301,31 +372,253 @@ export default function TabScreen() {
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+/**
+ * One of the three presses under the bill. Equal thirds, which is narrower
+ * than `Button` lays out: a glass pill, the brand pill for Pay, and a solid
+ * green once the waiter has been called.
+ */
+function ActionButton({
+  label,
+  icon,
+  tone,
+  onPress,
+  accessibilityLabel,
+}: {
+  readonly label: string;
+  readonly icon?: IoniconName;
+  readonly tone: 'glass' | 'brand' | 'success';
+  readonly onPress: () => void;
+  readonly accessibilityLabel?: string;
+}) {
+  const press = usePressScale();
+  const ink =
+    tone === 'brand' ? colors.onPrimary : tone === 'success' ? colors.onSuccessStrong : colors.text;
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <Stack.Screen options={{ headerShown: true, title: '' }} />
-      {children}
-    </SafeAreaView>
+    <Animated.View style={[styles.actionWrap, press.style]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? label}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={({ pressed }) => [
+          styles.action,
+          tone === 'glass' && styles.actionGlass,
+          tone === 'brand' && styles.actionBrand,
+          tone === 'success' && styles.actionSuccess,
+          pressed && tone === 'glass' && styles.actionGlassPressed,
+          pressed && tone === 'brand' && styles.actionBrandPressed,
+        ]}
+      >
+        {icon ? <Ionicons name={icon} size={iconSize.sm + 1} color={ink} /> : null}
+        <Text
+          numberOfLines={1}
+          style={[styles.actionLabel, tone === 'brand' && styles.actionLabelStrong, { color: ink }]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
+/**
+ * The tab once staff have closed it: paid and done.
+ *
+ * What was paid leads, then the receipt as the server last described it, then
+ * a way to say how it was — the stars open the place's reviews, because there
+ * is no review attached to a tab. No tip and no payment method: the tab does
+ * not carry either.
+ */
+function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDone: () => void }) {
+  const { t } = useTranslation('diner');
+  const { locale } = useLocale();
+  const router = useRouter();
+  const [rating, setRating] = useState(0);
+
+  const rendered = projectTab(view, view.timeZoneId);
+  const lines = (rendered.tableLines ?? rendered.myLines).filter((line) => !line.isVoided);
+  const money = rendered.money;
+  // The paid figure when the server has one, else the bill it closed on. Not
+  // shown at all to someone the host kept the total from.
+  const amount =
+    money.kind === 'table' ? (money.paidDram > 0 ? money.paidDram : money.totalDram) : null;
+  const rate = rendered.serviceChargePercent;
+
+  const rateVisit = (stars: number) => {
+    setRating(stars);
+    haptics.select();
+    // The place page's Reviews section, where the composer is.
+    router.push({
+      pathname: '/place/[placeId]',
+      params: { placeId: view.branchId, section: 'reviews' },
+    });
+  };
+
+  return (
+    <Screen edges={['top', 'left', 'right', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ScrollView contentContainerStyle={styles.paidBody} showsVerticalScrollIndicator={false}>
+        <View style={styles.paidTop}>
+          <IconButton
+            icon={actionIcon.close}
+            onPress={onDone}
+            accessibilityLabel={t('waiter.close')}
+          />
+        </View>
+
+        <SuccessMark style={styles.paidMark} />
+        <Rise delay={120}>
+          <Text display style={styles.paidTitle} accessibilityRole="header">
+            {t('tab.paid.title')}
+          </Text>
+        </Rise>
+        <Rise delay={180}>
+          <Text style={styles.paidThanks}>{t('tab.paid.thanks')}</Text>
+        </Rise>
+        {amount !== null ? (
+          <Rise delay={220}>
+            <Text display style={styles.paidAmount}>
+              {formatDram(amount, locale)}
+            </Text>
+          </Rise>
+        ) : null}
+
+        <Rise delay={260} style={styles.stretch}>
+          <Card radiusToken="hero" style={styles.receipt}>
+            <View style={styles.receiptHead}>
+              <Text numberOfLines={1} style={styles.receiptWhere}>
+                {`${view.venueName} · ${t('tab.title', { label: view.tableLabel })}`}
+              </Text>
+              <Badge variant="closed" tone="soft" size="sm" label={t('tab.paid.closed')} />
+            </View>
+            <Dashed />
+            {lines.map((line) => (
+              <View key={line.id} style={styles.receiptRow}>
+                <Text style={styles.receiptLine}>{`${line.quantity} × ${line.name}`}</Text>
+                <Text style={styles.receiptAmount}>{formatDram(line.lineTotalDram, locale)}</Text>
+              </View>
+            ))}
+            {money.kind === 'table' ? (
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptMuted}>
+                  {rate > 0
+                    ? t('bill.serviceChargeRate', { percent: rate })
+                    : t('bill.serviceCharge')}
+                </Text>
+                <Text style={styles.receiptMuted}>
+                  {formatDram(money.serviceChargeDram, locale)}
+                </Text>
+              </View>
+            ) : null}
+            <View style={styles.receiptRule} />
+            <View style={styles.receiptRow}>
+              <Text style={styles.receiptTotal}>
+                {money.kind === 'table' ? t('bill.total') : t('bill.yourItems')}
+              </Text>
+              <Text style={styles.receiptTotal}>
+                {formatDram(
+                  money.kind === 'table' ? money.totalDram : money.yourItemsSubtotalDram,
+                  locale,
+                )}
+              </Text>
+            </View>
+            {view.closedAtUtc ? (
+              <Text style={styles.receiptMuted}>
+                {t('tab.paid.closedAt', {
+                  time: formatTime(view.closedAtUtc, view.timeZoneId, locale),
+                })}
+              </Text>
+            ) : null}
+          </Card>
+        </Rise>
+
+        <Rise delay={320} style={styles.stretch}>
+          <View style={styles.rateCard}>
+            <Text style={styles.rateTitle}>{t('tab.paid.rate')}</Text>
+            <View style={styles.stars}>
+              {[1, 2, 3, 4, 5].map((stars) => (
+                <Pressable
+                  key={stars}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('place.review.starLabel', { rating: stars })}
+                  onPress={() => rateVisit(stars)}
+                  style={({ pressed }) => [styles.star, pressed && styles.pressed]}
+                >
+                  <Ionicons
+                    name={stars <= rating ? ratingIcon.filled : ratingIcon.empty}
+                    size={iconSize.xl}
+                    color={colors.warningInk}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </Rise>
+      </ScrollView>
+
+      <View style={styles.paidFooter}>
+        <Button label={t('booking.done')} size="large" onPress={onDone} />
+      </View>
+    </Screen>
+  );
+}
+
+/**
+ * A receipt's dashed rule. A dashed border on one side alone does not draw on
+ * iOS, so a dashed box is clipped down to its top edge.
+ */
+function Dashed() {
+  return (
+    <View style={styles.dashedClip}>
+      <View style={styles.dashed} />
+    </View>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <Screen edges={['top', 'left', 'right', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      {children}
+    </Screen>
+  );
+}
+
+const ACTION_HEIGHT = 50;
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
-  body: { padding: space.lg, paddingBottom: space.huge + space.xl, gap: space.md },
-  header: { gap: space.xs },
-  where: { ...typography.body, color: colors.textMuted },
-  table: { ...typography.title, color: colors.text },
+  body: {
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.md,
+    paddingBottom: space.xl,
+    gap: layout.cardGap,
+  },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  headerText: { flex: 1, minWidth: 0 },
+  title: { fontSize: 24, lineHeight: 32, color: colors.text },
+  where: { ...typography.caption, color: colors.textMuted },
+  chip: { marginTop: space.xs },
+
   people: {
-    marginTop: space.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.md,
+    gap: space.sm + 2,
+    paddingVertical: space.sm + 2,
+    paddingHorizontal: space.md,
+  },
+  peopleTap: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm + 2,
     minHeight: layout.touchTarget,
   },
-  peopleText: { flex: 1 },
-  count: { ...typography.bodyLg, fontWeight: fontWeight.medium, color: colors.text },
-  summary: { ...typography.body, color: colors.textMuted },
+  peopleText: { flex: 1, minWidth: 0 },
+  names: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
+  role: { ...typography.caption, color: colors.textMuted },
+
   offline: {
     padding: space.sm,
     borderRadius: radius.small,
@@ -338,23 +631,38 @@ const styles = StyleSheet.create({
     padding: space.md,
     borderRadius: radius.chip,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.warning,
     backgroundColor: colors.warningSoft,
     ...typography.body,
     color: colors.text,
   },
-  actions: { gap: space.sm, marginTop: space.xs },
-  blocked: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
-  footer: {
-    padding: space.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
+
+  actionsBlock: { gap: space.sm },
+  actions: { flexDirection: 'row', gap: space.sm },
+  actionWrap: { flex: 1, minWidth: 0 },
+  action: {
+    height: ACTION_HEIGHT,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs + 2,
+    paddingHorizontal: space.sm,
   },
-  // Filled, not just outlined: this one stays on screen under everything
-  // else, and a hollow pill over the white footer reads as a leftover.
-  waiter: { backgroundColor: colors.primarySoft },
+  actionGlass: { backgroundColor: colors.surface },
+  actionGlassPressed: { backgroundColor: colors.surfaceMuted },
+  actionBrand: {
+    backgroundColor: colors.brand,
+    borderWidth: 1,
+    borderColor: colors.brandEdge,
+    ...shadows.brand,
+  },
+  actionBrandPressed: { backgroundColor: colors.brandPressed },
+  actionSuccess: { backgroundColor: colors.successStrong },
+  actionLabel: { ...typography.body, fontWeight: fontWeight.medium, flexShrink: 1 },
+  actionLabelStrong: { fontWeight: fontWeight.bold },
+  blocked: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  quiet: { alignItems: 'center', marginTop: space.xs },
+
   centered: {
     flex: 1,
     alignItems: 'center',
@@ -365,4 +673,79 @@ const styles = StyleSheet.create({
   emptyTitle: { ...typography.h3, color: colors.text, textAlign: 'center' },
   muted: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   pressed: { opacity: 0.75 },
+
+  paidBody: {
+    alignItems: 'center',
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: space.md,
+    paddingBottom: space.xl,
+  },
+  paidTop: { alignSelf: 'stretch', flexDirection: 'row' },
+  paidMark: { marginTop: space.xs + 2 },
+  paidTitle: {
+    marginTop: space.lg + 2,
+    fontSize: 25,
+    lineHeight: 32,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  paidThanks: {
+    marginTop: space.xs + 2,
+    ...typography.body,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  paidAmount: {
+    marginTop: space.md + 2,
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: displayWeight.semibold,
+    color: colors.primary,
+    ...tabularNumbers,
+  },
+  stretch: { alignSelf: 'stretch' },
+  receipt: { marginTop: space.lg + 2, gap: space.sm + 2, padding: space.md + 2 },
+  receiptHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+  },
+  receiptWhere: { ...typography.body, fontWeight: fontWeight.bold, color: colors.text, flex: 1 },
+  dashedClip: { height: 1.5, overflow: 'hidden' },
+  dashed: {
+    height: 4,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.borderStrong,
+    borderRadius: 1,
+  },
+  receiptRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md },
+  receiptLine: { ...typography.body, color: colors.text, flex: 1 },
+  receiptAmount: { ...typography.body, color: colors.text, ...tabularNumbers },
+  receiptMuted: { ...typography.caption, color: colors.textMuted, ...tabularNumbers },
+  receiptRule: { height: 1, backgroundColor: colors.border },
+  receiptTotal: {
+    ...typography.body,
+    fontWeight: fontWeight.bold,
+    color: colors.text,
+    ...tabularNumbers,
+  },
+  rateCard: {
+    marginTop: space.md,
+    padding: space.md + 2,
+    borderRadius: radius.hero,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    gap: space.sm,
+  },
+  rateTitle: { ...typography.body, fontWeight: fontWeight.medium, color: colors.text },
+  stars: { flexDirection: 'row', gap: space.xs },
+  star: {
+    width: layout.touchTarget,
+    height: layout.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paidFooter: { paddingHorizontal: layout.screenPadding, paddingTop: space.md },
 });

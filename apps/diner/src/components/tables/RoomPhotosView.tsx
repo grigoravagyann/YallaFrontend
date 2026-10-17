@@ -1,7 +1,8 @@
 import { useTranslation } from '@yalla/i18n';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   FlatList,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -13,7 +14,7 @@ import {
 } from 'react-native';
 import type { PlaceRoom, RoomPhoto, TablePhotoMarker } from '../../places/model';
 import { roomOfTable } from '../../places/rooms';
-import { colors, fontWeight, radius, space, tabularNumbers, typography } from '../../theme';
+import { colors, fontWeight, layout, radius, space, tabularNumbers, typography } from '../../theme';
 import { Chip } from '../Chip';
 import { Text } from '../Text';
 import { TABLE_PHOTO_ASPECT, TablePhotoView } from './TablePhotoView';
@@ -30,6 +31,15 @@ export interface RoomPhotosViewProps {
   readonly canBook?: boolean | undefined;
   /** The party being booked for: pins it cannot have are not offered. */
   readonly partySize?: number | undefined;
+  /**
+   * A heading for the block ("Pick a table"). Given, the room tabs move to
+   * its right as one glass segmented pill instead of a row of chips above.
+   */
+  readonly title?: ReactNode;
+  /** Laid between the room tabs and the photo: a hint, or why the last try failed. */
+  readonly notice?: ReactNode;
+  /** Extra style for each photo's frame — its corner radius, say. */
+  readonly photoStyle?: StyleProp<ViewStyle>;
   readonly style?: StyleProp<ViewStyle>;
 }
 
@@ -48,6 +58,9 @@ export function RoomPhotosView({
   onBook,
   canBook,
   partySize,
+  title,
+  notice,
+  photoStyle,
   style,
 }: RoomPhotosViewProps) {
   const { t } = useTranslation('diner');
@@ -107,17 +120,25 @@ export function RoomPhotosView({
 
   if (!room) return null;
 
-  return (
-    <View style={style}>
-      {rooms.length > 1 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          accessibilityRole="tablist"
-          accessibilityLabel={t('tables.rooms')}
-          contentContainerStyle={styles.rooms}
-        >
-          {rooms.map((candidate) => (
+  const roomTabs =
+    rooms.length > 1 ? (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        accessibilityRole="tablist"
+        accessibilityLabel={t('tables.rooms')}
+        style={title ? styles.segmentedScroll : undefined}
+        contentContainerStyle={title ? styles.segmented : styles.rooms}
+      >
+        {rooms.map((candidate) =>
+          title ? (
+            <RoomTab
+              key={candidate.roomId}
+              label={candidate.name}
+              selected={candidate.roomId === room.roomId}
+              onPress={() => setRoomId(candidate.roomId)}
+            />
+          ) : (
             <Chip
               key={candidate.roomId}
               label={candidate.name}
@@ -126,13 +147,26 @@ export function RoomPhotosView({
               selected={candidate.roomId === room.roomId}
               onPress={() => setRoomId(candidate.roomId)}
             />
-          ))}
-        </ScrollView>
+          ),
+        )}
+      </ScrollView>
+    ) : (
+      <Text numberOfLines={1} style={title ? styles.roomNameAside : styles.roomName}>
+        {room.name}
+      </Text>
+    );
+
+  return (
+    <View style={style}>
+      {title ? (
+        <View style={styles.titleRow}>
+          <View style={styles.title}>{title}</View>
+          {roomTabs}
+        </View>
       ) : (
-        <Text numberOfLines={1} style={styles.roomName}>
-          {room.name}
-        </Text>
+        roomTabs
       )}
+      {notice ? <View style={styles.notice}>{notice}</View> : null}
 
       <View onLayout={onLayout} style={styles.pager}>
         {width > 0 ? (
@@ -162,6 +196,7 @@ export function RoomPhotosView({
                   canBook={canBook}
                   partySize={partySize}
                   onZoomedChange={(value) => setZoomed(item.photoId, value)}
+                  style={photoStyle}
                 />
               </View>
             )}
@@ -176,6 +211,7 @@ export function RoomPhotosView({
             canBook={canBook}
             partySize={partySize}
             onZoomedChange={(value) => setZoomed(room.photos[index]!.photoId, value)}
+            style={photoStyle}
           />
         ) : null}
         {count > 1 ? (
@@ -190,8 +226,70 @@ export function RoomPhotosView({
   );
 }
 
+/** One room in the segmented pill: the brand fill when it is the room on show. */
+function RoomTab({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected }}
+      // The web build reads none of accessibilityState.
+      aria-selected={selected}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.roomTab,
+        selected && styles.roomTabOn,
+        pressed && !selected && styles.roomTabPressed,
+      ]}
+    >
+      <Text numberOfLines={1} style={[styles.roomTabLabel, selected && styles.roomTabLabelOn]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   rooms: { gap: space.sm, paddingBottom: space.sm },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    marginBottom: space.md,
+  },
+  title: { flexShrink: 1 },
+  notice: { gap: space.sm, marginBottom: space.md },
+  segmentedScroll: { flexGrow: 0, flexShrink: 1, marginLeft: 'auto' },
+  segmented: {
+    gap: space.xs,
+    padding: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  roomTab: {
+    minHeight: layout.touchTarget,
+    paddingHorizontal: space.md + 2,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roomTabOn: { backgroundColor: colors.brand },
+  roomTabPressed: { backgroundColor: colors.surfaceMuted },
+  roomTabLabel: { ...typography.caption, color: colors.textMuted },
+  roomTabLabelOn: { fontWeight: fontWeight.bold, color: colors.onPrimary },
+  roomNameAside: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginLeft: 'auto',
+    flexShrink: 1,
+  },
   roomName: {
     ...typography.body,
     fontWeight: fontWeight.medium,
