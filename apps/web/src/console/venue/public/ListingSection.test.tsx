@@ -109,6 +109,8 @@ describe('the listing section', () => {
       galleryPhotoIds: [second, first],
       // The address travels with the pin, as the server requires (K5).
       address: current.address,
+      // Untouched, so sent back as stored: every field is replaced on save.
+      district: current.district,
       latitude: 40.2,
       longitude: current.longitude,
     });
@@ -160,8 +162,97 @@ describe('the listing section', () => {
     expect((scoped.getByLabelText(/latitude/i) as HTMLInputElement).disabled).toBe(true);
     expect((scoped.getByLabelText(/longitude/i) as HTMLInputElement).disabled).toBe(true);
     expect(scoped.getByText(/only an owner can move the map pin/i)).toBeTruthy();
-    // The rest of the listing is still theirs to edit.
+    // The rest of the listing is still theirs to edit, the district included:
+    // it names the area, it does not move the pin.
     expect((scoped.getByLabelText(/cuisine/i) as HTMLInputElement).disabled).toBe(false);
+    expect((scoped.getByLabelText(/district/i) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('lets a manager set the district, trimmed, and clear it again', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'manager' });
+    const update = vi.spyOn(gateway, 'updateBranchListing');
+    const user = userEvent.setup();
+    renderScreen(gateway, manager);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    const scoped = within(form);
+    const district = scoped.getByLabelText(/district/i) as HTMLInputElement;
+    await user.clear(district);
+    await user.type(district, '  Kentron  ');
+    await user.click(scoped.getByRole('button', { name: /save listing/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update.mock.calls[0]?.[0].listing.district).toBe('Kentron');
+    await screen.findByText(/listing saved/i);
+    expect(district.value).toBe('Kentron');
+    expect((await gateway.getBranchListing('b-lumen-north')).district).toBe('Kentron');
+
+    // Blank is "no district", not an empty string the app would draw.
+    await user.clear(district);
+    await user.type(district, '   ');
+    await user.click(scoped.getByRole('button', { name: /save listing/i }));
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(update.mock.calls[1]?.[0].listing.district).toBeNull();
+    await waitFor(async () =>
+      expect((await gateway.getBranchListing('b-lumen-north')).district).toBeNull(),
+    );
+  });
+
+  it('says a district is too long before sending anything', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const update = vi.spyOn(gateway, 'updateBranchListing');
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    const district = within(form).getByLabelText(/district/i);
+    await user.clear(district);
+    // Pasted, as a long name usually arrives; the input does not cut it short.
+    await user.click(district);
+    await user.paste('K'.repeat(61));
+    await user.click(within(form).getByRole('button', { name: /save listing/i }));
+
+    const refusal = await within(form).findByRole('alert');
+    expect(refusal.textContent).toMatch(/district can be at most 60 characters/i);
+    expect(district.getAttribute('aria-describedby')).toBe(refusal.id);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('puts a 422 that names the district under the district', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    vi.spyOn(gateway, 'updateBranchListing').mockRejectedValueOnce(
+      new ValidationError({
+        url: `/api/branches/${BRANCH}/listing`,
+        status: 422,
+        problem: {
+          type: 'about:blank',
+          title: 'Validation failed',
+          status: 422,
+          detail: 'One or more fields are invalid.',
+          code: 'validation-failed',
+          traceId: 'test',
+          context: {
+            fields: [
+              { field: 'district', message: 'At most 60 characters.', bound: 'max', max: 60 },
+            ],
+          },
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderScreen(gateway);
+
+    const form = (await screen.findByRole('form', { name: /in the yalla app/i })) as HTMLElement;
+    await user.click(within(form).getByRole('button', { name: /save listing/i }));
+
+    const refusal = await within(form).findByRole('alert');
+    expect(refusal.textContent).toMatch(/district can be at most 60 characters/i);
+    expect(
+      within(form)
+        .getByLabelText(/district/i)
+        .getAttribute('aria-describedby'),
+    ).toBe(refusal.id);
+    expect(within(form).queryByText(/did not save/i)).toBeNull();
   });
 
   it('asks for the address with the pin before sending anything', async () => {

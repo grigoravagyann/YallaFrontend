@@ -146,6 +146,20 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   const [sessionAdjustments, setSessionAdjustments] = useState<
     ReadonlyMap<string, readonly TabAdjustment[]>
   >(new Map());
+  /**
+   * Bill requests this device answered "On my way" to, by request id.
+   *
+   * The branch's request list drops a request once it is acknowledged, but
+   * that is the moment the waiter sets off with the bill — the amount and the
+   * tip the table asked for are needed at the table, not before. So they are
+   * kept here until cash is taken against them. By request, not by tab: two
+   * people at one table can each have asked.
+   */
+  const [acknowledgedBills, setAcknowledgedBills] = useState<ReadonlyMap<string, ServiceRequest>>(
+    new Map(),
+  );
+  /** Bill requests cash has been recorded against on this device: handled. */
+  const [settledBillIds, setSettledBillIds] = useState<ReadonlySet<string>>(new Set());
 
   // --- Commands -------------------------------------------------------------
 
@@ -533,7 +547,11 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
     [branchId, queryClient, queue],
   );
 
-  const acknowledge = useCallback(
+  /**
+   * The staff acknowledgement, through the queue like every other command —
+   * the same call "On my way" makes.
+   */
+  const sendAcknowledge = useCallback(
     (request: ServiceRequest) => {
       const clientCommandId = newCommandId();
       queue.enqueue({
@@ -550,6 +568,16 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.serviceRequests(branchId) });
     },
     [branchId, queryClient, queue],
+  );
+
+  const acknowledge = useCallback(
+    (request: ServiceRequest) => {
+      if (request.reason === 'bill' && request.bill) {
+        setAcknowledgedBills((current) => new Map(current).set(request.id, request));
+      }
+      sendAcknowledge(request);
+    },
+    [sendAcknowledge],
   );
 
   const submitOrder = useCallback(
@@ -601,6 +629,41 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   );
 
   const activeTabLabel = plan?.tables.find((table) => table.id === activeTableId)?.label ?? '';
+
+  /**
+   * The tab's bill requests with an amount on them — still unanswered in the
+   * branch list, or answered from this device — and not yet paid against,
+   * newest first.
+   *
+   * One per person: a new request from somebody replaces their earlier one
+   * (the server drops the superseded one from its list; a copy this device
+   * kept after "On my way" is dropped here the same way).
+   */
+  const activeBillRequests = useMemo((): readonly ServiceRequest[] => {
+    if (!activeTabId) return [];
+    const byId = new Map<string, ServiceRequest>();
+    for (const request of [
+      ...(requestsQuery.data ?? []).filter(
+        (candidate) => candidate.tabId === activeTabId && candidate.reason === 'bill',
+      ),
+      ...[...acknowledgedBills.values()].filter((candidate) => candidate.tabId === activeTabId),
+    ]) {
+      if (request.bill !== null && !settledBillIds.has(request.id) && !byId.has(request.id)) {
+        byId.set(request.id, request);
+      }
+    }
+    const newestFirst = [...byId.values()].sort((a, b) =>
+      b.requestedAtUtc.localeCompare(a.requestedAtUtc),
+    );
+    const seen = new Set<string>();
+    return newestFirst.filter((request) => {
+      const who = request.requestedByParticipantId;
+      if (who === null) return true;
+      if (seen.has(who)) return false;
+      seen.add(who);
+      return true;
+    });
+  }, [activeTabId, acknowledgedBills, requestsQuery.data, settledBillIds]);
 
   return (
     <div className="floor" data-surface="staff">
@@ -781,6 +844,7 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           // tab this device simply cannot reach right now would send a waiter
           // off to open a second one.
           offlineUnknown={isOfflinePaused(tabQuery) && !tabQuery.data && activeTabId !== null}
+          billRequests={activeBillRequests}
           cashRefusal={
             cashRefusal && cashRefusal.tabId === activeTabId
               ? {
@@ -824,14 +888,58 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
             if (!activeTabId) return;
             beginClosing.mutate({ tabId: activeTabId, clientCommandId: newCommandId() });
           }}
-          onCash={({ amountDram, tipDram }) => {
+          onCash={({ amountDram, tipDram, billRequest: request }) => {
             if (!activeTabId) return;
             const tabId = activeTabId;
+            // A "my share" request is one person's money, so the cash is theirs
+            // and the server credits their share. The whole bill names nobody:
+            // whoever hands it over is paying for the table.
+            const payer = request?.bill?.scope === 'mine' ? request.requestedByParticipantId : null;
+            // Whether this device already answered it with "On my way".
+            const acknowledgedHere = request ? acknowledgedBills.has(request.id) : false;
             setCashRefusal(null);
             recordCash.mutate(
-              { tabId, amountDram, tipDram, clientCommandId: newCommandId() },
+              {
+                tabId,
+                amountDram,
+                tipDram,
+                clientCommandId: newCommandId(),
+                ...(payer ? { participantId: payer } : {}),
+              },
               {
                 onSuccess: (result) => {
+                  if (request) {
+                    // Only the request this cash answered is done with, whether
+                    // or not anyone tapped "On my way" for it. The others at
+                    // the table are still waiting.
+                    setSettledBillIds((current) => new Set(current).add(request.id));
+                    // With it go this device's copies of the same person's
+                    // earlier requests on the tab: they were already replaced,
+                    // and must not resurface as the newest once this one is gone.
+                    const answered = (candidate: ServiceRequest) =>
+                      candidate.id === request.id ||
+                      (request.requestedByParticipantId !== null &&
+                        candidate.tabId === request.tabId &&
+                        candidate.requestedByParticipantId === request.requestedByParticipantId &&
+                        candidate.requestedAtUtc <= request.requestedAtUtc);
+                    setAcknowledgedBills((current) => {
+                      const next = new Map(
+                        [...current].filter(([, candidate]) => !answered(candidate)),
+                      );
+                      return next.size === current.size ? current : next;
+                    });
+                    // And answered on the server when nobody has yet, so a
+                    // reload or the other tablet does not show it again.
+                    const stillOpen = (
+                      queryClient.getQueryData<readonly ServiceRequest[]>(
+                        queryKeys.serviceRequests(branchId),
+                      ) ?? []
+                    ).some(
+                      (candidate) =>
+                        candidate.id === request.id && candidate.acknowledgedAtUtc === null,
+                    );
+                    if (stillOpen && !acknowledgedHere) sendAcknowledge(request);
+                  }
                   setNotice({
                     kind: 'info',
                     text: result.tabClosed

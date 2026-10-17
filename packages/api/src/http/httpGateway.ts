@@ -4,7 +4,7 @@ import type { AuthSession } from '../auth/session';
 import type { ApiClient, RequestOptions } from '../client';
 import type {
   Booking,
-  CreateBookingCommand,
+  DaySlots,
   MyBookings,
   PhoneChallenge,
   TableUnavailableReason,
@@ -34,6 +34,7 @@ import type { DinerNotificationPage } from '../contracts/notifications';
 import {
   BookingBusyError,
   BookingCommandInUseError,
+  BookingNotChangeableError,
   BookingsNotAcceptedError,
   CannotReportOwnReviewError,
   ReviewNeedsVisitError,
@@ -91,10 +92,12 @@ import type {
 import type { components } from '../generated/schema';
 import {
   availabilityFromResponse,
+  daySlotsFromWire,
   floorFromAvailability,
   slotFloorFromResponse,
   floorFromState,
   localDateTime,
+  type WireDaySlots,
 } from './mapping';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
@@ -138,7 +141,15 @@ import {
 import { photoRejectionFrom } from './photoErrors';
 import { absolutePhoto } from './photoUrl';
 import { venueSummariesFromCards } from './publicMapping';
-import { branchMenu, placeOrderResult, tabEventPage, tabShares } from './staffMapping';
+import {
+  billRequest,
+  billScopeCode,
+  branchMenu,
+  placeOrderResult,
+  tabEventPage,
+  tabShares,
+  type RequestView,
+} from './staffMapping';
 import { photo } from './venueSettingsMapping';
 
 type Schemas = components['schemas'];
@@ -368,7 +379,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
    */
   function admitted(result: Schemas['Yalla.Application.Tabs.TabAccessResult']): ScanResult {
     keepTabToken(result.token.tabId, result.token.accessToken);
-    const tab = dinerTab(result.tab, new Date().toISOString());
+    const tab = dinerTab(result.tab, new Date().toISOString(), client.baseUrl);
     if (tab.me.status === 'pendingApproval') return { kind: 'joinPending', tab };
     if ((result.outcome === 1 || result.outcome === 2) && !result.wasReplay) {
       return { kind: 'tabOpened', tab };
@@ -581,7 +592,14 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
    * another tap with the same command id. Anything else is rethrown as the
    * client mapped it, and the screen treats it as an unknown outcome.
    */
-  function rethrowBooking(error: unknown, command: CreateBookingCommand): never {
+  function rethrowBooking(
+    error: unknown,
+    command: {
+      readonly branchId: string | null;
+      readonly tableId: string;
+      readonly partySize: number;
+    },
+  ): never {
     if (!(error instanceof ApiError) || !error.problem) throw error;
     const context = error.problem.context ?? {};
     const code = error.problem.code;
@@ -590,6 +608,12 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     switch (code) {
       case 'phone-not-verified':
         throw new PhoneNotVerifiedError(base);
+      case 'reservation-not-changeable':
+        throw new BookingNotChangeableError({
+          ...base,
+          reservationId:
+            typeof context['reservationId'] === 'string' ? context['reservationId'] : undefined,
+        });
       case 'bookings-not-accepted':
         throw new BookingsNotAcceptedError({
           ...base,
@@ -814,13 +838,23 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
   async function availability(
     branchId: string,
-    query: { date?: string; time?: string; partySize?: number },
+    query: { date?: string; time?: string; partySize?: number; excludeReservationId?: string },
   ): Promise<Schemas['Yalla.Application.Reservations.BranchAvailability']> {
     const { data } = await client.get<Schemas['Yalla.Application.Reservations.BranchAvailability']>(
       `/api/branches/${branchId}/availability`,
       { query, skipAuth: true },
     );
     return data;
+  }
+
+  /**
+   * `excludeReservationId`, only when there is one: the booking being changed,
+   * which the server then ignores so its own table reads free. Absent is the
+   * ordinary question and must stay byte-identical to it, for the server's
+   * cache as much as for anything else.
+   */
+  function excluding(bookingId: string | undefined): { excludeReservationId?: string } {
+    return bookingId ? { excludeReservationId: bookingId } : {};
   }
 
   return {
@@ -894,13 +928,32 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
       return availabilityFromResponse(await availability(branchId, { date, time, partySize }));
     },
 
-    async getSlotFloor({ branchId, slotUtc, partySize, timeZoneId }) {
+    async getSlotFloor({ branchId, slotUtc, partySize, timeZoneId, excludeBookingId }) {
       try {
         // The branch's wall clock, never the device's: the backend asks in
         // local date and time terms, and a tourist's phone on Moscow time would
         // otherwise book a table three hours from the one they picked.
         const { date, time } = localDateTime(slotUtc, timeZoneId ?? defaultZone);
-        return slotFloorFromResponse(await availability(branchId, { date, time, partySize }));
+        return slotFloorFromResponse(
+          await availability(branchId, { date, time, partySize, ...excluding(excludeBookingId) }),
+        );
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    },
+
+    /**
+     * `GET /api/branches/{id}/availability/slots`, anonymous like the single
+     * slot. The date is the branch's own calendar day, as the diner picked it.
+     */
+    async getDaySlots({ branchId, date, partySize, excludeBookingId }): Promise<DaySlots | null> {
+      try {
+        const { data } = await client.get<WireDaySlots>(
+          `/api/branches/${branchId}/availability/slots`,
+          { query: { date, partySize, ...excluding(excludeBookingId) }, skipAuth: true },
+        );
+        return daySlotsFromWire(data);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -1538,12 +1591,17 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      * — because the same view feeds the counter screen's queue. Only the four
      * fields `WaiterCall` names are read.
      */
-    async callWaiter({ tabId, reason }): Promise<WaiterCall> {
-      let data: Schemas['Yalla.Application.Ordering.ServiceRequestView'];
+    async callWaiter({ tabId, reason, bill }): Promise<WaiterCall> {
+      // Sent only with a bill: the server refuses either on any other preset.
+      const body = {
+        preset: SERVICE_PRESET_CODE[reason],
+        ...(bill ? { billScope: billScopeCode(bill.scope), tipPercent: bill.tipPercent } : {}),
+      } satisfies Schemas['Yalla.Api.Endpoints.RaiseServiceRequest'];
+      let data: RequestView;
       try {
-        ({ data } = await client.post<Schemas['Yalla.Application.Ordering.ServiceRequestView']>(
+        ({ data } = await client.post<RequestView>(
           `/api/tabs/${tabId}/service-requests`,
-          { preset: SERVICE_PRESET_CODE[reason] },
+          body,
           await tabAuth(tabId),
         ));
       } catch (error) {
@@ -1564,6 +1622,9 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
         tabId: data.tabId,
         reason,
         requestedAtUtc: data.createdAtUtc,
+        // The server's amounts for the scope asked about, so the sheet's
+        // success state says the number the waiter is bringing.
+        bill: billRequest(data),
       };
     },
 
@@ -1609,6 +1670,33 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
 
     async cancelBooking(bookingId): Promise<Booking> {
       return toBooking(await cancelView(bookingId));
+    },
+
+    /**
+     * `POST /api/reservations/{id}/reschedule`, in the branch's wall-clock date
+     * and time like a new booking. 200 with the booking as it now stands —
+     * same id, same code — for a change and for a replay of one alike.
+     */
+    async rescheduleBooking(command): Promise<Booking> {
+      const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
+      try {
+        const { data } = await client.post<
+          Schemas['Yalla.Application.Reservations.ReservationView']
+        >(`/api/reservations/${command.bookingId}/reschedule`, {
+          date,
+          time,
+          partySize: command.partySize,
+          diningTableId: command.tableId,
+          clientCommandId: command.commandId,
+        } satisfies Schemas['Yalla.Api.Endpoints.RescheduleReservationRequest']);
+        return toBooking(data);
+      } catch (error) {
+        rethrowBooking(error, {
+          branchId: null,
+          tableId: command.tableId,
+          partySize: command.partySize,
+        });
+      }
     },
 
     // --- Notifications --------------------------------------------------------
@@ -1699,7 +1787,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           `/api/tabs/${tabId}`,
           await tabAuth(tabId),
         );
-        return dinerTab(data, new Date().toISOString());
+        return dinerTab(data, new Date().toISOString(), client.baseUrl);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw ended(error, tabId, [401, 403]);
@@ -1777,7 +1865,7 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           { settlementMode: settlementModeCode(command.mode) },
           await tabAuth(command.tabId),
         );
-        return dinerTab(data, new Date().toISOString());
+        return dinerTab(data, new Date().toISOString(), client.baseUrl);
       } catch (error) {
         throw hostError(error, command.tabId);
       }

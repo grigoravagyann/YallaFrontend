@@ -1924,6 +1924,14 @@ fieldset.editor-body:disabled {
   font-weight: var(--font-weight-medium);
 }
 
+/* How much, and the tip, on a bill request from the app's pay sheet. */
+.call-bill {
+  margin: 0;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
 /* --- Needs resolving ------------------------------------------------------ */
 
 .unresolved {
@@ -2358,6 +2366,31 @@ fieldset.editor-body:disabled {
   font-size: var(--font-size-md);
 }
 
+/* Tips sit under the balance and are quieter than it: money the venue took,
+   never part of what the table owes. */
+.tab-tips {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+/* Who at the table asked to pay from the app's pay sheet, and how much: a
+   native radio group (the choice-card pattern), the pick being whose cash the
+   keypad opens on. The whole card is the tap target. */
+.tab-bill-requests {
+  gap: var(--space-sm);
+}
+
+.tab-bill-requests .choice-card {
+  min-height: var(--touch-staff);
+  padding: var(--space-md);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
 .tab-actions {
   display: flex;
   flex-direction: column;
@@ -2431,7 +2464,7 @@ fieldset.editor-body:disabled {
 
 .tab-shares li {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
   font-size: var(--font-size-lg);
@@ -2439,6 +2472,24 @@ fieldset.editor-body:disabled {
 
 .tab-shares strong {
   font-variant-numeric: var(--font-feature-tabular);
+}
+
+.tab-person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+/* The account photo fills the avatar circle; initials take its place without one. */
+.tab-avatar {
+  overflow: hidden;
+}
+
+.tab-avatar img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
 }
 
 .tab-manager {

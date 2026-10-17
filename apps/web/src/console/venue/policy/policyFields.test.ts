@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   POLICY_FIELDS,
   POLICY_GROUPS,
+  defaultValue,
   differsFromDefaults,
   fieldsInGroup,
   isDefault,
@@ -84,6 +85,13 @@ describe('the shipped defaults', () => {
       (key) => cafe[key as keyof typeof cafe] !== restaurant[key as keyof typeof restaurant],
     );
     expect(differing).toEqual(['turnTimeMinutes']);
+  });
+
+  it('give a bar the cafe defaults', () => {
+    expect(defaultPolicyFor('bar')).toEqual(defaultPolicyFor('cafe'));
+    expect(defaultValue('turnTimeMinutes', 'bar')).toBe(120);
+    expect(differsFromDefaults(defaultPolicyFor('cafe'), 'bar')).toEqual([]);
+    expect(differsFromDefaults(defaultPolicyFor('restaurant'), 'bar')).toEqual(['turnTimeMinutes']);
   });
 
   it('give a reset target for every field, and say which have been changed', () => {

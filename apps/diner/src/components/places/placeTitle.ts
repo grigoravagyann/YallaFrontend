@@ -28,3 +28,44 @@ export function placeTitle(place: Pick<Place, 'name' | 'venueName' | 'branchName
     rawBranch && rawBranch.toLocaleLowerCase() !== venue.toLocaleLowerCase() ? rawBranch : null;
   return { venue, branch, label: branch ? `${venue} · ${branch}` : venue };
 }
+
+/** The fields a place's whereabouts are worded from. */
+export type PlaceAreaSource = Pick<
+  Place,
+  'name' | 'venueName' | 'branchName' | 'address' | 'district'
+>;
+
+/** "5 Northern Avenue" of "5 Northern Avenue, Yerevan": the street, as a card line. */
+function streetOf(address: string): string {
+  return address.split(',')[0]?.trim() ?? '';
+}
+
+/**
+ * The area of town the venue named for itself, else the street — the end of
+ * the Place header's "Restaurant · Armenian · Kentron". `''` when neither is
+ * known.
+ */
+export function placeDistrict(place: Pick<Place, 'address' | 'district'>): string {
+  return place.district?.trim() || streetOf(place.address);
+}
+
+/**
+ * Where a place is, as one line under its venue name — the design's "Kentron".
+ *
+ * - A branch with a name of its own and a district: both, "Northern Avenue ·
+ *   Kentron" — the branch tells two branches of one venue apart, the district
+ *   says where in town (once, when the branch is named after the district).
+ * - A district alone (a one-branch venue): "Kentron".
+ * - No district: what the card said before — the branch when it has a name of
+ *   its own (usually the street), else the street of the address.
+ *
+ * The card's accessible name is still `placeTitle().label`; this is the line
+ * under it, on cards and in the Book header alike.
+ */
+export function placeArea(place: PlaceAreaSource): string {
+  const district = place.district?.trim();
+  const branch = placeTitle(place).branch;
+  if (!district) return branch ?? streetOf(place.address);
+  if (!branch || branch.toLocaleLowerCase() === district.toLocaleLowerCase()) return district;
+  return `${branch} · ${district}`;
+}

@@ -273,6 +273,7 @@
       "comp": "On the house"
     },
     "serviceCharge": "Service {{percent}}%",
+    "tips": "Tips taken: {{amount}} · on top of the bill",
     "closingNote": "The bill has been asked for. No new items go on.",
     "askForBill": "Ask for the bill",
     "linesLoading": "Loading the items…",
@@ -311,6 +312,20 @@
     "closed": "Paid in full. The tab is closed; the table stays occupied until someone frees it.",
     "failed": "We could not record that payment. Nothing was taken.",
     "exceeds": "{{requested}} is more than this tab owes. {{remaining}} is left on it. Nothing was recorded."
+  },
+  "billRequest": {
+    "wantsWhole": "Wants to pay the whole bill: {{amount}}",
+    "wantsMine": "Wants to pay their share: {{amount}}",
+    "whole": "Whole bill: {{amount}}",
+    "mine": "Their share: {{amount}}",
+    "tip": "tip {{percent}}% · {{amount}}",
+    "noTip": "no tip",
+    "prefilled": "Filled in from what the table asked for in the app. Change it if they pay differently.",
+    "pickTitle": "Asked to pay from the app",
+    "pickNote": "The one you pick fills in Take cash.",
+    "someone": "Someone at the table",
+    "noneTitle": "None of these",
+    "noneBody": "Take cash starts from the balance: {{amount}}"
   },
   "connection": {
     "refresh": "Refresh the floor",

@@ -9,7 +9,15 @@ import type { ReservationStatusCode } from './push';
  * real HTTP gateway both implement them, so swapping data sources is a change
  * of one module — never a change to a screen.
  */
-export type VenueType = 'cafe' | 'restaurant';
+export type VenueType = 'cafe' | 'restaurant' | 'bar';
+
+/**
+ * Every kind of place, in the order a filter offers them.
+ *
+ * `Yalla.Domain.Enums.VenueType`: 1 Cafe, 2 Restaurant, 3 Bar. One list, so a
+ * select or a chip row that iterates it cannot forget the newest kind.
+ */
+export const VENUE_TYPES: readonly VenueType[] = ['cafe', 'restaurant', 'bar'];
 
 /**
  * Booking policy for a branch. These four numbers drive most of the copy in the
@@ -238,6 +246,59 @@ export interface SlotFloor {
   readonly partySize: number;
 }
 
+/**
+ * One time of day on {@link DaySlots}: whether a party of that size can still
+ * get a table then.
+ *
+ * Decided by the server with the same per-table checks as {@link SlotFloor} —
+ * the backend shares them between the two reads precisely so a time the day
+ * view offers is never refused by the room it opens.
+ */
+export interface DaySlot {
+  /** `HH:mm`, the branch's wall clock. */
+  readonly time: string;
+  /** The same moment as an instant — what {@link SlotFloor} and a booking take. */
+  readonly slotUtc: string;
+  /** At least one table the party fits is free then. */
+  readonly isAvailable: boolean;
+  /** A booking then would wait for the venue rather than confirm at once. */
+  readonly requiresApproval: boolean;
+  /** How many tables would take the party then. */
+  readonly freeTableCount: number;
+  /**
+   * Why not, when not: a request-level rule (too soon, too far ahead) or, when
+   * the tables were considered, the reason most of them gave — `alreadyBooked`
+   * whenever a booking is what took them. `null` when available.
+   */
+  readonly unavailableReason: TableUnavailableReason | null;
+}
+
+/**
+ * Every bookable time on one day for one party size —
+ * `GET /api/branches/{id}/availability/slots`.
+ *
+ * The booking screen strikes the times nobody can have, instead of letting a
+ * diner pick 20:00 and then find every table taken.
+ */
+export interface DaySlots {
+  readonly branchId: string;
+  /** `YYYY-MM-DD`, the branch's calendar. */
+  readonly date: string;
+  readonly partySize: number;
+  /** The spacing between slots, from the server. 30 today. */
+  readonly stepMinutes: number;
+  /**
+   * The whole day refused — shut, or outside the booking window. Every slot is
+   * unavailable then, and `slots` may be empty; read this first.
+   */
+  readonly unavailableReason: TableUnavailableReason | null;
+  /**
+   * The times whose whole sitting fits one opening block, earliest first.
+   * Times the branch is shut are left out, not listed as unavailable.
+   */
+  readonly slots: readonly DaySlot[];
+}
+
 // ---------------------------------------------------------------------------
 // Bookings
 // ---------------------------------------------------------------------------
@@ -276,6 +337,12 @@ export interface Booking {
 
   readonly tableId: string;
   readonly tableLabel: string;
+  /**
+   * The room the table is in — "Hall", "Terrace" — from the table's floor area.
+   * `null` when the table is in none, or the server did not say.
+   */
+  readonly roomId: string | null;
+  readonly roomName: string | null;
 
   readonly partySize: number;
   /** When the table is theirs from — the server's `startUtc`. */
@@ -368,6 +435,30 @@ export interface CreateBookingCommand {
    * note; at most {@link MAX_BOOKING_NOTE} characters, or a 422 naming `note`.
    */
   readonly note?: string | null | undefined;
+}
+
+/**
+ * Move a booking to another time, size or table, keeping the booking itself —
+ * `POST /api/reservations/{id}/reschedule`.
+ *
+ * The same code, the same manage link, the same id: the venue sees one booking
+ * that moved, not a cancellation and a stranger. Only the diner's own booking,
+ * and only while it is waiting for the venue or confirmed and has not started.
+ *
+ * Every rule a new booking meets applies again — the hours, the lead time, the
+ * window, the table fitting the party — except that the booking does not
+ * collide with itself, so keeping the same table at a nearby time works. The
+ * status is decided afresh: a bigger party may go back to waiting for the venue.
+ */
+export interface RescheduleBookingCommand {
+  readonly bookingId: string;
+  /** Client-generated, stable across retries; a replay answers the booking as it stands. */
+  readonly commandId: string;
+  readonly tableId: string;
+  readonly slotUtc: string;
+  /** The branch's zone: the server takes wall-clock date and time, as for a new booking. */
+  readonly timeZoneId: string;
+  readonly partySize: number;
 }
 
 // ---------------------------------------------------------------------------

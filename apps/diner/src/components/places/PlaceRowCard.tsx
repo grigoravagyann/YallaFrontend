@@ -29,7 +29,7 @@ import { usePressScale } from '../motion/usePressScale';
 import { PhotoImage } from '../PhotoImage';
 import { Text } from '../Text';
 import { usePlaceCopy } from './placeCopy';
-import { placeTitle } from './placeTitle';
+import { placeArea, placeTitle } from './placeTitle';
 
 /** The card's height: five short lines beside the photo. */
 export const ROW_CARD_HEIGHT = 112;
@@ -42,18 +42,6 @@ export interface PlaceRowCardProps {
   readonly place: Place;
   readonly onPress: (placeId: string) => void;
   readonly style?: StyleProp<ViewStyle>;
-}
-
-/**
- * Where a place is, as a card line: the branch when it has a name of its own
- * (that is what tells two of a venue apart, and it is usually the street),
- * else the first part of the address — "5 Northern Avenue" of
- * "5 Northern Avenue, Yerevan". There is no neighbourhood field to show.
- */
-export function placeArea(place: Pick<Place, 'name' | 'venueName' | 'branchName' | 'address'>) {
-  const { branch } = placeTitle(place);
-  if (branch) return branch;
-  return place.address.split(',')[0]?.trim() ?? '';
 }
 
 /**

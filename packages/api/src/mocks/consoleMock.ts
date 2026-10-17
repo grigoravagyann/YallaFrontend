@@ -15,6 +15,7 @@ import type {
   SubscriptionTier,
   UserRole,
   VenueStatus,
+  VenueType,
 } from '../contracts/console';
 import {
   BranchNotReadyError,
@@ -58,7 +59,12 @@ import {
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import { invalidRequest, validationFailed, type MockViolation } from './problems';
 import { publicBranchFixtures } from './publicVenues';
-import { AMENITY_KEYS, MAX_GALLERY_PHOTOS, type VenueListing } from '../contracts/listing';
+import {
+  AMENITY_KEYS,
+  MAX_DISTRICT_LENGTH,
+  MAX_GALLERY_PHOTOS,
+  type VenueListing,
+} from '../contracts/listing';
 import type { StaffRole } from '../contracts/console';
 import type { PhotoUpload } from '../consoleGateway';
 import type {
@@ -216,7 +222,7 @@ interface VenueRecord {
   id: string;
   name: string;
   slug: string;
-  type: 'cafe' | 'restaurant';
+  type: VenueType;
   status: VenueStatus;
   createdAtUtc: string;
   suspendedAtUtc: string | null;
@@ -799,6 +805,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       websiteUrl: null,
       amenities: [],
       address: fixture?.addressLine ?? '12 Abovyan Street, Yerevan',
+      district: fixture?.district ?? null,
       latitude: located ? fixture.latitude! : 40.1843,
       longitude: located ? fixture.longitude! : 44.5129,
       gallery: [],
@@ -2243,6 +2250,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const cuisine = clean(listing.cuisine);
       const about = clean(listing.about);
       const website = clean(listing.websiteUrl);
+      const district = clean(listing.district);
       const fields: MockViolation[] = [];
       if (cuisine !== null && cuisine.length > CUISINE_MAX) {
         fields.push({
@@ -2284,6 +2292,16 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         fields.push({
           field: 'websiteUrl',
           message: 'The website must be an http or https address.',
+        });
+      }
+      // The area of town is a listing field like the cuisine, not a move: a
+      // manager may set it, and it is not tied to the pin (diner design gaps).
+      if (district !== null && district.length > MAX_DISTRICT_LENGTH) {
+        fields.push({
+          field: 'district',
+          message: `At most ${MAX_DISTRICT_LENGTH} characters.`,
+          bound: 'max',
+          max: MAX_DISTRICT_LENGTH,
         });
       }
       // Matched ignoring case and stored as the canonical key, once each.
@@ -2336,6 +2354,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         websiteUrl: website,
         amenities,
         address: hasPin && address !== null ? address : existing.address,
+        district,
         latitude: listing.latitude ?? existing.latitude,
         longitude: listing.longitude ?? existing.longitude,
         gallery,

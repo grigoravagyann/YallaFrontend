@@ -6,7 +6,8 @@ import { mockPlaces } from '../../places/mockPlaces';
 import { PlaceSummaryCard } from '../place/PlaceSummaryCard';
 import { PlaceHeroCard } from './PlaceHeroCard';
 import { PlaceRow } from './PlaceRow';
-import { PlaceRowCard, placeArea } from './PlaceRowCard';
+import { PlaceRowCard } from './PlaceRowCard';
+import { placeArea } from './placeTitle';
 import type * as I18nModule from '@yalla/i18n';
 
 /**
@@ -35,6 +36,8 @@ const PLACE: Place = {
   venueName: 'Lavash Restaurant',
   branchName: 'Northern Avenue',
   name: 'Lavash Restaurant · Northern Avenue',
+  // No district: these are about the venue / branch split itself.
+  district: null,
   badges: [],
   photos: [],
   openState: { isOpen: true, todayLabel: '' },
@@ -109,6 +112,25 @@ describe('the venue / branch split on place cards', () => {
     atPhoneWidth(<PlaceRowCard place={single} onPress={() => undefined} />);
     expect(screen.getByText('5 Northern Avenue')).toBeTruthy();
     expect(screen.getByLabelText(/^Lavash Restaurant\./u)).toBeTruthy();
+  });
+
+  it('PlaceRowCard: the area line is the branch and the district, else the old fallback', () => {
+    // A one-branch venue: the district alone.
+    const single = { ...PLACE, branchName: '', name: 'Lavash Restaurant', district: 'Kentron' };
+    expect(placeArea(single)).toBe('Kentron');
+    // A branch of its own: the branch, then the district.
+    expect(placeArea({ ...PLACE, district: ' Kentron ' })).toBe('Northern Avenue · Kentron');
+    // A branch named after its district says it once.
+    expect(placeArea({ ...PLACE, branchName: 'Kentron', district: 'kentron' })).toBe('kentron');
+    // Blank is unset: the branch, as before.
+    expect(placeArea({ ...PLACE, district: '  ' })).toBe('Northern Avenue');
+
+    atPhoneWidth(
+      <PlaceRowCard place={{ ...PLACE, district: 'Kentron' }} onPress={() => undefined} />,
+    );
+    expect(screen.getByText('Northern Avenue · Kentron')).toBeTruthy();
+    // The card is still named by venue and branch, whatever the area line says.
+    expect(screen.getByLabelText(/^Lavash Restaurant · Northern Avenue\./u)).toBeTruthy();
   });
 
   it('PlaceRowCard: today’s hours beside the Open badge', () => {

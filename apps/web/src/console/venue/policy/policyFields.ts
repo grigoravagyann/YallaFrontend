@@ -3,6 +3,7 @@ import {
   defaultPolicyFor,
   isPolicyBounds,
   type ReservationPolicy,
+  type VenueType,
 } from '@yalla/api';
 
 /**
@@ -148,7 +149,7 @@ export function fieldsInGroup(group: PolicyGroup): readonly PolicyFieldSpec[] {
  */
 export function defaultValue(
   key: keyof ReservationPolicy,
-  venueType: 'cafe' | 'restaurant',
+  venueType: VenueType,
 ): ReservationPolicy[keyof ReservationPolicy] {
   return defaultPolicyFor(venueType)[key];
 }
@@ -156,14 +157,14 @@ export function defaultValue(
 export function isDefault(
   policy: ReservationPolicy,
   key: keyof ReservationPolicy,
-  venueType: 'cafe' | 'restaurant',
+  venueType: VenueType,
 ): boolean {
   return policy[key] === defaultValue(key, venueType);
 }
 
 export function differsFromDefaults(
   policy: ReservationPolicy,
-  venueType: 'cafe' | 'restaurant',
+  venueType: VenueType,
 ): readonly (keyof ReservationPolicy)[] {
   return POLICY_FIELDS.map((field) => field.key).filter(
     (key) => !isDefault(policy, key, venueType),

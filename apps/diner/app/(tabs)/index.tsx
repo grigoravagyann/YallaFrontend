@@ -31,8 +31,9 @@ import { Text, TextInput } from '../../src/components/Text';
 import { useDinerProfile } from '../../src/data/accountQueries';
 import { useNotificationCount } from '../../src/hooks/useNotificationCount';
 import { initialsOf } from '../../src/lib/initials';
+import { categoryPhotos } from '../../src/places/categories';
 import { usePlaces } from '../../src/places/hooks';
-import type { Place, PlaceBadge, PlaceType } from '../../src/places/model';
+import { PLACE_TYPES, type Place, type PlaceBadge, type PlaceType } from '../../src/places/model';
 import { useSession } from '../../src/stores/session';
 import { useActiveTab } from '../../src/stores/tab';
 import {
@@ -50,8 +51,8 @@ import {
 } from '../../src/theme';
 
 const FILTERS: readonly PlaceBadge[] = ['popular', 'new'];
-/** The kinds of place, after the badges: a café for coffee, a restaurant for dinner. */
-const TYPES: readonly PlaceType[] = ['cafe', 'restaurant'];
+/** The kinds of place, after the badges: a café for coffee, a restaurant for dinner, a bar after. */
+const TYPES: readonly PlaceType[] = PLACE_TYPES;
 /** Quick filters the list applies itself: the server knows nothing of "now" or "here". */
 const QUICK = ['openNow', 'nearby'] as const;
 type Quick = (typeof QUICK)[number];
@@ -64,16 +65,9 @@ const SKELETON_ROWS = 4;
 const AVATAR = 48;
 const TILE_HEIGHT = 94;
 
-/**
- * What a category tile narrows the list to. A bar is not a kind of place the
- * model has (a place is a café or a restaurant), so the Bars tile filters on
- * this side and finds nothing — "nothing matched", honestly, rather than a
- * list of restaurants under a heading that says bars.
- */
-type Kind = PlaceType | 'bar';
-
+/** What a category tile narrows the list to: one kind of place, as the type chips do. */
 interface Category {
-  readonly kind: Kind;
+  readonly kind: PlaceType;
   readonly labelKey: string;
   readonly icon: IoniconName;
 }
@@ -81,7 +75,7 @@ interface Category {
 const CATEGORIES: readonly Category[] = [
   { kind: 'cafe', labelKey: 'explore.filter.cafes', icon: placeTypeIcon.cafe },
   { kind: 'restaurant', labelKey: 'explore.filter.restaurants', icon: placeTypeIcon.restaurant },
-  { kind: 'bar', labelKey: 'explore.filter.bars', icon: 'beer-outline' },
+  { kind: 'bar', labelKey: 'explore.filter.bars', icon: placeTypeIcon.bar },
 ];
 
 /** Morning until noon, afternoon until six, evening after — and through the night. */
@@ -122,12 +116,12 @@ export default function ExploreScreen() {
   // chip clears it.
   const [badge, setBadge] = useState<PlaceBadge | null>(null);
   // A kind of place narrows the list the same way a badge does; the two combine.
-  const [kind, setKind] = useState<Kind | null>(null);
+  const [kind, setKind] = useState<PlaceType | null>(null);
   const [quick, setQuick] = useState<QuickState>(NO_QUICK);
   const activeTabId = useActiveTab((s) => s.activeTabId);
 
-  const type = kind === 'bar' ? null : kind;
-  const filter = badge || type ? { ...(badge ? { badge } : {}), ...(type ? { type } : {}) } : null;
+  const filter =
+    badge || kind ? { ...(badge ? { badge } : {}), ...(kind ? { type: kind } : {}) } : null;
   const placesQuery = usePlaces({ query, ...(filter ? { filter } : {}) });
   const { data, isLoading, isError, isFetching, isPlaceholderData, refetch } = placesQuery;
   // The unfiltered list, for the category tiles' photos: the same query as the
@@ -138,7 +132,6 @@ export default function ExploreScreen() {
 
   // Stable identity, so `?? []` does not hand FlatList a fresh array per render.
   const shown: readonly Place[] = useMemo(() => {
-    if (kind === 'bar') return [];
     const places = data ?? [];
     if (!quick.openNow && !quick.nearby) return places;
     return places.filter(
@@ -146,7 +139,7 @@ export default function ExploreScreen() {
         (!quick.openNow || place.openState.isOpen) &&
         (!quick.nearby || (place.distanceKm !== null && place.distanceKm < NEARBY_KM)),
     );
-  }, [data, kind, quick]);
+  }, [data, quick]);
 
   const chipFiltering = badge !== null || kind !== null || quick.openNow || quick.nearby;
   const filtering = query.trim() !== '' || chipFiltering;
@@ -157,12 +150,8 @@ export default function ExploreScreen() {
     setQuick(NO_QUICK);
   }, []);
 
-  const categoryPhoto = useMemo(() => {
-    const source = nearby ?? data ?? [];
-    const photoOf = (placeType: PlaceType) =>
-      source.find((place) => place.type === placeType && place.photos[0])?.photos[0];
-    return { cafe: photoOf('cafe'), restaurant: photoOf('restaurant'), bar: undefined };
-  }, [nearby, data]);
+  // The Bars tile shows the first bar's photo, as the other two show theirs.
+  const categoryPhoto = useMemo(() => categoryPhotos(nearby ?? data ?? []), [nearby, data]);
 
   const openPlace = useCallback(
     (placeId: string) => {

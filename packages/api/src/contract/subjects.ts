@@ -11,6 +11,8 @@ import { createConsoleMockGateway } from '../mocks/consoleMock';
 import { createMockGateway } from '../mocks/mockGateway';
 import { createMockReviewStore } from '../mocks/reviewStore';
 import { createStaffMockGateway } from '../mocks/staffMock';
+import { mockTableCode } from '../mocks/tableCodes';
+import { mockVenues } from '../mocks/venues';
 
 import type { ContractCapability, ContractDiner, ContractSubject } from './subject';
 import { randomToken, randomUuid, testPhone, tomorrowEvening } from './subject';
@@ -129,6 +131,14 @@ export function mockSubject(): ContractSubject {
     // signed in on the instance, the way a session remembers it on a device.
     newDiner: () => signUpDiner(diner()),
     fetchPhoto: () => Promise.reject(new Error(MOCK_GAPS.photoBytes)),
+    // Free tables first, as a diner walking in would find them.
+    tableCodes: async () =>
+      mockVenues
+        .flatMap((venue) => venue.branches)
+        .filter((branch) => branch.id === MOCK_BRANCH)
+        .flatMap((branch) => branch.floor.tables)
+        .filter((table) => table.state === 'free')
+        .map((table) => mockTableCode(table.id)),
     unsupported: (capability) => MOCK_GAPS[capability] ?? null,
   };
 }
@@ -216,6 +226,11 @@ export function httpSubject(options: HttpSubjectOptions): ContractSubject {
       tomorrowEveningUtc: tomorrowEvening(options.timeZoneId),
     },
     newDiner: () => signUpDiner(httpDinerGateway(baseUrl)),
+    // The printed QR tokens, read off the console's own floor plan.
+    tableCodes: async () =>
+      (await consoleAs(options.adminToken).getFloorPlan(options.branchId)).tables
+        .filter((table) => table.isActive)
+        .map((table) => table.qrToken),
     fetchPhoto: async (url) => {
       const response = await fetch(new URL(url, baseUrl));
       await response.arrayBuffer();

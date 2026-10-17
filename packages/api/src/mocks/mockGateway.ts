@@ -5,16 +5,21 @@ import type {
   BookingStatus,
   BranchPolicy,
   CreateBookingCommand,
+  DaySlot,
+  DaySlots,
   MyBookings,
   PhoneChallenge,
+  RescheduleBookingCommand,
   SlotFloor,
   TableAvailability,
   TableUnavailableReason,
   TelegramChallenge,
   TelegramClaimResult,
   VenueSummary,
+  VenueType,
   VerifiedPhone,
 } from '../contracts/booking';
+import type { Photo } from '../contracts/menuAdmin';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
   BookingsNotAcceptedError,
@@ -25,6 +30,7 @@ import {
   PhoneNotVerifiedError,
   BookingEndedError,
   BookingNotActiveError,
+  BookingNotChangeableError,
   BookingTableOccupiedError,
   BookingNotFoundError,
   BookingRejectedError,
@@ -50,12 +56,15 @@ import type {
   WaiterCall,
   WaiterCallReason,
 } from '../contracts/tab';
-import type {
-  BranchMenu,
-  DinerTabView,
-  PlaceOrderResult,
-  TabEventPage,
-  TabShares,
+import {
+  MAX_TIP_PERCENT,
+  type BillRequest,
+  type BillRequestInput,
+  type BranchMenu,
+  type DinerTabView,
+  type PlaceOrderResult,
+  type TabEventPage,
+  type TabShares,
 } from '../contracts/ordering';
 import { NotTabHostError } from '../contracts/errors';
 import {
@@ -107,12 +116,13 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from '../errors';
+import { instantFromZonedClock } from '@yalla/format';
 import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
 import { SEEDED_ACCOUNT, createAccountStore } from './accounts';
 import { createTabWorld, type TableLocation } from './tabs';
 import { createTabOrders } from './tabOrders';
-import { mockBranchMenu, publishedBranchMenu, mockMenuItem } from './menuDetail';
+import { mockBranchMenu, publishedBranchMenu, mockMenuItem, mockPhoto } from './menuDetail';
 import { coversSitting, openStateFrom } from '../contracts/openState';
 import { BOOKING_WINDOW_DAYS } from './publicMock';
 import { publicBranchFixtures, publicVenueFixtures } from './publicVenues';
@@ -141,6 +151,24 @@ const MOCK_CODE = '123456';
 const DISPLAY_NAME_MAX = 100;
 
 const DAY_MS = 24 * 60 * 60_000;
+
+/** The server's slot spacing on a day view: every half hour from midnight. */
+const DAY_SLOT_STEP_MINUTES = 30;
+
+/** The statuses a booking holds its table in, as the server's conflict check counts them. */
+const HOLDS_TABLE: ReadonlySet<BookingStatus> = new Set<BookingStatus>([
+  'pendingApproval',
+  'confirmed',
+  'seated',
+]);
+
+/**
+ * Fixture guests who scanned in signed in to an account with a photo, so a
+ * seeded roster has a face on it before anybody uploads one.
+ */
+const SEEDED_PARTICIPANT_PHOTOS: Readonly<Record<string, Photo>> = {
+  'p-nare': mockPhoto('avatar-nare'),
+};
 
 /**
  * How long before a booking the mock's reminder lands. The real one is the
@@ -217,6 +245,14 @@ export interface MockGatewayOptions {
    * the host controls have something to approve on a single device.
    */
   readonly simulateJoiners?: boolean;
+  /**
+   * Play the floor for a bill asked for from the pay sheet: a waiter
+   * acknowledges it a few seconds later, then takes the cash — the amount and
+   * the tip the request named — and closes the tab once nothing is left, so
+   * "on its way", the acknowledgement and the receipt's tip row can all be
+   * walked on one phone. Follows `simulateJoiners` when absent.
+   */
+  readonly simulateWaiter?: boolean;
   /**
    * The review store, shared with a console mock so a review written here can
    * be moderated there and a takedown there drops it from the list here. A
@@ -402,6 +438,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   }
   /** commandId -> bookingId. This is what makes createBooking idempotent. */
   const commandLog = new Map<string, string>();
+  /**
+   * Reschedule command id -> booking id: a replay answers the booking as it
+   * stands, the server's `ProcessedCommands`, rather than moving it again.
+   */
+  const rescheduleLog = new Map<string, string>();
   let simulateTakenOnce = options.simulateTableTaken ?? false;
   let sequence = 1;
 
@@ -434,8 +475,33 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    * taken out of service is out of service for scanning too.
    */
   /** Which kind of place a branch is, for picking its menu. */
-  const venueTypeFor = (branchId: string): 'cafe' | 'restaurant' | undefined =>
+  const venueTypeFor = (branchId: string): VenueType | undefined =>
     mockVenues.find((venue) => venue.branches.some((branch) => branch.id === branchId))?.type;
+
+  /**
+   * Which account each place on a tab was taken with, `tabId:participantId` →
+   * account id. The server links a participant to the diner whose token the
+   * scan carried; the roster's photo is that account's.
+   */
+  const participantAccounts = new Map<string, string>();
+
+  /** This device's place on the tab, linked to whoever is signed in on it. */
+  function linkParticipant(tab: TableTab): void {
+    if (signedInAccountId && !deletedAccounts.has(signedInAccountId)) {
+      participantAccounts.set(`${tab.id}:${tab.yourParticipantId}`, signedInAccountId);
+    }
+  }
+
+  /**
+   * A participant's photo by the server's rule: the profile photo of the
+   * account they scanned in with, when that account still exists and has one.
+   */
+  function participantPhoto(tabId: string, participantId: string): Photo | null {
+    const accountId = participantAccounts.get(`${tabId}:${participantId}`);
+    if (accountId === undefined) return SEEDED_PARTICIPANT_PHOTOS[participantId] ?? null;
+    if (deletedAccounts.has(accountId)) return null;
+    return accounts.profile(accountId)?.photo ?? null;
+  }
 
   /**
    * Ordering and the bill, beside the tab world rather than inside it.
@@ -453,6 +519,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const type = venueTypeFor(branchId);
       return type ? mockBranchMenu(branchId, type) : null;
     },
+    participantPhoto,
   });
 
   const world = createTabWorld({
@@ -517,6 +584,152 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       throw new TabAccessEndedError({ url: `${URL_TAG}/api/tabs/${tabId}`, tabId, status: 403 });
     }
     return tab;
+  }
+
+  /**
+   * The amounts on a bill request, as the server works them out (diner design
+   * gaps, `BillQuote.For`): the scope's balance with the service charge and
+   * without the tip, and the tip on the unpaid part of the items (`quoteBill`).
+   * The rules first, in the server's order — only with the bill, a whole
+   * percent from 0 to 25 — then the whole bill only for somebody shown the
+   * table total (a 403 otherwise, the server's `TabPermissionException`), then
+   * a scope with nothing left to pay is refused naming `billScope`.
+   */
+  function billRequestFor(
+    tabId: string,
+    reason: WaiterCallReason,
+    input: BillRequestInput,
+  ): BillRequest {
+    const url = `${URL_TAG}/api/tabs/${tabId}/service-requests`;
+    if (reason !== 'bill') {
+      throw validationFailed(url, [
+        { field: 'billScope', message: 'Only a request for the bill takes a scope and a tip.' },
+      ]);
+    }
+    if (
+      !Number.isInteger(input.tipPercent) ||
+      input.tipPercent < 0 ||
+      input.tipPercent > MAX_TIP_PERCENT
+    ) {
+      throw validationFailed(url, [
+        {
+          field: 'tipPercent',
+          message: `A tip is a whole percent from 0 to ${MAX_TIP_PERCENT}.`,
+          bound: 'range',
+          min: 0,
+          max: MAX_TIP_PERCENT,
+        },
+      ]);
+    }
+    const tab = readableTab(tabId);
+    if (!tab) throw new NotFoundError({ url });
+    if (input.scope === 'whole' && !orders.seesTableTotal(tab, tab.yourParticipantId)) {
+      throw new ForbiddenError({
+        url,
+        problem: {
+          type: 'about:blank',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Asking for the whole bill requires somebody who can see the table total.',
+          code: 'forbidden',
+          traceId: 'mock',
+          context: {
+            operation: 'Asking for the whole bill',
+            requirement: 'somebody who can see the table total',
+          },
+        },
+      });
+    }
+    const { amountDram, tipDram } = orders.billQuote(
+      tab,
+      tab.yourParticipantId,
+      input.scope,
+      input.tipPercent,
+    );
+    if (amountDram <= 0) {
+      throw validationFailed(url, [{ field: 'billScope', message: 'Nothing left to pay.' }]);
+    }
+    return { scope: input.scope, amountDram, tipPercent: input.tipPercent, tipDram };
+  }
+
+  /** The wire's `ServiceRequestPreset`, for the `serviceRequested` event's payload. */
+  const SERVICE_PRESET: Readonly<Record<WaiterCallReason, 1 | 2 | 3 | 4>> = {
+    napkins: 1,
+    water: 2,
+    bill: 3,
+    other: 4,
+  };
+
+  /** How long a mock waiter takes to see a bill request, and then to settle it. */
+  const WAITER_ACKNOWLEDGES_AFTER_MS = 5_000;
+  const WAITER_SETTLES_AFTER_MS = 12_000;
+  const simulateWaiter = options.simulateWaiter ?? options.simulateJoiners ?? true;
+  /** Bill requests the mock waiter has already taken the cash for. */
+  const servedCalls = new Set<string>();
+
+  /**
+   * The floor, played by the mock (`simulateWaiter`): run before every read of
+   * a tab and every scan, the way the simulated joiner is run on reads.
+   *
+   * A bill request from the pay sheet is acknowledged a few seconds after it
+   * was raised — the `serviceRequestAcknowledged` event the phone watches for
+   * — and a few seconds later the waiter takes the cash: what the request
+   * named, never more than the scope still owes, credited to the requester on
+   * "my share" and to the table on the whole bill, with the tip beside it.
+   * Once nothing is left the tab closes, the table is free for the next scan,
+   * and the phone reads the receipt. A request replaced by a newer one is
+   * never served.
+   *
+   * Every tab, not only the one read: a reload replays the journal, which
+   * holds the scans and the requests but not the reads that served them, so
+   * a scan has to find the floor already served or it would land back on a
+   * tab about to close.
+   */
+  function serveFloor(): void {
+    if (!simulateWaiter) return;
+    const waiting = new Set(
+      world
+        .calls()
+        .filter((call) => call.reason === 'bill' && call.bill && !servedCalls.has(call.id))
+        .map((call) => call.tabId),
+    );
+    for (const tabId of waiting) serveTable(tabId);
+  }
+
+  function serveTable(tabId: string): void {
+    const tab = world.get(tabId);
+    if (!tab || tab.status !== 'open') return;
+    const at = now().getTime();
+
+    for (const entry of world.floorCalls(tabId)) {
+      const { call } = entry;
+      if (call.reason !== 'bill' || !call.bill || entry.supersededAtUtc !== null) continue;
+      if (servedCalls.has(call.id)) continue;
+      const age = at - Date.parse(call.requestedAtUtc);
+
+      if (age >= WAITER_ACKNOWLEDGES_AFTER_MS && world.acknowledgeCall(call.id)) {
+        orders.record(tab, 'serviceRequestAcknowledged', 'staff', { serviceRequestId: call.id });
+      }
+      if (age < WAITER_SETTLES_AFTER_MS) continue;
+
+      servedCalls.add(call.id);
+      const requester = entry.requestedByParticipantId;
+      const owed = orders.billQuote(tab, requester, call.bill.scope, 0).amountDram;
+      const amountDram = Math.min(call.bill.amountDram, owed, orders.remaining(tab));
+      if (amountDram > 0) {
+        orders.pay(
+          tab,
+          amountDram,
+          call.bill.tipDram,
+          call.bill.scope === 'mine' ? requester : null,
+        );
+      }
+      if (orders.remaining(tab) <= 0) {
+        world.close(tabId);
+        orders.record(tab, 'tabClosed', 'staff', null);
+        return;
+      }
+    }
   }
 
   /** A 409 whose `message` is the server's sentence and whose `code` is its slug. */
@@ -590,18 +803,42 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     });
   }
 
+  /**
+   * Every booked start on a table: the floor's own mark — a fixture's booking,
+   * or the last one this mock took there — and every booking this mock holds
+   * on it.
+   *
+   * `excludeBookingId` is left out, both the booking and the mark it left: the
+   * server's `excludeReservationId`, so a diner moving their own booking does
+   * not collide with it. The mark alone used to be the whole answer, which
+   * forgot a table's earlier booking the moment a later one was made.
+   */
+  function bookedStarts(table: FloorTable, excludeBookingId?: string): string[] {
+    const excluded = excludeBookingId ? bookings.get(excludeBookingId) : undefined;
+    const starts = new Set<string>();
+    const mark = table.nextReservationStartUtc;
+    if (mark && !(excluded?.tableId === table.id && excluded.slotUtc === mark)) starts.add(mark);
+    for (const booking of bookings.values()) {
+      if (booking.tableId !== table.id || booking.id === excludeBookingId) continue;
+      if (HOLDS_TABLE.has(booking.status)) starts.add(booking.slotUtc);
+    }
+    return [...starts];
+  }
+
   /** Derive the window for one table at a slot. */
   function windowFor(
     table: FloorTable,
     slotUtc: string,
     policy: BranchPolicy,
+    excludeBookingId?: string,
   ): AvailabilityWindowDto {
     // Only a booking that starts *after* the requested slot bounds it. One
     // earlier in the day is behind the diner and bounds nothing.
+    const slot = Date.parse(slotUtc);
     const next =
-      table.nextReservationStartUtc && new Date(table.nextReservationStartUtc) > new Date(slotUtc)
-        ? table.nextReservationStartUtc
-        : null;
+      bookedStarts(table, excludeBookingId)
+        .filter((start) => Date.parse(start) > slot)
+        .sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
     if (!next) {
       // No later booking. This is a real advantage and the UI says so.
       return {
@@ -634,18 +871,22 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    */
   const PHYSICAL_HORIZON_MINUTES = 20;
 
-  /** Does the requested sitting collide with the one already booked here? */
-  function collidesWithBooking(table: FloorTable, slot: Date, policy: BranchPolicy): boolean {
-    const next = table.nextReservationStartUtc;
-    if (!next) return false;
-
-    const booked = new Date(next);
+  /** Does the requested sitting collide with one already booked here? */
+  function collidesWithBooking(
+    table: FloorTable,
+    slot: Date,
+    policy: BranchPolicy,
+    excludeBookingId?: string,
+  ): boolean {
     const requestedEnd = new Date(slot.getTime() + policy.turnMinutes * 60_000);
-    const bookedEnd = new Date(booked.getTime() + policy.turnMinutes * 60_000);
 
-    // Overlap in either direction, which is what makes "free now, booked at
-    // 20:00" refuse a 20:00 request and allow a 15:00 one.
-    return slot < bookedEnd && booked < requestedEnd;
+    return bookedStarts(table, excludeBookingId).some((start) => {
+      const booked = new Date(start);
+      const bookedEnd = new Date(booked.getTime() + policy.turnMinutes * 60_000);
+      // Overlap in either direction, which is what makes "free now, booked at
+      // 20:00" refuse a 20:00 request and allow a 15:00 one.
+      return slot < bookedEnd && booked < requestedEnd;
+    });
   }
 
   /**
@@ -657,7 +898,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    * faithfully reproduced by the doubles that were supposed to catch it, and
    * five prompts of tests passed over it.
    */
-  function stateAt(table: FloorTable, slot: Date, policy: BranchPolicy): DerivedTableState {
+  function stateAt(
+    table: FloorTable,
+    slot: Date,
+    policy: BranchPolicy,
+    excludeBookingId?: string,
+  ): DerivedTableState {
     // Not a session. A table taken out of service stays out of service.
     if (table.state === 'outOfService') return 'outOfService';
 
@@ -666,7 +912,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       if (table.state === 'occupied' || table.state === 'held') return table.state;
     }
 
-    return collidesWithBooking(table, slot, policy) ? 'reservedSoon' : 'free';
+    return collidesWithBooking(table, slot, policy, excludeBookingId) ? 'reservedSoon' : 'free';
   }
 
   /**
@@ -726,6 +972,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     branchId: string,
     slotUtc: string,
     partySize: number,
+    excludeBookingId?: string,
   ): readonly TableAvailability[] {
     const found = findBranch(branchId);
     const floor = floors.get(branchId);
@@ -741,7 +988,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     // Only tables pinned on a photo of their own room are offered, as the
     // server does: a diner books by tapping a pin.
     return offeredTables(floor).map((table) => {
-      const state = stateAt(table, slot, policy);
+      const state = stateAt(table, slot, policy, excludeBookingId);
       // A branch-level refusal applies to every table and outranks whatever the
       // table itself would have said.
       const reason = rejection ?? reasonFor(table, state, partySize);
@@ -752,7 +999,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         seats: table.seats,
         isBookable: reason === null,
         unavailableReason: reason,
-        window: reason === null ? windowFor(table, slotUtc, policy) : null,
+        window: reason === null ? windowFor(table, slotUtc, policy, excludeBookingId) : null,
         freeCancellationUntilUtc,
         requiresApproval: partySize > policy.instantConfirmationMaxPartySize,
       };
@@ -770,13 +1017,18 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   }
 
   /** The room as it will be at the slot, drawn from the same projection. */
-  function slotFloorFor(branchId: string, slotUtc: string, partySize: number): SlotFloor | null {
+  function slotFloorFor(
+    branchId: string,
+    slotUtc: string,
+    partySize: number,
+    excludeBookingId?: string,
+  ): SlotFloor | null {
     const floor = floors.get(branchId);
     if (!floor) return null;
 
     const policy = DEFAULT_POLICY;
     const slot = new Date(slotUtc);
-    const tables = availabilityFor(branchId, slotUtc, partySize);
+    const tables = availabilityFor(branchId, slotUtc, partySize, excludeBookingId);
     const answers = new Map(tables.map((table) => [table.tableId, table]));
 
     return {
@@ -784,7 +1036,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         ...floor,
         tables: offeredTables(floor).map((table) => ({
           ...table,
-          state: stateAt(table, slot, policy),
+          state: stateAt(table, slot, policy, excludeBookingId),
           // The server's decision for this slot and party, not the table's
           // standing configuration — so the drawn room and the sheet agree.
           isBookable: answers.get(table.id)?.isBookable ?? false,
@@ -795,6 +1047,137 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       slotUtc,
       partySize,
     };
+  }
+
+  /**
+   * Why no table is free at a slot, in one word: `alreadyBooked` when bookings
+   * took any of them — the reason a diner can act on, by picking another time
+   * — and otherwise the reason most tables gave. The server's rule for a day
+   * slot (`TableAlreadyBooked`, or the most common table reason).
+   */
+  function slotReason(tables: readonly TableAvailability[]): TableUnavailableReason | null {
+    const counts = new Map<TableUnavailableReason, number>();
+    for (const table of tables) {
+      if (table.unavailableReason === null) continue;
+      counts.set(table.unavailableReason, (counts.get(table.unavailableReason) ?? 0) + 1);
+    }
+    if (counts.has('alreadyBooked')) return 'alreadyBooked';
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  }
+
+  /**
+   * Every half hour of one day in the branch's calendar, each answered by
+   * {@link availabilityFor} — the very projection the room is drawn from, so a
+   * time offered here opens a room with a free table in it and a struck one
+   * opens a room with none.
+   *
+   * The server's shape: a time whose whole sitting does not fit one opening
+   * block is left out; one that does but is too soon or too far ahead is
+   * listed, unavailable, with its reason. The day carries a reason of its own
+   * when there is nothing to list (shut) or when every time was refused for the
+   * same request-level reason (a day in the past, a day beyond the window).
+   */
+  function daySlotsFor(
+    branchId: string,
+    date: string,
+    partySize: number,
+    excludeBookingId?: string,
+  ): DaySlots | null {
+    const found = findBranch(branchId);
+    if (!found || !floors.has(branchId)) return null;
+
+    const policy = DEFAULT_POLICY;
+    const zone = found.branch.timeZoneId;
+    const fixture = publicBranchFixtures[branchId];
+    const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+    const slots: DaySlot[] = [];
+
+    for (let minutes = 0; minutes < 24 * 60; minutes += DAY_SLOT_STEP_MINUTES) {
+      const hour = Math.floor(minutes / 60);
+      const minute = minutes % 60;
+      const start = instantFromZonedClock({ year, month, day, hour, minute }, zone);
+      const end = new Date(start.getTime() + policy.turnMinutes * 60_000);
+      if (fixture && !coversSitting(fixture.weeklyHours, start, end, zone)) continue;
+
+      const slotUtc = start.toISOString();
+      const tables = availabilityFor(branchId, slotUtc, partySize, excludeBookingId);
+      const free = tables.filter((table) => table.isBookable).length;
+      slots.push({
+        time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+        slotUtc,
+        isAvailable: free > 0,
+        requiresApproval: partySize > policy.instantConfirmationMaxPartySize,
+        freeTableCount: free,
+        unavailableReason: free > 0 ? null : slotReason(tables),
+      });
+    }
+
+    const requestLevel: readonly TableUnavailableReason[] = ['pastLeadTime', 'tooFarAhead'];
+    const first = slots[0]?.unavailableReason ?? null;
+    const wholeDay =
+      slots.length === 0
+        ? 'closed'
+        : first !== null &&
+            requestLevel.includes(first) &&
+            slots.every((slot) => slot.unavailableReason === first)
+          ? first
+          : null;
+
+    return {
+      branchId,
+      date,
+      partySize,
+      stepMinutes: DAY_SLOT_STEP_MINUTES,
+      unavailableReason: wholeDay,
+      slots,
+    };
+  }
+
+  /**
+   * The refusals that come before any table, as the server applies them to a
+   * new booking and a moved one alike: too soon — which names the earliest
+   * time that works — then every other branch-wide rule.
+   */
+  function refuseAtBranch(branchId: string, slot: Date, partySize: number): void {
+    const policy = DEFAULT_POLICY;
+    const rejection = branchRejection(branchId, slot, policy);
+    if (rejection === 'pastLeadTime') {
+      throw new LeadTimeExceededError({
+        url: URL_TAG,
+        leadTimeMinutes: policy.leadTimeMinutes,
+        earliestSlotUtc: new Date(now().getTime() + policy.leadTimeMinutes * 60_000).toISOString(),
+      });
+    }
+    if (rejection) {
+      throw new BookingRejectedError({ url: URL_TAG, reason: rejection, partySize });
+    }
+  }
+
+  /** Lost to somebody else: the 409, with the room at that slot as the server's carries it. */
+  function tableTaken(input: {
+    branchId: string;
+    table: FloorTable;
+    slotUtc: string;
+    partySize: number;
+    refusal: TableUnavailableReason | null;
+    excludeBookingId?: string;
+  }): TableTakenError {
+    return new TableTakenError({
+      url: URL_TAG,
+      tableId: input.table.id,
+      tableLabel: input.table.label,
+      reason: input.refusal === 'occupied' ? 'occupied' : 'alreadyBooked',
+      floor:
+        slotFloorFor(input.branchId, input.slotUtc, input.partySize, input.excludeBookingId)
+          ?.plan ?? null,
+    });
+  }
+
+  /** Waiting for the venue when the party is over the instant-confirmation size, else confirmed. */
+  function decideStatus(partySize: number): BookingStatus {
+    return partySize > DEFAULT_POLICY.instantConfirmationMaxPartySize
+      ? 'pendingApproval'
+      : 'confirmed';
   }
 
   // --- Places ----------------------------------------------------------------
@@ -1046,6 +1429,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       cuisine: null,
       priceLevel: null,
       address: fixture.addressLine,
+      district: fixture.district,
       latitude: located ? fixture.latitude : null,
       longitude: located ? fixture.longitude : null,
       distanceKm:
@@ -1076,8 +1460,9 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         if (!listing) return [];
         if (query?.venueType && listing.venueType !== query.venueType) return [];
         if (needle) {
+          // The district too, as the server's search now matches it.
           const haystack =
-            `${listing.venueName} ${listing.branchName} ${listing.address}`.toLowerCase();
+            `${listing.venueName} ${listing.branchName} ${listing.address} ${listing.district ?? ''}`.toLowerCase();
           if (!haystack.includes(needle)) return [];
         }
         return [listing];
@@ -1418,9 +1803,14 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       return availabilityFor(branchId, slotUtc, partySize);
     },
 
-    async getSlotFloor({ branchId, slotUtc, partySize }) {
+    async getSlotFloor({ branchId, slotUtc, partySize, excludeBookingId }) {
       await wait();
-      return slotFloorFor(branchId, slotUtc, partySize);
+      return slotFloorFor(branchId, slotUtc, partySize, excludeBookingId);
+    },
+
+    async getDaySlots({ branchId, date, partySize, excludeBookingId }) {
+      await wait();
+      return daySlotsFor(branchId, date, partySize, excludeBookingId);
     },
 
     async requestPhoneCode(phoneE164, _options) {
@@ -1703,23 +2093,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
       // The branch-wide rules first, as the server applies them. Lead time:
       // the slot may have become too soon while they were deciding.
-      const rejection = branchRejection(command.branchId, slot, policy);
-      if (rejection === 'pastLeadTime') {
-        throw new LeadTimeExceededError({
-          url: URL_TAG,
-          leadTimeMinutes: policy.leadTimeMinutes,
-          earliestSlotUtc: new Date(
-            now().getTime() + policy.leadTimeMinutes * 60_000,
-          ).toISOString(),
-        });
-      }
-      if (rejection) {
-        throw new BookingRejectedError({
-          url: URL_TAG,
-          reason: rejection,
-          partySize: command.partySize,
-        });
-      }
+      refuseAtBranch(command.branchId, slot, command.partySize);
 
       // Judged at the slot being booked, not at now — the same projection the
       // availability answer used. Judging it at now would refuse a Saturday
@@ -1749,13 +2123,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           });
         }
 
-        throw new TableTakenError({
-          url: URL_TAG,
-          tableId: table.id,
-          tableLabel: table.label,
-          reason: refusal === 'occupied' ? 'occupied' : 'alreadyBooked',
-          // The room at this slot, as the server's 409 carries it.
-          floor: slotFloorFor(command.branchId, command.slotUtc, command.partySize)?.plan ?? null,
+        throw tableTaken({
+          branchId: command.branchId,
+          table,
+          slotUtc: command.slotUtc,
+          partySize: command.partySize,
+          refusal,
         });
       }
       if (refusal) {
@@ -1766,10 +2139,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         });
       }
 
-      const status: BookingStatus =
-        command.partySize > policy.instantConfirmationMaxPartySize
-          ? 'pendingApproval'
-          : 'confirmed';
+      const status = decideStatus(command.partySize);
 
       const id = `bk_${sequence++}`;
       const booking: Booking = {
@@ -1782,6 +2152,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         timeZoneId: found.branch.timeZoneId,
         tableId: table.id,
         tableLabel: table.label,
+        roomId: table.floorAreaId,
+        roomName: table.floorAreaName,
         partySize: command.partySize,
         slotUtc: command.slotUtc,
         endUtc: new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
@@ -1947,12 +2319,113 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       return cancelled;
     },
 
+    /**
+     * Move a booking, by the server's rules: the diner's own, waiting or
+     * confirmed and not started; every gate a new booking meets, with the
+     * collision check leaving this booking out; the status decided afresh; the
+     * code, the id and the manage link kept. A replay of the command answers
+     * the booking as it now stands.
+     */
+    async rescheduleBooking(command: RescheduleBookingCommand): Promise<Booking> {
+      await wait();
+      const url = `${URL_TAG}/api/reservations/${command.bookingId}/reschedule`;
+      requireClientCommandId(url, command.commandId);
+      requireVerifiedPhone(url);
+
+      const replayed = rescheduleLog.get(command.commandId);
+      const current = replayed !== undefined ? bookings.get(replayed) : undefined;
+      if (current) return current;
+
+      // Somebody else's booking answers exactly as one that does not exist.
+      const booking = bookings.get(command.bookingId);
+      const owner = booking ? (bookingOwners.get(booking.id) ?? null) : null;
+      if (!booking || (owner !== null && owner !== signedInAccountId)) {
+        throw new NotFoundError({ url });
+      }
+
+      const started = now().getTime() >= Date.parse(booking.slotUtc);
+      if ((booking.status !== 'pendingApproval' && booking.status !== 'confirmed') || started) {
+        throw new BookingNotChangeableError({ url, reservationId: booking.id });
+      }
+
+      const floor = floors.get(booking.branchId);
+      const table = floor?.tables.find((t) => t.id === command.tableId);
+      if (!floor || !table) throw new NotFoundError({ url });
+      const policy = DEFAULT_POLICY;
+      const slot = new Date(command.slotUtc);
+
+      refuseAtBranch(booking.branchId, slot, command.partySize);
+
+      // At the new slot, leaving this booking out — so keeping the same table
+      // half an hour later is not a collision with itself.
+      const refusal = reasonFor(table, stateAt(table, slot, policy, booking.id), command.partySize);
+      if (refusal === 'occupied' || refusal === 'alreadyBooked' || refusal === 'held') {
+        throw tableTaken({
+          branchId: booking.branchId,
+          table,
+          slotUtc: command.slotUtc,
+          partySize: command.partySize,
+          refusal,
+          excludeBookingId: booking.id,
+        });
+      }
+      if (refusal) {
+        throw new BookingRejectedError({ url, reason: refusal, partySize: command.partySize });
+      }
+
+      const moved: Booking = {
+        ...booking,
+        status: decideStatus(command.partySize),
+        tableId: table.id,
+        tableLabel: table.label,
+        roomId: table.floorAreaId,
+        roomName: table.floorAreaName,
+        partySize: command.partySize,
+        slotUtc: command.slotUtc,
+        endUtc: new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
+        freeCancellationUntilUtc: new Date(
+          slot.getTime() - policy.freeCancellationMinutes * 60_000,
+        ).toISOString(),
+      };
+      bookings.set(booking.id, moved);
+      rescheduleLog.set(command.commandId, booking.id);
+
+      // The marks move with it: off the old table, onto the new one.
+      floors.set(booking.branchId, {
+        ...floor,
+        tables: floor.tables.map((t) => {
+          if (t.id === table.id) {
+            return { ...t, state: 'reservedSoon', nextReservationStartUtc: command.slotUtc };
+          }
+          if (t.id === booking.tableId && t.nextReservationStartUtc === booking.slotUtc) {
+            return { ...t, state: 'free', nextReservationStartUtc: null };
+          }
+          return t;
+        }),
+      });
+
+      // The reminder moves too: one not yet read is withdrawn, and the feed
+      // writes a fresh one when the new time comes round.
+      for (const feed of feeds.values()) {
+        for (let i = feed.length - 1; i >= 0; i -= 1) {
+          const row = feed[i]!;
+          if (row.kind === 'booking-reminder' && row.reservationId === booking.id && !row.read) {
+            feed.splice(i, 1);
+          }
+        }
+      }
+
+      return moved;
+    },
+
     // --- Scanning in and the shared tab -----------------------------------
 
     async scanTableCode(command: ScanTableCommand): Promise<ScanResult> {
       await wait();
       requireClientCommandId(`${URL_TAG}/api/tabs/open`, command.commandId);
+      serveFloor();
       const result = world.scan(command);
+      linkParticipant(result.tab);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 
@@ -1970,6 +2443,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       requireVerifiedPhone(url);
       // After the policy, as there: VerifiedDiner answers before the body is bound.
       requireClientCommandId(url, command.commandId);
+      serveFloor();
       const wanted = normaliseBookingCode(command.bookingCode);
       /*
        * Over this diner's own bookings — which *is* the ownership rule, not an
@@ -2028,12 +2502,15 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
        */
       bookings.set(booking.id, { ...booking, status: 'seated' });
 
+      linkParticipant(result.tab);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 
     async joinTab(command): Promise<ScanResult> {
       await wait();
+      serveFloor();
       const result = world.join(command);
+      linkParticipant(result.tab);
       return { kind: result.kind, tab: dinerViewOf(result.tab) };
     },
 
@@ -2090,9 +2567,35 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       tabId: string;
       reason: WaiterCallReason;
       commandId: string;
+      bill?: BillRequestInput | undefined;
     }): Promise<WaiterCall> {
       await wait();
-      return world.call(input);
+      // A repeated command id is the same request, answered as it was — not
+      // priced again against a bill that may have moved since.
+      const replayed = world.findCall(input.commandId);
+      if (replayed) return replayed;
+      const bill = input.bill ? billRequestFor(input.tabId, input.reason, input.bill) : null;
+      const tab = world.get(input.tabId);
+      const call = world.call({
+        tabId: input.tabId,
+        reason: input.reason,
+        commandId: input.commandId,
+        bill,
+        ...(tab ? { participantId: tab.yourParticipantId } : {}),
+      });
+      // On the tab's stream as the server puts it there: who asked and what
+      // for, and no amounts — those reach the floor, not the other phones.
+      if (tab) {
+        orders.record(tab, 'serviceRequested', 'diner', {
+          serviceRequestId: call.id,
+          preset: SERVICE_PRESET[input.reason],
+          note: null,
+          requestedByParticipantId: tab.yourParticipantId,
+          billScope: bill ? (bill.scope === 'whole' ? 1 : 2) : null,
+          tipPercent: bill?.tipPercent ?? null,
+        });
+      }
+      return call;
     },
 
     // --- Ordering and the bill ---------------------------------------------
@@ -2108,12 +2611,14 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async getDinerTab(tabId): Promise<DinerTabView | null> {
       await wait();
+      serveFloor();
       const tab = readableTab(tabId);
       return tab ? dinerViewOf(tab) : null;
     },
 
     async getTabEvents({ tabId, afterSequence }): Promise<TabEventPage> {
       await wait();
+      serveFloor();
       const tab = world.get(tabId);
       if (tab) orders.ensure(tab.id, tab.branchId);
       return orders.events(tabId, afterSequence);
@@ -2140,6 +2645,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
     async getTabShares(tabId): Promise<TabShares | null> {
       await wait();
+      serveFloor();
       const tab = world.get(tabId);
       return tab ? orders.shares(tab, tab.yourParticipantId) : null;
     },

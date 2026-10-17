@@ -35,7 +35,9 @@ afterEach(cleanup);
  * the booking the confirmation screen made. A fixture would only prove that a
  * fixture renders.
  */
-async function bookedLink(harness: Harness): Promise<{ url: string; code: string }> {
+async function bookedLink(
+  harness: Harness,
+): Promise<{ url: string; code: string; tableLabel: string; roomName: string | null }> {
   const branch = (await harness.publicGateway.resolveBranch({
     venueSlug: 'lumen-coffee',
     branchSlug: 'northern-avenue',
@@ -79,6 +81,8 @@ async function bookedLink(harness: Harness): Promise<{ url: string; code: string
   return {
     url: `/${branch.venue.slug}/${branch.slug}/booking/${booking.manageToken}`,
     code: booking.code,
+    tableLabel: booking.tableLabel,
+    roomName: booking.roomName,
   };
 }
 
@@ -147,15 +151,17 @@ describe('the manage-booking link', () => {
  * table row read as "Table" with a bare digit beside it.
  */
 describe('the manage page in the browser chrome', () => {
-  it('titles the tab after the booking and names the table in full', async () => {
+  it('titles the tab after the booking and names the table in full, with its room', async () => {
     const harness = createHarness();
-    const { url } = await bookedLink(harness);
+    const { url, tableLabel, roomName } = await bookedLink(harness);
+    // Every Lumen table sits in a room, so the page has one to name.
+    expect(roomName).toBeTruthy();
 
     render(harness.wrap(<PublicApp />, url));
     await screen.findByText('Your booking');
 
     await waitFor(() => expect(document.title).toBe('Your booking · Yalla'));
-    expect(screen.getByText(/^Table \S+$/u)).toBeTruthy();
+    expect(screen.getByText(`Table ${tableLabel} · ${roomName}`)).toBeTruthy();
   });
 
   it('retitles the tab once the booking is cancelled', async () => {

@@ -58,6 +58,8 @@ export interface PublicVenueFixture {
 export interface PublicBranchFixture {
   readonly slug: string;
   readonly addressLine: string;
+  /** The area of town the venue names for itself; `null` for one that never set it. */
+  readonly district: string | null;
   readonly latitude: number | null;
   readonly longitude: number | null;
   readonly phoneE164: string | null;
@@ -94,6 +96,16 @@ export const publicVenueFixtures: Readonly<Record<string, PublicVenueFixture>> =
     description: 'Coffee, pastries and a very slow wifi password.',
     coverPhoto: mockCover('greenbean'),
   },
+  'v-copperfox': {
+    slug: 'copper-fox',
+    description: 'Cocktails, Armenian brandy and a long copper bar.',
+    coverPhoto: mockCover('copperfox'),
+  },
+  'v-vinoteka': {
+    slug: 'vinoteka',
+    description: 'Areni, Voskehat and small plates in a vaulted cellar.',
+    coverPhoto: mockCover('vinoteka'),
+  },
 };
 
 const LATE = { opensAt: '09:00', closesAt: '01:00' };
@@ -104,6 +116,7 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-lumen-north': {
     slug: 'northern-avenue',
     addressLine: 'Northern Avenue 5, Yerevan 0001',
+    district: 'Kentron',
     latitude: 40.1817,
     longitude: 44.5142,
     phoneE164: '+37410500501',
@@ -114,6 +127,7 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-lumen-cascade': {
     slug: 'cascade',
     addressLine: 'Tamanyan 8, Yerevan 0009',
+    district: 'Arabkir',
     latitude: 40.1908,
     longitude: 44.5152,
     phoneE164: '+37410500502',
@@ -124,6 +138,7 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-lumen-saryan': {
     slug: 'saryan-street',
     addressLine: 'Saryan 22, Yerevan 0002',
+    district: 'Kentron',
     latitude: 40.1836,
     longitude: 44.5023,
     phoneE164: '+37410500503',
@@ -134,6 +149,7 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-dolmama-pushkin': {
     slug: 'pushkin-street',
     addressLine: 'Pushkin 10, Yerevan 0010',
+    district: 'Kentron',
     latitude: 40.1848,
     longitude: 44.5108,
     phoneE164: '+37410561354',
@@ -158,6 +174,7 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-dolmama-dalma': {
     slug: 'dalma-garden',
     addressLine: 'Tsitsernakaberd Highway 3, Yerevan 0082',
+    district: 'Ajapnyak',
     latitude: 40.1725,
     longitude: 44.4839,
     phoneE164: null,
@@ -170,6 +187,7 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-tumanyan-main': {
     slug: 'tumanyan-street',
     addressLine: 'Tumanyan 34, Yerevan 0002',
+    district: 'Kentron',
     latitude: 40.1832,
     longitude: 44.5152,
     phoneE164: '+37477334455',
@@ -182,6 +200,7 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-ararat-opera': {
     slug: 'opera',
     addressLine: 'Tumanyan 54, Yerevan 0002',
+    district: 'Kentron',
     latitude: 40.1866,
     longitude: 44.5147,
     phoneE164: '+37410540540',
@@ -192,12 +211,37 @@ export const publicBranchFixtures: Readonly<Record<string, PublicBranchFixture>>
   'b-greenbean-main': {
     slug: 'mashtots-avenue',
     addressLine: 'Mashtots Avenue 41, Yerevan 0015',
+    // Never set one. The card falls back to the address, and one fixture
+    // without a district is how that fallback stays exercised.
+    district: null,
     latitude: 40.1861,
     longitude: 44.5063,
     phoneE164: '+37410531212',
     status: 'live',
     acceptsWebBookings: true,
     weeklyHours: week(EARLY),
+  },
+  'b-copperfox-saryan': {
+    slug: 'saryan-street',
+    addressLine: 'Saryan 12, Yerevan 0002',
+    district: 'Kentron',
+    latitude: 40.1829,
+    longitude: 44.5031,
+    phoneE164: '+37410522522',
+    status: 'live',
+    acceptsWebBookings: true,
+    weeklyHours: week({ opensAt: '17:00', closesAt: '02:00' }),
+  },
+  'b-vinoteka-komitas': {
+    slug: 'komitas-avenue',
+    addressLine: 'Komitas Avenue 38, Yerevan 0033',
+    district: 'Arabkir',
+    latitude: 40.2045,
+    longitude: 44.5051,
+    phoneE164: '+37410233233',
+    status: 'live',
+    acceptsWebBookings: true,
+    weeklyHours: week({ opensAt: '16:00', closesAt: '00:00' }),
   },
 };
 

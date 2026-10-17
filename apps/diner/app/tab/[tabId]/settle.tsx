@@ -6,16 +6,17 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '../../../src/components/Button';
-import { CallWaiterSheet } from '../../../src/components/CallWaiterSheet';
 import { Card } from '../../../src/components/Card';
 import { IconButton } from '../../../src/components/IconButton';
 import { Rise, riseDelay } from '../../../src/components/motion/Rise';
 import { Screen } from '../../../src/components/Screen';
+import { PaySheet } from '../../../src/components/tab/PaySheet';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab, useSetSettlementMode, useTabShares } from '../../../src/data/orderQueries';
 import { newCommandId } from '../../../src/lib/commandId';
 import { settleLead } from '../../../src/lib/settleLead';
 import { tabAccessCopy } from '../../../src/tab/access';
+import { billRequestEnded, useRequestedBill } from '../../../src/tab/billRequest';
 import { returnToTab } from '../../../src/tab/navigation';
 import { settlementModeFailureKey, withHost } from '../../../src/tab/settle';
 import {
@@ -43,7 +44,8 @@ import {
  *
  * So the screen leads with the one number a table at the end of a meal wants —
  * what is still to pay — then how it splits, then who owes what, then the one
- * press that brings the bill over.
+ * press that opens the pay sheet: what you pay, the tip, and the bill brought
+ * over.
  */
 export default function SettleScreen() {
   const { t } = useTranslation('diner');
@@ -55,7 +57,9 @@ export default function SettleScreen() {
   const { data: rawShares, isLoading, isError, error } = useTabShares(tabId);
   const setMode = useSetSettlementMode();
 
-  const [waiterOpen, setWaiterOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const stored = useRequestedBill(tabId);
+  const billRequested = stored !== null && !(view && billRequestEnded(stored, view.status));
 
   // The role from the tab the server described. `/shares` cannot say who
   // hosts, so the host is marked from the tab's own `hostParticipantId`.
@@ -251,10 +255,13 @@ export default function SettleScreen() {
           <Card radiusToken="hero" style={styles.card}>
             <Text style={styles.cardTitle}>{t('settle.pay.title')}</Text>
             <Text style={styles.payBody}>{t('settle.pay.body')}</Text>
+            {/* The same sheet as the tab's Pay: the scope and tip go with the
+                request. Once asked, it shows what is on its way. */}
             <Button
-              label={t('settle.pay.askForBill')}
+              label={billRequested ? t('tab.closingChip') : t('settle.pay.askForBill')}
+              variant={billRequested ? 'outline' : 'primary'}
               size="large"
-              onPress={() => setWaiterOpen(true)}
+              onPress={() => setPayOpen(true)}
               style={styles.askForBill}
             />
           </Card>
@@ -269,13 +276,14 @@ export default function SettleScreen() {
         ) : null}
       </ScrollView>
 
-      <CallWaiterSheet
-        tabId={tabId}
-        visible={waiterOpen}
-        onClose={() => setWaiterOpen(false)}
-        initialReason="bill"
-        tableLabel={view?.tableLabel}
-      />
+      {tabId ? (
+        <PaySheet
+          tabId={tabId}
+          visible={payOpen}
+          onClose={() => setPayOpen(false)}
+          tab={view ?? undefined}
+        />
+      ) : null}
     </Screen>
   );
 }

@@ -182,6 +182,8 @@ export function placeFromListing(listing: BranchListing, context: PlaceMappingCo
     photos: cover ? [cover] : [],
     coords: coordsOf(listing),
     address: listing.address,
+    // Blank is unset, as the server's own rule for the field.
+    district: listing.district?.trim() || null,
     timeZoneId: listing.timeZoneId,
     hours: [],
     amenities: [],

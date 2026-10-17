@@ -49,6 +49,7 @@ const LISTING: BranchListing = {
   cuisine: 'Coffee',
   priceLevel: null,
   address: '12 Abovyan Street',
+  district: null,
   latitude: 40.18,
   longitude: 44.51,
   distanceKm: null,
@@ -115,6 +116,18 @@ describe('createHttpPlaceRepository', () => {
 
     expect(found.map((place) => place.id)).toEqual(['popular', 'both']);
     expect(gateway.searchBranches).toHaveBeenCalledWith({ query: 'lumen', venueType: 'cafe' });
+  });
+
+  it('asks the server for bars when the Bars filter is on, and keeps them bars', async () => {
+    const gateway = fakeGateway({
+      searchBranches: vi.fn(() => Promise.resolve([{ ...LISTING, venueType: 'bar' as const }])),
+    });
+    const places = repository.createHttpPlaceRepository({ gateway, ...clock });
+
+    const found = await places.search('', { type: 'bar' });
+
+    expect(gateway.searchBranches).toHaveBeenCalledWith({ query: '', venueType: 'bar' });
+    expect(found.map((place) => place.type)).toEqual(['bar']);
   });
 
   it('reads a place without its menu, and surfaces a failed menu instead of an empty one', async () => {

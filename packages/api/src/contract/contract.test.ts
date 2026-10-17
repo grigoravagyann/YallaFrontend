@@ -1,14 +1,17 @@
 import { describe, it, vi } from 'vitest';
 import { describeAvailabilityContract } from './availability.contract';
 import { describeConsoleListingContract } from './consoleListing.contract';
+import { describeDaySlotsContract } from './daySlots.contract';
 import { describeDinerJourneyContract } from './dinerJourney.contract';
 import { resolveLiveSubject } from './liveSubject';
 import { describeMenuContract, describeReportContract } from './menuReports.contract';
 import { describePlacesContract } from './places.contract';
 import { describeReservationContract } from './reservation.contract';
+import { describeRescheduleContract } from './reschedule.contract';
 import type { ContractSubject } from './subject';
 import { contractBackendUrl, mockSubject } from './subjects';
 import { describeTabContract } from './tab.contract';
+import { describeTabGapsContract } from './tabGaps.contract';
 import { describeTableStateContract } from './tableState.contract';
 
 /**
@@ -60,6 +63,11 @@ function describeEveryContract(subject: ContractSubject): void {
   describePlacesContract(subject);
   describeConsoleListingContract(subject);
   describeDinerJourneyContract(subject);
+  // The diner design gaps. Last, because the tab suite takes cash at the
+  // counter, and every suite before it reads the staff tabs as seeded.
+  describeDaySlotsContract(subject);
+  describeRescheduleContract(subject);
+  describeTabGapsContract(subject);
 }
 
 describeEveryContract(mockSubject());

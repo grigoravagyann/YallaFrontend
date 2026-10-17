@@ -128,6 +128,23 @@ describe('a live branch', () => {
   });
 });
 
+describe('a bar', () => {
+  it('is called a bar on its branch page and on its venue page', async () => {
+    const branch = open('/copper-fox/saryan-street');
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Copper Fox');
+    expect(branch.container.querySelector('.pub-head .pub-muted')?.textContent).toMatch(
+      /^Bar( ·|$)/u,
+    );
+    cleanup();
+
+    const venue = open('/copper-fox');
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Copper Fox');
+    expect(venue.container.querySelector('.pub-head .pub-muted')?.textContent).toMatch(
+      /^Bar( ·|$)/u,
+    );
+  });
+});
+
 describe('the language switcher', () => {
   it("is at the top of the page, in each language's own name", async () => {
     open('/lumen-coffee/northern-avenue');

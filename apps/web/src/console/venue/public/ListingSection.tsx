@@ -1,5 +1,6 @@
 import {
   AMENITY_KEYS,
+  MAX_DISTRICT_LENGTH,
   MAX_GALLERY_PHOTOS,
   NotFoundError,
   RelocationNotAllowedError,
@@ -20,7 +21,8 @@ import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 /**
  * What the diner app reads about a branch beyond the public page: cuisine,
  * a paragraph, the price level, the website, amenities, the map pin with its
- * street address, and the gallery after the cover.
+ * street address, the district diners know the area by, and the gallery after
+ * the cover.
  *
  * Its own form with its own save, because it is its own endpoint
  * (`PUT /api/branches/{id}/listing`) and replaces every field at once. The
@@ -31,7 +33,9 @@ import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
  * where diners are sent, so changing either is a relocation, which the server
  * allows an owner or the platform team only and audits (K5). A manager sees
  * both read-only with a line saying who can change them, rather than an editor
- * whose save would be refused.
+ * whose save would be refused. The district is not part of that: it names the
+ * area for diners ("Kentron") rather than moving anyone's pin, so whoever may
+ * edit the cuisine may edit it.
  */
 export function ListingSection({
   branchId,
@@ -71,6 +75,7 @@ const RENDERED_FIELDS: ReadonlySet<string> = new Set([
   'amenities',
   'latitude',
   'address',
+  'district',
   'galleryPhotoIds',
 ]);
 
@@ -129,6 +134,8 @@ export function listingViolationText(violation: FieldViolation, t: TFunction): s
       return bound === 'required'
         ? t('publicPage.listing.address.required')
         : t(key('address.tooLong'), { max: max ?? 500 });
+    case 'district':
+      return t(key('district.tooLong'), { max: max ?? MAX_DISTRICT_LENGTH });
     default:
       if (/photo[XY]$/u.test(field)) {
         return bound === 'range' ? t(key('photoXY.range')) : t(key('photoXY.pair'));
@@ -158,6 +165,7 @@ function ListingForm({
   const [latitude, setLatitude] = useState(coordinateText(initial.latitude));
   const [longitude, setLongitude] = useState(coordinateText(initial.longitude));
   const [address, setAddress] = useState(initial.address ?? '');
+  const [district, setDistrict] = useState(initial.district ?? '');
   const [gallery, setGallery] = useState<readonly Photo[]>(initial.gallery);
   // A fresh picker after each upload, so the drop zone is empty for the next photo.
   const [pickerKey, setPickerKey] = useState(0);
@@ -179,6 +187,7 @@ function ListingForm({
     lat !== saved.latitude ||
     lng !== saved.longitude ||
     address !== (saved.address ?? '') ||
+    district !== (saved.district ?? '') ||
     gallery.map((p) => p.photoId).join() !== saved.gallery.map((p) => p.photoId).join();
   useUnsavedChangesGuard(dirty);
 
@@ -203,6 +212,7 @@ function ListingForm({
     const errors: Record<string, string> = {};
     const hasPin = lat !== null && lng !== null;
     const addressText = address.trim();
+    const districtText = district.trim();
     if ((lat === null) !== (lng === null)) {
       errors['latitude'] = t('publicPage.listing.location.bothOrNeither');
     } else if (Number.isNaN(lat) || Number.isNaN(lng)) {
@@ -219,6 +229,13 @@ function ListingForm({
     } else if (!hasPin && lat === null && addressText !== (saved.address ?? '').trim()) {
       errors['address'] = t('publicPage.listing.address.required');
     }
+    // No `maxLength` on the input: a pasted name cut short without a word is
+    // worse than being told it is too long.
+    if (districtText.length > MAX_DISTRICT_LENGTH) {
+      errors['district'] = t('publicPage.listing.errors.district.tooLong', {
+        max: MAX_DISTRICT_LENGTH,
+      });
+    }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -230,6 +247,7 @@ function ListingForm({
       amenities,
       galleryPhotoIds: gallery.map((p) => p.photoId),
       address: hasPin ? addressText : null,
+      district: districtText === '' ? null : districtText,
       latitude: lat,
       longitude: lng,
     };
@@ -245,6 +263,7 @@ function ListingForm({
       setLatitude(coordinateText(result.latitude));
       setLongitude(coordinateText(result.longitude));
       setAddress(result.address ?? '');
+      setDistrict(result.district ?? '');
       setGallery(result.gallery);
       setOutcome('saved');
     } catch (error) {
@@ -423,6 +442,21 @@ function ListingForm({
           />
           <span className="muted small">{t('publicPage.listing.address.help')}</span>
           {fieldError('address')}
+        </label>
+        <label className="labelled">
+          <span>{t('publicPage.listing.district.label')}</span>
+          <input
+            className="field"
+            value={district}
+            autoComplete="off"
+            onChange={(event) => setDistrict(event.target.value)}
+            aria-invalid={fieldErrors['district'] ? true : undefined}
+            aria-describedby={describedBy('district')}
+          />
+          <span className="muted small">
+            {t('publicPage.listing.district.help', { max: MAX_DISTRICT_LENGTH })}
+          </span>
+          {fieldError('district')}
         </label>
         <div className="listing-grid">
           <label className="labelled">

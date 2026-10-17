@@ -1,4 +1,4 @@
-import type { ParticipantShare, TabBill } from '../contracts/ordering';
+import type { BillScope, ParticipantShare, TabBill } from '../contracts/ordering';
 
 /**
  * The bill, computed the way the server computes it — **for mock data only**.
@@ -78,6 +78,75 @@ export function percentOf(amountDram: number, percent: number): number {
   if (amountDram === 0 || percent === 0) return 0;
   const exact = (amountDram * percent) / 100;
   return Math.sign(exact) * Math.round(Math.abs(exact));
+}
+
+/**
+ * `numerator`/`denominator` of an amount, half-up (away from zero) to whole
+ * dram — `Money.ProRata`. Nothing when the fraction or the amount is nothing.
+ *
+ * In integers rather than as a float product: `a × n / d` landing on .5 must
+ * round the way the server's decimal does, every time.
+ */
+export function proRata(amountDram: number, numerator: number, denominator: number): number {
+  if (denominator <= 0 || numerator <= 0 || amountDram === 0) return 0;
+  return divideHalfUp(amountDram * numerator, denominator);
+}
+
+/** An integer over a positive integer, rounded half away from zero. */
+function divideHalfUp(dividend: number, divisor: number): number {
+  const size = Math.abs(dividend);
+  let quotient = Math.floor(size / divisor);
+  let remainder = size - quotient * divisor;
+  // The float division can land a whole step out for very large values.
+  if (remainder < 0) {
+    quotient -= 1;
+    remainder += divisor;
+  } else if (remainder >= divisor) {
+    quotient += 1;
+    remainder -= divisor;
+  }
+  const rounded = remainder * 2 >= divisor ? quotient + 1 : quotient;
+  return dividend < 0 ? -rounded : rounded;
+}
+
+/** What a bill request asks the waiter to bring — `BillQuote.For`. */
+export interface BillQuoteFigures {
+  /** The scope's balance, service charge in, tip out. Zero or less is refused (422 `billScope`). */
+  readonly amountDram: number;
+  readonly tipDram: number;
+}
+
+/**
+ * A bill request priced by the shared money rules (diner design gaps).
+ *
+ * - `whole`: the tab's remaining balance. Only for somebody who sees the table
+ *   total — the caller refuses anybody else with a 403 before pricing.
+ * - `mine`: the requester's share less what they paid, capped at the tab's
+ *   remaining balance **only** for somebody who sees the table total, so a
+ *   guest kept from the total never reads the table's balance off their quote.
+ * - The tip is a percent of the **unpaid part of the items**: the scope's
+ *   items before service, in the proportion the amount bears to the scope's
+ *   full figure. Nothing paid yet, and that is the items exactly.
+ */
+export function quoteBill(input: {
+  readonly bill: TabBill;
+  readonly share: ParticipantShare | null;
+  readonly scope: BillScope;
+  readonly tipPercent: number;
+  readonly canSeeTableTotal: boolean;
+}): BillQuoteFigures {
+  const { bill, share, scope, tipPercent, canSeeTableTotal } = input;
+  if (scope === 'whole') {
+    const amountDram = bill.remainingDram;
+    const baseDram = proRata(bill.subtotalDram, amountDram, bill.totalDram);
+    return { amountDram, tipDram: percentOf(baseDram, tipPercent) };
+  }
+  if (!share) return { amountDram: 0, tipDram: 0 };
+  const owed = Math.max(0, share.shareDram - share.paidDram);
+  const amountDram = canSeeTableTotal ? Math.min(owed, bill.remainingDram) : owed;
+  const baseDram =
+    share.shareDram > 0 ? proRata(share.personalDram, amountDram, share.shareDram) : 0;
+  return { amountDram, tipDram: percentOf(baseDram, tipPercent) };
 }
 
 /**

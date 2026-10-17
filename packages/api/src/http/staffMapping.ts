@@ -14,6 +14,8 @@ import type {
 } from '../contracts/service';
 import type {
   AdjustmentKind,
+  BillRequest,
+  BillScope,
   BranchMenu,
   FloorChange,
   FloorChangePage,
@@ -38,6 +40,8 @@ import type {
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
 import { derivedTableState } from './mapping';
+import { absolutePhoto } from './photoUrl';
+import { photo } from './venueSettingsMapping';
 
 type Schemas = components['schemas'];
 type FloorState = Schemas['Yalla.Application.Floor.BranchFloorState'];
@@ -50,7 +54,8 @@ type AdjustmentView = Schemas['Yalla.Application.Ordering.AdjustmentView'];
 type ShareView = Schemas['Yalla.Application.Ordering.ParticipantShareView'];
 type SharesView = Schemas['Yalla.Application.Ordering.TabSharesView'];
 type CashView = Schemas['Yalla.Application.Ordering.CashPaymentView'];
-type RequestView = Schemas['Yalla.Application.Ordering.ServiceRequestView'];
+
+export type RequestView = Schemas['Yalla.Application.Ordering.ServiceRequestView'];
 type MenuView = Schemas['Yalla.Application.Menus.BranchMenuView'];
 type TotalsSnapshot = Schemas['Yalla.Application.Ordering.TabTotalsSnapshot'];
 type TotalsView = Schemas['Yalla.Application.Tabs.TabTotalsView'];
@@ -148,6 +153,35 @@ const SERVICE_PRESET: Readonly<Record<number, ServiceRequestReason>> = {
   3: 'bill',
   4: 'other',
 };
+
+/** `BillScope`: 1 WholeBill, 2 MyShare. */
+const BILL_SCOPE: Readonly<Record<number, BillScope>> = { 1: 'whole', 2: 'mine' };
+
+const BILL_SCOPE_CODE: Readonly<Record<BillScope, 1 | 2>> = { whole: 1, mine: 2 };
+
+/** The wire value for a bill scope, for the one request that sends it. */
+export function billScopeCode(scope: BillScope): 1 | 2 {
+  return BILL_SCOPE_CODE[scope];
+}
+
+/**
+ * The bill request on a service request, or `null` when it is not one.
+ *
+ * The server sets the four together on a "the bill" request that named a scope
+ * and leaves them absent otherwise. A scope this build does not know, or a
+ * scope with no amount, is read as no bill request rather than guessed at: a
+ * waiter walking over with the wrong number is worse than one who asks.
+ */
+export function billRequest(view: RequestView): BillRequest | null {
+  const scope = typeof view.billScope === 'number' ? BILL_SCOPE[view.billScope] : undefined;
+  if (!scope || typeof view.billAmountAmd !== 'number') return null;
+  return {
+    scope,
+    amountDram: view.billAmountAmd,
+    tipPercent: view.tipPercent ?? 0,
+    tipDram: view.tipAmd ?? 0,
+  };
+}
 
 /** Values: 1 Discount, 2 Comp. */
 const ADJUSTMENT_KIND: Readonly<Record<number, AdjustmentKind>> = { 1: 'discount', 2: 'comp' };
@@ -570,6 +604,8 @@ export function serviceRequest(view: RequestView): ServiceRequest {
     requestedAtUtc: view.createdAtUtc,
     waitingMinutes: view.waitingMinutes,
     acknowledgedAtUtc: view.acknowledgedAtUtc ?? null,
+    requestedByParticipantId: view.requestedByParticipantId ?? null,
+    bill: billRequest(view),
   };
 }
 
@@ -674,9 +710,13 @@ export function menuFrom(view: MenuView, fetchedAtUtc: string): Menu {
  * `adjustmentsKnown` say which of the two lists were actually fetched, so the
  * panel can distinguish "nothing was ordered" from "not read", which are two
  * very different things to tell somebody holding a bill.
+ *
+ * `baseUrl` is the API's origin, for the participants' photos, whose links
+ * arrive server-relative.
  */
 export function staffTabFromView(
   view: StaffView,
+  baseUrl: string,
   extra: {
     readonly lines?: readonly TabLine[] | undefined;
     readonly linesKnown?: boolean | undefined;
@@ -704,8 +744,11 @@ export function staffTabFromView(
       canOrder: participant.canOrder,
       canOrderNow: participant.canOrderNow,
       canSeeTableTotal: participant.canSeeTableTotal,
+      photo: participant.photo ? absolutePhoto(baseUrl, photo(participant.photo)) : null,
     })),
     totals: tabTotals,
+    // Outside `totals`: a tip is never part of what the table owes.
+    tipsDram: typeof view.tipsAmd === 'number' ? view.tipsAmd : null,
     serviceChargePercent: serviceChargePercentFrom(tabTotals),
     lines: extra.lines ?? [],
     linesKnown: extra.linesKnown ?? false,

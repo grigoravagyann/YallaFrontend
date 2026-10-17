@@ -16,6 +16,7 @@ const EMPTY: VenueListingInput = {
   amenities: [],
   galleryPhotoIds: [],
   address: null,
+  district: null,
   latitude: null,
   longitude: null,
 };
@@ -79,6 +80,7 @@ describe('the branch listing in the mock', () => {
       amenities: ['WiFi', 'parking', 'wifi'],
       galleryPhotoIds: [second, first],
       address: 'Test address 1',
+      district: '  Arabkir ',
       latitude: 40.2,
       longitude: 44.6,
     });
@@ -89,6 +91,7 @@ describe('the branch listing in the mock', () => {
       priceLevel: 3,
       amenities: ['wifi', 'parking'],
       address: 'Test address 1',
+      district: 'Arabkir',
       latitude: 40.2,
     });
     expect(await gateway.getBranchListing(BRANCH)).toEqual(saved);
@@ -172,6 +175,26 @@ describe('the branch listing in the mock', () => {
     // No collected list: that is what the form has to cope with.
     expect((refusal as ValidationError).violations).toEqual([]);
   });
+
+  it("starts the district at the fixture's own, trims it, clears it when blank, and caps it at 60", async () => {
+    expect((await gateway.getBranchListing(BRANCH)).district).toBe(
+      publicBranchFixtures[BRANCH]!.district,
+    );
+
+    await expect(update({ ...EMPTY, district: '  Arabkir  ' })).resolves.toMatchObject({
+      district: 'Arabkir',
+    });
+    await expect(update({ ...EMPTY, district: '   ' })).resolves.toMatchObject({ district: null });
+
+    // Collected with the other fields, as `max`, and nothing written.
+    expect(
+      named(await caught(update({ ...EMPTY, district: 'a'.repeat(61), priceLevel: 9 }))),
+    ).toEqual([
+      ['priceLevel', 'range'],
+      ['district', 'max'],
+    ]);
+    expect((await gateway.getBranchListing(BRANCH)).district).toBeNull();
+  });
 });
 
 describe('moving a branch in the mock (K5)', () => {
@@ -197,6 +220,18 @@ describe('moving a branch in the mock (K5)', () => {
     }
     // Atomic: the cuisine sent with the move was not kept either.
     expect(await manager.getBranchListing(BRANCH)).toMatchObject({ ...pin, cuisine: null });
+  });
+
+  it('lets a manager name the district: an area of town is a listing field, not a move', async () => {
+    const manager = createConsoleMockGateway({ role: 'generalManager' });
+    const pin = await storedPin(manager);
+
+    await expect(
+      manager.updateBranchListing({
+        branchId: BRANCH,
+        listing: { ...EMPTY, ...pin, district: 'Kentron' },
+      }),
+    ).resolves.toMatchObject({ ...pin, district: 'Kentron' });
   });
 
   it('lets a manager send the stored pin and address back, which is not a move', async () => {

@@ -1,8 +1,8 @@
-import { createMockGateway } from '@yalla/api';
+import { createMockGateway, type Booking, type DaySlots } from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import type * as I18nModule from '@yalla/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import BranchScreen from '../../app/branch/[branchId]';
 import BookingScreen from '../../app/book/[placeId]';
@@ -29,6 +29,7 @@ const router = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
   back: vi.fn(),
+  dismissTo: vi.fn(),
   canGoBack: vi.fn(() => true),
 }));
 
@@ -105,6 +106,7 @@ beforeAll(async () => {
     photos: [],
     coords: null,
     address: '',
+    district: null,
     timeZoneId: 'Asia/Yerevan',
     // Open round the clock, so a slot is always on offer.
     hours: ([0, 1, 2, 3, 4, 5, 6] as const).map((day) => ({ day, open: '00:00', close: '00:00' })),
@@ -234,5 +236,307 @@ describe('the Book screen', () => {
       screen.getAllByRole('button', { name: /^Table \w+\. Closed at that time\.$/u }).length,
     ).toBeGreaterThan(0);
     spy.mockRestore();
+  });
+});
+
+describe('the Book screen against the day of slots', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T08:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  /** The mock's day, with `times` taken: no table for anyone then. */
+  function strike(...times: string[]) {
+    const original = mock.getDaySlots.bind(mock);
+    return vi.spyOn(mock, 'getDaySlots').mockImplementation(async (input) => {
+      const day = await original(input);
+      if (!day) return day;
+      return {
+        ...day,
+        slots: day.slots.map((slot) =>
+          times.includes(slot.time)
+            ? { ...slot, isAvailable: false, freeTableCount: 0, unavailableReason: 'alreadyBooked' }
+            : slot,
+        ),
+      } satisfies DaySlots;
+    });
+  }
+
+  it('strikes a time with no free table, names it so, and never picks it', async () => {
+    strike('12:30', '19:00');
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    const struck = await screen.findByRole('radio', { name: '19:00, no free tables' });
+    expect(struck.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText('Struck-out times have no free table')).toBeTruthy();
+    // A time that can be had is named by the time alone (the e2e selector).
+    expect(screen.getByRole('radio', { name: '19:30' }).getAttribute('aria-disabled')).not.toBe(
+      'true',
+    );
+    // The first time of the day is struck, so the first that can be had is chosen.
+    const chosen = screen.getAllByRole('radio', { name: /^\d{2}:\d{2}$/u, checked: true });
+    expect(chosen).toHaveLength(1);
+    expect(chosen[0]!.getAttribute('aria-label')).not.toBe('12:30');
+  });
+
+  it('strikes every time on a day the branch refuses, and says why', async () => {
+    vi.spyOn(mock, 'getDaySlots').mockResolvedValue({
+      branchId: BRANCH,
+      date: '2026-10-16',
+      partySize: 2,
+      stepMinutes: 30,
+      unavailableReason: 'closed',
+      slots: [],
+    });
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText('Closed that day. Pick another day.')).toBeTruthy();
+    expect(screen.queryAllByRole('radio', { name: /^\d{2}:\d{2}$/u })).toHaveLength(0);
+    expect(
+      screen.getByRole('button', { name: 'Confirm Booking' }).getAttribute('aria-disabled'),
+    ).toBe('true');
+  });
+
+  it('opens a change on the booking, saves only a real change, and goes back to it', async () => {
+    // A table free for two at both 19:00 and 19:30 today, by the mock itself.
+    const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
+    const [seven, half] = await Promise.all(
+      ['19:00', '19:30'].map((time) =>
+        mock.getSlotFloor({
+          branchId: BRANCH,
+          slotUtc: at(time),
+          partySize: 2,
+          timeZoneId: 'Asia/Yerevan',
+        }),
+      ),
+    );
+    const table = seven!.tables.find(
+      (candidate) =>
+        candidate.isBookable &&
+        half!.tables.find((other) => other.tableId === candidate.tableId)?.isBookable,
+    )!;
+    const reschedule = vi
+      .spyOn(mock, 'rescheduleBooking')
+      .mockImplementation(
+        async (command) => ({ id: command.bookingId, status: 'confirmed' }) as Booking,
+      );
+    params.current = {
+      placeId: BRANCH,
+      bookingId: 'r-change',
+      slotUtc: at('19:00'),
+      party: '2',
+      tableId: table.tableId,
+      tableLabel: table.tableLabel,
+    };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText('Change booking')).toBeTruthy();
+    expect(screen.getByRole('radio', { name: '19:00', checked: true })).toBeTruthy();
+    // Nothing changed yet: nothing to save. And the note stays with the booking.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /^Save changes, / }).getAttribute('aria-disabled'),
+      ).toBe('true'),
+    );
+    expect(screen.queryByLabelText('Note for the venue')).toBeNull();
+
+    fireEvent.click(screen.getByRole('radio', { name: '19:30' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /^Save changes, / }).getAttribute('aria-disabled'),
+      ).not.toBe('true'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^Save changes, / }));
+
+    await waitFor(() =>
+      expect(router.dismissTo).toHaveBeenCalledWith({
+        pathname: '/booking/[bookingId]',
+        params: { bookingId: 'r-change' },
+      }),
+    );
+    expect(reschedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: 'r-change',
+        tableId: table.tableId,
+        slotUtc: at('19:30'),
+        partySize: 2,
+      }),
+    );
+  });
+
+  it('hides a time the day leaves out, and strikes one it lists with no free table', async () => {
+    const original = mock.getDaySlots.bind(mock);
+    vi.spyOn(mock, 'getDaySlots').mockImplementation(async (input) => {
+      const day = await original(input);
+      if (!day) return day;
+      return {
+        ...day,
+        slots: day.slots
+          // 20:00 is not listed: its sitting would not fit the hours.
+          .filter((slot) => slot.time !== '20:00')
+          .map((slot) =>
+            slot.time === '19:00'
+              ? {
+                  ...slot,
+                  isAvailable: false,
+                  freeTableCount: 0,
+                  unavailableReason: 'alreadyBooked',
+                }
+              : slot,
+          ),
+      } satisfies DaySlots;
+    });
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByRole('radio', { name: '19:00, no free tables' })).toBeTruthy();
+    expect(screen.getByText('Struck-out times have no free table')).toBeTruthy();
+    // Left out: not drawn at all, struck or otherwise.
+    expect(screen.queryByRole('radio', { name: /^20:00/u })).toBeNull();
+    expect(screen.getByRole('radio', { name: '20:30' })).toBeTruthy();
+  });
+
+  it('leaves a change with no time when its own is struck for the new party, and says so', async () => {
+    const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
+    const original = mock.getDaySlots.bind(mock);
+    // 19:00 has no table for four; for two it is free.
+    vi.spyOn(mock, 'getDaySlots').mockImplementation(async (input) => {
+      const day = await original(input);
+      if (!day || input.partySize !== 4) return day;
+      return {
+        ...day,
+        slots: day.slots.map((slot) =>
+          slot.time === '19:00'
+            ? { ...slot, isAvailable: false, freeTableCount: 0, unavailableReason: 'alreadyBooked' }
+            : slot,
+        ),
+      } satisfies DaySlots;
+    });
+    params.current = { placeId: BRANCH, bookingId: 'r-change', slotUtc: at('19:00'), party: '2' };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByRole('radio', { name: '19:00', checked: true })).toBeTruthy();
+    const note = /isn't available for this party/u;
+    expect(screen.queryByText(note)).toBeNull();
+
+    fireEvent.click(screen.getByRole('radio', { name: '4' }));
+
+    // Never another time in its place: nothing chosen, and why.
+    expect(await screen.findByRole('radio', { name: '19:00, no free tables' })).toBeTruthy();
+    expect(screen.getByText(note)).toBeTruthy();
+    expect(screen.queryAllByRole('radio', { name: /^\d{2}:\d{2}$/u, checked: true })).toHaveLength(
+      0,
+    );
+    expect(screen.getByRole('button', { name: 'Save changes' }).getAttribute('aria-disabled')).toBe(
+      'true',
+    );
+
+    // A time the diner picks is theirs, and the note goes.
+    fireEvent.click(screen.getByRole('radio', { name: '19:30' }));
+    expect(await screen.findByRole('radio', { name: '19:30', checked: true })).toBeTruthy();
+    expect(screen.queryByText(note)).toBeNull();
+  });
+
+  it('keeps a party bigger than the list as it is, chosen', async () => {
+    const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
+    params.current = { placeId: BRANCH, bookingId: 'r-big', slotUtc: at('19:00'), party: '15' };
+    renderScreen(<BookingScreen />);
+
+    // Not 12, the top of the list: the booking's own 15, shown as chosen.
+    expect(await screen.findByRole('radio', { name: '15', checked: true })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: '5+', checked: true })).toBeTruthy();
+    expect(screen.queryByRole('radio', { name: '12', checked: true })).toBeNull();
+  });
+});
+
+describe('changing a late-night booking at a bar', () => {
+  const BAR = 'b-copperfox-saryan';
+  let saved: { place: unknown; rooms: unknown[] };
+
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // Noon in Yerevan on the 16th.
+    vi.setSystemTime(new Date('2026-10-16T08:00:00Z'));
+    saved = { place: held.place, rooms: held.rooms };
+    held.rooms = roomsFromApi((await mock.getBranchRooms(BAR))!.rooms);
+    held.place = {
+      ...(held.place as Place),
+      id: BAR,
+      venueId: 'v-copperfox',
+      venueSlug: 'copper-fox',
+      branchSlug: 'saryan-street',
+      venueName: 'Copper Fox',
+      branchName: 'Saryan Street',
+      name: 'Copper Fox · Saryan Street',
+      type: 'bar',
+      district: 'Kentron',
+      // The mock's own hours for the bar: 17:00 until 02:00.
+      hours: ([0, 1, 2, 3, 4, 5, 6] as const).map((day) => ({
+        day,
+        open: '17:00',
+        close: '02:00',
+      })),
+      rooms: held.rooms as PlaceRoom[],
+    } satisfies Place;
+  });
+  afterEach(() => {
+    held.place = saved.place;
+    held.rooms = saved.rooms;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('opens on the evening it belongs to and keeps its 00:30 when only the party changes', async () => {
+    // 00:30 on the 17th: the evening of the 16th.
+    const slotUtc = new Date('2026-10-17T00:30:00+04:00').toISOString();
+    const [forTwo, forThree] = await Promise.all(
+      [2, 3].map((partySize) =>
+        mock.getSlotFloor({ branchId: BAR, slotUtc, partySize, timeZoneId: 'Asia/Yerevan' }),
+      ),
+    );
+    const table = forTwo!.tables.find(
+      (candidate) =>
+        candidate.isBookable &&
+        forThree!.tables.find((other) => other.tableId === candidate.tableId)?.isBookable,
+    )!;
+    const reschedule = vi
+      .spyOn(mock, 'rescheduleBooking')
+      .mockImplementation(
+        async (command) => ({ id: command.bookingId, status: 'confirmed' }) as Booking,
+      );
+    params.current = {
+      placeId: BAR,
+      bookingId: 'r-late',
+      slotUtc,
+      party: '2',
+      tableId: table.tableId,
+      tableLabel: table.tableLabel,
+    };
+    renderScreen(<BookingScreen />);
+
+    // Today's strip, the evening's 00:30 chosen; the header says where.
+    expect(await screen.findByRole('radio', { name: '00:30', checked: true })).toBeTruthy();
+    expect(screen.getByText('Copper Fox · Saryan Street · Kentron')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: '3' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /^Save changes, / }).getAttribute('aria-disabled'),
+      ).not.toBe('true'),
+    );
+    expect(screen.getByRole('radio', { name: '00:30', checked: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Save changes, / }));
+
+    await waitFor(() =>
+      expect(reschedule).toHaveBeenCalledWith(
+        expect.objectContaining({ bookingId: 'r-late', slotUtc, partySize: 3 }),
+      ),
+    );
   });
 });

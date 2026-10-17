@@ -258,7 +258,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         const { data } = await client.get<Schemas['Yalla.Application.Tabs.TabStaffView']>(
           `/api/tabs/${tabId}/participants`,
         );
-        return staffTabFromView(data);
+        return staffTabFromView(data, client.baseUrl);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -283,7 +283,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
           `/api/branches/${branchId}/tables/${tableId}/open-tab`,
           { clientCommandId },
         );
-        return staffTabFromView(data);
+        return staffTabFromView(data, client.baseUrl);
       } catch (error) {
         rethrow(error);
       }
@@ -294,7 +294,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         `/api/tabs/${tabId}/closing`,
         { clientCommandId },
       );
-      return staffTabFromView(data);
+      return staffTabFromView(data, client.baseUrl);
     },
 
     async reassignHost(command: ReassignHostCommand): Promise<StaffTab> {
@@ -307,7 +307,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
          */
         { newHostParticipantId: command.newHostParticipantId },
       );
-      return staffTabFromView(data);
+      return staffTabFromView(data, client.baseUrl);
     },
 
     // --- Ordering -----------------------------------------------------------

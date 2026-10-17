@@ -11,6 +11,8 @@ import {
   BookingRowSkeleton,
   BookingSheetSummary,
 } from '../../src/components/bookings/BookingCard';
+import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { ConfirmSheet } from '../../src/components/ConfirmSheet';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
@@ -65,6 +67,9 @@ export default function BookingsScreen() {
   const hero = tab === 'upcoming' ? (justCancelled ?? upcoming[0] ?? null) : null;
   const rows: readonly Booking[] =
     tab === 'upcoming' ? upcoming.filter((booking) => booking.id !== hero?.id) : (data?.past ?? []);
+  // Only while the server would still move it and its own time can still be
+  // chosen: waiting or confirmed, and not yet inside the branch's lead time.
+  const heroChangeable = useCanChangeBooking(justCancelled ? null : hero, now);
 
   const chooseTab = (next: Tab) => {
     setTab(next);
@@ -72,8 +77,9 @@ export default function BookingsScreen() {
   };
   const openDetail = (booking: Booking) =>
     router.push({ pathname: '/booking/[bookingId]', params: { bookingId: booking.id } });
-  // There is no changing a booking in place: "Change" and "Book again" open the
-  // place's booking screen.
+  // "Change" moves this booking — same code, same booking — on the booking
+  // screen opened on it; "Book again" is a fresh booking at the same place.
+  const changeBooking = (booking: Booking) => router.push(changeBookingRoute(booking));
   const bookPlace = (booking: Booking) =>
     router.push({ pathname: '/book/[placeId]', params: { placeId: booking.branchId } });
 
@@ -205,7 +211,7 @@ export default function BookingsScreen() {
                 now={now}
                 style={styles.card}
                 onOpen={() => openDetail(hero)}
-                onChange={() => bookPlace(hero)}
+                {...(heroChangeable ? { onChange: () => changeBooking(hero) } : {})}
                 onCancel={() => openCancel(hero)}
                 {...(justCancelled ? { onBookAgain: () => bookPlace(hero) } : {})}
               />

@@ -21,6 +21,14 @@ import { orderKeys } from './orderQueries';
  */
 export { useSlotFloor, useTableAvailability, useVenue, useVenues } from '@yalla/api/react';
 
+/**
+ * A day of slots (which times a party can still have) and moving a booking,
+ * from the same package: the day slots sit under `['availability', branchId]`
+ * with the slot floor, and the move updates the `bookings`/`booking` keys this
+ * file spreads in from `bookingKeys`.
+ */
+export { useDaySlots, useRescheduleBooking } from '@yalla/api/react';
+
 /** Query keys in one place, so an invalidation cannot miss a cache entry. */
 export const keys = {
   ...queryKeys,
@@ -291,10 +299,18 @@ export function useSetParticipantPermissions() {
   });
 }
 
+/**
+ * Raise a hand. `bill` goes only with the `bill` reason — the pay sheet's
+ * scope and tip; the server works out the amounts and answers with them.
+ */
 export function useCallWaiter() {
   const gateway = useGateway();
   return useMutation({
-    mutationFn: (input: { tabId: string; reason: WaiterCallReason; commandId: string }) =>
-      gateway.callWaiter(input),
+    mutationFn: (input: {
+      tabId: string;
+      reason: WaiterCallReason;
+      commandId: string;
+      bill?: Parameters<typeof gateway.callWaiter>[0]['bill'];
+    }) => gateway.callWaiter(input),
   });
 }

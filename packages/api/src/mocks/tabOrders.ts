@@ -1,4 +1,6 @@
+import type { Photo } from '../contracts/menuAdmin';
 import type {
+  BillScope,
   BranchMenu,
   DinerTabLine,
   DinerTabView,
@@ -14,7 +16,7 @@ import type {
 } from '../contracts/ordering';
 import type { SettlementMode } from '../contracts/service';
 import type { TabParticipant, TableTab } from '../contracts/tab';
-import { computeBill, type BillingLine } from './billing';
+import { computeBill, quoteBill, type BillQuoteFigures, type BillingLine } from './billing';
 
 /**
  * The ordering and billing half of a mock tab.
@@ -77,6 +79,11 @@ export interface TabOrdersOptions {
   /** Resolves a menu item, so a line can snapshot its name and price. */
   readonly menuItem: (branchId: string, itemId: string) => MenuItemDetail | undefined;
   readonly branchMenu: (branchId: string) => BranchMenu | null;
+  /**
+   * A participant's photo, by the server's rule — the account they scanned in
+   * with, when it has one. Absent: nobody on any tab has one.
+   */
+  readonly participantPhoto?: ((tabId: string, participantId: string) => Photo | null) | undefined;
 }
 
 interface TabContent {
@@ -98,11 +105,20 @@ interface TabContent {
   settlementMode: SettlementMode;
   settlementModeLocked: boolean;
   paidDram: number;
+  /**
+   * What each participant paid against their own share. A payment taken
+   * against the table, with nobody named, is in `paidDram` and in nobody's
+   * row here — the server's ledger, `TabLedger.Compute`.
+   */
+  readonly paidByParticipant: Map<string, number>;
+  /** Tips left with the payments, kept apart from `paidDram` as the server keeps them. */
+  tipsDram: number;
   sequence: number;
 }
 
 export function createTabOrders(options: TabOrdersOptions) {
   const { now, menuItem, branchMenu } = options;
+  const photoOf = options.participantPhoto ?? (() => null);
 
   const content = new Map<string, TabContent>();
   /** clientCommandId -> the original result. The idempotency log. */
@@ -126,6 +142,8 @@ export function createTabOrders(options: TabOrdersOptions) {
         settlementMode: 'everyonePaysOwnItems',
         settlementModeLocked: false,
         paidDram: 0,
+        paidByParticipant: new Map(),
+        tipsDram: 0,
         sequence: 0,
       };
       content.set(tabId, record);
@@ -170,10 +188,15 @@ export function createTabOrders(options: TabOrdersOptions) {
             : person.status === 'pending'
               ? ('pendingApproval' as const)
               : ('removed' as const),
-        paidDram: 0,
+        paidDram: record.paidByParticipant.get(person.id) ?? 0,
       }))
-      .sort((a, b) => Number(b.isHost) - Number(a.isHost))
-      .map((person) => ({ ...person, paidDram: person.isHost ? record.paidDram : 0 }));
+      .sort((a, b) => Number(b.isHost) - Number(a.isHost));
+  }
+
+  /** `TabPermissions.MaySeeTableTotal`: approved, and allowed to. */
+  function seesTableTotal(tab: TableTab, participantId: string): boolean {
+    const person = tab.participants.find((entry) => entry.id === participantId);
+    return person?.status === 'active' && person.permissions.canSeeTableTotal;
   }
 
   function bill(tab: TableTab, record: TabContent) {
@@ -383,9 +406,25 @@ export function createTabOrders(options: TabOrdersOptions) {
       push(record, 'settlementModeChanged', 'diner', null, { mode });
     },
 
-    pay(tab: TableTab, amountDram: number): void {
+    /**
+     * Cash against the balance, and a tip beside it. The tip never touches
+     * `paidDram`: a tip folded into what was paid is how a tab looks settled
+     * while money is still owed.
+     *
+     * With a participant named, it is credited to their share — what "my
+     * share" settles. Without one it is the table's: the balance goes down and
+     * nobody's share is marked paid, as the server's ledger does it.
+     */
+    pay(tab: TableTab, amountDram: number, tipDram = 0, participantId: string | null = null): void {
       const record = contentFor(tab.id, tab.branchId);
       record.paidDram += amountDram;
+      if (participantId !== null) {
+        record.paidByParticipant.set(
+          participantId,
+          (record.paidByParticipant.get(participantId) ?? 0) + amountDram,
+        );
+      }
+      record.tipsDram += tipDram;
       // Locked from the first payment: changing how a bill splits after money
       // has landed against it would re-apportion what somebody already paid.
       record.settlementModeLocked = true;
@@ -446,6 +485,56 @@ export function createTabOrders(options: TabOrdersOptions) {
       };
     },
 
+    /** Whether this participant may see the table's total: approved and allowed to. */
+    seesTableTotal(tab: TableTab, participantId: string): boolean {
+      return seesTableTotal(tab, participantId);
+    },
+
+    /**
+     * A bill request's amount and tip, by the shared money rules (`quoteBill`)
+     * from the same split the shares view shows. Somebody with no share —
+     * pending, or not on the tab — has nothing to pay on `mine`. Whether they
+     * may ask for `whole` at all is the caller's 403.
+     */
+    billQuote(
+      tab: TableTab,
+      participantId: string,
+      scope: BillScope,
+      tipPercent: number,
+    ): BillQuoteFigures {
+      const record = contentFor(tab.id, tab.branchId);
+      const { bill: computed, shares } = bill(tab, record);
+      return quoteBill({
+        bill: computed,
+        share: shares.find((share) => share.participantId === participantId) ?? null,
+        scope,
+        tipPercent,
+        canSeeTableTotal: seesTableTotal(tab, participantId),
+      });
+    },
+
+    /** What the tab still owes, service charge in. */
+    remaining(tab: TableTab): number {
+      return bill(tab, contentFor(tab.id, tab.branchId)).bill.remainingDram;
+    },
+
+    /**
+     * A tab event the ordering half does not cause itself — a service request
+     * raised or acknowledged, the tab closed — on the same stream, so the
+     * sequence a phone follows stays one sequence.
+     */
+    record(
+      tab: TableTab,
+      type: Extract<
+        TabEvent['type'],
+        'serviceRequested' | 'serviceRequestAcknowledged' | 'tabClosed'
+      >,
+      actor: TabEvent['actor'],
+      data: Record<string, unknown> | null,
+    ): void {
+      push(contentFor(tab.id, tab.branchId), type, actor, null, data);
+    },
+
     /**
      * The tab as one participant may see it.
      *
@@ -479,7 +568,7 @@ export function createTabOrders(options: TabOrdersOptions) {
       let money: TabMoney;
       if (canSeeTableTotal) {
         const { bill: computed } = bill(tab, record);
-        money = { kind: 'table', bill: computed };
+        money = { kind: 'table', bill: computed, tipsDram: record.tipsDram };
       } else {
         // Their own lines only, summed by the same arithmetic — a voided line
         // counts zero here exactly as it does on the table's bill.
@@ -545,6 +634,7 @@ export function createTabOrders(options: TabOrdersOptions) {
           canPay: me?.permissions.canPay ?? false,
           canSeeTableTotal,
           joinedAtUtc: me?.joinedAtUtc ?? tab.openedAtUtc,
+          photo: photoOf(tab.id, participantId),
         },
         // The whole table for an approved participant; only themself while
         // pending — which is what the server sends.
@@ -555,6 +645,7 @@ export function createTabOrders(options: TabOrdersOptions) {
             displayName: person.displayName ?? '',
             role: person.role,
             status: statusOf(person.status),
+            photo: photoOf(tab.id, person.id),
           })),
         myLines: visibleLines
           .filter((line) => line.participantId === participantId || line.isShared)

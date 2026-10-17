@@ -94,6 +94,10 @@
         "help": "Shown to diners with the map pin. Change them together.",
         "required": "Enter the address together with the map pin."
       },
+      "district": {
+        "label": "District / neighbourhood",
+        "help": "The area diners know you by, like “Kentron”. The app shows it under your name. Up to {{max}} characters."
+      },
       "relocateOwnerOnly": "Only an owner can move the map pin or change the address.",
       "errors": {
         "priceLevel": {
@@ -131,6 +135,9 @@
         },
         "address": {
           "tooLong": "The address can be at most {{max}} characters."
+        },
+        "district": {
+          "tooLong": "The district can be at most {{max}} characters."
         },
         "generic": "Something in the form was not accepted. Check the fields and try again."
       }
@@ -261,6 +268,7 @@
     "type": "Type",
     "typeCafe": "Cafe",
     "typeRestaurant": "Restaurant",
+    "typeBar": "Bar",
     "branchName": "Branch name",
     "branchNamePlaceholder": "Northern Avenue",
     "timeZone": "Time zone",

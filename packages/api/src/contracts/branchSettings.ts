@@ -9,6 +9,8 @@
  * silently winning over everything typed before it.
  */
 
+import type { VenueType } from './booking';
+
 // ---------------------------------------------------------------------------
 // Opening hours
 // ---------------------------------------------------------------------------
@@ -181,13 +183,15 @@ export type BoundedPolicyField = keyof typeof POLICY_BOUNDS;
  * collapse has a way back.
  *
  * `ReservationPolicy.DefaultFor` differs by venue type in exactly one field: a
- * cafe holds a table for two hours and a restaurant for ninety minutes. Every
- * other default is shared, so the shape is one object with the turn time
- * supplied.
+ * cafe or a bar holds a table for two hours and a restaurant for ninety
+ * minutes. Every other default is shared, so the shape is one object with the
+ * turn time supplied.
  */
-export function defaultPolicyFor(venueType: 'cafe' | 'restaurant'): ReservationPolicy {
+export function defaultPolicyFor(venueType: VenueType): ReservationPolicy {
   return {
-    turnTimeMinutes: venueType === 'cafe' ? 120 : 90,
+    // A bar's default is the cafe's: people linger over a drink as they do
+    // over a coffee, and the server's `DefaultFor` has a Bar arm saying so.
+    turnTimeMinutes: venueType === 'restaurant' ? 90 : 120,
     bufferMinutes: 15,
     graceMinutes: 15,
     lateNudgeAfterMinutes: 10,

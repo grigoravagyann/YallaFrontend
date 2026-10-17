@@ -9,7 +9,10 @@ import { branchDayKey, instantFromZonedClock, intlTag, type Locale } from '@yall
  * hand the same id on — a second id scheme here would break every one of them.
  */
 
-export type PlaceType = 'restaurant' | 'cafe';
+export type PlaceType = 'restaurant' | 'cafe' | 'bar';
+
+/** Every kind of place, in the order a filter offers them. */
+export const PLACE_TYPES: readonly PlaceType[] = ['cafe', 'restaurant', 'bar'];
 
 /** Content badges. Never "open" or "closed" — availability is `openState`. */
 export type PlaceBadge = 'popular' | 'new';
@@ -169,6 +172,11 @@ export interface Place {
   /** `null` when the venue has not set a location: no pin, no directions. */
   readonly coords: Coordinates | null;
   readonly address: string;
+  /**
+   * The area of town the venue names for itself — "Kentron", "Arabkir". Free
+   * text, never a key; `null` when the venue has not set one.
+   */
+  readonly district: string | null;
   readonly phone?: string;
   readonly website?: string;
   /** IANA zone every one of its hours is read in. */

@@ -14,6 +14,7 @@ import { Rise } from '../../src/components/motion/Rise';
 import { SuccessMark } from '../../src/components/motion/SuccessMark';
 import { usePressScale } from '../../src/components/motion/usePressScale';
 import { PhotoImage } from '../../src/components/PhotoImage';
+import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
 import { directionsUrl } from '../../src/components/place/PlaceActions';
 import { QueryErrorState } from '../../src/components/QueryErrorState';
 import { Screen } from '../../src/components/Screen';
@@ -111,19 +112,16 @@ export default function SuccessScreen() {
   const coords = place?.coords ?? null;
 
   const share = () => {
-    void Share.share({
-      message: t('success.shareMessage', {
-        table: booking.tableLabel,
-        venue: where,
-        branch: booking.branchName,
-        time: `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
-          booking.slotUtc,
-          booking.timeZoneId,
-          locale,
-        )}`,
-        code: booking.code,
-      }),
-    }).catch(() => undefined);
+    const line = bookingShareLine(
+      booking,
+      where,
+      `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
+        booking.slotUtc,
+        booking.timeZoneId,
+        locale,
+      )}`,
+    );
+    void Share.share({ message: t(line.key, line.params) }).catch(() => undefined);
   };
 
   const copy = () => {
@@ -174,7 +172,8 @@ export default function SuccessScreen() {
                 label={t('booking.partySize')}
                 value={t('booking.guests', { count: booking.partySize })}
               />
-              <Fact label={t('success.table')} value={booking.tableLabel} />
+              {/* "4 · Hall": the room, when the server named one. */}
+              <Fact label={t('success.table')} value={tableWithRoom(booking)} />
               <Fact label={t('success.address')} value={address} />
             </View>
 

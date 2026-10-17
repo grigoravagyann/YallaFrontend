@@ -22,6 +22,7 @@ const LISTING: BranchListing = {
   cuisine: null,
   priceLevel: null,
   address: '12 Abovyan Street',
+  district: null,
   latitude: null,
   longitude: null,
   distanceKm: null,
@@ -75,6 +76,21 @@ describe('placeFromListing', () => {
     });
     // A list card does not know whether the app may book; the place's page does.
     expect(place.acceptsAppBookings).toBeNull();
+  });
+
+  it('keeps a bar a bar, rather than listing it as a restaurant', () => {
+    expect(placeFromListing({ ...LISTING, venueType: 'bar' }, CONTEXT).type).toBe('bar');
+    expect(placeFromListing({ ...LISTING, venueType: 'restaurant' }, CONTEXT).type).toBe(
+      'restaurant',
+    );
+  });
+
+  it('carries the district the venue set, and none when it is blank or unset', () => {
+    expect(placeFromListing({ ...LISTING, district: ' Kentron ' }, CONTEXT).district).toBe(
+      'Kentron',
+    );
+    expect(placeFromListing({ ...LISTING, district: '  ' }, CONTEXT).district).toBeNull();
+    expect(placeFromListing(LISTING, CONTEXT).district).toBeNull();
   });
 
   it('prefers the server distance, and computes one from the phone when there is none', () => {

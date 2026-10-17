@@ -144,6 +144,9 @@ describe('creating a booking', () => {
       timeZoneId: 'Asia/Yerevan',
       tableId: 'tbl-7',
       tableLabel: '7',
+      // A server that does not name the room yet: unknown, not invented.
+      roomId: null,
+      roomName: null,
       partySize: 2,
       slotUtc: '2026-09-20T15:30:00Z',
       endUtc: '2026-09-20T17:00:00Z',

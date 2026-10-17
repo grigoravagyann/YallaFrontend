@@ -1,4 +1,3 @@
-import type { VenueType } from '../contracts/booking';
 import type { Photo } from '../contracts/menuAdmin';
 import type {
   BranchBadge,
@@ -20,6 +19,9 @@ import type { DinerNotification, DinerNotificationPage } from '../contracts/noti
 import type { components } from '../generated/schema';
 import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
+import { venueTypeFromCode } from './venueTypeMapping';
+
+export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
 
@@ -56,15 +58,6 @@ function orNull<T>(value: T | null | undefined): T | null {
 
 function finite(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-/** `VenueType`: 1 Cafe, 2 Restaurant. Anything else is read as a restaurant, the wider kind. */
-export function venueTypeFromCode(code: number): VenueType {
-  return code === 1 ? 'cafe' : 'restaurant';
-}
-
-export function venueTypeCode(type: VenueType): 1 | 2 {
-  return type === 'cafe' ? 1 : 2;
 }
 
 /**
@@ -135,6 +128,7 @@ export function branchListingFromWire(wire: WireBranchListing, baseUrl: string):
     cuisine: orNull(wire.cuisine)?.trim() || null,
     priceLevel: finite(wire.priceLevel),
     address: wire.address ?? '',
+    district: orNull(wire.district)?.trim() || null,
     latitude: located ? latitude : null,
     longitude: located ? longitude : null,
     distanceKm: finite(wire.distanceKm),

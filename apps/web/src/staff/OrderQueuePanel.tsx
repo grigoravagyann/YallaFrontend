@@ -6,6 +6,7 @@ import {
 } from '@yalla/api';
 import type { UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
+import { billRequestText } from './billRequestText';
 import { useBranchFormat } from './useBranchFormat';
 
 /**
@@ -182,6 +183,13 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
                         count: minutes,
                       })}
                     </p>
+                    {/* The bill from the app's pay sheet says how much and the
+                        tip, so the waiter brings the right bill the first time. */}
+                    {request.reason === 'bill' && request.bill ? (
+                      <p className="call-bill">
+                        {billRequestText(request.bill, t, format.dram, 'short')}
+                      </p>
+                    ) : null}
                     {request.note ? <p className="order-line-note">{request.note}</p> : null}
                     <button
                       type="button"

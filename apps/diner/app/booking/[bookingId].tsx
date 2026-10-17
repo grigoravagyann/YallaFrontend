@@ -8,6 +8,9 @@ import { useState } from 'react';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge } from '../../src/components/bookings/BookingCard';
+import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
+import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { ConfirmSheet } from '../../src/components/ConfirmSheet';
@@ -112,10 +115,12 @@ export default function BookingDetailScreen() {
 function BookingDetail({ booking }: { readonly booking: Booking }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
+  const router = useRouter();
   const cancel = useCancelBooking();
   const [confirming, setConfirming] = useState(false);
   const now = useNow();
   const { data: place } = usePlace(booking.branchId);
+  const changeable = useCanChangeBooking(booking, now);
   // What the venue sees with the booking (K9).
   const note = booking.note;
 
@@ -143,15 +148,8 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
   );
 
   const share = () => {
-    void Share.share({
-      message: t('success.shareMessage', {
-        table: booking.tableLabel,
-        venue: where,
-        branch: booking.branchName,
-        time: when,
-        code: booking.code,
-      }),
-    }).catch(() => undefined);
+    const line = bookingShareLine(booking, where, when);
+    void Share.share({ message: t(line.key, line.params) }).catch(() => undefined);
   };
 
   const doCancel = () => {
@@ -176,7 +174,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
             ) : (
               <View style={[styles.thumb, styles.thumbFallback]}>
                 <Ionicons
-                  name={place?.type === 'cafe' ? placeTypeIcon.cafe : placeTypeIcon.restaurant}
+                  name={placeTypeIcon[place?.type ?? 'restaurant']}
                   size={iconSize.lg}
                   color={colors.textSubtle}
                 />
@@ -203,7 +201,10 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
             <BookingBadge status={booking.status} />
           </View>
           <View style={styles.facts}>
-            <Fact icon={actionIcon.table} text={t('tables.table', { label: booking.tableLabel })} />
+            <Fact
+              icon={actionIcon.table}
+              text={t('tables.table', { label: tableWithRoom(booking) })}
+            />
             <Fact icon={actionIcon.calendar} text={when} />
             <Fact
               icon={actionIcon.people}
@@ -275,6 +276,17 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
         ) : null}
 
         <View style={styles.actions}>
+          {/* Moves this booking — same code — while the server would still
+              accept it and its own time can still be chosen: waiting or
+              confirmed, and not yet inside the branch's lead time. */}
+          {changeable ? (
+            <Button
+              label={t('bookings.change')}
+              variant="secondary"
+              icon="pencil-outline"
+              onPress={() => router.push(changeBookingRoute(booking))}
+            />
+          ) : null}
           <Button
             label={t('success.share')}
             variant="secondary"

@@ -15,8 +15,13 @@ import { LiveBill } from '../../../src/components/LiveBill';
 import { Rise, riseDelay } from '../../../src/components/motion/Rise';
 import { SuccessMark } from '../../../src/components/motion/SuccessMark';
 import { usePressScale } from '../../../src/components/motion/usePressScale';
-import { AvatarRow, useParticipantSummary } from '../../../src/components/Participants';
+import {
+  AvatarRow,
+  useParticipantSummary,
+  usePeopleLine,
+} from '../../../src/components/Participants';
 import { Screen } from '../../../src/components/Screen';
+import { PaySheet } from '../../../src/components/tab/PaySheet';
 import { TabNamePrompt } from '../../../src/components/TabNamePrompt';
 import { Text } from '../../../src/components/Text';
 import { useDinerTab } from '../../../src/data/orderQueries';
@@ -25,10 +30,12 @@ import { haptics } from '../../../src/lib/haptics';
 import { useTray } from '../../../src/order/TrayProvider';
 import { useActiveTab } from '../../../src/stores/tab';
 import { tabAccessCopy } from '../../../src/tab/access';
+import { tabAccessGone } from '../../../src/tab/billRequest';
 import { canInvite } from '../../../src/tab/invite';
 import { orderingBlock, orderingBlockKey } from '../../../src/tab/ordering';
 import { projectTab } from '../../../src/tab/projection';
 import { onTab, roster } from '../../../src/tab/roster';
+import { useBillRequestWatch } from '../../../src/tab/useBillRequestWatch';
 import {
   actionIcon,
   colors,
@@ -71,6 +78,7 @@ export default function TabScreen() {
   const [waiterOpen, setWaiterOpen] = useState(false);
   /** A call went through from this screen: the Call button says so. */
   const [called, setCalled] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
@@ -111,8 +119,18 @@ export default function TabScreen() {
     }
   }, [tabId, over, view?.tabId, activeTabId, clearActive, joinActive]);
 
+  // The bill asked for from the pay sheet, until a waiter acknowledges it or
+  // the tab moves on to closing — or this phone can no longer read the tab
+  // (401/403, or 404: the read answers `null`), which ends it for good.
+  const billRequested = useBillRequestWatch(
+    tabId,
+    view?.status,
+    tabAccessGone(error) || view === null,
+  );
+
   const people = view ? roster(view) : [];
   const summary = useParticipantSummary(people, locale);
+  const peopleLine = usePeopleLine(people);
   const count = onTab(people).length;
   const isHost = view?.me.role === 'host' && view.me.status === 'approved';
 
@@ -249,8 +267,8 @@ export default function TabScreen() {
           </View>
         </Rise>
 
-        {/* Who is here, as initials and one sentence. Tapping it opens the
-            full roster: the host's controls and the people asking to join. */}
+        {/* Who is here, as faces and their names. Tapping it opens the full
+            roster: the host's controls and the people asking to join. */}
         <Rise delay={riseDelay(1)}>
           <Card padded={false} radiusToken="hero" style={styles.people}>
             <Pressable
@@ -264,7 +282,7 @@ export default function TabScreen() {
               <AvatarRow people={people} />
               <View style={styles.peopleText}>
                 <Text style={styles.names} numberOfLines={1}>
-                  {summary || t('tab.peopleCount', { count })}
+                  {peopleLine || t('tab.peopleCount', { count })}
                 </Text>
                 <Text style={styles.role} numberOfLines={1}>
                   {isHost ? t('tab.youHost') : t('tab.peopleCount', { count })}
@@ -326,7 +344,19 @@ export default function TabScreen() {
               tone="glass"
               onPress={() => goTo('menu')}
             />
-            <ActionButton label={t('tab.settle')} tone="brand" onPress={() => goTo('settle')} />
+            {/* Once the bill is asked for, Pay says so, quietly, until a
+                waiter has it; a tap shows what is on its way. */}
+            {billRequested ? (
+              <ActionButton
+                icon="receipt-outline"
+                label={t('tab.billRequested')}
+                accessibilityLabel={t('tab.closingChip')}
+                tone="calm"
+                onPress={() => setPayOpen(true)}
+              />
+            ) : (
+              <ActionButton label={t('tab.settle')} tone="brand" onPress={() => setPayOpen(true)} />
+            )}
           </View>
           {block ? <Text style={styles.blocked}>{t(orderingBlockKey(block))}</Text> : null}
         </Rise>
@@ -353,6 +383,17 @@ export default function TabScreen() {
         onSent={() => setCalled(true)}
       />
 
+      <PaySheet
+        tabId={view.tabId}
+        visible={payOpen}
+        onClose={() => setPayOpen(false)}
+        tab={view}
+        onShowShares={() => {
+          setPayOpen(false);
+          goTo('settle');
+        }}
+      />
+
       <ConfirmSheet
         visible={leaveOpen}
         title={t('tab.leaveTitle')}
@@ -374,8 +415,9 @@ export default function TabScreen() {
 
 /**
  * One of the three presses under the bill. Equal thirds, which is narrower
- * than `Button` lays out: a glass pill, the brand pill for Pay, and a solid
- * green once the waiter has been called.
+ * than `Button` lays out: a glass pill, the brand pill for Pay, a solid green
+ * once the waiter has been called, and a calm glass pill with green ink once
+ * the bill has been asked for.
  */
 function ActionButton({
   label,
@@ -386,13 +428,20 @@ function ActionButton({
 }: {
   readonly label: string;
   readonly icon?: IoniconName;
-  readonly tone: 'glass' | 'brand' | 'success';
+  readonly tone: 'glass' | 'brand' | 'success' | 'calm';
   readonly onPress: () => void;
   readonly accessibilityLabel?: string;
 }) {
   const press = usePressScale();
   const ink =
-    tone === 'brand' ? colors.onPrimary : tone === 'success' ? colors.onSuccessStrong : colors.text;
+    tone === 'brand'
+      ? colors.onPrimary
+      : tone === 'success'
+        ? colors.onSuccessStrong
+        : tone === 'calm'
+          ? colors.successInk
+          : colors.text;
+  const glass = tone === 'glass' || tone === 'calm';
   return (
     <Animated.View style={[styles.actionWrap, press.style]}>
       <Pressable
@@ -403,10 +452,10 @@ function ActionButton({
         onPressOut={press.onPressOut}
         style={({ pressed }) => [
           styles.action,
-          tone === 'glass' && styles.actionGlass,
+          glass && styles.actionGlass,
           tone === 'brand' && styles.actionBrand,
           tone === 'success' && styles.actionSuccess,
-          pressed && tone === 'glass' && styles.actionGlassPressed,
+          pressed && glass && styles.actionGlassPressed,
           pressed && tone === 'brand' && styles.actionBrandPressed,
         ]}
       >
@@ -427,8 +476,9 @@ function ActionButton({
  *
  * What was paid leads, then the receipt as the server last described it, then
  * a way to say how it was — the stars open the place's reviews, because there
- * is no review attached to a tab. No tip and no payment method: the tab does
- * not carry either.
+ * is no review attached to a tab. Tips left with the payments get their own
+ * row, outside the total as the server keeps them. No payment method: the tab
+ * does not carry one.
  */
 function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDone: () => void }) {
   const { t } = useTranslation('diner');
@@ -444,6 +494,9 @@ function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDo
   const amount =
     money.kind === 'table' ? (money.paidDram > 0 ? money.paidDram : money.totalDram) : null;
   const rate = rendered.serviceChargePercent;
+  // Beside the bill, never in it: a tip folded into the total would make the
+  // receipt disagree with what the table owed.
+  const tips = view.money.kind === 'table' ? (view.money.tipsDram ?? 0) : 0;
 
   const rateVisit = (stars: number) => {
     setRating(stars);
@@ -509,6 +562,12 @@ function PaidView({ view, onDone }: { readonly view: DinerTabView; readonly onDo
                 <Text style={styles.receiptMuted}>
                   {formatDram(money.serviceChargeDram, locale)}
                 </Text>
+              </View>
+            ) : null}
+            {tips > 0 ? (
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptMuted}>{t('tab.pay.tip')}</Text>
+                <Text style={styles.receiptMuted}>{formatDram(tips, locale)}</Text>
               </View>
             ) : null}
             <View style={styles.receiptRule} />

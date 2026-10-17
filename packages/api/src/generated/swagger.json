@@ -1158,8 +1158,8 @@
         "tags": [
           "admin"
         ],
-        "summary": "Set cuisine, about, price level, website, amenities, map pin and gallery",
-        "description": "Every listing field is replaced; null or blank clears it. `priceLevel` is 1-4; `amenities` are keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`; `websiteUrl` is an absolute http(s) address. Every broken field is reported at once as `422 validation-failed`.\n\n**Moving the branch.** `address`, `latitude` and `longitude` travel together: coordinates without an address, or an address without coordinates, is `422` naming the missing field (bound `required`); the address is at most 400 characters. Sending all three as they are stored is not a move. A move - any of them present and different from the stored value - is allowed only to an **owner of this venue or a platform admin signed in to the admin panel**; anyone else (a manager, or any PIN session) gets `403 relocation-not-allowed` and **nothing on the form is saved**. A move is audited as `branch.relocate` with the old and new address and coordinates.\n\n`galleryPhotoIds` are photos uploaded for **this** branch through `POST /api/branches/{branchId}/photos`, in display order, at most 12. **Null leaves the gallery alone**; `[]` clears it. A photo from another branch is 404 and nothing is written.",
+        "summary": "Set cuisine, about, price level, website, amenities, district, map pin and gallery",
+        "description": "Every listing field is replaced; null or blank clears it. `priceLevel` is 1-4; `amenities` are keys from `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`; `websiteUrl` is an absolute http(s) address; `district` is the part of town, e.g. `Kentron`, trimmed, at most 60 characters, and a manager may set it like any other listing field - it is not the address and moves nothing. Every broken field is reported at once as `422 validation-failed`.\n\n**Moving the branch.** `address`, `latitude` and `longitude` travel together: coordinates without an address, or an address without coordinates, is `422` naming the missing field (bound `required`); the address is at most 400 characters. Sending all three as they are stored is not a move. A move - any of them present and different from the stored value - is allowed only to an **owner of this venue or a platform admin signed in to the admin panel**; anyone else (a manager, or any PIN session) gets `403 relocation-not-allowed` and **nothing on the form is saved**. A move is audited as `branch.relocate` with the old and new address and coordinates.\n\n`galleryPhotoIds` are photos uploaded for **this** branch through `POST /api/branches/{branchId}/photos`, in display order, at most 12. **Null leaves the gallery alone**; `[]` clears it. A photo from another branch is 404 and nothing is written.",
         "operationId": "putBranchListing",
         "parameters": [
           {
@@ -7517,7 +7517,7 @@
           "diner"
         ],
         "summary": "Which tables a branch can offer for one slot",
-        "description": "Every table in the branch pinned on a room photo - `photoId`, `photoX`, `photoY` - with its derived state at the requested time, whether it can be booked for this party - and if not, the one specific reason - and the window the diner may have. Assembled in a single query. Returns no guest names and no money. Omit date and time for 'now, at the branch'.",
+        "description": "Every table in the branch pinned on a room photo - `photoId`, `photoX`, `photoY` - with its derived state at the requested time, whether it can be booked for this party - and if not, the one specific reason - and the window the diner may have. Assembled in a single query. Returns no guest names and no money. Omit date and time for 'now, at the branch'.\n\n`excludeReservationId` leaves one booking out of the answer as though it had never been made - the diner's own, while they change it, so the table they already hold reads as free to them. Every other booking still counts, and an id that is not a booking at this branch changes nothing. Anonymous like the rest of the read: booking ids are unguessable, and the answer says no more about the one left out than that its table is free.",
         "operationId": "getBranchAvailability",
         "parameters": [
           {
@@ -7553,6 +7553,14 @@
               "format": "int32",
               "default": 2
             }
+          },
+          {
+            "name": "excludeReservationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -7568,6 +7576,125 @@
           },
           "400": {
             "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many availability queries from this address. Generous but finite - the endpoint is anonymous and a phone will poll it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/branches/{branchId}/availability/slots": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Which start times on one day have a table for this party",
+        "description": "Every half hour from 00:00 on `date` (`stepMinutes` is 30) whose whole sitting - the branch's turn time - fits one opening block, earliest first. A time the branch is shut for is **left out**, never struck. Each slot carries `time` (`HH:mm`, branch wall clock), `startUtc`, `isAvailable`, `requiresApproval`, `freeTableCount` and, when not available, `unavailableReason`.\n\n**`isAvailable`** is true when at least one bookable table pinned on a photo of its room seats the party within the seat-overhang limit and has no booking or sitting running into the slot, clearing time included. These are the single-slot read's own rules over the same rows, so a time listed here as free is one `availability?time=` offers exactly `freeTableCount` tables at, and a struck time is one it offers none at.\n\n**Why a time is struck**: `LeadTimeTooShort` (1) or `OutsideBookingWindow` (2) when the time itself is refused; otherwise `TableAlreadyBooked` (8) - or `TableCurrentlyOccupied` (10) - when tables that fit the party are taken, else the commonest table reason, e.g. `PartyExceedsCapacity` (4) when nothing seats them.\n\nThe top-level `unavailableReason` refuses the whole day: `OutsideOpeningHours` (3) with no slots when the branch is shut all day, or the timing reason every listed time shares - a past day, the rest of today inside the lead time, a date beyond the booking window. Null when any time was judged on its tables.\n\nOne query, like the single slot. Returns no guest names and no money. `partySize` defaults to 2.\n\n`excludeReservationId` leaves one booking out of the answer as though it had never been made - the diner's own, while they change it, so the table they already hold reads as free to them. Every other booking still counts, and an id that is not a booking at this branch changes nothing. Anonymous like the rest of the read: booking ids are unguessable, and the answer says no more about the one left out than that its table is free.",
+        "operationId": "getBranchDaySlots",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "partySize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 2
+            }
+          },
+          {
+            "name": "excludeReservationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.BranchDaySlots"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`date` is missing or is not a date.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7738,7 +7865,7 @@
           "diner"
         ],
         "summary": "Ask a waiter for something",
-        "description": "Presets and one short optional note. **Not a chat**: a message box creates the expectation of a reply, and during the Friday rush nobody answers it.\n\nRate limited **per tab**, not per person - the list a waiter is looking at is the table's, and one bored guest must not be able to bury another table's request.",
+        "description": "Presets and one short optional note. **Not a chat**: a message box creates the expectation of a reply, and during the Friday rush nobody answers it.\n\nRate limited **per tab**, not per person - the list a waiter is looking at is the table's, and one bored guest must not be able to bury another table's request.\n\n**Asking for the bill from the pay sheet.** With `preset` 3 a request may carry `billScope` (1 WholeBill, 2 MyShare) and `tipPercent` (0 to 25). The server prices it from the tab's own arithmetic - the same numbers `/shares` reports - and the response and the waiter's list carry `billAmountAmd` and `tipAmd`:\n- WholeBill: the tab's remaining balance. Only for somebody who can see the table total - otherwise 403.\n- MyShare: what the asker still owes of their own share (`shareAmd` less `paidAmd`); for somebody who can see the table total, never more than the tab owes.\n\nThe tip is on the **unpaid part of the items**: the tab subtotal (WholeBill) or the asker's `personalAmd` (MyShare), in the proportion `billAmountAmd` bears to the total or the share - all of the items when nothing has been paid. The service charge is inside `billAmountAmd`; the tip is **outside** it, as a cash payment's `tipAmd` is outside the balance. Either field on another preset, a tip with no scope, or a tip outside 0 to 25 is a 422 naming the field; a scope with nothing left to pay is a 422 on `billScope`.\n\nA request with a `billScope` **replaces** the asker's own earlier open request for the bill on this tab: that one leaves the waiter's list. The `ServiceRequested` event carries `billScope` and `tipPercent` but never the amounts - every phone at the table reads the stream.",
         "operationId": "raiseServiceRequest",
         "parameters": [
           {
@@ -7798,11 +7925,21 @@
             }
           },
           "403": {
-            "description": "This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs.",
+            "description": "This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs. Or `billScope` 1 WholeBill from somebody the table total is hidden from.",
             "content": {
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`billScope` or `tipPercent` refused - on a preset other than 3, a tip with no scope, a tip outside 0 to 25, or a scope that leaves nothing to pay. `context.fields` names each.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
                 }
               }
             }
@@ -8592,6 +8729,144 @@
           },
           "409": {
             "description": "Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A branch rule refused the booking. Each rule has its own `code` - `reservation-party-exceeds-capacity`, `reservation-outside-opening-hours` and so on - with the numbers behind it in `context`, so the app can say which table to pick instead rather than showing a generic failure.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The table's booking lock could not be had in time. `context.retryable` is true: unlike the 409, this one is worth retrying - with the same `clientCommandId`, so a retry that crosses with a late-committing original is recognised as a replay.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.LockTimeoutProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reservations/{reservationId}/reschedule": {
+      "post": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "Change a booking's date, time, party size or table",
+        "description": "Moves the diner's **own** booking and answers with it: the **same `id` and `code`** and manage link, at the new `startUtc`/`endUtc`, `partySize`, `tableId`, `roomId`/`roomName` and `status`. Send the whole new slot - `date`, `time`, `partySize` and `diningTableId` (required, the current table or another at the branch) - as a new booking would.\n\n**Only a booking still to come**: `PendingApproval` or `Confirmed` and not yet started. Anything else - seated, finished, cancelled, a no-show, or past its start - is `409 reservation-not-changeable`, before the new slot is looked at.\n\n**Judged as a new booking would be**, with the same `reservation-*` 422s: the branch open for business and still taking bookings from the channel the booking came from, lead time and booking window, opening hours, the table pinned on its room and fitting the party. The clash check runs under the target table's lock **excluding this booking**, so moving dinner by half an hour on the same table is never refused because of itself - and the 409's fresh floor shows the diner's own table free.\n\n**The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history.\n\nThe reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.",
+        "operationId": "rescheduleReservation",
+        "parameters": [
+          {
+            "name": "reservationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.RescheduleReservationRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/reservations/{reservationId}/reschedule`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.ReservationView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`diningTableId` names a table at another branch.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`phone-not-verified`: the account registered with a number it has never proved. Send the diner through the code flow (`request-code`, `verify-code`) first; reading and cancelling bookings stay open meanwhile.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such booking, or it is somebody else's - one answer for both; or no such table.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`reservation-not-changeable`: the booking is finished with or has started. `table-already-booked` / `table-currently-occupied`: the new slot is taken - Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `concurrent-update`: the booking was cancelled, approved or seated while this was in flight; read it again. `bookings-not-accepted`, `web-bookings-not-accepted`, `branch-unavailable`: the branch stopped taking bookings. `client-command-id-in-use`: the id belongs to another command or to a different change.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10765,6 +11040,14 @@
               "type": "string",
               "format": "time"
             }
+          },
+          {
+            "name": "excludeReservationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -10841,13 +11124,132 @@
         }
       }
     },
+    "/api/public/branches/{branchId}/availability/slots": {
+      "get": {
+        "tags": [
+          "diner"
+        ],
+        "summary": "The day's slots, through the same read model as the app's - the public gate first, exactly as\nfor one slot.",
+        "description": "The app's day-slots read, reused rather than reimplemented, behind the public 404 rule and the tighter rate limit. `partySize` is required here, as on the public single-slot read.\n\nEvery half hour from 00:00 on `date` (`stepMinutes` is 30) whose whole sitting - the branch's turn time - fits one opening block, earliest first. A time the branch is shut for is **left out**, never struck. Each slot carries `time` (`HH:mm`, branch wall clock), `startUtc`, `isAvailable`, `requiresApproval`, `freeTableCount` and, when not available, `unavailableReason`.\n\n**`isAvailable`** is true when at least one bookable table pinned on a photo of its room seats the party within the seat-overhang limit and has no booking or sitting running into the slot, clearing time included. These are the single-slot read's own rules over the same rows, so a time listed here as free is one `availability?time=` offers exactly `freeTableCount` tables at, and a struck time is one it offers none at.\n\n**Why a time is struck**: `LeadTimeTooShort` (1) or `OutsideBookingWindow` (2) when the time itself is refused; otherwise `TableAlreadyBooked` (8) - or `TableCurrentlyOccupied` (10) - when tables that fit the party are taken, else the commonest table reason, e.g. `PartyExceedsCapacity` (4) when nothing seats them.\n\nThe top-level `unavailableReason` refuses the whole day: `OutsideOpeningHours` (3) with no slots when the branch is shut all day, or the timing reason every listed time shares - a past day, the rest of today inside the lead time, a date beyond the booking window. Null when any time was judged on its tables.\n\nOne query, like the single slot. Returns no guest names and no money. `partySize` defaults to 2.\n\n`excludeReservationId` leaves one booking out of the answer as though it had never been made - the diner's own, while they change it, so the table they already hold reads as free to them. Every other booking still counts, and an id that is not a booking at this branch changes nothing. Anonymous like the rest of the read: booking ids are unguessable, and the answer says no more about the one left out than that its table is free.",
+        "operationId": "getPublicDaySlots",
+        "parameters": [
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "partySize",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "excludeReservationId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reservations.BranchDaySlots"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`date` or `partySize` is missing or malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such branch, or it is not published.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/public/bookings/{token}": {
       "get": {
         "tags": [
           "diner"
         ],
         "summary": "One booking, by the manage link that was mailed with it",
-        "description": "What the confirmation screen renders, for somebody holding nothing but the link: venue, branch, address, table, local date and time, party size, status, the code quoted at the door, and the instant past which cancelling counts as late.\n\n**Nothing else.** No diner id, no phone number, no other bookings, no floor state. The token is the whole credential and it will be pasted into WhatsApp, left in browser history and read by whoever picks the phone up, so this response is a hand-picked subset rather than a trimmed reservation.\n\n**A cancelled, missed or finished booking answers 200 with its state**, not 404. Somebody opening a three-week-old link should learn what happened to their table.\n\n**An unknown token, an expired one and a booking that no longer exists answer identically** - same status, same code, same sentence. The link must not be usable to find out which tokens are real. The link stops working `ManageTokenGraceDays` after the booking ends.",
+        "description": "What the confirmation screen renders, for somebody holding nothing but the link: venue, branch, address, table and the room it is in (`roomName`, absent for a table in no room), local date and time, party size, status, the code quoted at the door, and the instant past which cancelling counts as late.\n\n**Nothing else.** No diner id, no phone number, no other bookings, no floor state. The token is the whole credential and it will be pasted into WhatsApp, left in browser history and read by whoever picks the phone up, so this response is a hand-picked subset rather than a trimmed reservation.\n\n**A cancelled, missed or finished booking answers 200 with its state**, not 404. Somebody opening a three-week-old link should learn what happened to their table.\n\n**An unknown token, an expired one and a booking that no longer exists answer identically** - same status, same code, same sentence. The link must not be usable to find out which tokens are real. The link stops working `ManageTokenGraceDays` after the booking ends.",
         "operationId": "getPublicBooking",
         "parameters": [
           {
@@ -11138,7 +11540,7 @@
           "diner"
         ],
         "summary": "Every published branch, for Explore and the map",
-        "description": "Each entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`.\n\n`badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.\n\nSend `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.",
+        "description": "Each entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant, 3 Bar), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`, and `district` - the part of town, e.g. `Kentron`, absent until the venue sets it; search's `q` matches it as well as the names, cuisine and address.\n\n`badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.\n\nSend `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.",
         "operationId": "getPublicBranches",
         "parameters": [
           {
@@ -11248,8 +11650,8 @@
         "tags": [
           "diner"
         ],
-        "summary": "Search published branches by name, cuisine or address",
-        "description": "`q` matches venue name, branch name, cuisine and address, contains and case-insensitive; blank matches everything. `category` narrows to one venue type (1 Cafe, 2 Restaurant). `q` is at most 100 characters.\n\nEach entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`.\n\n`badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.\n\nSend `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.",
+        "summary": "Search published branches by name, cuisine, address or district",
+        "description": "`q` matches venue name, branch name, cuisine and address, contains and case-insensitive; blank matches everything. `category` narrows to one venue type (1 Cafe, 2 Restaurant, 3 Bar). `q` is at most 100 characters.\n\nEach entry is a `PublicBranchListing`: ids and slugs, `venueName`, `branchName`, `venueType` (1 Cafe, 2 Restaurant, 3 Bar), `cuisine` and `priceLevel` (absent until the venue sets them), `address`, `latitude`, `longitude`, `timeZoneId`, `isOpenNow`, `freeTableCount`, `rating` (average to one decimal, **absent with no reviews**), `reviewCount`, `badges` and `coverPhoto`, and `district` - the part of town, e.g. `Kentron`, absent until the venue sets it; search's `q` matches it as well as the names, cuisine and address.\n\n`badges` is derived, never stored: `new` for a branch created in the last 30 days; `popular` for one that seated 20 or more parties in the last 30 days, or has 5 or more reviews averaging 4.5 or better.\n\nSend `lat` and `lng` together to get `distanceKm` on every entry and nearest-first order; without them the order is best rated first. Cached for fifteen seconds.",
         "operationId": "searchPublicBranches",
         "parameters": [
           {
@@ -14854,7 +15256,7 @@
           "staff"
         ],
         "summary": "What tables are asking for",
-        "description": "Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.",
+        "description": "Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.\n\nA request for the bill from the diner's pay sheet carries `billScope`, `billAmountAmd`, `tipPercent` and `tipAmd`: the amount to bring, priced when the diner asked, and the tip to expect on top of it - what the cash keypad opens with. One the same diner has since replaced with a newer request for the bill is not listed: the newer one is what to bring.",
         "operationId": "getOpenServiceRequests",
         "parameters": [
           {
@@ -16559,6 +16961,21 @@
             "type": "string",
             "description": "One short line, optional. Not a conversation.",
             "nullable": true
+          },
+          "billScope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.BillScope"
+              }
+            ],
+            "description": "Only with preset 3: whose part of the bill - 1 WholeBill, 2 MyShare. The server prices it and the\nresponse carries `billAmountAmd`. Leave it out for a plain \"the bill, please\". WholeBill needs\nsight of the table total. Replaces the asker's own earlier open request for the bill on the tab.",
+            "nullable": true
+          },
+          "tipPercent": {
+            "type": "integer",
+            "description": "Only with a BillScope: the tip, 0 to 25 percent of the items that scope still\nleaves unpaid (before service). The response carries it priced as `tipAmd`.",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -16797,6 +17214,45 @@
         },
         "additionalProperties": false,
         "description": "Body of `POST /api/auth/venue/request-password-reset`."
+      },
+      "Yalla.Api.Endpoints.RescheduleReservationRequest": {
+        "required": [
+          "clientCommandId",
+          "date",
+          "diningTableId",
+          "partySize",
+          "time"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The new local calendar date at the branch, e.g. `2026-09-12`.",
+            "format": "date"
+          },
+          "time": {
+            "type": "string",
+            "description": "The new local wall-clock start at the branch, e.g. `19:30`.",
+            "format": "time"
+          },
+          "partySize": {
+            "type": "integer",
+            "description": "How many are coming now.",
+            "format": "int32"
+          },
+          "diningTableId": {
+            "type": "string",
+            "description": "The table to move to: the one the booking is on, or another at the same branch, picked off the\nroom photos as for a new booking. <b>Required</b>, as `tableId` is on a new booking - a\nbooking is always for one table the diner chose.",
+            "format": "uuid"
+          },
+          "clientCommandId": {
+            "type": "string",
+            "description": "The caller's own id for this change. <b>Required.</b> A retry with the same id answers with the\nbooking as it stands instead of moving it again; a fresh id for every change.",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/reservations/{reservationId}/reschedule`."
       },
       "Yalla.Api.Endpoints.ResetPasswordRequest": {
         "required": [
@@ -19405,6 +19861,11 @@
             "description": "Sent with Latitude.",
             "format": "double",
             "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "description": "The part of town, e.g. \"Kentron\" - printed after the venue type and cuisine, and matched by search.\nUp to 60 characters, trimmed. Null or blank clears it. A listing field like the cuisine line: a\nmanager may set it, unlike the address, because naming the neighbourhood moves nobody's pin.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -19468,6 +19929,11 @@
               "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
             },
             "description": "Pictures beyond the cover, in order."
+          },
+          "district": {
+            "type": "string",
+            "description": "The part of town, e.g. \"Kentron\", or absent.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -22048,6 +22514,33 @@
             "type": "integer",
             "description": "Where the tab's event stream stands. Raising or acknowledging a request appends an event, so the\nresponse says where that left the stream - otherwise the phone that just called a waiter is the\none client guaranteed to be behind. Zero on the branch-wide list, which spans many tabs and so\nhas no single stream to be caught up with.",
             "format": "int64"
+          },
+          "billScope": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.BillScope"
+              }
+            ],
+            "description": "On a request for the bill that said whose part: 1 WholeBill, 2 MyShare. Absent on every other\nrequest.",
+            "nullable": true
+          },
+          "billAmountAmd": {
+            "type": "integer",
+            "description": "What that scope left to pay when the diner asked, in whole dram - service charge included, tip\nexcluded. Priced by the server, so the waiter brings the number the diner was shown. Absent with\nBillScope.",
+            "format": "int64",
+            "nullable": true
+          },
+          "tipPercent": {
+            "type": "integer",
+            "description": "The tip the diner chose, 0 to 25. Absent when none was asked.",
+            "format": "int32",
+            "nullable": true
+          },
+          "tipAmd": {
+            "type": "integer",
+            "description": "That tip in whole dram, on top of BillAmountAmd and outside the bill, like a\ncash payment's `tipAmd`. Absent with TipPercent.",
+            "format": "int64",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -22672,6 +23165,11 @@
             "type": "string",
             "description": "The note the diner typed for the venue when booking, or absent (K9). Theirs to see again; it\nsays nothing the link holder did not write.",
             "nullable": true
+          },
+          "roomName": {
+            "type": "string",
+            "description": "The room the table is in - \"Hall\", \"Terrace\" - or absent for a table in no room. Said beside the\ntable label, because \"table 4\" alone does not tell somebody arriving which room to walk into.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -22941,6 +23439,11 @@
               }
             ],
             "description": "The hero picture, or absent.",
+            "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "description": "The part of town, e.g. \"Kentron\" - what the app prints after the venue type and the cuisine. Free\ntext from the venue, or absent when not set. Search matches it.",
             "nullable": true
           }
         },
@@ -24361,6 +24864,99 @@
         "additionalProperties": false,
         "description": "Every table in a branch, answered for one requested slot, in one round trip."
       },
+      "Yalla.Application.Reservations.BranchDaySlots": {
+        "required": [
+          "branchId",
+          "date",
+          "partySize",
+          "slots",
+          "stepMinutes"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "description": "The local date asked about, as `YYYY-MM-DD`.",
+            "format": "date"
+          },
+          "partySize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stepMinutes": {
+            "type": "integer",
+            "description": "Minutes between listed start times. Always Yalla.Application.Reservations.DaySlotStep.Minutes.",
+            "format": "int32"
+          },
+          "unavailableReason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Occupancy.ReservationRejectionReason"
+              }
+            ],
+            "description": "Why the whole day is refused, when it is: the branch is shut all day\n(`OutsideOpeningHours`, and no slots), the day is past or every time left today is too\nsoon (`LeadTimeTooShort`), or it is further out than the branch books\n(`OutsideBookingWindow`). Null when at least one time could be judged on its tables.",
+            "nullable": true
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Reservations.DaySlot"
+            },
+            "description": "Every start time on the day whose whole sitting fits one opening block, earliest first. A time\nthe branch is shut for is left out rather than struck - it was never on offer."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One day at a branch, answered every half hour: which start times have a table for this party."
+      },
+      "Yalla.Application.Reservations.DaySlot": {
+        "required": [
+          "freeTableCount",
+          "isAvailable",
+          "requiresApproval",
+          "startUtc",
+          "time"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "description": "The local wall-clock start, `HH:mm` - what the chip says."
+          },
+          "startUtc": {
+            "type": "string",
+            "description": "The same start as an instant.",
+            "format": "date-time"
+          },
+          "isAvailable": {
+            "type": "boolean",
+            "description": "Whether at least one table can be booked for this party at this time: a bookable table pinned\non a photo of its room that seats them, within the branch's seat-overhang limit, with no\nbooking or sitting running into the sitting once clearing time is allowed for."
+          },
+          "requiresApproval": {
+            "type": "boolean",
+            "description": "True when a booking made at this time will land waiting for approval: the branch approves\nevery booking by hand, or the party is over its threshold. The same answer every table in\nthe single-slot read gives."
+          },
+          "freeTableCount": {
+            "type": "integer",
+            "description": "How many tables the single-slot read would offer at this time. Zero when struck.",
+            "format": "int32"
+          },
+          "unavailableReason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Occupancy.ReservationRejectionReason"
+              }
+            ],
+            "description": "Why nothing is free, when nothing is. `LeadTimeTooShort` or `OutsideBookingWindow`\nwhen the time itself is refused; otherwise the tables' reason - `TableAlreadyBooked` (or\n`TableCurrentlyOccupied`) when tables that fit the party are taken, else the commonest\nreason across the tables, e.g. `PartyExceedsCapacity` when no table seats them. Null\nwhen available.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One start time on the day, and whether a table is free for it."
+      },
       "Yalla.Application.Reservations.ExtendHoldResult": {
         "required": [
           "extensionMinutes",
@@ -24548,6 +25144,17 @@
           },
           "tableLabel": {
             "type": "string"
+          },
+          "roomId": {
+            "type": "string",
+            "description": "The room the table is in - its `FloorArea`, the room a diner picked it from - or absent for\na table in no room.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "roomName": {
+            "type": "string",
+            "description": "The room's name - \"Hall\", \"Terrace\" - or absent with Yalla.Application.Reservations.ReservationView.RoomId.",
+            "nullable": true
           },
           "partySize": {
             "type": "integer",
@@ -25584,10 +26191,19 @@
               }
             ],
             "description": "Whether a participant is allowed on the tab."
+          },
+          "photo": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+              }
+            ],
+            "description": "Their diner account's profile picture, when they scanned signed in and have one. Absent\notherwise; draw initials. The URLs are relative to the API.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "Who is at the table, as the other diners see them: a name and whether they are in yet."
+        "description": "Who is at the table, as the other diners see them: a name, a face, and whether they are in yet."
       },
       "Yalla.Application.Tabs.TabParticipantView": {
         "required": [
@@ -25648,6 +26264,15 @@
             "type": "string",
             "description": "When they scanned or joined.",
             "format": "date-time"
+          },
+          "photo": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Media.PhotoView"
+              }
+            ],
+            "description": "Their profile picture, when the phone that scanned was signed in to a diner account that has\none. Absent for a guest who scanned without an account - most of them - and for an account\nsince deleted. The URLs are relative to the API.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -25669,6 +26294,7 @@
           "tabId",
           "tableLabel",
           "timeZoneId",
+          "tipsAmd",
           "totals"
         ],
         "type": "object",
@@ -25757,6 +26383,10 @@
               }
             ],
             "description": "The table aggregate, in whole dram. Server-computed; the client only displays it."
+          },
+          "tipsAmd": {
+            "type": "integer",
+            "format": "int64"
           }
         },
         "additionalProperties": false,
@@ -25933,7 +26563,7 @@
           },
           "tableTotalVisible": {
             "type": "boolean",
-            "description": "Whether the two members below are present."
+            "description": "Whether the three members below are present."
           },
           "tableTotal": {
             "allOf": [
@@ -25950,6 +26580,12 @@
               "$ref": "#/components/schemas/Yalla.Application.Tabs.TabLineView"
             },
             "description": "Every line on the tab with who placed it, voided ones included. Absent when the total is hidden.",
+            "nullable": true
+          },
+          "tipsAmd": {
+            "type": "integer",
+            "description": "The tips handed over with the tab's succeeded payments, in whole dram. <b>Outside the balance</b>:\nnot in `tableTotal.paidAmd` or `remainingAmd`, which is why it is here and not in\nTableTotal. Absent with the table total, because a tip is money the table\npaid.",
+            "format": "int64",
             "nullable": true
           }
         },
@@ -26090,6 +26726,19 @@
         "x-enum-varnames": [
           "Discount",
           "Comp"
+        ]
+      },
+      "Yalla.Domain.Enums.BillScope": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "description": "How much of the tab a request for the bill is about. Only a Yalla.Domain.Enums.ServiceRequestPreset.TheBill\nrequest carries one.\n\nValues: 1 WholeBill, 2 MyShare.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "WholeBill",
+          "MyShare"
         ]
       },
       "Yalla.Domain.Enums.DerivedTableState": {
@@ -26414,14 +27063,16 @@
       "Yalla.Domain.Enums.VenueType": {
         "enum": [
           1,
-          2
+          2,
+          3
         ],
         "type": "integer",
-        "description": "What kind of place a venue is. Drives the shipped reservation-policy defaults.\n\nValues: 1 Cafe, 2 Restaurant.",
+        "description": "What kind of place a venue is. Drives the shipped reservation-policy defaults.\n\nValues: 1 Cafe, 2 Restaurant, 3 Bar.",
         "format": "int32",
         "x-enum-varnames": [
           "Cafe",
-          "Restaurant"
+          "Restaurant",
+          "Bar"
         ]
       },
       "Yalla.Domain.Identity.DevicePlatform": {

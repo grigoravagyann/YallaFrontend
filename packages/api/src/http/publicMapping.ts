@@ -15,6 +15,7 @@ import type { BranchSummary, VenueSummary, VenueType } from '../contracts/bookin
 import type { components } from '../generated/schema';
 import { openStateFrom } from '../contracts/openState';
 import { absolutePhotoUrl } from './photoUrl';
+import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
 export type WirePublicBranch = Schemas['Yalla.Application.Public.PublicBranchPage'];
@@ -51,9 +52,9 @@ export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingV
  * neither is a failure.
  */
 
-/** `1 Cafe, 2 Restaurant`, per `Yalla.Domain.Enums.VenueType`. */
+/** `1 Cafe, 2 Restaurant, 3 Bar`, per `Yalla.Domain.Enums.VenueType` — the one shared decoder. */
 function venueTypeFromWire(type: number | undefined): VenueType {
-  return type === 2 ? 'restaurant' : 'cafe';
+  return venueTypeFromCode(type);
 }
 
 /** `HH:mm:ss` on the wire, `HH:mm` in the contract — seconds are noise on an hours row. */
@@ -443,8 +444,9 @@ export function managedBookingFromWire(
     timeZoneId,
 
     tableLabel: wire.tableLabel ?? '',
-    // Not published on the manage link, and nullable in the contract.
-    floorAreaName: null,
+    // The room the table is in, from the booking's own table. Absent when the
+    // table is in none — or from a server that predates it.
+    floorAreaName: wire.roomName?.trim() || null,
     partySize: wire.partySize ?? 0,
     slotUtc: slotInstant(wire.localDate, wire.localStartTime, timeZoneId),
     // No turn time on this route — see the note on the contract field.

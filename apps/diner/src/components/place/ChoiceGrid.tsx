@@ -16,6 +16,11 @@ export interface ChoiceGridOption {
   readonly label: string;
   /** Cannot be chosen: drawn dim and struck through, still named. */
   readonly disabled?: boolean;
+  /**
+   * What a screen reader says, when the label alone does not: "19:00, no free
+   * tables" for a struck time. Defaults to the label.
+   */
+  readonly accessibilityLabel?: string;
 }
 
 export interface ChoiceGridProps {
@@ -94,7 +99,7 @@ export function ChoiceGrid({
           <Pressable
             key={option.value}
             accessibilityRole="radio"
-            accessibilityLabel={option.label}
+            accessibilityLabel={option.accessibilityLabel ?? option.label}
             accessibilityState={{ checked: selected, disabled }}
             // The web build reads none of accessibilityState.
             aria-checked={selected}

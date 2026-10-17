@@ -45,10 +45,11 @@ export const navIcons = {
 
 export type NavRouteName = keyof typeof navIcons;
 
-/** Map marker glyphs — two visually distinct kinds, never the same pin. */
+/** Map marker glyphs — three visually distinct kinds, never the same pin. */
 export const placeTypeIcon = {
   restaurant: 'restaurant-outline',
   cafe: 'cafe-outline',
+  bar: 'beer-outline',
 } as const satisfies Record<string, IoniconName>;
 
 /** A glyph for the amenities the venues name; an unknown key gets no icon. */

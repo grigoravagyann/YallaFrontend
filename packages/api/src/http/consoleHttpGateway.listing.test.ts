@@ -78,6 +78,7 @@ const LISTING: VenueListingInput = {
   amenities: [],
   galleryPhotoIds: null,
   address: null,
+  district: null,
   latitude: null,
   longitude: null,
 };
@@ -89,6 +90,7 @@ describe('the branch listing over HTTP', () => {
       json(200, {
         amenities: ['wifi'],
         address: '12 Abovyan Street',
+        district: ' Kentron ',
         latitude: 40.18,
         longitude: 44.51,
         gallery: [WIRE_PHOTO],
@@ -105,10 +107,36 @@ describe('the branch listing over HTTP', () => {
       websiteUrl: null,
       amenities: ['wifi'],
       address: '12 Abovyan Street',
+      district: 'Kentron',
       latitude: 40.18,
       longitude: 44.51,
     });
     expect(listing.gallery[0]?.cardUrl).toBe(`${BASE}/api/photos/p1/card`);
+  });
+
+  it('reads an absent district as null — a branch that never named its area', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        json(200, { amenities: [], address: 'a', latitude: 1, longitude: 2, gallery: [] }),
+      );
+
+    expect((await gatewayOver(fetchImpl).getBranchListing('b-1')).district).toBeNull();
+  });
+
+  it('always sends the district, a blank one as null, since every field is replaced', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        json(200, { amenities: [], address: 'a', latitude: 1, longitude: 2, gallery: [] }),
+      );
+
+    await gatewayOver(fetchImpl).updateBranchListing({
+      branchId: 'b-1',
+      listing: { ...LISTING, district: '   ' },
+    });
+
+    expect(sentBody(fetchImpl)).toHaveProperty('district', null);
   });
 
   it('puts every field, blanks as nulls, the gallery in order, and the address with the pin', async () => {
@@ -128,6 +156,7 @@ describe('the branch listing over HTTP', () => {
         amenities: ['wifi', 'vegan'],
         galleryPhotoIds: ['p2', 'p1'],
         address: '  Test address 1 ',
+        district: '  Arabkir ',
         latitude: 40.1,
         longitude: 44.5,
       },
@@ -142,6 +171,7 @@ describe('the branch listing over HTTP', () => {
       amenities: ['wifi', 'vegan'],
       galleryPhotoIds: ['p2', 'p1'],
       address: 'Test address 1',
+      district: 'Arabkir',
       latitude: 40.1,
       longitude: 44.5,
     });
