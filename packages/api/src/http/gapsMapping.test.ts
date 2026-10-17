@@ -122,7 +122,9 @@ describe('a bill request on the branch list', () => {
   it('is no bill request without a scope and an amount, or with a scope it does not know', () => {
     expect(serviceRequest(REQUEST).bill).toBeNull();
     expect(billRequest({ ...REQUEST, billScope: 2 })).toBeNull();
-    expect(billRequest({ ...REQUEST, billScope: 7, billAmountAmd: 100 })).toBeNull();
+    expect(
+      billRequest({ ...REQUEST, billScope: 7 as unknown as 1, billAmountAmd: 100 }),
+    ).toBeNull();
     // A bill with no tip chosen is a tip of zero, said as such.
     expect(billRequest({ ...REQUEST, billScope: 2, billAmountAmd: 900 })).toEqual({
       scope: 'mine',
@@ -142,6 +144,7 @@ describe('the staff tab, with tips and faces', () => {
     status: 1,
     settlementMode: 2,
     settlementModeLocked: true,
+    tipsAmd: 0,
     openedAtUtc: '2026-09-20T15:00:00Z',
     hostParticipantId: 'p1',
     maxSequence: 4,
@@ -194,8 +197,8 @@ describe('the staff tab, with tips and faces', () => {
     expect(tab.totals.paidDram).toBe(4000);
   });
 
-  it('reads tips a server does not send as unknown', () => {
-    expect(staffTabFromView(VIEW, BASE).tipsDram).toBeNull();
+  it('reads a tab with no tips taken as zero, not unknown', () => {
+    expect(staffTabFromView(VIEW, BASE).tipsDram).toBe(0);
   });
 
   it('puts the account photo on who has one, with an absolute link', () => {

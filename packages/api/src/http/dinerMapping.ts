@@ -23,23 +23,9 @@ type WirePhoto = Schemas['Yalla.Application.Media.PhotoView'];
 type LineView = Schemas['Yalla.Application.Tabs.TabLineView'];
 type AdjustmentView = Schemas['Yalla.Application.Tabs.TabAdjustmentView'];
 
-/*
- * Fields the backend is adding for the diner design gaps that are not yet in
- * `generated/schema.ts`: a participant's `photo` and the tab's `tipsAmd`.
- * Optional, so today's server reads as "none"; the additions become no-ops
- * when the schema is regenerated.
- */
-type ParticipantView = Schemas['Yalla.Application.Tabs.TabParticipantView'] & {
-  photo?: WirePhoto | null;
-};
-type ParticipantSummary = Schemas['Yalla.Application.Tabs.TabParticipantSummary'] & {
-  photo?: WirePhoto | null;
-};
-type TabView = Omit<Schemas['Yalla.Application.Tabs.TabView'], 'me' | 'participants'> & {
-  me: ParticipantView;
-  participants: ParticipantSummary[];
-  tipsAmd?: number | null;
-};
+type ParticipantView = Schemas['Yalla.Application.Tabs.TabParticipantView'];
+type ParticipantSummary = Schemas['Yalla.Application.Tabs.TabParticipantSummary'];
+type TabView = Schemas['Yalla.Application.Tabs.TabView'];
 
 /**
  * The diner's tab, from the wire.
@@ -267,15 +253,7 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
 
 // --- Reservations, for the notification actions ------------------------------
 
-/**
- * `roomId` and `roomName` are on the backend branch for the diner design gaps
- * and not yet in `generated/schema.ts`; the intersection is a no-op once it is
- * regenerated.
- */
-type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] & {
-  roomId?: string | null;
-  roomName?: string | null;
-};
+type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'];
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,

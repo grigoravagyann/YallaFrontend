@@ -284,33 +284,10 @@ export function slotFloorFromResponse(response: Availability): SlotFloor {
 
 // --- A day of slots ------------------------------------------------------------
 
-/**
- * `BranchDaySlots`, from `GET /api/branches/{id}/availability/slots`.
- *
- * Written by hand against the wire contract the backend is building for the
- * diner design gaps: the route is not in `generated/schema.ts` yet. When it is,
- * these two become aliases of the generated schemas and the mapper below stays.
- */
-export interface WireDaySlots {
-  branchId: string;
-  /** `YYYY-MM-DD`. */
-  date: string;
-  partySize: number;
-  stepMinutes?: number;
-  /** `ReservationRejectionReason` for the whole day, or absent. */
-  unavailableReason?: number | null;
-  slots?: WireDaySlot[] | null;
-}
+/** `BranchDaySlots`, from `GET /api/branches/{id}/availability/slots`. */
+export type WireDaySlots = Schemas['Yalla.Application.Reservations.BranchDaySlots'];
 
-export interface WireDaySlot {
-  /** `HH:mm`. */
-  time: string;
-  startUtc: string;
-  isAvailable: boolean;
-  requiresApproval?: boolean;
-  freeTableCount?: number;
-  unavailableReason?: number | null;
-}
+export type WireDaySlot = Schemas['Yalla.Application.Reservations.DaySlot'];
 
 /** The server's slot spacing when an answer omits it — the one it uses today. */
 const DEFAULT_STEP_MINUTES = 30;

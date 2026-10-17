@@ -46,13 +46,7 @@ import { photo } from './venueSettingsMapping';
 type Schemas = components['schemas'];
 type FloorState = Schemas['Yalla.Application.Floor.BranchFloorState'];
 type ChangeResult = Schemas['Yalla.Application.Tables.TableStateChangeResult'];
-type StaffParticipantView = Schemas['Yalla.Application.Tabs.TabParticipantView'] & {
-  photo?: WirePhoto | null;
-};
-type StaffView = Omit<Schemas['Yalla.Application.Tabs.TabStaffView'], 'participants'> & {
-  participants: StaffParticipantView[];
-  tipsAmd?: number | null;
-};
+type StaffView = Schemas['Yalla.Application.Tabs.TabStaffView'];
 type KitchenOrder = Schemas['Yalla.Application.Ordering.KitchenOrderView'];
 type OrderLine = Schemas['Yalla.Application.Ordering.OrderLineView'];
 type OrderView = Schemas['Yalla.Application.Ordering.OrderView'];
@@ -60,20 +54,8 @@ type AdjustmentView = Schemas['Yalla.Application.Ordering.AdjustmentView'];
 type ShareView = Schemas['Yalla.Application.Ordering.ParticipantShareView'];
 type SharesView = Schemas['Yalla.Application.Ordering.TabSharesView'];
 type CashView = Schemas['Yalla.Application.Ordering.CashPaymentView'];
-type WirePhoto = Schemas['Yalla.Application.Media.PhotoView'];
 
-/*
- * Fields the backend is adding for the diner design gaps that are not yet in
- * `generated/schema.ts`: the bill request's scope, amounts and tip, the tab's
- * tips and each participant's photo. Optional, so today's server reads as
- * "none"; the additions become no-ops when the schema is regenerated.
- */
-export type RequestView = Schemas['Yalla.Application.Ordering.ServiceRequestView'] & {
-  billScope?: number | null;
-  billAmountAmd?: number | null;
-  tipPercent?: number | null;
-  tipAmd?: number | null;
-};
+export type RequestView = Schemas['Yalla.Application.Ordering.ServiceRequestView'];
 type MenuView = Schemas['Yalla.Application.Menus.BranchMenuView'];
 type TotalsSnapshot = Schemas['Yalla.Application.Ordering.TabTotalsSnapshot'];
 type TotalsView = Schemas['Yalla.Application.Tabs.TabTotalsView'];

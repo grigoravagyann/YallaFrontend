@@ -25,14 +25,7 @@ export { venueTypeCode, venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
 
-/**
- * `district` is on the backend branch for the diner design gaps and not yet in
- * `generated/schema.ts`. Optional here so the mapper reads it the day it
- * arrives; the intersection becomes a no-op when the schema is regenerated.
- */
-export type WireBranchListing = Schemas['Yalla.Application.Public.PublicBranchListing'] & {
-  district?: string | null;
-};
+export type WireBranchListing = Schemas['Yalla.Application.Public.PublicBranchListing'];
 export type WireBranchDetail = Schemas['Yalla.Application.Public.PublicBranchDetail'];
 export type WireReviewPage = Omit<
   Schemas['Yalla.Application.Public.PublicReviewPage'],

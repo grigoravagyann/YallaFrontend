@@ -117,18 +117,8 @@ function publicProfile(view: WirePublicProfile, baseUrl: string): BranchPublicPr
     coverPhoto: view.coverPhoto ? absolutePhoto(baseUrl, photo(view.coverPhoto)) : null,
   };
 }
-/*
- * `district` on both is the backend branch's for the diner design gaps and not
- * yet in `generated/schema.ts`. The intersections become no-ops once it is
- * regenerated; until then the command is built by name, so check-gateway-schema
- * does not read a key the stale schema has never heard of.
- */
-type WireListing = Schemas['Yalla.Application.BranchSettings.BranchListingView'] & {
-  district?: string | null;
-};
-type WireListingCommand = Schemas['Yalla.Application.BranchSettings.BranchListingCommand'] & {
-  district?: string | null;
-};
+type WireListing = Schemas['Yalla.Application.BranchSettings.BranchListingView'];
+type WireListingCommand = Schemas['Yalla.Application.BranchSettings.BranchListingCommand'];
 
 /** The listing with absent fields made explicit and gallery links made absolute. */
 function branchListing(view: WireListing, baseUrl: string): VenueListing {
@@ -917,22 +907,21 @@ export function createConsoleHttpGateway(
     async updateBranchListing({ branchId, listing }): Promise<VenueListing> {
       // Every field is replaced, so blanks travel as explicit nulls. The
       // address travels with the pin (K5): the server refuses either half alone.
-      const body: WireListingCommand = {
-        cuisine: blankToNull(listing.cuisine),
-        about: blankToNull(listing.about),
-        priceLevel: listing.priceLevel,
-        websiteUrl: blankToNull(listing.websiteUrl),
-        amenities: [...listing.amenities],
-        galleryPhotoIds: listing.galleryPhotoIds === null ? null : [...listing.galleryPhotoIds],
-        address: blankToNull(listing.address),
-        // Always sent: every field here is replaced, and an absent district
-        // would clear the one the venue set.
-        district: blankToNull(listing.district),
-        latitude: listing.latitude,
-        longitude: listing.longitude,
-      };
       try {
-        const { data } = await client.put<WireListing>(`${BRANCHES}/${branchId}/listing`, body);
+        const { data } = await client.put<WireListing>(`${BRANCHES}/${branchId}/listing`, {
+          cuisine: blankToNull(listing.cuisine),
+          about: blankToNull(listing.about),
+          priceLevel: listing.priceLevel,
+          websiteUrl: blankToNull(listing.websiteUrl),
+          amenities: [...listing.amenities],
+          galleryPhotoIds: listing.galleryPhotoIds === null ? null : [...listing.galleryPhotoIds],
+          address: blankToNull(listing.address),
+          // Always sent: every field here is replaced, and an absent district
+          // would clear the one the venue set.
+          district: blankToNull(listing.district),
+          latitude: listing.latitude,
+          longitude: listing.longitude,
+        } satisfies WireListingCommand);
         return branchListing(data, client.baseUrl);
       } catch (error) {
         if (error instanceof ApiError && error.code === 'relocation-not-allowed') {

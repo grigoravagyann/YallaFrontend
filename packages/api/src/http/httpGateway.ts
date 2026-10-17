@@ -949,7 +949,6 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async getDaySlots({ branchId, date, partySize, excludeBookingId }): Promise<DaySlots | null> {
       try {
-        // gateway-schema: awaiting-route — diner design gaps
         const { data } = await client.get<WireDaySlots>(
           `/api/branches/${branchId}/availability/slots`,
           { query: { date, partySize, ...excluding(excludeBookingId) }, skipAuth: true },
@@ -1593,20 +1592,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      * fields `WaiterCall` names are read.
      */
     async callWaiter({ tabId, reason, bill }): Promise<WaiterCall> {
-      /*
-       * Built by name, not inline, because `billScope` and `tipPercent` are the
-       * backend branch's for the diner design gaps and not yet in
-       * `generated/schema.ts` — check-gateway-schema would read them as keys
-       * the request does not declare. Inline it again once it is regenerated.
-       * Sent only with a bill: the server refuses either on any other preset.
-       */
-      const body: Schemas['Yalla.Api.Endpoints.RaiseServiceRequest'] & {
-        billScope?: 1 | 2;
-        tipPercent?: number;
-      } = {
+      // Sent only with a bill: the server refuses either on any other preset.
+      const body = {
         preset: SERVICE_PRESET_CODE[reason],
         ...(bill ? { billScope: billScopeCode(bill.scope), tipPercent: bill.tipPercent } : {}),
-      };
+      } satisfies Schemas['Yalla.Api.Endpoints.RaiseServiceRequest'];
       let data: RequestView;
       try {
         ({ data } = await client.post<RequestView>(
@@ -1689,22 +1679,16 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async rescheduleBooking(command): Promise<Booking> {
       const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
-      /*
-       * Built by name until `generated/schema.ts` has the route; inline it
-       * then, so check-gateway-schema reads every key against the request shape.
-       */
-      const body = {
-        date,
-        time,
-        partySize: command.partySize,
-        diningTableId: command.tableId,
-        clientCommandId: command.commandId,
-      };
       try {
-        // gateway-schema: awaiting-route — diner design gaps
         const { data } = await client.post<
           Schemas['Yalla.Application.Reservations.ReservationView']
-        >(`/api/reservations/${command.bookingId}/reschedule`, body);
+        >(`/api/reservations/${command.bookingId}/reschedule`, {
+          date,
+          time,
+          partySize: command.partySize,
+          diningTableId: command.tableId,
+          clientCommandId: command.commandId,
+        } satisfies Schemas['Yalla.Api.Endpoints.RescheduleReservationRequest']);
         return toBooking(data);
       } catch (error) {
         rethrowBooking(error, {

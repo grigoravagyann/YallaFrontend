@@ -21,13 +21,7 @@ type Schemas = components['schemas'];
 export type WirePublicBranch = Schemas['Yalla.Application.Public.PublicBranchPage'];
 export type WirePublicVenueCard = Schemas['Yalla.Application.Public.PublicVenueCard'];
 export type WirePublicBranchMeta = Schemas['Yalla.Application.Public.PublicBranchMeta'];
-/**
- * `roomName` is on the backend branch for the diner design gaps and not yet in
- * `generated/schema.ts`; the intersection is a no-op once it is regenerated.
- */
-export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingView'] & {
-  roomName?: string | null;
-};
+export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingView'];
 
 /**
  * The public wire shapes to the public page's contract types.
