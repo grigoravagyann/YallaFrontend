@@ -1140,7 +1140,7 @@ export interface paths {
          * What tables are asking for
          * @description Open requests, newest first, with the table label and how long they have been waiting. Newest first because on a busy floor the screen is glanced at, and the thing that just came in is the one nobody has walked to yet.
          *
-         *     A request for the bill from the diner's pay sheet carries `billScope`, `billAmountAmd`, `tipPercent` and `tipAmd`: the amount to bring, priced when the diner asked, and the tip to expect on top of it - what the cash keypad opens with.
+         *     A request for the bill from the diner's pay sheet carries `billScope`, `billAmountAmd`, `tipPercent` and `tipAmd`: the amount to bring, priced when the diner asked, and the tip to expect on top of it - what the cash keypad opens with. One the same diner has since replaced with a newer request for the bill is not listed: the newer one is what to bring.
          */
         get: operations["getOpenServiceRequests"];
         put?: never;
@@ -2437,9 +2437,9 @@ export interface paths {
          *
          *     **Judged as a new booking would be**, with the same `reservation-*` 422s: the branch open for business and still taking bookings from the channel the booking came from, lead time and booking window, opening hours, the table pinned on its room and fitting the party. The clash check runs under the target table's lock **excluding this booking**, so moving dinner by half an hour on the same table is never refused because of itself - and the 409's fresh floor shows the diner's own table free.
          *
-         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why) - a venue that approved twelve at seven has not approved them at nine.
+         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history.
          *
-         *     The reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command is `409 client-command-id-in-use`.
+         *     The reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.
          */
         post: operations["rescheduleReservation"];
         delete?: never;
@@ -2915,11 +2915,13 @@ export interface paths {
          *
          *     Rate limited **per tab**, not per person - the list a waiter is looking at is the table's, and one bored guest must not be able to bury another table's request.
          *
-         *     **Asking for the bill from the pay sheet.** With `preset` 3 a request may carry `billScope` (1 WholeBill, 2 MyShare) and `tipPercent` (0 to 25). The server prices it from the tab's own arithmetic - the same numbers `/shares` reports - and the response, the waiter's list and the `ServiceRequested` event all carry `billAmountAmd` and `tipAmd`:
-         *     - WholeBill: the tab's remaining balance; the tip is on the tab subtotal. Only for somebody who can see the table total - otherwise 403.
-         *     - MyShare: what the asker still owes of their own share (`shareAmd` less `paidAmd`), never more than the tab owes; the tip is on their `personalAmd`.
+         *     **Asking for the bill from the pay sheet.** With `preset` 3 a request may carry `billScope` (1 WholeBill, 2 MyShare) and `tipPercent` (0 to 25). The server prices it from the tab's own arithmetic - the same numbers `/shares` reports - and the response and the waiter's list carry `billAmountAmd` and `tipAmd`:
+         *     - WholeBill: the tab's remaining balance. Only for somebody who can see the table total - otherwise 403.
+         *     - MyShare: what the asker still owes of their own share (`shareAmd` less `paidAmd`); for somebody who can see the table total, never more than the tab owes.
          *
-         *     The service charge is inside `billAmountAmd`; the tip is **outside** it, as a cash payment's `tipAmd` is outside the balance. Either field on another preset, a tip with no scope, or a tip outside 0 to 25 is a 422 naming the field; a scope with nothing left to pay is a 422 on `billScope`.
+         *     The tip is on the **unpaid part of the items**: the tab subtotal (WholeBill) or the asker's `personalAmd` (MyShare), in the proportion `billAmountAmd` bears to the total or the share - all of the items when nothing has been paid. The service charge is inside `billAmountAmd`; the tip is **outside** it, as a cash payment's `tipAmd` is outside the balance. Either field on another preset, a tip with no scope, or a tip outside 0 to 25 is a 422 naming the field; a scope with nothing left to pay is a 422 on `billScope`.
+         *
+         *     A request with a `billScope` **replaces** the asker's own earlier open request for the bill on this tab: that one leaves the waiter's list. The `ServiceRequested` event carries `billScope` and `tipPercent` but never the amounts - every phone at the table reads the stream.
          */
         post: operations["raiseServiceRequest"];
         delete?: never;
@@ -3466,7 +3468,7 @@ export interface components {
             /**
              * @description Only with preset 3: whose part of the bill - 1 WholeBill, 2 MyShare. The server prices it and the
              *     response carries `billAmountAmd`. Leave it out for a plain "the bill, please". WholeBill needs
-             *     sight of the table total.
+             *     sight of the table total. Replaces the asker's own earlier open request for the bill on the tab.
              */
             billScope?: components["schemas"]["Yalla.Domain.Enums.BillScope"] | null;
             /** @description One short line, optional. Not a conversation. */
@@ -3475,8 +3477,8 @@ export interface components {
             preset: components["schemas"]["Yalla.Domain.Enums.ServiceRequestPreset"];
             /**
              * Format: int32
-             * @description Only with a BillScope: the tip, 0 to 25 percent of the items that scope covers
-             *     (before service). The response carries it priced as `tipAmd`.
+             * @description Only with a BillScope: the tip, 0 to 25 percent of the items that scope still
+             *     leaves unpaid (before service). The response carries it priced as `tipAmd`.
              */
             tipPercent?: number | null;
         };
@@ -18433,7 +18435,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `reservation-not-changeable`: the booking is finished with or has started. `table-already-booked` / `table-currently-occupied`: the new slot is taken - Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `concurrent-update`: the booking was cancelled, approved or seated while this was in flight; read it again. `bookings-not-accepted`, `web-bookings-not-accepted`, `branch-unavailable`: the branch stopped taking bookings. `client-command-id-in-use`. */
+            /** @description `reservation-not-changeable`: the booking is finished with or has started. `table-already-booked` / `table-currently-occupied`: the new slot is taken - Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `concurrent-update`: the booking was cancelled, approved or seated while this was in flight; read it again. `bookings-not-accepted`, `web-bookings-not-accepted`, `branch-unavailable`: the branch stopped taking bookings. `client-command-id-in-use`: the id belongs to another command or to a different change. */
             409: {
                 headers: {
                     [name: string]: unknown;
