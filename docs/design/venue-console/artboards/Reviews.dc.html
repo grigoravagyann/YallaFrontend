@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Կարծիքներ — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.app{display:flex;flex-wrap:wrap;min-height:100vh}
+.side{flex:1 0 248px;background:var(--side);color:#E9D9C6;display:flex;flex-direction:column;gap:16px;padding:20px 14px}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 10px;font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;line-height:1}
+.brand small{font-family:'Noto Sans Armenian',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#BFA88F}
+.venue{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:rgba(255,243,228,.06)}
+.venue-t{display:flex;align-items:center;gap:10px;min-width:0}
+.venue-t img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none}
+.venue-t b{display:block;color:#FFF3E4;font-family:'Noto Serif Armenian',Georgia,serif;font-size:15px;line-height:1.25}
+.venue-t span{font-size:12px;color:#BFA88F}
+.bsw{display:flex;flex-direction:column;gap:6px}
+.bsw label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#BFA88F}
+.bsw select{width:100%;height:40px;border-radius:9px;border:1px solid #4E2D1B;background:#351B0D;color:#F3E6D6;font:inherit;font-size:14px;padding:0 10px}
+.bfix{display:flex;align-items:center;gap:8px;min-height:40px;padding:8px 10px;border-radius:9px;background:#351B0D;color:#F3E6D6;font-size:13px}
+.bfix svg{width:14px;height:14px;color:#BFA88F;flex:none}
+.nav{display:flex;flex-direction:column;gap:2px}
+.ngroup{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#A8907A;padding:12px 12px 4px}
+.nav a{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:9px;color:#D9C5B0;text-decoration:none;font-weight:500;font-size:14px;white-space:nowrap}
+.nav a:hover{background:rgba(255,243,228,.07);color:#FFF3E4}
+.nav a.on{background:#4A2817;color:#FFF3E4;font-weight:600}
+.nav svg{width:18px;height:18px;flex:none}
+.nbadge{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:700;display:grid;place-items:center;background:#E2B77A;color:#2B1608}
+.side-foot{margin-top:auto}
+.me{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,243,228,.05);text-decoration:none;color:inherit}
+.me:hover{background:rgba(255,243,228,.1);color:inherit}
+.avatar{width:32px;height:32px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+.me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.me-n{color:#FFF3E4;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-r{color:#BFA88F;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side :focus-visible{outline-color:#F3D9B8}
+.main{flex:999 1 560px;min-width:0;padding:28px 36px 48px;display:flex;flex-direction:column;gap:20px}
+.ph{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;margin:0;text-wrap:balance}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.h2{font-family:'Noto Serif Armenian',Georgia,serif;font-size:17px;font-weight:700;margin:0;line-height:1.3}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:background .15s}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}.btn-sec:hover{background:var(--hover)}
+.btn-ghost{background:none;color:var(--brand)}.btn-ghost:hover{background:#F4ECE2}
+.btn-sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.p-amber{background:var(--amber-bg);color:var(--amber)}.p-grey{background:var(--grey-bg);color:var(--grey)}
+.muted{color:var(--muted)}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld > label{font-size:13px;font-weight:600;color:var(--ink)}
+.ctl{height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 12px;width:100%}
+.ctl.bad{border-color:var(--red)}
+textarea.ctl{height:auto;min-height:80px;padding:10px 12px;resize:vertical;line-height:1.5}
+.help{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:var(--red);font-weight:600}
+.req{color:var(--red);margin-left:2px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:10px;padding:10px 12px 10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(42,26,16,.25);max-width:calc(100% - 32px)}
+.toast svg{color:#9FD9BD}
+.tbtn{border:0;background:rgba(255,243,228,.1);color:#F3D9B8;font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:32px;padding:0 12px;border-radius:7px;white-space:nowrap}
+.toast :focus-visible{outline-color:#F3D9B8}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+svg.i{width:18px;height:18px;flex:none}
+/* page */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{height:36px;padding:0 14px;border-radius:999px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip:hover{background:var(--hover)}
+.chip[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.list{display:flex;flex-direction:column;gap:12px}
+.rv{padding:16px 20px;display:flex;flex-direction:column;gap:10px}
+.rv.reported{border-color:#EBC48C;box-shadow:inset 3px 0 0 var(--amber)}
+.rv.hidden{background:#FBF8F4}
+.rv.hidden .txt{color:var(--muted)}
+.rv-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.rv-a{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;background:#EFE5D8;color:var(--brand);flex:none}
+.who{font-weight:600}
+.when{font-size:12px;color:var(--muted)}
+.stars{color:#B07A45;letter-spacing:1px;font-size:14px;white-space:nowrap}
+.stars .off{color:#E2D5C6}
+.txt{margin:0;line-height:1.6;max-width:72ch}
+.why{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:8px;background:var(--grey-bg);color:var(--grey);font-size:13px}
+.why b{font-weight:600}
+.rv-f{display:flex;flex-wrap:wrap;align-items:center;gap:8px;justify-content:flex-end}
+.reply{display:flex;gap:10px;padding:10px 12px 10px 14px;border-left:3px solid var(--brand);background:#FCF9F5;border-radius:0 8px 8px 0;font-size:13px}
+.reply b{font-weight:600}
+.reply p{margin:2px 0 0}
+.reply small{color:var(--muted);font-size:12px}
+.replybox{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:10px;border:1px solid var(--line);background:#FCF9F5}
+.hidebox{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:10px;border:1px solid var(--line);background:#FCF9F5}
+.reasons{display:flex;flex-wrap:wrap;gap:8px;border:0;margin:0;padding:0}
+.reasons legend{font-size:13px;font-weight:600;margin-bottom:8px;padding:0}
+.rchip{display:inline-flex;align-items:center;height:34px;padding:0 12px;border-radius:999px;border:1px solid #D8C8B6;background:var(--paper);font-size:13px;cursor:pointer;position:relative}
+.rchip:hover{background:var(--hover)}
+.rchip.on{border-color:var(--brand);background:#F4ECE2;color:var(--brand);font-weight:600}
+.rchip input{position:absolute;opacity:0;width:1px;height:1px}
+.rchip:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.count{font-size:12px;color:var(--muted);text-align:right}
+.sum{padding:20px;display:flex;flex-direction:column;gap:14px}
+.big{display:flex;align-items:baseline;gap:10px}
+.big b{font-family:'Noto Serif Armenian',Georgia,serif;font-size:36px;line-height:1}
+.up{color:var(--green);font-weight:600;font-size:13px}
+.dist{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.dist li{display:grid;grid-template-columns:28px 1fr 36px;gap:8px;align-items:center;font-size:12px;font-variant-numeric:tabular-nums}
+.track{height:8px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.fill{display:block;height:100%;background:#B07A45;border-radius:999px}
+.rules{padding:16px 20px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;color:var(--muted)}
+.empty{padding:48px 24px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
+.empty p{margin:0;color:var(--muted)}
+@media (max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){.main{padding:20px 16px 40px}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+
+<aside class="side" aria-label="Վահանակի նավիգացիա">
+<div class="brand">Yalla <small>վահանակ</small></div>
+<div class="venue">
+<div class="venue-t"><img src="/_blob/6c604900fafe4c60510223e5fdec12de" alt=""><div><b>Cascade Cafe</b><span>{{ sbRole }}</span></div></div>
+<sc-if value="{{ sbMulti }}" hint-placeholder-val="{{ true }}"><div class="bsw"><label for="sb-branch">Մասնաճյուղ</label><select id="sb-branch" value="{{ sbBranch }}" onChange="{{ onBranch }}"><option>Կասկադ</option><option>Արաբկիր</option></select></div></sc-if>
+<sc-if value="{{ sbFixed }}" hint-placeholder-val="{{ false }}"><div class="bfix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>Կասկադ մասնաճյուղ</div></sc-if>
+</div>
+<nav class="nav" aria-label="Բաժիններ">
+<span class="ngroup">Այսօր</span>
+<a href="Main.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>Ամփոփում<span class="nbadge" aria-label="3 ամրագրում սպասում է որոշման">3</span></a>
+<span class="ngroup">Վայրը</span>
+<a href="Menu.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>Ճաշացանկ<span class="nbadge" aria-label="4 անավարտ ուտեստ">4</span></a>
+<a href="Rooms.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>Սրահներ և սեղաններ</a>
+<a href="Hours.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Աշխատաժամեր</a>
+<a href="Policy.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"></path></svg>Ամրագրման կանոններ</a>
+<a href="Public.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"></path></svg>Հանրային էջ</a>
+<span class="ngroup">Թիմ</span>
+<a href="Staff.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Աշխատողներ</a>
+<span class="ngroup">Արդյունքներ</span>
+<a href="Reviews.dc.html" class="on" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 2.3a.5.5 0 0 1 1 0l2.3 4.7 5.2.8a.5.5 0 0 1 .3.9l-3.8 3.6.9 5.2a.5.5 0 0 1-.8.6L12 15.6l-4.6 2.5a.5.5 0 0 1-.8-.6l.9-5.2L3.7 8.7a.5.5 0 0 1 .3-.9l5.2-.8z"></path></svg>Կարծիքներ<sc-if value="{{ hasReported }}" hint-placeholder-val="{{ true }}"><span class="nbadge" aria-label="{{ reportedAria }}">{{ reportedCount }}</span></sc-if></a>
+<a href="Reports.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>Հաշվետվություններ</a>
+</nav>
+<div class="side-foot"><a class="me" href="Account.dc.html" aria-label="Իմ հաշիվը"><span class="avatar" aria-hidden="true">{{ sbInit }}</span><span class="me-t"><span class="me-n">{{ sbName }}</span><span class="me-r">Իմ հաշիվը</span></span></a></div>
+</aside>
+
+<main class="main" id="main" onKeyDown="{{ mainKey }}">
+<div class="ph"><div><h1 class="h1">Կարծիքներ</h1><p class="sub">{{ sbBranch }} · Ինչ են գրում հյուրերը։ Թաքցրեք միայն այն, ինչ խախտում է կանոնները, ոչ թե պարզապես վատ գնահատականը։</p></div></div>
+
+<div class="layout">
+<div style="display: flex; flex-direction: column; gap: 16px; min-width: 0">
+<div class="filters" role="group" aria-label="Ֆիլտր"><sc-for list="{{ filters }}" as="f" hint-placeholder-count="3"><button type="button" class="chip" aria-pressed="{{ f.pressed }}" onClick="{{ f.pick }}">{{ f.label }} <span style="opacity: .8">{{ f.n }}</span></button></sc-for></div>
+
+<sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+<div class="list">
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+<article class="{{ r.cls }}" aria-labelledby="{{ r.hid }}">
+<div class="rv-h">
+<div class="rv-a"><span class="av" aria-hidden="true">{{ r.initials }}</span><div><div class="who" id="{{ r.hid }}">{{ r.who }}</div><div class="when">{{ r.when }}</div></div></div>
+<span class="stars" aria-label="{{ r.starsAria }}"><span aria-hidden="true">{{ r.on }}</span><span class="off" aria-hidden="true">{{ r.off }}</span></span>
+<sc-if value="{{ r.isReported }}" hint-placeholder-val="{{ false }}"><span class="pill p-amber">{{ r.reports }}</span></sc-if>
+<sc-if value="{{ r.isHidden }}" hint-placeholder-val="{{ false }}"><span class="pill p-grey">Թաքցված</span></sc-if>
+</div>
+<p class="txt">{{ r.text }}</p>
+<sc-if value="{{ r.isHidden }}" hint-placeholder-val="{{ false }}"><div class="why"><svg class="i" style="width: 16px; height: 16px; margin-top: 2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span><b>Պատճառ.</b> {{ r.reason }} · {{ r.hiddenBy }}</span></div></sc-if>
+<sc-if value="{{ r.hasReply }}" hint-placeholder-val="{{ false }}"><div class="reply"><div style="min-width: 0"><b>Պատասխան՝ {{ r.replyBy }}</b> <small>· {{ r.replyWhen }}</small><p>{{ r.replyText }}</p></div></div></sc-if>
+<sc-if value="{{ r.replying }}" hint-placeholder-val="{{ false }}">
+<form class="replybox" onSubmit="{{ r.sendReply }}" novalidate="" aria-label="Պատասխանել կարծիքին">
+<div class="fld"><label for="rv-reply">Պատասխան հյուրին<span class="req" aria-hidden="true">*</span></label><textarea id="rv-reply" class="{{ replyCls }}" maxlength="500" aria-invalid="{{ replyInvalid }}" aria-describedby="rv-reply-help rv-reply-err" value="{{ reply }}" onInput="{{ onReply }}"></textarea><div style="display: flex; justify-content: space-between; gap: 12px"><span class="help" id="rv-reply-help">Հրապարակային է. երևում է բոլորին կարծիքի տակ՝ «{{ sbName }}, {{ sbRole }}» ստորագրությամբ։</span><span class="count">{{ replyLen }} / 500</span></div><sc-if value="{{ showReplyErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="rv-reply-err">Գրեք պատասխանը</span></sc-if></div>
+<div style="display: flex; gap: 8px; justify-content: flex-end"><button type="button" class="btn btn-sec btn-sm" onClick="{{ cancelReply }}">Չեղարկել</button><button type="submit" class="btn btn-pri btn-sm">Հրապարակել պատասխանը</button></div>
+</form>
+</sc-if>
+<sc-if value="{{ r.editing }}" hint-placeholder-val="{{ false }}">
+<form class="hidebox" onSubmit="{{ r.confirmHide }}" novalidate="" aria-label="Թաքցնել կարծիքը">
+<fieldset class="reasons"><legend>Ինչու՞ եք թաքցնում</legend><sc-for list="{{ reasonChips }}" as="c" hint-placeholder-count="5"><label class="{{ c.cls }}"><input type="radio" name="reason" onChange="{{ c.pick }}">{{ c.label }}</label></sc-for></fieldset>
+<div class="fld"><label for="rv-reason">Պատճառ<span class="req" aria-hidden="true">*</span></label><textarea id="rv-reason" class="{{ reasonCls }}" maxlength="300" aria-invalid="{{ reasonInvalid }}" aria-describedby="rv-help rv-err" value="{{ reason }}" onInput="{{ onReason }}"></textarea>
+<div style="display: flex; justify-content: space-between; gap: 12px"><span class="help" id="rv-help">Հյուրը պատճառը չի տեսնի։ Yalla-ի թիմը տեսնում է բոլոր թաքցված կարծիքները։</span><span class="count">{{ reasonLen }} / 300</span></div>
+<sc-if value="{{ showReasonErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="rv-err">Գրեք, թե ինչու եք թաքցնում կարծիքը</span></sc-if></div>
+<div style="display: flex; gap: 8px; justify-content: flex-end"><button type="button" class="btn btn-sec btn-sm" onClick="{{ cancelHide }}">Չեղարկել</button><button type="submit" class="btn btn-pri btn-sm">Թաքցնել կարծիքը</button></div>
+</form>
+</sc-if>
+<sc-if value="{{ r.showActions }}" hint-placeholder-val="{{ true }}">
+<div class="rv-f">
+<sc-if value="{{ r.canReply }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-pri btn-sm" data-reply="{{ r.id }}" onClick="{{ r.startReply }}">{{ r.replyLabel }}</button></sc-if>
+<sc-if value="{{ r.isVisible }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-sec btn-sm" data-hide="{{ r.id }}" onClick="{{ r.startHide }}">Թաքցնել</button></sc-if>
+<sc-if value="{{ r.canUnhide }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-sec btn-sm" data-hide="{{ r.id }}" onClick="{{ r.unhide }}">Կրկին ցույց տալ</button></sc-if>
+<sc-if value="{{ r.lockedHide }}" hint-placeholder-val="{{ false }}"><span class="help">Թաքցրել է Yalla-ի թիմը։ Միայն նրանք կարող են այն վերադարձնել։</span></sc-if>
+</div>
+</sc-if>
+</article>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}"><div class="card empty"><h2 class="h2">{{ emptyTitle }}</h2><p>Ֆիլտրին համապատասխանող կարծիք չկա։</p></div></sc-if>
+</div>
+
+<aside style="display: flex; flex-direction: column; gap: 16px">
+<section class="card sum" aria-labelledby="sum-h">
+<h2 class="h2" id="sum-h">Գնահատական</h2>
+<div class="big"><b>4,7</b><span class="muted">{{ visibleCount }} տեսանելի կարծիքից</span></div>
+<span class="up">↑ 0,1 վերջին 30 օրում</span>
+<ul class="dist" aria-label="Բաշխում ըստ աստղերի"><sc-for list="{{ dist }}" as="d" hint-placeholder-count="5"><li><span>{{ d.k }} ★</span><span class="track" aria-hidden="true"><span class="fill" style="{{ d.style }}"></span></span><span>{{ d.n }}</span></li></sc-for></ul>
+</section>
+<section class="card rules" aria-labelledby="rules-h">
+<h2 class="h2" id="rules-h">Երբ թաքցնել</h2>
+<ul><li>Վիրավորանք, ատելության խոսք կամ սպառնալիք</li><li>Գովազդ կամ հղում այլ կայքի</li><li>Անձնական տվյալներ՝ հեռախոս, ազգանուն</li><li>Գրված է ոչ այս վայրի մասին</li></ul>
+<p class="help" style="margin: 0">Վատ գնահատականը միայնակ պատճառ չէ։ Yalla-ի թիմը կարող է վերադարձնել չհիմնավորված թաքցումները։</p>
+</section>
+</aside>
+</div>
+</main>
+</div>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><button type="button" class="tbtn" onClick="{{ undo }}">Հետարկել</button></sc-if></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["owner","generalManager","manager"],"default":"owner","section":"Դեր"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      branch: null, filter: 'all', editing: null, reason: '', tried: false, toast: null, replying: null, reply: '', replyTried: false,
+      reviews: [
+        { id: 1, who: 'Աննա Պ.', when: 'Այսօր, 13:20', stars: 1, reports: 3, text: 'Մատուցողը կոպիտ էր, իսկ ձեր մենեջերը (+374 91 •• •• 12) նույնիսկ չպատասխանեց։ Զանգեք նրան ու ասեք, թե ինչ եմ մտածում։', hidden: null },
+        { id: 2, who: 'Karen M.', when: 'Երեկ, 21:05', stars: 5, reports: 2, text: 'Լավագույն սուրճը Կասկադում։ Իսկ ավելի էժանի համար այցելեք cheap-coffee-yerevan.am՝ 20% զեղչ KAREN կոդով։', hidden: null },
+        { id: 3, who: 'Լիլիթ Ս.', when: 'Երեկ, 19:40', stars: 5, reports: 0, text: 'Տեռասից տեսարանը հիասքանչ է, ամրագրումը հավելվածով տևեց մեկ րոպե։ Ազնվամորու տորթը՝ անթերի։', hidden: null },
+        { id: 4, who: 'Arthur', when: 'Հոկտ 15', stars: 3, reports: 0, text: 'Ստեյքը լավն էր, բայց ուրբաթ երեկոյան սպասեցինք 25 րոպե։ Ավելի շատ մատուցող է պետք։', hidden: null, reply: { by: 'Aram Hakobyan, Սեփականատեր', when: 'Հոկտ 16', text: 'Շնորհակալություն, Arthur։ Ուրբաթ երեկոները հիմա երկու մատուցող ավելի ունենք։ Հաջորդ անգամ ասեք, որ ձեզ հատուկ հոգ տանենք։' } },
+        { id: 5, who: 'Մարիամ Ա.', when: 'Հոկտ 12', stars: 2, reports: 1, text: 'Այս կարծիքը Garden Bistro-ի մասին է, սխալմամբ գրեցի այստեղ։', hidden: { reason: 'Գրված է այլ վայրի մասին', by: 'Թաքցրել է Lilit Sargsyan-ը, Հոկտ 13', platform: false } },
+        { id: 6, who: 'Gor T.', when: 'Հոկտ 10', stars: 1, reports: 4, text: '[Կարծիքը պարունակում էր վիրավորական արտահայտություններ]', hidden: { reason: 'Վիրավորական բառեր', by: 'Yalla-ի թիմ, Հոկտ 10', platform: true } },
+        { id: 7, who: 'Davit H.', when: 'Հոկտ 9', stars: 4, reports: 0, text: 'Հաճելի մթնոլորտ, լավ երաժշտություն։ Կոկտեյլները ուժեղ են, աղանդերի ընտրությունը կարող էր ավելի մեծ լինել։', hidden: null }
+      ]
+    };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  focusLater(sel) { setTimeout(() => { const el = sel && document.querySelector(sel); if (el) el.focus(); }, 30); }
+  say(msg, undo) { this.setState({ toast: { msg: msg, undo: undo || null } }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), undo ? 7000 : 3500); }
+  shell() {
+    const r = this.props.role ?? 'owner';
+    const u = { owner: ['Aram Hakobyan', 'AH', 'Սեփականատեր'], generalManager: ['Lilit Sargsyan', 'LS', 'Գլխավոր մենեջեր'], manager: ['Davit Grigoryan', 'DG', 'Մասնաճյուղի մենեջեր'] }[r] || ['Aram Hakobyan', 'AH', 'Սեփականատեր'];
+    return { sbName: u[0], sbInit: u[1], sbRole: u[2], sbMulti: r !== 'manager', sbFixed: r === 'manager', sbBranch: r === 'manager' ? 'Կասկադ' : (this.state.branch || 'Կասկադ'), onBranch: (e) => this.setState({ branch: e.target.value }) };
+  }
+  patch(id, c) { this.setState({ reviews: this.state.reviews.map((r) => (r.id === id ? Object.assign({}, r, c) : r)) }); }
+  renderVals() {
+    const s = this.state;
+    const sh = this.shell();
+    const reported = s.reviews.filter((r) => r.reports > 0 && !r.hidden);
+    const hidden = s.reviews.filter((r) => r.hidden);
+    const list = s.filter === 'reported' ? reported : s.filter === 'hidden' ? hidden : s.reviews.slice().sort((a, b) => (b.reports > 0 && !b.hidden) - (a.reports > 0 && !a.hidden));
+    const presets = ['Վիրավորական բառեր', 'Գովազդ կամ սպամ', 'Անձնական տվյալներ', 'Գրված է այլ վայրի մասին', 'Այլ'];
+    const reasonErr = !s.reason.trim();
+    const visible = s.reviews.filter((r) => !r.hidden);
+    const dist = [5, 4, 3, 2, 1].map((k) => ({ k: k, n: visible.filter((r) => r.stars === k).length }));
+    const max = Math.max.apply(null, dist.map((d) => d.n).concat([1]));
+    return Object.assign(sh, {
+      hasReported: reported.length > 0, reportedCount: reported.length, reportedAria: reported.length + ' բողոքարկված',
+      mainKey: (e) => { if (e.key !== 'Escape') return; if (s.editing) { const id = s.editing; this.setState({ editing: null, reason: '', tried: false }); this.focusLater('[data-hide="' + id + '"]'); } else if (s.replying) { const id = s.replying; this.setState({ replying: null, reply: '', replyTried: false }); this.focusLater('[data-reply="' + id + '"]'); } },
+      filters: [['all', 'Բոլորը', s.reviews.length], ['reported', 'Բողոքարկված', reported.length], ['hidden', 'Թաքցված', hidden.length]].map((f) => ({ label: f[1], n: f[2], pressed: s.filter === f[0] ? 'true' : 'false', pick: () => this.setState({ filter: f[0], editing: null }) })),
+      hasRows: list.length > 0, noRows: list.length === 0,
+      emptyTitle: s.filter === 'reported' ? 'Բողոքարկված կարծիք չկա' : 'Թաքցված կարծիք չկա',
+      rows: list.map((r) => {
+        const isRep = r.reports > 0 && !r.hidden;
+        return {
+          id: r.id, hid: 'rv-' + r.id, who: r.who, when: r.when, text: r.text, initials: r.who.charAt(0),
+          cls: 'card rv' + (isRep ? ' reported' : '') + (r.hidden ? ' hidden' : ''),
+          on: '★★★★★'.slice(0, r.stars), off: '★★★★★'.slice(r.stars), starsAria: r.stars + ' աստղ 5-ից',
+          isReported: isRep, reports: r.reports + ' բողոք',
+          isHidden: !!r.hidden, isVisible: !r.hidden,
+          canUnhide: !!r.hidden && !r.hidden.platform, lockedHide: !!(r.hidden && r.hidden.platform),
+          reason: r.hidden ? r.hidden.reason : '', hiddenBy: r.hidden ? r.hidden.by : '',
+          editing: s.editing === r.id, showActions: s.editing !== r.id && s.replying !== r.id,
+          hasReply: !!r.reply, replyBy: r.reply ? r.reply.by : '', replyWhen: r.reply ? r.reply.when : '', replyText: r.reply ? r.reply.text : '',
+          replying: s.replying === r.id, canReply: !r.hidden, replyLabel: r.reply ? 'Փոխել պատասխանը' : 'Պատասխանել',
+          startReply: () => { this.setState({ replying: r.id, editing: null, reply: r.reply ? r.reply.text : '', replyTried: false }); this.focusLater('#rv-reply'); },
+          sendReply: (e) => {
+            e.preventDefault();
+            if (!s.reply.trim()) { this.setState({ replyTried: true }); this.focusLater('#rv-reply'); return; }
+            const prev = r.reply;
+            this.patch(r.id, { reply: { by: sh.sbName + ', ' + sh.sbRole, when: 'հենց հիմա', text: s.reply.trim() } });
+            this.setState({ replying: null, reply: '', replyTried: false }); this.focusLater('[data-reply="' + r.id + '"]');
+            this.say('Պատասխանը հրապարակվեց · հյուրը ծանուցում կստանա', () => this.patch(r.id, { reply: prev }));
+          },
+          startHide: () => { this.setState({ editing: r.id, reason: '', tried: false }); this.focusLater('.reasons input'); },
+          confirmHide: (e) => {
+            e.preventDefault();
+            if (reasonErr) { this.setState({ tried: true }); this.focusLater('#rv-reason'); return; }
+            this.patch(r.id, { hidden: { reason: s.reason.trim(), by: 'Թաքցրել եք դուք, հենց հիմա', platform: false } });
+            this.setState({ editing: null, reason: '', tried: false });
+            this.say(r.who + '-ի կարծիքը թաքցվեց', () => this.patch(r.id, { hidden: null }));
+          },
+          unhide: () => { const h = r.hidden; this.patch(r.id, { hidden: null }); this.say(r.who + '-ի կարծիքը կրկին երևում է', () => this.patch(r.id, { hidden: h })); }
+        };
+      }),
+      reply: s.reply, replyLen: s.reply.length, onReply: (e) => this.setState({ reply: e.target.value }),
+      showReplyErr: s.replyTried && !s.reply.trim(), replyInvalid: s.replyTried && !s.reply.trim() ? 'true' : 'false', replyCls: 'ctl' + (s.replyTried && !s.reply.trim() ? ' bad' : ''),
+      cancelReply: () => { const id = s.replying; this.setState({ replying: null, reply: '', replyTried: false }); this.focusLater('[data-reply="' + id + '"]'); },
+      reasonChips: presets.map((p) => ({ label: p, cls: 'rchip' + (s.reason === p ? ' on' : ''), pick: () => { this.setState({ reason: p === 'Այլ' ? '' : p }); if (p === 'Այլ') this.focusLater('#rv-reason'); } })),
+      reason: s.reason, reasonLen: s.reason.length, onReason: (e) => this.setState({ reason: e.target.value }),
+      showReasonErr: s.tried && reasonErr, reasonInvalid: s.tried && reasonErr ? 'true' : 'false', reasonCls: 'ctl' + (s.tried && reasonErr ? ' bad' : ''),
+      cancelHide: () => { const id = s.editing; this.setState({ editing: null, reason: '', tried: false }); this.focusLater('[data-hide="' + id + '"]'); },
+      visibleCount: visible.length,
+      dist: dist.map((d) => ({ k: d.k, n: d.n, style: 'width: ' + (d.n / max * 100).toFixed(0) + '%' })),
+      hasToast: !!s.toast, toast: s.toast ? s.toast.msg : '', hasUndo: !!(s.toast && s.toast.undo),
+      undo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Աշխատողներ — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.app{display:flex;flex-wrap:wrap;min-height:100vh}
+.side{flex:1 0 248px;background:var(--side);color:#E9D9C6;display:flex;flex-direction:column;gap:16px;padding:20px 14px}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 10px;font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;line-height:1}
+.brand small{font-family:'Noto Sans Armenian',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#BFA88F}
+.venue{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:rgba(255,243,228,.06)}
+.venue-t{display:flex;align-items:center;gap:10px;min-width:0}
+.venue-t img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none}
+.venue-t b{display:block;color:#FFF3E4;font-family:'Noto Serif Armenian',Georgia,serif;font-size:15px;line-height:1.25}
+.venue-t span{font-size:12px;color:#BFA88F}
+.bsw{display:flex;flex-direction:column;gap:6px}
+.bsw label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#BFA88F}
+.bsw select{width:100%;height:40px;border-radius:9px;border:1px solid #4E2D1B;background:#351B0D;color:#F3E6D6;font:inherit;font-size:14px;padding:0 10px}
+.bfix{display:flex;align-items:center;gap:8px;min-height:40px;padding:8px 10px;border-radius:9px;background:#351B0D;color:#F3E6D6;font-size:13px}
+.bfix svg{width:14px;height:14px;color:#BFA88F;flex:none}
+.nav{display:flex;flex-direction:column;gap:2px}
+.ngroup{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#A8907A;padding:12px 12px 4px}
+.nav a{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:9px;color:#D9C5B0;text-decoration:none;font-weight:500;font-size:14px;white-space:nowrap}
+.nav a:hover{background:rgba(255,243,228,.07);color:#FFF3E4}
+.nav a.on{background:#4A2817;color:#FFF3E4;font-weight:600}
+.nav svg{width:18px;height:18px;flex:none}
+.nbadge{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:700;display:grid;place-items:center;background:#E2B77A;color:#2B1608}
+.side-foot{margin-top:auto}
+.me{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,243,228,.05);text-decoration:none;color:inherit}
+.me:hover{background:rgba(255,243,228,.1);color:inherit}
+.avatar{width:32px;height:32px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+.me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.me-n{color:#FFF3E4;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-r{color:#BFA88F;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side :focus-visible{outline-color:#F3D9B8}
+.main{flex:999 1 560px;min-width:0;padding:28px 36px 48px;display:flex;flex-direction:column;gap:20px}
+.ph{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;margin:0;text-wrap:balance}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line-2)}
+.h2{font-family:'Noto Serif Armenian',Georgia,serif;font-size:17px;font-weight:700;margin:0;line-height:1.3}
+.cap{font-size:13px;color:var(--muted);margin:2px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:background .15s}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}.btn-sec:hover{background:var(--hover)}
+.btn-danger{background:var(--red);color:#FFF}.btn-danger:hover{background:#8C1F16;color:#FFF}
+.btn-ghost{background:none;color:var(--brand)}.btn-ghost:hover{background:#F4ECE2}
+.btn-sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.p-green{background:var(--green-bg);color:var(--green)}.p-amber{background:var(--amber-bg);color:var(--amber)}.p-red{background:var(--red-bg);color:var(--red)}.p-grey{background:var(--grey-bg);color:var(--grey)}.p-brand{background:#F4ECE2;color:var(--brand)}
+.muted{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld > label,.lbl{font-size:13px;font-weight:600;color:var(--ink)}
+.ctl{height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 12px;width:100%}
+.ctl:hover{border-color:#C8B39C}
+.ctl.bad{border-color:var(--red)}
+.help{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:var(--red);font-weight:600}
+.req{color:var(--red);margin-left:2px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.overlay{position:fixed;inset:0;z-index:30;background:rgba(42,26,16,.45);display:grid;place-items:center;padding:16px;overflow-y:auto}
+.dialog{width:460px;max-width:100%;background:var(--paper);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(42,26,16,.3)}
+.dialog-wide{width:580px}
+.dialog p{margin:0;color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:10px;padding:10px 12px 10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(42,26,16,.25);max-width:calc(100% - 32px)}
+.toast svg{color:#9FD9BD}
+.tbtn{border:0;background:rgba(255,243,228,.1);color:#F3D9B8;font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:32px;padding:0 12px;border-radius:7px;white-space:nowrap}
+.toast :focus-visible{outline-color:#F3D9B8}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+svg.i{width:18px;height:18px;flex:none}
+/* page */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.tools{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.tools .fld label{font-size:12px;color:var(--muted)}
+.search{position:relative;flex:1 1 220px;min-width:0}
+.search svg{position:absolute;left:12px;top:11px;color:var(--muted)}
+.search input{padding-left:38px}
+.chk{display:flex;align-items:center;gap:8px;height:40px;font-size:13px;cursor:pointer}
+.chk input{accent-color:#3A1D0C;width:18px;height:18px;margin:0}
+.groups{display:flex;flex-direction:column;gap:16px;min-width:0}
+.people{list-style:none;margin:0;padding:0}
+.person{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 20px;border-bottom:1px solid var(--line-2)}
+.person:last-child{border-bottom:0}
+.person.off{opacity:.65}
+.pa{display:flex;align-items:center;gap:12px;flex:1 1 260px;min-width:0}
+.av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:#EFE5D8;color:var(--brand);flex:none}
+.pn{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pe{font-size:12px;color:var(--muted)}
+.you{height:20px;padding:0 8px;border-radius:999px;background:var(--brand);color:var(--brand-ink);font-size:11px;font-weight:700;display:inline-flex;align-items:center}
+.pb{font-size:13px;color:var(--muted);min-width:110px}
+.psh{font-size:13px;min-width:150px;display:flex;align-items:center;gap:6px}
+.psh i{width:8px;height:8px;border-radius:50%;background:var(--green);flex:none}
+.psh i.later{background:#D9C3AA}
+.psh i.off{background:var(--line)}
+.psh.off{color:var(--muted)}
+.pst{min-width:170px}
+.pacts{display:flex;align-items:center;gap:6px;position:relative;margin-left:auto}
+.above{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.above svg{width:14px;height:14px}
+.kebab{width:36px;height:36px;border-radius:8px;border:0;background:none;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.kebab:hover,.kebab[aria-expanded="true"]{background:#F1E8DD;color:var(--ink)}
+.menu{position:absolute;right:0;top:40px;z-index:20;min-width:210px;background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(42,26,16,.14);padding:6px;display:flex;flex-direction:column}
+.menu button{display:flex;align-items:center;gap:10px;height:38px;padding:0 10px;border:0;border-radius:7px;background:none;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;text-align:left;white-space:nowrap}
+.menu button:hover,.menu button:focus-visible{background:var(--hover)}
+.menu .del{color:var(--red)}
+.menu .sep{height:1px;background:var(--line-2);margin:6px 4px}
+.devs{list-style:none;margin:0;padding:4px 0}
+.dev{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line-2)}
+.dev:last-child{border-bottom:0}
+.dev .ic{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:#F4ECE2;color:var(--brand);flex:none}
+.dev .ic.warn{background:var(--amber-bg);color:var(--amber)}
+.dev .ic.gone{background:var(--grey-bg);color:var(--grey)}
+.dev .t{flex:1;min-width:0}
+.dev b{display:block;font-weight:600;font-size:14px}
+.dev small{font-size:12px;color:var(--muted)}
+.note{margin:0;padding:12px 20px;font-size:12px;color:var(--muted);border-top:1px solid var(--line-2)}
+.steps{display:flex;gap:8px;list-style:none;margin:0;padding:0}
+.steps li{flex:1;font-size:12px;font-weight:600;color:var(--muted);padding-top:8px;border-top:3px solid var(--line)}
+.steps li.on{color:var(--brand);border-top-color:var(--brand)}
+.steps li.done{color:var(--ink);border-top-color:#B07A45}
+.dlg-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.stepn{font-size:12px;color:var(--muted);font-weight:600}
+.roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;border:0;margin:0;padding:0}
+.roles legend{font-size:13px;font-weight:600;margin-bottom:8px;padding:0}
+.rc{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;position:relative}
+.rc:hover{background:var(--hover)}
+.rc.on{border-color:var(--brand);background:#FCF9F5;box-shadow:0 0 0 1px var(--brand)}
+.rc input{position:absolute;opacity:0;width:1px;height:1px}
+.rc:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.rc b{font-size:14px;font-weight:600}
+.rc span{font-size:12px;color:var(--muted)}
+.once{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:10px;background:#FCF9F5;border:1px solid var(--line)}
+.big{font-family:ui-monospace,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:.25em;color:var(--ink)}
+.linkrow{display:flex;gap:8px}
+.linkrow input{flex:1;min-width:0;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;padding:12px 14px;border-radius:10px;background:#FCF9F5;font-size:13px}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0;font-weight:600}
+@media (max-width:1180px){.layout{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){.main{padding:20px 16px 40px}.row2,.roles{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+
+<aside class="side" aria-label="Վահանակի նավիգացիա">
+<div class="brand">Yalla <small>վահանակ</small></div>
+<div class="venue">
+<div class="venue-t"><img src="/_blob/6c604900fafe4c60510223e5fdec12de" alt=""><div><b>Cascade Cafe</b><span>{{ sbRole }}</span></div></div>
+<sc-if value="{{ sbMulti }}" hint-placeholder-val="{{ true }}"><div class="bsw"><label for="sb-branch">Մասնաճյուղ</label><select id="sb-branch" value="{{ sbBranch }}" onChange="{{ onBranch }}"><option>Կասկադ</option><option>Արաբկիր</option></select></div></sc-if>
+<sc-if value="{{ sbFixed }}" hint-placeholder-val="{{ false }}"><div class="bfix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>Կասկադ մասնաճյուղ</div></sc-if>
+</div>
+<nav class="nav" aria-label="Բաժիններ">
+<span class="ngroup">Այսօր</span>
+<a href="Main.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>Ամփոփում<span class="nbadge" aria-label="3 ամրագրում սպասում է որոշման">3</span></a>
+<span class="ngroup">Վայրը</span>
+<a href="Menu.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>Ճաշացանկ<span class="nbadge" aria-label="4 անավարտ ուտեստ">4</span></a>
+<a href="Rooms.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>Սրահներ և սեղաններ</a>
+<a href="Hours.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Աշխատաժամեր</a>
+<a href="Policy.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"></path></svg>Ամրագրման կանոններ</a>
+<a href="Public.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"></path></svg>Հանրային էջ</a>
+<span class="ngroup">Թիմ</span>
+<a href="Staff.dc.html" class="on" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Աշխատողներ</a>
+<span class="ngroup">Արդյունքներ</span>
+<a href="Reviews.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 2.3a.5.5 0 0 1 1 0l2.3 4.7 5.2.8a.5.5 0 0 1 .3.9l-3.8 3.6.9 5.2a.5.5 0 0 1-.8.6L12 15.6l-4.6 2.5a.5.5 0 0 1-.8-.6l.9-5.2L3.7 8.7a.5.5 0 0 1 .3-.9l5.2-.8z"></path></svg>Կարծիքներ<span class="nbadge" aria-label="2 բողոքարկված">2</span></a>
+<a href="Reports.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>Հաշվետվություններ</a>
+</nav>
+<div class="side-foot"><a class="me" href="Account.dc.html" aria-label="Իմ հաշիվը"><span class="avatar" aria-hidden="true">{{ sbInit }}</span><span class="me-t"><span class="me-n">{{ sbName }}</span><span class="me-r">Իմ հաշիվը</span></span></a></div>
+</aside>
+
+<main class="main" id="main">
+<div class="ph">
+<div><h1 class="h1">Աշխատողներ</h1><p class="sub">{{ sbBranch }} · Ով է աշխատում այստեղ, և որ սարքերով են մտնում · {{ onShift }}</p></div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap"><button type="button" class="btn btn-sec" data-ownpin="" onClick="{{ openOwnPin }}">Փոխել իմ PIN-ը</button><button type="button" class="btn btn-pri" data-add="" onClick="{{ openAdd }}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>Ավելացնել աշխատող</button></div>
+</div>
+
+<div class="tools">
+<div class="fld search"><label for="st-q">Որոնում</label><svg class="i" style="top: 33px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><input id="st-q" class="ctl" type="search" placeholder="Անուն կամ հեռախոս" value="{{ q }}" onInput="{{ onQ }}"></div>
+<div class="fld"><label for="st-role">Դեր</label><select id="st-role" class="ctl" style="width: auto" value="{{ fRole }}" onChange="{{ onFRole }}"><option value="all">Բոլորը</option><option value="owner">Սեփականատեր</option><option value="generalManager">Գլխավոր մենեջեր</option><option value="manager">Մասնաճյուղի մենեջեր</option><option value="waiter">Մատուցող</option><option value="kitchen">Խոհանոց</option></select></div>
+<label class="chk"><sc-if value="{{ showOff }}" hint-placeholder-val="{{ false }}"><input type="checkbox" checked="" onChange="{{ toggleOff }}"></sc-if><sc-if value="{{ hideOff }}" hint-placeholder-val="{{ true }}"><input type="checkbox" onChange="{{ toggleOff }}"></sc-if>Ցույց տալ ապաակտիվներին</label>
+</div>
+
+<div class="layout">
+<div class="groups">
+<sc-for list="{{ groups }}" as="g" hint-placeholder-count="5">
+<section class="card" aria-labelledby="{{ g.hid }}">
+<div class="card-h"><div><h2 class="h2" id="{{ g.hid }}">{{ g.title }} <span class="muted" style="font-family: 'Noto Sans Armenian', sans-serif; font-size: 13px; font-weight: 600">{{ g.n }}</span></h2><p class="cap">{{ g.info }}</p></div></div>
+<ul class="people">
+<sc-for list="{{ g.people }}" as="p" hint-placeholder-count="2">
+<li class="{{ p.cls }}">
+<div class="pa"><span class="av" aria-hidden="true">{{ p.initials }}</span><div style="min-width: 0"><div class="pn">{{ p.name }}<sc-if value="{{ p.isYou }}" hint-placeholder-val="{{ false }}"><span class="you">Դուք</span></sc-if></div><div class="pe">{{ p.contact }}</div></div></div>
+<span class="pb">{{ p.branch }}</span>
+<span class="{{ p.shCls }}"><i class="{{ p.shDot }}" aria-hidden="true"></i>{{ p.shift }}</span>
+<span class="pst"><span class="{{ p.statusCls }}"><span class="dot"></span>{{ p.status }}</span></span>
+<div class="pacts">
+<sc-if value="{{ p.locked }}" hint-placeholder-val="{{ false }}"><span class="above"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>Ձեր դերից բարձր</span></sc-if>
+<sc-if value="{{ p.canAct }}" hint-placeholder-val="{{ true }}">
+<sc-if value="{{ p.hasPrimary }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-sec btn-sm" data-prim="{{ p.id }}" onClick="{{ p.primary }}">{{ p.primaryLabel }}</button></sc-if>
+<button type="button" class="kebab" data-kebab="{{ p.id }}" aria-haspopup="menu" aria-expanded="{{ p.menuOpen }}" aria-label="{{ p.moreAria }}" onClick="{{ p.toggleMenu }}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></button>
+<sc-if value="{{ p.showMenu }}" hint-placeholder-val="{{ false }}">
+<div class="menu" role="menu" aria-label="{{ p.moreAria }}" onKeyDown="{{ menuKey }}">
+<sc-if value="{{ p.isActive }}" hint-placeholder-val="{{ true }}">
+<button type="button" role="menuitem" onClick="{{ p.newPin }}">Նոր PIN</button>
+<sc-if value="{{ p.consoleRole }}" hint-placeholder-val="{{ false }}"><button type="button" role="menuitem" onClick="{{ p.issue }}">{{ p.issueLabel }}</button></sc-if>
+<sc-if value="{{ p.notYou }}" hint-placeholder-val="{{ true }}"><div class="sep" role="separator"></div><button type="button" role="menuitem" class="del" onClick="{{ p.askOff }}">Ապաակտիվացնել</button></sc-if>
+</sc-if>
+<sc-if value="{{ p.isOff }}" hint-placeholder-val="{{ false }}"><button type="button" role="menuitem" onClick="{{ p.reactivate }}">Կրկին ակտիվացնել</button></sc-if>
+</div>
+</sc-if>
+</sc-if>
+</div>
+</li>
+</sc-for>
+</ul>
+</section>
+</sc-for>
+<sc-if value="{{ noPeople }}" hint-placeholder-val="{{ false }}"><div class="card" style="padding: 40px 20px; text-align: center"><h2 class="h2">Ոչ ոք չգտնվեց</h2><p class="muted" style="margin: 6px 0 0">Փորձեք այլ անուն կամ դեր։</p></div></sc-if>
+</div>
+
+<aside style="display: flex; flex-direction: column; gap: 16px">
+<section class="card" aria-labelledby="dev-h">
+<div class="card-h"><div><h2 class="h2" id="dev-h">Պլանշետներ</h2><p class="cap">Սարքեր, որոնց վրա աշխատում է սրահի էկրանը</p></div></div>
+<ul class="devs">
+<sc-for list="{{ devices }}" as="d" hint-placeholder-count="3"><li class="dev"><span class="{{ d.icCls }}" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"></rect><path d="M12 18h.01"></path></svg></span><span class="t"><b>{{ d.name }}</b><small>{{ d.seen }}</small></span><sc-if value="{{ d.canRevoke }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-ghost btn-sm" style="color: var(--red)" data-rev="{{ d.id }}" onClick="{{ d.revoke }}">Հետ կանչել</button></sc-if><sc-if value="{{ d.revoked }}" hint-placeholder-val="{{ false }}"><span class="pill p-grey">Հետ կանչված</span></sc-if></li></sc-for>
+</ul>
+<div style="padding: 12px 20px; border-top: 1px solid var(--line-2)"><button type="button" class="btn btn-sec btn-sm" data-gen="" onClick="{{ genCode }}">Ստեղծել միացման կոդ</button></div>
+<p class="note">Սարքն ինքնին ոչինչ չի տալիս. ամեն գործողություն պահանջում է նաև PIN։ Գողացված պլանշետը գողացված դրամարկղ չէ։</p>
+</section>
+</aside>
+</div>
+</main>
+</div>
+
+<sc-if value="{{ dlgOpen }}" hint-placeholder-val="{{ false }}">
+<div class="overlay" onClick="{{ overlayClick }}" onKeyDown="{{ dlgKey }}">
+
+<sc-if value="{{ dAdd }}" hint-placeholder-val="{{ false }}">
+<form class="dialog dialog-wide dbox" role="dialog" aria-modal="true" aria-labelledby="ad-h" onSubmit="{{ addNext }}" novalidate="">
+<div class="dlg-top"><h2 class="h2" id="ad-h">Նոր աշխատող</h2><span class="stepn">Քայլ {{ wStep }} / 4</span></div>
+<ol class="steps"><sc-for list="{{ wSteps }}" as="w" hint-placeholder-count="4"><li class="{{ w.cls }}" aria-current="{{ w.cur }}">{{ w.label }}</li></sc-for></ol>
+<sc-if value="{{ w1 }}" hint-placeholder-val="{{ true }}"><div class="row2"><div class="fld"><label for="w-name">Անուն ազգանուն<span class="req" aria-hidden="true">*</span></label><input id="w-name" class="{{ wNameCls }}" data-af="" value="{{ wName }}" onInput="{{ onWName }}" autocomplete="off" aria-invalid="{{ wNameInv }}" aria-describedby="w-name-err"><sc-if value="{{ showWNameErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="w-name-err">Գրեք անունը</span></sc-if></div><div class="fld"><label for="w-phone">Հեռախոս</label><input id="w-phone" class="ctl" type="tel" inputmode="tel" value="{{ wPhone }}" onInput="{{ onWPhone }}" placeholder="+374"></div></div></sc-if>
+<sc-if value="{{ w2 }}" hint-placeholder-val="{{ false }}">
+<fieldset class="roles"><legend>Ինչ դեր ունի։ <span class="help" style="font-weight: 400">Սա որոշում է, թե ինչ կտեսնի և կանի։</span></legend><sc-for list="{{ roleCards }}" as="r" hint-placeholder-count="3"><label class="{{ r.cls }}"><input type="radio" name="role" onChange="{{ r.pick }}"><b>{{ r.label }}</b><span>{{ r.info }}</span></label></sc-for></fieldset>
+<sc-if value="{{ wNeedsBranch }}" hint-placeholder-val="{{ true }}"><div class="fld"><label for="w-br">Որ մասնաճյուղում</label><sc-if value="{{ wBranchFixed }}" hint-placeholder-val="{{ false }}"><span class="muted" id="w-br">Կասկադ · մենեջերը ավելացնում է միայն իր մասնաճյուղում</span></sc-if><sc-if value="{{ wBranchFree }}" hint-placeholder-val="{{ true }}"><select id="w-br" class="ctl" value="{{ wBranch }}" onChange="{{ onWBranch }}"><option>Կասկադ</option><option>Արաբկիր</option></select></sc-if></div></sc-if>
+<sc-if value="{{ wVenueWide }}" hint-placeholder-val="{{ false }}"><p class="help" style="margin: 0">Գլխավոր մենեջերը աշխատում է վայրի բոլոր մասնաճյուղերում։</p></sc-if>
+</sc-if>
+<sc-if value="{{ w3 }}" hint-placeholder-val="{{ false }}"><div class="fld"><label for="w-pin">Պլանշետի PIN (4 թիվ)<span class="req" aria-hidden="true">*</span></label><input id="w-pin" class="{{ wPinCls }}" data-af="" inputmode="numeric" maxlength="4" autocomplete="off" value="{{ wPin }}" onInput="{{ onWPin }}" style="max-width: 160px; font-size: 20px; letter-spacing: .3em" aria-invalid="{{ wPinInv }}" aria-describedby="w-pin-help w-pin-err"><span class="help" id="w-pin-help">Անձնական է։ Ընդհանուր PIN չկա. այդպես միշտ հայտնի է, թե ով ինչ արեց։ Ավելացնելուց հետո մեկ անգամ ևս կտեսնեք այն՝ մարդուն ասելու համար։</span><sc-if value="{{ showWPinErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="w-pin-err">PIN-ը ճիշտ 4 թիվ է</span></sc-if></div><button type="button" class="btn btn-ghost btn-sm" style="align-self: flex-start" onClick="{{ randomPin }}">Ստեղծել պատահական PIN</button></sc-if>
+<sc-if value="{{ w4 }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ wNeedsSignIn }}" hint-placeholder-val="{{ true }}"><div class="fld"><label for="w-email">Էլ. փոստ վահանակի համար</label><input id="w-email" class="{{ wEmailCls }}" data-af="" type="email" inputmode="email" value="{{ wEmail }}" onInput="{{ onWEmail }}" autocomplete="off" aria-invalid="{{ wEmailInv }}" aria-describedby="w-email-help w-email-err"><span class="help" id="w-email-help">Նրանք կբացեն հղումը և կընտրեն իրենց գաղտնաբառը։ Թողեք դատարկ՝ մուտքը հետո տալու համար։</span><sc-if value="{{ showWEmailErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="w-email-err">Էլ. փոստի ձևաչափը սխալ է</span></sc-if></div></sc-if>
+<sc-if value="{{ wNoSignIn }}" hint-placeholder-val="{{ false }}"><p style="margin: 0">{{ wRoleLabel }}ը աշխատում է միայն պլանշետով՝ PIN-ով։ Վահանակի մուտք պետք չէ։</p></sc-if>
+<dl class="facts"><dt>Անձ</dt><dd>{{ wName }}</dd><dt>Դեր</dt><dd>{{ wRoleLabel }}</dd><dt>Մասնաճյուղ</dt><dd>{{ wBranchShow }}</dd></dl>
+</sc-if>
+<div class="acts"><button type="button" class="btn btn-sec" onClick="{{ addBack }}">{{ wBackLabel }}</button><button type="submit" class="btn btn-pri">{{ wNextLabel }}</button></div>
+</form>
+</sc-if>
+
+<sc-if value="{{ dOff }}" hint-placeholder-val="{{ false }}">
+<div class="dialog dbox" role="alertdialog" aria-modal="true" aria-labelledby="off-h" aria-describedby="off-p">
+<h2 class="h2" id="off-h">Ապաակտիվացնե՞լ {{ tName }}-ին</h2>
+<p id="off-p">Նա այլևս չի երևա պլանշետներում և չի կարողանա մտնել։ Ոչինչ չի ջնջվում. երբ վերադառնա, կրկին ակտիվացրեք «Ցույց տալ ապաակտիվներին» ֆիլտրից։</p>
+<div class="acts"><button type="button" class="btn btn-sec" data-af="" onClick="{{ closeDlg }}">Չեղարկել</button><button type="button" class="btn btn-danger" onClick="{{ doOff }}">Ապաակտիվացնել</button></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ dIssue }}" hint-placeholder-val="{{ false }}">
+<form class="dialog dbox" role="dialog" aria-modal="true" aria-labelledby="is-h" onSubmit="{{ sendLink }}" novalidate="">
+<h2 class="h2" id="is-h">Մուտք {{ tName }}-ի համար</h2>
+<div class="fld"><label for="is-email">Էլ. փոստ<span class="req" aria-hidden="true">*</span></label><input id="is-email" class="{{ iEmailCls }}" data-af="" type="email" inputmode="email" value="{{ iEmail }}" onInput="{{ onIEmail }}" autocomplete="off" aria-invalid="{{ iEmailInv }}" aria-describedby="is-help is-err"><span class="help" id="is-help">{{ iHelp }}</span><sc-if value="{{ showIEmailErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="is-err">Գրեք այն հասցեն, որով նա մուտք կգործի</span></sc-if></div>
+<div class="acts"><button type="button" class="btn btn-sec" onClick="{{ closeDlg }}">Չեղարկել</button><button type="submit" class="btn btn-pri">Ստեղծել հղումը</button></div>
+</form>
+</sc-if>
+
+<sc-if value="{{ dOwnPin }}" hint-placeholder-val="{{ false }}">
+<form class="dialog dbox" role="dialog" aria-modal="true" aria-labelledby="op-h" onSubmit="{{ saveOwnPin }}" novalidate="">
+<div><h2 class="h2" id="op-h">Փոխել իմ PIN-ը</h2><p style="margin-top: 4px">Գրեք նոր 4 թվանոց PIN պլանշետների համար՝ երկու անգամ։ Այն ոչ մի տեղ չի ցուցադրվում։</p></div>
+<div class="row2"><div class="fld"><label for="op-a">Նոր PIN</label><input id="op-a" type="password" class="ctl" data-af="" inputmode="numeric" maxlength="4" autocomplete="off" value="{{ opA }}" onInput="{{ onOpA }}"></div><div class="fld"><label for="op-b">Կրկնեք</label><input id="op-b" type="password" class="{{ opBCls }}" inputmode="numeric" maxlength="4" autocomplete="off" value="{{ opB }}" onInput="{{ onOpB }}" aria-invalid="{{ opInv }}" aria-describedby="op-err"></div></div>
+<sc-if value="{{ showOpErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="op-err">{{ opErr }}</span></sc-if>
+<div class="acts"><button type="button" class="btn btn-sec" onClick="{{ closeDlg }}">Չեղարկել</button><button type="submit" class="btn btn-pri">Փոխել PIN-ը</button></div>
+</form>
+</sc-if>
+
+<sc-if value="{{ dRevoke }}" hint-placeholder-val="{{ false }}">
+<div class="dialog dbox" role="alertdialog" aria-modal="true" aria-labelledby="rv-h" aria-describedby="rv-p">
+<h2 class="h2" id="rv-h">Հետ կանչե՞լ «{{ devName }}»-ը</h2>
+<p id="rv-p">«{{ devName }}»-ը կդադարի աշխատել անմիջապես։ Եթե դա աշխատող պլանշետն է, սրահի էկրանը օֆլայն կմնա։ Անդառնալի է. նույն սարքը կմիացվի նորից՝ նոր կոդով։</p>
+<div class="acts"><button type="button" class="btn btn-sec" data-af="" onClick="{{ closeDlg }}">Չեղարկել</button><button type="button" class="btn btn-danger" onClick="{{ doRevoke }}">Այո, հետ կանչել</button></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ dOnce }}" hint-placeholder-val="{{ false }}">
+<div class="dialog dbox" role="dialog" aria-modal="true" aria-labelledby="on-h" aria-describedby="on-p">
+<h2 class="h2" id="on-h">{{ onceTitle }}</h2>
+<p id="on-p">{{ onceLead }}</p>
+<sc-if value="{{ oncePin }}" hint-placeholder-val="{{ false }}"><div class="once"><span class="help" style="font-weight: 600">{{ oncePinLabel }}</span><span class="big">{{ onceP }}</span><span class="help">{{ oncePinHint }}</span></div></sc-if>
+<sc-if value="{{ onceLink }}" hint-placeholder-val="{{ false }}"><div class="once"><span class="help" style="font-weight: 600">Մուտքի հղում</span><div class="linkrow"><label for="once-link" class="sr">Մուտքի հղում</label><input id="once-link" class="ctl" readonly="" value="{{ onceL }}" onFocus="{{ selectAll }}"><button type="button" class="btn btn-pri btn-sm" style="height: 40px" data-af="" onClick="{{ copyLink }}">{{ copyLabel }}</button></div><span class="help">Ուղարկեք չատով։ Վավեր է 24 ժամ։ Նա կբացի այն և կընտրի իր գաղտնաբառը։</span></div></sc-if>
+<sc-if value="{{ copyNag }}" hint-placeholder-val="{{ false }}"><span class="err" role="alert">Նախ պատճենեք հղումը։ Փակելուց հետո այն այլևս չեք տեսնի։ Սեղմեք «Պատրաստ է» ևս մեկ անգամ՝ այնուամենայնիվ փակելու համար։</span></sc-if>
+<div class="acts"><button type="button" class="btn btn-sec" data-af="" onClick="{{ onceDone }}">{{ onceDoneLabel }}</button></div>
+</div>
+</sc-if>
+
+</div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><button type="button" class="tbtn" onClick="{{ undo }}">Հետարկել</button></sc-if></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["owner","generalManager","manager"],"default":"owner","section":"Դեր"},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      branch: null, q: '', fRole: 'all', showOff: false, menu: null, dlg: null, ret: null, target: null, tried: false, toast: null,
+      wz: null, iss: null, op: { a: '', b: '' }, once: null, copied: false, nag: false, dev: null,
+      people: [
+        { id: 1, name: 'Aram Hakobyan', contact: 'aram@cascade.am', role: 'owner', branch: '*', status: 'active' },
+        { id: 2, name: 'Lilit Sargsyan', contact: 'lilit@cascade.am', role: 'generalManager', branch: '*', status: 'active' },
+        { id: 3, name: 'Davit Grigoryan', contact: 'davit@cascade.am', role: 'manager', branch: 'Կասկադ', status: 'active' },
+        { id: 4, name: 'Mariam Avetisyan', contact: 'mariam@cascade.am', role: 'manager', branch: 'Արաբկիր', status: 'awaiting' },
+        { id: 5, name: 'Gor Sahakyan', contact: '+374 93 •• •• 21', role: 'manager', branch: 'Արաբկիր', status: 'noSignIn' },
+        { id: 6, name: 'Narek Petrosyan', contact: '+374 91 •• •• 08', role: 'waiter', branch: 'Կասկադ', status: 'active' },
+        { id: 7, name: 'Ani Khachatryan', contact: '+374 77 •• •• 45', role: 'waiter', branch: 'Կասկադ', status: 'pinLocked' },
+        { id: 8, name: 'Hayk Melkonyan', contact: '+374 94 •• •• 60', role: 'waiter', branch: 'Կասկադ', status: 'inactive' },
+        { id: 9, name: 'Tigran Mkrtchyan', contact: '+374 98 •• •• 13', role: 'waiter', branch: 'Արաբկիր', status: 'active' },
+        { id: 10, name: 'Sona Harutyunyan', contact: '+374 55 •• •• 37', role: 'kitchen', branch: 'Կասկադ', status: 'active' }
+      ],
+      devices: [
+        { id: 'd1', name: 'Սրահի պլանշետ 1', branch: 'Կասկադ', seen: 'Տեսել ենք 2 րոպե առաջ', state: 'ok' },
+        { id: 'd2', name: 'Խոհանոցի էկրան', branch: 'Կասկադ', seen: 'Վերջին անգամ՝ 2 ժամ առաջ', state: 'warn' },
+        { id: 'd3', name: 'Տեռասի պլանշետ', branch: 'Կասկադ', seen: 'Միացված է Սեպտ 2-ին', state: 'ok' },
+        { id: 'd4', name: 'Արաբկիրի պլանշետ', branch: 'Արաբկիր', seen: 'Տեսել ենք 5 րոպե առաջ', state: 'ok' }
+      ]
+    };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  focusLater(sel) { setTimeout(() => { const el = sel && document.querySelector(sel); if (el) el.focus(); }, 30); }
+  say(msg, undo) { this.setState({ toast: { msg: msg, undo: undo || null } }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), undo ? 7000 : 3500); }
+  shell() {
+    const r = this.props.role ?? 'owner';
+    const u = { owner: ['Aram Hakobyan', 'AH', 'Սեփականատեր'], generalManager: ['Lilit Sargsyan', 'LS', 'Գլխավոր մենեջեր'], manager: ['Davit Grigoryan', 'DG', 'Մասնաճյուղի մենեջեր'] }[r] || ['Aram Hakobyan', 'AH', 'Սեփականատեր'];
+    return { sbName: u[0], sbInit: u[1], sbRole: u[2], sbMulti: r !== 'manager', sbFixed: r === 'manager', sbBranch: r === 'manager' ? 'Կասկադ' : (this.state.branch || 'Կասկադ'), onBranch: (e) => this.setState({ branch: e.target.value, menu: null }) };
+  }
+  open(dlg, ret, extra) { this.setState(Object.assign({ dlg: dlg, ret: ret, menu: null, tried: false }, extra || {})); this.focusLater('.dbox [data-af]'); }
+  closeDlg() { const r = this.state.ret; this.setState({ dlg: null, tried: false, nag: false, copied: false }); this.focusLater(r); }
+  setK(k, c) { this.setState({ [k]: Object.assign({}, this.state[k], c) }); }
+  setP(id, c) { this.setState({ people: this.state.people.map((p) => (p.id === id ? Object.assign({}, p, c) : p)) }); }
+  renderVals() {
+    const s = this.state;
+    const sh = this.shell();
+    const me = this.props.role ?? 'owner';
+    const myId = { owner: 1, generalManager: 2, manager: 3 }[me] || 1;
+    const branch = sh.sbBranch;
+    const rank = { owner: 4, generalManager: 3, manager: 2, waiter: 1, kitchen: 1 };
+    const canManage = (p) => p.id === myId ? true : me === 'owner' ? true : me === 'generalManager' ? rank[p.role] < 3 : (rank[p.role] < 2 && p.branch === 'Կասկադ');
+    const roleName = { owner: 'Սեփականատեր', generalManager: 'Գլխավոր մենեջեր', manager: 'Մասնաճյուղի մենեջեր', waiter: 'Մատուցող', kitchen: 'Խոհանոց' };
+    const groupName = { owner: 'Սեփականատերեր', generalManager: 'Գլխավոր մենեջերներ', manager: 'Մասնաճյուղի մենեջերներ', waiter: 'Մատուցողներ', kitchen: 'Խոհանոց' };
+    const roleInfo = { owner: 'Ղեկավարում են վայրը՝ բոլոր մասնաճյուղերը, աշխատողներին և կարգավորումները', generalManager: 'Ղեկավարում են բոլոր մասնաճյուղերի սրահները, ճաշացանկը և աշխատողներին', manager: 'Ղեկավարում են իրենց մասնաճյուղի սրահը, ճաշացանկը և աշխատողներին', waiter: 'Ընդունում են պատվերներ և նստեցնում հյուրերին պլանշետով, PIN-ով', kitchen: 'Տեսնում և թարմացնում են պատվերները խոհանոցի էկրանին, PIN-ով' };
+    const consoleRole = (r) => r === 'owner' || r === 'generalManager' || r === 'manager';
+    const stMap = { active: ['Ակտիվ', 'pill p-green'], awaiting: ['Սպասում է գաղտնաբառի', 'pill p-amber'], noSignIn: ['Մուտք չունի', 'pill p-grey'], pinLocked: ['PIN-ը կողպված է', 'pill p-red'], inactive: ['Ապաակտիվ', 'pill p-grey'] };
+    const initials = (n) => n.split(' ').map((w) => w.charAt(0)).slice(0, 2).join('').toUpperCase();
+    const shifts = { 1: null, 2: ['Այսօր 10:00–19:00', 'now'], 3: ['Այսօր 16:00–00:00', 'now'], 4: ['Այսօր հանգստյան օր', 'off'], 5: ['Այսօր 12:00–20:00', 'now'], 6: ['Այսօր 16:00–00:00', 'now'], 7: ['Այսօր 16:00–00:00', 'now'], 8: null, 9: ['Վաղը 11:00–19:00', 'later'], 10: ['Այսօր 15:00–23:00', 'now'] };
+    const q = s.q.trim().toLowerCase();
+    const list = s.people.filter((p) => (p.branch === '*' || p.branch === branch) && (s.showOff || p.status !== 'inactive') && (s.fRole === 'all' || p.role === s.fRole) && (!q || (p.name + ' ' + p.contact).toLowerCase().includes(q)));
+    const order = ['owner', 'generalManager', 'manager', 'waiter', 'kitchen'];
+    const mkLink = () => 'https://console.yalla.am/reset-password?token=' + Math.random().toString(36).slice(2, 12);
+    const T = s.tried;
+    const wz = s.wz || { step: 1 };
+    const allowedRoles = me === 'owner' ? ['owner', 'generalManager', 'manager', 'waiter', 'kitchen'] : me === 'generalManager' ? ['manager', 'waiter', 'kitchen'] : ['waiter', 'kitchen'];
+    const wNameErr = !(wz.name || '').trim();
+    const wPinErr = !/^\d{4}$/.test(wz.pin || '');
+    const wEmailErr = !!(wz.email || '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(wz.email.trim());
+    const venueWide = wz.role === 'owner' || wz.role === 'generalManager';
+    const tgt = s.people.find((p) => p.id === s.target);
+    const iss = s.iss || {};
+    const iEmailErr = !(iss.email || '').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(iss.email.trim());
+    const opErr = !/^\d{4}$/.test(s.op.a) ? 'PIN-ը ճիշտ 4 թիվ է' : s.op.a !== s.op.b ? 'Երկու PIN-ը չեն համընկնում' : '';
+    const once = s.once || {};
+    const dev = s.devices.find((d) => d.id === s.dev);
+    return Object.assign(sh, {
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      fRole: s.fRole, onFRole: (e) => this.setState({ fRole: e.target.value }),
+      showOff: s.showOff, hideOff: !s.showOff, toggleOff: () => this.setState({ showOff: !s.showOff }),
+      noPeople: list.length === 0,
+      onShift: 'այսօր հերթափոխում՝ ' + list.filter((p) => shifts[p.id] && shifts[p.id][1] === 'now').length + ' հոգի',
+      groups: order.filter((r) => list.some((p) => p.role === r)).map((r) => {
+        const ps = list.filter((p) => p.role === r);
+        return {
+          hid: 'grp-' + r, title: groupName[r], n: ps.length, info: roleInfo[r],
+          people: ps.map((p) => {
+            const can = canManage(p);
+            const isYou = p.id === myId;
+            const cr = consoleRole(p.role);
+            const prim = p.status === 'pinLocked' ? ['Ապակողպել PIN-ը', 'unlock'] : cr && p.status === 'noSignIn' ? ['Տալ մուտք', 'issue'] : cr && p.status === 'awaiting' ? ['Նոր հղում', 'issue'] : null;
+            const doIssue = () => this.open('issue', '[data-kebab="' + p.id + '"]', { target: p.id, iss: { email: p.contact.indexOf('@') > 0 ? p.contact : '', old: p.contact.indexOf('@') > 0 ? p.contact : '' } });
+            return {
+              id: p.id, name: p.name, contact: p.contact, initials: initials(p.name),
+              branch: p.branch === '*' ? 'Բոլոր մասնաճյուղերը' : p.branch,
+              shift: shifts[p.id] ? shifts[p.id][0] : (p.status === 'inactive' ? '' : 'Հերթափոխ նշված չէ'), shCls: 'psh' + (shifts[p.id] && shifts[p.id][1] === 'now' ? '' : ' off'), shDot: shifts[p.id] ? shifts[p.id][1] : 'off',
+              cls: 'person' + (p.status === 'inactive' ? ' off' : ''),
+              isYou: isYou, notYou: !isYou,
+              status: stMap[p.status][0], statusCls: stMap[p.status][1],
+              locked: !can, canAct: can,
+              hasPrimary: !!prim, primaryLabel: prim ? prim[0] : '',
+              primary: () => { if (!prim) return; if (prim[1] === 'unlock') { this.setP(p.id, { status: 'active' }); this.focusLater('[data-kebab="' + p.id + '"]'); this.say(p.name + '-ի PIN-ը ապակողպվեց'); } else doIssue(); },
+              menuOpen: s.menu === p.id ? 'true' : 'false', showMenu: s.menu === p.id,
+              moreAria: 'Այլ գործողություններ՝ ' + p.name,
+              toggleMenu: () => { const o = s.menu !== p.id; this.setState({ menu: o ? p.id : null }); if (o) this.focusLater('.menu [role="menuitem"]'); },
+              isActive: p.status !== 'inactive', isOff: p.status === 'inactive',
+              consoleRole: cr, issueLabel: p.status === 'noSignIn' ? 'Տալ վահանակի մուտք' : 'Ուղարկել նոր մուտքի հղում',
+              issue: doIssue,
+              newPin: () => { const pin = String(Math.floor(1000 + Math.random() * 9000)); this.setState({ menu: null, dlg: 'once', ret: '[data-kebab="' + p.id + '"]', copied: false, nag: false, once: { title: 'PIN ' + p.name + '-ի համար', lead: 'Ցույց է տրվում հիմա և այլևս երբեք։ Դրանից հետո այն կարելի է միայն փոխարինել, ոչ թե տեսնել։', pin: pin, pinLabel: 'Նոր PIN', pinHint: 'Ասեք նրան անձամբ։ Մի գրեք դրամարկղի վրա։', link: '' } }); this.focusLater('.dbox [data-af]'); },
+              askOff: () => this.open('off', '[data-kebab="' + p.id + '"]', { target: p.id }),
+              reactivate: () => { this.setState({ menu: null }); this.setP(p.id, { status: 'active' }); this.focusLater('[data-kebab="' + p.id + '"]'); this.say(p.name + '-ը կրկին ակտիվ է'); }
+            };
+          })
+        };
+      }),
+      menuKey: (e) => {
+        const items = Array.from(e.currentTarget.querySelectorAll('[role="menuitem"]'));
+        if (e.key === 'Escape') { e.preventDefault(); const id = s.menu; this.setState({ menu: null }); this.focusLater('[data-kebab="' + id + '"]'); return; }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const i = items.indexOf(document.activeElement); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
+      },
+
+      devices: s.devices.filter((d) => d.branch === branch).map((d) => ({ id: d.id, name: d.name, seen: d.state === 'revoked' ? 'Հետ կանչված' : d.seen, icCls: 'ic' + (d.state === 'warn' ? ' warn' : d.state === 'revoked' ? ' gone' : ''), canRevoke: d.state !== 'revoked', revoked: d.state === 'revoked', revoke: () => this.open('revoke', '[data-rev="' + d.id + '"]', { dev: d.id }) })),
+      genCode: () => { const c = String(Math.floor(100000 + Math.random() * 900000)); this.setState({ dlg: 'once', ret: '[data-gen]', copied: false, nag: false, once: { title: 'Պլանշետի միացման կոդ', lead: 'Գրեք այս կոդը պլանշետի վրա՝ այն ' + branch + ' մասնաճյուղին միացնելու համար։ Վավեր է մինչև 18:57։ Մեկ օգտագործում. կորցնելու դեպքում ստեղծեք նորը։', pin: c.slice(0, 3) + ' ' + c.slice(3), pinLabel: 'Կոդ', pinHint: 'Հինը չի կարելի տեսնել նորից։', link: '' } }); this.focusLater('.dbox [data-af]'); },
+      dRevoke: s.dlg === 'revoke', devName: dev ? dev.name : '',
+      doRevoke: () => { this.setState({ devices: s.devices.map((d) => (d.id === s.dev ? Object.assign({}, d, { state: 'revoked' }) : d)), dlg: null }); this.focusLater('[data-gen]'); this.say(dev.name + '-ը հետ կանչվեց'); },
+
+      openAdd: () => this.open('add', '[data-add]', { wz: { step: 1, name: '', phone: '', role: allowedRoles.indexOf('waiter') >= 0 ? 'waiter' : allowedRoles[0], branch: branch, pin: '', email: '' } }),
+      dlgOpen: !!s.dlg,
+      dAdd: s.dlg === 'add', dOff: s.dlg === 'off', dIssue: s.dlg === 'issue', dOwnPin: s.dlg === 'ownpin', dOnce: s.dlg === 'once',
+      wStep: wz.step,
+      wSteps: ['Անձ', 'Դեր և մասնաճյուղ', 'Պլանշետի PIN', 'Վահանակի մուտք'].map((l, i) => ({ label: l, cls: wz.step === i + 1 ? 'on' : wz.step > i + 1 ? 'done' : '', cur: wz.step === i + 1 ? 'step' : 'false' })),
+      w1: wz.step === 1, w2: wz.step === 2, w3: wz.step === 3, w4: wz.step === 4,
+      wName: wz.name || '', wPhone: wz.phone || '', wPin: wz.pin || '', wEmail: wz.email || '', wBranch: wz.branch || branch,
+      onWName: (e) => this.setK('wz', { name: e.target.value }), onWPhone: (e) => this.setK('wz', { phone: e.target.value }),
+      onWPin: (e) => this.setK('wz', { pin: e.target.value.replace(/\D/g, '').slice(0, 4) }), onWEmail: (e) => this.setK('wz', { email: e.target.value }),
+      onWBranch: (e) => this.setK('wz', { branch: e.target.value }),
+      randomPin: () => { this.setK('wz', { pin: String(Math.floor(1000 + Math.random() * 9000)) }); this.focusLater('#w-pin'); },
+      roleCards: allowedRoles.map((r) => ({ label: roleName[r], info: roleInfo[r], cls: 'rc' + (wz.role === r ? ' on' : ''), pick: () => this.setK('wz', { role: r }) })),
+      wNeedsBranch: !venueWide, wVenueWide: wz.role === 'generalManager', wBranchFixed: me === 'manager', wBranchFree: me !== 'manager',
+      wNeedsSignIn: consoleRole(wz.role), wNoSignIn: !consoleRole(wz.role),
+      wRoleLabel: roleName[wz.role] || '', wBranchShow: venueWide ? 'Բոլորը' : (me === 'manager' ? 'Կասկադ' : wz.branch),
+      wNameCls: 'ctl' + (T && wNameErr ? ' bad' : ''), wNameInv: T && wNameErr ? 'true' : 'false', showWNameErr: T && wNameErr,
+      wPinCls: 'ctl' + (T && wPinErr ? ' bad' : ''), wPinInv: T && wPinErr ? 'true' : 'false', showWPinErr: T && wPinErr,
+      wEmailCls: 'ctl' + (T && wEmailErr ? ' bad' : ''), wEmailInv: T && wEmailErr ? 'true' : 'false', showWEmailErr: T && wEmailErr,
+      wBackLabel: wz.step === 1 ? 'Չեղարկել' : '← Հետ', wNextLabel: wz.step === 4 ? 'Ավելացնել' : 'Շարունակել →',
+      addBack: () => { if (wz.step === 1) { this.closeDlg(); return; } this.setState({ tried: false }); this.setK('wz', { step: wz.step - 1 }); this.focusLater('.dbox [data-af]'); },
+      addNext: (e) => {
+        e.preventDefault();
+        const bad = wz.step === 1 && wNameErr ? '#w-name' : wz.step === 3 && wPinErr ? '#w-pin' : wz.step === 4 && wEmailErr ? '#w-email' : null;
+        if (bad) { this.setState({ tried: true }); this.focusLater(bad); return; }
+        if (wz.step < 4) { this.setState({ tried: false }); this.setK('wz', { step: wz.step + 1 }); this.focusLater('.dbox [data-af], .dbox .rc input'); return; }
+        const email = consoleRole(wz.role) ? (wz.email || '').trim() : '';
+        const p = { id: Date.now(), name: wz.name.trim(), contact: email || wz.phone.trim() || 'PIN-ով', role: wz.role, branch: venueWide ? '*' : (me === 'manager' ? 'Կասկադ' : wz.branch), status: consoleRole(wz.role) ? (email ? 'awaiting' : 'noSignIn') : 'active' };
+        this.setState({ people: s.people.concat([p]), dlg: 'once', tried: false, copied: false, nag: false, once: { title: p.name + '-ը ավելացվեց', lead: 'Ցույց է տրվում հիմա և այլևս երբեք։ Եթե կորի, ստեղծեք նորը. հինը կդադարի աշխատել։', pin: wz.pin, pinLabel: 'Պլանշետի PIN', pinHint: 'Ասեք նրան անձամբ։ Մի գրեք դրամարկղի վրա։', link: email ? mkLink() : '' } });
+        this.focusLater('.dbox [data-af]');
+      },
+
+      tName: tgt ? tgt.name : '',
+      doOff: () => { const p = tgt; this.setP(p.id, { status: 'inactive' }); this.setState({ dlg: null }); this.focusLater('[data-add]'); this.say(p.name + '-ը ապաակտիվացվեց', () => this.setP(p.id, { status: p.status })); },
+      iEmail: iss.email || '', onIEmail: (e) => this.setK('iss', { email: e.target.value }),
+      iHelp: iss.old && iss.email && iss.email.trim() !== iss.old ? 'Հղումն ուղարկելու պահից նա կմտնի ' + iss.email.trim() + '-ով՝ ' + iss.old + '-ի փոխարեն։ Գաղտնաբառը նույնն է մնում։' : iss.old ? 'Նախորդ հղումը կդադարի աշխատել։ Ընթացիկ գաղտնաբառը աշխատում է, մինչև նոր հղումը բացի։' : 'Նա կբացի հղումը և կընտրի իր գաղտնաբառը։ Ոչ ոք չի գրում այն նրա փոխարեն։',
+      iEmailCls: 'ctl' + (T && iEmailErr ? ' bad' : ''), iEmailInv: T && iEmailErr ? 'true' : 'false', showIEmailErr: T && iEmailErr,
+      sendLink: (e) => { e.preventDefault(); if (iEmailErr) { this.setState({ tried: true }); this.focusLater('#is-email'); return; } const em = iss.email.trim(); this.setP(tgt.id, { contact: em, status: tgt.status === 'active' ? 'active' : 'awaiting' }); this.setState({ dlg: 'once', tried: false, copied: false, nag: false, once: { title: tgt.name + '-ի մուտքի հղումը', lead: 'Ցույց է տրվում հիմա և այլևս երբեք։ Եթե կորի, ստեղծեք նորը. հինը կդադարի աշխատել։', pin: '', link: mkLink() } }); this.focusLater('.dbox [data-af]'); },
+
+      openOwnPin: () => this.open('ownpin', '[data-ownpin]', { op: { a: '', b: '' } }),
+      opA: s.op.a, opB: s.op.b, onOpA: (e) => this.setK('op', { a: e.target.value.replace(/\D/g, '').slice(0, 4) }), onOpB: (e) => this.setK('op', { b: e.target.value.replace(/\D/g, '').slice(0, 4) }),
+      showOpErr: T && !!opErr, opErr: opErr, opInv: T && opErr ? 'true' : 'false', opBCls: 'ctl' + (T && opErr ? ' bad' : ''),
+      saveOwnPin: (e) => { e.preventDefault(); if (opErr) { this.setState({ tried: true }); this.focusLater(/^\d{4}$/.test(s.op.a) ? '#op-b' : '#op-a'); return; } this.closeDlg(); this.say('Ձեր PIN-ը փոխվեց. օգտագործեք այն պլանշետի հաջորդ մուտքի ժամանակ'); },
+
+      onceTitle: once.title || '', onceLead: once.lead || '', oncePin: !!once.pin, onceP: once.pin || '', oncePinLabel: once.pinLabel || '', oncePinHint: once.pinHint || '',
+      onceLink: !!once.link, onceL: once.link || '',
+      copyLabel: s.copied ? 'Պատճենվեց' : 'Պատճենել', copyNag: s.nag,
+      onceDoneLabel: once.pin && !once.link ? 'Գրի առա' : 'Պատրաստ է',
+      selectAll: (e) => e.target.select(),
+      copyLink: () => { const manual = () => { const el = document.getElementById('once-link'); if (el) { el.focus(); el.select(); } this.say('Ընտրեք հղումը և պատճենեք Ctrl+C-ով'); }; try { navigator.clipboard.writeText(once.link).then(() => this.setState({ copied: true, nag: false }), manual); } catch (err) { manual(); } },
+      onceDone: () => { if (once.link && !s.copied && !s.nag) { this.setState({ nag: true }); return; } this.closeDlg(); },
+
+      closeDlg: () => this.closeDlg(),
+      overlayClick: (e) => { if (e.target === e.currentTarget && s.dlg !== 'once') this.closeDlg(); },
+      dlgKey: (e) => {
+        if (e.key === 'Escape') { e.preventDefault(); if (s.dlg !== 'once') this.closeDlg(); return; }
+        if (e.key !== 'Tab') return;
+        const box = e.currentTarget.querySelector('.dbox');
+        if (!box) return;
+        const f = Array.from(box.querySelectorAll('button, input, select')).filter((el) => !el.disabled);
+        const at = document.activeElement;
+        if (e.shiftKey && at === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && at === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+      },
+      hasToast: !!s.toast, toast: s.toast ? s.toast.msg : '', hasUndo: !!(s.toast && s.toast.undo),
+      undo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    });
+  }
+}
+</script>
+</body>
+</html>
