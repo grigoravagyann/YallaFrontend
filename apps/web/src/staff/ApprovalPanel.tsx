@@ -1,7 +1,7 @@
 import { approvalCountdown, type AwaitingApproval } from '@yalla/api';
 import { useFloorApproveReservation, useFloorRejectReservation, useNow } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { decisionFailureText } from '../console/venue/policy/decisionFailure';
 import {
   arrivalAnnouncement,
@@ -143,6 +143,18 @@ function ApprovalCard({
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
+  /**
+   * The answer this card already sent and the server took. The card stays
+   * until the next read of the list takes it away, and in that time it offers
+   * nothing more: a second tap would only be refused.
+   */
+  const [decided, setDecided] = useState<'approved' | 'declined' | null>(null);
+  /**
+   * A send is under way. A ref, not the mutation's own pending state, because
+   * two taps in one frame both run before that state reaches a render — and
+   * the second would be a second request.
+   */
+  const sending = useRef(false);
 
   const countdown = approvalCountdown(request.approvalExpiresAtUtc, now);
   // The window closed on this device's clock. The server declines it at its
@@ -153,6 +165,8 @@ function ApprovalCard({
   const lines = contextLines(request, t, format.time);
 
   function decide(approved: boolean) {
+    if (sending.current || decided !== null) return;
+    sending.current = true;
     setFailure(null);
     const typed = reason.trim();
     const run = approved ? approve : reject;
@@ -160,14 +174,17 @@ function ApprovalCard({
       { reservationId: request.id, ...(!approved && typed ? { reason: typed } : {}) },
       {
         onSuccess: () => {
+          setDecided(approved ? 'approved' : 'declined');
           setDeclining(false);
           onDecided({ approved, request });
         },
         onError: (error) => {
+          sending.current = false;
           const text = decisionFailureText(error, {
             offline: t('approvals.offline'),
             generic: t('approvals.failed'),
             tooLate: t('approvals.tooLate'),
+            answeredElsewhere: t('approvals.answeredElsewhere'),
           });
           setFailure(text);
           onRefused({ request, text });
@@ -233,7 +250,12 @@ function ApprovalCard({
         </ul>
       ) : null}
 
-      {closed ? (
+      {decided ? (
+        // Sent and taken: said once, and nothing left to tap.
+        <p className="table-note approval-done" role="status">
+          {decided === 'approved' ? t('approvals.doneApproved') : t('approvals.doneDeclined')}
+        </p>
+      ) : closed ? (
         <p className="table-note">{t('approvals.timeUp')}</p>
       ) : declining ? (
         <div className="approval-decline">
@@ -292,7 +314,9 @@ function ApprovalCard({
         </div>
       )}
 
-      {!online && !closed ? <p className="table-note">{t('approvals.needsOnline')}</p> : null}
+      {!online && !closed && !decided ? (
+        <p className="table-note">{t('approvals.needsOnline')}</p>
+      ) : null}
       {failure ? (
         <p className="table-warn" role="alert">
           {failure}

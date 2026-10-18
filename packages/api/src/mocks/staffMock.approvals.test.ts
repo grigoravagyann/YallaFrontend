@@ -31,9 +31,11 @@ describe('the awaiting list', () => {
     const time = clock();
     const staff = createStaffMockGateway({ now: time.now });
 
-    const [request, ...others] = await staff.listAwaitingApproval('b1');
+    const listed = await staff.listAwaitingApproval('b1');
+    const shortNotice = listed.filter((entry) => entry.because === 'shortNotice');
+    const [request] = shortNotice;
 
-    expect(others).toHaveLength(0);
+    expect(shortNotice).toHaveLength(1);
     expect(request).toMatchObject({
       branchId: 'b1',
       because: 'shortNotice',
@@ -53,12 +55,22 @@ describe('the awaiting list', () => {
     const time = clock();
     const staff = createStaffMockGateway({ now: time.now });
 
-    expect(await staff.listAwaitingApproval('b1')).toHaveLength(1);
+    expect(await staff.listAwaitingApproval('b1')).toHaveLength(2);
     time.advance(50_000);
-    const both = await staff.listAwaitingApproval('b1');
-    expect(both).toHaveLength(2);
-    // Soonest-closing window first.
-    expect(both[0]!.approvalExpiresAtUtc! <= both[1]!.approvalExpiresAtUtc!).toBe(true);
+    expect(await staff.listAwaitingApproval('b1')).toHaveLength(3);
+  });
+
+  it('lists as the server does: deadlines first, soonest first, then the rest by start', async () => {
+    const time = clock();
+    const staff = createStaffMockGateway({ now: time.now });
+    time.advance(50_000);
+
+    const listed = await staff.listAwaitingApproval('b1');
+
+    expect(listed.map((entry) => entry.code)).toEqual(['Y3107', 'Y3112', 'Y3120']);
+    // Table 4 starts before table 7, and still lists after it: the deadline orders.
+    expect(listed[1]!.startUtc < listed[0]!.startUtc).toBe(true);
+    expect(listed[2]).toMatchObject({ because: 'largeParty', approvalExpiresAtUtc: null });
   });
 
   it('drops a request once its window closes, declined for want of an answer', async () => {
@@ -69,6 +81,8 @@ describe('the awaiting list', () => {
     time.advance(13 * 60_000);
     const left = await staff.listAwaitingApproval('b1');
     expect(left.map((entry) => entry.id)).not.toContain(request!.id);
+    // The one with no clock does not run out.
+    expect(left.map((entry) => entry.code)).toContain('Y3120');
   });
 });
 
@@ -86,7 +100,9 @@ describe('deciding', () => {
       awaitingApprovalBecause: null,
       approvalExpiresAtUtc: null,
     });
-    expect(await staff.listAwaitingApproval('b1')).toHaveLength(0);
+    expect((await staff.listAwaitingApproval('b1')).map((entry) => entry.id)).not.toContain(
+      request!.id,
+    );
   });
 
   it('declines a request with the reason given, and it leaves the list', async () => {
@@ -99,7 +115,9 @@ describe('deciding', () => {
     });
 
     expect(decided.status).toBe('cancelledByVenue');
-    expect(await staff.listAwaitingApproval('b1')).toHaveLength(0);
+    expect((await staff.listAwaitingApproval('b1')).map((entry) => entry.id)).not.toContain(
+      request!.id,
+    );
   });
 
   it('refuses a second decision as somebody else deciding first, not as too late', async () => {
@@ -112,6 +130,8 @@ describe('deciding', () => {
       .catch((error: unknown) => error);
     expect(again).toBeInstanceOf(ConcurrencyConflictError);
     expect(isApprovalExpired(again)).toBe(false);
+    // The server's code for "not pending any more", as `DomainStateException` maps it.
+    expect((again as ConcurrencyConflictError).code).toBe('conflicting-state');
     expect((again as Error).message).toMatch(/Confirmed/u);
   });
 

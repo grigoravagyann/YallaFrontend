@@ -386,11 +386,12 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
   const awaitingQuery = useAwaitingApproval(branchId, active);
   const awaiting = useRequestArrivals(awaitingQuery.data, timeZoneId);
 
-  // Browsers allow sound only after a gesture. The first tap anywhere on the
-  // floor wakes the chime, so the next request is heard and not only seen.
+  // Browsers allow sound only after a gesture, and suspend it again when the
+  // tablet sleeps or the tab is hidden. Every tap on the floor wakes the
+  // chime — not only the first — so the next request is heard, not only seen.
   useEffect(() => {
     const wake = () => primeChime();
-    document.addEventListener('pointerdown', wake, { once: true });
+    document.addEventListener('pointerdown', wake);
     return () => document.removeEventListener('pointerdown', wake);
   }, []);
 

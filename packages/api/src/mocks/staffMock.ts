@@ -381,7 +381,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
    * tablet has to show who they are and how to ring them, and the window is
    * fixed off the mock's start — made two minutes before it, so thirteen of
    * the fifteen minutes are left on a frozen clock. The second, at table 4,
-   * arrives forty-five seconds in.
+   * arrives forty-five seconds in. A third, a party of eight at table 11 this
+   * evening, waits with no clock at all — the large-party rule — and lists
+   * after every request that has one, as the server lists it.
    */
   const awaiting = new Map<string, MockAwaiting>();
   const sitting = tables.get('t7');
@@ -430,6 +432,27 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       approvalExpiresAtUtc: approvalExpiryFor(madeAt, startUtc),
       because: 'shortNotice',
       note: 'By the window if you can.',
+      previousBooking: null,
+      nextBooking: null,
+      status: 'pendingApproval',
+      declinedBecause: null,
+      reason: null,
+    });
+  }
+
+  if (tables.has('t11')) {
+    awaiting.set('res-await-3', {
+      id: 'res-await-3',
+      code: 'Y3120',
+      tableId: 't11',
+      guestName: 'Gor Harutyunyan',
+      guestPhone: '+37494556677',
+      partySize: 8,
+      startUtc: minutesFrom(start, 240),
+      arrivesAtUtc: minutesFrom(start, -30),
+      approvalExpiresAtUtc: null,
+      because: 'largeParty',
+      note: 'A birthday dinner.',
       previousBooking: null,
       nextBooking: null,
       status: 'pendingApproval',
@@ -881,8 +904,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       );
     }
     if (request.status !== 'pendingApproval') {
+      // `DomainStateException`'s code on the server: the booking is not pending.
       throw conflict(
-        'conflict',
+        'conflicting-state',
         `Only a pending reservation can be ${approve ? 'confirmed' : 'rejected'}; ${request.code} is ${
           request.status === 'confirmed' ? 'Confirmed' : 'CancelledByVenue'
         }.`,
@@ -1242,12 +1266,19 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         .filter(
           (request) => request.status === 'pendingApproval' && request.arrivesAtUtc <= iso(at),
         )
-        .sort(
-          (a, b) =>
-            (a.approvalExpiresAtUtc ?? a.startUtc).localeCompare(
-              b.approvalExpiresAtUtc ?? b.startUtc,
-            ) || a.startUtc.localeCompare(b.startUtc),
-        )
+        // The server's order: those with a deadline, soonest deadline first,
+        // then those with none, by start.
+        .sort((a, b) => {
+          if (a.approvalExpiresAtUtc !== null && b.approvalExpiresAtUtc !== null) {
+            return (
+              a.approvalExpiresAtUtc.localeCompare(b.approvalExpiresAtUtc) ||
+              a.startUtc.localeCompare(b.startUtc)
+            );
+          }
+          if (a.approvalExpiresAtUtc !== null) return -1;
+          if (b.approvalExpiresAtUtc !== null) return 1;
+          return a.startUtc.localeCompare(b.startUtc);
+        })
         .map((request): AwaitingApproval => {
           const table = plan.tables.find((candidate) => candidate.id === request.tableId);
           const state = tables.get(request.tableId);

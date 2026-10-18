@@ -44,10 +44,16 @@ function stateOf(ctx: AudioContext): AudioContextState {
   return ctx.state;
 }
 
-/** Create or wake the audio context inside a user gesture, so a later chime may sound. */
+/**
+ * Create or wake the audio context inside a user gesture, so a later chime may
+ * sound. Called on every tap, not once: a browser suspends the context again
+ * when the tablet sleeps or the tab is hidden (Safari calls it `interrupted`),
+ * and a closed one is replaced.
+ */
 export function primeChime(): void {
+  if (context && stateOf(context) === 'closed') context = null;
   const ctx = audio();
-  if (ctx && ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
+  if (ctx && stateOf(ctx) !== 'running') void ctx.resume().catch(() => undefined);
 }
 
 /**

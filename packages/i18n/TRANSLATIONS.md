@@ -251,7 +251,11 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   lines (`before_*`, `sittingNow*`, `next_*`, written so the time stands alone:
   hy "սկսած {{time}}", never a suffix glued onto it), Call, Approve / Decline
   and the optional reason, the notices, `tooLate` and the screen-reader line
-  `arrived_*`. `admin` `approvals.because.shortNotice`, `leftToAnswer`,
+  `arrived_*`; and (review round) `previousStatus.*` — the word after the
+  earlier booking on the "Before" line, lower case, read after the guest's
+  name ("seated now", "finished", "didn't come") — `doneApproved`,
+  `doneDeclined` and `answeredElsewhere`, which must say **someone else**
+  answered, never that the tap failed. `admin` `approvals.because.shortNotice`, `leftToAnswer`,
   `timeUp`, `tooLate`, and `approvals.body` reworded to say short-notice
   bookings land here too. `diner` `booking.approval.*` (`waiting` must keep the
   time as a countdown, "answer within 12:41"), `booking.declined.*` — the

@@ -100,6 +100,7 @@ function BookingRow({
     offline: t('approvals.offline'),
     generic: t('approvals.failed'),
     tooLate: t('approvals.tooLate'),
+    answeredElsewhere: t('approvals.answeredElsewhere'),
   };
 
   function decide(run: typeof approve, command: { reason?: string }) {

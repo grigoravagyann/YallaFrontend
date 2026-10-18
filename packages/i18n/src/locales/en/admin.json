@@ -1122,6 +1122,7 @@
     "keep": "Keep it",
     "failed": "Could not record the decision. Try again.",
     "tooLate": "Too late: the time to answer ran out, and the diner has been told the venue could not confirm.",
+    "answeredElsewhere": "Already answered by someone else.",
     "offline": "You are offline. The decision was not sent."
   },
   "onboarding": {

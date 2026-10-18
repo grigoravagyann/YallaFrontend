@@ -1,5 +1,8 @@
 import { ApiError, describeFailure, isApprovalExpired } from '@yalla/api';
 
+/** The server's code for a decision on a booking that is no longer pending. */
+const ANSWERED_ELSEWHERE_CODE = 'conflicting-state';
+
 /** The console's own sentences, for the failures the server's are not written for. */
 export interface DecisionFailureCopy {
   readonly offline: string;
@@ -10,6 +13,13 @@ export interface DecisionFailureCopy {
    * because what to do next — nothing, it is handled — is the screen's to say.
    */
   readonly tooLate?: string | undefined;
+  /**
+   * Somebody else answered first — another waiter, or a manager in the
+   * console. The server's sentence for it ("Only a pending reservation can be
+   * confirmed; LM7Q is Confirmed.") is English and names an enum; a screen that
+   * is read in Armenian says it in its own words when it has them.
+   */
+  readonly answeredElsewhere?: string | undefined;
 }
 
 /**
@@ -26,6 +36,14 @@ export interface DecisionFailureCopy {
  */
 export function decisionFailureText(error: unknown, copy: DecisionFailureCopy): string {
   if (copy.tooLate && isApprovalExpired(error)) return copy.tooLate;
+  if (
+    copy.answeredElsewhere &&
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.code === ANSWERED_ELSEWHERE_CODE
+  ) {
+    return copy.answeredElsewhere;
+  }
   const kind = describeFailure(error);
   if (kind === 'offline') return copy.offline;
   const spoken =

@@ -6,6 +6,7 @@ import {
   createStaffMockGateway,
   type AwaitingApproval,
   type EnrolledDevice,
+  type ReservationStatusCode,
   type StaffGateway,
   type StaffSessionSnapshot,
 } from '@yalla/api';
@@ -30,11 +31,12 @@ import { contextLines, newArrivals, requestLine, requestTable } from './approval
  * when the answer came too late, and announce a request that has just arrived.
  *
  * The staff mock seeds one request at table 7, where the party that booked
- * before it is still sitting, and a second at table 4 forty-five seconds in.
+ * before it is still sitting, a large party at table 11 that waits with no
+ * clock, and a third request at table 4 forty-five seconds in.
  */
 
 const snapshot = vi.hoisted(() => ({ current: null as unknown }));
-const chime = vi.hoisted(() => ({ played: 0 }));
+const chime = vi.hoisted(() => ({ played: 0, primed: 0 }));
 
 vi.mock('./auth/staffSession', () => ({
   staffAuthAvailable: true,
@@ -53,7 +55,9 @@ vi.mock('../auth/useCurrentUser', async () => {
   return { ...actual, useCurrentUser: () => ({ user: null }) };
 });
 vi.mock('./chime', () => ({
-  primeChime: () => undefined,
+  primeChime: () => {
+    chime.primed += 1;
+  },
   playChime: async () => {
     chime.played += 1;
     return true;
@@ -134,6 +138,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   chime.played = 0;
+  chime.primed = 0;
 });
 
 describe('the words on a request', () => {
@@ -177,12 +182,45 @@ describe('the words on a request', () => {
     expect(contextLines(request, t, time)).toEqual([
       {
         kind: 'before',
-        text: 'Before: 18:00 · 4 guests · Anna',
+        text: 'Before: 18:00 · 4 guests · Anna · seated now',
         call: { phoneE164: '+37477889900', name: 'Anna' },
       },
       { kind: 'sitting', text: 'Sitting now: since 18:10', call: null },
       { kind: 'next', text: 'Next: 21:30 · 3 guests', call: null },
     ]);
+  });
+
+  it('says where the booking before stands, in words', () => {
+    const before = (status: ReservationStatusCode) =>
+      contextLines(
+        { ...request, previousBooking: { ...request.previousBooking!, status } },
+        t,
+        time,
+      )[0]!;
+
+    expect(before('seated').text).toMatch(/ · seated now$/u);
+    expect(before('completed').text).toMatch(/ · finished$/u);
+    expect(before('noShow').text).toMatch(/ · didn't come$/u);
+    expect(before('confirmed').text).toMatch(/ · confirmed$/u);
+    expect(before('pendingApproval').text).toMatch(/ · waiting$/u);
+    // A status the tablet has no word for says nothing rather than guess.
+    expect(before('unknown').text).toBe('Before: 18:00 · 4 guests · Anna');
+  });
+
+  it('offers a call only while the booking before is still about the table', () => {
+    const callFor = (status: 'seated' | 'confirmed' | 'pendingApproval' | 'completed' | 'noShow') =>
+      contextLines(
+        { ...request, previousBooking: { ...request.previousBooking!, status } },
+        t,
+        time,
+      )[0]!.call;
+
+    expect(callFor('seated')).not.toBeNull();
+    expect(callFor('confirmed')).not.toBeNull();
+    expect(callFor('pendingApproval')).not.toBeNull();
+    // Gone home, or never came: nothing to ask them about tonight.
+    expect(callFor('completed')).toBeNull();
+    expect(callFor('noShow')).toBeNull();
   });
 
   it('offers no call for an earlier guest who left no number', () => {
@@ -206,7 +244,7 @@ describe('the floor tablet', () => {
     renderFloor(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now }));
 
     expect(
-      await screen.findByRole('button', { name: '1 booking to approve' }, { timeout: 5000 }),
+      await screen.findByRole('button', { name: '2 bookings to approve' }, { timeout: 5000 }),
     ).toBeTruthy();
     const request = await card('7');
 
@@ -215,12 +253,20 @@ describe('the floor tablet', () => {
     expect(timer.textContent).toMatch(/^1[23]:\d\d$/u);
     expect(timer.getAttribute('aria-label')).toMatch(/left to answer$/u);
     expect(within(request).getByText('Short notice')).toBeTruthy();
-    expect(within(request).getByText(/^Before: .* · 4 guests · Anna Petrosyan/u)).toBeTruthy();
+    expect(
+      within(request).getByText(/^Before: .* · 4 guests · Anna Petrosyan · seated now/u),
+    ).toBeTruthy();
     expect(within(request).getByText(/^Sitting now: since .* · 4 guests$/u)).toBeTruthy();
     expect(within(request).getByText(/^Next: .* · 3 guests$/u)).toBeTruthy();
 
     const call = within(request).getByRole('link', { name: 'Call Anna Petrosyan' });
     expect(call.getAttribute('href')).toBe('tel:+37477889900');
+
+    // The large party waits with no clock, after every request that has one.
+    const party = await card('11');
+    expect(within(party).queryByRole('timer')).toBeNull();
+    expect(within(party).getByText('Large party')).toBeTruthy();
+    expect(request.compareDocumentPosition(party) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('takes the waiter to the requests from the header count', async () => {
@@ -229,7 +275,7 @@ describe('the floor tablet', () => {
     renderFloor(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now }));
 
     await user.click(
-      await screen.findByRole('button', { name: '1 booking to approve' }, { timeout: 5000 }),
+      await screen.findByRole('button', { name: '2 bookings to approve' }, { timeout: 5000 }),
     );
     expect(document.activeElement).toBe(await panel());
   });
@@ -254,12 +300,77 @@ describe('the floor tablet', () => {
     ).toBeTruthy();
     await waitFor(() =>
       expect(
-        within(screen.getByRole('region', { name: /bookings to approve/i })).getByText(
-          'No bookings are waiting for an answer.',
+        within(screen.getByRole('region', { name: /bookings to approve/i })).queryByText(
+          /^Table 7\b/u,
         ),
-      ).toBeTruthy(),
+      ).toBeNull(),
     );
-    expect(screen.queryByRole('button', { name: /booking to approve/u })).toBeNull();
+    expect(screen.getByRole('button', { name: '1 booking to approve' })).toBeTruthy();
+  });
+
+  it('takes one answer only: a second tap sends nothing, and the card says it is done', async () => {
+    const user = userEvent.setup();
+    signIn();
+    const base = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now });
+    const first = await base.listAwaitingApproval(BRANCH);
+    // The list the server answered before the decision, read again: the card
+    // stays on screen after its answer until a later read drops it.
+    const stale: StaffGateway = { ...base, listAwaitingApproval: async () => first };
+    const approve = vi.spyOn(stale, 'approveReservation');
+    renderFloor(stale);
+
+    const request = await card('7');
+    await user.dblClick(within(request).getByRole('button', { name: 'Approve' }));
+
+    expect(await within(request).findByText('Approved. The guest has been told.')).toBeTruthy();
+    expect(approve).toHaveBeenCalledTimes(1);
+    expect(within(request).queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(within(request).queryByRole('button', { name: 'Decline' })).toBeNull();
+  });
+
+  it("says somebody else answered first, in its own words, not the server's", async () => {
+    const user = userEvent.setup();
+    signIn();
+    const base = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now });
+    const answered: StaffGateway = {
+      ...base,
+      rejectReservation: () =>
+        Promise.reject(
+          new ConcurrencyConflictError({
+            url: 'mock://reject',
+            problem: {
+              type: 'about:blank',
+              title: 'Conflict',
+              status: 409,
+              detail: 'Only a pending reservation can be rejected; Y3107 is Confirmed.',
+              code: 'conflicting-state',
+              traceId: 'mock',
+            },
+          }),
+        ),
+    };
+    renderFloor(answered);
+
+    const request = await card('7');
+    await user.click(within(request).getByRole('button', { name: 'Decline' }));
+    await user.click(within(request).getByRole('button', { name: 'Decline the booking' }));
+
+    const alert = await within(request).findByRole('alert');
+    expect(alert.textContent).toBe('Already answered by someone else.');
+    expect(screen.queryByText(/Only a pending reservation/u)).toBeNull();
+  });
+
+  it('wakes the chime on every tap, not only the first', async () => {
+    const user = userEvent.setup();
+    signIn();
+    renderFloor(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now }));
+    const section = await panel();
+
+    await user.pointer({ keys: '[MouseLeft]', target: section });
+    await user.pointer({ keys: '[MouseLeft]', target: section });
+    await user.pointer({ keys: '[MouseLeft]', target: section });
+
+    expect(chime.primed).toBeGreaterThanOrEqual(3);
   });
 
   it('declines with the reason typed, after asking, and sends nothing until then', async () => {
@@ -385,7 +496,7 @@ describe('the floor tablet', () => {
     );
     expect(arrived.className).toContain('is-fresh');
     expect((await card('7')).className).not.toContain('is-fresh');
-    expect(screen.getByRole('button', { name: '2 bookings to approve' }).className).toContain(
+    expect(screen.getByRole('button', { name: '3 bookings to approve' }).className).toContain(
       'is-fresh',
     );
     await waitFor(() => expect(chime.played).toBe(1));

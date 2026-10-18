@@ -18,10 +18,20 @@ export interface SuccessMarkProps {
 
 const POP_MS = 520;
 const DRAW_MS = 420;
+/** When the glyph starts drawing: as the pop lands, on the clock. */
+const DRAW_DELAY_MS = 280;
 
 /**
  * The big green circle that pops onto a success screen, its check drawn in a
  * beat later. Decorative: the heading beside it says what happened.
+ *
+ * The glyph runs **beside** the pop, on a delay, never after it. It used to
+ * wait for the pop's spring to come to rest — and a spring advances at most
+ * 64 ms of its own time per frame, so wherever frames were sparse (a hidden or
+ * throttled tab, a phone busy reading the booking again) it rested seconds
+ * late or never, and the screen showed a plain coloured circle with no check,
+ * clock or cross in it. A timing lands by the wall clock however few frames it
+ * gets.
  */
 export function SuccessMark({ tone = 'success', icon, size = 88, style }: SuccessMarkProps) {
   const reduced = useReducedMotion();
@@ -34,9 +44,14 @@ export function SuccessMark({ tone = 'success', icon, size = 88, style }: Succes
       draw.setValue(1);
       return;
     }
-    const run = Animated.sequence([
+    const run = Animated.parallel([
       Animated.spring(pop, { toValue: 1, useNativeDriver: true, speed: 12, bounciness: 14 }),
-      Animated.timing(draw, { toValue: 1, duration: DRAW_MS, useNativeDriver: true }),
+      Animated.timing(draw, {
+        toValue: 1,
+        duration: DRAW_MS,
+        delay: DRAW_DELAY_MS,
+        useNativeDriver: true,
+      }),
     ]);
     run.start();
     return () => run.stop();
@@ -114,4 +129,4 @@ const styles = StyleSheet.create({
 });
 
 // Keeps the duration in one place for the screens that stagger after the mark.
-export const SUCCESS_MARK_MS = POP_MS + DRAW_MS;
+export const SUCCESS_MARK_MS = Math.max(POP_MS, DRAW_DELAY_MS + DRAW_MS);
