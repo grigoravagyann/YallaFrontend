@@ -1,4 +1,4 @@
-import { branchDayKey, formatCountdown, type TimeZone } from '@yalla/format';
+import { branchDayKey, formatCountdown, type Locale, type TimeZone } from '@yalla/format';
 import { ApiError } from '../errors';
 import type { ReservationStatusCode } from './push';
 
@@ -157,6 +157,22 @@ export function awaitsVenueAnswer(booking: {
 }
 
 /**
+ * Whether a waiting booking is the guest before's to answer, in the app — not
+ * the floor's. Such a booking waits with a clock (two hours, never past their
+ * own booking); the floor's own questions to a guest before, for another day
+ * (they booked on the web, have no device, or the booking needs the floor
+ * anyway), have none. The floor's approve and reject are refused for it (409
+ * `reservation-awaiting-earlier-guest`), so no screen offers them — it says
+ * whose answer it waits for instead. Short-notice ones are `shortNotice`.
+ */
+export function waitsOnEarlierGuestInApp(
+  because: ApprovalTrigger | null | undefined,
+  approvalExpiresAtUtc: string | null | undefined,
+): boolean {
+  return because === 'earlierGuestConsent' && Boolean(approvalExpiresAtUtc);
+}
+
+/**
  * How long is left to answer, for a request with a window.
  *
  * Computed from the server's instant and the device's clock, ticking once a
@@ -179,6 +195,8 @@ export interface ApprovalCountdown {
 export function approvalCountdown(
   expiresAtUtc: string | null | undefined,
   now: Date,
+  /** Given, a window past an hour reads "1 hr 59 min" rather than "119:00". */
+  locale?: Locale,
 ): ApprovalCountdown | null {
   if (!expiresAtUtc) return null;
   const at = Date.parse(expiresAtUtc);
@@ -186,7 +204,7 @@ export function approvalCountdown(
   const secondsLeft = Math.max(0, Math.ceil((at - now.getTime()) / 1000));
   return {
     secondsLeft,
-    label: formatCountdown(secondsLeft),
+    label: formatCountdown(secondsLeft, locale),
     expired: secondsLeft === 0,
     urgent: secondsLeft > 0 && secondsLeft <= APPROVAL_URGENT_SECONDS,
   };

@@ -20,7 +20,13 @@ import { useBranchTimeZone } from '../../src/data/orderQueries';
 import { useCreateBooking, useSlotFloor, useVenue } from '../../src/data/queries';
 import { branchZoneSource } from '../../src/lib/browse';
 import { newCommandId } from '../../src/lib/commandId';
-import { GUEST_NAME_MAX_LENGTH, canSubmit, confirmState } from '../../src/lib/confirm';
+import {
+  GUEST_NAME_MAX_LENGTH,
+  canSubmit,
+  confirmState,
+  freeByAnswered,
+  freeByNeeded,
+} from '../../src/lib/confirm';
 import { bookingRefusal } from '../../src/data/bookingRefusals';
 import { haptics } from '../../src/lib/haptics';
 import { useConflict } from '../../src/stores/conflict';
@@ -57,6 +63,9 @@ export default function ConfirmScreen() {
    */
   const [agreedFreeBy, setAgreedFreeBy] = useState<string | null>(forward.acceptsFreeByUtc ?? null);
   const [freeByAsk, setFreeByAsk] = useState<string | null>(null);
+  // The server's time, once a refusal named it: newer than the room, so it
+  // wins over the room's until the booking goes (see `freeByNeeded`).
+  const [serverFreeBy, setServerFreeBy] = useState<string | null>(null);
 
   /*
    * Route params, treated as untrusted input.
@@ -147,12 +156,16 @@ export default function ConfirmScreen() {
     async (acceptsFreeByUtc: string | null = agreedFreeBy) => {
       if (!canSubmit({ state, guestName, pending }) || !zone || !phoneE164 || !slotUtc) return;
       setErrorText(null);
-      // A booking follows on the table: never sent without the promise to free it.
-      const required = table?.isBookable ? (table.mustFreeByUtc ?? null) : null;
-      if (
-        required &&
-        (!acceptsFreeByUtc || Date.parse(acceptsFreeByUtc) !== Date.parse(required))
-      ) {
+      /*
+       * A booking follows on the table: never sent without a yes to that very
+       * instant — the server's once it named one, compared as an instant — and
+       * what goes is the instant the diner agreed to.
+       */
+      const required = freeByNeeded({
+        server: serverFreeBy,
+        table: table?.isBookable ? (table.mustFreeByUtc ?? null) : null,
+      });
+      if (!freeByAnswered(acceptsFreeByUtc, required)) {
         setFreeByAsk(required);
         return;
       }
@@ -172,7 +185,7 @@ export default function ConfirmScreen() {
           channel: 'app',
           // The note typed before the SMS detour goes to the venue with the booking (K9).
           note: requests?.trim() || null,
-          ...(required ? { acceptsFreeByUtc: required } : {}),
+          ...(required && acceptsFreeByUtc ? { acceptsFreeByUtc } : {}),
         });
 
         haptics.success();
@@ -195,8 +208,12 @@ export default function ConfirmScreen() {
         if (failure.kind === 'freeByRequired') {
           setOutcomeUnknown(false);
           void slotQuery.refetch();
-          if (failure.requiredFreeByUtc) setFreeByAsk(failure.requiredFreeByUtc);
-          else setErrorText(t(failure.line.key, failure.line.params));
+          if (failure.requiredFreeByUtc) {
+            setServerFreeBy(failure.requiredFreeByUtc);
+            setFreeByAsk(failure.requiredFreeByUtc);
+          } else {
+            setErrorText(t(failure.line.key, failure.line.params));
+          }
           return;
         }
 
@@ -243,6 +260,7 @@ export default function ConfirmScreen() {
       t,
       locale,
       agreedFreeBy,
+      serverFreeBy,
       table,
       slotQuery,
     ],

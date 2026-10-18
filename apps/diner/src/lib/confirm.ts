@@ -37,3 +37,32 @@ export function canSubmit(input: {
 
 /** The server's limit on `CreateReservationRequest.guestName`. */
 export const GUEST_NAME_MAX_LENGTH = 200;
+
+/**
+ * The time the diner must agree to free the table by, when a booking follows:
+ * the server's, once a refusal named it — it is newer than any room on screen,
+ * and the room re-read after it may still lag — else the room's. Keyed by the
+ * caller to the time, table and party it was said for.
+ *
+ * Without the server's word winning, a yes to its time was checked against
+ * the room's older one, asked again, sent, and refused again: a ping-pong.
+ */
+export function freeByNeeded(input: {
+  readonly server: string | null;
+  readonly table: string | null;
+}): string | null {
+  return input.server ?? input.table;
+}
+
+/**
+ * Whether the agreed time answers the one needed: the same instant to the
+ * minute, as the server compares it — never the same string. The server
+ * writes `…:00Z`, the room's mapping `…:00.000Z`; compared as strings the
+ * agreed time never matched and the diner was asked again.
+ */
+export function freeByAnswered(agreed: string | null, needed: string | null): boolean {
+  if (needed === null) return true;
+  if (agreed === null) return false;
+  const minute = (iso: string) => Math.floor(Date.parse(iso) / 60_000);
+  return minute(agreed) === minute(needed);
+}

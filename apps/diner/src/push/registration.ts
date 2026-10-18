@@ -77,19 +77,27 @@ export async function registerCategories(labels: {
     },
   ]);
 
-  // Booking times: somebody would like the diner's table after them. Both
-  // answers from the lock screen, neither opening the app; a No is not
-  // destructive — the diner keeps the table they booked.
+  /*
+   * Booking times: somebody would like the diner's table after them. Unlike
+   * the two above, both answers open the app, unlocked first, and the booking's
+   * card sends the answer and shows whether it went through. Answered in the
+   * background instead, a killed app has no listener to do it, and a locked
+   * iPhone cannot read the session from the keychain (stored
+   * WHEN_UNLOCKED) — the 401 would be lost and the guest would believe they
+   * had answered. A background notification task would need a new native
+   * module and still hit the locked keychain; this cannot fail unseen.
+   */
+  const answer = { opensAppToForeground: true, isAuthenticationRequired: true } as const;
   await Notifications.setNotificationCategoryAsync('table-request', [
     {
       identifier: PUSH_ACTIONS.tableRequestYes,
       buttonTitle: labels.tableRequestYes,
-      options: { opensAppToForeground: false },
+      options: answer,
     },
     {
       identifier: PUSH_ACTIONS.tableRequestNo,
       buttonTitle: labels.tableRequestNo,
-      options: { opensAppToForeground: false },
+      options: answer,
     },
   ]);
 }

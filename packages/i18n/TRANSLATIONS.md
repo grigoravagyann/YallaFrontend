@@ -313,12 +313,21 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `bookingDeclinedEarlierGuestNoAnswer` (the later guest told — another time or
   table, never blame). `public` `booking.timeOnRequest` (a time
   select option, "{{time}} · on request"). `staff`
-  `approvals.because.earlierGuestConsent` (the guest before booked **on the
-  web**, so the floor decides), `approvals.askBefore` (ring them: hy puts the
+  `approvals.because.earlierGuestConsent` ("The guest before can't be asked in
+  the app — call them": the floor decides, after ringing them; a badge, so
+  short), `approvals.askBefore` (ring them: hy puts the
   name in brackets rather than declining it, ru keeps the verb impersonal —
   "освободится ли стол"), `approvals.leavesBy`, `table.mustFreeBy` (lower case,
-  after the next booking's time on the floor and on the card). `admin`
-  `approvals.because.earlierGuestConsent`.
+  after the next booking's time on the floor and on the card),
+  `approvals.awaitingEarlierGuest` (a booking the guest before answers **in
+  the app**: not the floor's to approve or decline — it is decided when they
+  answer, or declined if they do not; said on such a card in place of the
+  buttons, and when the server refuses a decision for one). `admin`
+  `approvals.because.earlierGuestConsent` and `approvals.awaitingEarlierGuest`
+  (the same sentence in the console). `diner`
+  `booking.approval.venueWillConfirm` (the floor's own question to the guest
+  before, for another day: **no clock** — so no time in it, and the venue,
+  not the guest before, is who answers).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

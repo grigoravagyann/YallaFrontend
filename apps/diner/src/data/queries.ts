@@ -22,7 +22,13 @@ import { orderKeys } from './orderQueries';
  * console so the two apps cannot cache the same floor under different keys.
  * Everything below is diner-only.
  */
-export { useSlotFloor, useTableAvailability, useVenue, useVenues } from '@yalla/api/react';
+export {
+  useSlotFloor,
+  useSlotFloors,
+  useTableAvailability,
+  useVenue,
+  useVenues,
+} from '@yalla/api/react';
 
 /**
  * A day of slots (which times a party can still have) and moving a booking,

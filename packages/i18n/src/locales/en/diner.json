@@ -82,7 +82,8 @@
       "checking": "Waiting for the venue's answer",
       "why": "It is for soon, so the venue checks the table is free before confirming.",
       "waitingEarlierGuest": "Asking the guest before you · answer within {{time}}",
-      "checkingEarlierGuest": "Waiting for the guest before you to answer"
+      "checkingEarlierGuest": "Waiting for the guest before you to answer",
+      "venueWillConfirm": "The venue will confirm your booking"
     },
     "declined": {
       "noAnswerTitle": "Sorry, not confirmed in time",

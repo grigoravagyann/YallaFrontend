@@ -80,8 +80,10 @@ export function TimeWheel({
   style,
 }: TimeWheelProps) {
   const hours = useMemo(() => wheelHours(slots), [slots]);
-  const position =
-    wheelPosition(hours, value) ?? (hours.length > 0 ? { hour: 0, minute: 0 } : null);
+  // Where the chosen time is — none when nothing is chosen, so no row is
+  // drawn as chosen — and where the columns rest: there, else at the top.
+  const chosen = wheelPosition(hours, value);
+  const position = chosen ?? (hours.length > 0 ? { hour: 0, minute: 0 } : null);
   const hour = position ? hours[position.hour] : undefined;
   const current = value === null ? null : (slots.find((slot) => slot.at === value) ?? null);
 
@@ -124,10 +126,11 @@ export function TimeWheel({
   };
 
   // The web's slider keys. React Native's View forwards them on the web only.
+  // The one tab stop: the rows under it are not (see `WheelColumn`).
   const keyboard =
     Platform.OS === 'web'
       ? {
-          focusable: true,
+          tabIndex: 0 as const,
           onKeyDown: (event: { key: string; preventDefault: () => void }) => {
             const action =
               event.key === 'ArrowUp' || event.key === 'ArrowRight'
@@ -171,6 +174,7 @@ export function TimeWheel({
         <WheelColumn
           rows={hours.map((entry) => ({ key: entry.key, label: entry.label, busy: entry.busy }))}
           index={position?.hour ?? 0}
+          selected={chosen?.hour ?? -1}
           revision={revision}
           onSettle={(index) => {
             const next = hours[index];
@@ -188,6 +192,7 @@ export function TimeWheel({
             busy: !isOffered(slot),
           }))}
           index={position?.minute ?? 0}
+          selected={chosen?.minute ?? -1}
           revision={revision}
           onSettle={(index) => {
             const slot = hour?.slots[index];
@@ -207,16 +212,24 @@ interface WheelRow {
 
 /**
  * One scrolling column. Follows `index` when it changes from outside — a chip,
- * a step, the other column — and reports the row it comes to rest on.
+ * a step, the other column — and reports the row it comes to rest on, unless
+ * that is the chosen row already.
  */
 function WheelColumn({
   rows,
   index,
+  selected,
   revision,
   onSettle,
 }: {
   readonly rows: readonly WheelRow[];
+  /** The row the column rests on. */
   readonly index: number;
+  /**
+   * The chosen row, drawn as chosen; `-1` when nothing is chosen — then the
+   * column rests on its first row, and stopping on it or tapping it chooses it.
+   */
+  readonly selected: number;
   /** Changes on every stop, so the column realigns even when `index` did not move. */
   readonly revision: number;
   readonly onSettle: (index: number) => void;
@@ -227,6 +240,8 @@ function WheelColumn({
   const offset = useRef(index * WHEEL_ROW);
   const crossed = useRef(index);
   const dragging = useRef(false);
+  // A fling under way: the stop is its end, not a pause in the scroll events.
+  const coasting = useRef(false);
   // The first placement, and a move made for the diner (a chip, a step, the
   // other column), are not the diner's hand on the wheel: no ticks for them,
   // and where they come to rest is not a choice — the column only aligns.
@@ -237,9 +252,9 @@ function WheelColumn({
   const following = () => Date.now() < followUntil.current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Read inside the timer, which outlives the render that set it.
-  const latest = useRef({ index, rows: rows.length, onSettle });
+  const latest = useRef({ index, selected, rows: rows.length, onSettle });
   useEffect(() => {
-    latest.current = { index, rows: rows.length, onSettle };
+    latest.current = { index, selected, rows: rows.length, onSettle };
   });
 
   // Placed on the chosen row, then following it.
@@ -276,16 +291,17 @@ function WheelColumn({
       timer.current = null;
       const madeForTheDiner = following();
       followUntil.current = 0;
-      const { rows: count, index: chosen, onSettle: report } = latest.current;
+      const { rows: count, index: resting, selected: chosen, onSettle: report } = latest.current;
       if (count === 0) return;
       const at = Math.min(count - 1, Math.max(0, Math.round(y / WHEEL_ROW)));
-      // A move made for the diner ends on the chosen row, however a quick run
-      // of them left the scroller; the diner's own ends where it stopped.
-      const target = madeForTheDiner ? chosen : at;
+      // A move made for the diner ends on the row it was made for, however a
+      // quick run of them left the scroller; the diner's own ends where it stopped.
+      const target = madeForTheDiner ? resting : at;
       // Come to rest exactly on the row: the web's scroller has no snapping.
       if (Math.abs(y - target * WHEEL_ROW) > 1) {
         scroller.current?.scrollTo({ y: target * WHEEL_ROW, animated: !reduced });
       }
+      // With nothing chosen (`-1`), wherever the diner stops is a choice.
       if (!madeForTheDiner && at !== chosen) report(at);
     },
     [reduced],
@@ -312,10 +328,35 @@ function WheelColumn({
       }
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => {
-        if (!dragging.current) settle(offset.current);
+        if (!dragging.current && !coasting.current) settle(offset.current);
       }, SETTLE_MS);
     },
     [settle],
+  );
+  /*
+   * Each row's fade and size with its distance from the band, on the native
+   * driver: made once per column length, not on every render — the screen
+   * re-renders on every chip and step, and each made two new interpolations
+   * per row.
+   */
+  const looks = useMemo(
+    () =>
+      Array.from({ length: rows.length }, (_, i) => {
+        const distance = [(i - 2) * WHEEL_ROW, i * WHEEL_ROW, (i + 2) * WHEEL_ROW];
+        return {
+          opacity: scrollY.interpolate({
+            inputRange: distance,
+            outputRange: [0.25, 1, 0.25],
+            extrapolate: 'clamp',
+          }),
+          scale: scrollY.interpolate({
+            inputRange: distance,
+            outputRange: [0.86, 1, 0.86],
+            extrapolate: 'clamp',
+          }),
+        };
+      }),
+    [rows.length, scrollY],
   );
   useEffect(() => {
     const id = scrollY.addListener(({ value }) => onScrollAt(value));
@@ -335,6 +376,7 @@ function WheelColumn({
       onScroll={onScroll}
       onScrollBeginDrag={() => {
         dragging.current = true;
+        coasting.current = false;
         // The diner's hand: where this stops is theirs.
         followUntil.current = 0;
       }}
@@ -348,35 +390,42 @@ function WheelColumn({
         if (timer.current) clearTimeout(timer.current);
         timer.current = setTimeout(() => settle(y), SETTLE_MS);
       }}
-      onMomentumScrollEnd={(event) => settle(event.nativeEvent.contentOffset.y)}
+      onMomentumScrollBegin={() => {
+        // A fling after the drag: the drag's own stop is not where it ends.
+        coasting.current = true;
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = null;
+      }}
+      onMomentumScrollEnd={(event) => {
+        coasting.current = false;
+        settle(event.nativeEvent.contentOffset.y);
+      }}
     >
       {rows.map((row, i) => {
-        const distance = [(i - 2) * WHEEL_ROW, i * WHEEL_ROW, (i + 2) * WHEEL_ROW];
-        const opacity = scrollY.interpolate({
-          inputRange: distance,
-          outputRange: [0.25, 1, 0.25],
-          extrapolate: 'clamp',
-        });
-        const scale = scrollY.interpolate({
-          inputRange: distance,
-          outputRange: [0.86, 1, 0.86],
-          extrapolate: 'clamp',
-        });
-        const chosen = i === index;
+        const look = looks[i];
+        const chosen = i === selected;
         return (
           <Animated.View
             key={row.key}
-            style={[styles.row, { opacity, transform: reduced ? [] : [{ scale }] }]}
+            style={[
+              styles.row,
+              look
+                ? { opacity: look.opacity, transform: reduced ? [] : [{ scale: look.scale }] }
+                : null,
+            ]}
           >
             <Pressable
               onPress={() => {
-                if (i === index) return;
+                if (i === selected) return;
                 scroller.current?.scrollTo({ y: i * WHEEL_ROW, animated: !reduced });
-                latest.current.onSettle(i);
+                onSettle(i);
               }}
+              // Not a tab stop: the wheel is one control, the slider (see above).
+              tabIndex={-1}
               style={styles.rowPress}
             >
               <Text
+                {...(chosen ? { testID: 'time-wheel-chosen' } : {})}
                 style={[
                   styles.rowText,
                   chosen && !row.busy && styles.rowChosen,

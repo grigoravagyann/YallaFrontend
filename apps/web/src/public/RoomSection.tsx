@@ -1,10 +1,16 @@
 import {
-  SHORT_NOTICE_HOURS,
+  isShortNotice,
   unavailableCopy,
   type PublicBranch,
   type TableAvailability,
 } from '@yalla/api';
-import { isOfflinePaused, PUBLIC_REFRESH_MS, useDaySlots, useSlotFloor } from '@yalla/api/react';
+import {
+  isOfflinePaused,
+  PUBLIC_REFRESH_MS,
+  useDaySlots,
+  useNow,
+  useSlotFloor,
+} from '@yalla/api/react';
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -58,11 +64,6 @@ function useHasApproached(ref: React.RefObject<HTMLElement | null>): boolean {
   }, [ref, seen]);
 
   return seen;
-}
-
-/** Today, or under six hours away: the floor decides a request, not the guest before. */
-function requestIsShortNotice(slotUtc: string, date: string, today: string): boolean {
-  return date === today || Date.parse(slotUtc) - Date.now() < SHORT_NOTICE_HOURS * 3_600_000;
 }
 
 export interface RoomSectionProps {
@@ -158,6 +159,8 @@ export function RoomSection({
   });
 
   const today = branchToday(branch.timeZoneId);
+  // Short notice is the server's rule, by the instant: today, or under six hours.
+  const now = useNow();
 
   /**
    * Apply a change to one control, refusing to store an unusable selection.
@@ -313,7 +316,7 @@ export function RoomSection({
       {branch.acceptsWebBookings && chosen?.state === 'requestable' ? (
         <p className="pub-muted">
           {t(
-            requestIsShortNotice(slotUtc, selection.date, today)
+            isShortNotice({ startUtc: slotUtc, timeZoneId: branch.timeZoneId, now })
               ? 'booking.approval.why'
               : 'table.requestable.earlierGuest',
             { ns: 'diner' },

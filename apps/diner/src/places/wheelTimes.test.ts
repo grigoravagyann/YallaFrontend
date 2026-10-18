@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  firstOfferedFrom,
   minuteIn,
   nearestOffered,
   quickTimes,
@@ -155,5 +156,15 @@ describe('the quick chips', () => {
       '17:15',
       '17:30',
     ]);
+  });
+});
+
+describe('after "too soon now"', () => {
+  it('is the first time on offer from the earliest the server still books', () => {
+    const slots = day(8, { '17:30': 'busy', '17:45': 'requestable' });
+    // Earliest 17:20: 17:30 is busy, 17:45 can be asked for.
+    expect(firstOfferedFrom(slots, BASE + 20 * MINUTE)?.label).toBe('17:45');
+    expect(firstOfferedFrom(slots, BASE + 15 * MINUTE)?.label).toBe('17:15');
+    expect(firstOfferedFrom(slots, BASE + 8 * 15 * MINUTE)).toBeNull();
   });
 });

@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   createContext,
   createElement,
@@ -454,6 +460,46 @@ export function useSlotFloor(input: {
           refetchIntervalInBackground: false,
         }
       : {}),
+  });
+}
+
+/**
+ * Several times' rooms at once, each the very query {@link useSlotFloor}
+ * makes — so a time already looked at is not asked again, and one asked here
+ * is there when the diner moves to it. For the times worth offering after a
+ * "no" to freeing a table by a time: which of them leave the chosen table, or
+ * any, with no limit is a question about each table, which the day of slots
+ * does not answer. No previous answer is kept: each result is its own time's.
+ */
+export function useSlotFloors(input: {
+  readonly branchId: string | undefined;
+  readonly slotUtcs: readonly string[];
+  readonly partySize: number;
+  readonly timeZoneId?: string | undefined;
+  readonly excludeBookingId?: string | undefined;
+}) {
+  const gateway = useGateway();
+  const { branchId, slotUtcs, partySize, timeZoneId, excludeBookingId } = input;
+  return useQueries({
+    queries: slotUtcs.map((slotUtc) => ({
+      queryKey: queryKeys.slotFloor(
+        branchId ?? '',
+        slotUtc,
+        partySize,
+        timeZoneId ?? '',
+        excludeBookingId,
+      ),
+      queryFn: () =>
+        gateway.getSlotFloor({
+          branchId: branchId!,
+          slotUtc,
+          partySize,
+          timeZoneId,
+          excludeBookingId,
+        }),
+      enabled: Boolean(branchId),
+      staleTime: staleTime.live,
+    })),
   });
 }
 

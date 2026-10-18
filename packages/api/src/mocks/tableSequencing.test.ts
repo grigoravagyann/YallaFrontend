@@ -134,3 +134,60 @@ describe('between two bookings', () => {
     });
   });
 });
+
+describe("the server's exemptions and nets (TableSequencing.Judge)", () => {
+  it('lets a start inside the 90 minutes when the guest before already promised to be gone in time', () => {
+    // P at 16:00 promised to leave by 17:00 (a booking at 17:05 asked, and they said yes).
+    const promised: SequencedBooking[] = [
+      { ...booked('p', '16:00'), endUtc: at('17:00'), promisedFreeByUtc: at('17:00') },
+    ];
+    expect(timing('17:05', promised)).toEqual({
+      kind: 'free',
+      mustFreeByUtc: null,
+      nextStartUtc: null,
+    });
+    // A start that leaves them less than the clearing time is still just booked.
+    expect(timing('17:04', promised)).toEqual({ kind: 'refused', because: 'justBooked' });
+  });
+
+  it('refuses a start the next booking would leave no time at all to sit down for', () => {
+    // A clearing time of 45 minutes: N at 20:00 makes the time to leave by 19:15.
+    const long = tableTiming({
+      startUtc: at('19:15'),
+      turnMinutes: TURN,
+      bufferMinutes: 45,
+      bookings: [booked('n', '20:00')],
+    });
+    expect(long).toEqual({ kind: 'refused', because: 'nextTooSoon' });
+  });
+
+  it('refuses a request that would have the guest before leave before they arrived', () => {
+    // A clearing time of two hours: asking at 18:00 means leaving by 16:00 — their start.
+    const asked = tableTiming({
+      startUtc: at('18:00'),
+      turnMinutes: TURN,
+      bufferMinutes: 120,
+      bookings: [booked('p', '16:00')],
+    });
+    expect(asked).toEqual({ kind: 'refused', because: 'justBooked' });
+  });
+
+  it('asks one question at a time', () => {
+    const beingAsked: SequencedBooking[] = [{ ...booked('p', '16:00'), isBeingAsked: true }];
+    expect(timing('17:30', beingAsked)).toEqual({
+      kind: 'refused',
+      because: 'earlierGuestBeingAsked',
+    });
+  });
+
+  it('still refuses an overlap with any other booking on the table, the one asked aside', () => {
+    // P at 16:00 sits until 19:30 (a late party), another booking at 13:00 runs long too —
+    // the latest before is P; the long one before it overlaps the start and refuses it.
+    const longBefore: SequencedBooking = {
+      ...booked('a', '13:00', 300),
+      promisedFreeByUtc: null,
+    };
+    const result = timing('17:30', [longBefore, booked('p', '16:00')]);
+    expect(result).toEqual({ kind: 'refused', because: 'alreadyBooked' });
+  });
+});

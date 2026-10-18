@@ -76,8 +76,8 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
       }
     : booking;
   const now = useNow(awaitsVenueAnswer(answerState) ? 1000 : 30_000);
-  const answer = venueAnswerCopy(answerState, now);
-  const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now);
+  const answer = venueAnswerCopy(answerState, now, locale);
+  const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now, locale);
   const declinedTitle = declinedCopy(answerState.declinedBecause, 'title');
   const declinedBody = declinedCopy(answerState.declinedBecause, 'body');
 

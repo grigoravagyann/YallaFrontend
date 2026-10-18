@@ -235,3 +235,64 @@ describe('a booking at short notice', () => {
     expect(alert.textContent).toMatch(/^Too late: the time to answer ran out/u);
   });
 });
+
+describe('a booking the guest before answers in the app', () => {
+  const THEIRS =
+    'The guest before is answering this in the app. It is decided when they do, or declined if they do not.';
+
+  it('offers no decision, and says whose answer it waits for', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const theirs: ConsoleGateway = {
+      ...base,
+      listPendingReservations: async (branchId) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.id === first!.id
+            ? {
+                ...booking,
+                awaitingApprovalBecause: 'earlierGuestConsent' as const,
+                approvalExpiresAtUtc: new Date(Date.now() + 90 * 60_000).toISOString(),
+              }
+            : booking,
+        ),
+    };
+    renderPolicy({ gateway: theirs });
+    const panel = await waitForPanel();
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    expect(within(row).getByText(THEIRS)).toBeTruthy();
+    expect(within(row).queryByRole('button', { name: /^approve$/i })).toBeNull();
+    expect(within(row).queryByRole('button', { name: /^decline$/i })).toBeNull();
+  });
+
+  it('stops offering one once the server says so', async () => {
+    const user = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const refused: ConsoleGateway = {
+      ...base,
+      approveReservation: () =>
+        Promise.reject(
+          new ConcurrencyConflictError({
+            url: 'mock://approve',
+            problem: {
+              type: 'about:blank',
+              title: 'Conflict',
+              status: 409,
+              detail: 'It waits on the earlier guest.',
+              code: 'reservation-awaiting-earlier-guest',
+              traceId: 'mock',
+            },
+          }),
+        ),
+    };
+    renderPolicy({ gateway: refused });
+    const panel = await waitForPanel();
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+
+    expect((await within(row).findByRole('alert')).textContent).toBe(THEIRS);
+    expect(within(row).queryByRole('button', { name: /^approve$/i })).toBeNull();
+  });
+});

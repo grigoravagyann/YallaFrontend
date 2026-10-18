@@ -2,7 +2,7 @@ import { TableRequestClosedError, tableRequestCopy, type Booking } from '@yalla/
 import { formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useAnswerTableRequest } from '../../data/queries';
 import { haptics } from '../../lib/haptics';
@@ -29,21 +29,68 @@ type Outcome =
  */
 export function TableRequestCard({
   booking,
+  autoAnswer,
   style,
 }: {
   readonly booking: Booking;
+  /**
+   * The Yes or No pressed on the push for this request: sent once, on arrival,
+   * and shown like a tap here — thanks, or the error with the buttons again.
+   * Ignored for any other request than the one on the booking now.
+   */
+  readonly autoAnswer?: { readonly requestId: string; readonly accept: boolean } | undefined;
   readonly style?: StyleProp<ViewStyle>;
 }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const answer = useAnswerTableRequest();
-  const commandId = useRef<string | null>(null);
+  // One id per answer, as the push keys them: a retry of the same answer
+  // replays, and the other answer is never sent under the first one's id.
+  const commandIds = useRef(new Map<boolean, string>());
   // A send under way: two taps in one frame both run before the mutation's
   // own pending state reaches a render.
   const sending = useRef(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [failed, setFailed] = useState(false);
   const request = booking.incomingTableRequest ?? null;
+  // The lock-screen answer, once, for the request it was given for.
+  const autoSent = useRef(false);
+
+  /** The answer, sent: from a tap or from the push. State changes only in its callbacks. */
+  const submit = (accept: boolean) => {
+    if (!request || sending.current) return;
+    sending.current = true;
+    let commandId = commandIds.current.get(accept);
+    if (!commandId) {
+      commandId = newCommandId();
+      commandIds.current.set(accept, commandId);
+    }
+    const freeByUtc = request.freeByUtc;
+    answer.mutate(
+      { bookingId: booking.id, requestId: request.requestId, accept, commandId },
+      {
+        onSuccess: () => {
+          haptics.success();
+          setFailed(false);
+          setOutcome(accept ? { kind: 'yes', freeByUtc } : { kind: 'no' });
+        },
+        onError: (error) => {
+          sending.current = false;
+          if (error instanceof TableRequestClosedError) setOutcome({ kind: 'closed' });
+          else setFailed(true);
+        },
+      },
+    );
+  };
+
+  useEffect(() => {
+    if (autoSent.current || !autoAnswer || !request) return;
+    if (autoAnswer.requestId !== request.requestId) return;
+    autoSent.current = true;
+    submit(autoAnswer.accept);
+    // `submit` reads the request it was rendered with; once is the point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAnswer, request]);
 
   if (outcome) {
     return (
@@ -68,28 +115,8 @@ export function TableRequestCard({
 
   const send = (accept: boolean) => {
     if (sending.current) return;
-    sending.current = true;
     setFailed(false);
-    commandId.current ??= newCommandId();
-    answer.mutate(
-      {
-        bookingId: booking.id,
-        requestId: request.requestId,
-        accept,
-        commandId: commandId.current,
-      },
-      {
-        onSuccess: () => {
-          haptics.success();
-          setOutcome(accept ? { kind: 'yes', freeByUtc: request.freeByUtc } : { kind: 'no' });
-        },
-        onError: (error) => {
-          sending.current = false;
-          if (error instanceof TableRequestClosedError) setOutcome({ kind: 'closed' });
-          else setFailed(true);
-        },
-      },
-    );
+    submit(accept);
   };
 
   return (

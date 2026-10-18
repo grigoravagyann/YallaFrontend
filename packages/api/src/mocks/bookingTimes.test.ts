@@ -200,6 +200,31 @@ describe('the promise to free the table', () => {
   });
 });
 
+describe('a change of party size alone', () => {
+  it('keeps the promise without asking for it again, and never lengthens the sitting', async () => {
+    const gateway = world(clock());
+    await signedIn(gateway);
+    const later = await bookedAtSeven(gateway);
+    const kept = await gateway.createBooking(
+      command(later.tableId, at(TOMORROW, '17:30'), { acceptsFreeByUtc: at(TOMORROW, '18:55') }),
+    );
+
+    const moved = await gateway.rescheduleBooking({
+      bookingId: kept.id,
+      commandId: crypto.randomUUID(),
+      tableId: kept.tableId,
+      slotUtc: kept.slotUtc,
+      timeZoneId: 'Asia/Yerevan',
+      partySize: 1,
+    });
+    expect(moved).toMatchObject({
+      partySize: 1,
+      promisedFreeByUtc: at(TOMORROW, '18:55'),
+      endUtc: at(TOMORROW, '18:55'),
+    });
+  });
+});
+
 describe('a request to the guest before', () => {
   async function requested(time = clock(), options: MockGatewayOptions = {}) {
     const gateway = world(time, options);
@@ -334,6 +359,93 @@ describe('a request to the guest before', () => {
     });
     const later = await gateway.createBooking(command(table.tableId, at('2026-10-19', '16:45')));
     expect(later.awaitingApprovalBecause).toBe('shortNotice');
+  });
+});
+
+describe("the server's review rules (reservations.md §3e)", () => {
+  it('never judges a confirmed booking again for a change that keeps its table and start', async () => {
+    const gateway = world(clock());
+    await signedIn(gateway);
+    // 17:30 first, uncut; then a 19:00 on the same table, which asks its guest.
+    const floor = await floorAt(gateway, '17:30');
+    const table = floor.tables.find((entry) => entry.isBookable)!;
+    const kept = await gateway.createBooking(command(table.tableId, at(TOMORROW, '17:30')));
+    const asking = await gateway.createBooking(command(table.tableId, at(TOMORROW, '19:00')));
+    expect(asking.awaitingApprovalBecause).toBe('earlierGuestConsent');
+
+    // A smaller party: no promise asked for, nothing refused.
+    const smaller = await gateway.rescheduleBooking({
+      bookingId: kept.id,
+      commandId: crypto.randomUUID(),
+      tableId: kept.tableId,
+      slotUtc: kept.slotUtc,
+      timeZoneId: 'Asia/Yerevan',
+      partySize: 1,
+    });
+    expect(smaller).toMatchObject({ status: 'confirmed', partySize: 1, endUtc: kept.endUtc });
+    expect(smaller.promisedFreeByUtc ?? null).toBeNull();
+  });
+
+  it('keeps a moved request, and its deadline, while it asks the same guest', async () => {
+    const time = clock();
+    const gateway = world(time);
+    await signedIn(gateway);
+    const earlier = await bookedAtSeven(gateway);
+    const later = await gateway.createBooking(command(earlier.tableId, at(TOMORROW, '20:30')));
+    const asked = (await gateway.getBooking(earlier.id))!.incomingTableRequest!;
+
+    time.advance(30 * MINUTE);
+    const moved = await gateway.rescheduleBooking({
+      bookingId: later.id,
+      commandId: crypto.randomUUID(),
+      tableId: later.tableId,
+      slotUtc: at(TOMORROW, '20:45'),
+      timeZoneId: 'Asia/Yerevan',
+      partySize: 2,
+    });
+
+    // The two hours do not restart.
+    expect(moved).toMatchObject({
+      status: 'pendingApproval',
+      awaitingApprovalBecause: 'earlierGuestConsent',
+      approvalExpiresAtUtc: '2026-10-19T10:00:00.000Z',
+    });
+    // The same question, retimed — not a second one.
+    expect((await gateway.getBooking(earlier.id))!.incomingTableRequest).toMatchObject({
+      requestId: asked.requestId,
+      requestedStartUtc: at(TOMORROW, '20:45'),
+      freeByUtc: at(TOMORROW, '20:40'),
+      expiresAtUtc: '2026-10-19T10:00:00.000Z',
+    });
+  });
+
+  it('leaves the floor to decide, with no clock, when the guest before booked on the web', async () => {
+    const time = clock();
+    const gateway = world(time, { seedNeighbourBookings: true });
+    await signedIn(gateway);
+    const floor = await floorAt(gateway, '21:30');
+    const requestable = floor.tables.filter((entry) => entry.isBookable && entry.isRequestable);
+    expect(requestable.length).toBeGreaterThanOrEqual(2);
+
+    const made = await Promise.all(
+      requestable
+        .slice(0, 2)
+        .map((table) => gateway.createBooking(command(table.tableId, at(TOMORROW, '21:30')))),
+    );
+    for (const booking of made) {
+      expect(booking).toMatchObject({
+        status: 'pendingApproval',
+        awaitingApprovalBecause: 'earlierGuestConsent',
+      });
+    }
+    // One guest before booked in the app (two hours to answer), one on the web (the floor's, no clock).
+    expect(made.map((booking) => booking.approvalExpiresAtUtc === null).sort()).toEqual([
+      false,
+      true,
+    ]);
+    const floors = made.find((booking) => booking.approvalExpiresAtUtc === null)!;
+    time.advance(121 * MINUTE);
+    expect(await gateway.getBooking(floors.id)).toMatchObject({ status: 'pendingApproval' });
   });
 });
 

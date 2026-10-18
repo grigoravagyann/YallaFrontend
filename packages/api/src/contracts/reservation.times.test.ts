@@ -133,6 +133,20 @@ describe('a booking waiting for the guest before', () => {
     ).toEqual({ key: 'booking.approval.waitingEarlierGuest', params: { time: '90:00' } });
   });
 
+  it('says a wait past an hour in hours and minutes, given the language', () => {
+    const line = venueAnswerCopy(
+      {
+        status: 'pendingApproval',
+        awaitingApprovalBecause: 'earlierGuestConsent',
+        approvalExpiresAtUtc: '2026-10-19T11:59:00.000Z',
+        declinedBecause: null,
+      },
+      now,
+      'en',
+    );
+    expect(line?.params['time']).toMatch(/^1 hr,? 59 mins?$/u);
+  });
+
   it('keeps the venue sentence for every other wait', () => {
     expect(
       venueAnswerCopy(
@@ -188,5 +202,21 @@ describe('a send refused for want of the promise', () => {
       nextBookingStartUtc: null,
       line: { key: 'confirm.error.freeByRequiredNoTime', params: {} },
     });
+  });
+});
+
+describe("the floor's question to the guest before, for another day", () => {
+  it('says the venue will confirm, with no clock — there is none', () => {
+    expect(
+      venueAnswerCopy(
+        {
+          status: 'pendingApproval',
+          awaitingApprovalBecause: 'earlierGuestConsent',
+          approvalExpiresAtUtc: null,
+          declinedBecause: null,
+        },
+        new Date('2026-10-19T10:00:00.000Z'),
+      ),
+    ).toEqual({ key: 'booking.approval.venueWillConfirm', params: {} });
   });
 });

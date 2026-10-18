@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import {
+  LeadTimeExceededError,
   MAX_BOOKING_NOTE,
-  SHORT_NOTICE_HOURS,
   bookingFailure,
+  isShortNotice,
   unavailableCopy,
   type CopyLine,
   type TableAvailability,
@@ -48,6 +49,7 @@ import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
 import { useDinerProfile } from '../../src/data/accountQueries';
+import { useMinuteClock } from '../../src/hooks/useMinuteClock';
 import { bookingRefusal, changeFailureLine } from '../../src/data/bookingRefusals';
 import {
   keys,
@@ -56,23 +58,31 @@ import {
   useDaySlots,
   useRescheduleBooking,
   useSlotFloor,
+  useSlotFloors,
 } from '../../src/data/queries';
 import { useReducedMotion } from '../../src/hooks/useReducedMotion';
 import { newCommandId } from '../../src/lib/commandId';
-import { GUEST_NAME_MAX_LENGTH } from '../../src/lib/confirm';
+import { GUEST_NAME_MAX_LENGTH, freeByAnswered, freeByNeeded } from '../../src/lib/confirm';
 import { placeKeys, usePlace, usePlaceRooms } from '../../src/places/hooks';
 import { shiftDateKey, type Place, type PlaceRoom } from '../../src/places/model';
 import { roomsAtSlot, slotRefusal } from '../../src/places/rooms';
 import { bookingRulesInput } from '../../src/places/navigation';
 import {
+  answerFor,
   dayRefusalLine,
   pickSlot,
   slotAvailability,
   slotFloorVerdict,
+  unlimitedAt,
   wheelSlots,
   withSoon,
 } from '../../src/places/slotAvailability';
-import { quickTimes, soonInstant, type WheelSlot } from '../../src/places/wheelTimes';
+import {
+  firstOfferedFrom,
+  quickTimes,
+  soonInstant,
+  type WheelSlot,
+} from '../../src/places/wheelTimes';
 import {
   LEAD_MINUTES,
   SLOT_MINUTES,
@@ -109,7 +119,8 @@ const PARTY_MAX = 12;
 const SLOT_GAP = 6;
 /** The quick chips after "In 10 min": the nearest free times. */
 const QUICK_TIMES = 3;
-const HOUR_MS = 3_600_000;
+/** After a "no" to freeing the table by a time: how many nearby times are asked about. */
+const PROBE_TIMES = 6;
 const DAYS_IN_VIEW = 4;
 const DAY_GAP = space.sm;
 /** The party pill: four 44pt choices with 4 between them. */
@@ -305,8 +316,13 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   const bookingsOff =
     place.acceptsAppBookings === false || rulesQuery.data?.acceptsAppBookings === false;
 
-  // "Now", read once: the slot list must not reshuffle under a finger.
-  const now = useMemo(() => new Date(), []);
+  /*
+   * "Now", re-read each minute and when the app comes back to the front: read
+   * once, a screen left open went on offering today's first time and "in 10
+   * min" after the lead time had passed them. Only a new minute re-renders,
+   * so the times do not reshuffle under a finger between readings.
+   */
+  const [now, refreshNow] = useMinuteClock();
   /*
    * The booking being changed, by its instant: the strip day whose times hold
    * it (a bar's 00:30 is the evening before's), and the instant itself, which
@@ -440,6 +456,12 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
     [slots, availability.hidden],
   );
   /*
+   * The wheel's rows: every time on offer, free, requestable or busy (drawn
+   * struck). Each is matched by its instant: a late night's 00:30 is not the
+   * evening's own.
+   */
+  const wheelRows = useMemo(() => wheelSlots(shownSlots, availability), [shownSlots, availability]);
+  /*
    * The tapped time while it can be had. Before a tap, a change wants the
    * booking's own time and a new booking the first time that can be had.
    * A new booking whose time is gone gets the nearest one that can be; a
@@ -471,23 +493,33 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   });
   // With every time struck there is no slot, and the last slot's room (kept
   // on screen between answers) is not drawn as if it were this one's.
-  const slotAnswer = activeSlot ? slotQuery.data : undefined;
+  const slotShown = activeSlot ? slotQuery.data : undefined;
+  /*
+   * What the screen decides on — the table a press books, whether it needs a
+   * promise, why it cannot be had — is only ever this time's answer: the last
+   * one stays drawn while the next loads, and Confirm waits for it.
+   */
+  const slotAnswer = useMemo(
+    () => answerFor(slotShown, slotUtc ? Date.parse(slotUtc) : null, partySize),
+    [slotShown, slotUtc, partySize],
+  );
   const slotTables = slotAnswer?.tables;
   /*
    * The rooms as they will be at the slot: every pin coloured by its state
    * then, and bookable only where the server would give it to this party.
    */
-  const slotPlan = slotAnswer?.plan.tables;
+  const shownPlan = slotShown?.plan.tables;
+  const shownTables = slotShown?.tables;
   const slotRooms = useMemo(() => {
-    if (!slotPlan) return [];
-    const verdicts = new Map((slotTables ?? []).map((table) => [table.tableId, table]));
+    if (!shownPlan) return [];
+    const verdicts = new Map((shownTables ?? []).map((table) => [table.tableId, table]));
     return roomsAtSlot(
       rooms,
-      slotPlan,
+      shownPlan,
       (tableId) => verdicts.get(tableId)?.isBookable ?? false,
       (tableId) => verdicts.get(tableId)?.unavailableReason ?? null,
     ).filter((room) => room.photos.some((photo) => photo.tables.length > 0));
-  }, [rooms, slotPlan, slotTables]);
+  }, [rooms, shownPlan, shownTables]);
   const chosenAtSlot = useMemo(
     () => slotTables?.find((table) => table.tableId === chosenTable?.tableId) ?? null,
     [slotTables, chosenTable?.tableId],
@@ -509,10 +541,12 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       return t(line.key, line.params);
     }
     if (slotAnswer && !chosenAtSlot) return t('confirm.tableMissing');
+    // This time's answer is on its way: nothing said until it is here.
+    if (slotShown) return null;
     // No slot answer yet: the photo's live state is the best available word.
     if (chosenTable.live && chosenTable.live.status !== 'free') return t('tables.notBookable');
     return null;
-  }, [chosenTable, chosenAtSlot, slotAnswer, partySize, t]);
+  }, [chosenTable, chosenAtSlot, slotAnswer, slotShown, partySize, t]);
 
   // Who books. The number is verified by SMS; the name is remembered from the
   // first booking and asked for once here when it is not.
@@ -557,6 +591,20 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   );
   // Must the diner promise to free it by a time? Asked before sending.
   const targetFreeBy = targetAtSlot?.isBookable ? (targetAtSlot.mustFreeByUtc ?? null) : null;
+  /*
+   * The server's time, once a refusal named it, for the time, table and party
+   * it was said for — newer than the room, so it wins over it until one of
+   * them changes (see `freeByNeeded`).
+   */
+  const freeByKey = `${slotUtc}|${targetTableId ?? ''}|${partySize}`;
+  const [serverFreeBy, setServerFreeBy] = useState<{
+    readonly key: string;
+    readonly freeByUtc: string;
+  } | null>(null);
+  const neededFreeBy = freeByNeeded({
+    server: serverFreeBy?.key === freeByKey ? serverFreeBy.freeByUtc : null,
+    table: targetFreeBy,
+  });
   const [freeByAsk, setFreeByAsk] = useState<{
     readonly freeByUtc: string;
     readonly nextStartUtc: string | null;
@@ -586,6 +634,8 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
 
   const canConfirm =
     activeSlot !== null &&
+    // Never on the last time's answer, kept on screen while this one's loads.
+    slotAnswer !== undefined &&
     targetTableId !== null &&
     chosenRefusal === null &&
     !pending &&
@@ -618,6 +668,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
         void slotQuery.refetch();
         setOutcomeUnknown(false);
         if (failure.requiredFreeByUtc) {
+          setServerFreeBy({ key: freeByKey, freeByUtc: failure.requiredFreeByUtc });
           setFreeByAsk({
             freeByUtc: failure.requiredFreeByUtc,
             nextStartUtc:
@@ -642,6 +693,22 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
           animated: !reducedMotion,
         });
         return;
+      }
+      /*
+       * Time passed while the diner chose: the clock is read again, the day's
+       * times with it, and a new booking moves on to the first time the
+       * server still books — said, not silently. A change keeps nothing it
+       * did not choose: its time is gone, and it says so.
+       */
+      if (failure.kind === 'leadTime') {
+        refreshNow();
+        void daySlotsQuery.refetch();
+        if (nextDateKey) void nextDaySlotsQuery.refetch();
+        if (!change && error instanceof LeadTimeExceededError) {
+          const earliest = Date.parse(error.earliestSlotUtc);
+          const next = Number.isNaN(earliest) ? null : firstOfferedFrom(wheelRows, earliest);
+          setPickedMs(next ? next.at : null);
+        }
       }
       // Nothing was booked; the command id stays for the retry.
       if (failure.kind === 'phoneNotVerified' && !change) {
@@ -668,7 +735,12 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       reducedMotion,
       setVerifyRefused,
       setFreeByAsk,
+      setServerFreeBy,
+      setPickedMs,
       targetAtSlot,
+      freeByKey,
+      refreshNow,
+      wheelRows,
     ],
   );
 
@@ -678,15 +750,19 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       clearErrors();
       setFreeByDeclined(false);
 
-      // A booking follows on the table: asked first, never sent without a yes.
-      if (targetFreeBy && acceptsFreeByUtc !== targetFreeBy) {
+      /*
+       * A booking follows on the table: asked first, never sent without a yes
+       * to that very instant — the server's once it named one — and what goes
+       * is the instant the diner agreed to.
+       */
+      if (!freeByAnswered(acceptsFreeByUtc, neededFreeBy)) {
         setFreeByAsk({
-          freeByUtc: targetFreeBy,
+          freeByUtc: neededFreeBy!,
           nextStartUtc: targetAtSlot?.window?.nextBookingStartUtc ?? null,
         });
         return;
       }
-      const promise = acceptsFreeByUtc ? { acceptsFreeByUtc } : {};
+      const promise = neededFreeBy && acceptsFreeByUtc ? { acceptsFreeByUtc } : {};
 
       // Change mode: move the booking, then back to it with a word of what happened.
       if (change) {
@@ -797,7 +873,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       queryClient,
       t,
       clearErrors,
-      targetFreeBy,
+      neededFreeBy,
       targetAtSlot,
       setFreeByAsk,
       setFreeByDeclined,
@@ -828,12 +904,6 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   );
   const moreAllowed = moreSizes.length > 0;
 
-  /*
-   * The wheel's rows: every time on offer, free, requestable or busy (drawn
-   * struck). Each is matched by its instant: a late night's 00:30 is not the
-   * evening's own.
-   */
-  const wheelRows = useMemo(() => wheelSlots(shownSlots, availability), [shownSlots, availability]);
   const activeMs = activeSlot ? activeSlot.at.getTime() : null;
   const timeLabel = (at: number) => formatTime(new Date(at), place.timeZoneId, locale);
 
@@ -842,9 +912,10 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
    * reader hears: only as a request (the guest before, another day; the
    * floor, today), and by when the table must be free.
    */
+  // The server's rule, by the instant: a bar's 00:30 on tonight's strip is
+  // tomorrow, and twelve hours off is not short notice.
   const shortNotice =
-    activeSlot !== null &&
-    (isToday || activeSlot.at.getTime() - now.getTime() < SHORT_NOTICE_HOURS * HOUR_MS);
+    activeSlot !== null && isShortNotice({ startUtc: slotUtc, timeZoneId: place.timeZoneId, now });
   const requestNote =
     activeMs !== null && availability.requestable.has(activeMs)
       ? t(shortNotice ? 'booking.approval.why' : 'table.requestable.earlierGuest')
@@ -886,19 +957,46 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
         : null,
     );
   };
-  // After a "no" to the promise: times with no limit, nearest the one chosen.
-  const unlimited = useMemo(
+  /*
+   * After a "no" to the promise: the nearest free times, each asked of the
+   * room, and offered when the chosen table — or, with none chosen, any
+   * table — has no limit then (see `unlimitedAt`). Asked only after a no.
+   */
+  const probeRows = useMemo(
     () =>
-      activeMs === null
-        ? []
-        : quickTimes(
-            wheelRows.filter((row) => row.state === 'free' && !availability.mustFreeBy.has(row.at)),
+      freeByDeclined && activeMs !== null
+        ? quickTimes(
+            wheelRows.filter((row) => row.state === 'free'),
             activeMs,
-            QUICK_TIMES,
+            PROBE_TIMES,
             activeMs,
-          ),
-    [wheelRows, availability.mustFreeBy, activeMs],
+          )
+        : [],
+    [freeByDeclined, wheelRows, activeMs],
   );
+  const probeSlotUtcs = useMemo(
+    () => probeRows.map((row) => new Date(row.at).toISOString()),
+    [probeRows],
+  );
+  const probes = useSlotFloors({
+    branchId: probeRows.length > 0 ? place.id : undefined,
+    slotUtcs: probeSlotUtcs,
+    partySize,
+    timeZoneId: place.timeZoneId,
+    excludeBookingId,
+  });
+  const declinedTableId = chosenTable?.tableId ?? null;
+  const unlimited =
+    activeMs === null
+      ? []
+      : quickTimes(
+          probeRows.filter((row, i) =>
+            unlimitedAt(answerFor(probes[i]?.data, row.at, partySize), declinedTableId),
+          ),
+          activeMs,
+          QUICK_TIMES,
+          activeMs,
+        );
   // Under the times, when any is struck: why — the day's own reason when the
   // whole day is refused, else that a struck time has no free table.
   const lineText = (line: CopyLine) => t(line.key, line.params);
@@ -1050,6 +1148,18 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
               ) : null}
               {requestNote ? <Text style={styles.slotNote}>{requestNote}</Text> : null}
               {freeByNote ? <Text style={styles.slotNote}>{freeByNote}</Text> : null}
+              {/* This time's tables could not be read: Confirm waits, and says why. */}
+              {activeSlot && !slotAnswer && slotQuery.isError ? (
+                <View accessibilityRole="alert" style={styles.slotError}>
+                  <Text style={styles.slotNote}>{t('confirm.tableError')}</Text>
+                  <Chip
+                    shape="rounded"
+                    size="sm"
+                    label={t('net.retry')}
+                    onPress={() => void slotQuery.refetch()}
+                  />
+                </View>
+              ) : null}
               {struckHint ? <Text style={styles.struckHint}>{struckHint}</Text> : null}
             </View>
           )}
@@ -1567,6 +1677,7 @@ const styles = StyleSheet.create({
   quickRow: { flexDirection: 'row', gap: space.sm, paddingVertical: space.xs },
   snapNote: { ...typography.caption, color: colors.warningInk, paddingHorizontal: space.xs },
   slotNote: { ...typography.caption, color: colors.infoInk, paddingHorizontal: space.xs },
+  slotError: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
   freeByOther: {
     gap: space.sm,
     padding: space.md,

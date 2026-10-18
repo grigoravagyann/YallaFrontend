@@ -39,7 +39,7 @@ import type {
 } from '../contracts/ordering';
 import {
   APPROVAL_EXPIRED_CODE,
-  EARLIER_GUEST_WINDOW_MINUTES,
+  waitsOnEarlierGuestInApp,
   type ApprovalTrigger,
   type AwaitingApproval,
   type ConsoleBooking,
@@ -491,7 +491,6 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     if (askTable) {
       const madeAt = new Date(start.getTime() - 5 * 60_000);
       const startUtc = minutesFrom(start, 26 * 60);
-      const window = madeAt.getTime() + EARLIER_GUEST_WINDOW_MINUTES * 60_000;
       awaiting.set('res-await-4', {
         id: 'res-await-4',
         code: 'Y3133',
@@ -501,7 +500,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         partySize: 2,
         startUtc,
         arrivesAtUtc: iso(madeAt),
-        approvalExpiresAtUtc: iso(new Date(window)),
+        // The floor's question for another day: no clock — it waits as any
+        // booking the floor decides (reservations.md §3e).
+        approvalExpiresAtUtc: null,
         because: 'earlierGuestConsent',
         note: null,
         previousBooking: {
@@ -943,9 +944,14 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       if (request.status !== 'pendingApproval') continue;
       if (answerWindowClosed(request.approvalExpiresAtUtc, request.startUtc, at)) {
         request.status = 'cancelledByVenue';
-        // Nobody rang the guest before in their two hours: said as theirs.
-        request.declinedBecause =
-          request.because === 'earlierGuestConsent' ? 'earlierGuestNoAnswer' : 'noAnswer';
+        // The guest before let their two hours in the app run out: said as
+        // theirs. Anything the floor left unanswered is the floor's.
+        request.declinedBecause = waitsOnEarlierGuestInApp(
+          request.because,
+          request.approvalExpiresAtUtc,
+        )
+          ? 'earlierGuestNoAnswer'
+          : 'noAnswer';
       }
     }
   }
@@ -989,6 +995,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       throw conflict(
         APPROVAL_EXPIRED_CODE,
         `The answer window for ${request.code} has closed; the guest has been told the venue could not confirm in time.`,
+      );
+    }
+    // The guest before answers it in the app: not the floor's to decide.
+    if (
+      request.status === 'pendingApproval' &&
+      waitsOnEarlierGuestInApp(request.because, request.approvalExpiresAtUtc)
+    ) {
+      throw conflict(
+        'reservation-awaiting-earlier-guest',
+        `${request.code} waits on the earlier guest's answer in the app.`,
       );
     }
     if (request.status !== 'pendingApproval') {
@@ -1354,7 +1370,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       sweepAwaiting(at);
       const listed = [...awaiting.values()]
         .filter(
-          (request) => request.status === 'pendingApproval' && request.arrivesAtUtc <= iso(at),
+          (request) =>
+            request.status === 'pendingApproval' &&
+            request.arrivesAtUtc <= iso(at) &&
+            // Waiting on the guest before's own answer: theirs, not on this list.
+            !waitsOnEarlierGuestInApp(request.because, request.approvalExpiresAtUtc),
         )
         // The server's order: those with a deadline, soonest deadline first,
         // then those with none, by start.

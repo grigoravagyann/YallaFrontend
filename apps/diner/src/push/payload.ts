@@ -141,7 +141,18 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
  * and so a test can assert the href without a navigator.
  */
 export type PushRoute =
-  | { readonly pathname: '/booking/[bookingId]'; readonly params: { bookingId: string } }
+  | {
+      readonly pathname: '/booking/[bookingId]';
+      readonly params: {
+        bookingId: string;
+        /**
+         * A lock-screen Yes or No to a later guest's request: the booking's own
+         * card sends it, and says whether it went through.
+         */
+        answer?: 'yes' | 'no';
+        requestId?: string;
+      };
+    }
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } };
 
 export function routeFor(target: PushTarget): PushRoute | null {
@@ -157,6 +168,30 @@ export function routeFor(target: PushTarget): PushRoute | null {
     default:
       return null;
   }
+}
+
+/**
+ * Where a lock-screen Yes or No to a table request goes: the booking, carrying
+ * the answer and the request it was for.
+ *
+ * The button opens the app rather than answering from the lock screen: a
+ * killed app has no listener to answer with, and on a locked iPhone the session
+ * cannot be read from the keychain, so an answer sent from there would fail
+ * unseen. Opened, the booking's card sends it — for that request only — and
+ * shows the guest whether it went through.
+ */
+export function tableRequestRoute(
+  target: Extract<PushTarget, { kind: 'tableRequest' }>,
+  accept: boolean,
+): Extract<PushRoute, { pathname: '/booking/[bookingId]' }> {
+  return {
+    pathname: '/booking/[bookingId]',
+    params: {
+      bookingId: target.reservationId,
+      answer: accept ? 'yes' : 'no',
+      requestId: target.requestId,
+    },
+  };
 }
 
 /**

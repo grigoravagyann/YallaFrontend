@@ -164,7 +164,7 @@
       "noShowHistory": "Missed bookings before",
       "branchApprovesEveryBooking": "Every booking needs an OK",
       "unknown": "Needs an OK",
-      "earlierGuestConsent": "Guest before booked on the web"
+      "earlierGuestConsent": "The guest before can't be asked in the app — call them"
     },
     "answerWithin": "Answer within",
     "leftLabel": "{{time}} left to answer",
@@ -204,7 +204,8 @@
     "arrived_one": "New booking request: table {{label}} at {{time}}, {{count}} guest.",
     "arrived_other": "New booking request: table {{label}} at {{time}}, {{count}} guests.",
     "askBefore": "Ask {{name}} whether the table will be free by {{time}}",
-    "leavesBy": "leaves by {{time}}"
+    "leavesBy": "leaves by {{time}}",
+    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not."
   },
   "conflicts": {
     "title": "Needs a decision",

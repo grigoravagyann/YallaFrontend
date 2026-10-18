@@ -90,6 +90,18 @@ export function minuteIn(hour: WheelHour, minutes: string): WheelSlot | null {
   return best;
 }
 
+/**
+ * The first time that can be had from `fromMs` on — where the wheel goes when
+ * the server says the chosen time became too soon and names the earliest it
+ * still books. `null` when nothing is left that day.
+ */
+export function firstOfferedFrom(slots: readonly WheelSlot[], fromMs: number): WheelSlot | null {
+  return (
+    slots.filter((slot) => isOffered(slot) && slot.at >= fromMs).sort((a, b) => a.at - b.at)[0] ??
+    null
+  );
+}
+
 /** The time nearest `at` that can be had — the later of two equally near. */
 export function nearestOffered(slots: readonly WheelSlot[], at: number): WheelSlot | null {
   let best: WheelSlot | null = null;

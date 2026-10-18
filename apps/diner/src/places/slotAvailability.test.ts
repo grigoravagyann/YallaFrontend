@@ -1,10 +1,12 @@
-import type { DaySlot, DaySlots } from '@yalla/api';
+import type { DaySlot, DaySlots, SlotFloor, TableAvailability } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
+  answerFor,
   dayRefusalLine,
   pickSlot,
   slotAvailability,
   slotFloorVerdict,
+  unlimitedAt,
   wheelSlots,
   withSoon,
 } from './slotAvailability';
@@ -317,3 +319,65 @@ const NOTHING_AVAILABLE = {
   mustFreeBy: new Map<number, string>(),
   dayReason: null,
 };
+
+describe("the room's answer for the chosen time", () => {
+  const table = (id: string, extra: Partial<TableAvailability> = {}): TableAvailability => ({
+    tableId: id,
+    tableLabel: id,
+    floorAreaName: null,
+    seats: 4,
+    isBookable: true,
+    unavailableReason: null,
+    window: null,
+    freeCancellationUntilUtc: null,
+    requiresApproval: false,
+    ...extra,
+  });
+  const floor = (tables: readonly TableAvailability[], extra: Partial<SlotFloor> = {}) =>
+    ({
+      plan: { tables: [] } as unknown as SlotFloor['plan'],
+      tables,
+      rejection: null,
+      // The server's spelling: no milliseconds.
+      slotUtc: '2026-10-18T15:00:00Z',
+      partySize: 2,
+      ...extra,
+    }) satisfies SlotFloor;
+
+  it('is the answer only when it is about that instant and that party', () => {
+    const answer = floor([table('t1')]);
+    expect(answerFor(answer, ms('19:00'), 2)).toBe(answer);
+    // The last time's room, kept on screen while this one's loads: no answer yet.
+    expect(answerFor(answer, ms('19:30'), 2)).toBeUndefined();
+    expect(answerFor(answer, ms('19:00'), 3)).toBeUndefined();
+    expect(answerFor(undefined, ms('19:00'), 2)).toBeUndefined();
+    expect(answerFor(answer, null, 2)).toBeUndefined();
+  });
+
+  it('has no limit for the chosen table only when that table is free outright', () => {
+    const answer = floor([
+      table('t1', { mustFreeByUtc: '2026-10-18T16:25:00Z' }),
+      table('t2'),
+      table('t3', { isRequestable: true }),
+      table('t4', { isBookable: false, unavailableReason: 'alreadyBooked' }),
+    ]);
+    expect(unlimitedAt(answer, 't1')).toBe(false);
+    expect(unlimitedAt(answer, 't2')).toBe(true);
+    expect(unlimitedAt(answer, 't3')).toBe(false);
+    expect(unlimitedAt(answer, 't4')).toBe(false);
+    expect(unlimitedAt(answer, 'gone')).toBe(false);
+  });
+
+  it('has no limit with no table chosen when any table is free outright', () => {
+    expect(unlimitedAt(floor([table('t1', { mustFreeByUtc: 'x' }), table('t2')]), null)).toBe(true);
+    expect(
+      unlimitedAt(
+        floor([table('t1', { mustFreeByUtc: 'x' }), table('t3', { isRequestable: true })]),
+        null,
+      ),
+    ).toBe(false);
+    // A time refused outright, or not yet answered, offers nothing.
+    expect(unlimitedAt(floor([table('t2')], { rejection: 'closed' }), null)).toBe(false);
+    expect(unlimitedAt(undefined, null)).toBe(false);
+  });
+});

@@ -1,6 +1,6 @@
 import type { TableAvailability } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { canSubmit, confirmState } from './confirm';
+import { canSubmit, confirmState, freeByNeeded, freeByAnswered } from './confirm';
 
 const TABLE: TableAvailability = {
   tableId: 't1',
@@ -41,5 +41,24 @@ describe('the confirm button', () => {
     const state = confirmState({ offline: false, isLoading: false, isError: false, table: TABLE });
     expect(canSubmit({ state, guestName: '   ', pending: false })).toBe(false);
     expect(canSubmit({ state, guestName: 'Ani', pending: false })).toBe(true);
+  });
+});
+
+describe('the time to free the table by', () => {
+  const ROOM = '2026-10-20T17:25:00.000Z';
+  const SERVER = '2026-10-20T17:20:00Z';
+
+  it("is the server's, once it said one, else the room's", () => {
+    expect(freeByNeeded({ server: SERVER, table: ROOM })).toBe(SERVER);
+    expect(freeByNeeded({ server: null, table: ROOM })).toBe(ROOM);
+    expect(freeByNeeded({ server: null, table: null })).toBeNull();
+  });
+
+  it('is answered by the same instant, however it is spelled', () => {
+    expect(freeByAnswered('2026-10-20T17:20:00.000Z', SERVER)).toBe(true);
+    expect(freeByAnswered(ROOM, SERVER)).toBe(false);
+    expect(freeByAnswered(null, SERVER)).toBe(false);
+    // Nothing needed: nothing to answer.
+    expect(freeByAnswered(null, null)).toBe(true);
   });
 });

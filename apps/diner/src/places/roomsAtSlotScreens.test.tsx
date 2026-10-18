@@ -1,11 +1,19 @@
-import { createMockGateway, type Booking, type DaySlots } from '@yalla/api';
+import {
+  FreeByRequiredError,
+  LeadTimeExceededError,
+  createMockGateway,
+  type Booking,
+  type DaySlots,
+  type SlotFloor,
+} from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import type * as I18nModule from '@yalla/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import BranchScreen from '../../app/branch/[branchId]';
 import BookingScreen from '../../app/book/[placeId]';
+import { useSession } from '../stores/session';
 import { roomsFromApi } from './httpMapping';
 import type { Place, PlaceRoom } from './model';
 
@@ -478,6 +486,184 @@ describe('the Book screen against the day of slots', () => {
   });
 });
 
+describe('the Book screen, booking times', () => {
+  const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
+  const confirmButton = () => screen.getByRole('button', { name: /^Confirm Booking/u });
+  const confirmEnabled = () =>
+    waitFor(() => expect(confirmButton().getAttribute('aria-disabled')).not.toBe('true'));
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T08:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    useSession.setState({ signedIn: false, phoneE164: null, guestName: null });
+    router.replace.mockReset();
+  });
+
+  /** A verified diner with a name: Confirm books from this screen. */
+  function signIn() {
+    useSession.setState({ signedIn: true, phoneE164: '+37499000000', guestName: 'Ani' });
+  }
+
+  /** The mock's floors, each table changed by `edit` (by the slot asked about). */
+  function editFloors(
+    edit: (
+      table: SlotFloor['tables'][number],
+      slotMs: number,
+    ) => Partial<SlotFloor['tables'][number]> | null,
+  ) {
+    const original = mock.getSlotFloor.bind(mock);
+    return vi.spyOn(mock, 'getSlotFloor').mockImplementation(async (input) => {
+      const floor = await original(input);
+      if (!floor) return floor;
+      const slotMs = Date.parse(input.slotUtc);
+      return {
+        ...floor,
+        tables: floor.tables.map((table) => ({ ...table, ...(edit(table, slotMs) ?? {}) })),
+      };
+    });
+  }
+
+  it("never books on the last time's answer while the new time's is still coming", async () => {
+    const original = mock.getSlotFloor.bind(mock);
+    vi.spyOn(mock, 'getSlotFloor').mockImplementation((input) =>
+      Date.parse(input.slotUtc) === Date.parse(at('19:30'))
+        ? new Promise<SlotFloor | null>(() => undefined)
+        : original(input),
+    );
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+    await screen.findAllByRole('button', { name: firstFree });
+
+    stepTo('19:00');
+    await confirmEnabled();
+
+    // 19:00's room is still the one on screen; it says nothing about 19:30.
+    stepTo('19:30');
+    expect(confirmButton().getAttribute('aria-disabled')).toBe('true');
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(confirmButton().getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it("sends the server's time to free the table by, once agreed, without asking again", async () => {
+    signIn();
+    // The room says 20:25 for every table; the server, a booking later, 20:20.
+    editFloors((table, slotMs) =>
+      table.isBookable && slotMs === Date.parse(at('19:00'))
+        ? { mustFreeByUtc: at('20:25'), isRequestable: false }
+        : null,
+    );
+    const create = vi
+      .spyOn(mock, 'createBooking')
+      .mockRejectedValueOnce(
+        new FreeByRequiredError({
+          url: '/api/reservations',
+          // The server's own spelling of the instant, without milliseconds.
+          requiredFreeByUtc: '2026-10-16T16:20:00Z',
+          nextBookingStartUtc: '2026-10-16T16:25:00Z',
+        }),
+      )
+      .mockResolvedValueOnce({ id: 'r-new', status: 'confirmed' } as Booking);
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+    await screen.findAllByRole('button', { name: firstFree });
+
+    stepTo('19:00');
+    await confirmEnabled();
+    fireEvent.click(confirmButton());
+    fireEvent.click(await screen.findByRole('button', { name: "Yes, I'll free it by 20:25" }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]![0]).toMatchObject({ acceptsFreeByUtc: at('20:25') });
+
+    // Asked again with the server's time, and that is what goes — no third question.
+    fireEvent.click(await screen.findByRole('button', { name: "Yes, I'll free it by 20:20" }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(Date.parse(create.mock.calls[1]![0].acceptsFreeByUtc!)).toBe(Date.parse(at('20:20')));
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith({
+        pathname: '/reserve/success',
+        params: { bookingId: 'r-new' },
+      }),
+    );
+    expect(screen.queryByRole('button', { name: /^Yes, I'll free it by/u })).toBeNull();
+  });
+
+  it('after a no, offers only times the chosen table has no limit at', async () => {
+    const seven = await mock.getSlotFloor({
+      branchId: BRANCH,
+      slotUtc: at('19:00'),
+      partySize: 2,
+      timeZoneId: 'Asia/Yerevan',
+    });
+    const onPhoto = new Set(
+      (held.rooms as PlaceRoom[])[0]!.photos[0]!.tables.map((marker) => marker.tableId),
+    );
+    const table = seven!.tables.find(
+      (candidate) =>
+        candidate.isBookable && !candidate.isRequestable && onPhoto.has(candidate.tableId),
+    )!;
+    // That table is cut short at every time but 19:30; every other table at none.
+    editFloors((candidate, slotMs) =>
+      candidate.tableId === table.tableId &&
+      candidate.isBookable &&
+      slotMs !== Date.parse(at('19:30'))
+        ? { mustFreeByUtc: new Date(slotMs + 85 * 60_000).toISOString(), isRequestable: false }
+        : null,
+    );
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+    await screen.findAllByRole('button', { name: firstFree });
+
+    stepTo('19:00');
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: new RegExp(`^Table ${table.tableLabel}, free`, 'u'),
+      }),
+    );
+    expect(await screen.findByText('Selected table')).toBeTruthy();
+    await confirmEnabled();
+    fireEvent.click(confirmButton());
+    fireEvent.click(
+      await screen.findByRole('button', { name: "No, I'll choose another table or time" }),
+    );
+
+    const other = await screen.findByText(
+      'Choose another table or time. These times have no limit:',
+    );
+    const box = other.parentElement!;
+    expect(await within(box).findByRole('button', { name: '19:30' })).toBeTruthy();
+    // 19:15 has no limit for the other tables — but this one is cut short then.
+    expect(within(box).queryByRole('button', { name: '19:15' })).toBeNull();
+    expect(within(box).queryByRole('button', { name: '18:45' })).toBeNull();
+  });
+
+  it('moves on to the first time still on offer when the chosen one became too soon', async () => {
+    signIn();
+    vi.spyOn(mock, 'createBooking').mockRejectedValueOnce(
+      new LeadTimeExceededError({
+        url: '/api/reservations',
+        leadTimeMinutes: 10,
+        earliestSlotUtc: at('19:20'),
+      }),
+    );
+    params.current = { placeId: BRANCH };
+    renderScreen(<BookingScreen />);
+    await screen.findAllByRole('button', { name: firstFree });
+
+    stepTo('19:00');
+    await confirmEnabled();
+    fireEvent.click(confirmButton());
+
+    expect(await screen.findByText(/That time is too soon now/u)).toBeTruthy();
+    await waitFor(() => expect(chosenTime()).toBe('19:30'));
+  });
+});
+
 describe('changing a late-night booking at a bar', () => {
   const BAR = 'b-copperfox-saryan';
   let saved: { place: unknown; rooms: unknown[] };
@@ -562,5 +748,39 @@ describe('changing a late-night booking at a bar', () => {
         expect.objectContaining({ bookingId: 'r-late', slotUtc, partySize: 3 }),
       ),
     );
+  });
+  it("says the guest before is asked for a late-night time on tonight's strip that is tomorrow", async () => {
+    // 00:30 on the 17th: on the evening of the 16th, but another day, twelve hours off.
+    const original = mock.getDaySlots.bind(mock);
+    vi.spyOn(mock, 'getDaySlots').mockImplementation(async (input) => {
+      const day = await original(input);
+      if (!day) return day;
+      return {
+        ...day,
+        slots: day.slots.map((slot) =>
+          slot.time === '00:30'
+            ? {
+                ...slot,
+                isAvailable: false,
+                freeTableCount: 0,
+                requestable: true,
+                requestableTableCount: 1,
+              }
+            : slot,
+        ),
+      } satisfies DaySlots;
+    });
+    params.current = { placeId: BAR };
+    renderScreen(<BookingScreen />);
+    await screen.findByRole('slider', { name: 'Time' });
+    await waitFor(() => expect(chosenTime()).not.toBe('No free time'));
+
+    stepTo('00:30');
+    expect(
+      await screen.findByText(
+        'The guest before you will be asked whether they will have left by then.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/so the venue checks the table is free/u)).toBeNull();
   });
 });

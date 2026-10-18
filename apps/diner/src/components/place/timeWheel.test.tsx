@@ -103,3 +103,36 @@ describe('the time wheel', () => {
     });
   });
 });
+
+describe('the time wheel with nothing chosen', () => {
+  it('highlights no row, and the first row of either column can be tapped', () => {
+    const { onChange, control } = wheel(null);
+    expect(screen.queryAllByTestId('time-wheel-chosen')).toHaveLength(0);
+    const columns = control.querySelector('[aria-hidden="true"]') as HTMLElement;
+    // 18 is the first hour; tapping it chooses its time.
+    fireEvent.click(within(columns).getByText('18'));
+    expect(onChange).toHaveBeenLastCalledWith(BASE - 15 * MINUTE, { snappedFrom: null });
+    // 45, the first (and only) minute of 18, as well.
+    onChange.mockClear();
+    fireEvent.click(within(columns).getByText('45'));
+    expect(onChange).toHaveBeenLastCalledWith(BASE - 15 * MINUTE, { snappedFrom: null });
+  });
+
+  it('highlights the chosen hour and minute once there is a time', () => {
+    wheel(BASE);
+    expect(screen.getAllByTestId('time-wheel-chosen').map((row) => row.textContent)).toEqual([
+      '19',
+      '00',
+    ]);
+  });
+});
+
+describe('the time wheel on the web', () => {
+  it('is one tab stop: the slider, never a row', () => {
+    const { control } = wheel();
+    expect(control.getAttribute('tabindex')).toBe('0');
+    const stops = [...control.querySelectorAll('[tabindex]')];
+    expect(stops.length).toBeGreaterThan(0);
+    for (const stop of stops) expect(stop.getAttribute('tabindex')).toBe('-1');
+  });
+});

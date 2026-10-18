@@ -1,6 +1,13 @@
 import { createMockGateway, isHoldAlreadyExtended, actionIsLive, canExtendHold } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { actionFor, parsePushTarget, PUSH_ACTIONS, routeFor, tableRequestAnswer } from './payload';
+import {
+  actionFor,
+  parsePushTarget,
+  PUSH_ACTIONS,
+  routeFor,
+  tableRequestAnswer,
+  tableRequestRoute,
+} from './payload';
 
 /**
  * What a notification means, and what the app is allowed to do about it.
@@ -414,6 +421,19 @@ describe('a request for the diner’s table', () => {
     expect(parsePushTarget({ kind: 'table-request', requestId: REQUEST })).toEqual({
       kind: 'unknown',
     });
+  });
+
+  it('opens the booking with the answer the button gave, for its card to send and confirm', () => {
+    const target = {
+      kind: 'tableRequest',
+      reservationId: RESERVATION,
+      requestId: REQUEST,
+    } as const;
+    expect(tableRequestRoute(target, true)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION, answer: 'yes', requestId: REQUEST },
+    });
+    expect(tableRequestRoute(target, false).params.answer).toBe('no');
   });
 
   it('knows its Yes and No buttons, and they answer it', () => {

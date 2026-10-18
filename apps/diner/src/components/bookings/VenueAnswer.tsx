@@ -5,7 +5,7 @@ import {
   type Booking,
   type CopyLine,
 } from '@yalla/api';
-import { useTranslation } from '@yalla/i18n';
+import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useNow } from '../../hooks/useNow';
@@ -51,9 +51,11 @@ export function useVenueAnswer(booking: VenueAnswerBooking): VenueAnswer {
   const waiting = awaitsVenueAnswer(booking);
   // Each second while the clock runs; slowly otherwise, when nothing here moves.
   const now = useNow(waiting ? 1000 : 30_000);
-  const countdown = waiting ? approvalCountdown(booking.approvalExpiresAtUtc, now) : null;
+  // Past an hour (the guest before's two hours) the clock reads in words.
+  const { locale } = useLocale();
+  const countdown = waiting ? approvalCountdown(booking.approvalExpiresAtUtc, now, locale) : null;
   return {
-    line: venueAnswerCopy(booking, now),
+    line: venueAnswerCopy(booking, now, locale),
     waiting,
     urgent: countdown?.urgent ?? false,
     declined: Boolean(booking.declinedBecause),

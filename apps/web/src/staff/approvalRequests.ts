@@ -65,19 +65,36 @@ function worthCalling(status: ReservationStatusCode): boolean {
   return status !== 'completed' && status !== 'noShow';
 }
 
+/** The branch's day of an instant, and its date for print — for a line about another day. */
+export interface BranchDays {
+  /** `YYYY-MM-DD` on the branch's calendar. */
+  readonly dayKey: (iso: string) => string;
+  /** "Mon 19 Oct", on the branch's calendar. */
+  readonly date: (iso: string) => string;
+}
+
 /**
  * "Before: 18:00 · 4 guests · Anna · seated now", "Sitting now: since 18:10 ·
  * 4 guests", "Next: 21:30 · 3 guests" — in the order a waiter reasons about
  * the table: who had it and where they stand, whether somebody is there now,
  * who comes after.
+ *
+ * The booking before is the one being asked while a question is open,
+ * whatever day it is on: a 23:00 before a 00:30 is the day before's, and with
+ * `days` it is printed with its date rather than as tonight's 23:00.
  */
 export function contextLines(
   request: AwaitingApproval,
   t: TFunction,
   time: (iso: string) => string,
+  days?: BranchDays,
 ): readonly ContextLine[] {
   const lines: ContextLine[] = [];
   const before = request.previousBooking;
+  const when = (iso: string) =>
+    days && days.dayKey(iso) !== days.dayKey(request.startUtc)
+      ? `${days.date(iso)} ${time(iso)}`
+      : time(iso);
   // Booking times: the floor asks the guest before — an earlier-guest request
   // the floor decides, or a short-notice one within three hours of theirs.
   const askBy =
@@ -87,7 +104,7 @@ export function contextLines(
   if (before) {
     const status = PREVIOUS_STATUS[before.status];
     const head = t('approvals.before', {
-      time: time(before.startUtc),
+      time: when(before.startUtc),
       count: before.partySize,
       name: before.guestName,
     });

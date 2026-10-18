@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import type { AwaitingApproval } from '@yalla/api';
+import { ApiError, type AwaitingApproval } from '@yalla/api';
 import { i18next } from '@yalla/i18n';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
+import { decisionFailureText } from '../console/venue/policy/decisionFailure';
 import { contextLines, nextBookingLine } from './approvalRequests';
 
 /**
@@ -38,7 +39,8 @@ const REQUEST: AwaitingApproval = {
   localStartTime: '23:45:00',
   timeZoneId: 'Asia/Yerevan',
   note: null,
-  approvalExpiresAtUtc: '2026-10-19T16:00:00Z',
+  // The floor's question for another day: no clock (reservations.md §3e).
+  approvalExpiresAtUtc: null,
   because: 'earlierGuestConsent',
   promisedFreeByUtc: '2026-10-20T21:55:00Z',
   previousBooking: {
@@ -103,7 +105,9 @@ describe('a request waiting on the guest before', () => {
   });
 
   it('names the reason on the badge', () => {
-    expect(t('approvals.because.earlierGuestConsent')).toBe('Guest before booked on the web');
+    expect(t('approvals.because.earlierGuestConsent')).toBe(
+      "The guest before can't be asked in the app — call them",
+    );
   });
 });
 
@@ -115,5 +119,61 @@ describe("the floor's next-booking line", () => {
       '21:30 · must free by 17:25',
     );
     expect(nextBookingLine(t, '21:30', null, time)).toBe('21:30');
+  });
+});
+
+describe('a decision on a booking the guest before is answering in the app', () => {
+  it('says it is theirs to answer, in the screen’s words', () => {
+    const t = i18next.getFixedT('en', 'staff');
+    const refused = new ApiError('busy', {
+      status: 409,
+      url: '/api/reservations/r4/approve',
+      problem: {
+        type: '',
+        title: 'Waiting for the guest before to answer',
+        status: 409,
+        detail:
+          'This booking is waiting for the guest before it on the table to answer in the app.',
+        code: 'reservation-awaiting-earlier-guest',
+        traceId: 't',
+        instance: null,
+        context: { reservationId: 'r4', requestId: 'q1', expiresAtUtc: '2026-10-19T16:00:00Z' },
+        errors: null,
+      },
+    });
+    expect(
+      decisionFailureText(refused, {
+        offline: 'offline',
+        generic: 'generic',
+        awaitingEarlierGuest: t('approvals.awaitingEarlierGuest'),
+      }),
+    ).toBe(t('approvals.awaitingEarlierGuest'));
+    expect(t('approvals.awaitingEarlierGuest')).not.toBe('approvals.awaitingEarlierGuest');
+  });
+});
+
+describe('the booking before, from another day', () => {
+  const t = i18next.getFixedT('en', 'staff');
+  const days = {
+    dayKey: (iso: string) => iso.slice(0, 10),
+    date: (iso: string) => iso.slice(5, 10),
+  };
+
+  it('names its day when it is not the day of the request — a 23:00 before a 00:30', () => {
+    const lines = contextLines(
+      {
+        ...REQUEST,
+        startUtc: '2026-10-21T00:30:00Z',
+        previousBooking: { ...REQUEST.previousBooking!, startUtc: '2026-10-20T23:00:00Z' },
+      },
+      t,
+      time,
+      days,
+    );
+    expect(lines[0]?.text).toMatch(/^Before: 10-20 23:00 · /u);
+  });
+
+  it('says only the time on the same day', () => {
+    expect(contextLines(REQUEST, t, time, days)[0]?.text).toMatch(/^Before: 18:00 · /u);
   });
 });

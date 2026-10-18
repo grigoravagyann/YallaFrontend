@@ -210,11 +210,17 @@ export interface VenueAnswerState {
  * sentences, and the second one apologises. A booking that waits with no clock
  * (a large party) has nothing to add to the pending title it already shows.
  */
-export function venueAnswerCopy(booking: VenueAnswerState, now: Date): CopyLine | null {
+export function venueAnswerCopy(
+  booking: VenueAnswerState,
+  now: Date,
+  locale?: Locale,
+): CopyLine | null {
   if (booking.status === 'pendingApproval') {
-    const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now);
-    if (!countdown) return null;
+    const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now, locale);
     const earlierGuest = booking.awaitingApprovalBecause === 'earlierGuestConsent';
+    // The floor asks the guest before for another day, after ringing them: no
+    // clock, and the venue's answer is the one to wait for.
+    if (!countdown) return earlierGuest ? line('booking.approval.venueWillConfirm') : null;
     if (countdown.expired) {
       return line(
         earlierGuest ? 'booking.approval.checkingEarlierGuest' : 'booking.approval.checking',

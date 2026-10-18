@@ -13,6 +13,7 @@ import {
   PUSH_ACTIONS,
   routeFor,
   tableRequestAnswer,
+  tableRequestRoute,
   type PushData,
 } from './payload';
 import { onTokenRotation, platformCode, registerCategories, registerDevice } from './registration';
@@ -179,26 +180,12 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       const target = parsePushTarget(data);
       const action = actionFor(response.actionIdentifier);
 
-      // "Yes, I'll have left" or "No", from the lock screen: answered here, the
-      // app left closed. One command id per request, so a repeat is a replay.
+      // "Yes, I'll have left" or "No": the button opened the app (see
+      // `registerCategories`), and the booking's card sends the answer and
+      // says whether it went through — never answered unseen.
       const accept = tableRequestAnswer(action);
       if (accept !== null && target.kind === 'tableRequest') {
-        try {
-          await gateway.answerTableRequest({
-            bookingId: target.reservationId,
-            requestId: target.requestId,
-            accept,
-            // One id per request and answer: a retry of the same tap replays,
-            // and the other answer is never sent under the first one's id.
-            commandId: commandIdFor(`table-request:${target.requestId}:${accept ? 'yes' : 'no'}`),
-          });
-          invalidateForPush(queryClient, data);
-        } catch {
-          // It lapsed, or failed with nobody watching: the booking says where
-          // it stands, and its card asks again if it still can.
-          const route = routeFor(target);
-          if (route && !cancelled) router.push(route);
-        }
+        if (!cancelled) router.push(tableRequestRoute(target, accept));
         return;
       }
 

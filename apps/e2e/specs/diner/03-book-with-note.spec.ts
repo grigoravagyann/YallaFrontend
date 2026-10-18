@@ -33,8 +33,20 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
   // screen readers), not plain buttons.
   await page.getByRole('radio', { name: '2', exact: true }).first().click();
   // An evening time well inside the demo branch's hours (09:00 to midnight), so a table fits.
+  // Confirm waits for that time's own room — the table it books, whether a
+  // booking follows on it — so the answer for 19:00 is waited for, not raced.
+  const sevenPm = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith(`/branches/${demo.branchId}/availability`) &&
+      (url.searchParams.get('time') ?? '').startsWith('19:00') &&
+      response.ok()
+    );
+  });
   await chooseTime(page, '19:00');
+  await sevenPm;
   await expect(page.getByText(/No free table seats/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Confirm Booking/u })).toBeEnabled();
   await page.getByLabel('Note for the venue').fill(note);
 
   const created = page.waitForResponse(

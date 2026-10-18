@@ -246,3 +246,38 @@ export function wheelSlots(
       };
     });
 }
+
+/**
+ * The room's answer for the time and party on screen — `undefined` while the
+ * last one is still drawn. The slot read keeps the previous answer on screen
+ * as the next loads, so the rooms do not blink between two times; but that
+ * answer says nothing about this time, and booking on it would book 19:30 on
+ * 19:00's tables — the table it would pick, whether it needs a promise. Read
+ * by instant: the server echoes `…:00Z`, the screen asks with milliseconds.
+ */
+export function answerFor(
+  floor: SlotFloor | null | undefined,
+  slotMs: number | null,
+  partySize: number,
+): SlotFloor | undefined {
+  if (!floor || slotMs === null) return undefined;
+  return Date.parse(floor.slotUtc) === slotMs && floor.partySize === partySize ? floor : undefined;
+}
+
+/**
+ * Whether a time offers a table with no limit — after a "no" to freeing the
+ * table by a time, the times worth offering instead. For the chosen table that
+ * table, free outright: bookable, nobody to ask, no booking after it cutting
+ * it short. With none chosen, any such table — the one a press would book
+ * (see `preferredTable`). A day slot's own must-free-by cannot say this: it is
+ * set only when *every* table is cut short, so it would offer the chosen
+ * table at a time it is cut short too.
+ */
+export function unlimitedAt(floor: SlotFloor | null | undefined, tableId: string | null): boolean {
+  if (!floor || floor.rejection !== null) return false;
+  const plain = (table: SlotFloor['tables'][number]) =>
+    table.isBookable && !table.isRequestable && !table.mustFreeByUtc;
+  if (tableId === null) return floor.tables.some(plain);
+  const table = floor.tables.find((candidate) => candidate.tableId === tableId);
+  return table ? plain(table) : false;
+}

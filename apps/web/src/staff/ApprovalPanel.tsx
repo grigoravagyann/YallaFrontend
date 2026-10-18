@@ -1,8 +1,12 @@
-import { approvalCountdown, type AwaitingApproval } from '@yalla/api';
+import { approvalCountdown, waitsOnEarlierGuestInApp, type AwaitingApproval } from '@yalla/api';
+import { branchDayKey } from '@yalla/format';
 import { useFloorApproveReservation, useFloorRejectReservation, useNow } from '@yalla/api/react';
-import { useTranslation } from '@yalla/i18n';
+import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
-import { decisionFailureText } from '../console/venue/policy/decisionFailure';
+import {
+  decisionFailureText,
+  isAwaitingEarlierGuest,
+} from '../console/venue/policy/decisionFailure';
 import {
   arrivalAnnouncement,
   contextLines,
@@ -149,6 +153,15 @@ function ApprovalCard({
    * nothing more: a second tap would only be refused.
    */
   const [decided, setDecided] = useState<'approved' | 'declined' | null>(null);
+  /*
+   * The guest before answers this one in the app — known from its clock, or
+   * from the server refusing a decision for it — so the floor has nothing to
+   * decide: no approve or reject, which would only be refused, and whose
+   * answer it waits for instead.
+   */
+  const [theirsToAnswer, setTheirsToAnswer] = useState(false);
+  const guestAnswers =
+    theirsToAnswer || waitsOnEarlierGuestInApp(request.because, request.approvalExpiresAtUtc);
   /**
    * A send is under way. A ref, not the mutation's own pending state, because
    * two taps in one frame both run before that state reaches a render — and
@@ -156,13 +169,18 @@ function ApprovalCard({
    */
   const sending = useRef(false);
 
-  const countdown = approvalCountdown(request.approvalExpiresAtUtc, now);
+  // The guest before's two hours read "1 hr 59 min"; the floor's fifteen, by the second.
+  const { locale } = useLocale();
+  const countdown = approvalCountdown(request.approvalExpiresAtUtc, now, locale);
   // The window closed on this device's clock. The server declines it at its
   // own instant and the next read takes the card away; until then nothing is
   // offered that it would refuse.
   const closed = countdown?.expired ?? false;
   const busy = approve.isPending || reject.isPending;
-  const lines = contextLines(request, t, format.time);
+  const lines = contextLines(request, t, format.time, {
+    dayKey: (iso) => branchDayKey(iso, timeZoneId),
+    date: (iso) => format.dayAndTime(iso).date,
+  });
 
   function decide(approved: boolean) {
     if (sending.current || decided !== null) return;
@@ -180,11 +198,13 @@ function ApprovalCard({
         },
         onError: (error) => {
           sending.current = false;
+          if (isAwaitingEarlierGuest(error)) setTheirsToAnswer(true);
           const text = decisionFailureText(error, {
             offline: t('approvals.offline'),
             generic: t('approvals.failed'),
             tooLate: t('approvals.tooLate'),
             answeredElsewhere: t('approvals.answeredElsewhere'),
+            awaitingEarlierGuest: t('approvals.awaitingEarlierGuest'),
           });
           setFailure(text);
           onRefused({ request, text });
@@ -206,7 +226,7 @@ function ApprovalCard({
     >
       <div className="approval-head">
         <span className="queue-table">{requestTable(request, t)}</span>
-        {countdown ? (
+        {countdown && !guestAnswers ? (
           <span className="approval-countdown">
             <span className="approval-countdown-label">{t('approvals.answerWithin')}</span>{' '}
             <span
@@ -255,6 +275,13 @@ function ApprovalCard({
         <p className="table-note approval-done" role="status">
           {decided === 'approved' ? t('approvals.doneApproved') : t('approvals.doneDeclined')}
         </p>
+      ) : guestAnswers ? (
+        // Theirs to answer: said once — in the alert when the server said it.
+        failure ? null : (
+          <p className="table-note" role="status">
+            {t('approvals.awaitingEarlierGuest')}
+          </p>
+        )
       ) : closed ? (
         <p className="table-note">{t('approvals.timeUp')}</p>
       ) : declining ? (
@@ -314,7 +341,7 @@ function ApprovalCard({
         </div>
       )}
 
-      {!online && !closed && !decided ? (
+      {!online && !closed && !decided && !guestAnswers ? (
         <p className="table-note">{t('approvals.needsOnline')}</p>
       ) : null}
       {failure ? (

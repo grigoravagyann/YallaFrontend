@@ -114,12 +114,15 @@ const EARLIER: Booking = {
   },
 };
 
-function card(booking: Booking = EARLIER) {
+function card(
+  booking: Booking = EARLIER,
+  autoAnswer?: { readonly requestId: string; readonly accept: boolean },
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <GatewayProvider gateway={gateway as unknown as YallaGateway}>
-        <TableRequestCard booking={booking} />
+        <TableRequestCard booking={booking} {...(autoAnswer ? { autoAnswer } : {})} />
       </GatewayProvider>
     </QueryClientProvider>,
   );
@@ -182,6 +185,42 @@ describe("the earlier guest's card", () => {
         ).getAttribute('aria-disabled'),
       ).not.toBe('true'),
     );
+  });
+
+  it('uses a command id of its own for each answer, so No after a failed Yes is not refused', async () => {
+    gateway.answerTableRequest.mockRejectedValueOnce(new Error('offline'));
+    gateway.answerTableRequest.mockResolvedValueOnce({ ...EARLIER, incomingTableRequest: null });
+    card();
+    fireEvent.click(screen.getByRole('button', { name: 'booking.tableRequest.yes' }));
+    await screen.findByText('booking.tableRequest.failed');
+    fireEvent.click(screen.getByRole('button', { name: 'booking.tableRequest.no' }));
+    await screen.findByText('booking.tableRequest.answeredNo');
+    const [yes, no] = gateway.answerTableRequest.mock.calls.map(([command]) => command);
+    expect(yes.commandId).not.toBe(no.commandId);
+  });
+
+  it('sends the answer a lock-screen button gave, once, and says so when it went through', async () => {
+    gateway.answerTableRequest.mockResolvedValue({ ...EARLIER, incomingTableRequest: null });
+    card(EARLIER, { requestId: 'request-1', accept: true });
+    await screen.findByText('booking.tableRequest.answeredYes time=19:40');
+    expect(gateway.answerTableRequest).toHaveBeenCalledTimes(1);
+    expect(gateway.answerTableRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 'request-1', accept: true }),
+    );
+  });
+
+  it('never lets a failed lock-screen answer pass for one: the card asks again, saying so', async () => {
+    gateway.answerTableRequest.mockRejectedValue(new Error('signed out on a locked phone'));
+    card(EARLIER, { requestId: 'request-1', accept: false });
+    await screen.findByText('booking.tableRequest.failed');
+    expect(screen.getByRole('button', { name: 'booking.tableRequest.yes' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'booking.tableRequest.no' })).toBeTruthy();
+  });
+
+  it('sends nothing for a button pressed on a request that is no longer the one asked', async () => {
+    card(EARLIER, { requestId: 'an-older-request', accept: true });
+    await screen.findByText('booking.tableRequest.question time=19:45 freeBy=19:40');
+    expect(gateway.answerTableRequest).not.toHaveBeenCalled();
   });
 
   it('is nothing at all when nobody is asking', () => {

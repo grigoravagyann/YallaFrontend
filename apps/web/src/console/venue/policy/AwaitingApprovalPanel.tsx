@@ -1,14 +1,14 @@
-import { approvalCountdown, type ConsoleBooking } from '@yalla/api';
+import { approvalCountdown, waitsOnEarlierGuestInApp, type ConsoleBooking } from '@yalla/api';
 import {
   useApproveReservation,
   useNow,
   usePendingReservations,
   useRejectReservation,
 } from '@yalla/api/react';
-import { useTranslation } from '@yalla/i18n';
+import { useLocale, useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
-import { decisionFailureText } from './decisionFailure';
+import { decisionFailureText, isAwaitingEarlierGuest } from './decisionFailure';
 
 /**
  * The bookings the policy stopped, with the two decisions beside each.
@@ -91,8 +91,15 @@ function BookingRow({
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
+  // The guest before answers it in the app: nothing for the venue to decide
+  // (see `waitsOnEarlierGuestInApp`) — known from its clock, or from the refusal.
+  const [theirsToAnswer, setTheirsToAnswer] = useState(false);
+  const guestAnswers =
+    theirsToAnswer ||
+    waitsOnEarlierGuestInApp(booking.awaitingApprovalBecause, booking.approvalExpiresAtUtc);
 
-  const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now);
+  const { locale } = useLocale();
+  const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now, locale);
   // Up on this device's clock: the next read takes the row away.
   const closed = countdown?.expired ?? false;
   const busy = approve.isPending || reject.isPending || closed;
@@ -101,6 +108,7 @@ function BookingRow({
     generic: t('approvals.failed'),
     tooLate: t('approvals.tooLate'),
     answeredElsewhere: t('approvals.answeredElsewhere'),
+    awaitingEarlierGuest: t('approvals.awaitingEarlierGuest'),
   };
 
   function decide(run: typeof approve, command: { reason?: string }) {
@@ -109,7 +117,10 @@ function BookingRow({
       { reservationId: booking.id, ...command },
       {
         onSuccess: () => setDeclining(false),
-        onError: (error) => setFailure(decisionFailureText(error, copy)),
+        onError: (error) => {
+          if (isAwaitingEarlierGuest(error)) setTheirsToAnswer(true);
+          setFailure(decisionFailureText(error, copy));
+        },
       },
     );
   }
@@ -133,7 +144,7 @@ function BookingRow({
         <span className="badge">
           {t(`approvals.because.${booking.awaitingApprovalBecause ?? 'unknown'}`)}
         </span>
-        {countdown ? (
+        {countdown && !guestAnswers ? (
           <span
             className={`approvals-countdown${countdown.urgent ? ' is-urgent' : ''}`}
             role="timer"
@@ -155,7 +166,11 @@ function BookingRow({
       </div>
 
       <div className="approvals-actions">
-        {declining ? (
+        {guestAnswers ? (
+          failure ? null : (
+            <p className="small muted">{t('approvals.awaitingEarlierGuest')}</p>
+          )
+        ) : declining ? (
           <div className="approvals-decline">
             <label className="labelled" htmlFor={reasonId}>
               {t('approvals.reasonLabel')}

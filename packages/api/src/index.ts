@@ -485,6 +485,8 @@ export {
   awaitsVenueAnswer,
   earlierGuestFreeByUtc,
   isApprovalExpired,
+  isShortNotice,
+  waitsOnEarlierGuestInApp,
 } from './contracts/approvals';
 
 export {

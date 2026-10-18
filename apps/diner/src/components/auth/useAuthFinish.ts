@@ -75,10 +75,20 @@ export type AuthRoute = '/auth/login' | '/auth/signup' | '/auth/code';
 export function useAuthFinish(params: AuthRouteParams) {
   const router = useRouter();
   const navigation = useNavigation();
-  const { branchId, venueId, tableId, slotUtc, partySize, requests, from } = params;
+  const { branchId, venueId, tableId, slotUtc, partySize, requests, acceptsFreeByUtc, from } =
+    params;
   const forward = useMemo(
-    () => bookingParams({ branchId, venueId, tableId, slotUtc, partySize, requests }),
-    [branchId, venueId, tableId, slotUtc, partySize, requests],
+    () =>
+      bookingParams({
+        branchId,
+        venueId,
+        tableId,
+        slotUtc,
+        partySize,
+        requests,
+        acceptsFreeByUtc,
+      }),
+    [branchId, venueId, tableId, slotUtc, partySize, requests, acceptsFreeByUtc],
   );
 
   const finish = useCallback(() => {
