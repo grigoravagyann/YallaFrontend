@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { type PublicBranch, type TableAvailability } from '@yalla/api';
+import { BookingOverlapsOwnError, type PublicBranch, type TableAvailability } from '@yalla/api';
+import { formatDayAndTime } from '@yalla/format';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -116,5 +117,72 @@ describe('a second booking that overlaps the visitor’s own', () => {
     expect(onTableTaken).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect((await harness.gateway.listBookings()).upcoming).toHaveLength(1);
+  });
+
+  it('says the day too when the booking in the way is on another one', async () => {
+    const harness = createHarness({ floorApprovesAtOnce: true });
+    const branch = (await harness.publicGateway.resolveBranch({
+      venueSlug: VENUE,
+      branchSlug: BRANCH,
+    })) as PublicBranch;
+    const selection = {
+      ...defaultSelection(branch.timeZoneId, new Date(Date.now() + 2 * 60 * 60_000), {
+        minLeadMinutes: branch.policy.minLeadMinutes,
+        turnTimeMinutes: branch.policy.turnTimeMinutes,
+        weeklyHours: branch.weeklyHours,
+      }),
+      partySize: 2,
+    };
+    const slotUtc = slotInstant(selection, branch.timeZoneId)!.toISOString();
+    const [wanted] = (
+      await harness.gateway.getTableAvailability({
+        branchId: branch.id,
+        slotUtc,
+        partySize: 2,
+        timeZoneId: branch.timeZoneId,
+      })
+    ).filter((entry) => entry.isBookable) as TableAvailability[];
+    // The evening before's 23:30, still sitting when this one starts.
+    const dayBefore = new Date(Date.parse(slotUtc) - 86_400_000);
+    const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: branch.timeZoneId }).format(
+      dayBefore,
+    );
+    vi.spyOn(harness.gateway, 'createBooking').mockRejectedValue(
+      new BookingOverlapsOwnError({
+        url: '/api/reservations',
+        existingReservationId: 'r-held',
+        existingCode: 'Y3200',
+        localDate,
+        localStartTime: '23:30',
+        tableLabel: '2',
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(
+      harness.wrap(
+        <BookingSheet
+          branch={branch}
+          availability={wanted!}
+          slotUtc={slotUtc}
+          partySize={2}
+          onClose={() => {}}
+          onTableTaken={() => {}}
+        />,
+      ),
+    );
+    await user.click(await screen.findByRole('button', { name: /^Reserve table/u }));
+    await user.type(await screen.findByLabelText('Phone number'), '77123456');
+    await user.click(screen.getByRole('button', { name: 'Send code' }));
+    await user.type(await screen.findByLabelText('Enter the code'), '123456');
+    await user.type(await screen.findByLabelText('Name for the booking'), 'Bella');
+    await user.click(await screen.findByRole('button', { name: 'Confirm booking' }));
+
+    const day = formatDayAndTime(dayBefore, branch.timeZoneId, 'en').date;
+    expect(
+      await screen.findByText(
+        `You already have a booking here on ${day} at 23:30 (table 2). Change or cancel that one first.`,
+      ),
+    ).toBeDefined();
   });
 });

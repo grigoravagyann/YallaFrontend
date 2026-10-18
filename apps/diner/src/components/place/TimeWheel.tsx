@@ -33,6 +33,12 @@ const PAD_ROWS = (VISIBLE_ROWS - 1) / 2;
 const SETTLE_MS = 140;
 /** How long a scroll made for the diner (a chip, a step) is taken to last, settling included. */
 const FOLLOW_MS = 900;
+/**
+ * How long a hand on a column counts with nothing moving: a wheel at the
+ * column's edge has no release to end it, and must not leave a stray scroll
+ * later to be taken as the diner's stop.
+ */
+const HAND_MS = 400;
 
 export interface TimeWheelProps {
   /** The day's times, each free, requestable or busy. A time past closing is simply not here. */
@@ -262,8 +268,12 @@ function WheelColumn({
   // The diner's hand on this column since the last move made for them: the
   // only thing that lets a stop be a choice.
   const handled = useRef(false);
+  // And the column has scrolled under that hand: a touch, a press or a wheel
+  // that moved nothing is no stop (a tap on the chosen row, the top edge).
+  const moved = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const followEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Read inside the timer, which outlives the render that set it.
   const latest = useRef({ index, selected, rows: rows.length, onSettle });
   useEffect(() => {
@@ -285,6 +295,7 @@ function WheelColumn({
   // move has had its time, a column that did not get there is put there.
   const follow = useCallback(() => {
     handled.current = false;
+    moved.current = false;
     followUntil.current = Date.now() + FOLLOW_MS;
     if (followEnd.current) clearTimeout(followEnd.current);
     followEnd.current = setTimeout(() => {
@@ -293,13 +304,24 @@ function WheelColumn({
     }, FOLLOW_MS);
   }, [realign]);
 
-  // The diner's own hand: where the column stops now is theirs.
+  // The diner's hand comes off: a hand that moved nothing leaves nothing behind.
+  const release = useCallback(() => {
+    if (handEnd.current) clearTimeout(handEnd.current);
+    handEnd.current = null;
+    if (!moved.current) handled.current = false;
+  }, []);
+
+  // The diner's own hand: where the column stops now is theirs, once it moves.
   const touch = useCallback(() => {
+    if (!handled.current) moved.current = false;
     handled.current = true;
     followUntil.current = 0;
     if (followEnd.current) clearTimeout(followEnd.current);
     followEnd.current = null;
-  }, []);
+    if (moved.current) return;
+    if (handEnd.current) clearTimeout(handEnd.current);
+    handEnd.current = setTimeout(release, HAND_MS);
+  }, [release]);
 
   // Placed on the chosen row, then following it.
   useEffect(() => {
@@ -326,6 +348,7 @@ function WheelColumn({
     () => () => {
       if (timer.current) clearTimeout(timer.current);
       if (followEnd.current) clearTimeout(followEnd.current);
+      if (handEnd.current) clearTimeout(handEnd.current);
     },
     [],
   );
@@ -338,13 +361,14 @@ function WheelColumn({
       if (count === 0) return;
       // Not the diner's hand — a move made for them, or a scroll event nobody
       // made: the column goes back on its row, and nothing is chosen.
-      if (!handled.current) {
+      if (!handled.current || !moved.current) {
         if (!following()) realign();
         return;
       }
       followUntil.current = 0;
       // One stop per touch: a later event with no hand on the column is not theirs.
       handled.current = false;
+      moved.current = false;
       const at = Math.min(count - 1, Math.max(0, Math.round(y / WHEEL_ROW)));
       // Come to rest exactly on the row: the web's scroller has no snapping.
       if (Math.abs(y - at * WHEEL_ROW) > 1) {
@@ -373,6 +397,12 @@ function WheelColumn({
   const onScrollAt = useCallback(
     (y: number) => {
       offset.current = y;
+      // The column moves under the diner's hand: their stop, when it comes.
+      if (handled.current && !moved.current) {
+        moved.current = true;
+        if (handEnd.current) clearTimeout(handEnd.current);
+        handEnd.current = null;
+      }
       const row = Math.round(y / WHEEL_ROW);
       if (row !== crossed.current) {
         crossed.current = row;
@@ -436,7 +466,9 @@ function WheelColumn({
       onTouchStart={touch}
       // A finger held still past the settle and moved on is still the diner's.
       onTouchMove={touch}
+      onTouchEnd={release}
       onPointerDown={touch}
+      onPointerUp={release}
       {...wheelHand}
       onScrollEndDrag={(event) => {
         dragging.current = false;

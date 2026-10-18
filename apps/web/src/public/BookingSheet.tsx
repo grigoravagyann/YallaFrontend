@@ -9,7 +9,7 @@ import {
   type VerifiedPhone,
 } from '@yalla/api';
 import { useGateway } from '@yalla/api/react';
-import { formatTime } from '@yalla/format';
+import { branchDayKey, formatDayAndTime, formatTime, instantFromZonedClock } from '@yalla/format';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
@@ -173,11 +173,19 @@ export default function BookingSheet({
         // hold, and nothing about this table changed — the panel stays.
         if (failure.kind === 'overlapsOwn') {
           const { localStartTime: time, tableLabel: table } = failure.error;
+          // Its day too when it is not the one being booked: last night's 23:30.
+          const date = otherBranchDay(failure.error.localDate, slotUtc, branch.timeZoneId, locale);
           setOutcomeUnknown(false);
           setErrorText(
-            time
-              ? tp(table ? 'booking.overlapsOwn' : 'booking.overlapsOwnPlain', { time, table })
-              : t(failure.line.key, failure.line.params),
+            !time
+              ? t(failure.line.key, failure.line.params)
+              : date
+                ? tp(table ? 'booking.overlapsOwnOn' : 'booking.overlapsOwnOnPlain', {
+                    date,
+                    time,
+                    table,
+                  })
+                : tp(table ? 'booking.overlapsOwn' : 'booking.overlapsOwnPlain', { time, table }),
           );
           return;
         }
@@ -199,6 +207,7 @@ export default function BookingSheet({
       onClose,
       t,
       tp,
+      slotUtc,
     ],
   );
 
@@ -352,4 +361,23 @@ export default function BookingSheet({
       ) : null}
     </div>
   );
+}
+
+/**
+ * "Tue 20 Oct" for a branch day (`YYYY-MM-DD`) that is not the day of
+ * `slotUtc` on the branch's calendar; `null` for the same day, or none given.
+ */
+function otherBranchDay(
+  localDate: string | null,
+  slotUtc: string,
+  timeZoneId: string,
+  locale: Parameters<typeof formatDayAndTime>[2],
+): string | null {
+  const parts = localDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+  if (!parts || localDate === branchDayKey(slotUtc, timeZoneId)) return null;
+  const noon = instantFromZonedClock(
+    { year: Number(parts[1]), month: Number(parts[2]), day: Number(parts[3]), hour: 12, minute: 0 },
+    timeZoneId,
+  );
+  return formatDayAndTime(noon, timeZoneId, locale).date;
 }

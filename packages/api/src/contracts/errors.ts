@@ -227,6 +227,12 @@ export class BookingOverlapsOwnError extends ApiError {
   readonly existingReservationId: string | null;
   /** Its short code, as quoted at the door. */
   readonly existingCode: string | null;
+  /**
+   * Its day on the branch's calendar, `YYYY-MM-DD`, or `null`. A sitting can
+   * overlap one from the evening before (23:30 and 00:15), so a screen says the
+   * day when it is not the one being booked.
+   */
+  readonly localDate: string | null;
   /** "19:30" on the branch's clock, or `null`. */
   readonly localStartTime: string | null;
   readonly tableLabel: string | null;
@@ -235,6 +241,7 @@ export class BookingOverlapsOwnError extends ApiError {
     url: string;
     existingReservationId: string | null;
     existingCode?: string | null | undefined;
+    localDate?: string | null | undefined;
     localStartTime: string | null;
     tableLabel: string | null;
     requestId?: string | undefined;
@@ -249,6 +256,7 @@ export class BookingOverlapsOwnError extends ApiError {
     this.name = 'BookingOverlapsOwnError';
     this.existingReservationId = options.existingReservationId;
     this.existingCode = options.existingCode ?? null;
+    this.localDate = options.localDate ?? null;
     this.localStartTime = options.localStartTime;
     this.tableLabel = options.tableLabel;
   }

@@ -236,12 +236,8 @@ describe('a bill request from the app', () => {
     );
     expect(acknowledge).toHaveBeenCalledTimes(1);
     // Paid in full, so the tab closes and the tip shows outside the balance.
-    // Five seconds, not one: under the whole suite's load the close and the
-    // re-read have taken longer than the default (seen in QA round 2).
     expect(
-      await within(tab).findByText(`Tips taken: ${dram(100)} · on top of the bill`, undefined, {
-        timeout: 5000,
-      }),
+      await within(tab).findByText(`Tips taken: ${dram(100)} · on top of the bill`),
     ).toBeTruthy();
     expect(within(tab).queryByText(wantsWhole(whole))).toBeNull();
     // Karen's request was not touched: still open on the server.

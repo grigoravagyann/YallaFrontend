@@ -71,4 +71,20 @@ describe('Intl on the web build', () => {
     const local = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
     expect(local.format(MORNING)).toBe('09:00');
   });
+
+  /*
+   * Some browsers name the zone by its offset alone — the app's own browser
+   * pane said `Etc/GMT-4` in Yerevan — and the bundled zone data has no `Etc/`
+   * zones, so the default stayed UTC. Such a zone is kept as its fixed offset.
+   */
+  it('keeps a zone the bundled data lacks as its fixed offset', async () => {
+    const { adoptDefaultTimeZone } = await import('./deviceTimeZone');
+    try {
+      expect(adoptDefaultTimeZone('Etc/GMT-5')).toBe(true);
+      const local = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
+      expect(local.format(MORNING)).toBe('10:00');
+    } finally {
+      adoptDefaultTimeZone('Asia/Yerevan');
+    }
+  });
 });

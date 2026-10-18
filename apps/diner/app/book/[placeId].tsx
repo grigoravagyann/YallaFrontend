@@ -51,7 +51,7 @@ import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
 import { useDinerProfile } from '../../src/data/accountQueries';
 import { useMinuteClock } from '../../src/hooks/useMinuteClock';
-import { bookingRefusal, changeFailureLine } from '../../src/data/bookingRefusals';
+import { bookingRefusal, changeFailureLine, overlapsOwnLine } from '../../src/data/bookingRefusals';
 import {
   keys,
   useBookingRules,
@@ -339,31 +339,35 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       ownSlotUtc ? stripDateFor(place, ownSlotUtc, branchDayKey(now, place.timeZoneId)) : null,
     [ownSlotUtc, place, now],
   );
-  // A booking being changed may lie beyond the window the strip starts with;
-  // its own day is always on it.
-  const days = useMemo(
-    () =>
-      dayOptions(
-        now,
-        place.timeZoneId,
-        windowReaching(now, place.timeZoneId, windowDays, changeDate),
-      ),
-    [now, place.timeZoneId, windowDays, changeDate],
-  );
-
-  // A change opens on what the booking holds; a new booking on the defaults.
   // After a declined booking, its day and party: the time is chosen again.
   const anotherTime = useMemo(
     () => (change ? null : parseAnotherTimeParams({ dayOf: params.dayOf, party: params.party })),
     [change, params.dayOf, params.party],
   );
-  const [dateKey, setDateKey] = useState<string | null>(() => {
-    if (changeDate) return changeDate;
+  // Its strip day — not one gone by, which opens on the first.
+  const anotherDate = useMemo(() => {
     if (!anotherTime?.dayOfUtc) return null;
-    // Only a day still on the strip; a day gone by opens on the first.
-    const key = stripDateFor(place, anotherTime.dayOfUtc, branchDayKey(now, place.timeZoneId));
-    return days.some((day) => day.dateKey === key) ? key : null;
-  });
+    const today = branchDayKey(now, place.timeZoneId);
+    const key = stripDateFor(place, anotherTime.dayOfUtc, today);
+    return key >= today ? key : null;
+  }, [anotherTime, place, now]);
+  // The day a booking opens on may lie beyond the window the strip starts
+  // with — seven days until the branch's rules load: a change's own day, or a
+  // declined booking's. Either is always on it.
+  const openDate = changeDate ?? anotherDate;
+  const days = useMemo(
+    () =>
+      dayOptions(
+        now,
+        place.timeZoneId,
+        windowReaching(now, place.timeZoneId, windowDays, openDate),
+      ),
+    [now, place.timeZoneId, windowDays, openDate],
+  );
+
+  // A change opens on what the booking holds, a booking after a declined one
+  // on that one's day; a new booking on the defaults.
+  const [dateKey, setDateKey] = useState<string | null>(openDate);
   // The time the diner tapped, as an instant; `null` until they tap one.
   const [pickedMs, setPickedMs] = useState<number | null>(null);
   // Never shrunk: a party bigger than the list is shown as chosen as it is.
@@ -676,7 +680,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
    * over the photo, everything else under the form.
    */
   const fail = useCallback(
-    (error: unknown) => {
+    (error: unknown, slotUtc: string) => {
       // Not taking app bookings, a note over the limit, a booking that can no
       // longer move: said in their own words.
       const refusal = bookingRefusal(error);
@@ -743,6 +747,14 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       if (failure.kind === 'phoneNotVerified' && !change) {
         setVerifyRefused(true);
         setOutcomeUnknown(false);
+        return;
+      }
+      // The diner's own booking at that time: named, with its day when it is
+      // on another one — for a change as for a new booking.
+      if (failure.kind === 'overlapsOwn') {
+        const own = overlapsOwnLine(failure.error, slotUtc, place.timeZoneId, locale);
+        setOutcomeUnknown(false);
+        setErrorText(t(own.key, own.params));
         return;
       }
       if (failure.kind === 'commandInUse') commandId.current = newCommandId();
@@ -818,7 +830,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
           // screen when it came from the list.
           router.dismissTo({ pathname: '/booking/[bookingId]', params: { bookingId: moved.id } });
         } catch (error) {
-          fail(error);
+          fail(error, slotUtc);
         }
         return;
       }
@@ -873,7 +885,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
         void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
         router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
       } catch (error) {
-        fail(error);
+        fail(error, slotUtc);
       }
     },
     [

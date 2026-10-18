@@ -105,6 +105,23 @@ export interface BranchDays {
 export interface BranchToday extends BranchDays {
   /** `YYYY-MM-DD`: the branch's today. */
   readonly today: string;
+  /** The instant `today` was read at. */
+  readonly now?: Date;
+}
+
+/** As far ahead as the party at the table now still matters: short notice's six hours. */
+const SITTING_MATTERS_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Whether who sits at the table now bears on a booking at `startUtc`: one for
+ * the branch's today, or within six hours (00:30 asked at 23:45). Without the
+ * branch's today, as it was.
+ */
+function sittingMatters(startUtc: string, days: BranchDays | undefined): boolean {
+  const today = days as Partial<BranchToday> | undefined;
+  if (!days || today?.today === undefined) return true;
+  if (days.dayKey(startUtc) === today.today) return true;
+  return today.now !== undefined && Date.parse(startUtc) - today.now.getTime() < SITTING_MATTERS_MS;
 }
 
 /** The branch's days in its own time zone, today read at `now`. */
@@ -117,6 +134,7 @@ export function branchToday(
     dayKey: (iso) => branchDayKey(iso, timeZoneId),
     date,
     today: branchDayKey(now, timeZoneId),
+    now,
   };
 }
 
@@ -139,7 +157,7 @@ export function contextLines(
   request: AwaitingApproval,
   t: TFunction,
   time: (iso: string) => string,
-  days?: BranchDays,
+  days?: BranchDays | BranchToday,
 ): readonly ContextLine[] {
   const lines: ContextLine[] = [];
   const before = request.previousBooking;
@@ -182,7 +200,7 @@ export function contextLines(
     }
   }
   const sitting = request.currentSitting;
-  if (sitting) {
+  if (sitting && sittingMatters(request.startUtc, days)) {
     lines.push({
       kind: 'sitting',
       text:

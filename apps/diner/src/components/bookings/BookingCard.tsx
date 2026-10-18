@@ -37,9 +37,9 @@ import { PhotoImage } from '../PhotoImage';
 import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
 import { tableWithRoom } from './bookingText';
-import { PromiseNote } from './PromiseNote';
+import { PromiseNote, promiseCopy } from './PromiseNote';
 import { TableRequestCard } from './TableRequestCard';
-import { VenueAnswerNote } from './VenueAnswer';
+import { useVenueAnswer, VenueAnswerNote } from './VenueAnswer';
 
 /** The photo band across the top of the next booking. */
 export const HERO_PHOTO_HEIGHT = 118;
@@ -171,8 +171,19 @@ export function BookingHeroCard({
   style,
 }: BookingHeroCardProps) {
   const { t } = useTranslation('diner');
+  const { locale } = useLocale();
   const facts = useBookingFacts(booking, now);
   const active = canCancel(booking.status);
+  // The pressable's name is all a screen reader says of what it holds: the
+  // venue's answer and the guest's own promise, shown inside it, go in too.
+  const answer = useVenueAnswer(booking).line;
+  const promise = promiseCopy(booking, locale);
+  const label = [facts.label, answer, promise]
+    .map((part) =>
+      part === null ? null : typeof part === 'string' ? part : t(part.key, part.params),
+    )
+    .filter((part): part is string => part !== null)
+    .join(', ');
   const countdown = active ? bookingCountdown(booking.slotUtc, now) : null;
   const coords = facts.place?.coords ?? null;
 
@@ -183,7 +194,7 @@ export function BookingHeroCard({
           the web build and nests them in the accessibility tree on the phone. */}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={facts.label}
+        accessibilityLabel={label}
         onPress={onOpen}
         style={({ pressed }) => pressed && styles.pressed}
       >

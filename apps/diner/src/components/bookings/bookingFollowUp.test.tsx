@@ -217,6 +217,22 @@ describe('the earlier guest’s promise', () => {
     expect(screen.getByText('booking.freeBy.promisedNote time=19:40')).toBeTruthy();
   });
 
+  it('is in the hero’s name, which a screen reader reads in place of what it holds', () => {
+    render(
+      withQueries(
+        <BookingHeroCard
+          booking={promised}
+          now={new Date()}
+          onOpen={() => undefined}
+          onCancel={() => undefined}
+        />,
+      ),
+    );
+    expect(
+      screen.getByRole('button', { name: /booking\.freeBy\.promisedNote time=19:40/u }),
+    ).toBeTruthy();
+  });
+
   it('is not said where there is no promise', () => {
     render(
       withQueries(
@@ -229,6 +245,29 @@ describe('the earlier guest’s promise', () => {
       ),
     );
     expect(screen.queryByText(/booking\.freeBy\.promisedNote/u)).toBeNull();
+  });
+});
+
+describe('the bookings hero card, to a screen reader', () => {
+  it('says the venue’s answer it shows while the booking waits', () => {
+    const waiting: Booking = {
+      ...PENDING,
+      awaitingApprovalBecause: 'shortNotice',
+      approvalExpiresAtUtc: new Date(Date.now() + 12 * 60_000 + 30_000).toISOString(),
+    };
+    render(
+      withQueries(
+        <BookingHeroCard
+          booking={waiting}
+          now={new Date()}
+          onOpen={() => undefined}
+          onCancel={() => undefined}
+        />,
+      ),
+    );
+    expect(
+      screen.getByRole('button', { name: /booking\.approval\.waiting time=12:\d\d/u }),
+    ).toBeTruthy();
   });
 });
 

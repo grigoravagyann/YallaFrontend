@@ -205,6 +205,23 @@ describe('the confirm screen, a booking that overlaps the diner’s own', () => 
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it('names the day too when the booking held is on another day', async () => {
+    await refusedWith(
+      new BookingOverlapsOwnError({
+        url: '/api/reservations',
+        existingReservationId: 'r-own',
+        localStartTime: '19:30',
+        localDate: '2026-10-15',
+        tableLabel: '2',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        /^You already have a booking here on .*15.* at 19:30 \(table 2\)\. Choose another time, or change that booking\.$/u,
+      ),
+    ).toBeTruthy();
+  });
+
   it('says the time alone when the refusal names no table', async () => {
     await refusedWith(
       new BookingOverlapsOwnError({

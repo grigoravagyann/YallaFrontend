@@ -539,6 +539,18 @@ describe('the Book screen against the day of slots', () => {
     expect(screen.queryByText('Change booking')).toBeNull();
   });
 
+  it('opens on a declined booking’s day past the first week, before the branch’s rules load', async () => {
+    // Ten days out: beyond the seven-day strip the screen starts with.
+    params.current = { placeId: BRANCH, dayOf: '2026-10-26T15:30:00Z', party: '2' };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText('Book a Table')).toBeTruthy();
+    const chosenDay = screen
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-selected') === 'true');
+    expect(chosenDay?.getAttribute('aria-label')).toMatch(/26/u);
+  });
+
   it('keeps a party bigger than the list as it is, chosen', async () => {
     const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
     params.current = { placeId: BRANCH, bookingId: 'r-big', slotUtc: at('19:00'), party: '15' };

@@ -399,7 +399,9 @@
       "freeByRequired": "A booking now follows on this table: you would free it by {{time}}.",
       "freeByRequiredNoTime": "A booking now follows on this table. Choose the table again.",
       "overlapsOwn": "You already have a booking here at {{time}} (table {{table}}). Choose another time, or change that booking.",
-      "overlapsOwnPlain": "You already have a booking here at {{time}}. Choose another time, or change that booking."
+      "overlapsOwnPlain": "You already have a booking here at {{time}}. Choose another time, or change that booking.",
+      "overlapsOwnOn": "You already have a booking here on {{date}} at {{time}} (table {{table}}). Choose another time, or change that booking.",
+      "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Choose another time, or change that booking."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",

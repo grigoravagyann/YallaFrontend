@@ -2593,6 +2593,11 @@ textarea.yc-ctl {
   color: var(--console-ink);
 }
 
+/* The bar clips its overflow, so the console's ring, drawn outside, would vanish: inside. */
+.yc .yc-subtabs a:focus-visible {
+  outline-offset: -2px;
+}
+
 .yc .yc-subtabs a.is-on {
   border-bottom-color: var(--console-brand);
   color: var(--console-brand);

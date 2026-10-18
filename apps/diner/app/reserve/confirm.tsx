@@ -27,7 +27,7 @@ import {
   freeByAnswered,
   freeByNeeded,
 } from '../../src/lib/confirm';
-import { bookingRefusal } from '../../src/data/bookingRefusals';
+import { bookingRefusal, overlapsOwnLine } from '../../src/data/bookingRefusals';
 import { haptics } from '../../src/lib/haptics';
 import { useConflict } from '../../src/stores/conflict';
 import { useSession } from '../../src/stores/session';
@@ -234,6 +234,15 @@ export default function ConfirmScreen() {
         if (failure.kind === 'phoneNotVerified') {
           setVerifyRefused(true);
           setOutcomeUnknown(false);
+          return;
+        }
+
+        // The diner's own booking at that time: named, with its day when it
+        // is on another one.
+        if (failure.kind === 'overlapsOwn') {
+          const own = overlapsOwnLine(failure.error, slotUtc, zone, locale);
+          setOutcomeUnknown(false);
+          setErrorText(t(own.key, own.params));
           return;
         }
 

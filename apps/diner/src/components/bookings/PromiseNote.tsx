@@ -1,5 +1,5 @@
-import type { Booking } from '@yalla/api';
-import { formatTime } from '@yalla/format';
+import type { Booking, CopyLine } from '@yalla/api';
+import { formatTime, type Locale } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -8,6 +8,19 @@ import { Text } from '../Text';
 
 /** The booking states a promise still binds: not one that is over or cancelled. */
 const LIVE: ReadonlySet<Booking['status']> = new Set(['pendingApproval', 'confirmed', 'seated']);
+
+/** The promise's sentence, or `null` when there is none that still binds. */
+export function promiseCopy(
+  booking: Pick<Booking, 'status' | 'promisedFreeByUtc' | 'timeZoneId'>,
+  locale: Locale,
+): CopyLine | null {
+  const promised = booking.promisedFreeByUtc ?? null;
+  if (!promised || !LIVE.has(booking.status)) return null;
+  return {
+    key: 'booking.freeBy.promisedNote',
+    params: { time: formatTime(promised, booking.timeZoneId, locale) },
+  };
+}
 
 /**
  * "You said you'll leave by 19:40 — the table is booked after you": the
@@ -27,16 +40,12 @@ export function PromiseNote({
 }) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
-  const promised = booking.promisedFreeByUtc ?? null;
-  if (!promised || !LIVE.has(booking.status)) return null;
+  const line = promiseCopy(booking, locale);
+  if (!line) return null;
   return (
     <View style={[styles.note, style]}>
       <Ionicons name={actionIcon.time} size={iconSize.sm} color={colors.infoInk} />
-      <Text style={styles.text}>
-        {t('booking.freeBy.promisedNote', {
-          time: formatTime(promised, booking.timeZoneId, locale),
-        })}
-      </Text>
+      <Text style={styles.text}>{t(line.key, line.params)}</Text>
     </View>
   );
 }

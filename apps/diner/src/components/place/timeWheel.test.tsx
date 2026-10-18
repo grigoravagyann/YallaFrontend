@@ -179,7 +179,7 @@ describe('the time wheel takes a choice only from the diner’s hand', () => {
     }
   });
 
-  function setup(value: number) {
+  function setup(value: number | null) {
     const onChange = vi.fn();
     const props = {
       slots: SLOTS,
@@ -247,6 +247,32 @@ describe('the time wheel takes a choice only from the diner’s hand', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     scrolled(hours, 2 * 44);
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  /*
+   * A hand that never turned the column — a wheel at its top edge, a tap on
+   * the row already chosen — is not a stop. With nothing chosen, a stray event
+   * afterwards would otherwise choose the column's first row.
+   */
+  it.each([
+    [
+      'a press that never scrolled',
+      (el: HTMLElement) => {
+        fireEvent.pointerDown(el);
+        fireEvent.pointerUp(el);
+      },
+    ],
+    [
+      'a wheel at the edge that went nowhere',
+      (el: HTMLElement) => fireEvent.wheel(el, { deltaY: -100 }),
+    ],
+  ])('with nothing chosen, takes no stray stop after %s', (_, touch) => {
+    const { onChange, hours } = setup(null);
+    touch(hours);
+    act(() => vi.advanceTimersByTime(1_000));
+    scrolled(hours, 44);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(hours.scrollTop).toBe(0);
   });
 
   it('forgets the diner’s hand once the column is moved for them', () => {

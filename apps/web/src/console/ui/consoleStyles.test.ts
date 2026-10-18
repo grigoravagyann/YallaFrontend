@@ -139,4 +139,13 @@ describe("a branch's sub-tabs", () => {
     expect(tabs.length).toBeGreaterThan(0);
     for (const rule of tabs) expect(rule.body).not.toMatch(/margin(?:-bottom)?:\s*-/u);
   });
+
+  it('draws the focus ring inside the tab, where the bar does not clip it', () => {
+    // `.yc :focus-visible` draws 2px outside the element; the tabs fill a bar
+    // that clips its overflow, so a keyboard user would see no ring at all.
+    const focus = consoleRules().find(
+      (rule) => rule.selector === '.yc .yc-subtabs a:focus-visible',
+    );
+    expect(focus?.body).toMatch(/outline-offset:\s*-\d+px/u);
+  });
 });

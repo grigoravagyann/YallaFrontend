@@ -700,6 +700,8 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           problem: error.problem,
           existingReservationId: text(context['reservationId']),
           existingCode: text(context['code']),
+          // "2026-10-20", the branch's day: said when it is not the day being booked.
+          localDate: text(context['localDate']),
           // "19:30:00" as the server writes a branch wall clock; said as "19:30".
           localStartTime: text(context['localStartTime'])?.slice(0, 5) ?? null,
           tableLabel: text(context['tableLabel']),

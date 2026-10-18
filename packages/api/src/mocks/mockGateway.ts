@@ -762,6 +762,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       url,
       existingReservationId: held.id,
       existingCode: held.code,
+      localDate: localDateTime(held.slotUtc, held.timeZoneId).date,
       localStartTime: localDateTime(held.slotUtc, held.timeZoneId).time,
       tableLabel: held.tableLabel,
     });

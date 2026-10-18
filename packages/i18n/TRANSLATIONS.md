@@ -471,8 +471,10 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   table booked just before that can be had by asking — never "reserved") and
   `tables.legend.request` ("On request", short: a legend entry),
   `confirm.error.overlapsOwn` / `overlapsOwnPlain` (the diner's own booking at
-  the same place and time; hy writes "ժամը {{time}}" and the table in brackets
-  rather than a suffix glued onto either).
+  the same place and time; hy writes "ժամը {{time}}" and "(սեղան {{table}})",
+  as `public` does, rather than a suffix glued onto either) and
+  `overlapsOwnOn` / `overlapsOwnOnPlain` (the same, with the day, when the
+  booking held is on another day than the one being booked).
 - Booking times and table sequencing (2026-10-18), provisional and **not**
   reviewed. `diner` `book.wheel.*` — the time wheel: `snapped` ("No free table
   at {{busy}} — {{time}} suggested"; hy writes "Ժամը {{busy}}" rather than a
@@ -535,7 +537,9 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   the bill in the app and pay the waiter); `venuePage.kpi.bookings30` (the
   **past** 30 days by start, not the next 30). `public` `booking.overlapsOwn` /
   `overlapsOwnPlain` (the visitor's own booking at the same place and time,
-  with its time and table; formal `Դուք`).
+  with its time and table; formal `Դուք`), and `overlapsOwnOn` /
+  `overlapsOwnOnPlain` (the same, when that booking is on another day — last
+  night's 23:30 — so the date comes first).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

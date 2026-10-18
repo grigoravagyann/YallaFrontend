@@ -1,5 +1,6 @@
 import {
   BookingNotChangeableError,
+  BookingOverlapsOwnError,
   ConcurrencyConflictError,
   BookingsNotAcceptedError,
   MAX_BOOKING_NOTE,
@@ -8,7 +9,7 @@ import {
   type BookingFailure,
 } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { bookingRefusal, changeFailureLine } from './bookingRefusals';
+import { bookingRefusal, changeFailureLine, overlapsOwnLine } from './bookingRefusals';
 
 describe('bookingRefusal', () => {
   it('says a branch that takes no app bookings in the same words as the place page', () => {
@@ -89,5 +90,53 @@ describe('changeFailureLine', () => {
   it('keeps every other line, which is as true of a move as of a new booking', () => {
     const busy: BookingFailure = { kind: 'busy', line: { key: 'confirm.error.busy', params: {} } };
     expect(changeFailureLine(busy)).toEqual({ key: 'confirm.error.busy', params: {} });
+  });
+});
+
+describe('overlapsOwnLine', () => {
+  const overlap = (localDate: string | null, tableLabel: string | null = '2') =>
+    new BookingOverlapsOwnError({
+      url: '/api/reservations',
+      existingReservationId: 'r-own',
+      localStartTime: '23:30',
+      localDate,
+      tableLabel,
+    });
+  // 00:15 on the 21st in Yerevan: last night's 23:30 sitting overlaps it.
+  const slotUtc = '2026-10-20T20:15:00Z';
+  const zone = 'Asia/Yerevan';
+
+  it('names the time and table when the booking held is on the same day', () => {
+    expect(overlapsOwnLine(overlap('2026-10-21'), slotUtc, zone, 'en')).toEqual({
+      key: 'confirm.error.overlapsOwn',
+      params: { time: '23:30', table: '2' },
+    });
+    expect(overlapsOwnLine(overlap(null), slotUtc, zone, 'en').key).toBe(
+      'confirm.error.overlapsOwn',
+    );
+  });
+
+  it('names its day too when it is on another one', () => {
+    const line = overlapsOwnLine(overlap('2026-10-20'), slotUtc, zone, 'en');
+    expect(line.key).toBe('confirm.error.overlapsOwnOn');
+    expect(line.params).toMatchObject({ time: '23:30', table: '2' });
+    expect(String(line.params['date'])).toMatch(/20/u);
+    expect(overlapsOwnLine(overlap('2026-10-20', null), slotUtc, zone, 'en').key).toBe(
+      'confirm.error.overlapsOwnOnPlain',
+    );
+  });
+
+  it('says the time alone, or the generic line, when that is all it has', () => {
+    expect(overlapsOwnLine(overlap('2026-10-21', null), slotUtc, zone, 'en')).toEqual({
+      key: 'confirm.error.overlapsOwnPlain',
+      params: { time: '23:30' },
+    });
+    const noTime = new BookingOverlapsOwnError({
+      url: '/api/reservations',
+      existingReservationId: null,
+      localStartTime: null,
+      tableLabel: null,
+    });
+    expect(overlapsOwnLine(noTime, slotUtc, zone, 'en').key).toBe('confirm.error.generic');
   });
 });

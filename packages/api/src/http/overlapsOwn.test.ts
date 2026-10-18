@@ -31,6 +31,7 @@ const COMMAND = {
 const OVERLAP = problemReply(409, 'reservation-overlaps-own', {
   reservationId: 'r-existing',
   code: 'Y3200',
+  localDate: '2026-10-20',
   localStartTime: '19:30:00',
   tableLabel: '2',
 });
@@ -61,6 +62,7 @@ describe('a booking that overlaps one of the diner’s own', () => {
       status: 409,
       existingReservationId: 'r-existing',
       existingCode: 'Y3200',
+      localDate: '2026-10-20',
       localStartTime: '19:30',
       tableLabel: '2',
     });
@@ -91,6 +93,7 @@ describe('a booking that overlaps one of the diner’s own', () => {
     expect(error).toMatchObject({
       existingReservationId: null,
       existingCode: null,
+      localDate: null,
       localStartTime: null,
       tableLabel: null,
     });
@@ -102,6 +105,7 @@ describe('a booking that overlaps one of the diner’s own', () => {
         url: '/api/reservations',
         existingReservationId: 'r-existing',
         existingCode: 'Y3200',
+        localDate: '2026-10-20',
         localStartTime,
         tableLabel,
       });

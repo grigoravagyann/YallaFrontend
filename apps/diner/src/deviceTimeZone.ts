@@ -29,18 +29,46 @@ interface PolyfilledDateTimeFormat {
 }
 
 /**
+ * `Etc/GMT-4` as the offset it stands for, `+04:00` (the `Etc` sign is
+ * inverted); `null` for any other name.
+ */
+function etcOffset(zone: string): string | null {
+  const match = /^Etc\/GMT([+-])(\d{1,2})$/u.exec(zone);
+  if (!match) return null;
+  const hours = match[2]!.padStart(2, '0');
+  return `${match[1] === '-' ? '+' : '-'}${hours}:00`;
+}
+
+/** The device clock's offset right now, as `+04:00`. */
+function currentOffset(): string {
+  const minutes = -new Date().getTimezoneOffset();
+  const sign = minutes < 0 ? '-' : '+';
+  const abs = Math.abs(minutes);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
+/**
  * Make `zone` the default of the polyfilled `DateTimeFormat`. Does nothing on
- * a native `Intl` (it has no setter, and knows its zone), for no zone, or for
- * one the polyfill's zone data does not have — UTC is then the honest default.
- * Whether it was set.
+ * a native `Intl` (it has no setter, and knows its zone) or for no zone.
+ *
+ * The bundled zone data is the "golden" set: no `Etc/` zones, and not every
+ * rare name. A browser that names its zone by offset alone (the app's own
+ * browser pane said `Etc/GMT-4` in Yerevan) gets that fixed offset; any other
+ * name the data lacks gets the device clock's offset now — right until a
+ * daylight-saving change, where UTC would be wrong all year. Whether it was set.
  */
 export function adoptDefaultTimeZone(zone: string | null | undefined): boolean {
   const format = Intl.DateTimeFormat as unknown as PolyfilledDateTimeFormat;
   if (!zone || typeof format.__setDefaultTimeZone !== 'function') return false;
-  try {
-    format.__setDefaultTimeZone(zone);
-    return true;
-  } catch {
-    return false;
+  const setDefault = format.__setDefaultTimeZone;
+  for (const candidate of [zone, etcOffset(zone) ?? currentOffset()]) {
+    try {
+      setDefault(candidate);
+      return true;
+    } catch {
+      // Not in the bundled data: try the offset.
+    }
   }
+  return false;
 }

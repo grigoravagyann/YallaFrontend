@@ -80,6 +80,7 @@ describe('one diner, two bookings at once', () => {
     expect(error).toMatchObject({
       existingReservationId: held.id,
       existingCode: held.code,
+      localDate: TOMORROW,
       localStartTime: '19:45',
       tableLabel: held.tableLabel,
     });
