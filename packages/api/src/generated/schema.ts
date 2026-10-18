@@ -2320,7 +2320,7 @@ export interface paths {
          * Accept a booking that is waiting for approval
          * @description A waiter or above at the booking's own branch - an owner or general manager at any branch of their venue, a platform admin anywhere. Staff of one branch cannot decide another's bookings by guessing an id.
          *
-         *     A short-notice booking (`awaitingApprovalBecause` 4) can be approved until `approvalExpiresAtUtc`, and no booking once it has started.
+         *     A short-notice booking (`awaitingApprovalBecause` 4) can be approved until `approvalExpiresAtUtc`, and no booking once it has started. The caller's **stored** role counts, not only the token's: a waiter moved to the kitchen is refused at once. A platform admin gets the booking back with `guestPhone` empty.
          */
         post: operations["approveReservation"];
         delete?: never;
@@ -2411,6 +2411,8 @@ export interface paths {
         /**
          * Decline a booking that is waiting for approval
          * @description Scoped as `approve`. Refuses a booking that was already confirmed: the diner has been told it is theirs. `reason` is optional and recorded as `cancellationReason`; the booking answers `declinedBecause` 1 (StaffDeclined). A short-notice booking can be declined until `approvalExpiresAtUtc` - after that it is declined for nobody answering, and the diner is told that instead.
+         *
+         *     **A change of a confirmed booking** is declined as a change: when the slot it had is still free the answer is the booking back there - `Confirmed`, its old `startUtc`, `tableId` and `partySize` - and the diner is told it stands (`reservation-decided` with `wasChange` and `originalKept` "true"); when that slot has gone too it is declined as above, with `originalKept` "false". A platform admin gets `guestPhone` empty.
          */
         post: operations["rejectReservation"];
         delete?: never;
@@ -2465,7 +2467,7 @@ export interface paths {
          *
          *     **Judged as a new booking would be**, with the same `reservation-*` 422s: the branch open for business and still taking bookings from the channel the booking came from, lead time and booking window, opening hours, the table pinned on its room and fitting the party. The clash check runs under the target table's lock **excluding this booking**, so moving dinner by half an hour on the same table is never refused because of itself - and the 409's fresh floor shows the diner's own table free.
          *
-         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking that keeps its **table and start** and does not grow stays `Confirmed`, today included - nothing about it got harder to keep. Otherwise a move into the short-notice window (today, or under six hours away) goes to `PendingApproval` with a **fresh** fifteen-minute `approvalExpiresAtUtc`. A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history.
+         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking that keeps its **table and start** and does not grow stays `Confirmed`, today included - nothing about it got harder to keep. Otherwise a move into the short-notice window (today, or under six hours away) goes to `PendingApproval` with a fifteen-minute `approvalExpiresAtUtc` - and keeps the slot it had: if the change is declined, or nobody answers it, the booking goes back to that slot, `Confirmed` as before, when it is still free. A booking **already waiting** on a short-notice answer keeps its deadline through a move (never past the new start); past the deadline it cannot be moved at all - `409 reservation-approval-expired`. A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history.
          *
          *     The reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.
          */
