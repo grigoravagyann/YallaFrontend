@@ -28,6 +28,12 @@ export const gateway: YallaGateway = resolveGateway({
   // Set EXPO_PUBLIC_SIMULATE_TABLE_TAKEN=1 to make the next booking lose the
   // race, so the 409 path can be walked without a second device. Mock only.
   simulateTableTaken: process.env['EXPO_PUBLIC_SIMULATE_TABLE_TAKEN'] === '1',
+  // A short-notice booking waits for the floor. In mock mode the floor is the
+  // mock: EXPO_PUBLIC_MOCK_APPROVAL_WINDOW_SECONDS shortens its fifteen
+  // minutes, and EXPO_PUBLIC_MOCK_VENUE_APPROVES_AFTER_SECONDS has it approve
+  // the first request that long after it is made (later ones run out).
+  mockApprovalWindowMs: seconds(process.env['EXPO_PUBLIC_MOCK_APPROVAL_WINDOW_SECONDS']),
+  mockVenueApprovesAfterMs: seconds(process.env['EXPO_PUBLIC_MOCK_VENUE_APPROVES_AFTER_SECONDS']),
   // On the web build the mock world survives a full page load (QA F2); a
   // phone keeps the app alive between screens and has no localStorage.
   persist:
@@ -38,6 +44,12 @@ export const gateway: YallaGateway = resolveGateway({
       ? { key: 'yalla.mock.diner', storage: browserMockStorage() }
       : undefined,
 });
+
+/** A whole number of seconds from an env flag, in milliseconds, or nothing. */
+function seconds(value: string | undefined): number | undefined {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : undefined;
+}
 
 /** True when the app is running on mock data. Drives the dev-only banner. */
 export const usingMockData = dataSource === 'mock';

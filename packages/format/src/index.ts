@@ -16,7 +16,7 @@ export {
 } from './datetime';
 export type { DayAndTime, Instant, ZonedClock } from './datetime';
 
-export { formatRelativeMinutes, formatDuration, minutesBetween } from './duration';
+export { formatCountdown, formatRelativeMinutes, formatDuration, minutesBetween } from './duration';
 
 export { icsEvent, icsFileName, zoneOffsetAt, zonedParts } from './calendar';
 export type { IcsEventInput } from './calendar';

@@ -1,4 +1,4 @@
-import type { Booking, BookingStatus } from '@yalla/api';
+import { awaitsVenueAnswer, type Booking, type BookingStatus } from '@yalla/api';
 import { formatDate, formatDayAndTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +37,7 @@ import { PhotoImage } from '../PhotoImage';
 import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
 import { tableWithRoom } from './bookingText';
+import { VenueAnswerNote } from './VenueAnswer';
 
 /** The photo band across the top of the next booking. */
 export const HERO_PHOTO_HEIGHT = 118;
@@ -66,9 +67,15 @@ export const bookingBadgeVariant: Readonly<Record<BookingStatus, BadgeVariant>> 
 
 export function BookingBadge({
   status,
+  declined = false,
   tone = 'soft',
 }: {
   readonly status: BookingStatus;
+  /**
+   * The venue declined it rather than cancelling it: "Not confirmed", not
+   * "Cancelled by the venue" — it was never confirmed in the first place.
+   */
+  readonly declined?: boolean;
   /** `solid` on a photo and in the list; `soft` on the detail card. */
   readonly tone?: BadgeTone;
 }) {
@@ -78,7 +85,11 @@ export function BookingBadge({
       variant={bookingBadgeVariant[status]}
       tone={tone}
       size="sm"
-      label={t(`bookings.status.${status}`)}
+      label={
+        declined && status === 'cancelledByVenue'
+          ? t('bookings.status.declined')
+          : t(`bookings.status.${status}`)
+      }
     />
   );
 }
@@ -118,7 +129,11 @@ function useBookingFacts(booking: Booking, now: Date) {
     hasRoom: tableValue !== booking.tableLabel,
     // The code is in the name: it is what the diner reads out at the door, and
     // what the list is searched by.
-    label: `${where}, ${t(`bookings.status.${booking.status}`)}, ${tableLine}, ${when}, ${booking.code}`,
+    label: `${where}, ${
+      Boolean(booking.declinedBecause) && booking.status === 'cancelledByVenue'
+        ? t('bookings.status.declined')
+        : t(`bookings.status.${booking.status}`)
+    }, ${tableLine}, ${when}, ${booking.code}`,
   };
 }
 
@@ -184,7 +199,11 @@ export function BookingHeroCard({
             </View>
           ) : null}
           <View style={styles.heroStatus}>
-            <BookingBadge status={booking.status} tone="solid" />
+            <BookingBadge
+              status={booking.status}
+              declined={Boolean(booking.declinedBecause)}
+              tone="solid"
+            />
           </View>
           <Text display numberOfLines={1} style={styles.heroName}>
             {facts.where}
@@ -196,6 +215,8 @@ export function BookingHeroCard({
           <Fact label={t('booking.partySize')} value={String(booking.partySize)} />
           <Fact label={t('confirm.tableRow')} value={facts.tableValue} />
         </View>
+        {/* While the venue decides: the minutes it has left to answer. */}
+        <VenueAnswerNote booking={booking} style={styles.answer} />
       </Pressable>
 
       {onBookAgain || coords || onChange || active ? <DashedRule /> : null}
@@ -311,7 +332,16 @@ export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
               ? `${facts.day} · ${facts.time} · ${facts.guests} · ${facts.table}`
               : `${facts.day} · ${facts.time} · ${facts.guests}`}
           </Text>
-          <BookingBadge status={booking.status} tone="solid" />
+          <BookingBadge
+            status={booking.status}
+            declined={Boolean(booking.declinedBecause)}
+            tone="solid"
+          />
+          {/* The countdown while it waits. Once declined the badge says so;
+              why is the detail's to say, not a paragraph in the list. */}
+          {awaitsVenueAnswer(booking) ? (
+            <VenueAnswerNote booking={booking} style={styles.rowAnswer} />
+          ) : null}
         </View>
         <Ionicons name={actionIcon.chevron} size={iconSize.sm} color={colors.textMuted} />
       </View>
@@ -419,6 +449,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   facts: { flexDirection: 'row', gap: space.md - 2, padding: space.md + 2 },
+  answer: { marginHorizontal: space.md + 2, marginTop: -space.xs, marginBottom: space.md },
+  rowAnswer: { alignSelf: 'flex-start', marginTop: space.xs },
   fact: { flex: 1, gap: 2 },
   factLabel: { ...typography.caption, color: colors.textMuted },
   factValue: {

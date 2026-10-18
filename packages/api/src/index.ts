@@ -311,10 +311,12 @@ export {
   approvalCopy,
   availabilityWindowCopy,
   bookingFailure,
+  declinedCopy,
   freeCancellationCopy,
   nextHalfHour,
   tableCopy,
   unavailableCopy,
+  venueAnswerCopy,
   verificationFailureCopy,
 } from './contracts/reservation';
 export type {
@@ -322,6 +324,7 @@ export type {
   BookingFailure,
   CopyLine,
   TableCopy,
+  VenueAnswerState,
 } from './contracts/reservation';
 
 // --- The public branch page ---------------------------------------------------
@@ -483,9 +486,25 @@ export type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/
 export type { AmenityKey, VenueListing, VenueListingInput } from './contracts/listing';
 export { AMENITY_KEYS, MAX_DISTRICT_LENGTH, MAX_GALLERY_PHOTOS } from './contracts/listing';
 export type {
+  ApprovalCountdown,
   ApprovalTrigger,
+  AwaitingApproval,
   ConsoleBooking,
+  CurrentSittingContext,
   DecideReservationCommand,
+  DeclineReason,
+  NextBookingContext,
+  PreviousBookingContext,
+} from './contracts/approvals';
+export {
+  APPROVAL_EXPIRED_CODE,
+  APPROVAL_POLL_MS,
+  APPROVAL_URGENT_SECONDS,
+  APPROVAL_WINDOW_MINUTES,
+  SHORT_NOTICE_HOURS,
+  approvalCountdown,
+  awaitsVenueAnswer,
+  isApprovalExpired,
 } from './contracts/approvals';
 
 export {

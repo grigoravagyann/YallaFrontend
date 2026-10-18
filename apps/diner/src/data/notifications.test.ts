@@ -1,7 +1,7 @@
 import type { DinerNotification } from '@yalla/api';
 import { dinerResources } from '@yalla/i18n/diner';
 import { describe, expect, it } from 'vitest';
-import { notificationCopy, notificationRoute } from './notifications';
+import { bookingKeysForRow, notificationCopy, notificationRoute } from './notifications';
 
 function row(overrides: Partial<DinerNotification> = {}): DinerNotification {
   return {
@@ -33,6 +33,74 @@ describe('notificationCopy', () => {
     ).toBe('Dolmama');
   });
 
+  it('apologises for a booking declined because nobody answered in time', () => {
+    for (const expired of [true, 'true']) {
+      expect(
+        notificationCopy(row({ kind: 'booking-declined', params: { expired } })).titleKey,
+      ).toBe('notifications.kind.bookingExpired.title');
+    }
+    expect(
+      notificationCopy(row({ kind: 'booking-declined', params: { expired: false } })).titleKey,
+    ).toBe('notifications.kind.bookingDeclined.title');
+    expect(notificationCopy(row({ kind: 'booking-declined' })).bodyKey).toBe(
+      'notifications.kind.bookingDeclined.body',
+    );
+  });
+
+  describe('a declined change of a confirmed booking', () => {
+    const change = (params: Record<string, string>) =>
+      notificationCopy(
+        row({
+          kind: 'booking-declined',
+          params: {
+            date: '2026-10-21',
+            time: '19:00',
+            requestedDate: '2026-10-20',
+            requestedTime: '20:00',
+            wasChange: 'true',
+            ...params,
+          },
+        }),
+      );
+
+    it('says the booking stands at its old time when the server kept it', () => {
+      expect(change({ originalKept: 'true', expired: 'false' })).toEqual({
+        titleKey: 'notifications.kind.bookingChangeKept.title',
+        bodyKey: 'notifications.kind.bookingChangeKept.body',
+        params: { place: 'Lumen Coffee · Cascade', time: '19:00', requestedTime: '20:00' },
+      });
+    });
+
+    it('apologises when the change ran out of time, kept or not', () => {
+      expect(change({ originalKept: 'true', expired: 'true' }).titleKey).toBe(
+        'notifications.kind.bookingChangeKeptExpired.title',
+      );
+      expect(change({ originalKept: 'false', expired: 'true' }).titleKey).toBe(
+        'notifications.kind.bookingChangeEndedExpired.title',
+      );
+    });
+
+    it('says the booking ended when its old slot had gone too', () => {
+      expect(change({ originalKept: 'false', expired: 'false' }).titleKey).toBe(
+        'notifications.kind.bookingChangeEnded.title',
+      );
+    });
+
+    it('falls back to the plain decline when the times it needs are missing', () => {
+      const bare = notificationCopy(
+        row({ kind: 'booking-declined', params: { wasChange: 'true', originalKept: 'true' } }),
+      );
+      expect(bare.titleKey).toBe('notifications.kind.bookingDeclined.title');
+    });
+
+    it('is not taken for a plain decline, which says wasChange "false"', () => {
+      const plain = notificationCopy(
+        row({ kind: 'booking-declined', params: { wasChange: 'false', expired: 'true' } }),
+      );
+      expect(plain.titleKey).toBe('notifications.kind.bookingExpired.title');
+    });
+  });
+
   it('gives a kind this build does not know the generic copy, rather than dropping it', () => {
     expect(notificationCopy(row({ kind: 'table-ready-soon' })).titleKey).toBe(
       'notifications.kind.unknown.title',
@@ -43,12 +111,27 @@ describe('notificationCopy', () => {
     'booking-reminder',
     'booking-confirmed',
     'booking-declined',
+    'booking-declined:expired',
+    'booking-declined:changeKept',
+    'booking-declined:changeKeptExpired',
+    'booking-declined:changeEnded',
+    'booking-declined:changeEndedExpired',
     'booking-cancelled-by-venue',
     'order-ready',
     'review-hidden',
     'a-kind-from-a-newer-server',
-  ])('has a title and a body in every language for %s', (kind) => {
-    const copy = notificationCopy(row({ kind }));
+  ])('has a title and a body in every language for %s', (variant) => {
+    const [kind, flag] = variant.split(':') as [string, string | undefined];
+    const change = flag?.startsWith('change')
+      ? {
+          wasChange: 'true',
+          originalKept: flag.includes('Kept') ? 'true' : 'false',
+          expired: flag.endsWith('Expired') ? 'true' : 'false',
+          time: '19:00',
+          requestedTime: '20:00',
+        }
+      : null;
+    const copy = notificationCopy(row({ kind, params: change ?? (flag ? { [flag]: true } : {}) }));
     for (const bundle of [
       dinerResources.en.diner,
       dinerResources.hy.diner,
@@ -90,5 +173,20 @@ describe('notificationRoute', () => {
     expect(
       notificationRoute(row({ kind: 'review-hidden', reservationId: null, branchId: null })),
     ).toBeNull();
+  });
+});
+
+describe('bookingKeysForRow', () => {
+  it('reads the booking a booking row is about again, and the list with it', () => {
+    expect(bookingKeysForRow(row({ kind: 'booking-declined' }))).toEqual([
+      ['bookings'],
+      ['booking', 'r1'],
+      ['reservationState', 'r1'],
+    ]);
+  });
+
+  it('touches nothing for a row about something else, or about no booking', () => {
+    expect(bookingKeysForRow(row({ kind: 'order-ready', reservationId: null }))).toEqual([]);
+    expect(bookingKeysForRow(row({ kind: 'booking-confirmed', reservationId: null }))).toEqual([]);
   });
 });

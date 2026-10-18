@@ -8,16 +8,26 @@
  * decision — given this payload, which screen and which parameters — and that
  * is all of this file.
  *
- * The five types come from `NotificationHandlers.cs`. Each writes a `kind` and
+ * The six types come from `NotificationHandlers.cs`. Each writes a `kind` and
  * the one or two ids its screen needs:
  *
  * | `kind`                    | carries                                    |
  * | ------------------------- | ------------------------------------------ |
  * | `reservation-reminder`    | `reservationId`, `code`, `branch`, `action`|
  * | `reservation-late-nudge`  | `reservationId`, `action`, `extensionMinutes` |
- * | `reservation-decided`     | `reservationId`, `approved`                |
+ * | `reservation-decided`     | `reservationId`, `approved`, `expired`, `wasChange`, `originalKept` |
  * | `participant-approved`    | `tabId`                                    |
  * | `order-ready`             | `tabId`                                    |
+ * | `tabJoinRequested`        | `tabId` — to the host, someone is waiting  |
+ *
+ * `expired` is `"true"` on the decision nobody made: a short-notice request
+ * the floor did not answer in its fifteen minutes, declined by the server with
+ * an apology. It routes like any decision — to the booking, which reads its own
+ * `declinedBecause` on landing and says sorry from that, not from the payload.
+ * `wasChange` and `originalKept` say a declined *change* left the booking
+ * standing at its old slot, confirmed again — the push's own text says which;
+ * the app routes to the booking and reads it afresh (see `invalidation.ts`),
+ * so the screen shows it back at its old time, not still waiting.
  *
  * Everything arrives as **strings**, including `approved` and
  * `extensionMinutes`: Expo's data dictionary is `Dictionary<string, string>` on
@@ -87,8 +97,11 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
       };
     }
 
+    // `tabJoinRequested` is the host's: somebody scanned their table and waits
+    // on them. The tab screen leads with that person and the Approve beside them.
     case 'participant-approved':
-    case 'order-ready': {
+    case 'order-ready':
+    case 'tabJoinRequested': {
       const tabId = str(data, 'tabId');
       return tabId ? { kind: 'tab', tabId } : { kind: 'unknown' };
     }

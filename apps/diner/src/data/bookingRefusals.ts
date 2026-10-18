@@ -3,6 +3,7 @@ import {
   BookingsNotAcceptedError,
   MAX_BOOKING_NOTE,
   ValidationError,
+  isApprovalExpired,
   type BookingFailure,
   type CopyLine,
 } from '@yalla/api';
@@ -15,7 +16,9 @@ import {
  *   page shows in place of Book, not "something went wrong" (K9);
  * - the note to the venue is too long — which field, and the limit (K9);
  * - a booking being changed can no longer move: only one waiting for the
- *   venue, or confirmed and not yet started, can.
+ *   venue, or confirmed and not yet started, can;
+ * - a booking waiting on a short-notice answer cannot be moved once its
+ *   answer window has closed — too late to change, not a table rule.
  *
  * `null` for anything else: `bookingFailure` decides those.
  */
@@ -24,6 +27,7 @@ export function bookingRefusal(error: unknown): CopyLine | null {
     return { key: 'place.bookingsOff.body', params: {} };
   if (error instanceof BookingNotChangeableError)
     return { key: 'book.changeError.notChangeable', params: {} };
+  if (isApprovalExpired(error)) return { key: 'book.changeError.approvalExpired', params: {} };
   if (
     error instanceof ValidationError &&
     (error.field?.toLowerCase() === 'note' ||

@@ -1,5 +1,9 @@
 import type { ConsoleGateway } from '../consoleGateway';
-import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
+import {
+  APPROVAL_EXPIRED_CODE,
+  type ConsoleBooking,
+  type DecideReservationCommand,
+} from '../contracts/approvals';
 import { slugify } from '../slug';
 import type {
   ConsoleBranch,
@@ -64,6 +68,7 @@ import {
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import { invalidRequest, validationFailed, type MockViolation } from './problems';
+import { approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import { publicBranchFixtures } from './publicVenues';
 import {
   AMENITY_KEYS,
@@ -937,6 +942,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
    * waiting, the rest have nobody. Party sizes over the shipped threshold of
    * eight are what the policy tab's rule stops; the two-top is a diner the
    * rolling no-show threshold caught, which is the other way a booking waits.
+   * Lumen North also has a short-notice two-top for this evening, made a
+   * minute ago, so the panel's countdown has a window to count down.
    */
   function seedBookings(): void {
     if (bookingsSeeded) return;
@@ -970,9 +977,29 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         localStartTime: guest.time,
         status: 'pendingApproval',
         awaitingApprovalBecause: because,
+        approvalExpiresAtUtc: null,
         note: guest.note ?? null,
       });
     };
+
+    // Two hours from now at the branch, asked for a minute ago.
+    const soon = new Date(now().getTime() + 2 * 60 * 60_000);
+    soon.setUTCMinutes(soon.getUTCMinutes() < 30 ? 0 : 30, 0, 0);
+    const madeAt = new Date(now().getTime() - 60_000);
+    bookings.set('r-lumen-north-0', {
+      id: 'r-lumen-north-0',
+      code: 'LUSN2',
+      branchId: 'b-lumen-north',
+      guestName: 'Mariam Hakobyan',
+      guestPhone: '+374 77 45 67 89',
+      partySize: 2,
+      tableLabel: 'W1',
+      ...localDateAndTime(soon.toISOString(), 'Asia/Yerevan'),
+      status: 'pendingApproval',
+      awaitingApprovalBecause: 'shortNotice',
+      approvalExpiresAtUtc: approvalExpiryFor(madeAt, soon.toISOString()),
+      note: null,
+    });
 
     seed(
       'b-lumen-north',
@@ -1059,7 +1086,32 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     if (!reachesWholeVenue(row) && row.branchId !== branchId) throw refusal();
   }
 
-  /** Load (404), then the branch rule (403), then the state (409): the server's order. */
+  /**
+   * The server's sweep: a short-notice booking whose answer window closed with
+   * nobody deciding is declined for want of an answer, and leaves the list.
+   */
+  function sweepExpired(): void {
+    const at = now().getTime();
+    for (const booking of bookings.values()) {
+      if (
+        booking.status === 'pendingApproval' &&
+        booking.approvalExpiresAtUtc !== null &&
+        at >= new Date(booking.approvalExpiresAtUtc).getTime()
+      ) {
+        bookings.set(booking.id, {
+          ...booking,
+          status: 'cancelledByVenue',
+          awaitingApprovalBecause: null,
+          approvalExpiresAtUtc: null,
+        });
+      }
+    }
+  }
+
+  /**
+   * Load (404), then the branch rule (403), then the window (409, too late),
+   * then the state (409): the server's order.
+   */
   function decideBooking(command: DecideReservationCommand, approve: boolean): ConsoleBooking {
     seedBookings();
     const booking = bookings.get(command.reservationId);
@@ -1068,6 +1120,25 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     }
 
     requireManagerForBranch(booking.branchId, approve ? 'Approve a booking' : 'Reject a booking');
+
+    if (
+      booking.status === 'pendingApproval' &&
+      booking.approvalExpiresAtUtc !== null &&
+      now().getTime() >= new Date(booking.approvalExpiresAtUtc).getTime()
+    ) {
+      sweepExpired();
+      throw new ConcurrencyConflictError({
+        url: `${URL_TAG}/reservations/${booking.id}`,
+        problem: {
+          type: 'about:blank',
+          title: 'Conflicting state',
+          status: 409,
+          detail: `The answer window for ${booking.code} has closed; the guest has been told the venue could not confirm in time.`,
+          code: APPROVAL_EXPIRED_CODE,
+          traceId: 'mock',
+        },
+      });
+    }
 
     if (booking.status !== 'pendingApproval') {
       throw conflict(
@@ -1079,6 +1150,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       ...booking,
       status: approve ? 'confirmed' : 'cancelledByVenue',
       awaitingApprovalBecause: null,
+      approvalExpiresAtUtc: null,
     };
     bookings.set(booking.id, decided);
     return decided;
@@ -3120,6 +3192,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // refused here, as on every branch route.
       requireBranchInVenue(branchId);
       seedBookings();
+      sweepExpired();
       return [...bookings.values()]
         .filter((booking) => booking.branchId === branchId && booking.status === 'pendingApproval')
         .sort(

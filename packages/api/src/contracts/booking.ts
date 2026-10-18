@@ -1,4 +1,5 @@
 import type { FloorPlanData } from './tableFloor';
+import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { OpenState } from './publicBranch';
 import type { ReservationStatusCode } from './push';
 
@@ -357,6 +358,25 @@ export interface Booking {
 
   /** What the diner asked the venue, as the venue sees it (K9). `null` when they wrote nothing. */
   readonly note: string | null;
+
+  /**
+   * Why the booking is waiting for the venue, while it is. `shortNotice` is a
+   * booking for today, or within a few hours, that the floor answers in
+   * minutes; the others wait without a clock.
+   */
+  readonly awaitingApprovalBecause: ApprovalTrigger | null;
+  /**
+   * When the venue's answer window closes, for a short-notice request that is
+   * still waiting — the diner's "answer within 12:40". Past it the server
+   * declines the booking itself and apologises. `null` otherwise.
+   */
+  readonly approvalExpiresAtUtc: string | null;
+  /**
+   * Why the venue declined it: a person said no, or nobody answered in time.
+   * `null` for every booking the venue did not decline — including one the
+   * venue cancelled after confirming it, which is a different sentence.
+   */
+  readonly declinedBecause: DeclineReason | null;
 
   /**
    * An opaque token granting sight of, and the power to cancel, **this booking

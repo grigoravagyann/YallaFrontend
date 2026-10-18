@@ -14,6 +14,12 @@ import type { Booking } from '../contracts/booking';
 import type { DinerProfileView } from '../contracts/dinerAccount';
 import type { Photo } from '../contracts/menuAdmin';
 import type { ReservationState, ReservationStatusCode } from '../contracts/push';
+import {
+  approvalExpiry,
+  approvalTrigger,
+  declineReason,
+  type WireApprovalFields,
+} from './approvalMapping';
 import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
 import { photo } from './venueSettingsMapping';
@@ -255,7 +261,9 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
 
 // --- Reservations, for the notification actions ------------------------------
 
-type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'];
+/** With the booking-approval fields the generated schema does not have yet. */
+type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] &
+  WireApprovalFields;
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,
@@ -308,6 +316,10 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     cancelledAtUtc: view.cancelledAtUtc ?? null,
     cancelledAfterDeadline: view.cancelledAfterDeadline,
     note: view.note ?? null,
+    awaitingApprovalBecause: approvalTrigger(view.awaitingApprovalBecause),
+    // Only while it waits: a decided booking's old window is no promise.
+    approvalExpiresAtUtc: view.status === 1 ? approvalExpiry(view.approvalExpiresAtUtc) : null,
+    declinedBecause: declineReason(view.declinedBecause),
     manageToken: view.manageToken ?? null,
   };
 }

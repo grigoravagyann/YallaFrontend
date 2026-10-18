@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { declinedCopy } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatDayAndTime, formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -15,6 +16,7 @@ import { SuccessMark } from '../../src/components/motion/SuccessMark';
 import { usePressScale } from '../../src/components/motion/usePressScale';
 import { PhotoImage } from '../../src/components/PhotoImage';
 import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
+import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
 import { directionsUrl } from '../../src/components/place/PlaceActions';
 import { QueryErrorState } from '../../src/components/QueryErrorState';
 import { Screen } from '../../src/components/Screen';
@@ -45,6 +47,11 @@ import {
  * still to confirm — and the card under them is what the diner needs at the
  * door: where, when, how many, which table, and the code staff ask for. No
  * haptic here: it fired on the confirm press that brought the diner here.
+ *
+ * A short-notice request is answered on this screen: the floor has fifteen
+ * minutes, the diner watches them go, and the booking is read again until it
+ * is decided (`useBooking` polls while it waits). The mark and the title then
+ * change to what happened — booked, or declined and why — popping in afresh.
  */
 export default function SuccessScreen() {
   const { t } = useTranslation('diner');
@@ -97,6 +104,10 @@ export default function SuccessScreen() {
   }
 
   const pending = booking.status === 'pendingApproval';
+  // Declined by the venue — a person said no, or nobody answered in time.
+  const declinedTitle = declinedCopy(booking.declinedBecause, 'title');
+  const declinedBody = declinedCopy(booking.declinedBecause, 'body');
+  const tone = declinedTitle ? 'declined' : pending ? 'pending' : 'success';
   // The note as the venue received it (K9), not a copy kept on this phone.
   const note = booking.note;
   const slot = formatDayAndTime(booking.slotUtc, booking.timeZoneId, locale);
@@ -145,18 +156,40 @@ export default function SuccessScreen() {
           />
         </View>
 
-        {/* Pending must never look confirmed: the blue clock, not the green check. */}
-        <SuccessMark tone={pending ? 'pending' : 'success'} style={styles.mark} />
-        <Rise delay={120}>
-          <Text display style={styles.title} accessibilityRole="header">
-            {pending ? t('success.pendingTitle') : t('success.confirmedTitle')}
+        {/* Pending must never look confirmed: the blue clock, not the green check.
+            Keyed by the outcome, so the answer arriving pops a new mark in. */}
+        <SuccessMark key={tone} tone={tone} style={styles.mark} />
+        <Rise key={`title-${tone}`} delay={120}>
+          <Text
+            display
+            style={styles.title}
+            accessibilityRole="header"
+            accessibilityLiveRegion="polite"
+          >
+            {declinedTitle
+              ? t(declinedTitle.key, declinedTitle.params)
+              : pending
+                ? t('success.pendingTitle')
+                : t('success.confirmedTitle')}
           </Text>
         </Rise>
-        <Rise delay={180}>
+        <Rise key={`body-${tone}`} delay={180}>
           <Text style={styles.subtitle}>
-            {pending ? t('success.pendingBody') : t('success.expecting')}
+            {declinedBody
+              ? t(declinedBody.key, declinedBody.params)
+              : pending
+                ? booking.approvalExpiresAtUtc
+                  ? t('booking.approval.why')
+                  : t('success.pendingBody')
+                : t('success.expecting')}
           </Text>
         </Rise>
+        {/* The minutes the venue has left to answer, while it decides. */}
+        {pending ? (
+          <Rise delay={200} style={styles.answer}>
+            <VenueAnswerNote booking={booking} />
+          </Rise>
+        ) : null}
 
         <Rise delay={240} style={styles.stretch}>
           <View style={styles.card}>
@@ -184,58 +217,69 @@ export default function SuccessScreen() {
               </View>
             ) : null}
 
-            <Dashed />
-
             {/*
               Large and legible: staff ask for this at the door and it gets read
               aloud over the phone, so it is the one thing on this card that has
-              to survive a noisy room.
+              to survive a noisy room. Not for a booking the venue declined: a
+              code that opens no table is not one to read out, or to share.
             */}
-            <View style={styles.codeRow}>
-              <View style={styles.codeText}>
-                <Text style={styles.factLabel}>{t('success.codeLabel')}</Text>
-                <Text style={styles.code} accessibilityLabel={booking.code.split('').join(' ')}>
-                  {booking.code}
-                </Text>
-              </View>
-              <Button
-                label={copied ? t('success.copied') : t('success.copy')}
-                icon={copied ? 'checkmark' : 'copy-outline'}
-                variant="outline"
-                size="small"
-                fullWidth={false}
-                onPress={copy}
-              />
-            </View>
+            {declinedTitle ? null : (
+              <>
+                <Dashed />
+                <View style={styles.codeRow}>
+                  <View style={styles.codeText}>
+                    <Text style={styles.factLabel}>{t('success.codeLabel')}</Text>
+                    <Text style={styles.code} accessibilityLabel={booking.code.split('').join(' ')}>
+                      {booking.code}
+                    </Text>
+                  </View>
+                  <Button
+                    label={copied ? t('success.copied') : t('success.copy')}
+                    icon={copied ? 'checkmark' : 'copy-outline'}
+                    variant="outline"
+                    size="small"
+                    fullWidth={false}
+                    onPress={copy}
+                  />
+                </View>
+              </>
+            )}
           </View>
         </Rise>
 
-        <Rise delay={300} style={[styles.stretch, styles.tiles]}>
-          {coords ? (
-            <Tile
-              icon={actionIcon.directions}
-              label={t('place.action.directions')}
-              onPress={() =>
-                void Linking.openURL(directionsUrl(coords, where)).catch(() => undefined)
-              }
-            />
-          ) : null}
-          <Tile icon={actionIcon.share} label={t('success.share')} onPress={share} />
-        </Rise>
+        {declinedTitle ? null : (
+          <Rise delay={300} style={[styles.stretch, styles.tiles]}>
+            {coords ? (
+              <Tile
+                icon={actionIcon.directions}
+                label={t('place.action.directions')}
+                onPress={() =>
+                  void Linking.openURL(directionsUrl(coords, where)).catch(() => undefined)
+                }
+              />
+            ) : null}
+            <Tile icon={actionIcon.share} label={t('success.share')} onPress={share} />
+          </Rise>
+        )}
 
-        {/* What the code is actually for once they are standing there. */}
-        <Rise delay={340}>
-          <Text style={styles.hint}>{t('success.atTableHint')}</Text>
-        </Rise>
+        {/* What the code is actually for once they are standing there — and
+            nothing about reminders for a booking the venue could not take. */}
+        {declinedTitle ? null : (
+          <>
+            <Rise delay={340}>
+              <Text style={styles.hint}>{t('success.atTableHint')}</Text>
+            </Rise>
 
-        {/*
-          The one place the notification permission is asked for.
-          A booking has just been made and the question answers itself; asked on
-          launch it is a prompt nobody understands and therefore declines.
-        */}
-        <View style={styles.stretch}>
-          <ReminderOptIn startUtc={booking.slotUtc} />
-        </View>
+            {/*
+              The one place the notification permission is asked for.
+              A booking has just been made and the question answers itself; asked on
+              launch it is a prompt nobody understands and therefore declines.
+            */}
+            <View style={styles.stretch}>
+              <ReminderOptIn startUtc={booking.slotUtc} />
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + space.sm }]}>
@@ -334,6 +378,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
   },
+  answer: { marginTop: space.md },
 
   card: {
     marginTop: space.xl - 2,

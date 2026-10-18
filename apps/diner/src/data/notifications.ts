@@ -33,11 +33,60 @@ const COPY_KEY: Readonly<Record<KnownDinerNotificationKind, string>> = {
 export interface NotificationCopy {
   readonly titleKey: string;
   readonly bodyKey: string;
-  readonly params: { readonly place: string };
+  /**
+   * The place always; on a declined change, also the time it asked for and
+   * the time the booking now stands at, both `HH:mm` as the server wrote them.
+   */
+  readonly params: {
+    readonly place: string;
+    readonly time?: string;
+    readonly requestedTime?: string;
+  };
 }
 
 function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+}
+
+/** A `"true"`/`"false"` flag the server writes on a row, or a boolean. */
+function flag(notification: Pick<DinerNotification, 'params'>, name: string): boolean {
+  const value = notification.params[name];
+  return value === true || value === 'true';
+}
+
+/**
+ * A decline the venue never made: nobody answered a short-notice request in
+ * time. The server writes it as a `booking-declined` row flagged `expired`
+ * (a string or a boolean, as params arrive), and it is an apology, not a no.
+ */
+function expired(notification: Pick<DinerNotification, 'kind' | 'params'>): boolean {
+  return notification.kind === 'booking-declined' && flag(notification, 'expired');
+}
+
+/**
+ * A declined *change* of a confirmed booking, and what came of it.
+ *
+ * Moving a confirmed booking into tonight asks the floor again. When the floor
+ * says no or does not answer, the server puts the booking back on the slot it
+ * had, if that slot is still free (`originalKept`) — the diner still has a
+ * table, at the old time, and the row must say so rather than "declined". If
+ * the old slot has gone too, the booking has ended. Either way it is said
+ * with an apology when nobody answered. `null` for any other row, and for a
+ * change row missing the times its sentence needs.
+ */
+function declinedChange(
+  notification: Pick<DinerNotification, 'kind' | 'params'>,
+): { key: string; time: string; requestedTime: string } | null {
+  if (notification.kind !== 'booking-declined' || !flag(notification, 'wasChange')) return null;
+  const time = text(notification.params['time']);
+  const requestedTime = text(notification.params['requestedTime']);
+  if (!time || !requestedTime) return null;
+  const ended = flag(notification, 'originalKept') ? 'Kept' : 'Ended';
+  return {
+    key: `bookingChange${ended}${expired(notification) ? 'Expired' : ''}`,
+    time,
+    requestedTime,
+  };
 }
 
 /**
@@ -47,17 +96,45 @@ function text(value: unknown): string | null {
 export function notificationCopy(
   notification: Pick<DinerNotification, 'kind' | 'branchName' | 'params'>,
 ): NotificationCopy {
-  const key = isKnownNotificationKind(notification.kind) ? COPY_KEY[notification.kind] : 'unknown';
   const place =
     text(notification.branchName) ??
     text(notification.params['branchName']) ??
     text(notification.params['venueName']) ??
     '';
+  const change = declinedChange(notification);
+  if (change) {
+    return {
+      titleKey: `notifications.kind.${change.key}.title`,
+      bodyKey: `notifications.kind.${change.key}.body`,
+      params: { place, time: change.time, requestedTime: change.requestedTime },
+    };
+  }
+  const key = expired(notification)
+    ? 'bookingExpired'
+    : isKnownNotificationKind(notification.kind)
+      ? COPY_KEY[notification.kind]
+      : 'unknown';
   return {
     titleKey: `notifications.kind.${key}.title`,
     bodyKey: `notifications.kind.${key}.body`,
     params: { place },
   };
+}
+
+/**
+ * What a tapped row makes stale: the booking it is about, and the list.
+ *
+ * A row can say something the cached booking does not know yet — a declined
+ * change put it back at its old time, confirmed — and opening the booking
+ * onto the copy cached while it waited would contradict the row just tapped.
+ * The keys are written out, as `push/invalidation.ts` writes them.
+ */
+export function bookingKeysForRow(
+  notification: Pick<DinerNotification, 'kind' | 'reservationId'>,
+): readonly (readonly string[])[] {
+  const id = notification.reservationId;
+  if (!id || !notification.kind.startsWith('booking-')) return [];
+  return [['bookings'], ['booking', id], ['reservationState', id]];
 }
 
 export type NotificationRoute =

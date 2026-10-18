@@ -72,6 +72,53 @@ describe('routing a tapped notification', () => {
     });
   });
 
+  it('sends a decision nobody made — the window ran out — to the booking, with no action', () => {
+    // ReservationDecidedHandler for the expiry sweep: `approved` false and
+    // `expired` true, both as text. The booking itself says why; the push
+    // only has to land on it.
+    const target = parsePushTarget({
+      kind: 'reservation-decided',
+      reservationId: RESERVATION,
+      approved: 'false',
+      expired: 'true',
+    });
+
+    expect(target).toEqual({
+      kind: 'booking',
+      reservationId: RESERVATION,
+      action: null,
+      extensionMinutes: null,
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION },
+    });
+  });
+
+  it('sends a declined change to the booking it is about, which stands at its old slot', () => {
+    // ReservationDecidedHandler for a change the floor did not confirm: the
+    // booking went back to the slot it had. Every flag is text.
+    const target = parsePushTarget({
+      kind: 'reservation-decided',
+      reservationId: RESERVATION,
+      approved: 'false',
+      expired: 'true',
+      wasChange: 'true',
+      originalKept: 'true',
+    });
+
+    expect(target).toEqual({
+      kind: 'booking',
+      reservationId: RESERVATION,
+      action: null,
+      extensionMinutes: null,
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION },
+    });
+  });
+
   it('sends a participant approval and an order-ready to the tab', () => {
     for (const kind of ['participant-approved', 'order-ready']) {
       const target = parsePushTarget({ kind, tabId: TAB });
@@ -81,6 +128,16 @@ describe('routing a tapped notification', () => {
         params: { tabId: TAB },
       });
     }
+  });
+
+  it("sends the host's join request to the tab, where the banner lets them in", () => {
+    // TabJoinRequestedHandler. The tab screen shows whoever is waiting at the
+    // top of the bill, with Approve beside them; the push only routes there.
+    const target = parsePushTarget({ kind: 'tabJoinRequested', tabId: TAB });
+    expect(target).toEqual({ kind: 'tab', tabId: TAB });
+    expect(routeFor(target)).toEqual({ pathname: '/tab/[tabId]', params: { tabId: TAB } });
+
+    expect(parsePushTarget({ kind: 'tabJoinRequested' })).toEqual({ kind: 'unknown' });
   });
 
   it('routes nowhere for a type this build does not know', () => {
@@ -125,14 +182,23 @@ describe('which button was tapped', () => {
   });
 });
 
-/** A booking the mock has actually confirmed, since the mock world seeds none. */
+/**
+ * A booking the mock has actually confirmed, since the mock world seeds none.
+ * It is for later today, which waits for the floor now; the floor here says
+ * yes at once, because these tests are about what comes after.
+ */
 const NOW = new Date('2026-09-04T14:30:00Z');
 const BRANCH = 'b-lumen-north';
 const SLOT = new Date('2026-09-04T18:00:00Z').toISOString();
 
 async function aConfirmedBooking() {
   let clock = NOW;
-  const gateway = createMockGateway({ now: () => clock, latencyMs: 0, simulateJoiners: false });
+  const gateway = createMockGateway({
+    now: () => clock,
+    latencyMs: 0,
+    simulateJoiners: false,
+    floorApprovesAtOnce: true,
+  });
 
   const challenge = await gateway.requestPhoneCode('+37411223344');
   const verified = await gateway.verifyPhoneCode({

@@ -1,6 +1,7 @@
-import type { ConsoleBooking } from '@yalla/api';
+import { approvalCountdown, type ConsoleBooking } from '@yalla/api';
 import {
   useApproveReservation,
+  useNow,
   usePendingReservations,
   useRejectReservation,
 } from '@yalla/api/react';
@@ -24,13 +25,20 @@ import { decisionFailureText } from './decisionFailure';
  *   optional and recorded on the booking, never shown to the diner.
  * - **A refusal is shown in the server's words, on the row it is about.** The
  *   403 and the 409 are written to be read, and a generic "something went
- *   wrong" would hide the one fact the person needs.
+ *   wrong" would hide the one fact the person needs. The one exception is an
+ *   answer that came too late, which is said here: the guest has already been
+ *   told, and there is nothing left to do.
+ * - **A short-notice booking has a clock.** It is declined by itself fifteen
+ *   minutes after it arrives, so the time left is on its row, and once it is
+ *   up the row stops offering a decision the server would refuse.
  */
 export function AwaitingApprovalPanel({ branchId }: { readonly branchId: string }) {
   const { t } = useTranslation(['admin', 'common']);
   const titleId = useId();
   const query = usePendingReservations(branchId);
   const pending = query.data ?? [];
+  // One clock for every row: the countdowns are seconds.
+  const now = useNow(1000);
 
   return (
     <section className="todo approvals" aria-labelledby={titleId}>
@@ -59,7 +67,7 @@ export function AwaitingApprovalPanel({ branchId }: { readonly branchId: string 
       ) : (
         <ul className="approvals-list">
           {pending.map((booking) => (
-            <BookingRow key={booking.id} booking={booking} branchId={branchId} />
+            <BookingRow key={booking.id} booking={booking} branchId={branchId} now={now} />
           ))}
         </ul>
       )}
@@ -70,9 +78,11 @@ export function AwaitingApprovalPanel({ branchId }: { readonly branchId: string 
 function BookingRow({
   booking,
   branchId,
+  now,
 }: {
   readonly booking: ConsoleBooking;
   readonly branchId: string;
+  readonly now: Date;
 }) {
   const { t, i18n } = useTranslation(['admin', 'common']);
   const reasonId = useId();
@@ -82,8 +92,16 @@ function BookingRow({
   const [reason, setReason] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
 
-  const busy = approve.isPending || reject.isPending;
-  const copy = { offline: t('approvals.offline'), generic: t('approvals.failed') };
+  const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now);
+  // Up on this device's clock: the next read takes the row away.
+  const closed = countdown?.expired ?? false;
+  const busy = approve.isPending || reject.isPending || closed;
+  const copy = {
+    offline: t('approvals.offline'),
+    generic: t('approvals.failed'),
+    tooLate: t('approvals.tooLate'),
+    answeredElsewhere: t('approvals.answeredElsewhere'),
+  };
 
   function decide(run: typeof approve, command: { reason?: string }) {
     setFailure(null);
@@ -115,6 +133,17 @@ function BookingRow({
         <span className="badge">
           {t(`approvals.because.${booking.awaitingApprovalBecause ?? 'unknown'}`)}
         </span>
+        {countdown ? (
+          <span
+            className={`approvals-countdown${countdown.urgent ? ' is-urgent' : ''}`}
+            role="timer"
+            aria-label={t('approvals.leftToAnswer', { time: countdown.label })}
+          >
+            {closed
+              ? t('approvals.timeUp')
+              : t('approvals.leftToAnswer', { time: countdown.label })}
+          </span>
+        ) : null}
         {/* What the diner asked for when booking (K9). Deciding without it is
             deciding blind: "a birthday, a quiet corner" is often the reason a
             large party is worth a yes. Plain text, never markup. */}

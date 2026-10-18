@@ -10,6 +10,7 @@ import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge } from '../../src/components/bookings/BookingCard';
 import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
 import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
 import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
@@ -138,6 +139,8 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
   const pending = booking.status === 'pendingApproval';
   const isCancelled =
     booking.status === 'cancelledByDiner' || booking.status === 'cancelledByVenue';
+  // Declined rather than cancelled: never confirmed, and the note says why.
+  const declined = Boolean(booking.declinedBecause);
   // The server's deadline. Past it the cancellation is late — but never blocked.
   const isLate = now.getTime() > new Date(booking.freeCancellationUntilUtc).getTime();
   const cancellation = freeCancellationCopy(
@@ -198,8 +201,11 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
             </View>
           </View>
           <View style={styles.summaryFooter}>
-            <BookingBadge status={booking.status} />
+            <BookingBadge status={booking.status} declined={declined} />
           </View>
+          {/* While the venue decides, the minutes it has left; once it has
+              declined, why — sorry, when nobody answered in time. */}
+          <VenueAnswerNote booking={booking} style={styles.answer} />
           <View style={styles.facts}>
             <Fact
               icon={actionIcon.table}
@@ -261,7 +267,7 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
           </Card>
         ) : null}
 
-        {isCancelled ? (
+        {isCancelled && !declined ? (
           <Text style={styles.cancellation}>
             {t('bookings.detail.cancelledOn', {
               date: formatDate(
@@ -391,6 +397,7 @@ const styles = StyleSheet.create({
   placeName: { ...typography.heading, color: colors.text },
   detail: { ...typography.body, color: colors.textMuted },
   summaryFooter: { flexDirection: 'row', alignItems: 'center', marginTop: space.md },
+  answer: { marginTop: space.md },
   facts: {
     marginTop: space.md,
     paddingTop: space.md,

@@ -37,11 +37,22 @@ import type {
   TabLine,
   VoidLineCommand,
 } from '../contracts/ordering';
+import {
+  APPROVAL_EXPIRED_CODE,
+  type ApprovalTrigger,
+  type AwaitingApproval,
+  type ConsoleBooking,
+  type DecideReservationCommand,
+  type DeclineReason,
+  type NextBookingContext,
+  type PreviousBookingContext,
+} from '../contracts/approvals';
 import type {
   ReleaseReservationCommand,
   ReservationReleaseResult,
   StaffGateway,
 } from '../staffGateway';
+import { answerWindowClosed, approvalExpiryFor, localDateAndTime } from './approvalWindow';
 import type { Photo } from '../contracts/menuAdmin';
 import { mockMenuFor } from './menu';
 import { mockPhoto } from './menuDetail';
@@ -170,6 +181,34 @@ interface MockReservation {
   readonly partySize: number;
   readonly startUtc: string;
   released: boolean;
+}
+
+/**
+ * A booking waiting for somebody on the floor, as the server keeps one.
+ *
+ * `arrivesAtUtc` is when the diner sent it: the list leaves it out before then,
+ * so a request can turn up while the floor is open and the tablet's chime has
+ * something to announce. The table context the awaiting route answers is held
+ * as the fixture wrote it, except who is sitting there now — that is read off
+ * the table, so freeing it makes "Sitting now" go.
+ */
+interface MockAwaiting {
+  readonly id: string;
+  readonly code: string;
+  readonly tableId: string;
+  readonly guestName: string;
+  readonly guestPhone: string;
+  readonly partySize: number;
+  readonly startUtc: string;
+  readonly arrivesAtUtc: string;
+  readonly approvalExpiresAtUtc: string | null;
+  readonly because: ApprovalTrigger;
+  readonly note: string | null;
+  readonly previousBooking: PreviousBookingContext | null;
+  readonly nextBooking: NextBookingContext | null;
+  status: 'pendingApproval' | 'confirmed' | 'cancelledByVenue';
+  declinedBecause: DeclineReason | null;
+  reason: string | null;
 }
 
 /**
@@ -332,6 +371,94 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         reservations.set(existing.id, { ...existing, startUtc: lateTable.nextReservationStartUtc });
       }
     }
+  }
+
+  /**
+   * Two bookings waiting for the floor.
+   *
+   * The first is the case the feature exists for: a two-top for later today at
+   * table 7, where a party of four that booked before it is still sitting. The
+   * tablet has to show who they are and how to ring them, and the window is
+   * fixed off the mock's start — made two minutes before it, so thirteen of
+   * the fifteen minutes are left on a frozen clock. The second, at table 4,
+   * arrives forty-five seconds in. A third, a party of eight at table 11 this
+   * evening, waits with no clock at all — the large-party rule — and lists
+   * after every request that has one, as the server lists it.
+   */
+  const awaiting = new Map<string, MockAwaiting>();
+  const sitting = tables.get('t7');
+  if (sitting) {
+    sitting.partySize = 4;
+    const madeAt = new Date(start.getTime() - 2 * 60_000);
+    const startUtc = minutesFrom(start, 105);
+    const seatedAt = new Date(sitting.seatedAtUtc ?? iso(start));
+    awaiting.set('res-await-1', {
+      id: 'res-await-1',
+      code: 'Y3107',
+      tableId: 't7',
+      guestName: 'Լիլիթ Մանուկյան',
+      guestPhone: '+37493217788',
+      partySize: 2,
+      startUtc,
+      arrivesAtUtc: iso(madeAt),
+      approvalExpiresAtUtc: approvalExpiryFor(madeAt, startUtc),
+      because: 'shortNotice',
+      note: null,
+      previousBooking: {
+        startUtc: iso(new Date(seatedAt.getTime() - 5 * 60_000)),
+        partySize: 4,
+        guestName: 'Anna Petrosyan',
+        guestPhone: '+37477889900',
+        status: 'seated',
+      },
+      nextBooking: { startUtc: minutesFrom(start, 105 + 150), partySize: 3 },
+      status: 'pendingApproval',
+      declinedBecause: null,
+      reason: null,
+    });
+  }
+  if (tables.has('t4')) {
+    const madeAt = new Date(start.getTime() + 45_000);
+    const startUtc = minutesFrom(start, 50);
+    awaiting.set('res-await-2', {
+      id: 'res-await-2',
+      code: 'Y3112',
+      tableId: 't4',
+      guestName: 'Karen Avetisyan',
+      guestPhone: '+37491445566',
+      partySize: 3,
+      startUtc,
+      arrivesAtUtc: iso(madeAt),
+      approvalExpiresAtUtc: approvalExpiryFor(madeAt, startUtc),
+      because: 'shortNotice',
+      note: 'By the window if you can.',
+      previousBooking: null,
+      nextBooking: null,
+      status: 'pendingApproval',
+      declinedBecause: null,
+      reason: null,
+    });
+  }
+
+  if (tables.has('t11')) {
+    awaiting.set('res-await-3', {
+      id: 'res-await-3',
+      code: 'Y3120',
+      tableId: 't11',
+      guestName: 'Gor Harutyunyan',
+      guestPhone: '+37494556677',
+      partySize: 8,
+      startUtc: minutesFrom(start, 240),
+      arrivesAtUtc: minutesFrom(start, -30),
+      approvalExpiresAtUtc: null,
+      because: 'largeParty',
+      note: 'A birthday dinner.',
+      previousBooking: null,
+      nextBooking: null,
+      status: 'pendingApproval',
+      declinedBecause: null,
+      reason: null,
+    });
   }
 
   function openTab(tableId: string, tableLabel: string, at: Date): MockTab {
@@ -721,6 +848,106 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     });
   }
 
+  /**
+   * The server's sweep, run on read: a request whose window closed, or whose
+   * start passed, with nobody answering is declined for want of an answer.
+   */
+  function sweepAwaiting(at: Date): void {
+    for (const request of awaiting.values()) {
+      if (request.status !== 'pendingApproval') continue;
+      if (answerWindowClosed(request.approvalExpiresAtUtc, request.startUtc, at)) {
+        request.status = 'cancelledByVenue';
+        request.declinedBecause = 'noAnswer';
+      }
+    }
+  }
+
+  function decidedBooking(request: MockAwaiting): ConsoleBooking {
+    const pending = request.status === 'pendingApproval';
+    return {
+      id: request.id,
+      code: request.code,
+      branchId,
+      guestName: request.guestName,
+      guestPhone: request.guestPhone,
+      partySize: request.partySize,
+      tableLabel: label(request.tableId),
+      ...localDateAndTime(request.startUtc, plan.timeZoneId),
+      status: request.status,
+      awaitingApprovalBecause: pending ? request.because : null,
+      approvalExpiresAtUtc: pending ? request.approvalExpiresAtUtc : null,
+      note: request.note,
+    };
+  }
+
+  /** Load (404), then the window (409, too late), then the state (409): the server's order. */
+  function decideAwaiting(command: DecideReservationCommand, approve: boolean): ConsoleBooking {
+    const at = now();
+    const url = `/api/reservations/${command.reservationId}/${approve ? 'approve' : 'reject'}`;
+    const request = awaiting.get(command.reservationId);
+    if (!request || iso(at) < request.arrivesAtUtc) throw new NotFoundError({ url });
+
+    const conflict = (code: string, detail: string) =>
+      new ConcurrencyConflictError({
+        url,
+        problem: { type: '', title: 'Conflict', status: 409, detail, code, traceId: 'mock' },
+      });
+
+    if (
+      request.status === 'pendingApproval' &&
+      answerWindowClosed(request.approvalExpiresAtUtc, request.startUtc, at)
+    ) {
+      sweepAwaiting(at);
+      throw conflict(
+        APPROVAL_EXPIRED_CODE,
+        `The answer window for ${request.code} has closed; the guest has been told the venue could not confirm in time.`,
+      );
+    }
+    if (request.status !== 'pendingApproval') {
+      // `DomainStateException`'s code on the server: the booking is not pending.
+      throw conflict(
+        'conflicting-state',
+        `Only a pending reservation can be ${approve ? 'confirmed' : 'rejected'}; ${request.code} is ${
+          request.status === 'confirmed' ? 'Confirmed' : 'CancelledByVenue'
+        }.`,
+      );
+    }
+
+    if (approve) {
+      request.status = 'confirmed';
+      // The booking now holds its table: the floor shows it like any other.
+      reservations.set(request.id, {
+        id: request.id,
+        tableId: request.tableId,
+        code: request.code,
+        guestName: request.guestName,
+        guestPhone: request.guestPhone,
+        partySize: request.partySize,
+        startUtc: request.startUtc,
+        released: false,
+      });
+      const state = tables.get(request.tableId);
+      const current = state?.nextReservationStartUtc ?? null;
+      if (
+        state &&
+        (current === null ||
+          new Date(current).getTime() < at.getTime() ||
+          request.startUtc < current)
+      ) {
+        state.nextReservationId = request.id;
+        state.nextReservationStartUtc = request.startUtc;
+        state.nextReservationPartySize = request.partySize;
+        if (state.physicalStatus === 'free') state.freeUntilUtc = request.startUtc;
+        state.version += 1;
+      }
+    } else {
+      request.status = 'cancelledByVenue';
+      request.declinedBecause = 'staffDeclined';
+      request.reason = command.reason?.trim() || null;
+    }
+    return decidedBooking(request);
+  }
+
   // --- The gateway ----------------------------------------------------------
 
   return {
@@ -1029,6 +1256,65 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       };
       releasedCommands.set(command.clientCommandId, result);
       return settle(result);
+    },
+
+    async listAwaitingApproval(requested): Promise<readonly AwaitingApproval[]> {
+      if (requested) branchId = requested;
+      const at = now();
+      sweepAwaiting(at);
+      const listed = [...awaiting.values()]
+        .filter(
+          (request) => request.status === 'pendingApproval' && request.arrivesAtUtc <= iso(at),
+        )
+        // The server's order: those with a deadline, soonest deadline first,
+        // then those with none, by start.
+        .sort((a, b) => {
+          if (a.approvalExpiresAtUtc !== null && b.approvalExpiresAtUtc !== null) {
+            return (
+              a.approvalExpiresAtUtc.localeCompare(b.approvalExpiresAtUtc) ||
+              a.startUtc.localeCompare(b.startUtc)
+            );
+          }
+          if (a.approvalExpiresAtUtc !== null) return -1;
+          if (b.approvalExpiresAtUtc !== null) return 1;
+          return a.startUtc.localeCompare(b.startUtc);
+        })
+        .map((request): AwaitingApproval => {
+          const table = plan.tables.find((candidate) => candidate.id === request.tableId);
+          const state = tables.get(request.tableId);
+          return {
+            id: request.id,
+            code: request.code,
+            branchId,
+            guestName: request.guestName,
+            guestPhone: request.guestPhone,
+            partySize: request.partySize,
+            tableId: request.tableId,
+            tableLabel: label(request.tableId),
+            roomName: table?.floorAreaName ?? null,
+            startUtc: request.startUtc,
+            ...localDateAndTime(request.startUtc, plan.timeZoneId),
+            timeZoneId: plan.timeZoneId,
+            note: request.note,
+            approvalExpiresAtUtc: request.approvalExpiresAtUtc,
+            because: request.because,
+            previousBooking: request.previousBooking,
+            nextBooking: request.nextBooking,
+            currentSitting:
+              state?.physicalStatus === 'occupied' && state.seatedAtUtc
+                ? { sinceUtc: state.seatedAtUtc, partySize: state.partySize }
+                : null,
+          };
+        });
+      return settle(listed);
+    },
+
+    async approveReservation(command): Promise<ConsoleBooking> {
+      return settle(decideAwaiting(command, true));
+    },
+
+    async rejectReservation(command): Promise<ConsoleBooking> {
+      return settle(decideAwaiting(command, false));
     },
 
     async getStaffTab(tabId): Promise<StaffTab | null> {

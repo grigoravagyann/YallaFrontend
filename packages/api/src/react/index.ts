@@ -39,7 +39,12 @@ import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menu
 import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
 import type { BranchPublicProfileInput } from '../contracts/publicProfile';
 import type { VenueListingInput } from '../contracts/listing';
-import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
+import {
+  APPROVAL_POLL_MS,
+  awaitsVenueAnswer,
+  type ConsoleBooking,
+  type DecideReservationCommand,
+} from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type {
@@ -270,6 +275,8 @@ export const queryKeys = {
   staffTab: (tabId: string) => ['staff', 'tab', tabId] as const,
   orderQueue: (branchId: string) => ['staff', 'orders', branchId] as const,
   serviceRequests: (branchId: string) => ['staff', 'serviceRequests', branchId] as const,
+  /** Bookings waiting for the floor's yes or no. */
+  awaitingApproval: (branchId: string) => ['staff', 'awaitingApproval', branchId] as const,
   staffMenu: (branchId: string) => ['staff', 'menu', branchId] as const,
   tabLines: (tabId: string) => ['staff', 'tabLines', tabId] as const,
   adminMenu: (branchId: string) => ['console', 'menu', branchId] as const,
@@ -1085,6 +1092,57 @@ export function useServiceRequests(branchId: string | undefined, enabled = true)
   });
 }
 
+/**
+ * Bookings waiting for somebody on the floor to answer.
+ *
+ * Polled every ten seconds, and **in the background too**, unlike the order
+ * queue. A short-notice booking is declined by itself fifteen minutes after
+ * it arrives, and the chime that announces a new one is for the waiter who is
+ * not looking at the tablet — a poll that stops when the tab is hidden would
+ * let the window run out in silence.
+ */
+export function useAwaitingApproval(branchId: string | undefined, enabled = true) {
+  const gateway = useStaffGateway();
+  return useQuery({
+    queryKey: queryKeys.awaitingApproval(branchId ?? ''),
+    queryFn: () => gateway.listAwaitingApproval(branchId!),
+    enabled: Boolean(branchId) && enabled,
+    staleTime: staleTime.live,
+    refetchInterval: APPROVAL_POLL_MS,
+    refetchIntervalInBackground: true,
+  });
+}
+
+/**
+ * The floor's two answers. Never retried, and the list and the floor are read
+ * again on *settle*: a 409 means somebody else answered first or the window
+ * closed, and the list on screen is what is stale. The floor because an
+ * approved booking now holds its table.
+ */
+function useFloorDecision(
+  branchId: string | undefined,
+  decide: (gateway: StaffGateway, command: DecideReservationCommand) => Promise<ConsoleBooking>,
+) {
+  const gateway = useStaffGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: DecideReservationCommand) => decide(gateway, command),
+    retry: false,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.staffFloor(branchId ?? '') });
+    },
+  });
+}
+
+export function useFloorApproveReservation(branchId: string | undefined) {
+  return useFloorDecision(branchId, (gateway, command) => gateway.approveReservation(command));
+}
+
+export function useFloorRejectReservation(branchId: string | undefined) {
+  return useFloorDecision(branchId, (gateway, command) => gateway.rejectReservation(command));
+}
+
 export interface UseStaffMenuOptions {
   /**
    * A menu this device already has, from durable storage.
@@ -1801,6 +1859,10 @@ export function useSetVenueReviewVisibility(branchId: string | undefined) {
 /**
  * The branch's pending bookings. Short-lived: a booking waits for a person,
  * and the person is usually looking at this list because somebody just booked.
+ *
+ * Read again every thirty seconds while open: a short-notice booking leaves
+ * the list by itself when its window closes, and a panel that kept showing it
+ * would offer a decision the server will refuse.
  */
 export function usePendingReservations(branchId: string | undefined) {
   const gateway = useConsoleGateway();
@@ -1809,6 +1871,8 @@ export function usePendingReservations(branchId: string | undefined) {
     queryFn: () => gateway.listPendingReservations(branchId!),
     enabled: Boolean(branchId),
     staleTime: staleTime.live,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -1929,6 +1993,14 @@ export function useManagedBooking(
     queryFn: () => gateway.getManagedBooking({ token: token!, ...slugs }),
     enabled: Boolean(token),
     staleTime: staleTime.frequent,
+    // While the venue decides — and only then — read again until it has: the
+    // page has no push channel, and "answer within 12:40" is a promise to
+    // show the answer when it comes.
+    refetchInterval: (query) => {
+      const booking = query.state.data;
+      return booking && awaitsVenueAnswer(booking) ? APPROVAL_POLL_MS : false;
+    },
+    refetchIntervalInBackground: false,
   });
 }
 

@@ -14,15 +14,19 @@ import type {
   VenueStatus,
   VenueType,
 } from '../contracts/console';
-import type { ApprovalTrigger, ConsoleBooking } from '../contracts/approvals';
+import type { ConsoleBooking } from '../contracts/approvals';
 import type { ReservationStatusCode } from '../contracts/push';
 import type { BranchReadiness } from '../contracts/readiness';
 import type { ModeratedReview, VenueModeratedReview } from '../contracts/reviews';
 import type { components } from '../generated/schema';
+import {
+  approvalExpiry,
+  approvalTrigger,
+  type WireReservationWithApproval,
+} from './approvalMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
-type WireReservation = Schemas['Yalla.Application.Reservations.ReservationView'];
 type WireModeratedReview = Schemas['Yalla.Application.Reviews.ModeratedReviewView'];
 type WireModeratedReviewPage = Schemas['Yalla.Application.Reviews.ModeratedReviewPage'];
 type WireVenue = Schemas['Yalla.Application.Platform.VenueSummary'];
@@ -246,14 +250,7 @@ const RESERVATION_STATUS: Readonly<Record<number, ReservationStatusCode>> = {
   8: 'noShow',
 };
 
-/** `ApprovalTrigger`: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory. */
-const APPROVAL_TRIGGER: Readonly<Record<number, ApprovalTrigger>> = {
-  1: 'branchApprovesEveryBooking',
-  2: 'largeParty',
-  3: 'noShowHistory',
-};
-
-export function consoleBookingFromWire(view: WireReservation): ConsoleBooking {
+export function consoleBookingFromWire(view: WireReservationWithApproval): ConsoleBooking {
   return {
     id: view.id,
     code: view.code,
@@ -265,10 +262,8 @@ export function consoleBookingFromWire(view: WireReservation): ConsoleBooking {
     localDate: view.localDate,
     localStartTime: view.localStartTime,
     status: RESERVATION_STATUS[view.status] ?? 'unknown',
-    awaitingApprovalBecause:
-      view.awaitingApprovalBecause === null || view.awaitingApprovalBecause === undefined
-        ? null
-        : (APPROVAL_TRIGGER[view.awaitingApprovalBecause] ?? 'unknown'),
+    awaitingApprovalBecause: approvalTrigger(view.awaitingApprovalBecause),
+    approvalExpiresAtUtc: approvalExpiry(view.approvalExpiresAtUtc),
     note: view.note ?? null,
   };
 }
