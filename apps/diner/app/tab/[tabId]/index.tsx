@@ -21,6 +21,7 @@ import {
   usePeopleLine,
 } from '../../../src/components/Participants';
 import { Screen } from '../../../src/components/Screen';
+import { JoinRequestBanner } from '../../../src/components/tab/JoinRequestBanner';
 import { PaySheet } from '../../../src/components/tab/PaySheet';
 import { TabNamePrompt } from '../../../src/components/TabNamePrompt';
 import { Text } from '../../../src/components/Text';
@@ -82,9 +83,9 @@ export default function TabScreen() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
-  // Polling alongside the event stream: the roster is not in the events, and
-  // someone else may approve a joiner or staff may close the table while this
-  // screen is open.
+  // Polling alongside the event stream, which refetches this same read when
+  // somebody asks to join or the roster moves: the poll is what still lands
+  // when the stream cannot be read, and staff may close the table meanwhile.
   const {
     data: view,
     isLoading,
@@ -266,6 +267,10 @@ export default function TabScreen() {
             )}
           </View>
         </Rise>
+
+        {/* Somebody at the table asking to be let on, answered from here. The
+            host's alone, as the server's approve route is. */}
+        {isHost ? <JoinRequestBanner tabId={view.tabId} people={people} /> : null}
 
         {/* Who is here, as faces and their names. Tapping it opens the full
             roster: the host's controls and the people asking to join. */}

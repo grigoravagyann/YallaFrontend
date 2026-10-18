@@ -41,14 +41,51 @@ describe('applying a page of events', () => {
   });
 
   it('advances without a refetch for events that do not touch the bill', () => {
-    // A rename or a permission toggle is not worth a round trip, and a screen
-    // that flickers on every chatty event teaches people to ignore it.
+    // A permission toggle is not worth a round trip — the host who flipped it
+    // holds the answer — and a screen that flickers on every chatty event
+    // teaches people to ignore it.
+    const update = applyTabEvents(4, [event(5, { type: 'participantPermissionsChanged' })]);
+
+    expect(update).toEqual({ kind: 'unchanged', lastSequence: 5 });
+  });
+
+  it('refetches when somebody renames themself, so the host sees who is asking', () => {
+    // A joiner names themself from the waiting screen. Without the refetch the
+    // host's banner kept saying "A guest wants to join" about Anna.
     const update = applyTabEvents(4, [
-      event(5, { type: 'participantRenamed' }),
-      event(6, { type: 'participantPermissionsChanged' }),
+      event(5, { type: 'participantRenamed', actor: 'diner', data: { participantId: 'p-9' } }),
     ]);
 
-    expect(update).toEqual({ kind: 'unchanged', lastSequence: 6 });
+    expect(update).toEqual({ kind: 'refetch', reason: 'changed', lastSequence: 5, markers: [] });
+  });
+
+  it('refetches when somebody asks to join, so the host sees them within one poll', () => {
+    // The host's banner and the people card read the roster off the tab read.
+    // Waiting out the screen's own poll is how a guest stood at the table with
+    // nobody on the tab knowing they were there.
+    const update = applyTabEvents(4, [
+      event(5, {
+        type: 'participantJoined',
+        actor: 'diner',
+        data: { participantId: 'p-9', displayName: 'Anna', status: 1 },
+      }),
+    ]);
+
+    expect(update).toEqual({ kind: 'refetch', reason: 'changed', lastSequence: 5, markers: [] });
+  });
+
+  it('refetches for every change to who is on the tab, and announces none of them', () => {
+    // Who is on the tab moves the split as well as the roster. The people card
+    // says it, never a marker on the bill.
+    for (const type of [
+      'participantApproved',
+      'participantRejected',
+      'participantRemoved',
+      'hostReassigned',
+    ] as const) {
+      const update = applyTabEvents(4, [event(5, { type, actor: 'diner' })]);
+      expect(update).toEqual({ kind: 'refetch', reason: 'changed', lastSequence: 5, markers: [] });
+    }
   });
 
   it('ignores an event type it does not recognise but keeps its place', () => {

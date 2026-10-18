@@ -8,7 +8,7 @@
  * decision — given this payload, which screen and which parameters — and that
  * is all of this file.
  *
- * The five types come from `NotificationHandlers.cs`. Each writes a `kind` and
+ * The six types come from `NotificationHandlers.cs`. Each writes a `kind` and
  * the one or two ids its screen needs:
  *
  * | `kind`                    | carries                                    |
@@ -18,6 +18,7 @@
  * | `reservation-decided`     | `reservationId`, `approved`                |
  * | `participant-approved`    | `tabId`                                    |
  * | `order-ready`             | `tabId`                                    |
+ * | `tabJoinRequested`        | `tabId` — to the host, someone is waiting  |
  *
  * Everything arrives as **strings**, including `approved` and
  * `extensionMinutes`: Expo's data dictionary is `Dictionary<string, string>` on
@@ -87,8 +88,11 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
       };
     }
 
+    // `tabJoinRequested` is the host's: somebody scanned their table and waits
+    // on them. The tab screen leads with that person and the Approve beside them.
     case 'participant-approved':
-    case 'order-ready': {
+    case 'order-ready':
+    case 'tabJoinRequested': {
       const tabId = str(data, 'tabId');
       return tabId ? { kind: 'tab', tabId } : { kind: 'unknown' };
     }

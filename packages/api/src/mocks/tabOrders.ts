@@ -523,14 +523,14 @@ export function createTabOrders(options: TabOrdersOptions) {
 
     /**
      * A tab event the ordering half does not cause itself — a service request
-     * raised or acknowledged, the tab closed — on the same stream, so the
-     * sequence a phone follows stays one sequence.
+     * raised or acknowledged, the tab closed, somebody asking to join — on the
+     * same stream, so the sequence a phone follows stays one sequence.
      */
     record(
       tab: TableTab,
       type: Extract<
         TabEvent['type'],
-        'serviceRequested' | 'serviceRequestAcknowledged' | 'tabClosed'
+        'serviceRequested' | 'serviceRequestAcknowledged' | 'tabClosed' | 'participantJoined'
       >,
       actor: TabEvent['actor'],
       data: Record<string, unknown> | null,

@@ -89,6 +89,31 @@ describe('the live bill stream', () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
+  it('reads the tab again when somebody asks to join, and marks nothing on the bill', async () => {
+    const onMarkers = vi.fn();
+    const { feed, refetch, settle } = feedWith(
+      [
+        page([
+          event(6, {
+            type: 'participantJoined',
+            actor: 'diner',
+            data: { participantId: 'p-9', displayName: 'Anna', status: 1 },
+          }),
+        ]),
+      ],
+      { onMarkers },
+    );
+
+    feed.seed(5);
+    feed.start();
+    await settle();
+    await settle();
+
+    // The tab read carries the roster: the host's banner appears off this one.
+    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(onMarkers).not.toHaveBeenCalled();
+  });
+
   it('is not "up to date" when nothing came back', async () => {
     const { feed, connected, settle } = feedWith([new Error('offline')]);
 
