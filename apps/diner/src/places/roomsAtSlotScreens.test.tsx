@@ -129,6 +129,31 @@ function renderScreen(node: React.ReactNode) {
 
 const firstFree = /^Table \w+, free$/u;
 
+/*
+ * The time wheel, as a screen reader and a keyboard meet it — and as e2e does:
+ * one adjustable control named "Time" whose value is the chosen time, stepping
+ * to the next or previous time that can be had, past the busy ones.
+ */
+const timeWheel = () => screen.getByRole('slider', { name: 'Time' });
+/** "19:00" — the chosen time, without the notes a screen reader hears after it. */
+const chosenTime = () => (timeWheel().getAttribute('aria-valuetext') ?? '').split(',')[0]!;
+/** Step the wheel until `time` is chosen; fails when stepping never reaches it. */
+function stepTo(time: string) {
+  fireEvent.keyDown(timeWheel(), { key: 'Home' });
+  for (let i = 0; i < 200 && chosenTime() !== time; i += 1) {
+    const before = chosenTime();
+    fireEvent.keyDown(timeWheel(), { key: 'ArrowUp' });
+    if (chosenTime() === before) break;
+  }
+  expect(chosenTime()).toBe(time);
+}
+/** Whether stepping one way from `from` passes over `time` without stopping on it. */
+function skips(from: string, time: string): boolean {
+  stepTo(from);
+  fireEvent.keyDown(timeWheel(), { key: 'ArrowUp' });
+  return chosenTime() !== time;
+}
+
 describe('the branch screen', () => {
   it('draws the room photos at the slot and opens a free table', async () => {
     params.current = { branchId: BRANCH, venueId: 'v-lumen', timeZoneId: 'Asia/Yerevan' };
@@ -187,7 +212,8 @@ describe('the Book screen', () => {
     expect(screen.getByRole('radiogroup', { name: 'Party Size' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: '2', checked: true })).toBeTruthy();
     expect(screen.getByRole('radio', { name: '3', checked: false })).toBeTruthy();
-    expect(screen.getAllByRole('radio', { name: /^\d{2}:\d{2}$/u, checked: true })).toHaveLength(1);
+    // One time chosen, on the wheel.
+    expect(chosenTime()).toMatch(/^\d{2}:\d{2}$/u);
   });
 
   it('offers no free table too small for the party, and names why', async () => {
@@ -267,21 +293,19 @@ describe('the Book screen against the day of slots', () => {
   }
 
   it('strikes a time with no free table, names it so, and never picks it', async () => {
-    strike('12:30', '19:00');
+    strike('12:15', '12:30', '19:00');
     params.current = { placeId: BRANCH };
     renderScreen(<BookingScreen />);
 
-    const struck = await screen.findByRole('radio', { name: '19:00, no free tables' });
-    expect(struck.getAttribute('aria-disabled')).toBe('true');
-    expect(screen.getByText('Struck-out times have no free table')).toBeTruthy();
-    // A time that can be had is named by the time alone (the e2e selector).
-    expect(screen.getByRole('radio', { name: '19:30' }).getAttribute('aria-disabled')).not.toBe(
-      'true',
-    );
-    // The first time of the day is struck, so the first that can be had is chosen.
-    const chosen = screen.getAllByRole('radio', { name: /^\d{2}:\d{2}$/u, checked: true });
-    expect(chosen).toHaveLength(1);
-    expect(chosen[0]!.getAttribute('aria-label')).not.toBe('12:30');
+    expect(await screen.findByText('Struck-out times have no free table')).toBeTruthy();
+    // Stepping goes over a struck time, never onto it; a free one is chosen by
+    // its time alone (the e2e path).
+    expect(skips('18:45', '19:00')).toBe(true);
+    expect(chosenTime()).toBe('19:15');
+    stepTo('19:30');
+    // The first times of the day are struck, so they are never the one chosen.
+    fireEvent.keyDown(timeWheel(), { key: 'Home' });
+    expect(['12:15', '12:30']).not.toContain(chosenTime());
   });
 
   it('strikes every time on a day the branch refuses, and says why', async () => {
@@ -297,7 +321,9 @@ describe('the Book screen against the day of slots', () => {
     renderScreen(<BookingScreen />);
 
     expect(await screen.findByText('Closed that day. Pick another day.')).toBeTruthy();
-    expect(screen.queryAllByRole('radio', { name: /^\d{2}:\d{2}$/u })).toHaveLength(0);
+    // Every time struck — "in 10 min" too, on a day refused — so none is chosen.
+    expect(chosenTime()).toBe('No free time');
+    expect(screen.queryByRole('button', { name: /^In \d+ min/u })).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Confirm Booking' }).getAttribute('aria-disabled'),
     ).toBe('true');
@@ -337,7 +363,7 @@ describe('the Book screen against the day of slots', () => {
     renderScreen(<BookingScreen />);
 
     expect(await screen.findByText('Change booking')).toBeTruthy();
-    expect(screen.getByRole('radio', { name: '19:00', checked: true })).toBeTruthy();
+    await waitFor(() => expect(chosenTime()).toBe('19:00'));
     // Nothing changed yet: nothing to save. And the note stays with the booking.
     await waitFor(() =>
       expect(
@@ -346,7 +372,7 @@ describe('the Book screen against the day of slots', () => {
     );
     expect(screen.queryByLabelText('Note for the venue')).toBeNull();
 
-    fireEvent.click(screen.getByRole('radio', { name: '19:30' }));
+    stepTo('19:30');
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: /^Save changes, / }).getAttribute('aria-disabled'),
@@ -395,11 +421,12 @@ describe('the Book screen against the day of slots', () => {
     params.current = { placeId: BRANCH };
     renderScreen(<BookingScreen />);
 
-    expect(await screen.findByRole('radio', { name: '19:00, no free tables' })).toBeTruthy();
-    expect(screen.getByText('Struck-out times have no free table')).toBeTruthy();
-    // Left out: not drawn at all, struck or otherwise.
-    expect(screen.queryByRole('radio', { name: /^20:00/u })).toBeNull();
-    expect(screen.getByRole('radio', { name: '20:30' })).toBeTruthy();
+    expect(await screen.findByText('Struck-out times have no free table')).toBeTruthy();
+    // Struck: drawn, never stopped on. Left out: not there to step onto at all.
+    expect(skips('18:45', '19:00')).toBe(true);
+    expect(skips('19:45', '20:00')).toBe(true);
+    expect(chosenTime()).toBe('20:15');
+    stepTo('20:30');
   });
 
   it('leaves a change with no time when its own is struck for the new party, and says so', async () => {
@@ -421,25 +448,21 @@ describe('the Book screen against the day of slots', () => {
     params.current = { placeId: BRANCH, bookingId: 'r-change', slotUtc: at('19:00'), party: '2' };
     renderScreen(<BookingScreen />);
 
-    expect(await screen.findByRole('radio', { name: '19:00', checked: true })).toBeTruthy();
+    await waitFor(() => expect(chosenTime()).toBe('19:00'));
     const note = /isn't available for this party/u;
     expect(screen.queryByText(note)).toBeNull();
 
     fireEvent.click(screen.getByRole('radio', { name: '4' }));
 
     // Never another time in its place: nothing chosen, and why.
-    expect(await screen.findByRole('radio', { name: '19:00, no free tables' })).toBeTruthy();
-    expect(screen.getByText(note)).toBeTruthy();
-    expect(screen.queryAllByRole('radio', { name: /^\d{2}:\d{2}$/u, checked: true })).toHaveLength(
-      0,
-    );
+    expect(await screen.findByText(note)).toBeTruthy();
+    expect(chosenTime()).toBe('No time chosen');
     expect(screen.getByRole('button', { name: 'Save changes' }).getAttribute('aria-disabled')).toBe(
       'true',
     );
 
     // A time the diner picks is theirs, and the note goes.
-    fireEvent.click(screen.getByRole('radio', { name: '19:30' }));
-    expect(await screen.findByRole('radio', { name: '19:30', checked: true })).toBeTruthy();
+    stepTo('19:30');
     expect(screen.queryByText(note)).toBeNull();
   });
 
@@ -521,7 +544,8 @@ describe('changing a late-night booking at a bar', () => {
     renderScreen(<BookingScreen />);
 
     // Today's strip, the evening's 00:30 chosen; the header says where.
-    expect(await screen.findByRole('radio', { name: '00:30', checked: true })).toBeTruthy();
+    await screen.findByRole('slider', { name: 'Time' });
+    await waitFor(() => expect(chosenTime()).toBe('00:30'));
     expect(screen.getByText('Copper Fox · Saryan Street · Kentron')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('radio', { name: '3' }));
@@ -530,7 +554,7 @@ describe('changing a late-night booking at a bar', () => {
         screen.getByRole('button', { name: /^Save changes, / }).getAttribute('aria-disabled'),
       ).not.toBe('true'),
     );
-    expect(screen.getByRole('radio', { name: '00:30', checked: true })).toBeTruthy();
+    expect(chosenTime()).toBe('00:30');
     fireEvent.click(screen.getByRole('button', { name: /^Save changes, / }));
 
     await waitFor(() =>

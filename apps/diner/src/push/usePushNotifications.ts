@@ -7,7 +7,14 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { newCommandId } from '../lib/commandId';
 import { invalidateForPush } from './invalidation';
-import { actionFor, parsePushTarget, PUSH_ACTIONS, routeFor, type PushData } from './payload';
+import {
+  actionFor,
+  parsePushTarget,
+  PUSH_ACTIONS,
+  routeFor,
+  tableRequestAnswer,
+  type PushData,
+} from './payload';
 import { onTokenRotation, platformCode, registerCategories, registerDevice } from './registration';
 
 /**
@@ -101,6 +108,8 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
     void registerCategories({
       cancel: t('push.action.cancel'),
       extendHold: t('push.action.extendHold'),
+      tableRequestYes: t('booking.tableRequest.yes'),
+      tableRequestNo: t('booking.tableRequest.no'),
     });
   }, [t]);
 
@@ -170,7 +179,33 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       const target = parsePushTarget(data);
       const action = actionFor(response.actionIdentifier);
 
-      if (action && target.kind === 'booking') {
+      // "Yes, I'll have left" or "No", from the lock screen: answered here, the
+      // app left closed. One command id per request, so a repeat is a replay.
+      const accept = tableRequestAnswer(action);
+      if (accept !== null && target.kind === 'tableRequest') {
+        try {
+          await gateway.answerTableRequest({
+            bookingId: target.reservationId,
+            requestId: target.requestId,
+            accept,
+            // One id per request and answer: a retry of the same tap replays,
+            // and the other answer is never sent under the first one's id.
+            commandId: commandIdFor(`table-request:${target.requestId}:${accept ? 'yes' : 'no'}`),
+          });
+          invalidateForPush(queryClient, data);
+        } catch {
+          // It lapsed, or failed with nobody watching: the booking says where
+          // it stands, and its card asks again if it still can.
+          const route = routeFor(target);
+          if (route && !cancelled) router.push(route);
+        }
+        return;
+      }
+
+      if (
+        (action === PUSH_ACTIONS.cancel || action === PUSH_ACTIONS.extendHold) &&
+        target.kind === 'booking'
+      ) {
         // A lock-screen button. The whole point is that this does not open the
         // app, so it runs here and navigates nowhere.
         try {

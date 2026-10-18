@@ -1,5 +1,6 @@
 import { describe, it, vi } from 'vitest';
 import { describeAvailabilityContract } from './availability.contract';
+import { describeBookingTimesContract } from './bookingTimes.contract';
 import { describeConsoleListingContract } from './consoleListing.contract';
 import { describeDaySlotsContract } from './daySlots.contract';
 import { describeDinerJourneyContract } from './dinerJourney.contract';
@@ -67,6 +68,8 @@ function describeEveryContract(subject: ContractSubject): void {
   // counter, and every suite before it reads the staff tabs as seeded.
   describeDaySlotsContract(subject);
   describeRescheduleContract(subject);
+  // Booking times: one table, both sides of it booked by one diner.
+  describeBookingTimesContract(subject);
   describeTabGapsContract(subject);
 }
 

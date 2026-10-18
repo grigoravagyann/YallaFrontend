@@ -80,13 +80,34 @@
     "approval": {
       "waiting": "Waiting for the venue · answer within {{time}}",
       "checking": "Waiting for the venue's answer",
-      "why": "It is for soon, so the venue checks the table is free before confirming."
+      "why": "It is for soon, so the venue checks the table is free before confirming.",
+      "waitingEarlierGuest": "Asking the guest before you · answer within {{time}}",
+      "checkingEarlierGuest": "Waiting for the guest before you to answer"
     },
     "declined": {
       "noAnswerTitle": "Sorry, not confirmed in time",
       "noAnswer": "Sorry, the venue could not confirm in time. Try another time or another place.",
       "byVenueTitle": "The venue could not take it",
-      "byVenue": "The venue could not take this booking at that time. Try another time or another place."
+      "byVenue": "The venue could not take this booking at that time. Try another time or another place.",
+      "earlierGuestTitle": "The table is not free then",
+      "earlierGuest": "The guest before you will still be at the table. Try another time or another table.",
+      "earlierGuestNoAnswerTitle": "No answer in time",
+      "earlierGuestNoAnswer": "The guest before you did not answer in time, so the table could not be promised. Try another time or another table."
+    },
+    "freeBy": {
+      "promised": "You will free the table by {{time}}"
+    },
+    "tableRequest": {
+      "title": "A request for your table",
+      "question": "Someone would like your table at {{time}}. Will you have left by {{freeBy}}?",
+      "yes": "Yes, I'll have left",
+      "no": "No",
+      "answerBy": "Answer by {{time}}",
+      "sending": "Sending…",
+      "answeredYes": "Thank you. You will free the table by {{time}}.",
+      "answeredNo": "Thank you. They have been told the table is not free.",
+      "closed": "That request has closed.",
+      "failed": "That did not go through. Try again."
     }
   },
   "floorPlan": {
@@ -222,7 +243,11 @@
     "close": "Close",
     "freeCancellationOn": "Free cancellation until {{time}} on {{date}}",
     "freeCancellationPassed": "The free-cancellation time has passed. Cancelling still helps the venue.",
-    "pickAnother": "Pick another"
+    "pickAnother": "Pick another",
+    "mustFreeBy": "You would free the table by {{time}}",
+    "requestable": {
+      "earlierGuest": "The guest before you will be asked whether they will have left by then."
+    }
   },
   "verify": {
     "phoneTitle": "Your phone number",
@@ -363,7 +388,9 @@
       "commandInUse": "That attempt could not be used. Tap confirm to try again.",
       "branchUnavailable": "This venue is not taking bookings right now.",
       "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice.",
-      "phoneNotVerified": "Confirm your phone number before booking. We'll text you a code."
+      "phoneNotVerified": "Confirm your phone number before booking. We'll text you a code.",
+      "freeByRequired": "A booking now follows on this table: you would free it by {{time}}.",
+      "freeByRequiredNoTime": "A booking now follows on this table. Choose the table again."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",
@@ -1014,6 +1041,26 @@
       "generic": "We could not save that. Your booking is unchanged.",
       "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether your booking moved. Check again — it will not change twice.",
       "approvalExpired": "Too late to change — the venue's answer window has closed."
+    },
+    "wheel": {
+      "snapped": "No free table at {{busy}} — {{time}} suggested",
+      "nothing": "No free time",
+      "hint": "Swipe up or down to change the time",
+      "none": "No time chosen"
+    },
+    "quick": {
+      "title": "Quick times",
+      "soon": "In {{minutes}} min · {{time}}"
+    },
+    "freeBy": {
+      "title": "A booking follows yours",
+      "question": "There is a booking at {{next}}. Will you free the table by {{time}}?",
+      "questionNoNext": "Will you free the table by {{time}}?",
+      "yes": "Yes, I'll free it by {{time}}",
+      "no": "No, I'll choose another table or time",
+      "agree": "I'll free the table by {{time}}",
+      "other": "Choose another table or time. These times have no limit:",
+      "otherNoTimes": "Choose another table or another time."
     }
   },
   "orders": {
@@ -1179,6 +1226,26 @@
       "unknown": {
         "title": "Update",
         "body": "Something changed. Open it to see what."
+      },
+      "tableRequest": {
+        "title": "A request for your table",
+        "body": "Someone would like your table at {{place}} at {{time}}. Will you have left by {{freeBy}}?"
+      },
+      "tableRequestAccepted": {
+        "title": "Thank you",
+        "body": "You will free the table at {{place}} by {{freeBy}}."
+      },
+      "tableRequestDeclined": {
+        "title": "Your table stays yours",
+        "body": "You kept your table at {{place}}. The other guest has been told it is not free."
+      },
+      "bookingDeclinedEarlierGuest": {
+        "title": "The table is not free then",
+        "body": "The guest before you at {{place}} will still be at the table. Try another time or another table."
+      },
+      "bookingDeclinedEarlierGuestNoAnswer": {
+        "title": "No answer in time",
+        "body": "The guest before you at {{place}} did not answer in time. Try another time or another table."
       }
     },
     "yesterday": "Yesterday",

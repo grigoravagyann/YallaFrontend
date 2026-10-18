@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { defaultSelection, slotInstant, slotProblem } from './slots';
+import type { DaySlot } from '@yalla/api';
+import {
+  defaultSelection,
+  nearestChoice,
+  slotInstant,
+  slotProblem,
+  timeChoices,
+  timeOptions,
+} from './slots';
 
 /**
  * The parse that used to white-screen the public branch page.
@@ -108,12 +116,13 @@ describe('the slot the page opens on', () => {
     expect(picked).toEqual({ date: '2026-10-16', time: '09:00', partySize: 2 });
   });
 
-  it('clears the lead time when the venue is open: 20:11 with 30 minutes lead is 21:00', () => {
+  it('clears the lead time when the venue is open: 20:11 with 30 minutes lead is 20:45', () => {
     const picked = defaultSelection(YEREVAN, new Date('2026-10-16T16:11:00Z'), {
       minLeadMinutes: 30,
       weeklyHours: FRIDAY_HOURS,
     });
-    expect(picked).toEqual({ date: '2026-10-16', time: '21:00', partySize: 2 });
+    // Rounded up to the quarter hour the backend reasons in.
+    expect(picked).toEqual({ date: '2026-10-16', time: '20:45', partySize: 2 });
   });
 
   it("rolls to the next day's opening once tonight's last slot has gone", () => {
@@ -142,7 +151,7 @@ describe('the slot the page opens on', () => {
       turnTimeMinutes: 90,
       weeklyHours: FRIDAY_HOURS,
     });
-    expect(picked).toEqual({ date: '2026-10-16', time: '22:30', partySize: 2 });
+    expect(picked).toEqual({ date: '2026-10-16', time: '22:15', partySize: 2 });
   });
 
   it('looks past a shut weekend for the next sitting', () => {
@@ -160,6 +169,97 @@ describe('the slot the page opens on', () => {
       minLeadMinutes: 30,
       weeklyHours: [],
     });
-    expect(picked.time).toBe('21:00');
+    expect(picked.time).toBe('20:45');
+  });
+});
+
+describe('the time select', () => {
+  const HOURS = [{ day: 2, blocks: [{ opensAt: '18:00', closesAt: '21:00' }] }] as const;
+
+  it('offers every quarter hour of a day when nothing else is known', () => {
+    const all = timeOptions();
+    expect(all).toHaveLength(96);
+    expect(all.slice(0, 3)).toEqual(['00:00', '00:15', '00:30']);
+  });
+
+  it('offers the quarter hours whose sitting fits the hours while the day has not answered', () => {
+    // Tuesday 2026-10-20, open 18:00 to 21:00, ninety-minute sittings: 19:30 is the last.
+    const choices = timeChoices({
+      date: '2026-10-20',
+      day: undefined,
+      weeklyHours: HOURS,
+      turnTimeMinutes: 90,
+      timeZoneId: YEREVAN,
+    });
+    expect(choices.map((choice) => choice.time)).toEqual([
+      '18:00',
+      '18:15',
+      '18:30',
+      '18:45',
+      '19:00',
+      '19:15',
+      '19:30',
+    ]);
+    expect(choices.every((choice) => choice.state === 'free')).toBe(true);
+  });
+
+  it("takes the server's day once it has answered: struck, requestable, cut short, absent", () => {
+    const slot = (time: string, extra: Partial<DaySlot> = {}): DaySlot => ({
+      time,
+      slotUtc: new Date(`2026-10-20T${time}:00+04:00`).toISOString(),
+      isAvailable: true,
+      requiresApproval: false,
+      freeTableCount: 2,
+      unavailableReason: null,
+      ...extra,
+    });
+    const choices = timeChoices({
+      date: '2026-10-20',
+      day: {
+        branchId: 'b',
+        date: '2026-10-20',
+        partySize: 2,
+        stepMinutes: 15,
+        unavailableReason: null,
+        slots: [
+          slot('18:00'),
+          slot('18:15', {
+            isAvailable: false,
+            freeTableCount: 0,
+            unavailableReason: 'alreadyBooked',
+          }),
+          slot('18:30', { requestable: true, requiresApproval: true }),
+          slot('18:45', { mustFreeByUtc: '2026-10-20T15:25:00.000Z' }),
+          // Too soon already: gone, not struck.
+          slot('17:45', {
+            isAvailable: false,
+            freeTableCount: 0,
+            unavailableReason: 'pastLeadTime',
+          }),
+        ],
+      },
+      weeklyHours: HOURS,
+      turnTimeMinutes: 90,
+      timeZoneId: YEREVAN,
+    });
+    expect(choices).toEqual([
+      { time: '18:00', state: 'free', mustFreeByUtc: null },
+      { time: '18:15', state: 'busy', mustFreeByUtc: null },
+      { time: '18:30', state: 'requestable', mustFreeByUtc: null },
+      { time: '18:45', state: 'free', mustFreeByUtc: '2026-10-20T15:25:00.000Z' },
+    ]);
+  });
+
+  it('moves a selection off a struck time to the nearest that can be had', () => {
+    const choices = [
+      { time: '18:00', state: 'free', mustFreeByUtc: null },
+      { time: '18:15', state: 'busy', mustFreeByUtc: null },
+      { time: '18:30', state: 'requestable', mustFreeByUtc: null },
+    ] as const;
+    expect(nearestChoice(choices, '18:15')?.time).toBe('18:30');
+    expect(nearestChoice(choices, '18:00')?.time).toBe('18:00');
+    expect(
+      nearestChoice([{ time: '18:15', state: 'busy', mustFreeByUtc: null }], '18:15'),
+    ).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { DeclineReason } from './approvals';
+import type { ApprovalTrigger, DeclineReason } from './approvals';
 import type { VenueType } from './booking';
 import type { WeeklyHours } from './branchSettings';
 
@@ -261,6 +261,16 @@ export interface ManagedBooking {
    * included. The manage page says sorry for the second.
    */
   readonly declinedBecause: DeclineReason | null;
+  /**
+   * Why it waits, while it does: the guest before is being asked
+   * (`earlierGuestConsent`) or the venue decides. Absent from an older server.
+   */
+  readonly awaitingApprovalBecause?: ApprovalTrigger | null | undefined;
+  /**
+   * "You will free the table by 21:25": promised when the booking was made,
+   * because another follows it. Absent or `null` when nothing was promised.
+   */
+  readonly promisedFreeByUtc?: string | null | undefined;
 
   /**
    * False once the booking is over or already cancelled.

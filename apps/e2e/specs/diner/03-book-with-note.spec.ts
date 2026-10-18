@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { demoBranch, myReservations, newApi, registerDiner, uniqueTag } from '../../support/api';
 import { logIn, openTab } from '../../support/diner';
@@ -23,12 +23,17 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
   await page.getByRole('button', { name: 'Book a Table' }).click();
   await page.waitForURL(`**/book/${demo.branchId}**`);
 
+  // Tomorrow's day of slots, so the times struck or left out are known before choosing one.
+  const daySlots = page.waitForResponse(
+    (response) => response.url().includes('/availability/slots') && response.ok(),
+  );
   await page.getByRole('button', { name: tomorrowLabel() }).click();
-  // An evening slot well inside the demo branch's hours (09:00 to midnight), so a table fits.
-  // Time slots and party sizes are radios in named groups (their selected
-  // state reaches screen readers), not plain buttons.
-  await page.getByRole('radio', { name: '19:00', exact: true }).click();
+  await daySlots;
+  // Party sizes are radios in a named group (their selected state reaches
+  // screen readers), not plain buttons.
   await page.getByRole('radio', { name: '2', exact: true }).first().click();
+  // An evening time well inside the demo branch's hours (09:00 to midnight), so a table fits.
+  await chooseTime(page, '19:00');
   await expect(page.getByText(/No free table seats/)).toHaveCount(0);
   await page.getByLabel('Note for the venue').fill(note);
 
@@ -37,6 +42,13 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
       response.url().endsWith('/api/reservations') && response.request().method() === 'POST',
   );
   await page.getByRole('button', { name: 'Confirm Booking' }).click();
+  // Booking times: when a booking follows on the table the screen asks first —
+  // "Will you free the table by …?" — and nothing is sent without a yes.
+  const freeBy = page.getByRole('button', { name: /^Yes, I'll free it by/u });
+  await freeBy
+    .waitFor({ state: 'visible', timeout: 2_000 })
+    .then(() => freeBy.click())
+    .catch(() => undefined);
   const response = await created;
   expect(response.status(), 'the booking is accepted').toBeLessThan(300);
   const booking = (await response.json()) as { id: string; code: string };
@@ -54,6 +66,30 @@ test('A diner books tomorrow with a note, and Bookings lists it', async ({ page 
 
   await api.dispose();
 });
+
+/**
+ * Choose a time on the Book screen's time wheel.
+ *
+ * The wheel is one adjustable control — a slider named "Time" on the web —
+ * whose value is the chosen time ("19:00", with any note after a comma). Home
+ * goes to the day's first time that can be had and each ArrowUp to the next,
+ * never onto a struck one, so this is the stable accessible way in, the same
+ * a screen reader's swipe takes. Fails if the time is never reached.
+ */
+async function chooseTime(page: Page, time: string): Promise<void> {
+  const wheel = page.getByRole('slider', { name: 'Time', exact: true });
+  await expect(wheel).toBeVisible();
+  await wheel.focus();
+  await wheel.press('Home');
+  for (let step = 0; step < 120; step += 1) {
+    const value = (await wheel.getAttribute('aria-valuetext')) ?? '';
+    if (value.split(',')[0] === time) return;
+    await wheel.press('ArrowUp');
+    // The next time, or the end of the day — which fails here, naming the value.
+    await expect(wheel).not.toHaveAttribute('aria-valuetext', value, { timeout: 5_000 });
+  }
+  throw new Error(`The time wheel never reached ${time}.`);
+}
 
 /** Tomorrow's day chip, however the locale orders weekday, day and month. */
 function tomorrowLabel(): RegExp {

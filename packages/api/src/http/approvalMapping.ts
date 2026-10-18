@@ -33,13 +33,15 @@ export type WireReservationWithApproval = ReservationView & WireApprovalFields;
 
 /**
  * `ApprovalTrigger`: 1 BranchApprovesEveryBooking, 2 LargeParty,
- * 3 NoShowHistory, 4 ShortNotice.
+ * 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent (booking times, ahead
+ * of the generated schema).
  */
 const APPROVAL_TRIGGER: Readonly<Record<number, ApprovalTrigger>> = {
   1: 'branchApprovesEveryBooking',
   2: 'largeParty',
   3: 'noShowHistory',
   4: 'shortNotice',
+  5: 'earlierGuestConsent',
 };
 
 export function approvalTrigger(value: number | null | undefined): ApprovalTrigger | null {
@@ -47,10 +49,15 @@ export function approvalTrigger(value: number | null | undefined): ApprovalTrigg
   return APPROVAL_TRIGGER[value] ?? 'unknown';
 }
 
-/** `DeclineReason`: 1 StaffDeclined, 2 NoAnswer. */
+/**
+ * `DeclineReason`: 1 StaffDeclined, 2 NoAnswer, 3 EarlierGuestDeclined,
+ * 4 EarlierGuestNoAnswer (the last two ahead of the generated schema).
+ */
 const DECLINE_REASON: Readonly<Record<number, DeclineReason>> = {
   1: 'staffDeclined',
   2: 'noAnswer',
+  3: 'earlierGuestDeclined',
+  4: 'earlierGuestNoAnswer',
 };
 
 export function declineReason(value: number | null | undefined): DeclineReason | null {

@@ -1,4 +1,4 @@
-import { freeCancellationCopy, type Booking } from '@yalla/api';
+import { freeCancellationCopy, promisedFreeByCopy, type Booking } from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { formatDate, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -10,6 +10,7 @@ import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge } from '../../src/components/bookings/BookingCard';
 import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
 import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { TableRequestCard } from '../../src/components/bookings/TableRequestCard';
 import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
 import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { Button } from '../../src/components/Button';
@@ -149,6 +150,9 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
     locale,
     now,
   );
+  // Promised to free the table by a time — a booking follows: said in place
+  // of the plain end, which the promise is.
+  const promise = promisedFreeByCopy(booking.promisedFreeByUtc, booking.timeZoneId, locale);
 
   const share = () => {
     const line = bookingShareLine(booking, where, when);
@@ -218,12 +222,19 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
             />
             <Fact
               icon={actionIcon.time}
-              text={t('bookings.detail.until', {
-                time: formatTime(booking.endUtc, booking.timeZoneId, locale),
-              })}
+              text={
+                promise
+                  ? t(promise.key, promise.params)
+                  : t('bookings.detail.until', {
+                      time: formatTime(booking.endUtc, booking.timeZoneId, locale),
+                    })
+              }
             />
           </View>
         </Card>
+
+        {/* Somebody would like this table after the diner: will they have left by then? */}
+        <TableRequestCard booking={booking} />
 
         {/*
           The way onto the tab at the table they booked. Offered while the

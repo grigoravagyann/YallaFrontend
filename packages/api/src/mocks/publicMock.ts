@@ -192,6 +192,10 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       approvalExpiresAtUtc:
         booking.status === 'pendingApproval' ? (booking.approvalExpiresAtUtc ?? null) : null,
       declinedBecause: booking.declinedBecause ?? null,
+      // Booking times: why it waits, while it does, and the promise to free it.
+      awaitingApprovalBecause:
+        booking.status === 'pendingApproval' ? (booking.awaitingApprovalBecause ?? null) : null,
+      promisedFreeByUtc: booking.promisedFreeByUtc ?? null,
       // Lateness is not a reason to refuse. Only a booking that is already over
       // or already cancelled has nothing left to cancel.
       canCancel: booking.status === 'confirmed' || booking.status === 'pendingApproval',

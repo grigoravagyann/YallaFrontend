@@ -1,5 +1,5 @@
-import { branchDayKey, zonedParts, type TimeZone } from '@yalla/format';
-import { APPROVAL_WINDOW_MINUTES, SHORT_NOTICE_HOURS } from '../contracts/approvals';
+import { zonedParts, type TimeZone } from '@yalla/format';
+import { APPROVAL_WINDOW_MINUTES } from '../contracts/approvals';
 
 /**
  * The server's booking-approval rules, as every mock applies them.
@@ -12,24 +12,8 @@ import { APPROVAL_WINDOW_MINUTES, SHORT_NOTICE_HOURS } from '../contracts/approv
 
 export const APPROVAL_WINDOW_MS = APPROVAL_WINDOW_MINUTES * 60_000;
 
-const SHORT_NOTICE_MS = SHORT_NOTICE_HOURS * 60 * 60_000;
-
-/**
- * Short notice: the booking is for the branch's today, or starts less than six
- * hours from now. Either alone is enough — a 23:30 booking made at 18:00 is
- * both, a 01:00 one made at 22:00 the second only. "Today" is the branch's,
- * never the device's or UTC's.
- */
-export function isShortNotice(input: {
-  readonly startUtc: string;
-  readonly timeZoneId: string;
-  readonly now: Date;
-}): boolean {
-  const start = new Date(input.startUtc);
-  if (start.getTime() - input.now.getTime() < SHORT_NOTICE_MS) return true;
-  const zone = input.timeZoneId as TimeZone;
-  return branchDayKey(start, zone) === branchDayKey(input.now, zone);
-}
+/** The short-notice rule, from the contract every surface reads it from. */
+export { isShortNotice } from '../contracts/approvals';
 
 /**
  * When the floor's answer window closes: fifteen minutes from the request, or

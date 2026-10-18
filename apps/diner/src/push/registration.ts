@@ -53,6 +53,8 @@ export async function requestPermission(): Promise<PermissionOutcome> {
 export async function registerCategories(labels: {
   readonly cancel: string;
   readonly extendHold: string;
+  readonly tableRequestYes: string;
+  readonly tableRequestNo: string;
 }): Promise<void> {
   await Notifications.setNotificationCategoryAsync('reservation-reminder', [
     {
@@ -71,6 +73,22 @@ export async function registerCategories(labels: {
     {
       identifier: PUSH_ACTIONS.extendHold,
       buttonTitle: labels.extendHold,
+      options: { opensAppToForeground: false },
+    },
+  ]);
+
+  // Booking times: somebody would like the diner's table after them. Both
+  // answers from the lock screen, neither opening the app; a No is not
+  // destructive — the diner keeps the table they booked.
+  await Notifications.setNotificationCategoryAsync('table-request', [
+    {
+      identifier: PUSH_ACTIONS.tableRequestYes,
+      buttonTitle: labels.tableRequestYes,
+      options: { opensAppToForeground: false },
+    },
+    {
+      identifier: PUSH_ACTIONS.tableRequestNo,
+      buttonTitle: labels.tableRequestNo,
       options: { opensAppToForeground: false },
     },
   ]);

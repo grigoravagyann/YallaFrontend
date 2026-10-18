@@ -283,6 +283,42 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `rejectNamed` are what a screen reader hears for one person, and must keep
   the visible label in them. `notAll` follows what went through with "the
   rest are still waiting", the people the banner still shows.
+- Booking times and table sequencing (2026-10-18), provisional and **not**
+  reviewed. `diner` `book.wheel.*` — the time wheel: `snapped` ("No free table
+  at {{busy}} — {{time}} suggested"; hy writes "Ժամը {{busy}}" rather than a
+  suffix glued onto the time), `nothing` (no time can be had that day), `none`
+  (nothing chosen — a change whose own time is gone), `hint` (the screen
+  reader's "swipe up or down"); `book.quick.*` — the quick chips, `soon` keeps
+  the minutes and the clock time ("In {{minutes}} min · {{time}}");
+  `book.freeBy.*` — the question before sending a booking the next one cuts
+  short: `question` must name **both** the next booking's start and the time to
+  free the table by, and must stay a question the diner answers (hy
+  `Կազատե՞ք`, ru `Вы освободите … ?`); `yes` repeats the time, `no` offers
+  another table or time, `agree` is the web page's checkbox, `other` /
+  `otherNoTimes` follow a no. `table.mustFreeBy`, `table.requestable.earlierGuest`
+  (the guest before **is asked** — never that the table is free),
+  `booking.approval.waitingEarlierGuest` (keeps the countdown, like `waiting`)
+  and `checkingEarlierGuest`; `booking.declined.earlierGuest*` — the guest
+  before said no, or did not answer in time; both offer **another time or
+  table** and neither blames the diner; `booking.freeBy.promised`;
+  `booking.tableRequest.*` — the earlier guest's card and the push's two
+  buttons: `question` keeps the later guest **anonymous** ("someone") and asks
+  whether they will have left by {{freeBy}}; the formal `Ձեր` / `Вы`; `yes` /
+  `no` are also the lock-screen buttons, so keep them short;
+  `confirm.error.freeByRequired*`; `booking.tableRequest.title` ("A request
+  for your table") must not repeat the question under it. The feed's
+  `notifications.kind.tableRequest`, `tableRequestAccepted` and
+  `tableRequestDeclined` (the earlier guest's question and what their answer
+  did; the place goes in brackets in hy), and `bookingDeclinedEarlierGuest` /
+  `bookingDeclinedEarlierGuestNoAnswer` (the later guest told — another time or
+  table, never blame). `public` `booking.timeOnRequest` (a time
+  select option, "{{time}} · on request"). `staff`
+  `approvals.because.earlierGuestConsent` (the guest before booked **on the
+  web**, so the floor decides), `approvals.askBefore` (ring them: hy puts the
+  name in brackets rather than declining it, ru keeps the verb impersonal —
+  "освободится ли стол"), `approvals.leavesBy`, `table.mustFreeBy` (lower case,
+  after the next booking's time on the floor and on the card). `admin`
+  `approvals.because.earlierGuestConsent`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

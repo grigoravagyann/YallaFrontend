@@ -37,6 +37,7 @@ import { PhotoImage } from '../PhotoImage';
 import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
 import { tableWithRoom } from './bookingText';
+import { TableRequestCard } from './TableRequestCard';
 import { VenueAnswerNote } from './VenueAnswer';
 
 /** The photo band across the top of the next booking. */
@@ -219,6 +220,9 @@ export function BookingHeroCard({
         <VenueAnswerNote booking={booking} style={styles.answer} />
       </Pressable>
 
+      {/* Outside the pressable: its Yes and No are buttons of their own. */}
+      <TableRequestCard booking={booking} style={styles.request} />
+
       {onBookAgain || coords || onChange || active ? <DashedRule /> : null}
 
       {onBookAgain ? (
@@ -318,6 +322,7 @@ export interface BookingRowProps {
  * and its room when the server named one — and the status.
  */
 export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
+  const { t } = useTranslation('diner');
   const facts = useBookingFacts(booking, now);
   return (
     <Card onPress={onOpen} accessibilityLabel={facts.label} padded={false} style={style}>
@@ -341,6 +346,12 @@ export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
               why is the detail's to say, not a paragraph in the list. */}
           {awaitsVenueAnswer(booking) ? (
             <VenueAnswerNote booking={booking} style={styles.rowAnswer} />
+          ) : null}
+          {/* Somebody is asking for this table: answered on the booking itself. */}
+          {booking.incomingTableRequest ? (
+            <Text numberOfLines={1} style={styles.rowRequest}>
+              {t('booking.tableRequest.title')}
+            </Text>
           ) : null}
         </View>
         <Ionicons name={actionIcon.chevron} size={iconSize.sm} color={colors.textMuted} />
@@ -450,6 +461,8 @@ const styles = StyleSheet.create({
   },
   facts: { flexDirection: 'row', gap: space.md - 2, padding: space.md + 2 },
   answer: { marginHorizontal: space.md + 2, marginTop: -space.xs, marginBottom: space.md },
+  request: { marginHorizontal: space.md + 2, marginBottom: space.md },
+  rowRequest: { ...typography.caption, color: colors.warningInk },
   rowAnswer: { alignSelf: 'flex-start', marginTop: space.xs },
   fact: { flex: 1, gap: 2 },
   factLabel: { ...typography.caption, color: colors.textMuted },

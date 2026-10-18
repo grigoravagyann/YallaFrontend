@@ -154,6 +154,63 @@ export class LeadTimeExceededError extends ApiError {
   }
 }
 
+/**
+ * A booking follows on that table, and the diner did not (or no longer
+ * correctly) say they would free it in time — a 422
+ * `reservation-free-by-required` naming `acceptsFreeByUtc`, with the instant
+ * the server needs in `context.requiredFreeByUtc` and the next booking's start
+ * in `context.nextBookingStartUtc`.
+ *
+ * Not a failure of anything typed: another booking landed after the room was
+ * read, or the time it needs moved. The screen asks again — "Will you free the
+ * table by 21:25?" — with the server's time, and a yes sends the same command
+ * id with it.
+ */
+export class FreeByRequiredError extends ApiError {
+  /** What to agree to, from the server. `null` when the refusal did not say. */
+  readonly requiredFreeByUtc: string | null;
+  /** The booking that follows on the table, which makes the time make sense. */
+  readonly nextBookingStartUtc: string | null;
+
+  constructor(options: {
+    url: string;
+    requiredFreeByUtc: string | null;
+    nextBookingStartUtc?: string | null | undefined;
+    requestId?: string | undefined;
+  }) {
+    super('A booking follows on that table: the time to free it by has to be agreed.', {
+      status: 422,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'FreeByRequiredError';
+    this.requiredFreeByUtc = options.requiredFreeByUtc;
+    this.nextBookingStartUtc = options.nextBookingStartUtc ?? null;
+  }
+}
+
+export function isFreeByRequired(error: unknown): error is FreeByRequiredError {
+  return error instanceof FreeByRequiredError;
+}
+
+/**
+ * A table request that can no longer be answered — it lapsed, the later guest
+ * gave up, or it was already answered on another device. 409 or 404 from the
+ * answer route. The booking is read again and says where it stands.
+ */
+export class TableRequestClosedError extends ApiError {
+  readonly tableRequestId: string;
+
+  constructor(options: { url: string; requestId: string; status?: number | undefined }) {
+    super('That request can no longer be answered.', {
+      status: options.status ?? 409,
+      url: options.url,
+    });
+    this.name = 'TableRequestClosedError';
+    this.tableRequestId = options.requestId;
+  }
+}
+
 /** The six digits did not match. Attempts remaining is shown to the user. */
 export class WrongCodeError extends ApiError {
   /**

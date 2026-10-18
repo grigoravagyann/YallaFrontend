@@ -12,7 +12,7 @@ import type { ContractSubject } from './subject';
  * between the single-slot read and this one so they cannot disagree; these
  * assertions hold either implementation to that, slot by slot.
  *
- * > Slots every 30 minutes from 00:00 on `date` whose whole turn fits one
+ * > Slots every 15 minutes (booking times; 30 before) from 00:00 on `date` whose whole turn fits one
  * > opening block (closed times omitted); a time before the lead time /
  * > outside the window is listed with `isAvailable=false` and its reason.
  */
@@ -25,7 +25,7 @@ export function describeDaySlotsContract(subject: ContractSubject): void {
     const zone = fixtures.timeZoneId;
     const tomorrow = localDateTime(fixtures.tomorrowEveningUtc, zone).date;
 
-    it('lists the day earliest first, half-hourly, each time on the branch’s own clock', async () => {
+    it('lists the day earliest first, every quarter hour, each time on the branch’s own clock', async () => {
       const day = await gateway.getDaySlots({
         branchId: fixtures.branchId,
         date: tomorrow,
@@ -33,7 +33,7 @@ export function describeDaySlotsContract(subject: ContractSubject): void {
       });
 
       expect(day).toMatchObject({ branchId: fixtures.branchId, date: tomorrow, partySize: 2 });
-      expect(day!.stepMinutes).toBe(30);
+      expect(day!.stepMinutes).toBe(15);
       // Tomorrow evening is bookable — every reservation contract rests on it —
       // so the day is open and lists something.
       expect(day!.unavailableReason).toBeNull();
@@ -44,10 +44,17 @@ export function describeDaySlotsContract(subject: ContractSubject): void {
       for (const slot of day!.slots) {
         expect(slot.time).toMatch(/^\d{2}:\d{2}$/u);
         expect(localDateTime(slot.slotUtc, zone)).toEqual({ date: tomorrow, time: slot.time });
-        expect(Number(slot.time.slice(3)) % 30).toBe(0);
+        expect(Number(slot.time.slice(3)) % 15).toBe(0);
         // Available, or a reason; never both, never neither once it was asked.
         expect(slot.isAvailable).toBe(slot.unavailableReason === null);
-        expect(slot.freeTableCount > 0).toBe(slot.isAvailable);
+        // Free outright, or once the guest before agrees: either is on offer.
+        expect(slot.freeTableCount + (slot.requestableTableCount ?? 0) > 0).toBe(slot.isAvailable);
+        // Booking times: whether only requestable tables are left, and the
+        // time every table then must be free by, when every one is cut short.
+        expect(typeof slot.requestable).toBe('boolean');
+        expect(slot.mustFreeByUtc === null || !Number.isNaN(Date.parse(slot.mustFreeByUtc!))).toBe(
+          true,
+        );
       }
     });
 
@@ -70,11 +77,16 @@ export function describeDaySlotsContract(subject: ContractSubject): void {
           timeZoneId: zone,
         });
         const bookable = floor!.tables.filter((table) => table.isBookable);
+        const requestable = bookable.filter((table) => table.isRequestable).length;
         expect(slot.isAvailable, slot.time).toBe(floor!.rejection === null && bookable.length > 0);
-        expect(slot.freeTableCount, slot.time).toBe(bookable.length);
-        // "Will wait for the venue" is the room's word too, not a second rule.
-        if (bookable[0])
-          expect(slot.requiresApproval, slot.time).toBe(bookable[0].requiresApproval);
+        // Free outright and requestable, counted apart.
+        expect(slot.freeTableCount, slot.time).toBe(bookable.length - requestable);
+        expect(slot.requestableTableCount ?? 0, slot.time).toBe(requestable);
+        // "Will wait for the venue" is the room's word too, not a second rule —
+        // read off a table the guest before is not asked about, which waits
+        // (or not) by the time's own rules.
+        const plain = bookable.filter((table) => !table.requiresEarlierGuestConsent);
+        if (plain[0]) expect(slot.requiresApproval, slot.time).toBe(plain[0].requiresApproval);
       }
     });
 

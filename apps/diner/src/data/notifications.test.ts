@@ -190,3 +190,49 @@ describe('bookingKeysForRow', () => {
     expect(bookingKeysForRow(row({ kind: 'booking-confirmed', reservationId: null }))).toEqual([]);
   });
 });
+
+describe('booking times in the feed', () => {
+  it('asks the earlier guest, with the later start and the time to leave by', () => {
+    const copy = notificationCopy(
+      row({
+        kind: 'table-request',
+        params: { requestId: 'q1', requestedTime: '19:45', freeByTime: '19:40' },
+      }),
+    );
+    expect(copy).toEqual({
+      titleKey: 'notifications.kind.tableRequest.title',
+      bodyKey: 'notifications.kind.tableRequest.body',
+      params: { place: 'Lumen Coffee · Cascade', time: '19:45', freeBy: '19:40' },
+    });
+  });
+
+  it('says which way their answer went', () => {
+    const decided = (accepted: string) =>
+      notificationCopy(
+        row({
+          kind: 'table-request-decided',
+          params: { accepted, requestedTime: '19:45', freeByTime: '19:40' },
+        }),
+      );
+    expect(decided('true').titleKey).toBe('notifications.kind.tableRequestAccepted.title');
+    expect(decided('true').params.freeBy).toBe('19:40');
+    expect(decided('false').titleKey).toBe('notifications.kind.tableRequestDeclined.title');
+  });
+
+  it('tells the later guest the guest before said no, or did not answer', () => {
+    const declined = (declinedBecause: string) =>
+      notificationCopy(row({ kind: 'booking-declined', params: { declinedBecause } })).titleKey;
+    expect(declined('3')).toBe('notifications.kind.bookingDeclinedEarlierGuest.title');
+    expect(declined('4')).toBe('notifications.kind.bookingDeclinedEarlierGuestNoAnswer.title');
+    expect(declined('1')).toBe('notifications.kind.bookingDeclined.title');
+  });
+
+  it('opens the booking, and reads it again', () => {
+    const request = row({ kind: 'table-request' });
+    expect(notificationRoute(request)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: 'r1' },
+    });
+    expect(bookingKeysForRow(request)).toContainEqual(['booking', 'r1']);
+  });
+});

@@ -90,6 +90,9 @@ function publicRuntime(): PublicRuntime {
     mockVenueApprovesAfterMs: mockSeconds(
       import.meta.env['VITE_MOCK_VENUE_APPROVES_AFTER_SECONDS'],
     ),
+    // Mock only: other guests' bookings tomorrow evening at Northern Avenue, so
+    // struck, requestable and cut-short times show. Never in tests.
+    mockNeighbourBookings: import.meta.env.MODE !== 'test',
   });
 
   /** The unauthenticated half: slug resolution, the published profile, the manage link. */

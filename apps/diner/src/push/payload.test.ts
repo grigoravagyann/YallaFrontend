@@ -1,6 +1,6 @@
 import { createMockGateway, isHoldAlreadyExtended, actionIsLive, canExtendHold } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { actionFor, parsePushTarget, PUSH_ACTIONS, routeFor } from './payload';
+import { actionFor, parsePushTarget, PUSH_ACTIONS, routeFor, tableRequestAnswer } from './payload';
 
 /**
  * What a notification means, and what the app is allowed to do about it.
@@ -368,5 +368,59 @@ describe('extending a hold', () => {
       expect(error.reservationId).toBe(booking.id);
       expect(error.status).toBe(409);
     });
+  });
+});
+
+// --- Booking times: a later guest asks for the diner's table -----------------
+
+describe('a request for the diner’s table', () => {
+  const REQUEST = '7b1f0a2c-0000-4000-8000-0000000000aa';
+
+  it('routes to the booking it is about, carrying the request', () => {
+    const target = parsePushTarget({
+      kind: 'table-request',
+      reservationId: RESERVATION,
+      requestId: REQUEST,
+    });
+    expect(target).toEqual({
+      kind: 'tableRequest',
+      reservationId: RESERVATION,
+      requestId: REQUEST,
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION },
+    });
+  });
+
+  it('routes what came of the answer to the booking that promised it', () => {
+    const target = parsePushTarget({
+      kind: 'table-request-decided',
+      reservationId: RESERVATION,
+      requestId: REQUEST,
+      accepted: 'true',
+      freeByTime: '19:40',
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION },
+    });
+  });
+
+  it('is not routable without the booking or the request', () => {
+    expect(parsePushTarget({ kind: 'table-request', reservationId: RESERVATION })).toEqual({
+      kind: 'unknown',
+    });
+    expect(parsePushTarget({ kind: 'table-request', requestId: REQUEST })).toEqual({
+      kind: 'unknown',
+    });
+  });
+
+  it('knows its Yes and No buttons, and they answer it', () => {
+    expect(actionFor(PUSH_ACTIONS.tableRequestYes)).toBe(PUSH_ACTIONS.tableRequestYes);
+    expect(actionFor(PUSH_ACTIONS.tableRequestNo)).toBe(PUSH_ACTIONS.tableRequestNo);
+    expect(tableRequestAnswer(PUSH_ACTIONS.tableRequestYes)).toBe(true);
+    expect(tableRequestAnswer(PUSH_ACTIONS.tableRequestNo)).toBe(false);
+    expect(tableRequestAnswer(PUSH_ACTIONS.cancel)).toBeNull();
   });
 });

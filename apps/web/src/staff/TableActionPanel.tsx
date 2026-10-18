@@ -12,6 +12,7 @@ import type { DayAndTime } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
 import { useEffect, useRef, useState } from 'react';
+import { nextBookingLine } from './approvalRequests';
 import { useBranchFormat } from './useBranchFormat';
 
 /**
@@ -142,7 +143,15 @@ export function TableActionPanel(props: TableActionPanelProps) {
         {seatedMinutes !== null && seatedMinutes >= 0 ? (
           <div>
             <dt>{t('table.seatedFor')}</dt>
-            <dd>{t('table.minutes', { count: seatedMinutes })}</dd>
+            {/* The party sitting here promised to be gone by a time: said with it. */}
+            <dd>
+              {nextBookingLine(
+                t,
+                t('table.minutes', { count: seatedMinutes }),
+                detail?.sittingPromisedFreeByUtc,
+                format.time,
+              )}
+            </dd>
           </div>
         ) : null}
         {detail?.partySize ? (
@@ -156,7 +165,14 @@ export function TableActionPanel(props: TableActionPanelProps) {
             <dt>{t('table.nextBooking')}</dt>
             {/* A bare time reads as tonight; a booking days away said so is
                 how a waiter seats nobody over it (QA 2026-10-16). */}
-            <dd>{nextBookingText(t, format.dayAndTime(bookingStart))}</dd>
+            <dd>
+              {nextBookingLine(
+                t,
+                nextBookingText(t, format.dayAndTime(bookingStart)),
+                detail?.nextReservationPromisedFreeByUtc,
+                format.time,
+              )}
+            </dd>
           </div>
         ) : null}
         {balance !== null && balance > 0 ? (

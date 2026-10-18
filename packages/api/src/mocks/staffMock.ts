@@ -39,6 +39,7 @@ import type {
 } from '../contracts/ordering';
 import {
   APPROVAL_EXPIRED_CODE,
+  EARLIER_GUEST_WINDOW_MINUTES,
   type ApprovalTrigger,
   type AwaitingApproval,
   type ConsoleBooking,
@@ -111,6 +112,13 @@ export interface StaffMockOptions {
    * device otherwise, and it is the whole reason the version is sent.
    */
   readonly churnOnTables?: readonly string[];
+  /**
+   * Booking times on the floor, for mock mode: a request on another day that
+   * waits for the guest before — who booked on the web, so the floor decides
+   * and rings them — and a party that promised to free its table before the
+   * next booking. Off in tests, which read the room as it always was.
+   */
+  readonly seedBookingTimes?: boolean;
 }
 
 interface MockTableState {
@@ -123,6 +131,10 @@ interface MockTableState {
   tabId: string | null;
   nextReservationId: string | null;
   nextReservationStartUtc: string | null;
+  /** The next booking's guest promised to free the table by this. */
+  nextReservationPromisedFreeByUtc: string | null;
+  /** The party sitting here now promised to have left by this. */
+  sittingPromisedFreeByUtc: string | null;
   nextReservationPartySize: number | null;
   freeUntilUtc: string | null;
   /** Bumped on every change, including a churn nobody asked for. */
@@ -206,6 +218,10 @@ interface MockAwaiting {
   readonly note: string | null;
   readonly previousBooking: PreviousBookingContext | null;
   readonly nextBooking: NextBookingContext | null;
+  /** This booking's guest promised to free the table by then — a booking follows. */
+  readonly promisedFreeByUtc?: string | null;
+  /** The time the floor asks the guest before to have left by. */
+  readonly earlierGuestFreeByUtc?: string | null;
   status: 'pendingApproval' | 'confirmed' | 'cancelledByVenue';
   declinedBecause: DeclineReason | null;
   reason: string | null;
@@ -320,6 +336,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       nextReservationStartUtc: table.nextReservationStartUtc ?? null,
       nextReservationPartySize: table.state === 'reservedSoon' ? 4 : null,
       freeUntilUtc: table.nextReservationStartUtc ?? null,
+      nextReservationPromisedFreeByUtc: null,
+      sittingPromisedFreeByUtc: null,
       version: 1,
     });
 
@@ -459,6 +477,74 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       declinedBecause: null,
       reason: null,
     });
+  }
+
+  /*
+   * Booking times, for mock mode only. Tomorrow at table 9, a booking for the
+   * table somebody booked shortly before — on the web, so no push reaches
+   * them: the floor rings them and decides, with two hours to do it. And the
+   * party at the first occupied table promised, when it booked, to be gone
+   * five minutes before the booking after it.
+   */
+  if (options.seedBookingTimes) {
+    const askTable = tables.has('t9') ? 't9' : [...tables.keys()][0];
+    if (askTable) {
+      const madeAt = new Date(start.getTime() - 5 * 60_000);
+      const startUtc = minutesFrom(start, 26 * 60);
+      const window = madeAt.getTime() + EARLIER_GUEST_WINDOW_MINUTES * 60_000;
+      awaiting.set('res-await-4', {
+        id: 'res-await-4',
+        code: 'Y3133',
+        tableId: askTable,
+        guestName: 'Արմեն Սահակյան',
+        guestPhone: '+37495112233',
+        partySize: 2,
+        startUtc,
+        arrivesAtUtc: iso(madeAt),
+        approvalExpiresAtUtc: iso(new Date(window)),
+        because: 'earlierGuestConsent',
+        note: null,
+        previousBooking: {
+          startUtc: minutesFrom(start, 26 * 60 - 105),
+          partySize: 2,
+          guestName: 'Mariam Hovhannisyan',
+          guestPhone: '+37477445566',
+          status: 'confirmed',
+          promisedFreeByUtc: null,
+        },
+        nextBooking: { startUtc: minutesFrom(start, 26 * 60 + 120), partySize: 4 },
+        promisedFreeByUtc: minutesFrom(start, 26 * 60 + 115),
+        earlierGuestFreeByUtc: minutesFrom(start, 26 * 60 - 5),
+        status: 'pendingApproval',
+        declinedBecause: null,
+        reason: null,
+      });
+    }
+    const busy = [...tables.values()].find(
+      (state) => state.physicalStatus === 'occupied' && state.tableId !== 't7',
+    );
+    if (busy) {
+      const next = minutesFrom(start, 55);
+      const reservation: MockReservation = {
+        id: id('res'),
+        tableId: busy.tableId,
+        code: 'Y3141',
+        guestName: 'Sona Karapetyan',
+        guestPhone: '+37493778899',
+        partySize: 2,
+        startUtc: next,
+        released: false,
+      };
+      reservations.set(reservation.id, reservation);
+      busy.nextReservationId = reservation.id;
+      busy.nextReservationStartUtc = next;
+      busy.nextReservationPartySize = 2;
+      busy.freeUntilUtc = minutesFrom(start, 50);
+      // The party sitting here promised, when it booked, to be gone by then.
+      busy.sittingPromisedFreeByUtc = minutesFrom(start, 50);
+      // And the next one promised to leave before the booking after it.
+      busy.nextReservationPromisedFreeByUtc = minutesFrom(start, 55 + 85);
+    }
   }
 
   function openTab(tableId: string, tableLabel: string, at: Date): MockTab {
@@ -857,7 +943,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       if (request.status !== 'pendingApproval') continue;
       if (answerWindowClosed(request.approvalExpiresAtUtc, request.startUtc, at)) {
         request.status = 'cancelledByVenue';
-        request.declinedBecause = 'noAnswer';
+        // Nobody rang the guest before in their two hours: said as theirs.
+        request.declinedBecause =
+          request.because === 'earlierGuestConsent' ? 'earlierGuestNoAnswer' : 'noAnswer';
       }
     }
   }
@@ -975,6 +1063,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           freeUntilUtc: state.freeUntilUtc,
           openTabId: state.tabId,
           rowVersion: versionToken(table.id, state.version),
+          nextReservationPromisedFreeByUtc: state.nextReservationPromisedFreeByUtc,
+          sittingPromisedFreeByUtc: state.sittingPromisedFreeByUtc,
         });
         return {
           ...table,
@@ -1298,6 +1388,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             note: request.note,
             approvalExpiresAtUtc: request.approvalExpiresAtUtc,
             because: request.because,
+            promisedFreeByUtc: request.promisedFreeByUtc ?? null,
+            earlierGuestFreeByUtc: request.earlierGuestFreeByUtc ?? null,
             previousBooking: request.previousBooking,
             nextBooking: request.nextBooking,
             currentSitting:

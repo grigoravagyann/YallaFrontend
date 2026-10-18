@@ -145,21 +145,21 @@ describe('bars and districts on the browse list', () => {
 // --- A day of slots ------------------------------------------------------------------------
 
 describe('a day of slots', () => {
-  it('lists every half hour whose whole sitting fits the hours, in the branch’s wall clock', async () => {
+  it('lists every quarter hour whose whole sitting fits the hours, in the branch’s wall clock', async () => {
     const day = await world().getDaySlots({ branchId: NORTH, date: TOMORROW, partySize: 2 });
 
     expect(day).toMatchObject({
       branchId: NORTH,
       date: TOMORROW,
       partySize: 2,
-      stepMinutes: 30,
+      stepMinutes: 15,
       unavailableReason: null,
     });
     const times = day!.slots.map((slot) => slot.time);
     // Open 09:00 to 01:00, ninety-minute sittings: 23:30 is the last that fits.
     expect(times[0]).toBe('09:00');
     expect(times[times.length - 1]).toBe('23:30');
-    expect(times).toHaveLength(30);
+    expect(times).toHaveLength(59);
     for (const slot of day!.slots) {
       expect(slot.slotUtc).toBe(at(TOMORROW, slot.time));
     }
@@ -176,9 +176,12 @@ describe('a day of slots', () => {
         slotUtc: slot.slotUtc,
         partySize: 2,
       });
-      const free = floor!.tables.filter((table) => table.isBookable).length;
-      expect(slot.isAvailable, slot.time).toBe(free > 0);
-      expect(slot.freeTableCount, slot.time).toBe(free);
+      const bookable = floor!.tables.filter((table) => table.isBookable);
+      const requestable = bookable.filter((table) => table.isRequestable).length;
+      expect(slot.isAvailable, slot.time).toBe(bookable.length > 0);
+      // Free outright, and requestable, counted apart (booking times).
+      expect(slot.freeTableCount, slot.time).toBe(bookable.length - requestable);
+      expect(slot.requestableTableCount ?? 0, slot.time).toBe(requestable);
     }
   });
 
@@ -383,8 +386,15 @@ describe('changing a booking', () => {
       await caught(gateway.rescheduleBooking({ ...move(mine, {}), commandId: 'not-a-guid' })),
     ).toBeInstanceOf(ValidationError);
 
-    // Nothing moved.
-    await expect(gateway.getBooking(mine.id)).resolves.toEqual(mine);
+    // Nothing moved. (Theirs, two hours after mine on the same table, asks
+    // whether mine will have left — booking times — which is not a move.)
+    await expect(gateway.getBooking(mine.id)).resolves.toMatchObject({
+      slotUtc: mine.slotUtc,
+      endUtc: mine.endUtc,
+      tableId: mine.tableId,
+      partySize: mine.partySize,
+      status: mine.status,
+    });
   });
 
   it('refuses a cancelled booking and one that has started, and nothing it does not know', async () => {

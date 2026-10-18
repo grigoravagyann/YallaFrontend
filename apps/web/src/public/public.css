@@ -221,6 +221,30 @@
   font-size: var(--font-size-sm);
 }
 
+/* The promise to free the table by a time, when a booking follows (booking times). */
+.pub-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  min-height: var(--touch-minimum);
+  margin: var(--space-md) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-soft);
+  background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  cursor: pointer;
+}
+
+.pub-check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-warning);
+}
+
 /* --------------------------------------------------------------------------
  * Controls
  * -------------------------------------------------------------------------- */

@@ -7,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FreeBySheet } from '../../src/components/bookings/FreeBySheet';
 import { Button } from '../../src/components/Button';
 import { Card } from '../../src/components/Card';
 import { IconButton } from '../../src/components/IconButton';
@@ -45,8 +46,17 @@ export default function ConfirmScreen() {
     partySize: string;
     /** The note for the venue typed on the booking screen, carried through verification. */
     requests?: string;
+    /** "I'll free the table by 21:25", agreed on the booking screen before the SMS detour. */
+    acceptsFreeByUtc?: string;
   }>();
   const { branchId, venueId, tableId, slotUtc, partySize, requests } = forward;
+  /*
+   * The promise to free the table, when a booking follows: agreed on the
+   * booking screen and carried here, or asked here — the table's must-free-by
+   * time is what the server holds the booking to, and a link cannot vouch for it.
+   */
+  const [agreedFreeBy, setAgreedFreeBy] = useState<string | null>(forward.acceptsFreeByUtc ?? null);
+  const [freeByAsk, setFreeByAsk] = useState<string | null>(null);
 
   /*
    * Route params, treated as untrusted input.
@@ -133,84 +143,110 @@ export default function ConfirmScreen() {
   const createBooking = useCreateBooking();
   const pending = createBooking.isPending;
 
-  const submit = useCallback(async () => {
-    if (!canSubmit({ state, guestName, pending }) || !zone || !phoneE164 || !slotUtc) return;
-    setErrorText(null);
-    const name = guestName.trim();
-    rememberName(name);
-
-    try {
-      const booking = await createBooking.mutateAsync({
-        commandId: commandId.current,
-        branchId: branchId ?? '',
-        tableId: tableId ?? '',
-        slotUtc,
-        timeZoneId: zone,
-        partySize: size,
-        guestName: name,
-        guestPhone: phoneE164,
-        channel: 'app',
-        // The note typed before the SMS detour goes to the venue with the booking (K9).
-        note: requests?.trim() || null,
-      });
-
-      haptics.success();
-      router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
-    } catch (error) {
-      // Not taking app bookings, or a note over the limit: said in their own words.
-      const refusal = bookingRefusal(error);
-      if (refusal) {
-        setOutcomeUnknown(false);
-        setErrorText(t(refusal.key, refusal.params));
+  const submit = useCallback(
+    async (acceptsFreeByUtc: string | null = agreedFreeBy) => {
+      if (!canSubmit({ state, guestName, pending }) || !zone || !phoneE164 || !slotUtc) return;
+      setErrorText(null);
+      // A booking follows on the table: never sent without the promise to free it.
+      const required = table?.isBookable ? (table.mustFreeByUtc ?? null) : null;
+      if (
+        required &&
+        (!acceptsFreeByUtc || Date.parse(acceptsFreeByUtc) !== Date.parse(required))
+      ) {
+        setFreeByAsk(required);
         return;
       }
+      const name = guestName.trim();
+      rememberName(name);
 
-      // What kind of failure this was is decided in one shared place, so the
-      // web page classifies the same refusal the same way. See `bookingFailure`.
-      const failure = bookingFailure(error, zone, locale);
+      try {
+        const booking = await createBooking.mutateAsync({
+          commandId: commandId.current,
+          branchId: branchId ?? '',
+          tableId: tableId ?? '',
+          slotUtc,
+          timeZoneId: zone,
+          partySize: size,
+          guestName: name,
+          guestPhone: phoneE164,
+          channel: 'app',
+          // The note typed before the SMS detour goes to the venue with the booking (K9).
+          note: requests?.trim() || null,
+          ...(required ? { acceptsFreeByUtc: required } : {}),
+        });
 
-      // Losing the race is an expected outcome, not a failure screen. The room
-      // underneath is told to redraw, and the diner is handed back to it with
-      // the sheet closed and the reason above the plan.
-      if (failure.kind === 'tableTaken') {
-        void refreshRoomAfterLoss(queryClient, branchId ?? '');
-        useConflict.getState().report(failure.error.tableLabel, failure.error.reason);
-        // back(), not replace(): the branch screen underneath is still holding
-        // this diner's slot and party size.
-        router.back();
-        return;
+        haptics.success();
+        router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
+      } catch (error) {
+        // Not taking app bookings, or a note over the limit: said in their own words.
+        const refusal = bookingRefusal(error);
+        if (refusal) {
+          setOutcomeUnknown(false);
+          setErrorText(t(refusal.key, refusal.params));
+          return;
+        }
+
+        // What kind of failure this was is decided in one shared place, so the
+        // web page classifies the same refusal the same way. See `bookingFailure`.
+        const failure = bookingFailure(error, zone, locale);
+
+        // A booking landed after the room was read and the table now needs the
+        // promise (or another time for it): asked again, with the server's time.
+        if (failure.kind === 'freeByRequired') {
+          setOutcomeUnknown(false);
+          void slotQuery.refetch();
+          if (failure.requiredFreeByUtc) setFreeByAsk(failure.requiredFreeByUtc);
+          else setErrorText(t(failure.line.key, failure.line.params));
+          return;
+        }
+
+        // Losing the race is an expected outcome, not a failure screen. The room
+        // underneath is told to redraw, and the diner is handed back to it with
+        // the sheet closed and the reason above the plan.
+        if (failure.kind === 'tableTaken') {
+          void refreshRoomAfterLoss(queryClient, branchId ?? '');
+          useConflict.getState().report(failure.error.tableLabel, failure.error.reason);
+          // back(), not replace(): the branch screen underneath is still holding
+          // this diner's slot and party size.
+          router.back();
+          return;
+        }
+
+        // Nothing was booked, and the command id stays: the retry after
+        // verifying is the same command.
+        if (failure.kind === 'phoneNotVerified') {
+          setVerifyRefused(true);
+          setOutcomeUnknown(false);
+          return;
+        }
+
+        if (failure.kind === 'commandInUse') commandId.current = newCommandId();
+        setOutcomeUnknown(failure.kind === 'unknown');
+        setErrorText(t(failure.line.key, failure.line.params));
       }
-
-      // Nothing was booked, and the command id stays: the retry after
-      // verifying is the same command.
-      if (failure.kind === 'phoneNotVerified') {
-        setVerifyRefused(true);
-        setOutcomeUnknown(false);
-        return;
-      }
-
-      if (failure.kind === 'commandInUse') commandId.current = newCommandId();
-      setOutcomeUnknown(failure.kind === 'unknown');
-      setErrorText(t(failure.line.key, failure.line.params));
-    }
-  }, [
-    state,
-    guestName,
-    pending,
-    zone,
-    phoneE164,
-    slotUtc,
-    rememberName,
-    createBooking,
-    branchId,
-    tableId,
-    size,
-    requests,
-    router,
-    queryClient,
-    t,
-    locale,
-  ]);
+    },
+    [
+      state,
+      guestName,
+      pending,
+      zone,
+      phoneE164,
+      slotUtc,
+      rememberName,
+      createBooking,
+      branchId,
+      tableId,
+      size,
+      requests,
+      router,
+      queryClient,
+      t,
+      locale,
+      agreedFreeBy,
+      table,
+      slotQuery,
+    ],
+  );
 
   // The same assembled copy the sheet showed, so the promise on the review
   // screen is word-for-word the promise the diner accepted a screen earlier.
@@ -344,6 +380,7 @@ export default function ConfirmScreen() {
                 <Text style={styles.cancellation}>{line(copy.freeCancellation)}</Text>
               ) : null}
               {copy?.approval ? <Text style={styles.approval}>{line(copy.approval)}</Text> : null}
+              {copy?.freeBy ? <Text style={styles.approval}>{line(copy.freeBy)}</Text> : null}
             </Card>
           )}
 
@@ -403,6 +440,28 @@ export default function ConfirmScreen() {
           />
         </View>
       </KeyboardAvoidingView>
+
+      {/* "There is a booking at 21:30. Will you free the table by 21:25?" */}
+      {freeByAsk && zone ? (
+        <FreeBySheet
+          visible
+          freeByUtc={freeByAsk}
+          nextStartUtc={table?.window?.nextBookingStartUtc ?? null}
+          timeZoneId={zone}
+          busy={pending}
+          onAccept={() => {
+            const agreed = freeByAsk;
+            setFreeByAsk(null);
+            setAgreedFreeBy(agreed);
+            void submit(agreed);
+          }}
+          onDecline={() => {
+            setFreeByAsk(null);
+            // Another table or time is chosen in the room, a screen back.
+            setErrorText(t('book.freeBy.otherNoTimes'));
+          }}
+        />
+      ) : null}
     </Screen>
   );
 }

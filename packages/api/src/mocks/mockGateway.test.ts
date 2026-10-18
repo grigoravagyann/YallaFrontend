@@ -92,7 +92,9 @@ describe('availability', () => {
       slotUtc: SLOT,
       partySize: 8,
     });
-    expect(small.every((a) => !a.requiresApproval)).toBe(true);
+    // A table only to be had as a request waits for a yes whatever the party
+    // (booking times); every other one is the party size's to decide.
+    expect(small.filter((a) => !a.isRequestable).every((a) => !a.requiresApproval)).toBe(true);
     expect(large.every((a) => a.requiresApproval)).toBe(true);
   });
 
@@ -364,7 +366,7 @@ describe('createBooking', () => {
   });
 
   it('rejects a slot that became too soon while the diner was deciding', async () => {
-    const soon = new Date(NOW.getTime() + 5 * 60_000).toISOString(); // lead time is 15
+    const soon = new Date(NOW.getTime() + 5 * 60_000).toISOString(); // lead time is 10
     try {
       await gateway.createBooking({
         commandId: '1b4c0bdd-6b65-4073-8db4-4655617e1d04',
@@ -381,7 +383,7 @@ describe('createBooking', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(LeadTimeExceededError);
       const lead = error as LeadTimeExceededError;
-      expect(lead.leadTimeMinutes).toBe(15);
+      expect(lead.leadTimeMinutes).toBe(10);
       // Offers a way forward rather than just refusing.
       expect(new Date(lead.earliestSlotUtc).getTime()).toBeGreaterThan(NOW.getTime());
     }

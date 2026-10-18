@@ -184,14 +184,18 @@ describe('a request on the floor tablet', () => {
       note: null,
       approvalExpiresAtUtc: EXPIRES,
       because: 'shortNotice',
+      // Booking times: nobody promised to be gone by anything, nobody to ask.
+      promisedFreeByUtc: null,
+      earlierGuestFreeByUtc: null,
       previousBooking: {
         startUtc: '2026-10-18T14:00:00Z',
         partySize: 4,
         guestName: 'Anna',
         guestPhone: '+37477889900',
         status: 'seated',
+        promisedFreeByUtc: null,
       },
-      nextBooking: { startUtc: '2026-10-18T17:30:00Z', partySize: 3 },
+      nextBooking: { startUtc: '2026-10-18T17:30:00Z', partySize: 3, promisedFreeByUtc: null },
       currentSitting: { sinceUtc: '2026-10-18T14:05:00Z', partySize: 4 },
     });
   });

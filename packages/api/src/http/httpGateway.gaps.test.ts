@@ -183,6 +183,10 @@ describe('a day of slots', () => {
           requiresApproval: false,
           freeTableCount: 0,
           unavailableReason: 'pastLeadTime',
+          // Booking times, from a server before them: nothing asked, nothing cut.
+          requestable: false,
+          requestableTableCount: 0,
+          mustFreeByUtc: null,
         },
         {
           time: '19:30',
@@ -191,6 +195,9 @@ describe('a day of slots', () => {
           requiresApproval: true,
           freeTableCount: 3,
           unavailableReason: null,
+          requestable: false,
+          requestableTableCount: 0,
+          mustFreeByUtc: null,
         },
         {
           time: '20:00',
@@ -200,6 +207,9 @@ describe('a day of slots', () => {
           freeTableCount: 0,
           // Bookings took the tables; nobody is sitting there.
           unavailableReason: 'alreadyBooked',
+          requestable: false,
+          requestableTableCount: 0,
+          mustFreeByUtc: null,
         },
       ],
     });
@@ -226,7 +236,8 @@ describe('a day of slots', () => {
     });
     await expect(
       shut.gateway.getDaySlots({ branchId: BRANCH, date: '2026-09-20', partySize: 2 }),
-    ).resolves.toMatchObject({ unavailableReason: 'closed', slots: [], stepMinutes: 30 });
+      // No step from the server: every quarter hour, the step since booking times.
+    ).resolves.toMatchObject({ unavailableReason: 'closed', slots: [], stepMinutes: 15 });
 
     const { gateway } = gatewayOver({});
     await expect(

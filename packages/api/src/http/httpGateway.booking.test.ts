@@ -160,6 +160,9 @@ describe('creating a booking', () => {
       approvalExpiresAtUtc: null,
       declinedBecause: null,
       manageToken: 'mt-1',
+      // Booking times: no promise to free the table, and nobody asking for it.
+      promisedFreeByUtc: null,
+      incomingTableRequest: null,
     });
   });
 

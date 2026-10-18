@@ -15,6 +15,10 @@ export const DINER_NOTIFICATION_KINDS = [
   'booking-cancelled-by-venue',
   'order-ready',
   'review-hidden',
+  // Booking times: somebody would like the diner's table after them, and
+  // what came of their answer (`accepted`, `requestedTime`, `freeByTime`).
+  'table-request',
+  'table-request-decided',
 ] as const;
 
 export type KnownDinerNotificationKind = (typeof DINER_NOTIFICATION_KINDS)[number];

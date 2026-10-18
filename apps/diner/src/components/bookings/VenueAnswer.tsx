@@ -24,7 +24,7 @@ import { Text } from '../Text';
 /** What a booking needs for the venue's answer to be read off it. */
 export type VenueAnswerBooking = Pick<
   Booking,
-  'status' | 'approvalExpiresAtUtc' | 'declinedBecause'
+  'status' | 'approvalExpiresAtUtc' | 'declinedBecause' | 'awaitingApprovalBecause'
 >;
 
 export interface VenueAnswer {

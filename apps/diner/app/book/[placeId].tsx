@@ -1,5 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { MAX_BOOKING_NOTE, bookingFailure, unavailableCopy, type CopyLine } from '@yalla/api';
+import {
+  MAX_BOOKING_NOTE,
+  SHORT_NOTICE_HOURS,
+  bookingFailure,
+  unavailableCopy,
+  type CopyLine,
+  type TableAvailability,
+} from '@yalla/api';
 import { isOfflinePaused } from '@yalla/api/react';
 import { branchDayKey, formatTime, intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
@@ -16,6 +23,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Chip } from '../../src/components/Chip';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ErrorState } from '../../src/components/ErrorState';
 import { IconButton } from '../../src/components/IconButton';
@@ -31,9 +39,11 @@ import {
   parseChangeParams,
   type BookingChange,
 } from '../../src/components/bookings/changeBooking';
+import { FreeBySheet } from '../../src/components/bookings/FreeBySheet';
 import { placeArea, placeTitle } from '../../src/components/places/placeTitle';
 import { BookCta, CtaFooter } from '../../src/components/place/BookCta';
 import { ChoiceGrid, type ChoiceGridOption } from '../../src/components/place/ChoiceGrid';
+import { TimeWheel } from '../../src/components/place/TimeWheel';
 import { RoomPhotosView } from '../../src/components/tables/RoomPhotosView';
 import { TableLegend } from '../../src/components/tables/TableLegend';
 import { useCapacityLabel } from '../../src/components/tables/TableMarker';
@@ -54,10 +64,20 @@ import { placeKeys, usePlace, usePlaceRooms } from '../../src/places/hooks';
 import { shiftDateKey, type Place, type PlaceRoom } from '../../src/places/model';
 import { roomsAtSlot, slotRefusal } from '../../src/places/rooms';
 import { bookingRulesInput } from '../../src/places/navigation';
-import { dayRefusalLine, pickSlot, slotAvailability } from '../../src/places/slotAvailability';
+import {
+  dayRefusalLine,
+  pickSlot,
+  slotAvailability,
+  slotFloorVerdict,
+  wheelSlots,
+  withSoon,
+} from '../../src/places/slotAvailability';
+import { quickTimes, soonInstant, type WheelSlot } from '../../src/places/wheelTimes';
 import {
   LEAD_MINUTES,
+  SLOT_MINUTES,
   WINDOW_DAYS,
+  clockOf,
   dayOptions,
   largerPartySizes,
   stripDateFor,
@@ -65,6 +85,7 @@ import {
   timeSlots,
   windowReaching,
   type DayOption,
+  type TimeSlot,
 } from '../../src/places/slots';
 import { haptics } from '../../src/lib/haptics';
 import { useSession } from '../../src/stores/session';
@@ -84,9 +105,11 @@ import {
 const PARTY_SIZES = [2, 3, 4] as const;
 const PARTY_MORE_FROM = 5;
 const PARTY_MAX = 12;
-/** The design's five times to a row, and four days in view at once. */
-const SLOT_COLUMNS = 5;
+/** The gap between a row of choices, and four days in view at once. */
 const SLOT_GAP = 6;
+/** The quick chips after "In 10 min": the nearest free times. */
+const QUICK_TIMES = 3;
+const HOUR_MS = 3_600_000;
 const DAYS_IN_VIEW = 4;
 const DAY_GAP = space.sm;
 /** The party pill: four 44pt choices with 4 between them. */
@@ -331,7 +354,8 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   }, []);
 
   const activeDateKey = dateKey ?? days[0]?.dateKey ?? null;
-  const slots = useMemo(
+  // The quarter hours the place is open, from the lead time on.
+  const gridSlots = useMemo(
     () => (activeDateKey ? timeSlots(place, activeDateKey, now, leadMinutes) : []),
     [place, activeDateKey, now, leadMinutes],
   );
@@ -350,7 +374,8 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   // A late venue's times after midnight are the next date's, and only that
   // date's answer can say whether they can be had.
   const nextDateKey =
-    activeDateKey && slots.some((slot) => branchDayKey(slot.at, place.timeZoneId) !== activeDateKey)
+    activeDateKey &&
+    gridSlots.some((slot) => branchDayKey(slot.at, place.timeZoneId) !== activeDateKey)
       ? shiftDateKey(activeDateKey, 1)
       : undefined;
   const nextDaySlotsQuery = useDaySlots({
@@ -361,10 +386,54 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   });
   const dayAnswer = daySlotsQuery.isError ? null : daySlotsQuery.data;
   const nextDayAnswer = nextDaySlotsQuery.isError || !nextDateKey ? null : nextDaySlotsQuery.data;
-  const availability = useMemo(
-    () => slotAvailability(slots, [dayAnswer, nextDayAnswer], place.timeZoneId),
-    [slots, dayAnswer, nextDayAnswer, place.timeZoneId],
+  const dayAvailability = useMemo(
+    () => slotAvailability(gridSlots, [dayAnswer, nextDayAnswer], place.timeZoneId),
+    [gridSlots, dayAnswer, nextDayAnswer, place.timeZoneId],
   );
+
+  /*
+   * "In 10 min · 19:15": today, the lead time from now rounded up to five
+   * minutes, while the place is open then. Not one of the day's quarter
+   * hours, so the room at that minute judges it — the very read the booking
+   * is made against — and it joins the wheel only once that room says a table
+   * can be had.
+   */
+  const isToday = days[0]?.isToday === true && activeDateKey === days[0].dateKey;
+  const soonMs = useMemo(() => soonInstant(now, leadMinutes), [now, leadMinutes]);
+  // Not on a day the server refused outright: shut, or nothing left today.
+  const dayRefused = dayAnswer?.unavailableReason != null;
+  const soonCandidate = useMemo((): TimeSlot | null => {
+    if (!isToday || !activeDateKey || dayRefused) return null;
+    const open = timeSlots(place, activeDateKey, new Date(0), 0).some(
+      (slot) => slot.at.getTime() <= soonMs && soonMs < slot.at.getTime() + SLOT_MINUTES * 60_000,
+    );
+    if (!open) return null;
+    const at = new Date(soonMs);
+    return { key: clockOf(at, place.timeZoneId), at };
+  }, [isToday, activeDateKey, dayRefused, place, soonMs]);
+  const soonQuery = useSlotFloor({
+    branchId: soonCandidate ? place.id : undefined,
+    slotUtc: soonCandidate?.at.toISOString() ?? '',
+    partySize,
+    timeZoneId: place.timeZoneId,
+    excludeBookingId,
+  });
+  const soonAnswer = soonCandidate && !soonQuery.isError ? soonQuery.data : undefined;
+  const soonVerdict = useMemo(
+    () =>
+      soonCandidate && soonAnswer?.slotUtc && Date.parse(soonAnswer.slotUtc) === soonMs
+        ? slotFloorVerdict(soonAnswer)
+        : null,
+    [soonCandidate, soonAnswer, soonMs],
+  );
+  const soonSlot =
+    soonCandidate && soonVerdict && soonVerdict.state !== 'busy' ? soonCandidate : null;
+  const merged = useMemo(
+    () => withSoon(gridSlots, dayAvailability, soonSlot, soonVerdict),
+    [gridSlots, dayAvailability, soonSlot, soonVerdict],
+  );
+  const slots = merged.slots;
+  const availability = merged.availability;
   // The times the venue offers at all: one the server leaves out is not drawn.
   const shownSlots = useMemo(
     () => slots.filter((slot) => !availability.hidden.has(slot.at.getTime())),
@@ -425,7 +494,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   );
   const autoTableId = useMemo(() => {
     if (chosenTable) return null;
-    if (slotTables) return slotTables.find((table) => table.isBookable)?.tableId ?? null;
+    if (slotTables) return preferredTable(slotTables)?.tableId ?? null;
     // No slot answer yet (or none possible): the photo's own free tables, so
     // the button is not dead while the server is thinking.
     return tablesForParty(tables, partySize)[0]?.tableId ?? null;
@@ -481,6 +550,21 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   const pending = createBooking.isPending || reschedule.isPending;
 
   const targetTableId = chosenTable?.tableId ?? autoTableId;
+  // The booking-times answer for the table that one press books.
+  const targetAtSlot = useMemo(
+    () => slotTables?.find((table) => table.tableId === targetTableId) ?? null,
+    [slotTables, targetTableId],
+  );
+  // Must the diner promise to free it by a time? Asked before sending.
+  const targetFreeBy = targetAtSlot?.isBookable ? (targetAtSlot.mustFreeByUtc ?? null) : null;
+  const [freeByAsk, setFreeByAsk] = useState<{
+    readonly freeByUtc: string;
+    readonly nextStartUtc: string | null;
+  } | null>(null);
+  // Said "no" to the question: another table or time, and which have no limit.
+  const [freeByDeclined, setFreeByDeclined] = useState(false);
+  // The wheel stopped on a busy time and moved on: "No free table at 20:15 — 20:30 suggested".
+  const [snapNote, setSnapNote] = useState<string | null>(null);
   // Said only for a time that can be had: a struck one already says why.
   const noTableFits = activeSlot !== null && !chosenTable && autoTableId === null;
   // A change that would move the booking to where it already is.
@@ -528,6 +612,22 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
         return;
       }
       const failure = bookingFailure(error, place.timeZoneId, locale);
+      // A booking landed after the room was read: the table now needs the
+      // promise, or a different one. Asked again, with the server's time.
+      if (failure.kind === 'freeByRequired') {
+        void slotQuery.refetch();
+        setOutcomeUnknown(false);
+        if (failure.requiredFreeByUtc) {
+          setFreeByAsk({
+            freeByUtc: failure.requiredFreeByUtc,
+            nextStartUtc:
+              failure.nextBookingStartUtc ?? targetAtSlot?.window?.nextBookingStartUtc ?? null,
+          });
+        } else {
+          setErrorText(t(failure.line.key, failure.line.params));
+        }
+        return;
+      }
       if (failure.kind === 'tableTaken') {
         // The photo underneath and the slot answer are told to redraw; the
         // diner picks again, with the day, time and party kept.
@@ -567,118 +667,142 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       t,
       reducedMotion,
       setVerifyRefused,
+      setFreeByAsk,
+      targetAtSlot,
     ],
   );
 
-  const confirm = useCallback(async () => {
-    if (!activeSlot || !targetTableId || pending || chosenRefusal) return;
-    clearErrors();
+  const confirm = useCallback(
+    async (acceptsFreeByUtc: string | null = null) => {
+      if (!activeSlot || !targetTableId || pending || chosenRefusal) return;
+      clearErrors();
+      setFreeByDeclined(false);
 
-    // Change mode: move the booking, then back to it with a word of what happened.
-    if (change) {
-      if (unchanged) return;
+      // A booking follows on the table: asked first, never sent without a yes.
+      if (targetFreeBy && acceptsFreeByUtc !== targetFreeBy) {
+        setFreeByAsk({
+          freeByUtc: targetFreeBy,
+          nextStartUtc: targetAtSlot?.window?.nextBookingStartUtc ?? null,
+        });
+        return;
+      }
+      const promise = acceptsFreeByUtc ? { acceptsFreeByUtc } : {};
+
+      // Change mode: move the booking, then back to it with a word of what happened.
+      if (change) {
+        if (unchanged) return;
+        try {
+          const moved = await reschedule.mutateAsync({
+            bookingId: change.bookingId,
+            commandId: commandId.current,
+            tableId: targetTableId,
+            slotUtc,
+            timeZoneId: place.timeZoneId,
+            partySize,
+            ...promise,
+          });
+          void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
+          haptics.success();
+          // A bigger party may go back to waiting for the venue: said so.
+          const waiting = moved.status === 'pendingApproval';
+          showToast(
+            t(waiting ? 'book.changeSent' : 'book.changed'),
+            waiting ? actionIcon.time : 'checkmark',
+          );
+          // Back to the booking: the detail it came from, or in place of this
+          // screen when it came from the list.
+          router.dismissTo({ pathname: '/booking/[bookingId]', params: { bookingId: moved.id } });
+        } catch (error) {
+          fail(error);
+        }
+        return;
+      }
+
+      const note = requests.trim();
+      const forward = {
+        branchId: place.id,
+        venueId: place.venueId,
+        tableId: targetTableId,
+        slotUtc,
+        partySize: String(partySize),
+        ...(note ? { requests: note } : {}),
+        // The promise travels through the SMS detour to the confirm screen.
+        ...promise,
+      };
+
+      // Not verified, or verified on a restored session that never stored the
+      // number: log in (the SMS step), then the existing confirm screen — with
+      // whatever name was typed here already remembered for it.
+      if (!verified || !phoneE164) {
+        const typed = guestName.trim();
+        if (typed) rememberName(typed);
+        router.push({ pathname: '/auth/login', params: forward });
+        return;
+      }
+
+      const name = guestName.trim();
+      if (!name) return;
+      rememberName(name);
+
+      // The code flow, with the booking in hand: it lands on `/reserve/confirm`.
+      if (mustVerify) {
+        router.push({ pathname: '/auth/code', params: forward });
+        return;
+      }
+
       try {
-        const moved = await reschedule.mutateAsync({
-          bookingId: change.bookingId,
+        const booking = await createBooking.mutateAsync({
           commandId: commandId.current,
+          branchId: place.id,
           tableId: targetTableId,
           slotUtc,
           timeZoneId: place.timeZoneId,
           partySize,
+          guestName: name,
+          guestPhone: phoneE164,
+          channel: 'app',
+          // The note goes to the venue with the booking (K9).
+          note: note || null,
+          ...promise,
         });
         void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
-        haptics.success();
-        // A bigger party may go back to waiting for the venue: said so.
-        const waiting = moved.status === 'pendingApproval';
-        showToast(
-          t(waiting ? 'book.changeSent' : 'book.changed'),
-          waiting ? actionIcon.time : 'checkmark',
-        );
-        // Back to the booking: the detail it came from, or in place of this
-        // screen when it came from the list.
-        router.dismissTo({ pathname: '/booking/[bookingId]', params: { bookingId: moved.id } });
+        router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
       } catch (error) {
         fail(error);
       }
-      return;
-    }
-
-    const note = requests.trim();
-    const forward = {
-      branchId: place.id,
-      venueId: place.venueId,
-      tableId: targetTableId,
+    },
+    [
+      change,
+      unchanged,
+      reschedule,
+      showToast,
+      fail,
+      mustVerify,
+      activeSlot,
+      targetTableId,
+      pending,
+      chosenRefusal,
+      requests,
+      place.id,
+      place.venueId,
+      place.timeZoneId,
       slotUtc,
-      partySize: String(partySize),
-      ...(note ? { requests: note } : {}),
-    };
-
-    // Not verified, or verified on a restored session that never stored the
-    // number: log in (the SMS step), then the existing confirm screen — with
-    // whatever name was typed here already remembered for it.
-    if (!verified || !phoneE164) {
-      const typed = guestName.trim();
-      if (typed) rememberName(typed);
-      router.push({ pathname: '/auth/login', params: forward });
-      return;
-    }
-
-    const name = guestName.trim();
-    if (!name) return;
-    rememberName(name);
-
-    // The code flow, with the booking in hand: it lands on `/reserve/confirm`.
-    if (mustVerify) {
-      router.push({ pathname: '/auth/code', params: forward });
-      return;
-    }
-
-    try {
-      const booking = await createBooking.mutateAsync({
-        commandId: commandId.current,
-        branchId: place.id,
-        tableId: targetTableId,
-        slotUtc,
-        timeZoneId: place.timeZoneId,
-        partySize,
-        guestName: name,
-        guestPhone: phoneE164,
-        channel: 'app',
-        // The note goes to the venue with the booking (K9).
-        note: note || null,
-      });
-      void queryClient.invalidateQueries({ queryKey: placeKeys.rooms(place.id) });
-      router.replace({ pathname: '/reserve/success', params: { bookingId: booking.id } });
-    } catch (error) {
-      fail(error);
-    }
-  }, [
-    change,
-    unchanged,
-    reschedule,
-    showToast,
-    fail,
-    mustVerify,
-    activeSlot,
-    targetTableId,
-    pending,
-    chosenRefusal,
-    requests,
-    place.id,
-    place.venueId,
-    place.timeZoneId,
-    slotUtc,
-    partySize,
-    verified,
-    phoneE164,
-    guestName,
-    rememberName,
-    router,
-    createBooking,
-    queryClient,
-    t,
-    clearErrors,
-  ]);
+      partySize,
+      verified,
+      phoneE164,
+      guestName,
+      rememberName,
+      router,
+      createBooking,
+      queryClient,
+      t,
+      clearErrors,
+      targetFreeBy,
+      targetAtSlot,
+      setFreeByAsk,
+      setFreeByDeclined,
+    ],
+  );
 
   const selectParty = useCallback(
     (size: number) => {
@@ -704,24 +828,76 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   );
   const moreAllowed = moreSizes.length > 0;
 
-  // A struck time is drawn and named — "20:00, no free tables" — never chosen.
-  // One that can be had is named by its time alone. Each is keyed by its
-  // instant: a late night's 00:30 is not the evening's own.
-  const slotOptions = useMemo<readonly ChoiceGridOption[]>(
+  /*
+   * The wheel's rows: every time on offer, free, requestable or busy (drawn
+   * struck). Each is matched by its instant: a late night's 00:30 is not the
+   * evening's own.
+   */
+  const wheelRows = useMemo(() => wheelSlots(shownSlots, availability), [shownSlots, availability]);
+  const activeMs = activeSlot ? activeSlot.at.getTime() : null;
+  const timeLabel = (at: number) => formatTime(new Date(at), place.timeZoneId, locale);
+
+  /*
+   * What the chosen time comes with, under the wheel and in what a screen
+   * reader hears: only as a request (the guest before, another day; the
+   * floor, today), and by when the table must be free.
+   */
+  const shortNotice =
+    activeSlot !== null &&
+    (isToday || activeSlot.at.getTime() - now.getTime() < SHORT_NOTICE_HOURS * HOUR_MS);
+  const requestNote =
+    activeMs !== null && availability.requestable.has(activeMs)
+      ? t(shortNotice ? 'booking.approval.why' : 'table.requestable.earlierGuest')
+      : null;
+  const slotFreeBy = activeMs !== null ? (availability.mustFreeBy.get(activeMs) ?? null) : null;
+  const freeByNote = slotFreeBy
+    ? t('table.mustFreeBy', { time: formatTime(slotFreeBy, place.timeZoneId, locale) })
+    : null;
+  const spokenTime =
+    activeMs !== null
+      ? [timeLabel(activeMs), requestNote, freeByNote].filter(Boolean).join(', ')
+      : // Nothing chosen: none can be had that day, or (a change) its own is gone.
+        t(wheelRows.some((row) => row.state !== 'busy') ? 'book.wheel.none' : 'book.wheel.nothing');
+
+  /*
+   * The quick chips: "In 10 min" today, then the nearest free times — after it
+   * today, around the time the day opened on any other day. Anchored once per
+   * day and party, so the chips do not run after the wheel.
+   */
+  const anchorKey = `${activeDateKey ?? ''}|${partySize}`;
+  const [anchor, setAnchor] = useState<{ readonly key: string; readonly at: number } | null>(null);
+  // Adjusted while rendering, as React has state follow a changed input.
+  if (activeMs !== null && anchor?.key !== anchorKey) setAnchor({ key: anchorKey, at: activeMs });
+  const anchorAt = soonSlot ? soonMs : anchor?.key === anchorKey ? anchor.at : activeMs;
+  const quick = useMemo(
     () =>
-      shownSlots.map((slot) => {
-        const label = formatTime(slot.at, place.timeZoneId, locale);
-        const value = String(slot.at.getTime());
-        return availability.struck.has(slot.at.getTime())
-          ? {
-              value,
-              label,
-              disabled: true,
-              accessibilityLabel: t('book.slotFull', { time: label }),
-            }
-          : { value, label };
-      }),
-    [shownSlots, availability.struck, place.timeZoneId, locale, t],
+      anchorAt === null
+        ? []
+        : quickTimes(wheelRows, anchorAt, QUICK_TIMES, soonSlot ? soonMs : null),
+    [wheelRows, anchorAt, soonSlot, soonMs],
+  );
+  const pickTime = (at: number, snappedFrom: WheelSlot | null = null) => {
+    setPickedMs(at);
+    clearErrors();
+    setFreeByDeclined(false);
+    setSnapNote(
+      snappedFrom
+        ? t('book.wheel.snapped', { busy: snappedFrom.label, time: timeLabel(at) })
+        : null,
+    );
+  };
+  // After a "no" to the promise: times with no limit, nearest the one chosen.
+  const unlimited = useMemo(
+    () =>
+      activeMs === null
+        ? []
+        : quickTimes(
+            wheelRows.filter((row) => row.state === 'free' && !availability.mustFreeBy.has(row.at)),
+            activeMs,
+            QUICK_TIMES,
+            activeMs,
+          ),
+    [wheelRows, availability.mustFreeBy, activeMs],
   );
   // Under the times, when any is struck: why — the day's own reason when the
   // whole day is refused, else that a struck time has no free table.
@@ -810,6 +986,8 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
             onSelect={(key) => {
               setDateKey(key);
               setPickedMs(null);
+              setSnapNote(null);
+              setFreeByDeclined(false);
               clearErrors();
             }}
           />
@@ -818,18 +996,60 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
             <Text style={styles.empty}>{t('book.noSlots')}</Text>
           ) : (
             <View style={styles.times}>
-              <ChoiceGrid
-                options={slotOptions}
-                value={activeSlot ? String(activeSlot.at.getTime()) : null}
-                onChange={(value) => {
-                  haptics.select();
-                  setPickedMs(Number(value));
-                  clearErrors();
-                }}
-                columns={SLOT_COLUMNS}
-                gap={SLOT_GAP}
+              {/* "In 10 min · 19:15" today, and the nearest free times. */}
+              {soonSlot || quick.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickRow}
+                  accessibilityLabel={t('book.quick.title')}
+                >
+                  {soonSlot ? (
+                    <Chip
+                      shape="rounded"
+                      size="sm"
+                      icon={actionIcon.time}
+                      label={t('book.quick.soon', {
+                        minutes: leadMinutes,
+                        time: timeLabel(soonSlot.at.getTime()),
+                      })}
+                      selected={activeMs === soonSlot.at.getTime()}
+                      onPress={() => {
+                        haptics.select();
+                        pickTime(soonSlot.at.getTime());
+                      }}
+                    />
+                  ) : null}
+                  {quick.map((row) => (
+                    <Chip
+                      key={row.at}
+                      shape="rounded"
+                      size="sm"
+                      label={timeLabel(row.at)}
+                      selected={activeMs === row.at}
+                      onPress={() => {
+                        haptics.select();
+                        pickTime(row.at);
+                      }}
+                    />
+                  ))}
+                </ScrollView>
+              ) : null}
+              <TimeWheel
+                slots={wheelRows}
+                value={activeMs}
+                onChange={(at, how) => pickTime(at, how.snappedFrom)}
                 accessibilityLabel={t('book.time')}
+                accessibilityValueText={spokenTime}
+                accessibilityHint={t('book.wheel.hint')}
               />
+              {snapNote ? (
+                <Text accessibilityRole="alert" style={styles.snapNote}>
+                  {snapNote}
+                </Text>
+              ) : null}
+              {requestNote ? <Text style={styles.slotNote}>{requestNote}</Text> : null}
+              {freeByNote ? <Text style={styles.slotNote}>{freeByNote}</Text> : null}
               {struckHint ? <Text style={styles.struckHint}>{struckHint}</Text> : null}
             </View>
           )}
@@ -943,6 +1163,25 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
                 <Text accessibilityRole="alert" style={styles.warning}>
                   {chosenRefusal}
                 </Text>
+              ) : chosenAtSlot?.isBookable ? (
+                <>
+                  {chosenAtSlot.isRequestable ? (
+                    <Text style={styles.slotNote}>
+                      {t(
+                        chosenAtSlot.requiresEarlierGuestConsent
+                          ? 'table.requestable.earlierGuest'
+                          : 'booking.approval.why',
+                      )}
+                    </Text>
+                  ) : null}
+                  {chosenAtSlot.mustFreeByUtc ? (
+                    <Text style={styles.slotNote}>
+                      {t('table.mustFreeBy', {
+                        time: formatTime(chosenAtSlot.mustFreeByUtc, place.timeZoneId, locale),
+                      })}
+                    </Text>
+                  ) : null}
+                </>
               ) : null}
             </View>
           ) : noTableFits ? (
@@ -1008,6 +1247,33 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
               {errorText}
             </Text>
           ) : null}
+
+          {/* Said no to freeing the table in time: another table or time. */}
+          {freeByDeclined ? (
+            <Rise>
+              <View accessibilityRole="alert" style={styles.freeByOther}>
+                <Text style={styles.freeByOtherText}>
+                  {t(unlimited.length > 0 ? 'book.freeBy.other' : 'book.freeBy.otherNoTimes')}
+                </Text>
+                {unlimited.length > 0 ? (
+                  <View style={styles.quick}>
+                    {unlimited.map((row) => (
+                      <Chip
+                        key={row.at}
+                        shape="rounded"
+                        size="sm"
+                        label={timeLabel(row.at)}
+                        onPress={() => {
+                          haptics.select();
+                          pickTime(row.at);
+                        }}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            </Rise>
+          ) : null}
         </ScrollView>
 
         <CtaFooter bottomInset={insets.bottom}>
@@ -1032,7 +1298,48 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
           )}
         </CtaFooter>
       </KeyboardAvoidingView>
+
+      {/* "There is a booking at 21:30. Will you free the table by 21:25?" */}
+      {freeByAsk ? (
+        <FreeBySheet
+          visible
+          freeByUtc={freeByAsk.freeByUtc}
+          nextStartUtc={freeByAsk.nextStartUtc}
+          timeZoneId={place.timeZoneId}
+          busy={pending}
+          onAccept={() => {
+            const agreed = freeByAsk.freeByUtc;
+            setFreeByAsk(null);
+            void confirm(agreed);
+          }}
+          onDecline={() => {
+            setFreeByAsk(null);
+            setFreeByDeclined(true);
+            // The other times are said at the foot of the form: bring it into view.
+            scrollRef.current?.scrollToEnd({ animated: !reducedMotion });
+          }}
+        />
+      ) : null}
     </Screen>
+  );
+}
+
+/**
+ * The table one press books when the diner tapped none: one that is free with
+ * no limit and nobody's request first, then the one the next booking cuts the
+ * least, then a requestable one — so a table that would need a promise or an
+ * answer is never chosen while a plain one is to be had.
+ */
+function preferredTable(tables: readonly TableAvailability[]): TableAvailability | null {
+  const bookable = tables.filter((table) => table.isBookable);
+  const plain = bookable.filter((table) => !table.isRequestable);
+  return (
+    plain.find((table) => !table.mustFreeByUtc) ??
+    [...plain].sort(
+      (a, b) => Date.parse(b.mustFreeByUtc ?? '') - Date.parse(a.mustFreeByUtc ?? ''),
+    )[0] ??
+    bookable[0] ??
+    null
   );
 }
 
@@ -1256,6 +1563,17 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     paddingHorizontal: space.xs,
   },
+  quick: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingVertical: space.xs },
+  quickRow: { flexDirection: 'row', gap: space.sm, paddingVertical: space.xs },
+  snapNote: { ...typography.caption, color: colors.warningInk, paddingHorizontal: space.xs },
+  slotNote: { ...typography.caption, color: colors.infoInk, paddingHorizontal: space.xs },
+  freeByOther: {
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.tile,
+    backgroundColor: colors.warningSoft,
+  },
+  freeByOtherText: { ...typography.body, color: colors.warningInk },
   timeGone: {
     flexDirection: 'row',
     alignItems: 'center',

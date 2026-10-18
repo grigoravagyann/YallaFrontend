@@ -1110,7 +1110,8 @@
       "branchApprovesEveryBooking": "Every booking is approved here",
       "noShowHistory": "No-show history",
       "shortNotice": "Short notice",
-      "unknown": "Needs a decision"
+      "unknown": "Needs a decision",
+      "earlierGuestConsent": "Asking the guest before"
     },
     "leftToAnswer": "{{time}} left to answer",
     "timeUp": "Time is up. The diner is being told the venue could not confirm.",

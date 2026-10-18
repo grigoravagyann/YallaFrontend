@@ -16,6 +16,8 @@ export type AuthRouteParams = {
   slotUtc?: string;
   partySize?: string;
   requests?: string;
+  /** The promise to free the table by a time, agreed before the SMS detour (booking times). */
+  acceptsFreeByUtc?: string;
   from?: string;
   /**
    * A Telegram verification challenge to pick up polling, from the bot's
@@ -41,6 +43,7 @@ const BOOKING_KEYS = [
   'slotUtc',
   'partySize',
   'requests',
+  'acceptsFreeByUtc',
 ] as const;
 
 type BookingKey = (typeof BOOKING_KEYS)[number];

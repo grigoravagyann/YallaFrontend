@@ -1,14 +1,21 @@
-import { unavailableCopy, type PublicBranch, type TableAvailability } from '@yalla/api';
-import { isOfflinePaused, PUBLIC_REFRESH_MS, useSlotFloor } from '@yalla/api/react';
-import { useTranslation } from '@yalla/i18n';
-import { useEffect, useRef, useState } from 'react';
+import {
+  SHORT_NOTICE_HOURS,
+  unavailableCopy,
+  type PublicBranch,
+  type TableAvailability,
+} from '@yalla/api';
+import { isOfflinePaused, PUBLIC_REFRESH_MS, useDaySlots, useSlotFloor } from '@yalla/api/react';
+import { formatTime } from '@yalla/format';
+import { useLocale, useTranslation } from '@yalla/i18n';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import RoomPhotos from './RoomPhotos';
 import {
   PARTY_SIZES,
   addDays,
   branchToday,
+  nearestChoice,
   slotProblem,
-  timeOptions,
+  timeChoices,
   type SlotSelection,
 } from './slots';
 
@@ -53,6 +60,11 @@ function useHasApproached(ref: React.RefObject<HTMLElement | null>): boolean {
   return seen;
 }
 
+/** Today, or under six hours away: the floor decides a request, not the guest before. */
+function requestIsShortNotice(slotUtc: string, date: string, today: string): boolean {
+  return date === today || Date.parse(slotUtc) - Date.now() < SHORT_NOTICE_HOURS * 3_600_000;
+}
+
 export interface RoomSectionProps {
   readonly branch: PublicBranch;
   readonly selection: SlotSelection;
@@ -74,8 +86,52 @@ export function RoomSection({
   takenTableLabel,
 }: RoomSectionProps) {
   const { t } = useTranslation('public');
+  const { locale } = useLocale();
   const holder = useRef<HTMLDivElement | null>(null);
   const approached = useHasApproached(holder);
+
+  /*
+   * The day's times, from the server's day of slots: every quarter hour whose
+   * whole sitting fits the hours — a time that would run past closing is not
+   * an option — struck when no table can be had, "on request" when only a
+   * table somebody booked shortly before is left. The phone app's rules, from
+   * the same read; the published hours stand in until it answers.
+   */
+  const daySlotsQuery = useDaySlots({
+    branchId: branch.acceptsWebBookings ? branch.id : undefined,
+    date: selection.date,
+    partySize: selection.partySize,
+  });
+  const dayAnswer = daySlotsQuery.isError ? undefined : daySlotsQuery.data;
+  const choices = useMemo(
+    () =>
+      timeChoices({
+        date: selection.date,
+        day: dayAnswer,
+        weeklyHours: branch.weeklyHours,
+        turnTimeMinutes: branch.policy.turnTimeMinutes,
+        timeZoneId: branch.timeZoneId,
+      }),
+    [
+      selection.date,
+      dayAnswer,
+      branch.weeklyHours,
+      branch.policy.turnTimeMinutes,
+      branch.timeZoneId,
+    ],
+  );
+  const chosen = choices.find((choice) => choice.time === selection.time) ?? null;
+
+  /*
+   * Never left on a time that cannot be had: once the day has answered, a
+   * struck or absent selection moves to the nearest time that can.
+   */
+  useEffect(() => {
+    if (!dayAnswer || dayAnswer.date !== selection.date) return;
+    if (chosen && chosen.state !== 'busy') return;
+    const next = nearestChoice(choices, selection.time);
+    if (next && next.time !== selection.time) onSelectionChange({ ...selection, time: next.time });
+  }, [dayAnswer, chosen, choices, selection, onSelectionChange]);
 
   /*
    * The tables **as they will be at the chosen slot** — each with its pin on a
@@ -210,11 +266,17 @@ export function RoomSection({
                 applySelection({ ...selection, time: event.currentTarget.value })
               }
             >
-              {/* Half-hourly rather than a free-form time input: the backend
-                  reasons in slots, and a 20:07 request is one nobody can fill. */}
-              {timeOptions().map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              {/* Quarter-hourly rather than a free-form time input: the backend
+                  reasons in slots, and a 20:07 request is one nobody can fill.
+                  A struck time is drawn and named, never chosen. */}
+              {chosen === null ? <option value={selection.time}>{selection.time}</option> : null}
+              {choices.map((choice) => (
+                <option key={choice.time} value={choice.time} disabled={choice.state === 'busy'}>
+                  {choice.state === 'busy'
+                    ? t('book.slotFull', { ns: 'diner', time: choice.time })
+                    : choice.state === 'requestable'
+                      ? t('booking.timeOnRequest', { time: choice.time })
+                      : choice.time}
                 </option>
               ))}
             </select>
@@ -246,6 +308,26 @@ export function RoomSection({
       ) : (
         <p className="pub-notice">{t('booking.notOffered')}</p>
       )}
+
+      {/* What the chosen time comes with: asked for, and freed by when. */}
+      {branch.acceptsWebBookings && chosen?.state === 'requestable' ? (
+        <p className="pub-muted">
+          {t(
+            requestIsShortNotice(slotUtc, selection.date, today)
+              ? 'booking.approval.why'
+              : 'table.requestable.earlierGuest',
+            { ns: 'diner' },
+          )}
+        </p>
+      ) : null}
+      {branch.acceptsWebBookings && chosen?.mustFreeByUtc ? (
+        <p className="pub-muted">
+          {t('table.mustFreeBy', {
+            ns: 'diner',
+            time: formatTime(chosen.mustFreeByUtc, branch.timeZoneId, locale),
+          })}
+        </p>
+      ) : null}
 
       {/*
         A lost table is information with a next step attached, not an error

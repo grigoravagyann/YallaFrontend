@@ -28,6 +28,8 @@ const COPY_KEY: Readonly<Record<KnownDinerNotificationKind, string>> = {
   'booking-cancelled-by-venue': 'bookingCancelledByVenue',
   'order-ready': 'orderReady',
   'review-hidden': 'reviewHidden',
+  'table-request': 'tableRequest',
+  'table-request-decided': 'tableRequestAccepted',
 };
 
 export interface NotificationCopy {
@@ -41,6 +43,8 @@ export interface NotificationCopy {
     readonly place: string;
     readonly time?: string;
     readonly requestedTime?: string;
+    /** Booking times: the time the earlier guest is asked to leave by, or promised. */
+    readonly freeBy?: string;
   };
 }
 
@@ -109,11 +113,32 @@ export function notificationCopy(
       params: { place, time: change.time, requestedTime: change.requestedTime },
     };
   }
+  // Booking times: the question to the earlier guest, and what their answer did.
+  if (notification.kind === 'table-request' || notification.kind === 'table-request-decided') {
+    const key =
+      notification.kind === 'table-request'
+        ? 'tableRequest'
+        : flag(notification, 'accepted')
+          ? 'tableRequestAccepted'
+          : 'tableRequestDeclined';
+    const time = text(notification.params['requestedTime']);
+    const freeBy = text(notification.params['freeByTime']);
+    return {
+      titleKey: `notifications.kind.${key}.title`,
+      bodyKey: `notifications.kind.${key}.body`,
+      params: { place, ...(time ? { time } : {}), ...(freeBy ? { freeBy } : {}) },
+    };
+  }
+  const declinedBecause = text(notification.params['declinedBecause']);
   const key = expired(notification)
     ? 'bookingExpired'
-    : isKnownNotificationKind(notification.kind)
-      ? COPY_KEY[notification.kind]
-      : 'unknown';
+    : notification.kind === 'booking-declined' && declinedBecause === '3'
+      ? 'bookingDeclinedEarlierGuest'
+      : notification.kind === 'booking-declined' && declinedBecause === '4'
+        ? 'bookingDeclinedEarlierGuestNoAnswer'
+        : isKnownNotificationKind(notification.kind)
+          ? COPY_KEY[notification.kind]
+          : 'unknown';
   return {
     titleKey: `notifications.kind.${key}.title`,
     bodyKey: `notifications.kind.${key}.body`,
@@ -133,7 +158,11 @@ export function bookingKeysForRow(
   notification: Pick<DinerNotification, 'kind' | 'reservationId'>,
 ): readonly (readonly string[])[] {
   const id = notification.reservationId;
-  if (!id || !notification.kind.startsWith('booking-')) return [];
+  if (
+    !id ||
+    !(notification.kind.startsWith('booking-') || notification.kind.startsWith('table-request'))
+  )
+    return [];
   return [['bookings'], ['booking', id], ['reservationState', id]];
 }
 

@@ -14,12 +14,16 @@ import type {
   TableUnavailableReason,
 } from '../contracts/booking';
 import type { components } from '../generated/schema';
+import { isShortNotice } from '../contracts/approvals';
+import { instantOrNull, type WireDaySlotTimes, type WireTableTimes } from './bookingTimesWire';
 
 type Schemas = components['schemas'];
 type FloorState = Schemas['Yalla.Application.Floor.BranchFloorState'];
 type FloorTableState = Schemas['Yalla.Application.Floor.TableFloorState'];
 type Availability = Schemas['Yalla.Application.Reservations.BranchAvailability'];
-type AvailabilityTable = Schemas['Yalla.Application.Reservations.TableAvailability'];
+/** With the booking-times fields — see `bookingTimesWire.ts`. */
+type AvailabilityTable = Schemas['Yalla.Application.Reservations.TableAvailability'] &
+  WireTableTimes;
 
 /**
  * Wire shapes to screen shapes, in one place.
@@ -49,7 +53,8 @@ export function derivedTableState(value: number): DerivedTableState {
  * vocabulary. Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow,
  * 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded,
  * 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked,
- * 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied.
+ * 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked,
+ * 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked.
  */
 export function unavailableReason(
   reason: number | null | undefined,
@@ -101,6 +106,17 @@ export function unavailableReason(
      */
     case 10:
       return 'occupied';
+    /*
+     * Booking times (11 TableJustBooked, 12 NextBookingTooSoon, 13
+     * EarlierGuestBeingAsked): a booking just before, one just after, or the
+     * guest before already being asked about it by somebody else. To a diner
+     * all three say the same thing with the same next step: booked then —
+     * another time, or another table.
+     */
+    case 11:
+    case 12:
+    case 13:
+      return 'alreadyBooked';
     default:
       /*
        * A rule this build has no word for. Carried rather than dropped: a
@@ -198,7 +214,7 @@ export function availabilityFromResponse(response: Availability): readonly Table
   // A branch-level refusal — too soon, shut, too far out — applies to every table.
   const branchReason = response.unavailableReason ?? null;
 
-  return byArea(response.tables).map((table) => {
+  return byArea(response.tables as readonly AvailabilityTable[]).map((table) => {
     const state = derivedTableState(table.state);
     const reason = unavailableReason(table.unavailableReason ?? branchReason, state);
     const available = table.isAvailable && branchReason === null;
@@ -239,6 +255,20 @@ export function availabilityFromResponse(response: Availability): readonly Table
       // Absent when no slot could be computed, and then nothing is promised.
       freeCancellationUntilUtc: response.cancellationDeadlineUtc ?? null,
       requiresApproval: table.requiresApproval,
+      // Booking times: only for a table on offer — a refused one asks nobody
+      // and promises nothing.
+      isRequestable: available && Boolean(table.isRequestable),
+      // Another day, the guest before is the one asked; tonight (short notice)
+      // the floor decides, and the copy says the floor's wait instead.
+      requiresEarlierGuestConsent:
+        available &&
+        Boolean(table.isRequestable) &&
+        !isShortNotice({
+          startUtc: response.requestedStartUtc,
+          timeZoneId: response.timeZoneId,
+          now: new Date(),
+        }),
+      mustFreeByUtc: available ? instantOrNull(table.mustFreeByUtc) : null,
     };
   });
 }
@@ -287,10 +317,11 @@ export function slotFloorFromResponse(response: Availability): SlotFloor {
 /** `BranchDaySlots`, from `GET /api/branches/{id}/availability/slots`. */
 export type WireDaySlots = Schemas['Yalla.Application.Reservations.BranchDaySlots'];
 
-export type WireDaySlot = Schemas['Yalla.Application.Reservations.DaySlot'];
+/** With the booking-times fields — see `bookingTimesWire.ts`. */
+export type WireDaySlot = Schemas['Yalla.Application.Reservations.DaySlot'] & WireDaySlotTimes;
 
-/** The server's slot spacing when an answer omits it — the one it uses today. */
-const DEFAULT_STEP_MINUTES = 30;
+/** The server's slot spacing when an answer omits it: every quarter hour since booking times. */
+const DEFAULT_STEP_MINUTES = 15;
 
 /**
  * One day of slots, in the screen's vocabulary.
@@ -310,10 +341,13 @@ export function daySlotsFromWire(wire: WireDaySlots): DaySlots {
     partySize: wire.partySize,
     stepMinutes: wire.stepMinutes ?? DEFAULT_STEP_MINUTES,
     unavailableReason: dayReason,
-    slots: [...(wire.slots ?? [])]
+    slots: [...((wire.slots ?? []) as readonly WireDaySlot[])]
       .sort((a, b) => Date.parse(a.startUtc) - Date.parse(b.startUtc))
       .map((slot): DaySlot => {
         const available = slot.isAvailable && dayReason === null;
+        // A time whose only tables are asked for stays on offer, labelled so,
+        // whether the server counts it available or not.
+        const requestable = dayReason === null && Boolean(slot.isRequestable);
         return {
           // Seconds are noise on a time chip, and a server that sends them must
           // not make "19:30:00" and "19:30" two different slots.
@@ -325,6 +359,9 @@ export function daySlotsFromWire(wire: WireDaySlots): DaySlots {
           unavailableReason: available
             ? null
             : (unavailableReason(slot.unavailableReason ?? null, 'free') ?? dayReason),
+          requestable,
+          requestableTableCount: dayReason === null ? (slot.requestableTableCount ?? 0) : 0,
+          mustFreeByUtc: available ? instantOrNull(slot.mustFreeByUtc) : null,
         };
       }),
   };

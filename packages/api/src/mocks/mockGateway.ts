@@ -1,5 +1,6 @@
 import type { DerivedTableState, FloorPlanData, FloorTable } from '../contracts/tableFloor';
 import type {
+  AnswerTableRequestCommand,
   AvailabilityWindowDto,
   Booking,
   BookingStatus,
@@ -37,10 +38,12 @@ import {
   BookingTooEarlyError,
   TabAccessEndedError,
   ExpiredCodeError,
+  FreeByRequiredError,
   HoldAlreadyExtendedError,
   HoldNotActiveError,
   LeadTimeExceededError,
   RateLimitedError,
+  TableRequestClosedError,
   TableTakenError,
   TooManyAttemptsError,
   WrongCodeError,
@@ -94,7 +97,13 @@ import {
   REVIEW_VISIT_WINDOW_DAYS,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
-import { APPROVAL_EXPIRED_CODE } from '../contracts/approvals';
+import {
+  APPROVAL_EXPIRED_CODE,
+  EARLIER_GUEST_WINDOW_MINUTES,
+  MIN_LEAD_MINUTES,
+  SLOT_STEP_MINUTES,
+} from '../contracts/approvals';
+import { tableTiming, type SequencedBooking, type TableTiming } from './tableSequencing';
 import { APPROVAL_WINDOW_MS, approvalExpiryFor, isShortNotice } from './approvalWindow';
 import { invalidRequest, requireClientCommandId, validationFailed } from './problems';
 
@@ -118,7 +127,7 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from '../errors';
-import { instantFromZonedClock } from '@yalla/format';
+import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/format';
 import { localDateTime } from '../http/mapping';
 import type { YallaGateway } from '../gateway';
 import { SEEDED_ACCOUNT, createAccountStore } from './accounts';
@@ -135,7 +144,8 @@ const URL_TAG = 'mock://yalla';
 
 const DEFAULT_POLICY: BranchPolicy = {
   turnMinutes: 90,
-  leadTimeMinutes: 15,
+  // The fixed rule since booking times: from ten minutes out.
+  leadTimeMinutes: MIN_LEAD_MINUTES,
   instantConfirmationMaxPartySize: 6,
   freeCancellationMinutes: 120,
 };
@@ -154,8 +164,46 @@ const DISPLAY_NAME_MAX = 100;
 
 const DAY_MS = 24 * 60 * 60_000;
 
-/** The server's slot spacing on a day view: every half hour from midnight. */
-const DAY_SLOT_STEP_MINUTES = 30;
+/** The server's slot spacing on a day view: every quarter hour from midnight. */
+const DAY_SLOT_STEP_MINUTES = SLOT_STEP_MINUTES;
+
+/** Where the mock-mode seed puts other guests' bookings: tomorrow evening here. */
+const NEIGHBOUR_BRANCH = 'b-lumen-north';
+const NEIGHBOUR_TIME = { hour: 20, minute: 0 };
+
+/** Another guest's booking, in the mock's world: somebody the diner never sees. */
+interface NeighbourBooking {
+  readonly id: string;
+  readonly branchId: string;
+  readonly tableId: string;
+  readonly startUtc: string;
+  endUtc: string;
+  promisedFreeByUtc: string | null;
+  /** Booked in the app (asked by push) or on the web (the floor decides). */
+  readonly channel: 'app' | 'web';
+  readonly partySize: number;
+}
+
+/**
+ * `TableShareRequest`: a later booking asking the guest before whether they
+ * will have left by `freeByUtc`. The earlier side is one of the diner's own
+ * bookings, another guest's, or a mark on the floor with nobody behind it.
+ */
+interface TableShareRequest {
+  readonly id: string;
+  readonly earlierId: string;
+  readonly laterId: string;
+  readonly requestedStartUtc: string;
+  readonly freeByUtc: string;
+  readonly createdAtUtc: string;
+  readonly expiresAtUtc: string;
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'withdrawn';
+  decidedAtUtc: string | null;
+  /** The command that answered it, so the same answer again is a replay. */
+  answerCommandId: string | null;
+  /** When a simulated earlier guest says yes, if one will. */
+  answersAt: number | null;
+}
 
 /** The statuses a booking holds its table in, as the server's conflict check counts them. */
 const HOLDS_TABLE: ReadonlySet<BookingStatus> = new Set<BookingStatus>([
@@ -289,12 +337,30 @@ export interface MockGatewayOptions {
    */
   readonly floorApprovesAtOnce?: boolean | undefined;
   /**
+   * Fill tomorrow evening at Northern Avenue with other guests' bookings —
+   * every offered table at 20:00, booked alternately in the app and on the web
+   * — so the booking screen's struck, requestable and cut-short times can be
+   * walked in mock mode. Off unless asked: every test reads an empty evening.
+   */
+  readonly seedNeighbourBookings?: boolean | undefined;
+  /**
+   * Another guest who booked in the app answers a request for their table:
+   * yes, this many milliseconds after it is made. Absent, nobody answers and
+   * the request runs out after two hours. Mock only.
+   */
+  readonly simulateEarlierGuestAnswerAfterMs?: number | undefined;
+  /**
    * The seed the booking codes are minted from. Random when absent, as the
    * server's `ReservationCode.Generate` is: two worlds started fresh must not
    * hand out the same code (QA F6). The persistence layer records the seed it
    * drew and passes it back, so a replayed world keeps the codes it issued.
    */
   readonly codeSeed?: number | undefined;
+}
+
+/** Two instants the same moment, however each was written. */
+function sameInstant(a: string | null | undefined, b: string): boolean {
+  return typeof a === 'string' && Date.parse(a) === Date.parse(b);
 }
 
 function minutesBetween(a: Date, b: Date): number {
@@ -491,6 +557,212 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     }
   }
 
+  // --- Booking times: other guests, and requests for a table -------------------
+
+  const neighbours: NeighbourBooking[] = [];
+  const tableRequests = new Map<string, TableShareRequest>();
+  let tableRequestSequence = 1;
+
+  /** Every offered table at the seed branch, booked for 20:00 tomorrow by somebody else. */
+  function seedNeighbours(): void {
+    const found = findBranch(NEIGHBOUR_BRANCH);
+    const floor = floors.get(NEIGHBOUR_BRANCH);
+    if (!found || !floor) return;
+    const zone = found.branch.timeZoneId as TimeZone;
+    const tomorrow = branchDayKey(new Date(now().getTime() + DAY_MS), zone);
+    const [year, month, day] = tomorrow.split('-').map(Number) as [number, number, number];
+    const start = instantFromZonedClock({ year, month, day, ...NEIGHBOUR_TIME }, zone);
+    offeredTables(floor).forEach((table, index) => {
+      neighbours.push({
+        id: `nb-${table.id}`,
+        branchId: NEIGHBOUR_BRANCH,
+        tableId: table.id,
+        startUtc: start.toISOString(),
+        endUtc: new Date(start.getTime() + DEFAULT_POLICY.turnMinutes * 60_000).toISOString(),
+        promisedFreeByUtc: null,
+        channel: index % 2 === 0 ? 'app' : 'web',
+        partySize: 2,
+      });
+    });
+  }
+  if (options.seedNeighbourBookings) seedNeighbours();
+
+  /** The booking's own view of a pending request for its table, or `null`. */
+  function withRequest(booking: Booking): Booking {
+    const request = [...tableRequests.values()].find(
+      (entry) => entry.earlierId === booking.id && entry.status === 'pending',
+    );
+    return {
+      ...booking,
+      incomingTableRequest: request
+        ? {
+            requestId: request.id,
+            requestedStartUtc: request.requestedStartUtc,
+            freeByUtc: request.freeByUtc,
+            expiresAtUtc: request.expiresAtUtc,
+          }
+        : null,
+    };
+  }
+
+  /** The start of whatever the sequencing named as the booking before. */
+  function previousStart(table: FloorTable, previousId: string): string | null {
+    return (
+      liveOnTable(table).find((booking) => booking.id === previousId)?.startUtc ??
+      table.nextReservationStartUtc
+    );
+  }
+
+  /**
+   * A requestable table on another day: the later booking waits for the guest
+   * before, for two hours or until their own booking starts. Today the floor
+   * decides instead, by the short-notice rule. `null` then.
+   */
+  function earlierGuestDecision(
+    table: FloorTable,
+    timing: TableTiming,
+    slotUtc: string,
+    timeZoneId: string,
+  ): Pick<Booking, 'status' | 'awaitingApprovalBecause' | 'approvalExpiresAtUtc'> | null {
+    if (timing.kind !== 'requestable') return null;
+    if (isShortNotice({ startUtc: slotUtc, timeZoneId, now: now() })) return null;
+    const window = now().getTime() + EARLIER_GUEST_WINDOW_MINUTES * 60_000;
+    const before = previousStart(table, timing.previousId);
+    const cap = before ? Date.parse(before) : window;
+    return {
+      status: 'pendingApproval',
+      awaitingApprovalBecause: 'earlierGuestConsent',
+      approvalExpiresAtUtc: new Date(Math.min(window, cap)).toISOString(),
+    };
+  }
+
+  /** Ask the guest before: the request behind an `earlierGuestConsent` booking. */
+  function askEarlierGuest(later: Booking, timing: TableTiming): void {
+    if (timing.kind !== 'requestable' || !later.approvalExpiresAtUtc) return;
+    const neighbour = neighbours.find((entry) => entry.id === timing.previousId);
+    const simulated = options.simulateEarlierGuestAnswerAfterMs;
+    const id = `tr-${String(tableRequestSequence++).padStart(4, '0')}`;
+    tableRequests.set(id, {
+      id,
+      earlierId: timing.previousId,
+      laterId: later.id,
+      requestedStartUtc: later.slotUtc,
+      freeByUtc: timing.freeByUtc,
+      createdAtUtc: now().toISOString(),
+      expiresAtUtc: later.approvalExpiresAtUtc,
+      status: 'pending',
+      decidedAtUtc: null,
+      answerCommandId: null,
+      answersAt:
+        neighbour?.channel === 'app' && simulated !== undefined
+          ? now().getTime() + simulated
+          : null,
+    });
+  }
+
+  /**
+   * The earlier booking let the table go: its open questions are withdrawn,
+   * and a later booking that was waiting on that guest's answer is confirmed —
+   * the table is free of them. The server's rule for a cancellation.
+   */
+  function releaseQuestionsOf(earlierId: string, atUtc: string): void {
+    for (const request of tableRequests.values()) {
+      if (request.earlierId !== earlierId || request.status !== 'pending') continue;
+      request.status = 'withdrawn';
+      request.decidedAtUtc = atUtc;
+      const later = bookings.get(request.laterId);
+      if (
+        later?.status === 'pendingApproval' &&
+        later.awaitingApprovalBecause === 'earlierGuestConsent'
+      ) {
+        changeOrigins.delete(later.id);
+        bookings.set(later.id, {
+          ...later,
+          status: 'confirmed',
+          awaitingApprovalBecause: null,
+          approvalExpiresAtUtc: null,
+        });
+        venueDecisions.set(later.id, { approved: true, atUtc, change: null });
+      }
+    }
+  }
+
+  /** Requests for a booking that moved or stopped waiting are let go. */
+  function withdrawRequestsFor(laterId: string): void {
+    for (const request of tableRequests.values()) {
+      if (request.laterId === laterId && request.status === 'pending') request.status = 'withdrawn';
+    }
+  }
+
+  /**
+   * The guest before answered. Yes confirms the later booking and cuts the
+   * earlier one to the promise; no declines the later one — or gives a change
+   * its old slot back, as a declined short-notice change does.
+   */
+  function decideTableRequest(request: TableShareRequest, accept: boolean, atUtc: string): void {
+    request.status = accept ? 'accepted' : 'declined';
+    request.decidedAtUtc = atUtc;
+
+    const later = bookings.get(request.laterId);
+    if (later && later.status === 'pendingApproval') {
+      const original = changeOrigins.get(later.id);
+      changeOrigins.delete(later.id);
+      if (accept) {
+        bookings.set(later.id, {
+          ...later,
+          status: 'confirmed',
+          awaitingApprovalBecause: null,
+          approvalExpiresAtUtc: null,
+        });
+        venueDecisions.set(later.id, { approved: true, atUtc, change: null });
+      } else if (original && originalSlotFree(original)) {
+        bookings.set(later.id, {
+          ...original,
+          status: 'confirmed',
+          awaitingApprovalBecause: null,
+          approvalExpiresAtUtc: null,
+          declinedBecause: null,
+        });
+        venueDecisions.set(later.id, {
+          approved: false,
+          atUtc,
+          change: { originalKept: true, requestedSlotUtc: later.slotUtc },
+        });
+        moveFloorMark(later, original);
+      } else {
+        bookings.set(later.id, {
+          ...later,
+          status: 'cancelledByVenue',
+          awaitingApprovalBecause: null,
+          approvalExpiresAtUtc: null,
+          declinedBecause: 'earlierGuestDeclined',
+          cancelledAtUtc: atUtc,
+        });
+        venueDecisions.set(later.id, {
+          approved: false,
+          atUtc,
+          change: original ? { originalKept: false, requestedSlotUtc: later.slotUtc } : null,
+        });
+        moveFloorMark(later, null);
+      }
+    }
+
+    if (!accept) return;
+    const earlier = bookings.get(request.earlierId);
+    if (earlier) {
+      bookings.set(earlier.id, {
+        ...earlier,
+        endUtc: request.freeByUtc,
+        promisedFreeByUtc: request.freeByUtc,
+      });
+    }
+    const neighbour = neighbours.find((entry) => entry.id === request.earlierId);
+    if (neighbour) {
+      neighbour.endUtc = request.freeByUtc;
+      neighbour.promisedFreeByUtc = request.freeByUtc;
+    }
+  }
+
   /**
    * Before every call, the floor's answers catch up with the clock: a
    * short-notice request the simulated floor approves, or one whose window
@@ -578,6 +850,27 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
   function settleApprovals(): void {
     const t = now().getTime();
+    // A simulated guest before says yes, inside the window; a request whose
+    // booking stopped waiting is let go.
+    for (const request of tableRequests.values()) {
+      if (request.status !== 'pending') continue;
+      const later = bookings.get(request.laterId);
+      if (
+        !later ||
+        later.status !== 'pendingApproval' ||
+        later.awaitingApprovalBecause !== 'earlierGuestConsent'
+      ) {
+        request.status = 'withdrawn';
+        continue;
+      }
+      if (
+        request.answersAt !== null &&
+        request.answersAt <= t &&
+        request.answersAt < Date.parse(request.expiresAtUtc)
+      ) {
+        decideTableRequest(request, true, new Date(request.answersAt).toISOString());
+      }
+    }
     for (const booking of bookings.values()) {
       if (booking.status !== 'pendingApproval' || !booking.approvalExpiresAtUtc) continue;
       const closesAt = Date.parse(booking.approvalExpiresAtUtc);
@@ -602,6 +895,15 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         const original = changeOrigins.get(booking.id);
         changeOrigins.delete(booking.id);
         const at = booking.approvalExpiresAtUtc;
+        // The guest before did not answer in their two hours: the request lapses
+        // with the booking, which says so in its own words.
+        const earlierGuest = booking.awaitingApprovalBecause === 'earlierGuestConsent';
+        for (const request of tableRequests.values()) {
+          if (request.laterId === booking.id && request.status === 'pending') {
+            request.status = 'expired';
+            request.decidedAtUtc = at;
+          }
+        }
 
         // A change nobody answered: the booking goes back to the slot it had,
         // confirmed, when that slot is still free — the server's rule.
@@ -628,7 +930,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           status: 'cancelledByVenue',
           awaitingApprovalBecause: null,
           approvalExpiresAtUtc: null,
-          declinedBecause: 'noAnswer',
+          declinedBecause: earlierGuest ? 'earlierGuestNoAnswer' : 'noAnswer',
           cancelledAtUtc: at,
         });
         venueDecisions.set(booking.id, {
@@ -1023,16 +1325,69 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    * not collide with it. The mark alone used to be the whole answer, which
    * forgot a table's earlier booking the moment a later one was made.
    */
-  function bookedStarts(table: FloorTable, excludeBookingId?: string): string[] {
+  function liveOnTable(table: FloorTable, excludeBookingId?: string): SequencedBooking[] {
     const excluded = excludeBookingId ? bookings.get(excludeBookingId) : undefined;
-    const starts = new Set<string>();
-    const mark = table.nextReservationStartUtc;
-    if (mark && !(excluded?.tableId === table.id && excluded.slotUtc === mark)) starts.add(mark);
+    const live: SequencedBooking[] = [];
+    const starts = new Set<number>();
     for (const booking of bookings.values()) {
       if (booking.tableId !== table.id || booking.id === excludeBookingId) continue;
-      if (HOLDS_TABLE.has(booking.status)) starts.add(booking.slotUtc);
+      if (!HOLDS_TABLE.has(booking.status)) continue;
+      live.push({
+        id: booking.id,
+        startUtc: booking.slotUtc,
+        endUtc: booking.endUtc,
+        promisedFreeByUtc: booking.promisedFreeByUtc ?? null,
+      });
+      starts.add(Date.parse(booking.slotUtc));
     }
-    return [...starts];
+    // Other guests' bookings, from the mock-mode seed.
+    for (const neighbour of neighbours) {
+      if (neighbour.tableId !== table.id) continue;
+      live.push({
+        id: neighbour.id,
+        startUtc: neighbour.startUtc,
+        endUtc: neighbour.endUtc,
+        promisedFreeByUtc: neighbour.promisedFreeByUtc,
+      });
+      starts.add(Date.parse(neighbour.startUtc));
+    }
+    // The mark a fixture or the floor left: a booking nobody here can name.
+    const mark = table.nextReservationStartUtc;
+    if (
+      mark &&
+      !starts.has(Date.parse(mark)) &&
+      !(excluded?.tableId === table.id && excluded.slotUtc === mark)
+    ) {
+      live.push({
+        id: `mark-${table.id}`,
+        startUtc: mark,
+        endUtc: new Date(Date.parse(mark) + DEFAULT_POLICY.turnMinutes * 60_000).toISOString(),
+        promisedFreeByUtc: null,
+      });
+    }
+    return live;
+  }
+
+  /**
+   * Where a start sits among the table's bookings — the rules in
+   * `tableSequencing.ts` — and one more the server keeps: one question to one
+   * guest at a time. While another booking is asking the guest before, the
+   * table is refused at those times (`EarlierGuestBeingAsked`).
+   */
+  function timingAt(table: FloorTable, slot: Date, excludeBookingId?: string): TableTiming {
+    const timing = tableTiming({
+      startUtc: slot.toISOString(),
+      turnMinutes: DEFAULT_POLICY.turnMinutes,
+      bookings: liveOnTable(table, excludeBookingId),
+    });
+    if (timing.kind !== 'requestable') return timing;
+    const asked = [...tableRequests.values()].some(
+      (request) =>
+        request.status === 'pending' &&
+        request.earlierId === timing.previousId &&
+        request.laterId !== excludeBookingId,
+    );
+    return asked ? { kind: 'refused', because: 'earlierGuestBeingAsked' } : timing;
   }
 
   /** Derive the window for one table at a slot. */
@@ -1046,7 +1401,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     // earlier in the day is behind the diner and bounds nothing.
     const slot = Date.parse(slotUtc);
     const next =
-      bookedStarts(table, excludeBookingId)
+      liveOnTable(table, excludeBookingId)
+        .map((booking) => booking.startUtc)
         .filter((start) => Date.parse(start) > slot)
         .sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
     if (!next) {
@@ -1085,18 +1441,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   function collidesWithBooking(
     table: FloorTable,
     slot: Date,
-    policy: BranchPolicy,
+    _policy: BranchPolicy,
     excludeBookingId?: string,
   ): boolean {
-    const requestedEnd = new Date(slot.getTime() + policy.turnMinutes * 60_000);
-
-    return bookedStarts(table, excludeBookingId).some((start) => {
-      const booked = new Date(start);
-      const bookedEnd = new Date(booked.getTime() + policy.turnMinutes * 60_000);
-      // Overlap in either direction, which is what makes "free now, booked at
-      // 20:00" refuse a 20:00 request and allow a 15:00 one.
-      return slot < bookedEnd && booked < requestedEnd;
-    });
+    // Refused by the sequencing rules: inside the 90 minutes after a booking,
+    // or later than 45 minutes before the next one. Requestable is not refused.
+    return timingAt(table, slot, excludeBookingId).kind === 'refused';
   }
 
   /**
@@ -1184,9 +1534,29 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     partySize: number,
     excludeBookingId?: string,
   ): readonly TableAvailability[] {
+    return availabilityWithTiming(branchId, slotUtc, partySize, excludeBookingId).map(
+      (answer) => answer.table,
+    );
+  }
+
+  /** The tables' answers, each with whether it is only requestable. */
+  function availabilityWithTiming(
+    branchId: string,
+    slotUtc: string,
+    partySize: number,
+    excludeBookingId?: string,
+  ): readonly { readonly table: TableAvailability; readonly requestable: boolean }[] {
     const found = findBranch(branchId);
     const floor = floors.get(branchId);
     if (!found || !floor) return [];
+    const shortNotice = isShortNotice({
+      startUtc: slotUtc,
+      timeZoneId: found.branch.timeZoneId,
+      now: now(),
+    });
+    // The same answer for every table at this time, so asked once: the zone
+    // arithmetic behind it is the slow part of a day of slots.
+    const waits = needsApproval(branchId, slotUtc, partySize);
     const policy = DEFAULT_POLICY;
     const slot = new Date(slotUtc);
     const rejection = branchRejection(branchId, slot, policy);
@@ -1202,16 +1572,28 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // A branch-level refusal applies to every table and outranks whatever the
       // table itself would have said.
       const reason = rejection ?? reasonFor(table, state, partySize);
+      const timing = reason === null ? timingAt(table, slot, excludeBookingId) : null;
+      const requestable = timing?.kind === 'requestable';
       return {
-        tableId: table.id,
-        tableLabel: table.label,
-        floorAreaName: table.floorAreaName,
-        seats: table.seats,
-        isBookable: reason === null,
-        unavailableReason: reason,
-        window: reason === null ? windowFor(table, slotUtc, policy, excludeBookingId) : null,
-        freeCancellationUntilUtc,
-        requiresApproval: needsApproval(branchId, slotUtc, partySize),
+        requestable,
+        table: {
+          tableId: table.id,
+          tableLabel: table.label,
+          floorAreaName: table.floorAreaName,
+          seats: table.seats,
+          isBookable: reason === null,
+          unavailableReason: reason,
+          window: reason === null ? windowFor(table, slotUtc, policy, excludeBookingId) : null,
+          freeCancellationUntilUtc,
+          // Another day, a requestable table waits for the guest before; today
+          // the short-notice rule already makes every booking wait.
+          // A table that can only be asked for waits for somebody's yes.
+          requiresApproval: waits || requestable,
+          isRequestable: requestable,
+          // Another day, the guest before is the one asked; tonight, the floor.
+          requiresEarlierGuestConsent: requestable && !shortNotice,
+          mustFreeByUtc: timing && timing.kind !== 'refused' ? timing.mustFreeByUtc : null,
+        },
       };
     });
   }
@@ -1323,15 +1705,31 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       if (fixture && !coversSitting(fixture.weeklyHours, start, end, zone)) continue;
 
       const slotUtc = start.toISOString();
-      const tables = availabilityFor(branchId, slotUtc, partySize, excludeBookingId);
-      const free = tables.filter((table) => table.isBookable).length;
+      const answers = availabilityWithTiming(branchId, slotUtc, partySize, excludeBookingId);
+      const tables = answers.map((answer) => answer.table);
+      const bookable = answers.filter((answer) => answer.table.isBookable);
+      const plain = bookable.filter((answer) => !answer.requestable);
+      // Only tables somebody booked shortly before: on offer, as a request.
+      const requestable = bookable.length > 0 && plain.length === 0;
+      // Every table on offer cut short: the latest of their times is the best one.
+      const everyCut = bookable.map((answer) => answer.table.mustFreeByUtc ?? null);
+      const mustFreeByUtc =
+        bookable.length > 0 && everyCut.every((cut) => cut !== null)
+          ? new Date(Math.max(...everyCut.map((cut) => Date.parse(cut!)))).toISOString()
+          : null;
+      // Read off the tables, which asked the time-level rules once already.
+      const waits = plain.length > 0 ? plain[0]!.table.requiresApproval : requestable;
       slots.push({
         time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
         slotUtc,
-        isAvailable: free > 0,
-        requiresApproval: needsApproval(branchId, slotUtc, partySize),
-        freeTableCount: free,
-        unavailableReason: free > 0 ? null : slotReason(tables),
+        isAvailable: bookable.length > 0,
+        requiresApproval: bookable.length > 0 ? waits : needsApproval(branchId, slotUtc, partySize),
+        // Free outright; the requestable ones are counted apart.
+        freeTableCount: plain.length,
+        unavailableReason: bookable.length > 0 ? null : slotReason(tables),
+        requestable,
+        requestableTableCount: bookable.length - plain.length,
+        mustFreeByUtc,
       });
     }
 
@@ -2317,7 +2715,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const existingId = commandLog.get(command.commandId);
       if (existingId) {
         const existing = bookings.get(existingId);
-        if (existing) return existing;
+        if (existing) return withRequest(existing);
       }
 
       const found = findBranch(command.branchId);
@@ -2400,11 +2798,27 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         });
       }
 
-      const decision = decideApproval({
-        partySize: command.partySize,
-        slotUtc: command.slotUtc,
-        timeZoneId: found.branch.timeZoneId,
-      });
+      // Booking times: a sitting the next booking cuts short is taken only with
+      // the promise to free the table by then — the very instant, or a 422.
+      const timing = timingAt(table, slot);
+      const cut = timing.kind === 'refused' ? null : timing.mustFreeByUtc;
+      if (cut && !sameInstant(command.acceptsFreeByUtc, cut)) {
+        throw new FreeByRequiredError({
+          url,
+          requiredFreeByUtc: cut,
+          nextBookingStartUtc: timing.kind === 'refused' ? null : timing.nextStartUtc,
+        });
+      }
+
+      // A table somebody booked shortly before, another day: the guest before is
+      // asked. Every other booking is decided as it always was.
+      const decision =
+        earlierGuestDecision(table, timing, command.slotUtc, found.branch.timeZoneId) ??
+        decideApproval({
+          partySize: command.partySize,
+          slotUtc: command.slotUtc,
+          timeZoneId: found.branch.timeZoneId,
+        });
 
       const id = `bk_${sequence++}`;
       const booking: Booking = {
@@ -2421,7 +2835,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         roomName: table.floorAreaName,
         partySize: command.partySize,
         slotUtc: command.slotUtc,
-        endUtc: new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
+        // Cut to the promise when the next booking made it shorter.
+        endUtc: cut ?? new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
         freeCancellationUntilUtc: new Date(
           slot.getTime() - policy.freeCancellationMinutes * 60_000,
         ).toISOString(),
@@ -2429,6 +2844,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         cancelledAfterDeadline: false,
         note: note === '' ? null : note,
         declinedBecause: null,
+        promisedFreeByUtc: cut,
         // The mock issues one for every booking, so the manage-booking page is
         // walkable from the app's own flow too. See `publicMock.ts` for what
         // the token is and, more importantly, what it is not.
@@ -2438,6 +2854,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       bookings.set(id, booking);
       commandLog.set(command.commandId, id);
       offerToFloor(booking);
+      if (booking.awaitingApprovalBecause === 'earlierGuestConsent')
+        askEarlierGuest(booking, timing);
       if (signedInAccountId && !deletedAccounts.has(signedInAccountId)) {
         bookingOwners.set(id, signedInAccountId);
       }
@@ -2452,7 +2870,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         ),
       });
 
-      return booking;
+      return withRequest(booking);
     },
 
     /**
@@ -2471,12 +2889,39 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const past = all
         .filter((b) => !upcoming.includes(b))
         .sort((a, b) => Date.parse(b.slotUtc) - Date.parse(a.slotUtc));
-      return { upcoming, past };
+      // A later guest's request rides on the booking it is for.
+      return { upcoming: upcoming.map(withRequest), past: past.map(withRequest) };
     },
 
     async getBooking(bookingId) {
       await wait();
-      return bookings.get(bookingId) ?? null;
+      const booking = bookings.get(bookingId);
+      return booking ? withRequest(booking) : null;
+    },
+
+    async answerTableRequest(answer: AnswerTableRequestCommand): Promise<Booking> {
+      await wait();
+      const url = `${URL_TAG}/api/reservations/${answer.bookingId}/table-requests/${answer.requestId}/answer`;
+      requireClientCommandId(url, answer.commandId);
+      // Their own booking only; anybody else's answers as one that does not exist.
+      const booking = bookings.get(answer.bookingId);
+      const owner = booking ? (bookingOwners.get(booking.id) ?? null) : null;
+      if (!booking || (owner !== null && owner !== signedInAccountId)) {
+        throw new NotFoundError({ url });
+      }
+      const request = tableRequests.get(answer.requestId);
+      if (!request || request.earlierId !== booking.id) throw new NotFoundError({ url });
+      if (request.status !== 'pending') {
+        // The same answer again is the answer it was: a lock-screen button
+        // tapped twice on a bad connection is not a second answer.
+        if (request.answerCommandId === answer.commandId) {
+          return withRequest(bookings.get(booking.id) ?? booking);
+        }
+        throw new TableRequestClosedError({ url, requestId: request.id });
+      }
+      request.answerCommandId = answer.commandId;
+      decideTableRequest(request, answer.accept, now().toISOString());
+      return withRequest(bookings.get(booking.id) ?? booking);
     },
 
     // --- Notifications --------------------------------------------------------
@@ -2556,7 +3001,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // it back. Anything else that no longer holds a table is refused, as the
       // server refuses it.
       if (booking.status === 'cancelledByDiner' || booking.status === 'cancelledByVenue') {
-        return booking;
+        return withRequest(booking);
       }
       if (booking.status !== 'confirmed' && booking.status !== 'pendingApproval') {
         throw new ConcurrencyConflictError({ url: `${URL_TAG}/api/reservations` });
@@ -2572,6 +3017,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         cancelledAfterDeadline: at.getTime() > Date.parse(booking.freeCancellationUntilUtc),
       };
       bookings.set(bookingId, cancelled);
+      releaseQuestionsOf(bookingId, at.toISOString());
+      withdrawRequestsFor(bookingId);
 
       const floor = floors.get(booking.branchId);
       if (floor) {
@@ -2583,7 +3030,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         });
       }
 
-      return cancelled;
+      return withRequest(cancelled);
     },
 
     /**
@@ -2605,7 +3052,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
       const replayed = rescheduleLog.get(command.commandId);
       const current = replayed !== undefined ? bookings.get(replayed) : undefined;
-      if (current) return current;
+      if (current) return withRequest(current);
 
       if (
         before?.status === 'pendingApproval' &&
@@ -2656,6 +3103,17 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         throw new BookingRejectedError({ url, reason: refusal, partySize: command.partySize });
       }
 
+      // The same promise as for a new booking, at the new table and time.
+      const timing = timingAt(table, slot, booking.id);
+      const cut = timing.kind === 'refused' ? null : timing.mustFreeByUtc;
+      if (cut && !sameInstant(command.acceptsFreeByUtc, cut)) {
+        throw new FreeByRequiredError({
+          url,
+          requiredFreeByUtc: cut,
+          nextBookingStartUtc: timing.kind === 'refused' ? null : timing.nextStartUtc,
+        });
+      }
+
       // Re-decided like a new booking, except that a confirmed one the floor
       // already said yes to stays confirmed while its start and table hold and
       // its party does not grow — nothing the floor agreed to has changed.
@@ -2670,11 +3128,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
             awaitingApprovalBecause: null,
             approvalExpiresAtUtc: null,
           }
-        : decideApproval({
+        : (earlierGuestDecision(table, timing, command.slotUtc, booking.timeZoneId) ??
+          decideApproval({
             partySize: command.partySize,
             slotUtc: command.slotUtc,
             timeZoneId: booking.timeZoneId,
-          });
+          }));
       // A request already waiting on a short-notice answer keeps its deadline:
       // moving it is not a way to buy the floor fifteen more minutes.
       const waitingWindow =
@@ -2688,13 +3147,19 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
               ).toISOString(),
             }
           : decided;
-      // A confirmed booking moved into short notice keeps the slot it had
-      // until the floor answers; a change of a change keeps the first one.
-      if (decision.awaitingApprovalBecause === 'shortNotice') {
+      // A confirmed booking moved into short notice — or onto a table the guest
+      // before is asked about — keeps the slot it had until the answer; a
+      // change of a change keeps the first one.
+      if (
+        decision.awaitingApprovalBecause === 'shortNotice' ||
+        decision.awaitingApprovalBecause === 'earlierGuestConsent'
+      ) {
         if (booking.status === 'confirmed') changeOrigins.set(booking.id, booking);
       } else {
         changeOrigins.delete(booking.id);
       }
+      // Whatever it was asking the guest before about, it is not asking any more.
+      withdrawRequestsFor(booking.id);
       const moved: Booking = {
         ...booking,
         ...decision,
@@ -2704,13 +3169,15 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         roomName: table.floorAreaName,
         partySize: command.partySize,
         slotUtc: command.slotUtc,
-        endUtc: new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
+        endUtc: cut ?? new Date(slot.getTime() + policy.turnMinutes * 60_000).toISOString(),
         freeCancellationUntilUtc: new Date(
           slot.getTime() - policy.freeCancellationMinutes * 60_000,
         ).toISOString(),
+        promisedFreeByUtc: cut,
       };
       bookings.set(booking.id, moved);
       rescheduleLog.set(command.commandId, booking.id);
+      if (moved.awaitingApprovalBecause === 'earlierGuestConsent') askEarlierGuest(moved, timing);
 
       // The marks move with it: off the old table, onto the new one.
       floors.set(booking.branchId, {
@@ -2737,7 +3204,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         }
       }
 
-      return moved;
+      return withRequest(moved);
     },
 
     // --- Scanning in and the shared tab -----------------------------------

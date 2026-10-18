@@ -2078,6 +2078,11 @@ fieldset.editor-body:disabled {
   font-feature-settings: var(--font-feature-tabular);
 }
 
+/* Booking times: ring the guest before about leaving in time — the one line to act on. */
+.approval-context-ask {
+  font-weight: var(--font-weight-semibold);
+}
+
 /* A tablet can dial. Sized as a control, not as a word in a sentence. */
 .approval-call {
   display: inline-flex;

@@ -64,7 +64,8 @@
     "noTabWhy": "Orders go on a tab. A guest opens one by scanning the code on the table, or you can start one here for a party that will not scan.",
     "startTabNeedsOnline": "Starting a tab needs a connection.",
     "nextBookingTomorrow": "Tomorrow {{time}}",
-    "nextBookingOn": "{{date}}, {{time}}"
+    "nextBookingOn": "{{date}}, {{time}}",
+    "mustFreeBy": "must free by {{time}}"
   },
   "queue": {
     "pending_one": "{{count}} action waiting to sync",
@@ -162,7 +163,8 @@
       "largeParty": "Large party",
       "noShowHistory": "Missed bookings before",
       "branchApprovesEveryBooking": "Every booking needs an OK",
-      "unknown": "Needs an OK"
+      "unknown": "Needs an OK",
+      "earlierGuestConsent": "Guest before booked on the web"
     },
     "answerWithin": "Answer within",
     "leftLabel": "{{time}} left to answer",
@@ -200,7 +202,9 @@
     "failed": "That did not go through. Try again.",
     "offline": "No connection: the answer was not sent.",
     "arrived_one": "New booking request: table {{label}} at {{time}}, {{count}} guest.",
-    "arrived_other": "New booking request: table {{label}} at {{time}}, {{count}} guests."
+    "arrived_other": "New booking request: table {{label}} at {{time}}, {{count}} guests.",
+    "askBefore": "Ask {{name}} whether the table will be free by {{time}}",
+    "leavesBy": "leaves by {{time}}"
   },
   "conflicts": {
     "title": "Needs a decision",

@@ -14,7 +14,13 @@ import type {
 import type { BranchSummary, VenueSummary, VenueType } from '../contracts/booking';
 import type { components } from '../generated/schema';
 import { openStateFrom } from '../contracts/openState';
-import { approvalExpiry, declineReason, type WireApprovalFields } from './approvalMapping';
+import {
+  approvalExpiry,
+  approvalTrigger,
+  declineReason,
+  type WireApprovalFields,
+} from './approvalMapping';
+import { instantOrNull, type WirePublicBookingTimes } from './bookingTimesWire';
 import { absolutePhotoUrl } from './photoUrl';
 import { venueTypeFromCode } from './venueTypeMapping';
 
@@ -28,7 +34,8 @@ export type WirePublicBranchMeta = Schemas['Yalla.Application.Public.PublicBranc
  * not have yet (see `approvalMapping.ts`).
  */
 export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingView'] &
-  WireApprovalFields;
+  WireApprovalFields &
+  WirePublicBookingTimes;
 
 /**
  * The public wire shapes to the public page's contract types.
@@ -462,6 +469,11 @@ export function managedBookingFromWire(
     // While it waits for the venue, and only then.
     approvalExpiresAtUtc: wire.status === 1 ? approvalExpiry(wire.approvalExpiresAtUtc) : null,
     declinedBecause: declineReason(wire.declinedBecause),
+    // Booking times: why it waits (the guest before, or the venue), while it
+    // waits, and the promise to free the table.
+    awaitingApprovalBecause:
+      wire.status === 1 ? approvalTrigger(wire.awaitingApprovalBecause) : null,
+    promisedFreeByUtc: instantOrNull(wire.promisedFreeByUtc),
 
     /*
      * Server-decided, and taken as sent. Lateness must not turn this false:

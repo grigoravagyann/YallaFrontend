@@ -26,6 +26,11 @@ export interface ResolveStaffGatewayOptions {
   readonly mockChurnOnTables?: readonly string[] | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
   readonly persist?: MockPersistence | undefined;
+  /**
+   * Mock only: an earlier-guest request and a promise to free a table on the
+   * floor, so booking times can be walked. See `StaffMockOptions.seedBookingTimes`.
+   */
+  readonly mockBookingTimes?: boolean | undefined;
 }
 
 /**
@@ -45,6 +50,7 @@ export function resolveStaffGateway(options: ResolveStaffGatewayOptions): StaffG
     const shared = {
       ...(options.mockRaceOnTables ? { raceOnTables: options.mockRaceOnTables } : {}),
       ...(options.mockChurnOnTables ? { churnOnTables: options.mockChurnOnTables } : {}),
+      ...(options.mockBookingTimes ? { seedBookingTimes: true } : {}),
     };
     if (options.persist) {
       return persistMockGateway<StaffGateway>({

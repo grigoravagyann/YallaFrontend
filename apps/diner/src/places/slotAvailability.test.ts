@@ -1,6 +1,13 @@
 import type { DaySlot, DaySlots } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { dayRefusalLine, pickSlot, slotAvailability } from './slotAvailability';
+import {
+  dayRefusalLine,
+  pickSlot,
+  slotAvailability,
+  slotFloorVerdict,
+  wheelSlots,
+  withSoon,
+} from './slotAvailability';
 import type { TimeSlot } from './slots';
 
 const YEREVAN = 'Asia/Yerevan';
@@ -47,6 +54,8 @@ describe('slotAvailability', () => {
     expect(slotAvailability(SLOTS, [undefined], YEREVAN)).toEqual({
       struck: new Set(),
       hidden: new Set(),
+      requestable: new Set(),
+      mustFreeBy: new Map(),
       dayReason: null,
     });
     const failed = slotAvailability(SLOTS, [null], YEREVAN);
@@ -93,7 +102,13 @@ describe('slotAvailability', () => {
     expect(judged.struck.size + judged.hidden.size).toBe(0);
     // A refused date does not strike the next date's times either.
     const refused = slotAvailability([late], [day([], 'pastLeadTime')], YEREVAN);
-    expect(refused).toEqual({ struck: new Set(), hidden: new Set(), dayReason: null });
+    expect(refused).toEqual({
+      struck: new Set(),
+      hidden: new Set(),
+      requestable: new Set(),
+      mustFreeBy: new Map(),
+      dayReason: null,
+    });
   });
 
   it('judges a time after midnight by the next date’s answer when there is one', () => {
@@ -180,3 +195,125 @@ describe('dayRefusalLine', () => {
     expect(dayRefusalLine('alreadyBooked', 2).key).toBe('table.unavailable.alreadyBooked');
   });
 });
+
+describe('booking times on the day', () => {
+  const requestableAt = (time: string): DaySlot => ({
+    ...daySlot(time, true),
+    requiresApproval: true,
+    requestable: true,
+  });
+
+  it('keeps a requestable time on offer, as requestable — even one the server calls unavailable', () => {
+    const answer = day([
+      daySlot('18:30', true),
+      requestableAt('19:00'),
+      { ...daySlot('19:30', false), requestable: true },
+      daySlot('20:00', true),
+      daySlot('20:30', true),
+    ]);
+    const availability = slotAvailability(SLOTS, [answer], YEREVAN);
+    expect(clocks(availability.requestable)).toEqual(['19:00', '19:30']);
+    expect(clocks(availability.struck)).toEqual([]);
+  });
+
+  it('remembers by when the table must be free, time by time', () => {
+    const answer = day(
+      SLOTS.map((slot) =>
+        slot.key === '19:00'
+          ? { ...daySlot('19:00', true), mustFreeByUtc: '2026-10-18T15:55:00.000Z' }
+          : daySlot(slot.key, true),
+      ),
+    );
+    const { mustFreeBy } = slotAvailability(SLOTS, [answer], YEREVAN);
+    expect([...mustFreeBy.entries()]).toEqual([[ms('19:00'), '2026-10-18T15:55:00.000Z']]);
+  });
+
+  it('turns the times into wheel rows: free, requestable, or busy', () => {
+    const answer = day([
+      daySlot('18:30', true),
+      requestableAt('19:00'),
+      daySlot('19:30', true),
+      daySlot('20:00', false),
+      daySlot('20:30', true),
+    ]);
+    const rows = wheelSlots(SLOTS, slotAvailability(SLOTS, [answer], YEREVAN));
+    expect(rows.map((row) => `${row.label} ${row.state}`)).toEqual([
+      '18:30 free',
+      '19:00 requestable',
+      '19:30 free',
+      '20:00 busy',
+      '20:30 free',
+    ]);
+  });
+});
+
+describe('"in 10 min"', () => {
+  const soon: TimeSlot = { key: '18:40', at: new Date('2026-10-18T18:40:00+04:00') };
+
+  it('joins the day in its place, judged by the room at that minute rather than the day', () => {
+    const merged = withSoon(SLOTS, NOTHING_AVAILABLE, soon, { state: 'busy', mustFreeByUtc: null });
+    expect(merged.slots.map((slot) => slot.key)).toEqual([
+      '18:30',
+      '18:40',
+      '19:00',
+      '19:30',
+      '20:00',
+      '20:30',
+    ]);
+    expect(merged.availability.struck.has(soon.at.getTime())).toBe(true);
+  });
+
+  it('is offered while the room has not answered, and never hidden for missing from the day', () => {
+    const hiding = slotAvailability(SLOTS, [day([daySlot('19:00', true)])], YEREVAN);
+    const merged = withSoon(SLOTS, hiding, soon, null);
+    expect(merged.availability.hidden.has(soon.at.getTime())).toBe(false);
+    expect(merged.availability.struck.has(soon.at.getTime())).toBe(false);
+  });
+
+  it('is not added twice when it falls on a quarter hour', () => {
+    const onGrid: TimeSlot = { key: '19:00', at: new Date('2026-10-18T19:00:00+04:00') };
+    expect(withSoon(SLOTS, NOTHING_AVAILABLE, onGrid, null).slots).toHaveLength(SLOTS.length);
+  });
+
+  it('reads the room: busy, requestable, cut short, or free', () => {
+    const table = (extra: object) => ({
+      tableId: 't',
+      tableLabel: '1',
+      floorAreaName: null,
+      seats: 2,
+      isBookable: true,
+      unavailableReason: null,
+      window: null,
+      freeCancellationUntilUtc: null,
+      requiresApproval: false,
+      ...extra,
+    });
+    const floor = (tables: object[], rejection: string | null = null) =>
+      ({
+        plan: { branchId: 'b1', timeZoneId: YEREVAN, tables: [] },
+        tables,
+        rejection,
+        slotUtc: '',
+        partySize: 2,
+      }) as never;
+
+    expect(slotFloorVerdict(undefined)).toBeNull();
+    expect(slotFloorVerdict(floor([table({})], 'pastLeadTime'))?.state).toBe('busy');
+    expect(slotFloorVerdict(floor([table({ isBookable: false })]))?.state).toBe('busy');
+    expect(slotFloorVerdict(floor([table({ isRequestable: true })]))?.state).toBe('requestable');
+    expect(slotFloorVerdict(floor([table({ mustFreeByUtc: '2026-10-18T15:55:00.000Z' })]))).toEqual(
+      { state: 'free', mustFreeByUtc: '2026-10-18T15:55:00.000Z' },
+    );
+    expect(
+      slotFloorVerdict(floor([table({ mustFreeByUtc: '2026-10-18T15:55:00.000Z' }), table({})])),
+    ).toEqual({ state: 'free', mustFreeByUtc: null });
+  });
+});
+
+const NOTHING_AVAILABLE = {
+  struck: new Set<number>(),
+  hidden: new Set<number>(),
+  requestable: new Set<number>(),
+  mustFreeBy: new Map<number, string>(),
+  dayReason: null,
+};
