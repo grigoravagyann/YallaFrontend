@@ -261,6 +261,7 @@ export function MenuEditorScreen() {
   if (!branchId) {
     return (
       <section className="page">
+        <h1>{t('nav.menu')}</h1>
         <p className="muted">{t('menu.noBranch')}</p>
       </section>
     );
@@ -277,7 +278,7 @@ export function MenuEditorScreen() {
   return (
     <section className="page menu-editor">
       <header className="page-head">
-        <h2>{t('nav.menu')}</h2>
+        <h1>{t('nav.menu')}</h1>
         <div className="page-actions">
           <button type="button" className="button" onClick={() => setBulkOpen(true)}>
             {t('menu.bulk.open')}

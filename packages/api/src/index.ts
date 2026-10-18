@@ -43,7 +43,7 @@ export {
 export type { ApiConfig, DataSource, ResolveApiConfigInput } from './config';
 
 // --- Auth --------------------------------------------------------------------
-export { createAuthSession } from './auth/session';
+export { createAuthSession, webLocksExclusive } from './auth/session';
 export type {
   AuthSession,
   AuthSessionConfig,

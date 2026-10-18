@@ -6,6 +6,7 @@ import {
   type UserRole,
 } from '@yalla/api';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { QueryClient } from '@tanstack/react-query';
 import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createConsoleHarness, initConsoleTestI18n } from './reports/testHarness';
@@ -32,6 +33,7 @@ async function renderShell(role: UserRole, path = '/venue', gateway?: ConsoleGat
   const mock = gateway ?? createConsoleMockGateway({ latencyMs: 0, role });
   const user: ConsoleUser = await mock.getCurrentUser();
   const harness = createConsoleHarness({ gateway: mock });
+  harnessClient = harness.queryClient;
   render(
     harness.wrap(
       <Routes>
@@ -49,6 +51,9 @@ async function renderShell(role: UserRole, path = '/venue', gateway?: ConsoleGat
 }
 
 const nav = () => screen.getByRole('navigation', { name: 'Main navigation' });
+
+/** The query cache of the shell rendered last. */
+let harnessClient: QueryClient | null = null;
 
 describe('the venue sidebar', () => {
   it('has the four groups of the design, in order, and the links in each', async () => {
@@ -71,6 +76,27 @@ describe('the venue sidebar', () => {
       ['/venue/staff'],
       ['/venue/reviews', '/venue/reports'],
     ]);
+  });
+
+  it('keeps the floor screen one click away for a branch manager, who also works the floor', async () => {
+    await renderShell('manager');
+    const today = within(nav()).getAllByRole('group')[0]!;
+    expect(
+      within(today)
+        .getAllByRole('link')
+        .map((link) => [link.getAttribute('href'), link.textContent]),
+    ).toEqual([
+      ['/venue', expect.stringMatching(/^Overview/u)],
+      ['/staff', 'Floor'],
+    ]);
+  });
+
+  it('does not offer the floor screen to an owner or a general manager, who have no PIN session there', async () => {
+    for (const role of ['owner', 'generalManager'] as const) {
+      await renderShell(role);
+      expect(within(nav()).queryByRole('link', { name: 'Floor' })).toBeNull();
+      cleanup();
+    }
   });
 
   it('marks only the page shown as current', async () => {
@@ -223,6 +249,52 @@ describe('the counts on the links', () => {
     await screen.findByRole('combobox', { name: 'Branch' });
     await waitFor(() => expect(linkNamed('/venue/menu')).toMatch(/^Menu \d/u));
     expect(linkNamed('/venue')).toBe('Overview');
+  });
+
+  it('show nothing while a count is still on its way', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const slow: ConsoleGateway = {
+      ...base,
+      listPendingReservations: () => new Promise(() => {}),
+    };
+    await renderShell('owner', '/venue', slow);
+    await screen.findByRole('combobox', { name: 'Branch' });
+    await waitFor(() => expect(linkNamed('/venue/menu')).toMatch(/^Menu \d/u));
+    expect(linkNamed('/venue')).toBe('Overview');
+  });
+
+  it("never shows the branch before's count while this branch's is on its way", async () => {
+    // Reported reviews keep the previous page on screen while the next one
+    // loads (`keepPreviousData`, for the reviews screen's pager); on a badge
+    // that would be another branch's number under this branch's name.
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const user = await base.getCurrentUser();
+    const venue = await base.getManagedVenue(user.scope.venueId!);
+    const counted: string[] = [];
+    for (const branch of venue.branches) {
+      const page = await base.listVenueBranchReviews(branch.id, { filter: 'reported' });
+      if (page.total > 0) counted.push(branch.id);
+    }
+    const reported = counted[0]!;
+    const other = venue.branches.find((branch) => branch.id !== reported)!.id;
+    let hangOther = false;
+    const gateway: ConsoleGateway = {
+      ...base,
+      listVenueBranchReviews: (branchId, query) =>
+        branchId === other && hangOther
+          ? new Promise(() => {})
+          : base.listVenueBranchReviews(branchId, query),
+    };
+    await renderShell('owner', '/venue', gateway);
+    const switcher = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Branch' });
+    fireEvent.change(switcher, { target: { value: reported } });
+    await waitFor(() => expect(linkNamed('/venue/reviews')).toMatch(/^Reviews \d+ reported/u));
+
+    hangOther = true;
+    harnessClient!.removeQueries({ queryKey: ['console', 'venueReviews', other] });
+    fireEvent.change(switcher, { target: { value: other } });
+    expect(switcher.value).toBe(other);
+    await waitFor(() => expect(linkNamed('/venue/reviews')).toBe('Reviews'));
   });
 });
 

@@ -302,7 +302,7 @@ export function StaffScreen() {
   if (!venueId) {
     return (
       <section className="page">
-        <h2>{t('nav.staff')}</h2>
+        <h1>{t('nav.staff')}</h1>
         <p className="muted">{t('staff.noVenue')}</p>
       </section>
     );
@@ -318,7 +318,7 @@ export function StaffScreen() {
     <section className="page staff-page">
       <header className="section-head">
         <div>
-          <h2>{t('nav.staff')}</h2>
+          <h1>{t('nav.staff')}</h1>
           <p className="muted">{t('staff.intro')}</p>
         </div>
         <button

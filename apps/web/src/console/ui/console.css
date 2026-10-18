@@ -93,6 +93,14 @@
   padding: var(--space-xl) var(--space-lg);
   background: var(--console-sidebar);
   color: var(--console-sidebar-text);
+  /* Stays put while a long page scrolls, so the links and the person at the
+     foot (My account, sign-out) are always in reach; scrolls on its own when
+     a short window cannot hold it. */
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .yc-side :focus-visible {
@@ -381,6 +389,14 @@
   color: var(--console-sidebar-muted);
 }
 
+/* The venue read refused: the notice, and a way to sign out beside it. */
+.yc-refused {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-lg);
+}
+
 /* The person at the foot, when it opens their account: a link like the nav's. */
 .yc .yc-me-link {
   color: inherit;
@@ -420,6 +436,10 @@
   }
 
   .yc-side {
+    position: static;
+    height: auto;
+    overflow-y: visible;
+    align-self: stretch;
     flex: none;
     width: auto;
     flex-direction: row;
@@ -2851,6 +2871,14 @@ textarea.yc-ctl {
 .yc-legacy input[type='checkbox'],
 .yc-legacy input[type='radio'] {
   accent-color: var(--console-brand);
+}
+
+/* A venue page's title: its h1 now that the shell names the venue in the sidebar. */
+.yc-legacy .page h1 {
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-title);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
 }
 
 .yc-legacy .page h2,

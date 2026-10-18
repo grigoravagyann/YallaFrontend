@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createVenueUserAuth } from '../auth/endpoints';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
 import { TooManyRequestsError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
-import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
+import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 
 /**
  * My account over HTTP (venue-console Account artboard), on the wire the
@@ -182,5 +183,70 @@ describe('my account over HTTP', () => {
     expect(await gateway.signOutOtherVenueSessions()).toEqual({ endedSessions: 2 });
     expect(backend.requests[0]?.method).toBe('POST');
     expect(backend.requests[0]?.body ?? null).toBeNull();
+  });
+});
+
+describe('after signing out everywhere else', () => {
+  /*
+   * The server ends this browser's access token with the others' and keeps
+   * its refresh token, answering no fresh pair on purpose. The next request is
+   * refused `401 session-revoked`; the client refreshes once through
+   * `/api/auth/venue/refresh` with the token it holds and retries, and the
+   * person stays signed in.
+   */
+  it('renews this sign-in on the next request and carries on', async () => {
+    let sessionsAsked = 0;
+    const backend = fakeBackend({
+      'POST /api/venue/me/sessions/sign-out-others': { body: { endedSessions: 2 } },
+      'GET /api/venue/me/sessions': (request) => {
+        sessionsAsked += 1;
+        return request.headers.get('authorization') === 'Bearer access-1'
+          ? problemReply(401, 'session-revoked')
+          : {
+              body: {
+                sessions: [
+                  {
+                    id: 'r-1',
+                    signedInAtUtc: '2026-10-19T08:00:00Z',
+                    lastActiveAtUtc: '2026-10-19T10:40:00Z',
+                    isCurrent: true,
+                  },
+                ],
+              },
+            };
+      },
+      'POST /api/auth/venue/refresh': (request) =>
+        (request.body as { refreshToken?: string }).refreshToken === 'refresh-1'
+          ? { body: { accessToken: 'access-2', refreshToken: 'refresh-2', expiresInSeconds: 900 } }
+          : problemReply(401, 'refresh-token-revoked'),
+    });
+    const venueAuth = createVenueUserAuth(backend.client());
+    const auth = createAuthSession({
+      storage: createMemoryTokenStorage('refresh-1'),
+      refreshTokens: venueAuth.refreshTokens,
+    });
+    await auth.signIn({
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      expiresInSeconds: 900,
+    });
+    const gateway = createConsoleHttpGateway(backend.client({ auth }), {
+      auth,
+      identity: createMemoryIdentityStore(),
+    });
+
+    expect(await gateway.signOutOtherVenueSessions()).toEqual({ endedSessions: 2 });
+    const sessions = await gateway.listVenueSessions();
+
+    expect(sessions.map((session) => session.isCurrent)).toEqual([true]);
+    expect(sessionsAsked).toBe(2);
+    expect(backend.requests.map((request) => `${request.method} ${request.path}`)).toEqual([
+      'POST /api/venue/me/sessions/sign-out-others',
+      'GET /api/venue/me/sessions',
+      'POST /api/auth/venue/refresh',
+      'GET /api/venue/me/sessions',
+    ]);
+    expect(auth.getState()).toBe('signedIn');
+    expect(auth.peekAccessToken()).toBe('access-2');
   });
 });

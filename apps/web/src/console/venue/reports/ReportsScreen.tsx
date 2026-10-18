@@ -102,7 +102,7 @@ export function ReportsScreen() {
   if (!branchId) {
     return (
       <section className="page">
-        <h2>{t('nav.reports')}</h2>
+        <h1>{t('nav.reports')}</h1>
         <p className="muted">{t('menu.noBranch')}</p>
       </section>
     );
@@ -112,7 +112,7 @@ export function ReportsScreen() {
     <section className="page reports-page">
       <header className="reports-head">
         <div>
-          <h2>{t('nav.reports')}</h2>
+          <h1>{t('nav.reports')}</h1>
           <p className="muted">{t('reports.intro')}</p>
         </div>
 

@@ -5,6 +5,7 @@ import {
   createMemoryTokenStorage,
   createMockVenueUserAuth,
   createVenueUserAuth,
+  webLocksExclusive,
   type AuthSession,
   type SignOutReason,
 } from '@yalla/api';
@@ -49,6 +50,11 @@ export const authSession: AuthSession = config.api
       storage: createIdbTokenStorage(),
       refreshTokens: venueAuth.refreshTokens,
       revoke: venueAuth.signOut,
+      // Every tab shares the refresh token in IndexedDB, and a sign-out
+      // everywhere else ends every tab's access token at once: one refresh at
+      // a time across the origin, or two tabs spend the same token and the
+      // server revokes the chain (`webLocksExclusive`).
+      exclusive: webLocksExclusive('yalla-console-refresh'),
       onSignedOut: (reason) => {
         identityStore.set(null);
         for (const listener of signedOutListeners) listener(reason);

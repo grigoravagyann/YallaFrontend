@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { createConsoleMockGateway } from '@yalla/api';
+import { createConsoleMockGateway, ForbiddenError, type ConsoleGateway } from '@yalla/api';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
@@ -40,21 +40,36 @@ afterEach(() => {
   signOut.mockClear();
 });
 
-async function renderAccount() {
-  const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
-  const user = await gateway.getCurrentUser();
-  const harness = createConsoleHarness({ gateway });
+async function renderAt(path: string, gateway?: ConsoleGateway) {
+  const source = gateway ?? createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+  const user = await source.getCurrentUser();
+  const harness = createConsoleHarness({ gateway: source });
   render(
     harness.wrap(
       <Routes>
         <Route path="/venue" element={<VenueLayout user={user} />}>
+          <Route index element={<h1>Overview page</h1>} />
           <Route path="account" element={<AccountScreen />} />
         </Route>
       </Routes>,
-      '/venue/account',
+      path,
     ),
   );
+}
+
+async function renderAccount() {
+  await renderAt('/venue/account');
   return screen.findByRole('button', { name: 'Sign out' });
+}
+
+/** A venue user whose venue read is refused: a deactivated account, say. */
+function refusedVenueRead(): ConsoleGateway {
+  const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+  return {
+    ...base,
+    getManagedVenue: (venueId) =>
+      Promise.reject(new ForbiddenError({ url: `/api/venues/${venueId}/manage` })),
+  };
 }
 
 describe('signing out from My account', () => {
@@ -83,6 +98,34 @@ describe('signing out from My account', () => {
   it('ends the session on "Sign out"', async () => {
     const actor = userEvent.setup();
     await actor.click(await renderAccount());
+    const confirm = screen
+      .getAllByRole('button', { name: 'Sign out' })
+      .find((button) => button.closest('[role="alertdialog"]'));
+    await actor.click(confirm!);
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('when the venue read is refused (review, phase 1)', () => {
+  /*
+   * The screens wait for `GET /api/venues/{id}/manage`; a refusal (a
+   * deactivated account answers 403, and retrying changes nothing) used to
+   * leave a person with no way out but clearing the site's data, because
+   * sign-out lived only on My account behind the same gate.
+   */
+  it('offers sign-out beside the refusal', async () => {
+    const actor = userEvent.setup();
+    await renderAt('/venue', refusedVenueRead());
+    await screen.findByText('Your account cannot see this.');
+    await actor.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('still opens My account, whose sign-out works', async () => {
+    const actor = userEvent.setup();
+    await renderAt('/venue/account', refusedVenueRead());
+    expect(await screen.findByRole('heading', { level: 1, name: 'My account' })).toBeTruthy();
+    await actor.click(screen.getByRole('button', { name: 'Sign out' }));
     const confirm = screen
       .getAllByRole('button', { name: 'Sign out' })
       .find((button) => button.closest('[role="alertdialog"]'));

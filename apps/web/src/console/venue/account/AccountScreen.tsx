@@ -9,7 +9,7 @@ import {
 } from '@yalla/api/react';
 import { formatDayAndTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { signOut } from '../../../auth/authSession';
 import { useCurrentUser } from '../../../auth/useCurrentUser';
 import { usingMockData } from '../../../data/gateway';
@@ -248,6 +248,7 @@ function SessionsCard() {
   const signOutOthers = useSignOutOtherVenueSessions();
   const toast = useToast();
   const titleId = useId();
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const [failed, setFailed] = useState(false);
 
   const rows = sessions.data ?? [];
@@ -273,6 +274,8 @@ function SessionsCard() {
     setFailed(false);
     try {
       const { endedSessions } = await signOutOthers.mutateAsync();
+      // The button leaves with the others; the focus goes to the card, not <body>.
+      titleRef.current?.focus();
       toast.say(
         endedSessions > 0
           ? t('account.sessions.ended', { count: endedSessions })
@@ -287,7 +290,7 @@ function SessionsCard() {
     <section className="yc-card" aria-labelledby={titleId}>
       <div className="yc-card-h">
         <div>
-          <h2 className="yc-h2" id={titleId}>
+          <h2 className="yc-h2" id={titleId} ref={titleRef} tabIndex={-1}>
             {t('account.sessions.title')}
           </h2>
           <p className="yc-cap">{t('account.sessions.cap')}</p>

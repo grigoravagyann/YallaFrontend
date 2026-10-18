@@ -358,15 +358,19 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     password: MOCK_PLATFORM_PASSWORD,
   };
   /**
-   * `/api/venue/me*`: the signed-in venue staff member's own account. The name
-   * is `null` until they change it (the role's seeded name stands); the other
-   * sign-ins are seeded on first read, relative to `now`.
+   * `/api/venue/me*`: the signed-in venue staff member's own account. A name
+   * they changed, by their staff id — absent, the role's seeded name stands —
+   * so one person's rename never reaches another's row; the other sign-ins are
+   * seeded on first read, relative to `now`.
    */
   const venueSelf: {
-    fullName: string | null;
+    names: Map<string, string>;
     password: string;
     others: VenueSession[] | null;
-  } = { fullName: null, password: MOCK_VENUE_PASSWORD, others: null };
+  } = { names: new Map(), password: MOCK_VENUE_PASSWORD, others: null };
+  /** The signed-in venue staff member's name: theirs if they changed it, else the seeded one. */
+  const selfName = (staffMemberId: string, seeded: string) =>
+    venueSelf.names.get(staffMemberId) ?? seeded;
   /** The activity feed, newest first: a short seeded history, then what is done here. */
   const activity: PlatformActivityEntry[] = [];
   let activitySeeded = false;
@@ -1198,7 +1202,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const staff: ConsoleStaffMember[] = [
       {
         id: `${venue.id}-owner`,
-        displayName: venueSelf.fullName ?? 'Aram Sargsyan',
+        displayName: 'Aram Sargsyan',
         role: 'owner',
         branchId: null,
       },
@@ -1792,32 +1796,38 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           role,
           scope: { venueId: null, branchIds: [] },
         };
-      case 'owner':
+      case 'owner': {
+        const id = firstVenue ? `${firstVenue.id}-owner` : 'u-owner';
         return {
-          id: firstVenue ? `${firstVenue.id}-owner` : 'u-owner',
-          displayName: 'Aram Sargsyan',
+          id,
+          displayName: selfName(id, 'Aram Sargsyan'),
           role,
           scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
         };
-      case 'generalManager':
+      }
+      case 'generalManager': {
         // Venue-wide: the row names no branch, so neither does the token.
+        const id = firstVenue ? `${firstVenue.id}-general-manager` : 'u-general-manager';
         return {
-          id: firstVenue ? `${firstVenue.id}-general-manager` : 'u-general-manager',
-          displayName: venueSelf.fullName ?? 'Hasmik Karapetyan',
+          id,
+          displayName: selfName(id, 'Hasmik Karapetyan'),
           role,
           scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
         };
-      case 'manager':
+      }
+      case 'manager': {
         // A branch manager's row always names their branch, and so does the token.
+        const id = homeBranch ? `${homeBranch}-manager` : 'u-manager';
         return {
-          id: homeBranch ? `${homeBranch}-manager` : 'u-manager',
-          displayName: venueSelf.fullName ?? 'Nare Petrosyan',
+          id,
+          displayName: selfName(id, 'Nare Petrosyan'),
           role,
           scope: {
             venueId: firstVenue?.id ?? null,
             branchIds: homeBranch ? [homeBranch] : [],
           },
         };
+      }
       default:
         // A waiter or a kitchen account is one branch and no more.
         return {
@@ -2601,7 +2611,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       }
       // One person, one name: the staff list says what the account says.
       const before = venueProfile();
-      venueSelf.fullName = name;
+      venueSelf.names.set(before.staffMemberId, name);
       const list = staffFor(before.venueId);
       const index = list.findIndex((member) => member.id === before.staffMemberId);
       if (index >= 0) list[index] = { ...list[index]!, fullName: name };

@@ -39,7 +39,7 @@ export function VenueReviewsScreen() {
   if (!branchId) {
     return (
       <section className="page">
-        <h2>{t('reviews.title')}</h2>
+        <h1>{t('reviews.title')}</h1>
         <p className="muted">{t('menu.noBranch')}</p>
       </section>
     );
@@ -77,7 +77,7 @@ export function VenueReviewsScreen() {
   return (
     <section className="page">
       <header className="page-head">
-        <h2>{t('reviews.title')}</h2>
+        <h1>{t('reviews.title')}</h1>
       </header>
 
       <div className="chip-row" role="group" aria-label={t('reviews.title')}>

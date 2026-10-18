@@ -220,6 +220,12 @@ describe('where they are signed in', () => {
     expect(await screen.findByText(`You were signed out on ${others} other devices`)).toBeTruthy();
     await waitFor(() => expect(sessionRows()).toHaveLength(1));
     expect(screen.queryByRole('button', { name: 'Sign out everywhere else' })).toBeNull();
+    // The button went with the others; the focus does not fall to the page.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { level: 2, name: "Where you're signed in" }),
+      ),
+    );
   });
 });
 

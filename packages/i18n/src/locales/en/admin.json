@@ -161,12 +161,8 @@
     }
   },
   "shell": {
-    "title": "Yalla console",
-    "signedInAs": "Signed in as {{name}}",
     "devRole": "Dev only — view as",
     "devReset": "Reset mock data",
-    "openMenu": "Menu",
-    "closeMenu": "Close the menu",
     "signOut": "Sign out",
     "mainNav": "Main navigation",
     "skipToContent": "Skip to content",
@@ -1898,7 +1894,8 @@
         "tableQr": "replaced the QR code of table {{target}}",
         "rename": "changed their name",
         "password": "changed their password",
-        "other": "made a change"
+        "other": "made a change",
+        "signOutOthers": "signed out of their other devices"
       }
     }
   },

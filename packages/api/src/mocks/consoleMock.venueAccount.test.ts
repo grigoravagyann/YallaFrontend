@@ -47,16 +47,28 @@ describe('my account', () => {
     }
   });
 
-  it('renames them trimmed, and the signed-in name and staff row follow', async () => {
-    const gateway = mock('generalManager');
-    const before = await gateway.getVenueProfile();
-    const after = await gateway.updateVenueProfile({ fullName: '  Lilit Sargsyan ' });
-    expect(after).toEqual({ ...before, fullName: 'Lilit Sargsyan' });
-    expect((await gateway.getCurrentUser()).displayName).toBe('Lilit Sargsyan');
-    const row = (await gateway.listStaff(before.venueId)).find(
-      (member) => member.id === before.staffMemberId,
-    );
-    expect(row?.fullName).toBe('Lilit Sargsyan');
+  it("renames them trimmed, and their signed-in name and staff row follow — nobody else's", async () => {
+    for (const role of ['owner', 'generalManager', 'manager'] as const) {
+      const gateway = mock(role);
+      const before = await gateway.getVenueProfile();
+      const others = (await gateway.listStaff(before.venueId)).filter(
+        (member) => member.id !== before.staffMemberId,
+      );
+      const after = await gateway.updateVenueProfile({ fullName: `  Renamed ${role} ` });
+      expect(after).toEqual({ ...before, fullName: `Renamed ${role}` });
+      expect((await gateway.getCurrentUser()).displayName).toBe(`Renamed ${role}`);
+      expect((await gateway.getVenueProfile()).fullName).toBe(`Renamed ${role}`);
+      const staff = await gateway.listStaff(before.venueId);
+      expect(staff.find((member) => member.id === before.staffMemberId)?.fullName).toBe(
+        `Renamed ${role}`,
+      );
+      expect(staff.filter((member) => member.id !== before.staffMemberId)).toEqual(others);
+      // The venue's platform view still names its owner by the owner's own name.
+      if (role !== 'owner') {
+        const owner = staff.find((member) => member.role === 'owner');
+        expect(owner?.fullName).not.toBe(`Renamed ${role}`);
+      }
+    }
   });
 
   it('refuses a blank name and a long one, naming the field', async () => {

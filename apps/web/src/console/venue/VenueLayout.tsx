@@ -2,8 +2,11 @@ import type { ConsoleUser, ManagedBranch } from '@yalla/api';
 import { useVenueProfile } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useId } from 'react';
-import { Outlet, useOutletContext } from 'react-router-dom';
+import { Outlet, useMatch, useOutletContext } from 'react-router-dom';
+import { signOut } from '../../auth/authSession';
+import { FLOOR_ROLES } from '../../auth/useCurrentUser';
 import { QueryFailureNotice } from '../../components/QueryFailureNotice';
+import { usingMockData } from '../../data/gateway';
 import { useManagedVenue } from '../../data/queries';
 import { ConsoleShell, initialsOf, type ShellGroup } from '../ui/ConsoleShell';
 import {
@@ -15,8 +18,10 @@ import {
   PublicPageIcon,
   ReportsIcon,
   RoomsIcon,
+  SignOutIcon,
   StaffIcon,
   StarIcon,
+  TabIcon,
 } from '../ui/icons';
 import { useBranchScope } from './useBranchScope';
 import { confirmLeave } from './useUnsavedChangesGuard';
@@ -34,8 +39,16 @@ export const VENUE_ACCOUNT_PATH = '/venue/account';
  * counts on Overview, Menu and Reviews. Every role under `/venue` gets the
  * same links: what an owner, a general manager and a branch manager may *do*
  * on each screen is the server's rank check, and the screens say so.
+ *
+ * One addition the artboards do not draw: a branch manager also works the
+ * floor (`FLOOR_ROLES`), and the console's old sidebar linked the floor
+ * screen for them. Dropping a working route would be a regression, so it
+ * stays, under Today, after the overview.
  */
-export function venueNavGroups(counts: VenueNavCounts): readonly ShellGroup[] {
+export function venueNavGroups(
+  counts: VenueNavCounts,
+  { floor }: { readonly floor: boolean } = { floor: false },
+): readonly ShellGroup[] {
   const badge = (count: number | null, sayKey: string) =>
     count === null ? null : { count, sayKey };
   return [
@@ -51,6 +64,8 @@ export function venueNavGroups(counts: VenueNavCounts): readonly ShellGroup[] {
           end: true,
           badge: badge(counts.pendingApprovals, 'nav.badge.pendingApprovals'),
         },
+        // The counter screen, its own app with its own PIN session.
+        ...(floor ? [{ to: '/staff', labelKey: 'nav.floor', icon: <TabIcon /> }] : []),
       ],
     },
     {
@@ -126,10 +141,37 @@ export function VenueLayout({ user }: VenueLayoutProps) {
 
   const current = branches.find((branch) => branch.id === branchId);
   const name = profile?.fullName || user.displayName || t(`role.${user.role}`);
+  // My account needs nothing from the venue read, and holds the sign-out: it
+  // opens whatever that read answered, so nobody is left with no way out.
+  const onAccount = useMatch(VENUE_ACCOUNT_PATH) !== null;
+
+  /* The branch travels through the outlet, not the URL: a branch id in the
+     address bar is a scope claim the user could edit. */
+  const outlet = (
+    <Outlet
+      context={
+        {
+          branchId,
+          timeZoneId: current?.timeZoneId ?? 'Asia/Yerevan',
+          branchCount: branches.length,
+          // The server allows the venue-wide report rollup to an owner, a
+          // general manager or the platform admin (`ReportQuery.cs`). Decided
+          // here, once, so no screen re-implements a role check — and so a
+          // branch manager is not offered a query the server 403s.
+          canRollUpVenue:
+            (user.role === 'owner' || user.role === 'generalManager') && branches.length > 1,
+          // Moving a branch — its map pin or its address — is an owner's
+          // (K5); a manager's save of either is refused and audited as a
+          // refusal, so the editors are not offered.
+          canRelocate: user.role === 'owner',
+        } satisfies VenueOutletContext
+      }
+    />
+  );
 
   return (
     <ConsoleShell
-      groups={venueNavGroups(counts)}
+      groups={venueNavGroups(counts, { floor: FLOOR_ROLES.includes(user.role) })}
       place={
         <VenuePlace
           venueName={venue.data?.name ?? (venue.isLoading ? t('loading') : '')}
@@ -145,34 +187,26 @@ export function VenueLayout({ user }: VenueLayoutProps) {
       person={{ name, caption: t('nav.account'), accountTo: VENUE_ACCOUNT_PATH }}
     >
       <div className="yc-legacy">
-        {venue.isLoading ? (
+        {onAccount ? (
+          outlet
+        ) : venue.isLoading ? (
           <p className="muted" role="status">
             {t('loading')}
           </p>
         ) : venue.isError ? (
-          <QueryFailureNotice error={venue.error} onRetry={() => void venue.refetch()} />
+          <div className="yc-refused">
+            <QueryFailureNotice error={venue.error} onRetry={() => void venue.refetch()} />
+            {/* A refusal that retrying cannot change (a deactivated account's
+                403) must not leave the person stuck signed in. */}
+            {usingMockData ? null : (
+              <button type="button" className="yc-btn yc-btn-sec" onClick={() => void signOut()}>
+                <SignOutIcon />
+                {t('shell.signOut')}
+              </button>
+            )}
+          </div>
         ) : (
-          /* The branch travels through the outlet, not the URL: a branch id in
-             the address bar is a scope claim the user could edit. */
-          <Outlet
-            context={
-              {
-                branchId,
-                timeZoneId: current?.timeZoneId ?? 'Asia/Yerevan',
-                branchCount: branches.length,
-                // The server allows the venue-wide report rollup to an owner, a
-                // general manager or the platform admin (`ReportQuery.cs`).
-                // Decided here, once, so no screen re-implements a role check —
-                // and so a branch manager is not offered a query the server 403s.
-                canRollUpVenue:
-                  (user.role === 'owner' || user.role === 'generalManager') && branches.length > 1,
-                // Moving a branch — its map pin or its address — is an owner's
-                // (K5); a manager's save of either is refused and audited as a
-                // refusal, so the editors are not offered.
-                canRelocate: user.role === 'owner',
-              } satisfies VenueOutletContext
-            }
-          />
+          outlet
         )}
       </div>
     </ConsoleShell>

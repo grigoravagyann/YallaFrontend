@@ -31,8 +31,16 @@ export function PublicPageScreen() {
   const { t } = useTranslation(['admin', 'common']);
   const { branchId, canRelocate } = useVenueOutlet();
 
-  if (!branchId) return <p className="muted">{t('publicPage.noBranch')}</p>;
-  return <PublicPageEditor branchId={branchId} canRelocate={canRelocate} />;
+  if (!branchId) {
+    return (
+      <section className="page">
+        <h1>{t('nav.public')}</h1>
+        <p className="muted">{t('publicPage.noBranch')}</p>
+      </section>
+    );
+  }
+  // The venue console's page: its title is the page's one h1.
+  return <PublicPageEditor branchId={branchId} canRelocate={canRelocate} titleLevel={1} />;
 }
 
 /**
@@ -45,10 +53,16 @@ export function PublicPageEditor({
   canRelocate,
   onDraft,
   onListingDraft,
+  titleLevel = 2,
 }: {
   readonly branchId: string;
   /** Owner or platform admin: may move the map pin and change the address (K5). */
   readonly canRelocate: boolean;
+  /**
+   * 1 where the form is the page (the venue console); 2 under the platform's
+   * branch header, which carries the page's h1.
+   */
+  readonly titleLevel?: 1 | 2;
   /** Told what the card would show from each form, for a live preview beside them. */
   readonly onDraft?: ((draft: PublicPageDraft) => void) | undefined;
   readonly onListingDraft?: ((draft: ListingDraft) => void) | undefined;
@@ -74,6 +88,7 @@ export function PublicPageEditor({
       canRelocate={canRelocate}
       onDraft={onDraft}
       onListingDraft={onListingDraft}
+      titleLevel={titleLevel}
     />
   );
 }
@@ -84,7 +99,9 @@ function PublicPageForm({
   canRelocate,
   onDraft,
   onListingDraft,
+  titleLevel,
 }: {
+  readonly titleLevel: 1 | 2;
   readonly branchId: string;
   readonly initial: BranchPublicProfile;
   readonly canRelocate: boolean;
@@ -139,7 +156,7 @@ function PublicPageForm({
     <section className="page">
       <header className="page-head">
         <div>
-          <h2>{t('nav.public')}</h2>
+          {titleLevel === 1 ? <h1>{t('nav.public')}</h1> : <h2>{t('nav.public')}</h2>}
           <p className="muted">{t('publicPage.intro')}</p>
         </div>
       </header>

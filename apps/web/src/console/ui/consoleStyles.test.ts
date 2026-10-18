@@ -127,6 +127,18 @@ describe('the console stylesheet keeps its contrast', () => {
   });
 });
 
+describe('the console sidebar', () => {
+  // QA, venue console phase 1: on a long page the person at the foot — My
+  // account and sign-out — scrolled away with the page.
+  it('stays in view while the page scrolls, and scrolls on its own when it must', () => {
+    const side = consoleRules().find((rule) => rule.selector === '.yc-side');
+    expect(side?.body).toMatch(/position:\s*sticky/u);
+    expect(side?.body).toMatch(/top:\s*0/u);
+    expect(side?.body).toMatch(/height:\s*100vh/u);
+    expect(side?.body).toMatch(/overflow-y:\s*auto/u);
+  });
+});
+
 describe("a branch's sub-tabs", () => {
   /*
    * Public page / Rooms and tables / Reviews scroll sideways on a narrow

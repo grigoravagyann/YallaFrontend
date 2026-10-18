@@ -78,6 +78,7 @@ export function ReservationPolicyScreen() {
   if (!branchId) {
     return (
       <section className="page">
+        <h1>{t('nav.policy')}</h1>
         <p className="muted">{t('menu.noBranch')}</p>
       </section>
     );
@@ -110,7 +111,7 @@ export function ReservationPolicyScreen() {
   return (
     <section className="page policy-screen">
       <header className="page-head">
-        <h2>{t('nav.policy')}</h2>
+        <h1>{t('nav.policy')}</h1>
         <div className="page-actions">
           {dirty ? <span className="badge badge-warn">{t('hours.unsaved')}</span> : null}
           <button

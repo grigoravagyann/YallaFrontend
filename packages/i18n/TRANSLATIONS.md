@@ -573,6 +573,13 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     label was a bare "Կրկնեք". `sessions.ended_*` counts the **other**
     sign-ins ended (the artboard's "Մյուս 2 սարքերից դուրս եկաք"). Formal
     `Դուք` throughout.
+  - Review fixes: `home.activity.action.signOutOthers` (Home's feed line for a
+    venue person's "sign out everywhere else", **not** in an artboard); the
+    feed's `account.rename` and `account.password-change` lines reuse
+    `home.activity.action.rename` / `.password`. `nav.floor` is kept: a
+    branch manager's sidebar still links the floor screen, which the
+    artboards do not draw. Removed with the old sidebar, nothing renders them:
+    `shell.title`, `shell.signedInAs`, `shell.openMenu` and `shell.closeMenu`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
