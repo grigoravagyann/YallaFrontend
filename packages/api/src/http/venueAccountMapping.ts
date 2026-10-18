@@ -4,39 +4,21 @@ import type {
   VenueSession,
   VenueStaffProfile,
 } from '../contracts/venueAccount';
+import type { components } from '../generated/schema';
 
-/*
- * My account's wire shapes (VC1 wire, `feat/venue-console-1`), written here by
- * hand until `generated/schema.ts` is regenerated against the backend that
- * serves `/api/venue/me*`. Then these become `Schemas[...]` aliases, and the
- * `gateway-schema: awaiting-route` markers in the gateway come off.
- */
+type Schemas = components['schemas'];
 
 /** `GET`/`PATCH /api/venue/me`. `role` is `StaffRole`'s integer: 1 owner, 6 general manager, 2 manager. */
-export interface WireVenueStaffProfile {
-  readonly staffMemberId: string;
-  readonly fullName: string;
-  readonly email: string;
-  readonly role: number;
-  readonly venueId: string;
-  readonly branchId?: string | null;
-}
+export type WireVenueStaffProfile = Schemas['Yalla.Application.Auth.VenueUserProfile'];
 
-/** One row of `GET /api/venue/me/sessions`. */
-export interface WireVenueSession {
-  readonly id: string;
-  readonly signedInAtUtc: string;
-  readonly lastActiveAtUtc: string;
-  readonly isCurrent: boolean;
-}
+/** `GET /api/venue/me/sessions`. */
+export type WireVenueSessions = Schemas['Yalla.Application.Auth.VenueUserSessions'];
 
-export interface WireVenueSessions {
-  readonly sessions: readonly WireVenueSession[];
-}
+/** `POST /api/venue/me/sessions/sign-out-others`. */
+export type WireOtherSessionsEnded = Schemas['Yalla.Application.Auth.SignedOutElsewhere'];
 
-export interface WireOtherSessionsEnded {
-  readonly endedSessions: number;
-}
+/** `POST /api/venue/me/password`: the refresh endpoint's shape, a fresh pair for this browser. */
+export type WireVenuePasswordChanged = Schemas['Yalla.Application.Auth.RefreshResult'];
 
 export function venueProfileFromWire(wire: WireVenueStaffProfile): VenueStaffProfile {
   return {
