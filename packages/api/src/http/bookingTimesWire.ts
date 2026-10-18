@@ -1,15 +1,12 @@
 import type { IncomingTableRequest } from '../contracts/booking';
 
 /**
- * The booking-times wire, ahead of the generated schema.
+ * The booking-times fields, as the mappers read them.
  *
- * Must-free-by times, requestable tables and times, the promise a booking
- * carries and the earlier guest's request are written by the backend alongside
- * this. Until `pnpm api:generate` is run against it, `generated/schema.ts` does
- * not have them, so they are declared here as optional additions to the
- * generated shapes — absent from an older server, which every mapper reads as
- * "nothing cut short, nothing to ask" rather than as a failure. Once
- * regenerated, the intersections collapse into the generated types and go.
+ * `generated/schema.ts` carries all of these now; the narrow optional views
+ * here keep each mapper reading only what it needs, and an older server that
+ * leaves a field out reads as "nothing cut short, nothing to ask" rather than
+ * as a failure.
  *
  * Like `approvalMapping.ts`, this file imports no other mapper, so every one
  * of them can import it.

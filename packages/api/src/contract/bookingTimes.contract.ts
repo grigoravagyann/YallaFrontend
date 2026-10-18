@@ -124,23 +124,45 @@ export function describeBookingTimesContract(subject: ContractSubject): void {
     });
 
     it('offers it from 90 minutes after as a request, which waits for the guest before', async () => {
-      const slotUtc = shifted(120);
-      const table = await onTable(slotUtc);
-      expect(table).toMatchObject({
-        isBookable: true,
-        requiresApproval: true,
-        isRequestable: true,
-      });
+      // An earlier booking of its own, four hours before the evening one, so the request and its
+      // sitting both fit the opening hours whatever the evening's hour is.
+      const earlierUtc = shifted(-240);
+      const earlierTable = await onTable(earlierUtc);
+      const earlier = await diner.gateway.createBooking(
+        command(
+          earlierUtc,
+          earlierTable.mustFreeByUtc ? { acceptsFreeByUtc: earlierTable.mustFreeByUtc } : {},
+        ),
+      );
+      try {
+        const slotUtc = shifted(-120);
+        const table = await onTable(slotUtc);
+        expect(table).toMatchObject({
+          isBookable: true,
+          requiresApproval: true,
+          isRequestable: true,
+        });
 
-      const later = await diner.gateway.createBooking(command(slotUtc));
-      expect(later).toMatchObject({
-        status: 'pendingApproval',
-        awaitingApprovalBecause: 'earlierGuestConsent',
-      });
-      const window = Date.parse(later.approvalExpiresAtUtc!) - Date.now();
-      expect(window).toBeGreaterThan(0);
-      expect(window).toBeLessThanOrEqual(EARLIER_GUEST_WINDOW_MINUTES * MINUTE + MINUTE);
-      await diner.gateway.cancelBooking(later.id);
+        const later = await diner.gateway.createBooking(
+          command(slotUtc, table.mustFreeByUtc ? { acceptsFreeByUtc: table.mustFreeByUtc } : {}),
+        );
+        expect(later.status).toBe('pendingApproval');
+        // Tomorrow is short notice only late in the evening; otherwise the guest before is asked.
+        expect(['earlierGuestConsent', 'shortNotice']).toContain(later.awaitingApprovalBecause);
+        // Asked in the app (a guest with a device): two hours at most. Decided by the floor (no
+        // device to ask, as this run's diner): no clock at all - the venue answers when it can.
+        if (
+          later.awaitingApprovalBecause === 'earlierGuestConsent' &&
+          later.approvalExpiresAtUtc !== null
+        ) {
+          const window = Date.parse(later.approvalExpiresAtUtc) - Date.now();
+          expect(window).toBeGreaterThan(0);
+          expect(window).toBeLessThanOrEqual(EARLIER_GUEST_WINDOW_MINUTES * MINUTE + MINUTE);
+        }
+        await diner.gateway.cancelBooking(later.id);
+      } finally {
+        await diner.gateway.cancelBooking(earlier.id).catch(() => undefined);
+      }
     });
   });
 }

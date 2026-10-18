@@ -22,6 +22,7 @@ const table = (
   photoId: 'p1',
   photoX: 0.1,
   photoY: 0.2,
+  isRequestable: false,
   floorAreaName: 'Terrace',
   floorAreaDisplayOrder: 1,
   isBookable: true,

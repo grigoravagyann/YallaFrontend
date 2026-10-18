@@ -1764,7 +1764,6 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     async answerTableRequest({ bookingId, requestId, accept, commandId }): Promise<Booking> {
       let data: ReservationViewWire | undefined;
       try {
-        // gateway-schema: awaiting-route — booking times
         ({ data } = await client.post<ReservationViewWire | undefined>(
           `/api/reservations/${bookingId}/table-requests/${requestId}/answer`,
           { accept, clientCommandId: commandId },

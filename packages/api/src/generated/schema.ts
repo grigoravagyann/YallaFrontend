@@ -446,6 +446,8 @@ export interface paths {
          * Which tables a branch can offer for one slot
          * @description Every table in the branch pinned on a room photo - `photoId`, `photoX`, `photoY` - with its derived state at the requested time, whether it can be booked for this party - and if not, the one specific reason - and the window the diner may have. Assembled in a single query. Returns no guest names and no money. Omit date and time for 'now, at the branch'.
          *
+         *     Each table also says what booking it takes: `isRequestable` when the guest with it before has to agree to leave in time first (the booking waits - `requiresApproval`), and `mustFreeByUtc`/`mustFreeByLocal` when a full sitting would run into its next booking - send that instant back as `acceptsFreeByUtc` once the diner agrees. The rules are the day slots' - see `getBranchDaySlots`.
+         *
          *     `excludeReservationId` leaves one booking out of the answer as though it had never been made - the diner's own, while they change it, so the table they already hold reads as free to them. Every other booking still counts, and an id that is not a booking at this branch changes nothing. Anonymous like the rest of the read: booking ids are unguessable, and the answer says no more about the one left out than that its table is free.
          */
         get: operations["getBranchAvailability"];
@@ -466,11 +468,13 @@ export interface paths {
         };
         /**
          * Which start times on one day have a table for this party
-         * @description Every half hour from 00:00 on `date` (`stepMinutes` is 30) whose whole sitting - the branch's turn time - fits one opening block, earliest first. A time the branch is shut for is **left out**, never struck. Each slot carries `time` (`HH:mm`, branch wall clock), `startUtc`, `isAvailable`, `requiresApproval`, `freeTableCount` and, when not available, `unavailableReason`.
+         * @description Every quarter of an hour from 00:00 on `date` (`stepMinutes` is 15) whose whole sitting - the branch's turn time - fits one opening block, earliest first. A time the branch is shut for is **left out**, never struck. Each slot carries `time` (`HH:mm`, branch wall clock), `startUtc`, `isAvailable`, `isRequestable`, `requiresApproval`, `freeTableCount`, `requestableTableCount`, `mustFreeByUtc`/`mustFreeByLocal` and, when not available, `unavailableReason`.
          *
-         *     **`isAvailable`** is true when at least one bookable table pinned on a photo of its room seats the party within the seat-overhang limit and has no booking or sitting running into the slot, clearing time included. These are the single-slot read's own rules over the same rows, so a time listed here as free is one `availability?time=` offers exactly `freeTableCount` tables at, and a struck time is one it offers none at.
+         *     **`isAvailable`** is true when at least one bookable table pinned on a photo of its room seats the party within the seat-overhang limit and the table's evening allows it - free outright (`freeTableCount`) or once the guest before agrees to leave in time (`requestableTableCount`; `isRequestable` when that is all there is, and `requiresApproval` with it). These are the single-slot read's own rules over the same rows, so a time listed here is one `availability?time=` offers exactly those tables at, and a struck time one it offers none at.
          *
-         *     **Why a time is struck**: `LeadTimeTooShort` (1) or `OutsideBookingWindow` (2) when the time itself is refused; otherwise `TableAlreadyBooked` (8) - or `TableCurrentlyOccupied` (10) - when tables that fit the party are taken, else the commonest table reason, e.g. `PartyExceedsCapacity` (4) when nothing seats them.
+         *     **The table's evening** - fixed rules, the ones a booking is judged by under the table's lock: refused from the previous booking's start until ninety minutes after it (`TableJustBooked` 11) and within forty-five minutes before the next one (`NextBookingTooSoon` 12); from ninety minutes to three hours after the previous start, or while that sitting plus clearing time still runs, the table can only be asked for - its guest is asked to have left by the start less the clearing time - and while one such question to a guest is open nobody else can ask (`EarlierGuestBeingAsked` 13). A sitting that would run into the next booking ends at that booking's start less the clearing time; `mustFreeByUtc` is the latest such time when no table on offer gives a full sitting.
+         *
+         *     **Why a time is struck**: `LeadTimeTooShort` (1) or `OutsideBookingWindow` (2) when the time itself is refused; otherwise, when tables that fit the party are taken, the commonest of `TableAlreadyBooked` (8), `TableCurrentlyOccupied` (10), `TableJustBooked` (11), `NextBookingTooSoon` (12) and `EarlierGuestBeingAsked` (13); else the commonest table reason, e.g. `PartyExceedsCapacity` (4) when nothing seats them.
          *
          *     The top-level `unavailableReason` refuses the whole day: `OutsideOpeningHours` (3) with no slots when the branch is shut all day, or the timing reason every listed time shares - a past day, the rest of today inside the lead time, a date beyond the booking window. Null when any time was judged on its tables.
          *
@@ -2288,11 +2292,13 @@ export interface paths {
          *     for one slot.
          * @description The app's day-slots read, reused rather than reimplemented, behind the public 404 rule and the tighter rate limit. `partySize` is required here, as on the public single-slot read.
          *
-         *     Every half hour from 00:00 on `date` (`stepMinutes` is 30) whose whole sitting - the branch's turn time - fits one opening block, earliest first. A time the branch is shut for is **left out**, never struck. Each slot carries `time` (`HH:mm`, branch wall clock), `startUtc`, `isAvailable`, `requiresApproval`, `freeTableCount` and, when not available, `unavailableReason`.
+         *     Every quarter of an hour from 00:00 on `date` (`stepMinutes` is 15) whose whole sitting - the branch's turn time - fits one opening block, earliest first. A time the branch is shut for is **left out**, never struck. Each slot carries `time` (`HH:mm`, branch wall clock), `startUtc`, `isAvailable`, `isRequestable`, `requiresApproval`, `freeTableCount`, `requestableTableCount`, `mustFreeByUtc`/`mustFreeByLocal` and, when not available, `unavailableReason`.
          *
-         *     **`isAvailable`** is true when at least one bookable table pinned on a photo of its room seats the party within the seat-overhang limit and has no booking or sitting running into the slot, clearing time included. These are the single-slot read's own rules over the same rows, so a time listed here as free is one `availability?time=` offers exactly `freeTableCount` tables at, and a struck time is one it offers none at.
+         *     **`isAvailable`** is true when at least one bookable table pinned on a photo of its room seats the party within the seat-overhang limit and the table's evening allows it - free outright (`freeTableCount`) or once the guest before agrees to leave in time (`requestableTableCount`; `isRequestable` when that is all there is, and `requiresApproval` with it). These are the single-slot read's own rules over the same rows, so a time listed here is one `availability?time=` offers exactly those tables at, and a struck time one it offers none at.
          *
-         *     **Why a time is struck**: `LeadTimeTooShort` (1) or `OutsideBookingWindow` (2) when the time itself is refused; otherwise `TableAlreadyBooked` (8) - or `TableCurrentlyOccupied` (10) - when tables that fit the party are taken, else the commonest table reason, e.g. `PartyExceedsCapacity` (4) when nothing seats them.
+         *     **The table's evening** - fixed rules, the ones a booking is judged by under the table's lock: refused from the previous booking's start until ninety minutes after it (`TableJustBooked` 11) and within forty-five minutes before the next one (`NextBookingTooSoon` 12); from ninety minutes to three hours after the previous start, or while that sitting plus clearing time still runs, the table can only be asked for - its guest is asked to have left by the start less the clearing time - and while one such question to a guest is open nobody else can ask (`EarlierGuestBeingAsked` 13). A sitting that would run into the next booking ends at that booking's start less the clearing time; `mustFreeByUtc` is the latest such time when no table on offer gives a full sitting.
+         *
+         *     **Why a time is struck**: `LeadTimeTooShort` (1) or `OutsideBookingWindow` (2) when the time itself is refused; otherwise, when tables that fit the party are taken, the commonest of `TableAlreadyBooked` (8), `TableCurrentlyOccupied` (10), `TableJustBooked` (11), `NextBookingTooSoon` (12) and `EarlierGuestBeingAsked` (13); else the commonest table reason, e.g. `PartyExceedsCapacity` (4) when nothing seats them.
          *
          *     The top-level `unavailableReason` refuses the whole day: `OutsideOpeningHours` (3) with no slots when the branch is shut all day, or the timing reason every listed time shares - a past day, the rest of today inside the lead time, a date beyond the booking window. Null when any time was judged on its tables.
          *
@@ -2656,6 +2662,30 @@ export interface paths {
          *     The reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.
          */
         post: operations["rescheduleReservation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reservations/{reservationId}/table-requests/{requestId}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer a later guest's request for your table: will you have left in time?
+         * @description Somebody would like the table after the diner's **own** booking - its `incomingTableRequest` says when (`requestedStartUtc`) and by when the diner is asked to have left (`freeByUtc`, the requested start less the branch's clearing time); the push is kind `table-request` with `reservationId` and `requestId`. The other guest stays anonymous.
+         *
+         *     `accept: true`: the later booking is confirmed, and this booking promises to free the table by `freeByUtc` - its `endUtc` is cut to it and `promisedFreeByUtc` set. `accept: false`: the later booking is declined (`declinedBecause` 3). Both diners are told. Answers with this booking as it now stands.
+         *
+         *     Before `expiresAtUtc` only - two hours from the request, never past this booking's start; unanswered by then the later booking is declined for it (`declinedBecause` 4) and this one is unchanged. Idempotent on `clientCommandId`, and the same answer twice is answered with the booking; a request answered the other way, expired, or withdrawn because either booking moved or ended is `409 table-request-not-pending`.
+         */
+        post: operations["answerTableRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3458,6 +3488,21 @@ export interface components {
              */
             tabOrderLineId?: string | null;
         };
+        /** @description Body of `POST /api/reservations/{reservationId}/table-requests/{requestId}/answer`. */
+        "Yalla.Api.Endpoints.AnswerTableRequestRequest": {
+            /**
+             * @description `true`: yes, the diner will have left by the time asked - their booking's end is cut to it and
+             *                 the other guest is confirmed. `false`: no - the other guest is declined. Nullable so an omitted
+             *                 answer is refused naming the field rather than read as no.
+             */
+            accept: boolean;
+            /**
+             * Format: uuid
+             * @description The caller's own id for this answer. <b>Required.</b> A retry with the same id answers with the
+             *     booking as it stands; the push action and the card may both send it.
+             */
+            clientCommandId: string;
+        };
         /** @description Why a booking was cancelled, if the diner said. Optional in every sense. */
         "Yalla.Api.Endpoints.CancelBookingRequest": {
             /** @description Free text, stored on the booking. Null when the body is absent or the field is omitted. */
@@ -3482,6 +3527,14 @@ export interface components {
         };
         /** @description Body for booking a table. */
         "Yalla.Api.Endpoints.CreateReservationRequest": {
+            /**
+             * Format: date-time
+             * @description "I'll free the table by 21:25": the table's `mustFreeByUtc` from availability, sent back once the
+             *     diner has agreed to it. Required exactly when the table's next booking cuts a full sitting short,
+             *     and then it must be that instant - otherwise `422 reservation-free-by-required` naming this
+             *     field, with `context.requiredFreeByUtc`. Ignored for a table with no such limit.
+             */
+            acceptsFreeByUtc?: string | null;
             /**
              * Format: uuid
              * @description The branch being booked.
@@ -3847,6 +3900,12 @@ export interface components {
         };
         /** @description Body of `POST /api/reservations/{reservationId}/reschedule`. */
         "Yalla.Api.Endpoints.RescheduleReservationRequest": {
+            /**
+             * Format: date-time
+             * @description As on a new booking: the new slot's `mustFreeByUtc`, when its next booking cuts a full sitting
+             *     short. A booking that already promised exactly that time for the same start need not send it.
+             */
+            acceptsFreeByUtc?: string | null;
             /**
              * Format: uuid
              * @description The caller's own id for this change. <b>Required.</b> A retry with the same id answers with the
@@ -6030,6 +6089,12 @@ export interface components {
              * @description The next relevant booking, so the staff app can seat it straight from the floor.
              */
             nextReservationId?: string | null;
+            /**
+             * Format: date-time
+             * @description The time the next booking's guest promised to free the table by - "must free by 21:25" on the
+             *     next-booking line - or absent when they made no such promise.
+             */
+            nextReservationPromisedFreeByUtc?: string | null;
             /** Format: date-time */
             nextReservationStartUtc?: string | null;
             occupancySource?: components["schemas"]["Yalla.Domain.Enums.TableSessionSource"] | null;
@@ -6064,6 +6129,12 @@ export interface components {
             seatedAtUtc?: string | null;
             /** Format: int32 */
             seats: number;
+            /**
+             * Format: date-time
+             * @description The time the party sitting here now promised to free the table by, when they were seated against
+             *     a booking that made such a promise; absent otherwise.
+             */
+            sittingPromisedFreeByUtc?: string | null;
             /**
              * @description What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the
              *     reservation overlay applied.
@@ -8260,6 +8331,13 @@ export interface components {
             approvalExpiresAtUtc?: string | null;
             /** @description The party sitting at the table right now, or null when nobody is. */
             currentSitting?: components["schemas"]["Yalla.Application.Reservations.AwaitingCurrentSitting"] | null;
+            /**
+             * Format: date-time
+             * @description The time the guest of Yalla.Application.Reservations.AwaitingApproval.PreviousBooking is asked to have left by for this booking -
+             *     its start less the clearing time - when saying yes means holding them to it; null when nobody
+             *     before has to be asked.
+             */
+            earlierGuestFreeByUtc?: string | null;
             /** @description The next booking after this one on the same table that day, or null when there is none. */
             nextBooking?: components["schemas"]["Yalla.Application.Reservations.AwaitingNextBooking"] | null;
             /**
@@ -8299,6 +8377,11 @@ export interface components {
              */
             partySize: number;
             /**
+             * Format: date-time
+             * @description The time its guest promised to have left by, or null.
+             */
+            promisedFreeByUtc?: string | null;
+            /**
              * Format: uuid
              * @description The later booking.
              */
@@ -8328,6 +8411,11 @@ export interface components {
              * @description How many it is for.
              */
             partySize: number;
+            /**
+             * Format: date-time
+             * @description The time its guest already promised to have left by, or null - see `ReservationView.PromisedFreeByUtc`.
+             */
+            promisedFreeByUtc?: string | null;
             /**
              * Format: uuid
              * @description The earlier booking.
@@ -8405,7 +8493,7 @@ export interface components {
              */
             unavailableReason?: components["schemas"]["Yalla.Domain.Occupancy.ReservationRejectionReason"] | null;
         };
-        /** @description One day at a branch, answered every half hour: which start times have a table for this party. */
+        /** @description One day at a branch, answered every quarter of an hour: which start times have a table for this party. */
         "Yalla.Application.Reservations.BranchDaySlots": {
             /** Format: uuid */
             branchId: string;
@@ -8423,7 +8511,7 @@ export interface components {
             slots: components["schemas"]["Yalla.Application.Reservations.DaySlot"][];
             /**
              * Format: int32
-             * @description Minutes between listed start times. Always Yalla.Application.Reservations.DaySlotStep.Minutes.
+             * @description Minutes between listed start times. Always Yalla.Application.Reservations.DaySlotStep.Minutes - fifteen.
              */
             stepMinutes: number;
             /**
@@ -8438,15 +8526,38 @@ export interface components {
         "Yalla.Application.Reservations.DaySlot": {
             /**
              * Format: int32
-             * @description How many tables the single-slot read would offer at this time. Zero when struck.
+             * @description How many tables the single-slot read offers at this time with nobody to ask first. Zero when
+             *     struck, and when the only tables are requestable ones.
              */
             freeTableCount: number;
             /**
              * @description Whether at least one table can be booked for this party at this time: a bookable table pinned
-             *     on a photo of its room that seats them, within the branch's seat-overhang limit, with no
-             *     booking or sitting running into the sitting once clearing time is allowed for.
+             *     on a photo of its room that seats them, within the branch's seat-overhang limit, that the
+             *     table's evening allows - free outright (Yalla.Application.Reservations.DaySlot.FreeTableCount), or once the guest before
+             *     agrees to leave in time (Yalla.Application.Reservations.DaySlot.RequestableTableCount).
              */
             isAvailable: boolean;
+            /**
+             * @description True when the only tables at this time are ones the guest before has to agree to free first:
+             *     show the time as available, labelled "the guest before you will be asked" (or, tonight, the
+             *     floor's short-notice wait). Yalla.Application.Reservations.DaySlot.RequiresApproval is true with it.
+             */
+            isRequestable: boolean;
+            /** @description Yalla.Application.Reservations.DaySlot.MustFreeByUtc on the branch's wall clock, `HH:mm`. */
+            mustFreeByLocal?: string | null;
+            /**
+             * Format: date-time
+             * @description When every table on offer at this time has to be free again before a full sitting is over -
+             *     another booking follows it - the latest of those times; absent when at least one table gives a
+             *     full sitting. "Until 21:25". The table the diner picks says its own, which they accept before
+             *     booking.
+             */
+            mustFreeByUtc?: string | null;
+            /**
+             * Format: int32
+             * @description How many tables at this time can be had once the guest before agrees to leave in time.
+             */
+            requestableTableCount: number;
             /**
              * @description True when a booking made at this time will land waiting for approval: the time is at short
              *     notice (today at the branch, or under six hours away - the floor decides, within fifteen
@@ -8464,10 +8575,11 @@ export interface components {
             time: string;
             /**
              * @description Why nothing is free, when nothing is. `LeadTimeTooShort` or `OutsideBookingWindow`
-             *     when the time itself is refused; otherwise the tables' reason - `TableAlreadyBooked` (or
-             *     `TableCurrentlyOccupied`) when tables that fit the party are taken, else the commonest
-             *     reason across the tables, e.g. `PartyExceedsCapacity` when no table seats them. Null
-             *     when available.
+             *     when the time itself is refused; otherwise the tables' reason - when tables that fit the party
+             *     are taken, the commonest of `TableAlreadyBooked`, `TableCurrentlyOccupied`,
+             *     `TableJustBooked`, `NextBookingTooSoon` and `EarlierGuestBeingAsked`; else the
+             *     commonest reason across the tables, e.g. `PartyExceedsCapacity` when no table seats them.
+             *     Null when available.
              */
             unavailableReason?: components["schemas"]["Yalla.Domain.Occupancy.ReservationRejectionReason"] | null;
         };
@@ -8496,6 +8608,39 @@ export interface components {
             reservationId: string;
             /** @description True when this command had already been applied. */
             wasReplay: boolean;
+        };
+        /** @description A later guest's request for a booking's table, as the booking's own guest is shown it. */
+        "Yalla.Application.Reservations.IncomingTableRequest": {
+            /**
+             * Format: date-time
+             * @description The deadline to answer by. Past it the request lapses and this booking is unchanged.
+             */
+            expiresAtUtc: string;
+            /**
+             * Format: time
+             * @description FreeByUtc on the branch's wall clock.
+             */
+            freeByLocalTime: string;
+            /**
+             * Format: date-time
+             * @description The time this guest is asked to have left by - "will you have left by 19:40?".
+             */
+            freeByUtc: string;
+            /**
+             * Format: time
+             * @description RequestedStartUtc on the branch's wall clock.
+             */
+            requestedLocalTime: string;
+            /**
+             * Format: date-time
+             * @description When the later guest would sit down - "someone would like your table at 19:45".
+             */
+            requestedStartUtc: string;
+            /**
+             * Format: uuid
+             * @description The request, to answer it by.
+             */
+            requestId: string;
         };
         /** @description A diner's own bookings, split the way the app shows them. */
         "Yalla.Application.Reservations.MyReservations": {
@@ -8576,9 +8721,10 @@ export interface components {
             /** Format: date-time */
             confirmedAtUtc?: string | null;
             /**
-             * @description Why a booking that was waiting for the venue was declined: a member of staff said no, or
-             *     nobody answered in time. Null for every booking that was not declined - a venue letting an
-             *     accepted booking go is `CancelledByVenue` without one.
+             * @description Why a booking that was waiting was declined: a member of staff said no (1), nobody at the venue
+             *     answered in time (2), the guest with the table before said they would not have left in time (3),
+             *     or did not answer within the two hours (4). Null for every booking that was not declined - a venue
+             *     letting an accepted booking go is `CancelledByVenue` without one.
              */
             declinedBecause?: components["schemas"]["Yalla.Domain.Enums.DeclineReason"] | null;
             /**
@@ -8590,6 +8736,11 @@ export interface components {
             guestPhone: string;
             /** Format: uuid */
             id: string;
+            /**
+             * @description Somebody would like this booking's table after it, and this guest is asked whether they will have
+             *     left in time - or absent. Only on the diner's own booking, only while the question is open.
+             */
+            incomingTableRequest?: components["schemas"]["Yalla.Application.Reservations.IncomingTableRequest"] | null;
             /** Format: date */
             localDate: string;
             /**
@@ -8608,6 +8759,11 @@ export interface components {
             note?: string | null;
             /** Format: int32 */
             partySize: number;
+            /**
+             * Format: date-time
+             * @description The time the guest promised to have left the table by, or absent.
+             */
+            promisedFreeByUtc?: string | null;
             /**
              * Format: uuid
              * @description The room the table is in - its `FloorArea`, the room a diner picked it from - or absent for
@@ -8636,7 +8792,27 @@ export interface components {
             /** @description Whether this table can be booked for this party at this time. */
             isAvailable: boolean;
             isBookable: boolean;
+            /**
+             * @description True when the table can be had only once the guest with it before agrees to leave in time: its
+             *     previous booking started less than three hours before (and at least ninety minutes - sooner is
+             *     refused, `TableJustBooked`). Available, labelled "the guest before you will be asked"; a
+             *     booking lands `PendingApproval` - `EarlierGuestConsent` on a later day, the floor's
+             *     short-notice decision tonight - so Yalla.Application.Reservations.TableAvailability.RequiresApproval is true too.
+             */
+            isRequestable: boolean;
             label: string;
+            /**
+             * Format: time
+             * @description Yalla.Application.Reservations.TableAvailability.MustFreeByUtc on the branch's wall clock - "will you free the table by 21:25?".
+             */
+            mustFreeByLocal?: string | null;
+            /**
+             * Format: date-time
+             * @description The time a party booking this table now must have left by - the next booking's start less the
+             *     clearing time - when a full sitting would run into it; absent otherwise. The diner accepts it
+             *     before booking, by sending it as `acceptsFreeByUtc`.
+             */
+            mustFreeByUtc?: string | null;
             /** Format: uuid */
             nextReservationId?: string | null;
             /** Format: date-time */
@@ -9416,10 +9592,10 @@ export interface components {
          * Format: int32
          * @description Why a booking needs a human before it is promised.
          *
-         *     Values: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory, 4 ShortNotice.
+         *     Values: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.ApprovalTrigger": 1 | 2 | 3 | 4;
+        "Yalla.Domain.Enums.ApprovalTrigger": 1 | 2 | 3 | 4 | 5;
         /**
          * Format: int32
          * @description How much of the tab a request for the bill is about. Only a Yalla.Domain.Enums.ServiceRequestPreset.TheBill
@@ -9433,10 +9609,10 @@ export interface components {
          * Format: int32
          * @description Why a booking that was waiting for the venue was declined.
          *
-         *     Values: 1 StaffDeclined, 2 NoAnswer.
+         *     Values: 1 StaffDeclined, 2 NoAnswer, 3 EarlierGuestDeclined, 4 EarlierGuestNoAnswer.
          * @enum {integer}
          */
-        "Yalla.Domain.Enums.DeclineReason": 1 | 2;
+        "Yalla.Domain.Enums.DeclineReason": 1 | 2 | 3 | 4;
         /**
          * Format: int32
          * @description What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the
@@ -9596,10 +9772,10 @@ export interface components {
          * Format: int32
          * @description Why a table cannot be booked for a particular slot.
          *
-         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied.
+         *     Values: 1 LeadTimeTooShort, 2 OutsideBookingWindow, 3 OutsideOpeningHours, 4 PartyExceedsCapacity, 5 SeatOverhangExceeded, 6 TableNotBookable, 7 TableOutOfService, 8 TableAlreadyBooked, 9 LocalTimeDoesNotExist, 10 TableCurrentlyOccupied, 11 TableJustBooked, 12 NextBookingTooSoon, 13 EarlierGuestBeingAsked.
          * @enum {integer}
          */
-        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+        "Yalla.Domain.Occupancy.ReservationRejectionReason": 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
     };
     responses: never;
     parameters: never;
@@ -19617,7 +19793,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. */
+            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -19973,7 +20149,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. */
+            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. `reservation-awaiting-earlier-guest`: the booking waits on the guest before it on the table to answer in the app - theirs to answer, not the floor's (`context`: `reservationId`, `requestId`, `expiresAtUtc`). `table-request-not-pending`: approving a booking whose guest before has moved since they were asked. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -20194,6 +20370,105 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.LockTimeoutProblem"];
+                };
+            };
+        };
+    };
+    answerTableRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: string;
+                reservationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.AnswerTableRequestRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such booking of the caller's, or no such request on it put to them - one answer for all. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `table-request-not-pending`: the request no longer waits - drop the card. `client-command-id-in-use`: the id belongs to another command or the other answer. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `accept` is missing. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
         };

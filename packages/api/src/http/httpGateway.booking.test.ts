@@ -92,6 +92,7 @@ function availabilityFor(tableId: string): AvailabilityWire {
         requiresApproval: false,
         physicalStatus: 4,
         state: 4,
+        isRequestable: false,
         unavailableReason: 10,
       },
     ],
