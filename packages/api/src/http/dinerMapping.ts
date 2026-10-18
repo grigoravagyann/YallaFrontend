@@ -109,6 +109,8 @@ export function dinerTabLine(view: LineView): DinerTabLine {
     lineTotalDram: view.lineTotalAmd,
     isShared: view.isShared,
     participantId: view.placedByParticipantId ?? null,
+    onBehalfOfParticipantId: view.onBehalfOfParticipantId ?? null,
+    isTableAttributed: view.isTableAttributed,
     orderedByName: view.placedByDisplayName ?? null,
     note: view.note ?? null,
     orderStatus: orderStatus(view.orderStatus),

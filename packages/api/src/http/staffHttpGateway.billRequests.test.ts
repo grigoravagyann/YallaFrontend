@@ -118,7 +118,7 @@ describe('cash handed over by one person', () => {
       clientCommandId: 'c-cash',
       tabParticipantId: KAREN,
     });
-    expect(result.totals.remainingDram).toBe(3575);
+    expect(result.totals?.remainingDram).toBe(3575);
   });
 
   it('sends no payer at all when nobody was named', async () => {

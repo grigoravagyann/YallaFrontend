@@ -166,8 +166,11 @@ export interface PlaceOrderResult {
   readonly estimatedReadyAtUtc: string | null;
   /** The server had this command already. A success, not a duplicate. */
   readonly wasReplay: boolean;
-  /** The tab's totals as they stand after this order. */
-  readonly totals: TabTotals;
+  /**
+   * The tab's totals as they stand after this order; null for a diner the
+   * table total is hidden from.
+   */
+  readonly totals: TabTotals | null;
 }
 
 export interface SetOrderStatusCommand {
@@ -377,6 +380,16 @@ export interface DinerTabLine {
   readonly isShared: boolean;
   /** Who ordered it. `null` when a waiter keyed it in without attributing it. */
   readonly participantId: string | null;
+  /**
+   * Who a waiter keyed the line in for, when it was for one person: theirs as
+   * much as one they ordered themself.
+   */
+  readonly onBehalfOfParticipantId: string | null;
+  /**
+   * A waiter's line for nobody in particular: split across everyone who was at
+   * the table when it was ordered.
+   */
+  readonly isTableAttributed: boolean;
   /** Their name at the time of reading. `null` for a table-attributed line. */
   readonly orderedByName: string | null;
   /** The note sent with it — "no sugar". */

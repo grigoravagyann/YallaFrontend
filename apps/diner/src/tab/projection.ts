@@ -106,8 +106,9 @@ export function projectTab(tab: DinerTabView, timeZoneId: string): RenderedTab {
     quantity: line.quantity,
     lineTotalDram: line.lineTotalDram,
     orderedByName: line.orderedByName,
-    isMine: line.participantId === participantId,
-    isShared: line.isShared,
+    // A waiter's order for this guest is theirs too, as /shares charges it.
+    isMine: line.participantId === participantId || line.onBehalfOfParticipantId === participantId,
+    isShared: line.isShared || line.isTableAttributed,
     sharedWithCount: line.sharedWithCount,
     note: line.note,
     isVoided: line.isVoided,

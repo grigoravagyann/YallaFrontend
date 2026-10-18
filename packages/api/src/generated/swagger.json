@@ -6571,7 +6571,7 @@
           "diner"
         ],
         "summary": "The tab, as this participant is allowed to see it",
-        "description": "Projected through the caller's own flags by one function, so every rule applies the same way everywhere:\n- The caller's **own items and own subtotal are always present**, whatever the flags.\n- The **table total and other people's items appear only with `canSeeTableTotal`**, and only once approved. When hidden they are **absent from the body** - not zero, not null - with `tableTotalVisible: false` beside the gap, so no client can render a hidden total as a free bill.\n- A **pending** participant sees their own row and nothing else.\n- **Nothing silently disappears.** A voided line stays in both arrays with `isVoided`, `voidReason` and `voidedAtUtc`, worth zero and counted toward no total; comps and discounts appear in `adjustments` with the reason the manager typed. A bill whose number drops with no visible cause is the fastest way to make somebody distrust the app, and a waiter then has to explain it at the table.\n\nMenu prices are not part of this view and stay visible through the menu, so a guest without the total can always work out what their own order costs - and `serviceChargePercent` is on the response **for everyone**, hidden total or not, because the percentage is a fact about the venue rather than an aggregate.\n\n`timeZoneId` is the branch's IANA zone: render every instant here in it and never in the device's. `maxSequence` is where the tab's event stream stands, so a client never has to call `/events` purely to find out.",
+        "description": "Projected through the caller's own flags by one function, so every rule applies the same way everywhere:\n- The caller's **own items and own subtotal are always present**, whatever the flags. Own means their own orders, a waiter's keyed in with `onBehalfOfParticipantId` for them, and the shared lines they were at the table for - and, only with `tableTotalVisible`, the `isTableAttributed` lines they were at the table for: a waiter's lines for nobody in particular can be the whole bill. `/shares` charges a part of those either way.\n- The **table total and other people's items appear only with `canSeeTableTotal`**, and only once approved. When hidden they are **absent from the body** - not zero, not null - with `tableTotalVisible: false` beside the gap, so no client can render a hidden total as a free bill.\n- A **pending** participant sees their own row and nothing else.\n- **Nothing silently disappears.** A voided line stays in both arrays with `isVoided`, `voidReason` and `voidedAtUtc`, worth zero and counted toward no total; comps and discounts appear in `adjustments` with the reason the manager typed - all of them with `tableTotalVisible`, otherwise only those on the caller's own lines, because one off the whole tab or another person's dish is the table's money. A bill whose number drops with no visible cause is the fastest way to make somebody distrust the app, and a waiter then has to explain it at the table.\n\nMenu prices are not part of this view and stay visible through the menu, so a guest without the total can always work out what their own order costs - and `serviceChargePercent` is on the response **for everyone**, hidden total or not, because the percentage is a fact about the venue rather than an aggregate.\n\n`timeZoneId` is the branch's IANA zone: render every instant here in it and never in the device's. `maxSequence` is where the tab's event stream stands, so a client never has to call `/events` purely to find out.",
         "operationId": "getTab",
         "parameters": [
           {
@@ -7282,7 +7282,7 @@
           "diner"
         ],
         "summary": "Host: set one person's three flags",
-        "description": "`canOrder`, `canSeeTableTotal` and `canPay`, together. **`canPay` requires `canSeeTableTotal`** - nobody puts money toward a total they may not see - and the combination that breaks that is refused with 400 rather than silently corrected.",
+        "description": "`canOrder`, `canSeeTableTotal` and `canPay`, together. **`canPay` requires `canSeeTableTotal`** - nobody puts money toward a total they may not see - and the combination that breaks that is refused with 400 rather than silently corrected.\n\n**The host always sees the total.** `canSeeTableTotal: false` on the host's own row is `422 validation-failed` with `context.field` `canSeeTableTotal`: only the host sets flags, so nobody could ever turn it back on.",
         "operationId": "setTabParticipantPermissions",
         "parameters": [
           {
@@ -7376,6 +7376,16 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`canSeeTableTotal` is false on the host's own row. `context.field` is `canSeeTableTotal`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
                 }
               }
             }
@@ -9231,7 +9241,7 @@
           "diner"
         ],
         "summary": "Order from your own phone",
-        "description": "Names and prices are **snapshotted onto every line** as they stand now, so a menu edit next week cannot change a bill presented tonight.\n\nA `isShared` line records **who is at the table at this moment**: a friend who joins ten minutes later is not on the bottle, and one who is removed still is - they were there when it was poured.\n\nAn unavailable item refuses the **whole** order, by name, rather than quietly dropping it: a partial order is a decision made on your behalf that you discover when the food arrives.\n\n`estimatedReadyAtUtc` comes from the longest prep time on the order, not the sum - a kitchen cooks an order together.",
+        "description": "Names and prices are **snapshotted onto every line** as they stand now, so a menu edit next week cannot change a bill presented tonight.\n\nA `isShared` line records **who is at the table at this moment**: a friend who joins ten minutes later is not on the bottle, and one who is removed still is - they were there when it was poured.\n\nAn unavailable item refuses the **whole** order, by name, rather than quietly dropping it: a partial order is a decision made on your behalf that you discover when the food arrives.\n\n`estimatedReadyAtUtc` comes from the longest prep time on the order, not the sum - a kitchen cooks an order together.\n\n`totals` is the tab's, so it follows `tableTotalVisible` on your tab: **absent**, with `tableTotalVisible: false` beside it, when the host hid the total from you. Read it as optional.",
         "operationId": "placeOrder",
         "parameters": [
           {
@@ -9429,7 +9439,7 @@
           "diner"
         ],
         "summary": "Catch up on what happened",
-        "description": "Everything after `afterSequence`, oldest first, for the phone that was in a lift when the wine was ordered.\n\n`sequence` is this event's place **on this tab**, counting from 1, and the order is the order things happened - a payment that settles the bill is immediately followed by the close, never the other way round. Keep the highest you have seen and ask for everything after it.\n\n**Ignore a `type` you do not recognise and keep your position**: new types will be added and an old build must not break on a tab that used one.",
+        "description": "Everything after `afterSequence`, oldest first, for the phone that was in a lift when the wine was ordered.\n\n`sequence` is this event's place **on this tab**, counting from 1, and the order is the order things happened - a payment that settles the bill is immediately followed by the close, never the other way round. Keep the highest you have seen and ask for everything after it.\n\n**Ignore a `type` you do not recognise and keep your position**: new types will be added and an old build must not break on a tab that used one.\n\n**You read the stream you may see.** Every event is here - the sequence never has a hole - but without `tableTotalVisible` on your tab the payloads carry only your own money: `orderPlaced.lines` holds just your lines (your own, a waiter's on your behalf, and shared items you were at the table for - never a waiter's line for the table, which can be the whole bill), a void names only your own dish, an adjustment says what, how much and why only when it is off your line, a payment says how much only when it was yours, and `remainingAmd`, `totalAmd` and `writtenOffAmd` are never there. While you wait for the host, other people's `displayName` and `note` are left out too. Redacted members are **absent**, never null or zero. See `docs/tabs.md`, section 7.4.",
         "operationId": "getTabEvents",
         "parameters": [
           {
@@ -22298,7 +22308,7 @@
           "status",
           "tabEventSequence",
           "tabId",
-          "totals",
+          "tableTotalVisible",
           "wasReplay"
         ],
         "type": "object",
@@ -22357,13 +22367,18 @@
             },
             "description": "What was ordered."
           },
+          "tableTotalVisible": {
+            "type": "boolean",
+            "description": "Whether Totals is present: for staff, and for a diner allowed the table total -\nthe rule `tableTotalVisible` on their tab follows."
+          },
           "totals": {
             "allOf": [
               {
                 "$ref": "#/components/schemas/Yalla.Application.Ordering.TabTotalsSnapshot"
               }
             ],
-            "description": "The tab's totals as they stand after this order."
+            "description": "The tab's totals as they stand after this order. <b>Absent</b> for a diner the host hid the\ntotal from - an order of their own is no way round the hidden bill. Never zeroed.",
+            "nullable": true
           },
           "tabEventSequence": {
             "type": "integer",
@@ -26044,6 +26059,7 @@
       "Yalla.Application.Tabs.TabLineView": {
         "required": [
           "isShared",
+          "isTableAttributed",
           "isVoided",
           "lineId",
           "lineTotalAmd",
@@ -26138,6 +26154,16 @@
             "type": "string",
             "description": "Why, in the waiter's own words.",
             "nullable": true
+          },
+          "onBehalfOfParticipantId": {
+            "type": "string",
+            "description": "Who a waiter keyed the order in for, when the waiter knew. The line is that person's - on their\n`myLines` and their share - though PlacedByParticipantId is null.",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isTableAttributed": {
+            "type": "boolean",
+            "description": "True when a waiter keyed it in for nobody in particular. It splits across the people at the table\nwhen it was ordered, exactly like a shared line, and SharedWithCount says how\nmany."
           }
         },
         "additionalProperties": false,
@@ -26547,11 +26573,11 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Tabs.TabLineView"
             },
-            "description": "The caller's own items - placed by them, or shared with them. Always present."
+            "description": "The caller's own items, always present: one they ordered, or a waiter keyed in on their behalf,\nand a shared item they were at the table for - and a table-attributed line they were at the table\nfor only with TableTotalVisible, because those can be the whole bill. See\nM:Yalla.Application.Tabs.TabProjection.IsOwnLine(Yalla.Application.Tabs.TabLineSnapshot,System.Guid,System.Boolean)."
           },
           "myItemsSubtotalAmd": {
             "type": "integer",
-            "description": "What the caller's own unshared lines come to, in whole dram. Always present. Shared lines are\nlisted in MyLines with `isShared` set and are apportioned by the\nsplitting task, not here.",
+            "description": "What the caller's own unsplit lines come to, in whole dram. Always present. Shared and\ntable-attributed lines on MyLines carry `isShared` or\n`isTableAttributed` and are apportioned by `/shares`, not here.",
             "format": "int64"
           },
           "adjustments": {
@@ -26559,7 +26585,7 @@
             "items": {
               "$ref": "#/components/schemas/Yalla.Application.Tabs.TabAdjustmentView"
             },
-            "description": "Comps and discounts, with the reason the manager typed. Present for everyone, for the same\nreason voided lines are: a total that drops with no visible cause makes people distrust the app."
+            "description": "Comps and discounts, with the reason the manager typed, for the same reason voided lines are\nshown: a total that drops with no visible cause makes people distrust the app. <b>Every one when\nTableTotalVisible; otherwise only those on one of\nMyLines</b>, whole. One off the whole tab, or off somebody else's line, is\ntable money - a percentage off the whole tab and what it took off are the subtotal - and the\ncaller's part of it reaches them through `/shares`."
           },
           "tableTotalVisible": {
             "type": "boolean",

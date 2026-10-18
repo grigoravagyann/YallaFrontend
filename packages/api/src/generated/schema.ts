@@ -2538,10 +2538,10 @@ export interface paths {
         /**
          * The tab, as this participant is allowed to see it
          * @description Projected through the caller's own flags by one function, so every rule applies the same way everywhere:
-         *     - The caller's **own items and own subtotal are always present**, whatever the flags.
+         *     - The caller's **own items and own subtotal are always present**, whatever the flags. Own means their own orders, a waiter's keyed in with `onBehalfOfParticipantId` for them, and the shared lines they were at the table for - and, only with `tableTotalVisible`, the `isTableAttributed` lines they were at the table for: a waiter's lines for nobody in particular can be the whole bill. `/shares` charges a part of those either way.
          *     - The **table total and other people's items appear only with `canSeeTableTotal`**, and only once approved. When hidden they are **absent from the body** - not zero, not null - with `tableTotalVisible: false` beside the gap, so no client can render a hidden total as a free bill.
          *     - A **pending** participant sees their own row and nothing else.
-         *     - **Nothing silently disappears.** A voided line stays in both arrays with `isVoided`, `voidReason` and `voidedAtUtc`, worth zero and counted toward no total; comps and discounts appear in `adjustments` with the reason the manager typed. A bill whose number drops with no visible cause is the fastest way to make somebody distrust the app, and a waiter then has to explain it at the table.
+         *     - **Nothing silently disappears.** A voided line stays in both arrays with `isVoided`, `voidReason` and `voidedAtUtc`, worth zero and counted toward no total; comps and discounts appear in `adjustments` with the reason the manager typed - all of them with `tableTotalVisible`, otherwise only those on the caller's own lines, because one off the whole tab or another person's dish is the table's money. A bill whose number drops with no visible cause is the fastest way to make somebody distrust the app, and a waiter then has to explain it at the table.
          *
          *     Menu prices are not part of this view and stay visible through the menu, so a guest without the total can always work out what their own order costs - and `serviceChargePercent` is on the response **for everyone**, hidden total or not, because the percentage is a fact about the venue rather than an aggregate.
          *
@@ -2654,6 +2654,8 @@ export interface paths {
          *     `sequence` is this event's place **on this tab**, counting from 1, and the order is the order things happened - a payment that settles the bill is immediately followed by the close, never the other way round. Keep the highest you have seen and ask for everything after it.
          *
          *     **Ignore a `type` you do not recognise and keep your position**: new types will be added and an old build must not break on a tab that used one.
+         *
+         *     **You read the stream you may see.** Every event is here - the sequence never has a hole - but without `tableTotalVisible` on your tab the payloads carry only your own money: `orderPlaced.lines` holds just your lines (your own, a waiter's on your behalf, and shared items you were at the table for - never a waiter's line for the table, which can be the whole bill), a void names only your own dish, an adjustment says what, how much and why only when it is off your line, a payment says how much only when it was yours, and `remainingAmd`, `totalAmd` and `writtenOffAmd` are never there. While you wait for the host, other people's `displayName` and `note` are left out too. Redacted members are **absent**, never null or zero. See `docs/tabs.md`, section 7.4.
          */
         get: operations["getTabEvents"];
         put?: never;
@@ -2750,6 +2752,8 @@ export interface paths {
          *     An unavailable item refuses the **whole** order, by name, rather than quietly dropping it: a partial order is a decision made on your behalf that you discover when the food arrives.
          *
          *     `estimatedReadyAtUtc` comes from the longest prep time on the order, not the sum - a kitchen cooks an order together.
+         *
+         *     `totals` is the tab's, so it follows `tableTotalVisible` on your tab: **absent**, with `tableTotalVisible: false` beside it, when the host hid the total from you. Read it as optional.
          */
         post: operations["placeOrder"];
         delete?: never;
@@ -2807,6 +2811,8 @@ export interface paths {
         /**
          * Host: set one person's three flags
          * @description `canOrder`, `canSeeTableTotal` and `canPay`, together. **`canPay` requires `canSeeTableTotal`** - nobody puts money toward a total they may not see - and the combination that breaks that is refused with 400 rather than silently corrected.
+         *
+         *     **The host always sees the total.** `canSeeTableTotal: false` on the host's own row is `422 validation-failed` with `context.field` `canSeeTableTotal`: only the host sets flags, so nobody could ever turn it back on.
          */
         post: operations["setTabParticipantPermissions"];
         delete?: never;
@@ -6223,8 +6229,16 @@ export interface components {
              * @description The tab it went on.
              */
             tabId: string;
-            /** @description The tab's totals as they stand after this order. */
-            totals: components["schemas"]["Yalla.Application.Ordering.TabTotalsSnapshot"];
+            /**
+             * @description Whether Totals is present: for staff, and for a diner allowed the table total -
+             *     the rule `tableTotalVisible` on their tab follows.
+             */
+            tableTotalVisible: boolean;
+            /**
+             * @description The tab's totals as they stand after this order. <b>Absent</b> for a diner the host hid the
+             *     total from - an order of their own is no way round the hidden bill. Never zeroed.
+             */
+            totals?: components["schemas"]["Yalla.Application.Ordering.TabTotalsSnapshot"] | null;
             /** @description True when the command had already been applied and this is the original answer. */
             wasReplay: boolean;
         };
@@ -8106,6 +8120,12 @@ export interface components {
             /** @description True when the item belongs to the table and is split across those present. */
             isShared: boolean;
             /**
+             * @description True when a waiter keyed it in for nobody in particular. It splits across the people at the table
+             *     when it was ordered, exactly like a shared line, and SharedWithCount says how
+             *     many.
+             */
+            isTableAttributed: boolean;
+            /**
              * @description True once staff took it off the bill. <b>The line stays here, labelled.</b> It is excluded from
              *     every total, and a diner watching their bill must still see that the coffee was removed.
              */
@@ -8129,6 +8149,12 @@ export interface components {
             name: string;
             /** @description The kitchen note that was sent with it, e.g. "no onions". */
             note?: string | null;
+            /**
+             * Format: uuid
+             * @description Who a waiter keyed the order in for, when the waiter knew. The line is that person's - on their
+             *     `myLines` and their share - though PlacedByParticipantId is null.
+             */
+            onBehalfOfParticipantId?: string | null;
             /**
              * Format: uuid
              * @description The order it was part of, so the client can group a round together.
@@ -8284,8 +8310,12 @@ export interface components {
         /** @description A tab as one participant is allowed to see it. */
         "Yalla.Application.Tabs.TabView": {
             /**
-             * @description Comps and discounts, with the reason the manager typed. Present for everyone, for the same
-             *     reason voided lines are: a total that drops with no visible cause makes people distrust the app.
+             * @description Comps and discounts, with the reason the manager typed, for the same reason voided lines are
+             *     shown: a total that drops with no visible cause makes people distrust the app. <b>Every one when
+             *     TableTotalVisible; otherwise only those on one of
+             *     MyLines</b>, whole. One off the whole tab, or off somebody else's line, is
+             *     table money - a percentage off the whole tab and what it took off are the subtotal - and the
+             *     caller's part of it reaches them through `/shares`.
              */
             adjustments: components["schemas"]["Yalla.Application.Tabs.TabAdjustmentView"][];
             /**
@@ -8317,12 +8347,17 @@ export interface components {
             me: components["schemas"]["Yalla.Application.Tabs.TabParticipantView"];
             /**
              * Format: int64
-             * @description What the caller's own unshared lines come to, in whole dram. Always present. Shared lines are
-             *     listed in MyLines with `isShared` set and are apportioned by the
-             *     splitting task, not here.
+             * @description What the caller's own unsplit lines come to, in whole dram. Always present. Shared and
+             *     table-attributed lines on MyLines carry `isShared` or
+             *     `isTableAttributed` and are apportioned by `/shares`, not here.
              */
             myItemsSubtotalAmd: number;
-            /** @description The caller's own items - placed by them, or shared with them. Always present. */
+            /**
+             * @description The caller's own items, always present: one they ordered, or a waiter keyed in on their behalf,
+             *     and a shared item they were at the table for - and a table-attributed line they were at the table
+             *     for only with TableTotalVisible, because those can be the whole bill. See
+             *     M:Yalla.Application.Tabs.TabProjection.IsOwnLine(Yalla.Application.Tabs.TabLineSnapshot,System.Guid,System.Boolean).
+             */
             myLines: components["schemas"]["Yalla.Application.Tabs.TabLineView"][];
             /**
              * Format: date-time
@@ -19744,6 +19779,15 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `canSeeTableTotal` is false on the host's own row. `context.field` is `canSeeTableTotal`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

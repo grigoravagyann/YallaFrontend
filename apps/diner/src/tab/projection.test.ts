@@ -23,6 +23,8 @@ function line(id: string, overrides: Partial<DinerTabLine> = {}): DinerTabLine {
     lineTotalDram: 1200,
     isShared: false,
     participantId: ME,
+    onBehalfOfParticipantId: null,
+    isTableAttributed: false,
     orderedByName: 'AM',
     orderId: 'o1',
     menuItemId: 'm1',
@@ -122,6 +124,28 @@ describe('a participant who may see the table total', () => {
 
     expect(rendered.tableLines).toHaveLength(2);
     expect(rendered.tableLines?.map((l) => l.isMine)).toEqual([true, false]);
+  });
+
+  it("counts a waiter's order for them as theirs, and a table order as shared", () => {
+    const forMe = line('l3', {
+      participantId: null,
+      orderedByName: null,
+      onBehalfOfParticipantId: ME,
+    });
+    const forTable = line('l4', {
+      participantId: null,
+      orderedByName: null,
+      isTableAttributed: true,
+    });
+    const rendered = projectTab(
+      tab({ myLines: [forMe, forTable], tableLines: [forMe, forTable] }),
+      ZONE,
+    );
+
+    expect(rendered.myLines.map((l) => [l.isMine, l.isShared])).toEqual([
+      [true, false],
+      [false, true],
+    ]);
   });
 });
 
