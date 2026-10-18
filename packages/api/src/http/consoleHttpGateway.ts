@@ -66,8 +66,13 @@ import {
   venuePageFromWire,
   venueReviewFromWire,
   type WireManagedVenue,
-  type WireVenueBookingsSummary,
 } from './consoleMapping';
+import {
+  activityFromWire,
+  outboxHealthFromWire,
+  overviewFromWire,
+  profileFromWire,
+} from './platformHomeMapping';
 import {
   createStaffBody,
   enrolmentCode,
@@ -186,6 +191,8 @@ const RESERVATIONS = '/api/reservations';
 
 /** Both moderation lists page by 20, the public reviews route's size. */
 const REVIEW_PAGE_SIZE = 20;
+/** Home shows the messages given up on in the last day; a few more than that is plenty. */
+const OUTBOX_DEAD_LETTER_LIMIT = 20;
 
 /** `Yalla.Domain.Enums.StaffRole.PlatformAdmin` on the wire. */
 const PLATFORM_ADMIN_ROLE_CODE = 5;
@@ -303,10 +310,13 @@ export function createConsoleHttpGateway(
     throw error;
   }
 
+  /** A photo link the server gives relative to itself, made absolute against the API. */
+  const photoLink = (url: string) => absolutePhotoUrl(client.baseUrl, url);
+
   async function venueDetail(path: string, context: { slug?: string } = {}) {
     try {
       const { data } = await client.get<WireDetail>(path);
-      return venueDetailFromWire(data);
+      return venueDetailFromWire(data, photoLink);
     } catch (error) {
       return translate(error, context);
     }
@@ -366,7 +376,7 @@ export function createConsoleHttpGateway(
       method === 'post'
         ? await client.post<WireDetail>(path)
         : await client.delete<WireDetail>(path);
-    return venueDetailFromWire(data);
+    return venueDetailFromWire(data, photoLink);
   }
 
   // Photo links resolved against the API's origin, at the boundary — see
@@ -463,7 +473,7 @@ export function createConsoleHttpGateway(
             subscriptionTier: FREE_TIER,
           },
         });
-        return venueDetailFromWire(data);
+        return venueDetailFromWire(data, photoLink);
       } catch (error) {
         return translate(error, { slug: command.slug });
       }
@@ -478,7 +488,7 @@ export function createConsoleHttpGateway(
           slug: command.slug,
           type: venueTypeCode(command.type),
         });
-        return venueDetailFromWire(data);
+        return venueDetailFromWire(data, photoLink);
       } catch (error) {
         // The other 409 here is "the venue is deleted", and the screen offers
         // no edit on a deleted venue, so the one that reaches it is the slug.
@@ -538,8 +548,7 @@ export function createConsoleHttpGateway(
     },
 
     async getVenueBookingsSummary({ venueId, days }) {
-      // gateway-schema: awaiting-route — console redesign: the venue page's Bookings tab
-      const { data } = await client.get<WireVenueBookingsSummary>(
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.VenueBookingsSummary']>(
         `${PLATFORM}/venues/${venueId}/bookings-summary`,
         { query: { days } },
       );
@@ -547,9 +556,58 @@ export function createConsoleHttpGateway(
     },
 
     async restoreVenue({ venueId }) {
-      // gateway-schema: awaiting-route — console redesign: undoing a soft delete
       const { data } = await client.post<WireDetail>(`${PLATFORM}/venues/${venueId}/restore`);
-      return venueDetailFromWire(data);
+      return venueDetailFromWire(data, photoLink);
+    },
+
+    // --- Home and Settings --------------------------------------------------
+
+    async getPlatformOverview() {
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.PlatformOverview']>(
+        `${PLATFORM}/overview`,
+      );
+      return overviewFromWire(data);
+    },
+
+    async getOutboxHealth() {
+      const { data } = await client.get<Schemas['Yalla.Application.Messaging.OutboxHealthView']>(
+        `${PLATFORM}/outbox`,
+        { query: { deadLetterLimit: OUTBOX_DEAD_LETTER_LIMIT } },
+      );
+      return outboxHealthFromWire(data);
+    },
+
+    async listPlatformActivity(query = {}) {
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.ActivityFeed']>(
+        `${PLATFORM}/activity`,
+        {
+          query: {
+            ...(query.limit !== undefined ? { limit: query.limit } : {}),
+            ...(query.venueId ? { venueId: query.venueId } : {}),
+          },
+        },
+      );
+      return activityFromWire(data);
+    },
+
+    async getPlatformProfile() {
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.PlatformAdminProfile']>(
+        `${PLATFORM}/me`,
+      );
+      return profileFromWire(data);
+    },
+
+    async updatePlatformProfile({ fullName }) {
+      const { data } = await client.patch<
+        Schemas['Yalla.Application.Platform.PlatformAdminProfile']
+      >(`${PLATFORM}/me`, { fullName });
+      return profileFromWire(data);
+    },
+
+    async changePlatformPassword({ currentPassword, newPassword }) {
+      // 204. A wrong current password is a 422 naming `currentPassword`, not a
+      // 401: the session stays, and the form shows it under the field.
+      await client.post(`${PLATFORM}/me/password`, { currentPassword, newPassword });
     },
 
     // --- The rooms editor -------------------------------------------------
@@ -1003,7 +1061,6 @@ export function createConsoleHttpGateway(
     },
 
     async dismissReviewReports(reviewId) {
-      // gateway-schema: awaiting-route — console redesign: "Dismiss reports" on the reviews page
       const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
         `${PLATFORM}/reviews/${reviewId}/dismiss-reports`,
       );

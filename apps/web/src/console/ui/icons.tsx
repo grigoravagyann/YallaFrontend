@@ -295,3 +295,71 @@ export function MinusIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Home's bookings card. */
+export function CalendarIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </Icon>
+  );
+}
+
+/** Home's "awaiting approval" card. */
+export function ClockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </Icon>
+  );
+}
+
+/** Home's open-tabs card: the receipt with a dram-like stroke. */
+export function TabIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z" />
+      <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+      <path d="M12 17.5v-11" />
+    </Icon>
+  );
+}
+
+/** "Go there": a card or a link that opens another page. */
+export function ChevronRightIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="m9 18 6-6-6-6" />
+    </Icon>
+  );
+}
+
+/** "Further down this page". */
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="m6 9 6 6 6-6" />
+    </Icon>
+  );
+}
+
+/** A feed line about a tier change. */
+export function ArrowsUpDownIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="m7 15 5 5 5-5M7 9l5-5 5 5" />
+    </Icon>
+  );
+}
+
+/** A feed line about a sign-in link or a message. */
+export function SendIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M14.5 21.7a.5.5 0 0 0 .9 0l6.5-19a.5.5 0 0 0-.6-.6l-19 6.5a.5.5 0 0 0 0 .9l7.9 3.2a2 2 0 0 1 1.1 1.1z" />
+      <path d="m21.9 2.1-11 11" />
+    </Icon>
+  );
+}

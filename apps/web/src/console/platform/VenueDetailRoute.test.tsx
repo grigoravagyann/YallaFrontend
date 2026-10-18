@@ -130,6 +130,19 @@ describe('the branch table', () => {
     );
   });
 
+  it("counts each branch's bookings for today, as the summary's week reports them", async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const week = await gateway.getVenueBookingsSummary({ venueId: 'v-lumen', days: 7 });
+    renderVenue('v-lumen', gateway);
+    await heading('Lumen Coffee');
+    const table = screen.getByRole('table', { name: 'Branches' });
+    expect(within(table).getByRole('columnheader', { name: 'Bookings today' })).toBeTruthy();
+    const north = week.byBranch.find((branch) => branch.name === 'Northern Avenue')!;
+    await waitFor(() =>
+      expect(within(branchRow('Northern Avenue')).getByText(String(north.todayCount))).toBeTruthy(),
+    );
+  });
+
   it("refuses the unready branch's Paid before anything is sent, naming the dishes", async () => {
     const user = userEvent.setup();
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });

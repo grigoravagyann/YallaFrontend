@@ -370,6 +370,29 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     section (`title`, `hide`, `unhide`, `reason`, `hiddenReasonLine`,
     `reasonRequired`, `hiddenBadge`, `empty`, `failed`). The venue console's
     own `reviews.*` are unchanged.
+- `admin` — the platform-admin console redesign, phase 5 (2026-10-18): Home
+  and Settings. `hy` is the Main and Settings artboards' copy, with the same
+  deliberate change as before (no suffix glued onto a name: the feed's
+  "Luna Cafe-ը դարձրեց վճարովի" reads "«{{target}}» մասնաճյուղը դարձրեց
+  վճարովի", a person is "{{target}} աշխատողին"). `ru` and `en` were written
+  from it and are **not** reviewed.
+  - New: the whole `home.*` section — `sub`, `outbox.*` (the alert counts
+    the **last 24 hours** and must never offer to resend: there is no retry,
+    by decision; `outbox.type.*` names the five outbox message types),
+    `kpi.*`, `drill.*`, `chart.*` (`bar_*` / `barToday_*` are read for each
+    bar instead of its height), `notReady.*`, `recent.*` and `activity.*`
+    (one sentence per audited action, read after the actor's name; none may
+    name a guest, and the log has none to name). `activity.role.*` is the
+    role as it reads inside a sentence (ru in the genitive after "в роли").
+  - Settings: `settings.sub`, `settings.sections.*`, `settings.profile.*`
+    (`cap` must keep saying the email is **changed in the server's
+    configuration**, not here) and `settings.password.*` (`cap` and
+    `changed` must keep saying the **other devices** are signed out;
+    `currentWrong` is shown under the field, the session stays).
+  - The server's `VenueStatus.Inactive`: `status.inactive` and
+    `venues.filter.statusInactive` ("switched off" — not suspended, not
+    deleted). `venuePage.branches.today` is the branch table's "Bookings
+    today" column, as the VenueDetail artboard has it.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

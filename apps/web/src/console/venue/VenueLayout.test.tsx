@@ -195,6 +195,7 @@ function branchSummary(branchId: string, name: string, slug: string) {
     isActive: true,
     subscriptionTier: 1,
     tableCount: 0,
+    openTabCount: 0,
   } satisfies Schemas['Yalla.Application.Platform.BranchSummary'];
 }
 
@@ -217,6 +218,16 @@ const VENUE_DETAIL = {
     tableCount: 0,
     paidBranchCount: 0,
     subscriptionTier: 1,
+    status: 1,
+    tierMix: 1,
+    branches: [
+      { branchId: B1, name: 'Northern Avenue', subscriptionTier: 1, isActive: true, issues: [] },
+      { branchId: B2, name: 'Cascade', subscriptionTier: 1, isActive: true, issues: [] },
+    ],
+    createdAtUtc: '2026-09-10T08:00:00Z',
+    notReadyBranchCount: 0,
+    openTabCount: 0,
+    reviewCount: 0,
   },
   branches: [
     branchSummary(B1, 'Northern Avenue', 'northern-avenue'),

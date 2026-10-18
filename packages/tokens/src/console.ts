@@ -178,6 +178,18 @@ export const consoleColor = {
   reportedEdge: '#EBC48C',
   /** A hidden review's card. */
   reviewHidden: '#FBF8F4',
+
+  // --- Home and Settings (Main and Settings artboards) ------------------------
+  /** A day's bar in Home's bookings chart; hovered, it takes the brand. */
+  chartBar: '#5A3420',
+  /** Today's bar is the tan `stepDone`; hovered, this darker tan. */
+  chartBarTodayHover: '#94622F',
+  /** A line in the outbox alert's details: white at 70% over the red tint. */
+  alertItem: 'rgba(255, 255, 255, 0.7)',
+  /** A card that opens something, hovered: a darker edge than its line. */
+  cardHoverEdge: '#D4BFA8',
+  /** A field that shows a value nobody can change here (the admin's email). */
+  readonlyField: '#FAF6F0',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;
@@ -261,4 +273,6 @@ export const consoleShadow = {
   photoText: '0 1px 12px rgba(0, 0, 0, 0.5)',
   /** Under the phone drawn around the app card's preview. */
   phone: '0 16px 40px rgba(42, 26, 16, 0.18)',
+  /** Under a Home card that opens something, hovered. */
+  cardHover: '0 2px 10px rgba(58, 29, 12, 0.06)',
 } as const;

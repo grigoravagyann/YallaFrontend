@@ -1,10 +1,4 @@
-import {
-  ApiError,
-  describeFailure,
-  venueTierSummary,
-  type ConsoleVenue,
-  type VenueReadinessIssue,
-} from '@yalla/api';
+import { ApiError, describeFailure, venueTierSummary, type ConsoleVenue } from '@yalla/api';
 import { isOfflinePaused, useAllConsoleVenues, useRestoreVenue } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -35,6 +29,7 @@ import {
   STATUS_FILTERS,
   TIER_FILTERS,
   filterVenues,
+  issueText,
   isFiltered,
   nextSort,
   sortVenues,
@@ -45,8 +40,6 @@ import {
   type VenueListFilters,
 } from './venues/venueList';
 
-type Translate = ReturnType<typeof useTranslation>['t'];
-
 /** Every venue in the pilot is in Yerevan. */
 const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
 
@@ -56,6 +49,7 @@ const STATUS_LABEL: Readonly<Record<StatusFilter, string>> = {
   live: 'venues.filter.statusLive',
   active: 'venues.filter.statusActive',
   suspended: 'venues.filter.statusSuspended',
+  inactive: 'venues.filter.statusInactive',
   deleted: 'venues.filter.statusDeleted',
   all: 'venues.filter.statusAll',
 };
@@ -70,6 +64,7 @@ const TIER_LABEL: Readonly<Record<TierFilter, string>> = {
 const PILL: Readonly<Record<ConsoleVenue['status'], string>> = {
   active: 'yc-pill yc-pill-green',
   suspended: 'yc-pill yc-pill-grey',
+  inactive: 'yc-pill yc-pill-grey',
   deleted: 'yc-pill yc-pill-red',
 };
 
@@ -728,14 +723,4 @@ function VenueRow({
       </td>
     </tr>
   );
-}
-
-function issueText(issue: VenueReadinessIssue, t: Translate): string {
-  const text =
-    issue.kind === 'incompleteDishes'
-      ? t('venues.issue.incompleteDishes', { count: issue.count ?? 0 })
-      : t(`venues.issue.${issue.kind}`);
-  return issue.branchName
-    ? t('venues.issue.atBranch', { issue: text, branch: issue.branchName })
-    : text;
 }

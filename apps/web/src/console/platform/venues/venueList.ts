@@ -1,4 +1,9 @@
-import { venueTierSummary, type ConsoleVenue } from '@yalla/api';
+import { venueTierSummary, type ConsoleVenue, type VenueReadinessIssue } from '@yalla/api';
+
+import type { useTranslation } from '@yalla/i18n';
+
+/** `t`, as both screens that print a readiness line hold it. */
+type Translate = ReturnType<typeof useTranslation>['t'];
 
 /**
  * The venues list's filters and sort, as pure functions (Venues artboard's
@@ -11,11 +16,12 @@ import { venueTierSummary, type ConsoleVenue } from '@yalla/api';
  * until somebody asks for it (HANDOFF section 3), and counted in the header
  * so it is never mistaken for gone.
  */
-export type StatusFilter = 'live' | 'active' | 'suspended' | 'deleted' | 'all';
+export type StatusFilter = 'live' | 'active' | 'suspended' | 'inactive' | 'deleted' | 'all';
 export const STATUS_FILTERS: readonly StatusFilter[] = [
   'live',
   'active',
   'suspended',
+  'inactive',
   'deleted',
   'all',
 ];
@@ -115,3 +121,14 @@ export function nextSort(
 
 /** Lower-case Latin letters and digits in hyphen-separated runs: the server's slug rule. */
 export const SLUG_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+/** The amber readiness line: what is missing, and at which branch when the venue has several. */
+export function issueText(issue: VenueReadinessIssue, t: Translate): string {
+  const text =
+    issue.kind === 'incompleteDishes'
+      ? t('venues.issue.incompleteDishes', { count: issue.count ?? 0 })
+      : t(`venues.issue.${issue.kind}`);
+  return issue.branchName
+    ? t('venues.issue.atBranch', { issue: text, branch: issue.branchName })
+    : text;
+}

@@ -42,6 +42,10 @@ import type { VenueListingInput } from '../contracts/listing';
 import type { ConsoleBooking, DecideReservationCommand } from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
+import type {
+  ChangePlatformPasswordCommand,
+  PlatformActivityQuery,
+} from '../contracts/platformHome';
 import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
 import { ReportRangeTooLongError } from '../contracts/errors';
 import {
@@ -298,6 +302,11 @@ export const queryKeys = {
     ] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
   devices: (branchId: string) => ['console', 'devices', branchId] as const,
+  platformOverview: ['console', 'platformOverview'] as const,
+  outboxHealth: ['console', 'outboxHealth'] as const,
+  platformActivity: (query: PlatformActivityQuery) =>
+    ['console', 'platformActivity', query.limit ?? null, query.venueId ?? null] as const,
+  platformProfile: ['console', 'platformProfile'] as const,
   /*
    * One key per section, and the section name is in it.
    *
@@ -723,6 +732,81 @@ export function useBranchesReadiness(branchIds: readonly string[]) {
       queryFn: () => gateway.getBranchReadiness(branchId),
       staleTime: staleTime.live,
     })),
+  });
+}
+
+// --- Home and Settings (platform admin) ------------------------------------------
+
+/**
+ * Home in one read. Refreshed whenever the screen comes back into view: it is
+ * "the platform as it stands", and a minute-old answer says so on its face.
+ */
+export function usePlatformOverview() {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.platformOverview,
+    queryFn: () => gateway.getPlatformOverview(),
+    staleTime: staleTime.frequent,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** The messages given up on, read only when Home's "Details" is opened. */
+export function useOutboxHealth(enabled: boolean) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.outboxHealth,
+    queryFn: () => gateway.getOutboxHealth(),
+    enabled,
+    staleTime: staleTime.frequent,
+  });
+}
+
+/** The newest audit rows, newest first. */
+export function usePlatformActivity(query: PlatformActivityQuery = {}) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.platformActivity(query),
+    queryFn: () => gateway.listPlatformActivity(query),
+    staleTime: staleTime.frequent,
+  });
+}
+
+/** The signed-in platform admin's own name and email. */
+export function usePlatformProfile(enabled = true) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.platformProfile,
+    queryFn: () => gateway.getPlatformProfile(),
+    enabled,
+    staleTime: staleTime.reference,
+  });
+}
+
+/** Renames the admin: the profile is replaced in the cache, and the feed refreshed. */
+export function useUpdatePlatformProfile() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { fullName: string }) => gateway.updatePlatformProfile(input),
+    retry: false,
+    onSuccess: (profile) => {
+      queryClient.setQueryData(queryKeys.platformProfile, profile);
+      void queryClient.invalidateQueries({ queryKey: ['console', 'platformActivity'] });
+    },
+  });
+}
+
+/** Changes the admin's password. Never retried: a second try would say the first one's "wrong". */
+export function useChangePlatformPassword() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: ChangePlatformPasswordCommand) => gateway.changePlatformPassword(command),
+    retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console', 'platformActivity'] });
+    },
   });
 }
 

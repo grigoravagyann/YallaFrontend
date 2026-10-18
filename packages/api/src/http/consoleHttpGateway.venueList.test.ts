@@ -6,14 +6,10 @@ import { BASE_URL, fakeBackend, type FakeRoute } from './fakeBackend.testkit';
 
 /**
  * The platform venues list over HTTP, for the redesigned list (Venues
- * artboard).
- *
- * `GET /api/platform/venues` is being extended in parallel with rating, review
- * count, open tabs, a readiness issue, a cover thumbnail and each branch's
- * tier. The console reads each of those **only when the wire carries it**:
- * today's backend does not, and a column the source does not report must stay
- * unreported (`undefined`) rather than turn into a zero, a "no reviews" or a
- * "no photo" nobody said.
+ * artboard), on the row `GET /api/platform/venues` serves: rating, review
+ * count, open tabs, the readiness issue, the cover thumbnail, each branch's
+ * tier, cuisine, district, the status and the creation date. The fixture is
+ * a row copied from the live backend (2026-10-18).
  */
 
 function summary(extra: Record<string, unknown> = {}) {
@@ -31,6 +27,27 @@ function summary(extra: Record<string, unknown> = {}) {
     tableCount: 18,
     paidBranchCount: 1,
     subscriptionTier: 2,
+    status: 1,
+    tierMix: 2,
+    branches: [
+      { branchId: 'b-1', name: 'Kanaker', subscriptionTier: 2, isActive: true, issues: [] },
+      {
+        branchId: 'b-2',
+        name: 'Nor Nork',
+        subscriptionTier: 1,
+        isActive: true,
+        issues: [{ code: 'incomplete-dishes', count: 4 }],
+      },
+    ],
+    averageRating: 4.6,
+    reviewCount: 110,
+    openTabCount: 3,
+    readinessIssue: { code: 'incomplete-dishes', count: 4, branchName: 'Nor Nork' },
+    notReadyBranchCount: 1,
+    coverThumbnailUrl: '/api/photos/p-1/thumbnail',
+    district: 'Kanaker',
+    cuisine: 'Armenian',
+    createdAtUtc: '2026-10-18T05:46:02.728039Z',
     ...extra,
   };
 }
@@ -60,43 +77,8 @@ describe('the venues list over HTTP', () => {
     expect(venue?.branchCount).toBe(2);
   });
 
-  it('leaves every newer column unreported when the wire does not carry it', async () => {
+  it("maps every column of the server's row", async () => {
     const { gateway } = gatewayOver({ 'GET /api/platform/venues': { body: page([summary()]) } });
-    const [venue] = (await gateway.listVenues({})).items;
-    for (const field of [
-      'rating',
-      'reviewCount',
-      'openTabCount',
-      'readinessIssue',
-      'coverThumbnailUrl',
-      'branchTiers',
-      'cuisine',
-      'district',
-    ] as const) {
-      expect(venue && field in venue, field).toBe(false);
-    }
-  });
-
-  it('maps the newer columns when the wire carries them', async () => {
-    const { gateway } = gatewayOver({
-      'GET /api/platform/venues': {
-        body: page([
-          summary({
-            averageRating: 4.6,
-            reviewCount: 110,
-            openTabCount: 3,
-            readinessIssue: { code: 'incomplete-dishes', count: 4, branchName: 'Nor Nork' },
-            coverThumbnailUrl: '/api/photos/p-1/thumbnail',
-            branches: [
-              { branchId: 'b-1', name: 'Kanaker', subscriptionTier: 2 },
-              { branchId: 'b-2', name: 'Nor Nork', subscriptionTier: 1 },
-            ],
-            cuisine: 'Armenian',
-            district: 'Kanaker',
-          }),
-        ]),
-      },
-    });
     const [venue] = (await gateway.listVenues({})).items;
     expect(venue).toMatchObject({
       rating: 4.6,
@@ -111,7 +93,17 @@ describe('the venues list over HTTP', () => {
       ],
       cuisine: 'Armenian',
       district: 'Kanaker',
+      status: 'active',
+      createdAtUtc: '2026-10-18T05:46:02.728039Z',
     });
+  });
+
+  it("reads a switched-off venue from the server's status", async () => {
+    const { gateway } = gatewayOver({
+      'GET /api/platform/venues': { body: page([summary({ status: 3, isActive: false })]) },
+    });
+    const [venue] = (await gateway.listVenues({})).items;
+    expect(venue?.status).toBe('inactive');
   });
 
   it('keeps "none" apart from "not reported": no reviews, no cover, ready', async () => {
@@ -119,9 +111,10 @@ describe('the venues list over HTTP', () => {
       'GET /api/platform/venues': {
         body: page([
           summary({
-            averageRating: null,
+            // The server leaves out a rating nobody gave and an issue nobody has.
+            averageRating: undefined,
             reviewCount: 0,
-            readinessIssue: null,
+            readinessIssue: undefined,
             coverThumbnailUrl: null,
           }),
         ]),
@@ -169,7 +162,10 @@ describe('undoing a delete over HTTP', () => {
   it('posts the restore route and answers with the venue', async () => {
     const { gateway, backend } = gatewayOver({
       'POST /api/platform/venues/v-1/restore': {
-        body: { venue: summary({ isDeleted: false }), branches: [] },
+        body: {
+          venue: summary(),
+          branches: [],
+        },
       },
     });
     const venue = await gateway.restoreVenue({ venueId: 'v-1', commandId: 'c-1' });

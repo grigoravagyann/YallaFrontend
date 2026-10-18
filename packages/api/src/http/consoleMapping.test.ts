@@ -26,6 +26,15 @@ const wireVenue = (
   tableCount: 8,
   paidBranchCount: 1,
   subscriptionTier: 2,
+  status: 1,
+  tierMix: 3,
+  branches: [
+    { branchId: 'b1', name: 'Yerevan Centre', subscriptionTier: 2, isActive: true, issues: [] },
+  ],
+  createdAtUtc: '2026-06-01T09:00:00Z',
+  notReadyBranchCount: 0,
+  openTabCount: 0,
+  reviewCount: 0,
   ...over,
 });
 
@@ -43,6 +52,7 @@ const wireBranch = (
   isActive: true,
   subscriptionTier: 1,
   tableCount: 8,
+  openTabCount: 0,
   ...over,
 });
 
@@ -79,13 +89,29 @@ describe('venue rows', () => {
     expect(venue.tableCount).toBe(8);
   });
 
-  it('reports "not asked" rather than inventing a creation date', () => {
-    expect(venueFromWire(wireVenue()).createdAtUtc).toBeNull();
+  it('carries the creation date the server keeps', () => {
+    expect(venueFromWire(wireVenue()).createdAtUtc).toBe('2026-06-01T09:00:00Z');
+  });
+
+  it('names the branch on the readiness line only when the venue has several', () => {
+    const issue = { code: 'incomplete-dishes', count: 1, branchName: 'Yerevan Centre' };
+    expect(
+      venueFromWire(wireVenue({ branchCount: 1, readinessIssue: issue })).readinessIssue,
+    ).toEqual({ kind: 'incompleteDishes', count: 1, branchName: null });
+    expect(
+      venueFromWire(wireVenue({ branchCount: 2, readinessIssue: issue })).readinessIssue
+        ?.branchName,
+    ).toBe('Yerevan Centre');
+  });
+
+  it("reads the server's status, switched off included", () => {
+    expect(venueFromWire(wireVenue({ status: 3, isActive: false })).status).toBe('inactive');
+    expect(venueFromWire(wireVenue({ status: 4, isDeleted: true })).status).toBe('deleted');
   });
 
   it('carries a suspension timestamp when the backend sends one', () => {
     const venue = venueFromWire(
-      wireVenue({ isSuspended: true, suspendedAtUtc: '2026-09-01T10:00:00Z' }),
+      wireVenue({ status: 2, isSuspended: true, suspendedAtUtc: '2026-09-01T10:00:00Z' }),
     );
     expect(venue.status).toBe('suspended');
     expect(venue.suspendedAtUtc).toBe('2026-09-01T10:00:00Z');
@@ -93,13 +119,13 @@ describe('venue rows', () => {
 });
 
 describe('branches and detail', () => {
-  it('maps a branch and leaves open tabs unknown, not zero', () => {
-    const branch = branchFromWire(wireBranch());
+  it('maps a branch with the open tabs and the district the platform read carries', () => {
+    const branch = branchFromWire(wireBranch({ openTabCount: 3, district: 'Kentron' }));
     expect(branch.id).toBe('b1');
     expect(branch.timeZoneId).toBe('Asia/Yerevan');
     expect(branch.subscriptionTier).toBe('free');
-    // `0` would be a claim about the floor that this endpoint never made.
-    expect(branch.openTabCount).toBeNull();
+    expect(branch.openTabCount).toBe(3);
+    expect(branch.district).toBe('Kentron');
   });
 
   it('flattens {venue, branches} and marks staff as not loaded', () => {

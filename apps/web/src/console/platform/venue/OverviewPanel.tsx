@@ -41,6 +41,10 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
 
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
   const knowsTabs = venue.branches.some((branch) => branch.openTabCount !== null);
+  // Today's bookings per branch ride on the summary already read for the card above.
+  const today = new Map(
+    (bookings.data?.byBranch ?? []).map((branch) => [branch.branchId, branch.todayCount]),
+  );
   const branchesWithTabs = venue.branches.filter((branch) => (branch.openTabCount ?? 0) > 0);
   const owner = (staff.data ?? []).find((member) => member.role === 'owner' && member.isActive);
   const summary = venueTierSummary(venue);
@@ -130,6 +134,9 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
                     <th scope="col" className="yc-num">
                       {t('venuePage.branches.tables')}
                     </th>
+                    <th scope="col" className="yc-num">
+                      {t('venuePage.branches.today')}
+                    </th>
                     {knowsTabs ? (
                       <th scope="col" className="yc-num">
                         {t('venuePage.branches.openTabs')}
@@ -145,6 +152,7 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
                       key={branch.id}
                       venueId={venue.id}
                       branch={branch}
+                      today={today.get(branch.id) ?? null}
                       knowsTabs={knowsTabs}
                       onPlan={onBranchPlan}
                     />
@@ -202,11 +210,14 @@ export function OverviewPanel({ venue, onBranchPlan, onAddBranch }: OverviewPane
 function BranchRow({
   venueId,
   branch,
+  today,
   knowsTabs,
   onPlan,
 }: {
   readonly venueId: string;
   readonly branch: ConsoleBranch;
+  /** `null` until the summary has answered: not a zero nobody counted. */
+  readonly today: number | null;
   readonly knowsTabs: boolean;
   readonly onPlan: ((branch: ConsoleBranch) => void) | null;
 }) {
@@ -225,6 +236,7 @@ function BranchRow({
         ) : null}
       </td>
       <td className="yc-num">{branch.tableCount}</td>
+      <td className="yc-num">{today ?? '—'}</td>
       {knowsTabs ? <td className="yc-num">{branch.openTabCount ?? '—'}</td> : null}
       <td>
         {onPlan ? (

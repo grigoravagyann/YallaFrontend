@@ -10,6 +10,7 @@ import { SignInRoute } from './auth/SignInRoute';
 import { PLATFORM_ROLES, VENUE_ROLES, landingPathFor, useCurrentUser } from './auth/useCurrentUser';
 import { ConsoleLayout } from './console/ConsoleLayout';
 import { PlatformLayout } from './console/platform/PlatformLayout';
+import { HomeRoute } from './console/platform/HomeRoute';
 import { SettingsRoute } from './console/platform/SettingsRoute';
 import { ErrorState, errorKindFor } from './console/ui/ErrorState';
 import { BranchFloorPlanRoute } from './console/platform/BranchFloorPlanRoute';
@@ -193,8 +194,14 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
       <Route element={platform ? <PlatformLayout user={user} /> : <ConsoleLayout user={user} />}>
         {platform ? (
           <>
-            {/* Home until the Home screen exists (redesign phase 5). */}
-            <Route path="/platform" element={<Navigate to="/platform/venues" replace />} />
+            <Route
+              path="/platform"
+              element={
+                <RequireRole allow={PLATFORM_ROLES}>
+                  <HomeRoute />
+                </RequireRole>
+              }
+            />
             <Route
               path="/platform/settings"
               element={

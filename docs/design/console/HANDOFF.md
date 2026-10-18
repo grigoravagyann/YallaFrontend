@@ -32,7 +32,7 @@ Nav has exactly three items: Գլխավոր, Վայրեր, Կարգավորու�
 |---|---|---|
 | SignIn | Sign-in + forgot password; states default, error, locked (too many attempts) | `apps/web/src/auth/SignInRoute.tsx` |
 | SetPassword | Choose password from a link; states form, done, invalid link, signed in as someone else | `apps/web/src/auth/ResetPasswordRoute.tsx` |
-| Main | Home: outbox alert, 4 KPI cards (pending and open-tabs cards expand a per-venue list), bookings per day 14/30 days, not-ready venues, recently added, activity feed | new; `/platform` currently redirects to venues |
+| Main | Home: outbox alert, 4 KPI cards (pending and open-tabs cards expand a per-venue list), bookings per day 14/30 days, not-ready venues, recently added, activity feed | `/platform` (phase 5); the outbox alert has "Details" only, no retry |
 | Venues | List with search, status filter (deleted hidden by default), tier filter, sortable columns, tier button with confirm, ⋮ menu (tier, suspend/restore, delete), 3-step create, undo toasts | `console/platform/VenuesRoute.tsx`, `CreateVenueRoute.tsx` |
 | VenueDetail | One venue: suspended banner, edit, suspend, delete (type name, "still in use" refusal), tabs Ընդհանուր / Աշխատողներ / Ամրագրումներ, add branch, 4-step add staff, issue sign-in link | `console/platform/VenueDetailRoute.tsx`, `EditVenueForm.tsx`, `AddBranchForm.tsx`; staff UI reuses `console/venue/staff/*` logic |
 | BranchPublic | Branch public page + app listing, two separately saved sections, live app-card preview | `console/platform/BranchPublicPageRoute.tsx` wrapping `console/venue/public/PublicPageScreen.tsx` |
@@ -48,7 +48,7 @@ switcher, and sub-tabs Հանրային էջ / Սրահներ և սեղաննե�
 
 - **One platform admin**: the user. It is seeded from `PlatformAdmin:Email` and `PlatformAdmin:Password` by `PlatformAdminSeeder`. Do not build admin invites or an admin list. Owner, general-manager and manager accounts are created from the venue page's Աշխատողներ tab.
 - **Sign-in links and PINs are shown once** in a dialog to copy and pass on in a chat. They are never emailed. Closing without copying warns once. This matches `admin.json` `staff.signIn.*` and `staff.pin.*`.
-- **Paid-tier refusal** is the backend's rule: switching to Paid is refused while dishes are not ready (`venue.tier.notReady`). There is no open-tabs rule. Mountain View in the mock shows the refusal; Sunset Lounge shows the allowed path.
+- **Tier refusals** are the backend's rules, per branch (`PATCH /api/platform/branches/{id}`): switching to Paid is refused while the branch's dishes are not ready (`branch-not-ready`, `venue.tier.notReady`), and **switching to Free is refused while the branch has open tabs**, because hiding a live bill from the people who owe it strands real money (`venues.tierDialog.openTabs`). Mountain View in the mock shows the Paid refusal, Sunset Lounge the allowed path, and Cascade Cafe's Կենտրոն branch the Free refusal.
 - **Delete is soft.** You type the venue name. The server refuses while tabs are open or bookings are upcoming (`venue.blocked.*`), and the refusal offers "Կասեցնել փոխարենը". Deleted venues are hidden from the list unless the "Ջնջված" filter is on.
 - **Bookings on the venue page are aggregates only.** Never show guest names or phones to the platform admin.
 - **Red is only for real failures** (outbox, server error, destructive buttons). Not-ready states are amber. Hours were removed from the venue status column at the user's request. Category and cuisine are in Armenian.

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ConsoleUser } from '@yalla/api';
+import { createConsoleMockGateway, type ConsoleGateway, type ConsoleUser } from '@yalla/api';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -36,8 +36,17 @@ function ToastProbe() {
   );
 }
 
-function renderShell(path = '/platform/venues') {
-  const harness = createConsoleHarness();
+/** The mock, answering `/me` with the admin's current name. */
+function gatewayNaming(fullName: string): ConsoleGateway {
+  const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+  return {
+    ...mock,
+    getPlatformProfile: async () => ({ ...(await mock.getPlatformProfile()), fullName }),
+  };
+}
+
+function renderShell(path = '/platform/venues', gateway = gatewayNaming(ADMIN.displayName)) {
+  const harness = createConsoleHarness({ gateway });
   render(
     harness.wrap(
       <Routes>
@@ -81,6 +90,12 @@ describe('the platform shell', () => {
     expect(screen.getByText('Grigor Avagyan')).toBeTruthy();
     expect(screen.getByText('Platform admin')).toBeTruthy();
     expect(screen.getByText('GA').getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('names the admin by their name now, not the one the token was issued with', async () => {
+    renderShell('/platform/venues', gatewayNaming('Grigor A.'));
+    expect(await screen.findByText('Grigor A.')).toBeTruthy();
+    expect(screen.queryByText('Grigor Avagyan')).toBeNull();
   });
 
   it('puts the page in a main a skip link reaches', () => {

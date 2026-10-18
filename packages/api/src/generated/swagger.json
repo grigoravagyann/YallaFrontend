@@ -1667,7 +1667,7 @@
           "admin"
         ],
         "summary": "What this branch still needs before it can take diners",
-        "description": "The onboarding checklist, answered by the server: floor plan drawn, tables labelled, at least one menu category, how many menu items are still incomplete, hours set, reservation policy reviewed, staff enrolled, at least one tablet.\n\nThe console used to render this from a client-side guess, which meant the console and the server had two different ideas of ready - and only the server's decides whether the branch may be switched to `Paid`. `incompleteMenuItemCount` is the line that gate enforces, and `incompleteMenuItemIds` says which items to finish.",
+        "description": "The onboarding checklist, answered by the server: floor plan drawn, tables labelled, at least one menu category, how many menu items are still incomplete, hours set, reservation policy reviewed, staff enrolled, at least one tablet.\n\nThe console used to render this from a client-side guess, which meant the console and the server had two different ideas of ready - and only the server's decides whether the branch may be switched to `Paid`. `incompleteMenuItemCount` is the line that gate enforces, and `incompleteMenuItemIds` says which items to finish.\n\n`blockers` says what is left in sentences; `issues` says the same lines, one for one and in the same order, as stable codes - `no-tables`, `tables-unlabelled`, `no-menu`, `menu-empty`, `incomplete-dishes` (with `count`), `no-hours`, `policy-not-reviewed`, `no-staff`, `no-device`.",
         "operationId": "getBranchReadiness",
         "parameters": [
           {
@@ -12180,8 +12180,8 @@
         "tags": [
           "platform"
         ],
-        "summary": "Venues, with search and paging",
-        "description": "Each row carries its branch count, table count, paid-branch count and the tier rollup - Paid only when every branch is paid, because billing is per branch.",
+        "summary": "Venues, with search, filters, sorting and paging",
+        "description": "Each row is what the console's venue table shows: the branch, active-table and paid-branch counts; `tierMix` (1 Free, 2 Mixed, 3 Paid - billing is per branch, so a venue is Mixed when only some branches pay) and `branches`, every branch with its own tier and `issues`; `status` (1 Active, 2 Suspended, 3 Inactive, 4 Deleted); `averageRating` and `reviewCount` over the published reviews of every branch; `openTabCount`; `readinessIssue` (`code`, `count`, `branchName`), the first thing a guest would find missing - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`; `coverThumbnailUrl`, the first branch's cover thumbnail; `district`, `cuisine` and `createdAtUtc`.\n\n`search` matches the venue's name and slug and each branch's name and district. `status`: `live` (default: every venue not deleted), `all`, `active`, `suspended`, `inactive` or `deleted`; the older `includeDeleted=true` is `all` when no `status` is sent. `tier`: `free`, `mixed` or `paid`. `sort`: `name` (default), `rating`, `tables` or `created`; `dir`: `asc` (default) or `desc` - a venue with no rating sorts below every rated one. `page` from 1, `pageSize` 1-200 (default 20).",
         "operationId": "listVenues",
         "parameters": [
           {
@@ -12216,6 +12216,34 @@
               "type": "boolean",
               "default": false
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tier",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -12225,6 +12253,78 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`status`, `tier`, `sort` or `dir` is not a value it takes; `context.field` names it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/overview": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Home: the platform's numbers in one read",
+        "description": "**Aggregates only** - no guest's name, phone or booking code at any depth.\n\n`venues`: venues not deleted, split by `tierMix` (`paid` every branch paid, `mixed` some, `free` none) and by state, with `deleted` counted apart and the branch totals. `bookings`: bookings by the day of the visit, on each branch's own calendar, cancelled ones left out - `perDay` is thirty entries, oldest first and today last (the 14-day chart is the last fourteen), `last7Days` against `previous7Days` with `changePercent` (absent when the previous week had none). `pendingApprovals`: booking requests still waiting for a venue whose visit is ahead; `openTabs`: tabs open or closing now - each a total and the venues it comes from, most first. `notReady`: branches diners can reach that a guest would find unfinished - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours`, `no-photo` (the first twenty, newest venues first, and the `total`). `recentVenues`: the five newest venues not deleted. `outbox`: the counts `GET /api/platform/outbox` serves, with `deadLetteredLastDay` - the messages given up on in the last 24 hours, what Home's alert counts.",
+        "operationId": "getPlatformOverview",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.PlatformOverview"
                 }
               }
             }
@@ -12250,7 +12350,200 @@
             }
           },
           "403": {
+            "description": "Platform admin only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/activity": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The activity feed: the newest audit rows, newest first",
+        "description": "Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`).\n\n`limit` 1-100 (default 20). `venueId` narrows it to one venue.",
+        "operationId": "listPlatformActivity",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "venueId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.ActivityFeed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`limit` out of range; `context.field` names it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Platform admin only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/venues/{venueId}/bookings-summary": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "One venue's bookings as counts, for the last 7 or 30 days",
+        "description": "**Aggregates only**: the restaurant sees its guests; the platform sees numbers.\n\n`days` is `7` or `30` (default 30). The window is each branch's own today and the days before it, by the branch's local date of the visit, in **every** status: `byStatus` splits the `total` into `completed` (seated or completed), `upcoming` (confirmed, not yet seated), `pendingApproval`, `cancelled` (either side, rejections included) and `noShow`. `byWeekday` is all seven days by the weekday of the visit, `dayOfWeek` 0 Sunday to 6 Saturday. `averagePartySize` is over the bookings not cancelled, to one decimal, and absent with none. `byBranch` is every branch of the venue, by name, with the same split flat and `todayCount` - its bookings for today, cancelled ones left out.",
+        "operationId": "getVenueBookingsSummary",
+        "parameters": [
+          {
+            "name": "venueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.VenueBookingsSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`days` is not 7 or 30; `context.field` names it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such venue.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12493,7 +12786,7 @@
           "platform"
         ],
         "summary": "Soft-delete a venue",
-        "description": "**Soft delete only.** Reservations, tabs and payments hang off the venue and are never removed. Refused while any tab is open or any confirmed booking is still in the future - the response names which.",
+        "description": "**Soft delete only.** Reservations, tabs and payments hang off the venue and are never removed. Refused while any tab is open or any confirmed booking is still in the future - the response names which. `POST .../restore` undoes it.",
         "operationId": "deleteVenue",
         "parameters": [
           {
@@ -12744,6 +13037,109 @@
           },
           "404": {
             "description": "No such venue.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/venues/{venueId}/restore": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Undo a soft delete",
+        "description": "The venue comes back exactly as it was before it was deleted: switched on or off as it was then, and **still suspended if it was suspended** - deleting never touched the suspension. Nothing under it was removed, so nothing is rebuilt; its branches, tables, staff and history are all where they were, and it accepts changes again. A venue deleted before this was recorded comes back switched on.\n\nA venue that is not deleted is answered as it is and nothing is written, so an undo that arrives twice is harmless. Refused with **409** when its web address now belongs to another venue - which the unique slug index, covering deleted venues, keeps from happening today. **Audited** as `venue.restore`.",
+        "operationId": "restoreVenue",
+        "parameters": [
+          {
+            "name": "venueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.VenueDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such venue.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The venue's web address is now another venue's.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -13215,6 +13611,356 @@
           },
           "422": {
             "description": "`hidden` missing, or `reason` missing (bound `required`) or over 500 characters (bound `max`) when hiding.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/reviews/{reviewId}/dismiss-reports": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Leave a reported review up, and set its reports aside",
+        "description": "The platform looked and found nothing wrong: the review stays exactly as it is - shown or hidden - and stops counting as reported, for the platform's list and the venue's. The reports are kept, marked dismissed; `reportCount` counts only the ones nobody has dismissed, so a diner reporting it afterwards brings it back to the reported filter.\n\n**Idempotent**: a review with no open report is answered as it is and nothing is written. **Audited** as `review.dismiss-reports`, with how many were dismissed. Answers the review as the moderation list shows it.",
+        "operationId": "dismissPlatformReviewReports",
+        "parameters": [
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Reviews.ModeratedReviewView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is authenticated but not allowed to perform this action.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such review.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/me": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "The signed-in platform admin's own account",
+        "description": "`fullName` is theirs to change. `email` is the sign-in address and is fixed: it is `PlatformAdmin:Email` in configuration, and nothing here changes it.",
+        "operationId": "getPlatformAdminProfile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.PlatformAdminProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Platform admin only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Change the signed-in platform admin's name",
+        "description": "`fullName`, 1-200 characters after trimming. The configured `PlatformAdmin:FullName` only names the account when the seed first creates it; the seed never overwrites a name changed here. **Audited** as `admin.rename`; a name that does not change writes nothing.",
+        "operationId": "updatePlatformAdminProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.UpdatePlatformAdminProfileRequest"
+                  }
+                ],
+                "description": "Body of `PATCH /api/platform/me`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Application.Platform.PlatformAdminProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Platform admin only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`fullName` missing, blank or over 200 characters.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.ValidationFailedProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests in the window, or a one-time credential is out of attempts.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected failure. Quote the traceId from the body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/me/password": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Change the signed-in platform admin's password",
+        "description": "`currentPassword` must be right and `newPassword` at least 12 characters - the one rule every console password follows. Everything wrong is reported in one 422: a wrong current password is `context.fields` naming `currentPassword`, not a 401, so the console stays signed in and shows it under the field.\n\n**Every other sign-in is signed out**: their refresh tokens are revoked, and their access tokens run out within their 15 minutes. The sign-in this request came from keeps its refresh token and carries on. The seed never resets a password changed here. **Audited** as `admin.password-change`, with nothing about either password.",
+        "operationId": "changePlatformAdminPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Yalla.Api.Endpoints.ChangePlatformAdminPasswordRequest"
+                  }
+                ],
+                "description": "Body of `POST /api/platform/me/password`."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "The request violated a domain rule or arrived malformed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No usable token was presented, or the one presented was rejected.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Platform admin only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Yalla.Api.Errors.UnifiedErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`currentPassword` missing or wrong, or `newPassword` missing or too short - every one at once.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -16558,6 +17304,23 @@
         "additionalProperties": false,
         "description": "Body for a diner cancelling their own booking."
       },
+      "Yalla.Api.Endpoints.ChangePlatformAdminPasswordRequest": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "description": "The password the admin signs in with now.",
+            "nullable": true
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "At least 12 characters. Length is the only rule.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `POST /api/platform/me/password`."
+      },
       "Yalla.Api.Endpoints.ClaimTelegramVerificationRequest": {
         "type": "object",
         "properties": {
@@ -17616,6 +18379,18 @@
         },
         "additionalProperties": false,
         "description": "Body of `PUT /api/diner/me`. Only the fields sent change."
+      },
+      "Yalla.Api.Endpoints.UpdatePlatformAdminProfileRequest": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "description": "The name the console shows and the activity feed records. 1-200 characters.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Body of `PATCH /api/platform/me`."
       },
       "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
         "required": [
@@ -19960,6 +20735,7 @@
           "incompleteMenuItemCount",
           "incompleteMenuItemIds",
           "isReadyForDiners",
+          "issues",
           "menuCategoriesPresent",
           "menuCategoryCount",
           "menuComplete",
@@ -20068,6 +20844,13 @@
               "type": "string"
             },
             "description": "One sentence per unsatisfied line, in checklist order. The console renders its own labels; this\nis for the places that need to say what is wrong without reimplementing the list - a log line,\na support answer, an email to the venue."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReadinessIssue"
+            },
+            "description": "The same unsatisfied lines as Blockers, one for one and in the same order, as\nstable codes a client can switch on - Yalla.Application.BranchSettings.ReadinessIssueCodes - with the count behind\nthe ones that have one. The platform console's venue list and Home show the first of these."
           }
         },
         "additionalProperties": false,
@@ -20479,6 +21262,26 @@
         },
         "additionalProperties": false,
         "description": "The two settings that decide what a branch publishes to anybody with its link."
+      },
+      "Yalla.Application.BranchSettings.ReadinessIssue": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "One of Yalla.Application.BranchSettings.ReadinessIssueCodes."
+          },
+          "count": {
+            "type": "integer",
+            "description": "How many, when the line counts something - the unfinished dishes for\n`incomplete-dishes`. Absent for a line that is simply missing.",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One thing a branch still lacks, as a code and, where it has one, the count behind it."
       },
       "Yalla.Application.BranchSettings.ReplaceFloorPlanCommand": {
         "required": [
@@ -21985,6 +22788,7 @@
       "Yalla.Application.Messaging.OutboxHealthView": {
         "required": [
           "deadLettered",
+          "deadLetteredLastDay",
           "deadLetters",
           "due",
           "failed",
@@ -22024,6 +22828,11 @@
               "$ref": "#/components/schemas/Yalla.Application.Messaging.DeadLetterView"
             },
             "description": "The dead-lettered messages themselves, newest first."
+          },
+          "deadLetteredLastDay": {
+            "type": "integer",
+            "description": "Given up on in the last twenty-four hours: the messages that recently failed to reach somebody, which\nis what the console's Home alert counts. DeadLettered is every one ever.",
+            "format": "int32"
           }
         },
         "additionalProperties": false,
@@ -22747,6 +23556,252 @@
         "additionalProperties": false,
         "description": "The tab's money, in whole dram. Server-computed; a client only ever displays it."
       },
+      "Yalla.Application.Platform.ActivityActor": {
+        "required": [
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "Their staff row.",
+            "format": "uuid"
+          },
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.StaffRole"
+              }
+            ],
+            "description": "Their role when they acted: 5 is the platform admin, the rest a venue's own staff.",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Their name when they acted; absent for a row from before names were kept.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Who acted."
+      },
+      "Yalla.Application.Platform.ActivityEntry": {
+        "required": [
+          "action",
+          "actor",
+          "atUtc",
+          "id",
+          "target"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The row.",
+            "format": "uuid"
+          },
+          "atUtc": {
+            "type": "string",
+            "description": "When it happened.",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string",
+            "description": "The stable slug - `venue.create`, `venue.update`, `venue.suspend`,\n`venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,\n`branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,\n`venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`, `table.regenerate-qr`,\n`admin.rename`, `admin.password-change`."
+          },
+          "actor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.ActivityActor"
+              }
+            ],
+            "description": "Who did it, as they were called then."
+          },
+          "target": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.ActivityTarget"
+              }
+            ],
+            "description": "What it was done to, as it was called then."
+          },
+          "venue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.ActivityVenue"
+              }
+            ],
+            "description": "The venue it concerns, by its current name; absent for the admin's own account.",
+            "nullable": true
+          },
+          "detail": {
+            "description": "The row's JSON as written - its shape is per action (docs/platform-admin.md).",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One audit row as the console's activity feed shows it."
+      },
+      "Yalla.Application.Platform.ActivityFeed": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.ActivityEntry"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "The newest audit rows, newest first."
+      },
+      "Yalla.Application.Platform.ActivityTarget": {
+        "required": [
+          "id",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "`Venue`, `Branch`, `StaffMember`, `BranchReview`, `DiningTable`."
+          },
+          "id": {
+            "type": "string",
+            "description": "Its id.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Its name then - a table's label, a person's name; for a review, the branch it is about, because the\nreviewer is a diner and is not named in the log.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "What was acted on."
+      },
+      "Yalla.Application.Platform.ActivityVenue": {
+        "required": [
+          "name",
+          "venueId"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The venue an entry concerns."
+      },
+      "Yalla.Application.Platform.BookingStatusCounts": {
+        "required": [
+          "cancelled",
+          "completed",
+          "noShow",
+          "pendingApproval",
+          "upcoming"
+        ],
+        "type": "object",
+        "properties": {
+          "completed": {
+            "type": "integer",
+            "description": "Seated or completed: they came.",
+            "format": "int32"
+          },
+          "upcoming": {
+            "type": "integer",
+            "description": "Confirmed and not seated - still ahead, or late and not yet marked.",
+            "format": "int32"
+          },
+          "pendingApproval": {
+            "type": "integer",
+            "description": "Still waiting for the venue to approve.",
+            "format": "int32"
+          },
+          "cancelled": {
+            "type": "integer",
+            "description": "Cancelled by either side, rejections included.",
+            "format": "int32"
+          },
+          "noShow": {
+            "type": "integer",
+            "description": "Nobody came.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Bookings by outcome. See Yalla.Application.Platform.BookingBucket for which statuses each counts."
+      },
+      "Yalla.Application.Platform.BranchBookingCounts": {
+        "required": [
+          "branchId",
+          "cancelled",
+          "completed",
+          "name",
+          "noShow",
+          "pendingApproval",
+          "todayCount",
+          "total",
+          "upcoming"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Its bookings in the window.",
+            "format": "int32"
+          },
+          "completed": {
+            "type": "integer",
+            "description": "Seated or completed.",
+            "format": "int32"
+          },
+          "upcoming": {
+            "type": "integer",
+            "description": "Confirmed and not seated.",
+            "format": "int32"
+          },
+          "pendingApproval": {
+            "type": "integer",
+            "description": "Waiting for approval.",
+            "format": "int32"
+          },
+          "cancelled": {
+            "type": "integer",
+            "description": "Cancelled by either side.",
+            "format": "int32"
+          },
+          "noShow": {
+            "type": "integer",
+            "description": "Nobody came.",
+            "format": "int32"
+          },
+          "todayCount": {
+            "type": "integer",
+            "description": "Bookings for the branch's today, cancelled ones left out - the venue page's branch table.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One branch's share of the window, and its bookings today."
+      },
       "Yalla.Application.Platform.BranchSummary": {
         "required": [
           "address",
@@ -22755,6 +23810,7 @@
           "latitude",
           "longitude",
           "name",
+          "openTabCount",
           "slug",
           "subscriptionTier",
           "tableCount",
@@ -22765,34 +23821,43 @@
         "properties": {
           "branchId": {
             "type": "string",
+            "description": "The branch.",
             "format": "uuid"
           },
           "venueId": {
             "type": "string",
+            "description": "Its venue.",
             "format": "uuid"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Its name."
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "description": "URL segment, unique within the venue."
           },
           "address": {
-            "type": "string"
+            "type": "string",
+            "description": "Street address."
           },
           "latitude": {
             "type": "number",
+            "description": "The map pin.",
             "format": "double"
           },
           "longitude": {
             "type": "number",
+            "description": "The map pin.",
             "format": "double"
           },
           "timeZoneId": {
-            "type": "string"
+            "type": "string",
+            "description": "IANA zone; every local time at the branch is in it."
           },
           "isActive": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Whether the branch is switched on."
           },
           "subscriptionTier": {
             "allOf": [
@@ -22804,10 +23869,64 @@
           },
           "tableCount": {
             "type": "integer",
+            "description": "Active tables. A table kept only for its history is not counted.",
             "format": "int32"
+          },
+          "openTabCount": {
+            "type": "integer",
+            "description": "Tabs open or closing at the branch right now.",
+            "format": "int32"
+          },
+          "district": {
+            "type": "string",
+            "description": "As the listing form saved it.",
+            "nullable": true
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "One branch as the platform's venue page shows it."
+      },
+      "Yalla.Application.Platform.BranchTierView": {
+        "required": [
+          "branchId",
+          "isActive",
+          "issues",
+          "name",
+          "subscriptionTier"
+        ],
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "subscriptionTier": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.SubscriptionTier"
+              }
+            ],
+            "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the branch is switched on."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReadinessIssue"
+            },
+            "description": "What a guest would find missing at the branch, in checklist order: `no-tables`, `no-menu`,\n`incomplete-dishes` (with `count`), `no-hours`, then `no-photo`. Empty when there\nis nothing to do. Always empty for a deleted venue, which is not worked out. The full checklist is\n`GET /api/branches/{id}/readiness`."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One branch's tier and what it still lacks, as the venue list shows it."
       },
       "Yalla.Application.Platform.CreateBranchCommand": {
         "required": [
@@ -22888,6 +24007,266 @@
         "additionalProperties": false,
         "description": "Create a venue together with its first branch. A venue with no branch is useless."
       },
+      "Yalla.Application.Platform.DailyCount": {
+        "required": [
+          "count",
+          "date"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The day, in Yalla.Application.Platform.OverviewBookings.LabelTimeZoneId.",
+            "format": "date"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Bookings for that day.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One day's count."
+      },
+      "Yalla.Application.Platform.NotReadyBranch": {
+        "required": [
+          "branchId",
+          "branchName",
+          "issues",
+          "venueId",
+          "venueName"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "description": "Its venue.",
+            "format": "uuid"
+          },
+          "venueName": {
+            "type": "string",
+            "description": "The venue's name."
+          },
+          "branchId": {
+            "type": "string",
+            "description": "The branch.",
+            "format": "uuid"
+          },
+          "branchName": {
+            "type": "string",
+            "description": "The branch's name."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.BranchSettings.ReadinessIssue"
+            },
+            "description": "What a guest would find missing (M:Yalla.Application.Platform.PlatformRollups.GuestFacingIssues(System.Collections.Generic.IEnumerable{Yalla.Application.BranchSettings.ReadinessIssue},System.Boolean)): `no-tables`,\n`no-menu`, `incomplete-dishes`, `no-hours`, `no-photo`. The card shows the first."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A branch that is not ready, and why."
+      },
+      "Yalla.Application.Platform.OverviewBookings": {
+        "required": [
+          "labelTimeZoneId",
+          "last7Days",
+          "perDay",
+          "previous7Days"
+        ],
+        "type": "object",
+        "properties": {
+          "last7Days": {
+            "type": "integer",
+            "description": "Today and the six days before it.",
+            "format": "int32"
+          },
+          "previous7Days": {
+            "type": "integer",
+            "description": "The seven days before those.",
+            "format": "int32"
+          },
+          "changePercent": {
+            "type": "number",
+            "description": "Last7Days against Previous7Days, in percent to one decimal;\n            absent when the previous week had none.",
+            "format": "double",
+            "nullable": true
+          },
+          "labelTimeZoneId": {
+            "type": "string",
+            "description": "The zone the Yalla.Application.Platform.DailyCount.Date labels are written in: the one most branches share. Each\nbranch is counted on its own calendar, aligned so the last entry is every branch's today."
+          },
+          "perDay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.DailyCount"
+            },
+            "description": "Thirty entries, oldest first, the last one today. The 14-day chart is the last fourteen."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Bookings by the day of the visit. A booking counts on the branch's own local date; cancelled ones\nare left out (a request the venue rejected is a cancellation). Venues that are deleted are left out."
+      },
+      "Yalla.Application.Platform.OverviewNotReady": {
+        "required": [
+          "branches",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "How many branches.",
+            "format": "int32"
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.NotReadyBranch"
+            },
+            "description": "The first twenty, by venue name then branch name."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The branches still not ready for diners."
+      },
+      "Yalla.Application.Platform.OverviewOutbox": {
+        "required": [
+          "deadLettered",
+          "deadLetteredLastDay",
+          "due",
+          "failed",
+          "pending",
+          "sentLastDay"
+        ],
+        "type": "object",
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "description": "Written, not yet sent, not dead.",
+            "format": "int32"
+          },
+          "due": {
+            "type": "integer",
+            "description": "Pending and due now.",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "integer",
+            "description": "Pending with at least one failed attempt.",
+            "format": "int32"
+          },
+          "deadLettered": {
+            "type": "integer",
+            "description": "Given up on, ever.",
+            "format": "int32"
+          },
+          "sentLastDay": {
+            "type": "integer",
+            "description": "Sent in the last 24 hours.",
+            "format": "int32"
+          },
+          "deadLetteredLastDay": {
+            "type": "integer",
+            "description": "Given up on in the last 24 hours - what Home's alert counts.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The outbox's counts."
+      },
+      "Yalla.Application.Platform.OverviewVenueCounter": {
+        "required": [
+          "total",
+          "venues"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "The sum over every venue.",
+            "format": "int32"
+          },
+          "venues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.VenueCount"
+            },
+            "description": "Each venue with any, the most first, then by name."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A total and the venues it is made of."
+      },
+      "Yalla.Application.Platform.OverviewVenueCounts": {
+        "required": [
+          "active",
+          "branches",
+          "deleted",
+          "free",
+          "inactive",
+          "mixed",
+          "paid",
+          "paidBranches",
+          "suspended",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Venues not deleted: Paid + Mixed + Free.",
+            "format": "int32"
+          },
+          "paid": {
+            "type": "integer",
+            "description": "Every branch paid.",
+            "format": "int32"
+          },
+          "mixed": {
+            "type": "integer",
+            "description": "Some branches paid.",
+            "format": "int32"
+          },
+          "free": {
+            "type": "integer",
+            "description": "No branch paid, or no branch.",
+            "format": "int32"
+          },
+          "active": {
+            "type": "integer",
+            "description": "Active (see Yalla.Application.Platform.VenueStatus).",
+            "format": "int32"
+          },
+          "suspended": {
+            "type": "integer",
+            "description": "Suspended.",
+            "format": "int32"
+          },
+          "inactive": {
+            "type": "integer",
+            "description": "Switched off.",
+            "format": "int32"
+          },
+          "deleted": {
+            "type": "integer",
+            "description": "Soft-deleted - outside every other number here.",
+            "format": "int32"
+          },
+          "branches": {
+            "type": "integer",
+            "description": "Branches of the venues in Total.",
+            "format": "int32"
+          },
+          "paidBranches": {
+            "type": "integer",
+            "description": "How many of those are paid.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Venue counts. Everything but Deleted counts venues that are not deleted; the tier\nsplit is per venue, from its branches' tiers (Yalla.Application.Platform.TierMix)."
+      },
       "Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
         "required": [
           "items",
@@ -22917,6 +24296,187 @@
           }
         },
         "additionalProperties": false
+      },
+      "Yalla.Application.Platform.PlatformAdminProfile": {
+        "required": [
+          "email",
+          "fullName",
+          "staffMemberId"
+        ],
+        "type": "object",
+        "properties": {
+          "staffMemberId": {
+            "type": "string",
+            "description": "Their staff row.",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string",
+            "description": "The name the console shows and the audit log records. Theirs to change."
+          },
+          "email": {
+            "type": "string",
+            "description": "The sign-in address. Fixed: it is `PlatformAdmin:Email` in configuration, and the seed finds the\naccount by it, so there is no endpoint that changes it."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The signed-in platform admin's own account."
+      },
+      "Yalla.Application.Platform.PlatformOverview": {
+        "required": [
+          "bookings",
+          "generatedAtUtc",
+          "notReady",
+          "openTabs",
+          "outbox",
+          "pendingApprovals",
+          "recentVenues",
+          "venues"
+        ],
+        "type": "object",
+        "properties": {
+          "generatedAtUtc": {
+            "type": "string",
+            "description": "When this was worked out.",
+            "format": "date-time"
+          },
+          "venues": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.OverviewVenueCounts"
+              }
+            ],
+            "description": "How many venues there are, by tier and by state."
+          },
+          "bookings": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.OverviewBookings"
+              }
+            ],
+            "description": "Bookings per day for the last 30 days and the week-on-week change."
+          },
+          "pendingApprovals": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.OverviewVenueCounter"
+              }
+            ],
+            "description": "Booking requests still waiting for a venue to approve them, per venue."
+          },
+          "openTabs": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.OverviewVenueCounter"
+              }
+            ],
+            "description": "Tabs open or closing right now, per venue."
+          },
+          "notReady": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.OverviewNotReady"
+              }
+            ],
+            "description": "Branches diners can reach that a guest would find unfinished."
+          },
+          "recentVenues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.RecentVenue"
+            },
+            "description": "The five newest venues that are not deleted, newest first."
+          },
+          "outbox": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.OverviewOutbox"
+              }
+            ],
+            "description": "The message outbox's counts - the same numbers `GET /api/platform/outbox` serves."
+          }
+        },
+        "additionalProperties": false,
+        "description": "Everything the platform console's Home shows, in one read. <b>Aggregates only</b>: no guest's name,\nphone or booking code is in it, at any depth."
+      },
+      "Yalla.Application.Platform.RecentVenue": {
+        "required": [
+          "branchCount",
+          "createdAtUtc",
+          "name",
+          "paidBranchCount",
+          "slug",
+          "status",
+          "tierMix",
+          "type",
+          "venueId"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Domain.Enums.VenueType"
+              }
+            ],
+            "description": "What kind of place a venue is. Drives the shipped reservation-policy defaults."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.VenueStatus"
+              }
+            ],
+            "description": "A venue's state, as one value. Derived from the venue's flags; never stored."
+          },
+          "tierMix": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.TierMix"
+              }
+            ],
+            "description": "How a venue's branches are spread over the tiers. Derived; never stored."
+          },
+          "branchCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paidBranchCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A recently added venue, as Home's table shows it."
+      },
+      "Yalla.Application.Platform.TierMix": {
+        "enum": [
+          1,
+          2,
+          3
+        ],
+        "type": "integer",
+        "description": "How a venue's branches are spread over the tiers. Derived; never stored.\n\nValues: 1 Free, 2 Mixed, 3 Paid.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "Free",
+          "Mixed",
+          "Paid"
+        ]
       },
       "Yalla.Application.Platform.UpdateBranchCommand": {
         "type": "object",
@@ -22986,6 +24546,87 @@
         "additionalProperties": false,
         "description": "Patch a venue. Every field optional; only the ones supplied change."
       },
+      "Yalla.Application.Platform.VenueBookingsSummary": {
+        "required": [
+          "byBranch",
+          "byStatus",
+          "byWeekday",
+          "days",
+          "total",
+          "venueId"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "description": "The venue.",
+            "format": "uuid"
+          },
+          "days": {
+            "type": "integer",
+            "description": "7 or 30.",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Every booking in the window.",
+            "format": "int32"
+          },
+          "byStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.BookingStatusCounts"
+              }
+            ],
+            "description": "The total, split by outcome."
+          },
+          "byWeekday": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.WeekdayCount"
+            },
+            "description": "All seven days, Sunday (0) to Saturday (6) as System.DayOfWeek numbers, by the weekday\nof the visit at the branch."
+          },
+          "averagePartySize": {
+            "type": "number",
+            "description": "The average party of the bookings not cancelled, to one decimal; absent with none.",
+            "format": "double",
+            "nullable": true
+          },
+          "byBranch": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.BranchBookingCounts"
+            },
+            "description": "Every branch of the venue, by name, each listed even with none."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One venue's bookings over the last 7 or 30 days, as counts, for the venue page. <b>Aggregates\nonly</b>: no guest's name, phone or code."
+      },
+      "Yalla.Application.Platform.VenueCount": {
+        "required": [
+          "count",
+          "name",
+          "venueId"
+        ],
+        "type": "object",
+        "properties": {
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One venue's count."
+      },
       "Yalla.Application.Platform.VenueDetail": {
         "required": [
           "branches",
@@ -23010,17 +24651,66 @@
         },
         "additionalProperties": false
       },
+      "Yalla.Application.Platform.VenueReadinessIssue": {
+        "required": [
+          "branchName",
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`."
+          },
+          "count": {
+            "type": "integer",
+            "description": "How many, for `incomplete-dishes`; absent otherwise.",
+            "format": "int32",
+            "nullable": true
+          },
+          "branchName": {
+            "type": "string",
+            "description": "The branch it is at."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The one issue the venue table shows, and the branch it is at."
+      },
+      "Yalla.Application.Platform.VenueStatus": {
+        "enum": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "type": "integer",
+        "description": "A venue's state, as one value. Derived from the venue's flags; never stored.\n\nValues: 1 Active, 2 Suspended, 3 Inactive, 4 Deleted.",
+        "format": "int32",
+        "x-enum-varnames": [
+          "Active",
+          "Suspended",
+          "Inactive",
+          "Deleted"
+        ]
+      },
       "Yalla.Application.Platform.VenueSummary": {
         "required": [
           "branchCount",
+          "branches",
+          "createdAtUtc",
           "isActive",
           "isDeleted",
           "isSuspended",
           "name",
+          "notReadyBranchCount",
+          "openTabCount",
           "paidBranchCount",
+          "reviewCount",
           "slug",
+          "status",
           "subscriptionTier",
           "tableCount",
+          "tierMix",
           "type",
           "venueId"
         ],
@@ -23078,7 +24768,7 @@
           },
           "tableCount": {
             "type": "integer",
-            "description": "How many tables across all of them.",
+            "description": "How many <b>active</b> tables across all of them. A table kept only for its history is not one the\nroom has, the same rule the readiness checklist counts by.",
             "format": "int32"
           },
           "paidBranchCount": {
@@ -23093,10 +24783,107 @@
               }
             ],
             "description": "What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations\nis four paying customers. The venue-level view is a rollup."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.VenueStatus"
+              }
+            ],
+            "description": "The four booleans above as one value: 4 Deleted, else 2 Suspended, else 3 Inactive (switched off),\nelse 1 Active."
+          },
+          "tierMix": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.TierMix"
+              }
+            ],
+            "description": "1 Free (no branch paid, or no branch at all), 2 Mixed (some), 3 Paid (every one) - what the list's\ntier column shows, with PaidBranchCount of BranchCount."
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Yalla.Application.Platform.BranchTierView"
+            },
+            "description": "Every branch with its own tier, active ones first, then by name."
+          },
+          "averageRating": {
+            "type": "number",
+            "description": "The average of the published reviews across every branch, to one decimal; absent with none. The\nsame rule the public pages use, over the whole venue.",
+            "format": "double",
+            "nullable": true
+          },
+          "reviewCount": {
+            "type": "integer",
+            "description": "Published reviews across every branch.",
+            "format": "int32"
+          },
+          "openTabCount": {
+            "type": "integer",
+            "description": "Tabs open or closing right now, across every branch.",
+            "format": "int32"
+          },
+          "readinessIssue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Yalla.Application.Platform.VenueReadinessIssue"
+              }
+            ],
+            "description": "The first thing a guest would find missing at the first branch that has one, in the order of\nBranches - with that branch's name - or absent when nothing is. Codes:\n`no-tables`, `no-menu`, `incomplete-dishes` (with `count`), `no-hours`,\n`no-photo`. Never set for a deleted venue.",
+            "nullable": true
+          },
+          "notReadyBranchCount": {
+            "type": "integer",
+            "description": "How many branches have at least one such issue.",
+            "format": "int32"
+          },
+          "coverThumbnailUrl": {
+            "type": "string",
+            "description": "The thumbnail of the first branch's cover photo, in the order of Branches:\nroot-relative (`/api/photos/{id}/thumbnail`) for an uploaded photo, absolute for a migrated\none. Absent when no branch has a cover.",
+            "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "description": "The first branch's district, as the listing form saved it.",
+            "nullable": true
+          },
+          "cuisine": {
+            "type": "string",
+            "description": "The first branch's cuisine, as the listing form saved it.",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "description": "When the venue was created.",
+            "format": "date-time"
           }
         },
         "additionalProperties": false,
         "description": "One venue as the platform sees it, with the per-branch tier rolled up."
+      },
+      "Yalla.Application.Platform.WeekdayCount": {
+        "required": [
+          "count",
+          "dayOfWeek"
+        ],
+        "type": "object",
+        "properties": {
+          "dayOfWeek": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/System.DayOfWeek"
+              }
+            ],
+            "description": "0 Sunday … 6 Saturday, as System.DayOfWeek."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Bookings whose visit fell on that weekday.",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One weekday's count."
       },
       "Yalla.Application.Public.PublicBookingView": {
         "required": [
@@ -25538,12 +27325,12 @@
           },
           "reportCount": {
             "type": "integer",
-            "description": "How many diners reported it.",
+            "description": "How many diners reported it and nobody has dismissed. A platform admin dismissing the reports\n(`POST /api/platform/reviews/{id}/dismiss-reports`) brings this to zero for both tiers; a report\nfiled after that counts again.",
             "format": "int32"
           },
           "lastReportedAtUtc": {
             "type": "string",
-            "description": "The newest report, or absent when there is none.",
+            "description": "The newest of those reports, or absent when there is none.",
             "format": "date-time",
             "nullable": true
           }

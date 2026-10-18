@@ -38,6 +38,8 @@ function redesignFiles(): string[] {
     join(SRC, 'console', 'platform', 'BranchReviewsRoute.tsx'),
     join(SRC, 'console', 'platform', 'PlatformLayout.tsx'),
     join(SRC, 'console', 'platform', 'SettingsRoute.tsx'),
+    // Home (redesign phase 5).
+    join(SRC, 'console', 'platform', 'HomeRoute.tsx'),
     join(SRC, 'auth', 'AuthLayout.tsx'),
     join(SRC, 'auth', 'SignInRoute.tsx'),
     join(SRC, 'auth', 'ResetPasswordRoute.tsx'),

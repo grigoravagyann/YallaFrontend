@@ -188,6 +188,7 @@
       "statusLive": "Active and suspended",
       "statusActive": "Active only",
       "statusSuspended": "Suspended only",
+      "statusInactive": "Switched off only",
       "statusDeleted": "Deleted",
       "statusAll": "All, deleted included",
       "tier": "Plan",
@@ -388,6 +389,7 @@
   "status": {
     "active": "Active",
     "suspended": "Suspended",
+    "inactive": "Switched off",
     "deleted": "Deleted"
   },
   "tier": {
@@ -1377,6 +1379,42 @@
       "body": "Applies straight away, and only for you: the guests' app keeps its own language",
       "default": "Default",
       "changed": "The console is now in English"
+    },
+    "sub": "Your account and the console's language",
+    "sections": {
+      "label": "Settings sections",
+      "account": "My account",
+      "language": "Language"
+    },
+    "profile": {
+      "title": "Personal details",
+      "cap": "There is one platform admin: you. The email is changed in the server's configuration.",
+      "name": "Full name",
+      "email": "Email",
+      "nameRequired": "The name can't be empty",
+      "nameTooLong": "The name is too long: at most {{max}} characters",
+      "save": "Save the name",
+      "saving": "Saving…",
+      "dirty": "Unsaved change",
+      "saved": "Saved",
+      "failed": "The name wasn't saved. Try again.",
+      "loadFailed": "Your details didn't load. Try again."
+    },
+    "password": {
+      "title": "Password",
+      "cap": "Once it is changed, your other devices will have to sign in again",
+      "current": "Current password",
+      "new": "New password",
+      "hint": "At least {{min}} characters",
+      "repeat": "Repeat the new password",
+      "currentRequired": "Write your current password",
+      "currentWrong": "The current password is wrong",
+      "tooShort": "The new password is too short: at least {{min}} characters",
+      "mismatch": "The passwords don't match",
+      "submit": "Change the password",
+      "changing": "Changing…",
+      "changed": "Password changed · you were signed out on your other devices",
+      "failed": "The password wasn't changed. Try again."
     }
   },
   "venuePage": {
@@ -1421,6 +1459,7 @@
       "add": "Add a branch",
       "name": "Branch",
       "tables": "Tables",
+      "today": "Bookings today",
       "openTabs": "Open tabs",
       "plan": "Plan",
       "manage": "Manage",
@@ -1706,6 +1745,122 @@
       "personal": "Personal details: a phone number, a surname",
       "elsewhere": "Written about somewhere else",
       "lowRating": "A low rating alone is no reason to hide a review."
+    }
+  },
+  "home": {
+    "sub": "The platform as it stands · updated {{time}}",
+    "loading": "Loading the platform as it stands…",
+    "failed": "The platform's state didn't load. Try again.",
+    "retry": "Try again",
+    "outbox": {
+      "failed_one": "{{count}} message did not reach guests in the last 24 hours",
+      "failed_other": "{{count}} messages did not reach guests in the last 24 hours",
+      "details": "Details",
+      "hide": "Hide",
+      "none": "No details to show",
+      "detailsFailed": "The details didn't load",
+      "attempts_one": "{{count}} attempt",
+      "attempts_other": "{{count}} attempts",
+      "type": {
+        "reservationReminder": "Booking reminder",
+        "reservationLateNudge": "Running-late reminder",
+        "reservationDecided": "Booking decision",
+        "participantApproved": "Join approved",
+        "orderReady": "Order ready",
+        "other": "Message"
+      }
+    },
+    "kpi": {
+      "paid_one": "{{count}} paid",
+      "paid_other": "{{count}} paid",
+      "mixed_one": "{{count}} mixed",
+      "mixed_other": "{{count}} mixed",
+      "free_one": "{{count}} free",
+      "free_other": "{{count}} free",
+      "bookings": "Bookings this week",
+      "vsLastWeek": "on last week",
+      "sameAsLastWeek": "Same as last week",
+      "noLastWeek": "No bookings the week before",
+      "pending": "Awaiting approval",
+      "tabs": "Open tabs now",
+      "atVenues_one": "at {{count}} venue · show",
+      "atVenues_other": "at {{count}} venues · show",
+      "nobodyWaiting": "Nobody waiting",
+      "noTabs": "No tabs open"
+    },
+    "drill": {
+      "pendingTitle": "Bookings awaiting approval, by venue",
+      "pendingCap": "The restaurant approves them from its own console",
+      "tabsTitle": "Open tabs by venue",
+      "tabsCap": "Tables eating with Yalla right now",
+      "close": "Close"
+    },
+    "chart": {
+      "title": "Bookings per day",
+      "cap": "Last {{days}} days · {{total}} in all · {{average}} a day on average",
+      "range": "Period",
+      "range14": "Last 14 days",
+      "range30": "Last 30 days",
+      "unit": "bookings",
+      "bar_one": "{{date}} · {{count}} booking",
+      "bar_other": "{{date}} · {{count}} bookings",
+      "barToday_one": "{{date}} (today) · {{count}} booking",
+      "barToday_other": "{{date}} (today) · {{count}} bookings",
+      "tip_one": "{{date}} · {{count}} booking",
+      "tip_other": "{{date}} · {{count}} bookings",
+      "today": "Today"
+    },
+    "notReady": {
+      "title": "Not ready yet",
+      "cap": "Guests would find them unfinished",
+      "all": "All venues",
+      "empty": "Every venue is ready for guests",
+      "more_one": "and {{count}} more",
+      "more_other": "and {{count}} more"
+    },
+    "recent": {
+      "title": "Recently added",
+      "added": "Added",
+      "empty": "No venues yet"
+    },
+    "activity": {
+      "title": "Recent activity",
+      "cap": "Your latest changes, and the venue teams'",
+      "empty": "Nothing has happened yet",
+      "failed": "The activity didn't load",
+      "someone": "Someone",
+      "today": "Today, {{time}}",
+      "yesterday": "Yesterday, {{time}}",
+      "on": "{{date}}, {{time}}",
+      "role": {
+        "owner": "owner",
+        "generalManager": "general manager",
+        "manager": "branch manager",
+        "waiter": "waiter",
+        "kitchen": "kitchen staff"
+      },
+      "action": {
+        "venueCreate": "added {{venue}}",
+        "venueUpdate": "edited {{venue}}'s details",
+        "venueSuspend": "suspended {{venue}}",
+        "venueReactivate": "resumed {{venue}}",
+        "venueDelete": "deleted {{venue}}",
+        "venueRestore": "restored {{venue}}",
+        "branchCreate": "added the branch {{target}} · {{venue}}",
+        "branchUpdate": "edited the branch {{target}} · {{venue}}",
+        "tierPaid": "switched {{target}} to Paid · {{venue}}",
+        "tierFree": "switched {{target}} to Free · {{venue}}",
+        "branchRelocate": "moved {{target}} to a new address · {{venue}}",
+        "staffCreate": "added {{target}} as {{role}}",
+        "signIn": "gave {{target}} a sign-in link",
+        "reviewHide": "hid a review at {{target}}",
+        "reviewUnhide": "showed a review again at {{target}}",
+        "reviewDismiss": "dismissed the reports on a review at {{target}}",
+        "tableQr": "replaced the QR code of table {{target}}",
+        "rename": "changed their name",
+        "password": "changed their password",
+        "other": "made a change: {{action}}"
+      }
     }
   }
 }

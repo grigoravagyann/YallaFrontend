@@ -35,9 +35,11 @@ export const SUBSCRIPTION_TIERS: readonly SubscriptionTier[] = ['free', 'paid'];
 /**
  * `suspended` is reversible and mostly about billing; `deleted` is a soft
  * delete the platform team can still see. Neither ever removes a row, because
- * a venue's history is what its reports are made of.
+ * a venue's history is what its reports are made of. `inactive` is a venue
+ * switched off (`isActive` false) without being suspended — the server's
+ * `VenueStatus.Inactive`.
  */
-export type VenueStatus = 'active' | 'suspended' | 'deleted';
+export type VenueStatus = 'active' | 'suspended' | 'inactive' | 'deleted';
 
 // ---------------------------------------------------------------------------
 // Roles and scope
@@ -156,10 +158,7 @@ export interface ConsoleVenue {
    * says "Paid", "Free" or "Mixed · 1/2" from this pair.
    */
   readonly paidBranchCount: number;
-  /**
-   * `null` when the source does not report it. The platform list endpoint does
-   * not, so the screen omits the line rather than inventing a date.
-   */
+  /** `null` when the source does not report it: the screen omits the line rather than invent a date. */
   readonly createdAtUtc: string | null;
   readonly suspendedAtUtc: string | null;
 
@@ -201,6 +200,8 @@ export interface ConsoleBranch {
    * conflates them tells a manager the floor is clear when nobody looked.
    */
   readonly openTabCount: number | null;
+  /** The listing's district, when the source reports it. */
+  readonly district?: string | null | undefined;
 }
 
 export type StaffRole = Extract<
@@ -379,6 +380,8 @@ export interface BranchBookingsSummary extends BookingStatusCounts {
   readonly branchId: string;
   readonly name: string;
   readonly total: number;
+  /** Its bookings for its own today, cancelled ones left out: the venue page's "Bookings today". */
+  readonly todayCount: number;
 }
 
 /**

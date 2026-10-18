@@ -186,6 +186,32 @@ describe('the branch pages', () => {
   });
 });
 
+describe('Home and Settings', () => {
+  it("the chart's bars stand out on a card: the days, today, and either one hovered", () => {
+    for (const bar of [
+      consoleColor.chartBar,
+      consoleColor.brand,
+      consoleColor.stepDone,
+      consoleColor.chartBarTodayHover,
+    ]) {
+      expect(ratio(bar, consoleColor.surface)).toBeGreaterThanOrEqual(3);
+    }
+    // Today stays told apart from the days around it when hovered.
+    expect(consoleColor.chartBarTodayHover).not.toBe(consoleColor.chartBar);
+  });
+
+  it("a read-only field's value still reads, and its ground is not a control's white", () => {
+    expect(ratio(consoleColor.muted, consoleColor.readonlyField)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(consoleColor.readonlyField).not.toBe(consoleColor.surface);
+  });
+
+  it("a card's hovered edge is darker than its resting line", () => {
+    expect(ratio(consoleColor.cardHoverEdge, consoleColor.surface)).toBeGreaterThan(
+      ratio(consoleColor.line, consoleColor.surface),
+    );
+  });
+});
+
 describe('the console tokens reach the stylesheet', () => {
   const css = renderTokenCss();
 

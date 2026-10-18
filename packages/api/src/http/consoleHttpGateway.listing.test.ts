@@ -409,6 +409,7 @@ describe('branch readiness over HTTP', () => {
     const wire: components['schemas']['Yalla.Application.BranchSettings.BranchReadinessView'] = {
       acceptsWebBookings: false,
       blockers: ['Nobody has reviewed the reservation policy; it is still on the defaults.'],
+      issues: [{ code: 'policy-not-reviewed' }],
       branchId: 'b-1',
       deviceCount: 1,
       deviceEnrolled: true,
@@ -433,7 +434,8 @@ describe('branch readiness over HTTP', () => {
     const readiness = await gatewayOver(fetchImpl).getBranchReadiness('b-1');
 
     expect(sent(fetchImpl)).toBe(`GET ${BASE}/api/branches/b-1/readiness`);
-    expect(readiness).toEqual(wire);
+    // The issue codes are for the platform's rollups; the checklist screen reads the sentences.
+    expect(readiness).toEqual({ ...wire, issues: undefined });
   });
 });
 

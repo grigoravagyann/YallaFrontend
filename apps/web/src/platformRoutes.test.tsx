@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { createConsoleMockGateway, type ConsoleUser, type UserRole } from '@yalla/api';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AppRoutes as AppRoutesComponent } from './App';
 import { createConsoleHarness, initConsoleTestI18n } from './console/venue/reports/testHarness';
@@ -119,6 +119,8 @@ describe('the platform shell routes', () => {
   it('give a platform admin a Settings page with the console language', async () => {
     renderAt('platformAdmin', '/platform/settings');
     expect(await screen.findByRole('heading', { level: 1, name: /^settings$/i })).toBeTruthy();
+    // My account opens first (Settings artboard); the language is the second section.
+    fireEvent.click(screen.getByRole('button', { name: /^language$/i }));
     expect(screen.getByRole('radiogroup', { name: /console language/i })).toBeTruthy();
   });
 

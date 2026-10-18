@@ -1,4 +1,5 @@
 import type { ConsoleUser } from '@yalla/api';
+import { usePlatformProfile } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
@@ -57,7 +58,11 @@ export interface PlatformLayoutProps {
  */
 export function PlatformLayout({ user }: PlatformLayoutProps) {
   const { t } = useTranslation(['admin', 'common']);
-  const name = user.displayName || t(`role.${user.role}`);
+  // The admin's name as it is now: the token carries the one it was issued
+  // with, and a rename in Settings (here or on another device) would leave the
+  // sidebar wrong until the next sign-in. The token's name until `/me` answers.
+  const profile = usePlatformProfile().data;
+  const name = profile?.fullName || user.displayName || t(`role.${user.role}`);
 
   return (
     <ToastProvider>

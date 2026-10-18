@@ -29,6 +29,14 @@ import type {
 } from './contracts/branchSettings';
 import type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 import type {
+  ChangePlatformPasswordCommand,
+  OutboxHealth,
+  PlatformActivityEntry,
+  PlatformActivityQuery,
+  PlatformAdminProfile,
+  PlatformOverview,
+} from './contracts/platformHome';
+import type {
   CreateStaffInput,
   EnrolmentCode,
   StaffDevice,
@@ -154,9 +162,7 @@ export interface ConsoleGateway {
    * suspended. What the list's "Undo" after a delete and its "Restore" on a
    * deleted row call. Platform admin only.
    *
-   * `POST /api/platform/venues/{venueId}/restore` — **the backend has no such
-   * route yet** (`Venue.SoftDelete` is documented as irreversible); requested
-   * with the console redesign.
+   * `POST /api/platform/venues/{venueId}/restore`.
    *
    * @throws {ConcurrencyConflictError} the venue is not deleted.
    */
@@ -167,13 +173,45 @@ export interface ConsoleGateway {
    * status, by branch and by weekday, and the average party. Platform admin
    * only; never a guest's name or phone.
    *
-   * `GET /api/platform/venues/{venueId}/bookings-summary?days=7|30` — being
-   * built with the console redesign.
+   * `GET /api/platform/venues/{venueId}/bookings-summary?days=7|30`.
    */
   getVenueBookingsSummary(input: {
     venueId: string;
     days: BookingSummaryDays;
   }): Promise<VenueBookingsSummary>;
+
+  // --- Home and Settings (platform admin only) ------------------------------
+
+  /** `GET /api/platform/overview`: Home in one read. */
+  getPlatformOverview(): Promise<PlatformOverview>;
+
+  /**
+   * `GET /api/platform/outbox`: the counts and the messages given up on, for
+   * Home's "Details". There is no retry, by decision.
+   */
+  getOutboxHealth(): Promise<OutboxHealth>;
+
+  /** `GET /api/platform/activity`: the newest audit rows, newest first. */
+  listPlatformActivity(query?: PlatformActivityQuery): Promise<readonly PlatformActivityEntry[]>;
+
+  /** `GET /api/platform/me`. */
+  getPlatformProfile(): Promise<PlatformAdminProfile>;
+
+  /**
+   * `PATCH /api/platform/me`: the admin's own name. The email is fixed.
+   *
+   * @throws {ValidationError} `fullName` blank or over 200 characters.
+   */
+  updatePlatformProfile(input: { fullName: string }): Promise<PlatformAdminProfile>;
+
+  /**
+   * `POST /api/platform/me/password`. Every other sign-in ends; this one stays.
+   *
+   * @throws {ValidationError} one 422 naming each field: `currentPassword`
+   * missing (`required`) or wrong (`conflict`), `newPassword` missing or
+   * shorter than 12 (`min`). A wrong current password is a form error, not a 401.
+   */
+  changePlatformPassword(command: ChangePlatformPasswordCommand): Promise<void>;
 
   /** Platform admin only; an owner cannot change what they are paying for. */
   setBranchTier(input: {
@@ -465,8 +503,8 @@ export interface ConsoleGateway {
    * Set a review's reports aside and leave the review as it is: the platform
    * read them and found nothing to take down. Audited.
    *
-   * `POST /api/platform/reviews/{reviewId}/dismiss-reports`, no body — being
-   * built with the console redesign.
+   * `POST /api/platform/reviews/{reviewId}/dismiss-reports`, no body. Nothing
+   * un-dismisses: the console defers the call until its Undo is out of reach.
    *
    * @throws {NotFoundError} no such review.
    * @throws {ForbiddenError} not a platform admin.

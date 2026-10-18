@@ -69,7 +69,8 @@ export const PLATFORM_ROLES: readonly UserRole[] = ['platformAdmin'];
 
 /** Where a role lands when it opens the app at `/`. */
 export function landingPathFor(role: UserRole): string {
-  if (PLATFORM_ROLES.includes(role)) return '/platform/venues';
+  // Home: the platform as it stands (console redesign, Main artboard).
+  if (PLATFORM_ROLES.includes(role)) return '/platform';
   // The overview, not the floor plan: it carries the onboarding checklist,
   // which is what somebody arriving actually wants to know.
   if (VENUE_ROLES.includes(role)) return '/venue';
