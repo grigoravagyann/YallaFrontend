@@ -95,6 +95,30 @@ describe('routing a tapped notification', () => {
     });
   });
 
+  it('sends a declined change to the booking it is about, which stands at its old slot', () => {
+    // ReservationDecidedHandler for a change the floor did not confirm: the
+    // booking went back to the slot it had. Every flag is text.
+    const target = parsePushTarget({
+      kind: 'reservation-decided',
+      reservationId: RESERVATION,
+      approved: 'false',
+      expired: 'true',
+      wasChange: 'true',
+      originalKept: 'true',
+    });
+
+    expect(target).toEqual({
+      kind: 'booking',
+      reservationId: RESERVATION,
+      action: null,
+      extensionMinutes: null,
+    });
+    expect(routeFor(target)).toEqual({
+      pathname: '/booking/[bookingId]',
+      params: { bookingId: RESERVATION },
+    });
+  });
+
   it('sends a participant approval and an order-ready to the tab', () => {
     for (const kind of ['participant-approved', 'order-ready']) {
       const target = parsePushTarget({ kind, tabId: TAB });

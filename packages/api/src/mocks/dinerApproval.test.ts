@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isApprovalExpired } from '../contracts/approvals';
 import type { Booking, CreateBookingCommand } from '../contracts/booking';
 import type { YallaGateway } from '../gateway';
 import { createMockGateway, type MockGatewayOptions } from './mockGateway';
@@ -140,7 +141,11 @@ describe('when nobody answers', () => {
     });
     const feed = await gateway.listNotifications();
     const row = feed.items.find((item) => item.reservationId === booking.id);
-    expect(row).toMatchObject({ kind: 'booking-declined', params: { expired: true } });
+    // As the server writes them: text.
+    expect(row).toMatchObject({
+      kind: 'booking-declined',
+      params: { expired: 'true', wasChange: 'false', originalKept: 'false' },
+    });
   });
 
   it('frees the table again', async () => {
@@ -224,5 +229,130 @@ describe('moving a booking', () => {
       awaitingApprovalBecause: 'shortNotice',
       approvalExpiresAtUtc: '2026-10-20T08:20:00.000Z',
     });
+  });
+});
+
+/** Move a booking to `slotUtc`, on the same table unless told otherwise. */
+function moveTo(
+  gateway: YallaGateway,
+  booking: Booking,
+  slotUtc: string,
+  tableId: string = booking.tableId,
+): Promise<Booking> {
+  return gateway.rescheduleBooking({
+    bookingId: booking.id,
+    commandId: crypto.randomUUID(),
+    tableId,
+    slotUtc,
+    timeZoneId: 'Asia/Yerevan',
+    partySize: booking.partySize,
+  });
+}
+
+describe('a change the floor does not confirm', () => {
+  it('puts a confirmed booking back on the slot it had, confirmed, and says so in the feed', async () => {
+    const time = clock();
+    const gateway = world(time);
+    await signedIn(gateway);
+    const booking = await book(gateway, at('2026-10-21', '19:00'));
+    expect(booking.status).toBe('confirmed');
+
+    const moved = await moveTo(gateway, booking, at('2026-10-20', '20:00'));
+    expect(moved).toMatchObject({
+      status: 'pendingApproval',
+      awaitingApprovalBecause: 'shortNotice',
+    });
+
+    time.advance(15 * MINUTE);
+
+    expect(await gateway.getBooking(booking.id)).toMatchObject({
+      status: 'confirmed',
+      slotUtc: booking.slotUtc,
+      tableId: booking.tableId,
+      partySize: booking.partySize,
+      approvalExpiresAtUtc: null,
+      awaitingApprovalBecause: null,
+      declinedBecause: null,
+    });
+    const feed = await gateway.listNotifications();
+    const row = feed.items.find((item) => item.reservationId === booking.id);
+    expect(row).toMatchObject({
+      kind: 'booking-declined',
+      params: {
+        expired: 'true',
+        wasChange: 'true',
+        originalKept: 'true',
+        requestedDate: '2026-10-20',
+        requestedTime: '20:00',
+        // The booking as it now stands: back at its old slot.
+        date: '2026-10-21',
+        time: '19:00',
+      },
+    });
+  });
+
+  it('ends the booking when its old slot has gone in the meantime', async () => {
+    const time = clock();
+    const gateway = world(time);
+    await signedIn(gateway);
+    const booking = await book(gateway, at('2026-10-21', '19:00'));
+    await moveTo(gateway, booking, at('2026-10-20', '20:00'));
+    // Somebody takes the table at the old time while the change waits.
+    await gateway.createBooking({
+      commandId: crypto.randomUUID(),
+      branchId: NORTH,
+      tableId: booking.tableId,
+      slotUtc: booking.slotUtc,
+      timeZoneId: 'Asia/Yerevan',
+      partySize: 2,
+      guestName: 'Karen',
+      guestPhone: '+37477123456',
+      channel: 'app',
+    });
+
+    time.advance(15 * MINUTE);
+
+    expect(await gateway.getBooking(booking.id)).toMatchObject({
+      status: 'cancelledByVenue',
+      declinedBecause: 'noAnswer',
+    });
+    const feed = await gateway.listNotifications();
+    expect(feed.items.find((item) => item.reservationId === booking.id)?.params).toMatchObject({
+      wasChange: 'true',
+      originalKept: 'false',
+      requestedTime: '20:00',
+    });
+  });
+});
+
+describe('moving a request that is already waiting', () => {
+  it('keeps its deadline: a move buys the floor no extra minutes', async () => {
+    const time = clock();
+    const gateway = world(time);
+    await signedIn(gateway);
+    const waiting = await book(gateway, at('2026-10-20', '20:00'));
+    expect(waiting.approvalExpiresAtUtc).toBe('2026-10-20T08:15:00.000Z');
+
+    time.advance(5 * MINUTE);
+    const moved = await moveTo(gateway, waiting, at('2026-10-20', '21:00'));
+
+    expect(moved).toMatchObject({
+      status: 'pendingApproval',
+      approvalExpiresAtUtc: '2026-10-20T08:15:00.000Z',
+    });
+  });
+
+  it('is refused once the deadline has passed, as too late rather than as unchangeable', async () => {
+    const time = clock();
+    const gateway = world(time);
+    await signedIn(gateway);
+    const waiting = await book(gateway, at('2026-10-20', '20:00'));
+
+    time.advance(15 * MINUTE);
+    const refusal = await moveTo(gateway, waiting, at('2026-10-20', '21:00')).catch(
+      (error: unknown) => error,
+    );
+
+    expect(isApprovalExpired(refusal)).toBe(true);
   });
 });

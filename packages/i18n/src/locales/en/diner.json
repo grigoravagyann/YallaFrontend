@@ -1012,7 +1012,8 @@
     "changeError": {
       "notChangeable": "This booking can no longer be changed.",
       "generic": "We could not save that. Your booking is unchanged.",
-      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether your booking moved. Check again — it will not change twice."
+      "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether your booking moved. Check again — it will not change twice.",
+      "approvalExpired": "Too late to change — the venue's answer window has closed."
     }
   },
   "orders": {
@@ -1146,6 +1147,22 @@
       "bookingExpired": {
         "title": "Sorry, not confirmed in time",
         "body": "Sorry, {{place}} could not confirm in time. Try another time or another place."
+      },
+      "bookingChangeKept": {
+        "title": "Your change was not confirmed",
+        "body": "Your change to {{requestedTime}} at {{place}} could not be confirmed — your booking at {{time}} stands."
+      },
+      "bookingChangeKeptExpired": {
+        "title": "Sorry, your change was not confirmed in time",
+        "body": "Sorry, {{place}} could not confirm your change to {{requestedTime}} in time — your booking at {{time}} stands."
+      },
+      "bookingChangeEnded": {
+        "title": "Your booking could not be kept",
+        "body": "{{place}} could not confirm your change to {{requestedTime}}, and your earlier time was no longer free, so the booking has ended. Try another time or another place."
+      },
+      "bookingChangeEndedExpired": {
+        "title": "Sorry, your booking could not be kept",
+        "body": "Sorry, {{place}} could not confirm your change to {{requestedTime}} in time, and your earlier time was no longer free, so the booking has ended. Try another time or another place."
       },
       "bookingCancelledByVenue": {
         "title": "Booking cancelled by the venue",

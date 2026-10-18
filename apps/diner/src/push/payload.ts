@@ -15,7 +15,7 @@
  * | ------------------------- | ------------------------------------------ |
  * | `reservation-reminder`    | `reservationId`, `code`, `branch`, `action`|
  * | `reservation-late-nudge`  | `reservationId`, `action`, `extensionMinutes` |
- * | `reservation-decided`     | `reservationId`, `approved`, `expired`     |
+ * | `reservation-decided`     | `reservationId`, `approved`, `expired`, `wasChange`, `originalKept` |
  * | `participant-approved`    | `tabId`                                    |
  * | `order-ready`             | `tabId`                                    |
  * | `tabJoinRequested`        | `tabId` — to the host, someone is waiting  |
@@ -24,6 +24,10 @@
  * the floor did not answer in its fifteen minutes, declined by the server with
  * an apology. It routes like any decision — to the booking, which reads its own
  * `declinedBecause` on landing and says sorry from that, not from the payload.
+ * `wasChange` and `originalKept` say a declined *change* left the booking
+ * standing at its old slot, confirmed again — the push's own text says which;
+ * the app routes to the booking and reads it afresh (see `invalidation.ts`),
+ * so the screen shows it back at its old time, not still waiting.
  *
  * Everything arrives as **strings**, including `approved` and
  * `extensionMinutes`: Expo's data dictionary is `Dictionary<string, string>` on

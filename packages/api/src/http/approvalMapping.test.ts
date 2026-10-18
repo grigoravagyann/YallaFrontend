@@ -7,6 +7,7 @@ import { consoleBookingFromWire } from './consoleMapping';
 import { booking } from './dinerMapping';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
 import { managedBookingFromWire, type WirePublicBooking } from './publicMapping';
+import { createHttpGateway } from './httpGateway';
 import { createStaffHttpGateway } from './staffHttpGateway';
 
 /**
@@ -281,5 +282,34 @@ describe('the staff gateway', () => {
       .catch((error: unknown) => error);
     expect(isApprovalExpired(refusal)).toBe(true);
     expect((refusal as Error).message).toBe('The answer window for Y3107 closed at 18:13.');
+  });
+});
+
+describe("the diner's change of a request that waited too long", () => {
+  it('passes the too-late refusal through with its code, not as a table rule', async () => {
+    const backend = fakeBackend({
+      [`POST /api/reservations/${VIEW.id}/reschedule`]: problemReply(
+        409,
+        'reservation-approval-expired',
+        { reservationId: VIEW.id, status: 1 },
+        'Too late to answer this booking.',
+      ),
+    });
+    const gateway = createHttpGateway(backend.client({ getToken: () => 'diner-token' }), {
+      audience: 'diner',
+    });
+
+    const refusal = await gateway
+      .rescheduleBooking({
+        bookingId: VIEW.id,
+        commandId: 'cmd-2',
+        tableId: 'tbl-7',
+        slotUtc: '2026-10-18T17:00:00.000Z',
+        timeZoneId: 'Asia/Yerevan',
+        partySize: 2,
+      })
+      .catch((error: unknown) => error);
+
+    expect(isApprovalExpired(refusal)).toBe(true);
   });
 });

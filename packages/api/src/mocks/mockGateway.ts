@@ -94,6 +94,7 @@ import {
   REVIEW_VISIT_WINDOW_DAYS,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
+import { APPROVAL_EXPIRED_CODE } from '../contracts/approvals';
 import { APPROVAL_WINDOW_MS, approvalExpiryFor, isShortNotice } from './approvalWindow';
 import { invalidRequest, requireClientCommandId, validationFailed } from './problems';
 
@@ -509,8 +510,28 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   let venueApprovalsLeft = options.simulateVenueApprovalAfterMs !== undefined ? 1 : 0;
   /** Booking id -> when the simulated floor approves it. */
   const venueApproves = new Map<string, number>();
-  /** Booking id -> what the floor decided and when, for the feed. */
-  const venueDecisions = new Map<string, { readonly approved: boolean; readonly atUtc: string }>();
+  /**
+   * Booking id -> what the floor decided and when, for the feed. A declined
+   * change says what became of the booking it was a change of.
+   */
+  const venueDecisions = new Map<
+    string,
+    {
+      readonly approved: boolean;
+      readonly atUtc: string;
+      readonly change: {
+        readonly originalKept: boolean;
+        readonly requestedSlotUtc: string;
+      } | null;
+    }
+  >();
+  /**
+   * Booking id -> the confirmed booking a short-notice change was made from.
+   * The server keeps the slot a confirmed booking had while its change waits
+   * for the floor, and gives it back if the change is not confirmed and the
+   * slot is still free.
+   */
+  const changeOrigins = new Map<string, Booking>();
 
   /**
    * How a new or moved booking starts out, by the server's rules in its order.
@@ -564,6 +585,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
       if (approvesAt !== undefined && approvesAt <= t && approvesAt < closesAt) {
         venueApproves.delete(booking.id);
+        changeOrigins.delete(booking.id);
         bookings.set(booking.id, {
           ...booking,
           status: 'confirmed',
@@ -573,32 +595,75 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         venueDecisions.set(booking.id, {
           approved: true,
           atUtc: new Date(approvesAt).toISOString(),
+          change: null,
         });
       } else if (t >= closesAt) {
-        // Nobody answered: declined, for want of an answer, at the window's close.
         venueApproves.delete(booking.id);
+        const original = changeOrigins.get(booking.id);
+        changeOrigins.delete(booking.id);
+        const at = booking.approvalExpiresAtUtc;
+
+        // A change nobody answered: the booking goes back to the slot it had,
+        // confirmed, when that slot is still free — the server's rule.
+        if (original && originalSlotFree(original)) {
+          bookings.set(booking.id, {
+            ...original,
+            status: 'confirmed',
+            awaitingApprovalBecause: null,
+            approvalExpiresAtUtc: null,
+            declinedBecause: null,
+          });
+          venueDecisions.set(booking.id, {
+            approved: false,
+            atUtc: at,
+            change: { originalKept: true, requestedSlotUtc: booking.slotUtc },
+          });
+          moveFloorMark(booking, original);
+          continue;
+        }
+
+        // Nobody answered: declined, for want of an answer, at the window's close.
         bookings.set(booking.id, {
           ...booking,
           status: 'cancelledByVenue',
           awaitingApprovalBecause: null,
           approvalExpiresAtUtc: null,
           declinedBecause: 'noAnswer',
-          cancelledAtUtc: booking.approvalExpiresAtUtc,
+          cancelledAtUtc: at,
         });
-        venueDecisions.set(booking.id, { approved: false, atUtc: booking.approvalExpiresAtUtc });
-        const floor = floors.get(booking.branchId);
-        if (floor) {
-          floors.set(booking.branchId, {
-            ...floor,
-            tables: floor.tables.map((table) =>
-              table.id === booking.tableId && table.nextReservationStartUtc === booking.slotUtc
-                ? { ...table, state: 'free', nextReservationStartUtc: null }
-                : table,
-            ),
-          });
-        }
+        venueDecisions.set(booking.id, {
+          approved: false,
+          atUtc: at,
+          change: original ? { originalKept: false, requestedSlotUtc: booking.slotUtc } : null,
+        });
+        moveFloorMark(booking, null);
       }
     }
+  }
+
+  /** Whether the slot a change was made from is still the booking's to have back. */
+  function originalSlotFree(original: Booking): boolean {
+    const table = floors.get(original.branchId)?.tables.find((t) => t.id === original.tableId);
+    if (!table) return false;
+    return stateAt(table, new Date(original.slotUtc), DEFAULT_POLICY, original.id) === 'free';
+  }
+
+  /** A booking's mark comes off the table it was on, and onto the one it is back on. */
+  function moveFloorMark(from: Booking, to: Booking | null): void {
+    const floor = floors.get(from.branchId);
+    if (!floor) return;
+    floors.set(from.branchId, {
+      ...floor,
+      tables: floor.tables.map((table) => {
+        if (to && table.id === to.tableId) {
+          return { ...table, state: 'reservedSoon', nextReservationStartUtc: to.slotUtc };
+        }
+        if (table.id === from.tableId && table.nextReservationStartUtc === from.slotUtc) {
+          return { ...table, state: 'free', nextReservationStartUtc: null };
+        }
+        return table;
+      }),
+    });
   }
 
   /**
@@ -1513,6 +1578,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       if (!booking || bookingOwners.get(reservationId) !== accountId) continue;
       const kind = decision.approved ? 'booking-confirmed' : 'booking-declined';
       if (feed.some((row) => row.kind === kind && row.reservationId === reservationId)) continue;
+      // As the server writes them: text, and `date`/`time` the booking as it
+      // now stands — back at its old slot, when a declined change kept it.
+      const local = localDateTime(booking.slotUtc, booking.timeZoneId);
+      const requested = decision.change
+        ? localDateTime(decision.change.requestedSlotUtc, booking.timeZoneId)
+        : null;
       add({
         kind,
         params: {
@@ -1522,8 +1593,19 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
           partySize: booking.partySize,
           startUtc: booking.slotUtc,
           timeZoneId: booking.timeZoneId,
-          // The apology rather than a refusal: nobody answered in time.
-          expired: !decision.approved,
+          date: local.date,
+          time: local.time,
+          ...(decision.approved
+            ? {}
+            : {
+                // The apology rather than a refusal: nobody answered in time.
+                expired: 'true',
+                wasChange: decision.change ? 'true' : 'false',
+                originalKept: decision.change?.originalKept ? 'true' : 'false',
+                ...(requested
+                  ? { requestedDate: requested.date, requestedTime: requested.time }
+                  : {}),
+              }),
         },
         branchId: booking.branchId,
         branchName: booking.branchName,
@@ -2512,6 +2594,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
      * the booking as it now stands.
      */
     async rescheduleBooking(command: RescheduleBookingCommand): Promise<Booking> {
+      // As it stood before the floor's answers catch up with the clock: the
+      // server refuses a change to a request whose answer window has closed,
+      // whatever its sweep has made of it yet.
+      const before = bookings.get(command.bookingId);
       await wait();
       const url = `${URL_TAG}/api/reservations/${command.bookingId}/reschedule`;
       requireClientCommandId(url, command.commandId);
@@ -2520,6 +2606,18 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const replayed = rescheduleLog.get(command.commandId);
       const current = replayed !== undefined ? bookings.get(replayed) : undefined;
       if (current) return current;
+
+      if (
+        before?.status === 'pendingApproval' &&
+        before.approvalExpiresAtUtc &&
+        now().getTime() >= Date.parse(before.approvalExpiresAtUtc)
+      ) {
+        throw conflict(
+          url,
+          APPROVAL_EXPIRED_CODE,
+          `The answer window for ${before.code} has closed; it can no longer be changed.`,
+        );
+      }
 
       // Somebody else's booking answers exactly as one that does not exist.
       const booking = bookings.get(command.bookingId);
@@ -2566,7 +2664,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         command.slotUtc === booking.slotUtc &&
         table.id === booking.tableId &&
         command.partySize <= booking.partySize;
-      const decision = unchanged
+      const decided = unchanged
         ? {
             status: 'confirmed' as const,
             awaitingApprovalBecause: null,
@@ -2577,6 +2675,26 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
             slotUtc: command.slotUtc,
             timeZoneId: booking.timeZoneId,
           });
+      // A request already waiting on a short-notice answer keeps its deadline:
+      // moving it is not a way to buy the floor fifteen more minutes.
+      const waitingWindow =
+        booking.awaitingApprovalBecause === 'shortNotice' ? booking.approvalExpiresAtUtc : null;
+      const decision =
+        decided.awaitingApprovalBecause === 'shortNotice' && waitingWindow
+          ? {
+              ...decided,
+              approvalExpiresAtUtc: new Date(
+                Math.min(Date.parse(waitingWindow), Date.parse(command.slotUtc)),
+              ).toISOString(),
+            }
+          : decided;
+      // A confirmed booking moved into short notice keeps the slot it had
+      // until the floor answers; a change of a change keeps the first one.
+      if (decision.awaitingApprovalBecause === 'shortNotice') {
+        if (booking.status === 'confirmed') changeOrigins.set(booking.id, booking);
+      } else {
+        changeOrigins.delete(booking.id);
+      }
       const moved: Booking = {
         ...booking,
         ...decision,

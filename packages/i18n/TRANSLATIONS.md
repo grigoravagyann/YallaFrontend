@@ -263,6 +263,14 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   the `byVenue` pair must not blame the diner — `bookings.status.declined`
   ("Not confirmed", never "cancelled": it was never confirmed) and
   `notifications.kind.bookingExpired.*`, the feed's apology for the same.
+  Added with the declined-change rules (2026-10-18), **not** reviewed:
+  `notifications.kind.bookingChangeKept*.*` — a change the venue did not
+  confirm, the booking **standing at its old time** ({{time}}); the `Expired`
+  pair apologises — and `bookingChangeEnded*.*`, the same change when the old
+  time had gone too and the booking **ended**; `book.changeError.approvalExpired`
+  ("too late to change"), which must not read as a table rule. hy writes the
+  requested time in brackets ("(ժամը {{requestedTime}})") rather than gluing a
+  suffix onto it.
 - `diner` — the host's join banner (2026-10-18), provisional and **not**
   reviewed: `tab.joinRequest.*`, the card at the top of the host's bill when
   somebody scanned the table and waits to be let on. `one` keeps the name
