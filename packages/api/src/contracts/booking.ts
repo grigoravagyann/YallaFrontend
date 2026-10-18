@@ -208,6 +208,26 @@ export interface TableAvailability {
   readonly freeCancellationUntilUtc: string | null;
   /** True when this party size exceeds the instant-confirmation limit. */
   readonly requiresApproval: boolean;
+  /**
+   * Somebody booked this table shortly before the slot: it is offered as a
+   * **request** — the guest before agrees to leave in time, or the floor
+   * decides — and always comes with `requiresApproval`. Absent from an answer
+   * older than booking times: false.
+   */
+  readonly isRequestable?: boolean | undefined;
+  /**
+   * Requestable on another day, where the guest before is the one asked ("the
+   * guest before you will be asked"); tonight, at short notice, the floor
+   * answers and this is false. Derived from `isRequestable` and the slot.
+   */
+  readonly requiresEarlierGuestConsent?: boolean | undefined;
+  /**
+   * A booking follows this one on the table: a diner who takes it promises to
+   * free it by this instant — the next booking's start less the clearing time
+   * — and says so before sending (`acceptsFreeByUtc`). `null` or absent when
+   * the sitting is not cut short.
+   */
+  readonly mustFreeByUtc?: string | null | undefined;
 }
 
 /**
@@ -264,7 +284,7 @@ export interface DaySlot {
   readonly isAvailable: boolean;
   /** A booking then would wait for the venue rather than confirm at once. */
   readonly requiresApproval: boolean;
-  /** How many tables would take the party then. */
+  /** How many tables would take the party then, outright — requestable ones not counted. */
   readonly freeTableCount: number;
   /**
    * Why not, when not: a request-level rule (too soon, too far ahead) or, when
@@ -272,6 +292,19 @@ export interface DaySlot {
    * whenever a booking is what took them. `null` when available.
    */
   readonly unavailableReason: TableUnavailableReason | null;
+  /**
+   * The only tables to be had then are requestable: somebody booked them
+   * shortly before, and the guest before you (another day) or the floor (today)
+   * decides. Offered, and labelled so. Absent from an older answer: false.
+   */
+  readonly requestable?: boolean | undefined;
+  /** How many tables then can be had once the guest before agrees. `freeTableCount` is the rest. */
+  readonly requestableTableCount?: number | undefined;
+  /**
+   * Every table to be had then has to be freed by a time — a booking follows —
+   * and this is the latest of them. `null` or absent when one is not cut short.
+   */
+  readonly mustFreeByUtc?: string | null | undefined;
 }
 
 /**
@@ -286,7 +319,7 @@ export interface DaySlots {
   /** `YYYY-MM-DD`, the branch's calendar. */
   readonly date: string;
   readonly partySize: number;
-  /** The spacing between slots, from the server. 30 today. */
+  /** The spacing between slots, from the server: `SLOT_STEP_MINUTES`, 15. */
   readonly stepMinutes: number;
   /**
    * The whole day refused — shut, or outside the booking window. Every slot is
@@ -394,6 +427,49 @@ export interface Booking {
    * than a link that goes nowhere.
    */
   readonly manageToken: string | null;
+
+  /**
+   * The time the diner promised to free the table by, when a booking follows
+   * theirs: chosen with "I'll free the table by 21:25" before sending, or by
+   * answering yes to a later guest's request. Absent or `null` when nothing
+   * was promised.
+   */
+  readonly promisedFreeByUtc?: string | null | undefined;
+  /**
+   * Somebody would like this table after the diner, on another day, and asks
+   * whether the diner will have left by then. Absent or `null` when nobody is
+   * asking — and once the diner has answered.
+   */
+  readonly incomingTableRequest?: IncomingTableRequest | null | undefined;
+}
+
+/**
+ * "Someone would like your table at 19:45. Will you have left by 19:40?" —
+ * a later guest's request, as the earlier guest's booking carries it. The later
+ * guest stays anonymous: no name, no number, no party size.
+ */
+export interface IncomingTableRequest {
+  readonly requestId: string;
+  /** When the later booking would start. */
+  readonly requestedStartUtc: string;
+  /** What the earlier guest is asked to be gone by: the later start less clearing time. */
+  readonly freeByUtc: string;
+  /** Past this, the request lapses and the later guest is told no. */
+  readonly expiresAtUtc: string;
+}
+
+/**
+ * The earlier guest's answer — `POST /api/reservations/{id}/table-requests/{requestId}/answer`.
+ *
+ * Their own booking only. Yes confirms the later booking and cuts this one to
+ * `freeByUtc`, recorded as a promise; no declines the later one.
+ */
+export interface AnswerTableRequestCommand {
+  readonly bookingId: string;
+  readonly requestId: string;
+  readonly accept: boolean;
+  /** Client-generated and reused on retry, so a double tap answers once. */
+  readonly commandId: string;
 }
 
 /**
@@ -455,6 +531,13 @@ export interface CreateBookingCommand {
    * note; at most {@link MAX_BOOKING_NOTE} characters, or a 422 naming `note`.
    */
   readonly note?: string | null | undefined;
+  /**
+   * "I'll free the table by 21:25": the table's `mustFreeByUtc`, agreed to
+   * before sending. Required when the table has one, and equal to it — the
+   * server refuses a missing or different one with a 422 naming
+   * `acceptsFreeByUtc` and the time it needs (`FreeByRequiredError`).
+   */
+  readonly acceptsFreeByUtc?: string | null | undefined;
 }
 
 /**
@@ -479,6 +562,8 @@ export interface RescheduleBookingCommand {
   /** The branch's zone: the server takes wall-clock date and time, as for a new booking. */
   readonly timeZoneId: string;
   readonly partySize: number;
+  /** As on a new booking: the new table's must-free-by time, agreed to. */
+  readonly acceptsFreeByUtc?: string | null | undefined;
 }
 
 // ---------------------------------------------------------------------------

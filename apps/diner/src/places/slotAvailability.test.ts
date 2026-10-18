@@ -1,6 +1,15 @@
-import type { DaySlot, DaySlots } from '@yalla/api';
+import type { DaySlot, DaySlots, SlotFloor, TableAvailability } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
-import { dayRefusalLine, pickSlot, slotAvailability } from './slotAvailability';
+import {
+  answerFor,
+  dayRefusalLine,
+  pickSlot,
+  slotAvailability,
+  slotFloorVerdict,
+  unlimitedAt,
+  wheelSlots,
+  withSoon,
+} from './slotAvailability';
 import type { TimeSlot } from './slots';
 
 const YEREVAN = 'Asia/Yerevan';
@@ -47,6 +56,8 @@ describe('slotAvailability', () => {
     expect(slotAvailability(SLOTS, [undefined], YEREVAN)).toEqual({
       struck: new Set(),
       hidden: new Set(),
+      requestable: new Set(),
+      mustFreeBy: new Map(),
       dayReason: null,
     });
     const failed = slotAvailability(SLOTS, [null], YEREVAN);
@@ -93,7 +104,13 @@ describe('slotAvailability', () => {
     expect(judged.struck.size + judged.hidden.size).toBe(0);
     // A refused date does not strike the next date's times either.
     const refused = slotAvailability([late], [day([], 'pastLeadTime')], YEREVAN);
-    expect(refused).toEqual({ struck: new Set(), hidden: new Set(), dayReason: null });
+    expect(refused).toEqual({
+      struck: new Set(),
+      hidden: new Set(),
+      requestable: new Set(),
+      mustFreeBy: new Map(),
+      dayReason: null,
+    });
   });
 
   it('judges a time after midnight by the next date’s answer when there is one', () => {
@@ -178,5 +195,189 @@ describe('dayRefusalLine', () => {
 
   it('falls back to the table’s words for any other reason', () => {
     expect(dayRefusalLine('alreadyBooked', 2).key).toBe('table.unavailable.alreadyBooked');
+  });
+});
+
+describe('booking times on the day', () => {
+  const requestableAt = (time: string): DaySlot => ({
+    ...daySlot(time, true),
+    requiresApproval: true,
+    requestable: true,
+  });
+
+  it('keeps a requestable time on offer, as requestable — even one the server calls unavailable', () => {
+    const answer = day([
+      daySlot('18:30', true),
+      requestableAt('19:00'),
+      { ...daySlot('19:30', false), requestable: true },
+      daySlot('20:00', true),
+      daySlot('20:30', true),
+    ]);
+    const availability = slotAvailability(SLOTS, [answer], YEREVAN);
+    expect(clocks(availability.requestable)).toEqual(['19:00', '19:30']);
+    expect(clocks(availability.struck)).toEqual([]);
+  });
+
+  it('remembers by when the table must be free, time by time', () => {
+    const answer = day(
+      SLOTS.map((slot) =>
+        slot.key === '19:00'
+          ? { ...daySlot('19:00', true), mustFreeByUtc: '2026-10-18T15:55:00.000Z' }
+          : daySlot(slot.key, true),
+      ),
+    );
+    const { mustFreeBy } = slotAvailability(SLOTS, [answer], YEREVAN);
+    expect([...mustFreeBy.entries()]).toEqual([[ms('19:00'), '2026-10-18T15:55:00.000Z']]);
+  });
+
+  it('turns the times into wheel rows: free, requestable, or busy', () => {
+    const answer = day([
+      daySlot('18:30', true),
+      requestableAt('19:00'),
+      daySlot('19:30', true),
+      daySlot('20:00', false),
+      daySlot('20:30', true),
+    ]);
+    const rows = wheelSlots(SLOTS, slotAvailability(SLOTS, [answer], YEREVAN));
+    expect(rows.map((row) => `${row.label} ${row.state}`)).toEqual([
+      '18:30 free',
+      '19:00 requestable',
+      '19:30 free',
+      '20:00 busy',
+      '20:30 free',
+    ]);
+  });
+});
+
+describe('"in 10 min"', () => {
+  const soon: TimeSlot = { key: '18:40', at: new Date('2026-10-18T18:40:00+04:00') };
+
+  it('joins the day in its place, judged by the room at that minute rather than the day', () => {
+    const merged = withSoon(SLOTS, NOTHING_AVAILABLE, soon, { state: 'busy', mustFreeByUtc: null });
+    expect(merged.slots.map((slot) => slot.key)).toEqual([
+      '18:30',
+      '18:40',
+      '19:00',
+      '19:30',
+      '20:00',
+      '20:30',
+    ]);
+    expect(merged.availability.struck.has(soon.at.getTime())).toBe(true);
+  });
+
+  it('is offered while the room has not answered, and never hidden for missing from the day', () => {
+    const hiding = slotAvailability(SLOTS, [day([daySlot('19:00', true)])], YEREVAN);
+    const merged = withSoon(SLOTS, hiding, soon, null);
+    expect(merged.availability.hidden.has(soon.at.getTime())).toBe(false);
+    expect(merged.availability.struck.has(soon.at.getTime())).toBe(false);
+  });
+
+  it('is not added twice when it falls on a quarter hour', () => {
+    const onGrid: TimeSlot = { key: '19:00', at: new Date('2026-10-18T19:00:00+04:00') };
+    expect(withSoon(SLOTS, NOTHING_AVAILABLE, onGrid, null).slots).toHaveLength(SLOTS.length);
+  });
+
+  it('reads the room: busy, requestable, cut short, or free', () => {
+    const table = (extra: object) => ({
+      tableId: 't',
+      tableLabel: '1',
+      floorAreaName: null,
+      seats: 2,
+      isBookable: true,
+      unavailableReason: null,
+      window: null,
+      freeCancellationUntilUtc: null,
+      requiresApproval: false,
+      ...extra,
+    });
+    const floor = (tables: object[], rejection: string | null = null) =>
+      ({
+        plan: { branchId: 'b1', timeZoneId: YEREVAN, tables: [] },
+        tables,
+        rejection,
+        slotUtc: '',
+        partySize: 2,
+      }) as never;
+
+    expect(slotFloorVerdict(undefined)).toBeNull();
+    expect(slotFloorVerdict(floor([table({})], 'pastLeadTime'))?.state).toBe('busy');
+    expect(slotFloorVerdict(floor([table({ isBookable: false })]))?.state).toBe('busy');
+    expect(slotFloorVerdict(floor([table({ isRequestable: true })]))?.state).toBe('requestable');
+    expect(slotFloorVerdict(floor([table({ mustFreeByUtc: '2026-10-18T15:55:00.000Z' })]))).toEqual(
+      { state: 'free', mustFreeByUtc: '2026-10-18T15:55:00.000Z' },
+    );
+    expect(
+      slotFloorVerdict(floor([table({ mustFreeByUtc: '2026-10-18T15:55:00.000Z' }), table({})])),
+    ).toEqual({ state: 'free', mustFreeByUtc: null });
+  });
+});
+
+const NOTHING_AVAILABLE = {
+  struck: new Set<number>(),
+  hidden: new Set<number>(),
+  requestable: new Set<number>(),
+  mustFreeBy: new Map<number, string>(),
+  dayReason: null,
+};
+
+describe("the room's answer for the chosen time", () => {
+  const table = (id: string, extra: Partial<TableAvailability> = {}): TableAvailability => ({
+    tableId: id,
+    tableLabel: id,
+    floorAreaName: null,
+    seats: 4,
+    isBookable: true,
+    unavailableReason: null,
+    window: null,
+    freeCancellationUntilUtc: null,
+    requiresApproval: false,
+    ...extra,
+  });
+  const floor = (tables: readonly TableAvailability[], extra: Partial<SlotFloor> = {}) =>
+    ({
+      plan: { tables: [] } as unknown as SlotFloor['plan'],
+      tables,
+      rejection: null,
+      // The server's spelling: no milliseconds.
+      slotUtc: '2026-10-18T15:00:00Z',
+      partySize: 2,
+      ...extra,
+    }) satisfies SlotFloor;
+
+  it('is the answer only when it is about that instant and that party', () => {
+    const answer = floor([table('t1')]);
+    expect(answerFor(answer, ms('19:00'), 2)).toBe(answer);
+    // The last time's room, kept on screen while this one's loads: no answer yet.
+    expect(answerFor(answer, ms('19:30'), 2)).toBeUndefined();
+    expect(answerFor(answer, ms('19:00'), 3)).toBeUndefined();
+    expect(answerFor(undefined, ms('19:00'), 2)).toBeUndefined();
+    expect(answerFor(answer, null, 2)).toBeUndefined();
+  });
+
+  it('has no limit for the chosen table only when that table is free outright', () => {
+    const answer = floor([
+      table('t1', { mustFreeByUtc: '2026-10-18T16:25:00Z' }),
+      table('t2'),
+      table('t3', { isRequestable: true }),
+      table('t4', { isBookable: false, unavailableReason: 'alreadyBooked' }),
+    ]);
+    expect(unlimitedAt(answer, 't1')).toBe(false);
+    expect(unlimitedAt(answer, 't2')).toBe(true);
+    expect(unlimitedAt(answer, 't3')).toBe(false);
+    expect(unlimitedAt(answer, 't4')).toBe(false);
+    expect(unlimitedAt(answer, 'gone')).toBe(false);
+  });
+
+  it('has no limit with no table chosen when any table is free outright', () => {
+    expect(unlimitedAt(floor([table('t1', { mustFreeByUtc: 'x' }), table('t2')]), null)).toBe(true);
+    expect(
+      unlimitedAt(
+        floor([table('t1', { mustFreeByUtc: 'x' }), table('t3', { isRequestable: true })]),
+        null,
+      ),
+    ).toBe(false);
+    // A time refused outright, or not yet answered, offers nothing.
+    expect(unlimitedAt(floor([table('t2')], { rejection: 'closed' }), null)).toBe(false);
+    expect(unlimitedAt(undefined, null)).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bookingShareLine, tableWithRoom } from './bookingText';
+import { bookingShareLine, sittingEndLines, tableWithRoom } from './bookingText';
 
 const BOOKING = {
   tableLabel: '4',
@@ -38,5 +38,32 @@ describe('bookingShareLine', () => {
     expect(bookingShareLine({ ...BOOKING, roomName: null }, 'Lumen Coffee', 'x').key).toBe(
       'success.shareMessage',
     );
+  });
+});
+
+describe('sittingEndLines', () => {
+  const ENDS = {
+    endUtc: '2026-10-20T15:30:00.000Z',
+    timeZoneId: 'Asia/Yerevan',
+    promisedFreeByUtc: null as string | null,
+  };
+
+  it('says until when the sitting ends', () => {
+    expect(sittingEndLines(ENDS, 'en')).toEqual([
+      { key: 'bookings.detail.until', params: { time: '19:30' } },
+    ]);
+  });
+
+  it('says only the end when the promise is the end — a sooner promise cuts it to it', () => {
+    expect(sittingEndLines({ ...ENDS, promisedFreeByUtc: '2026-10-20T15:30:00Z' }, 'en')).toEqual([
+      { key: 'bookings.detail.until', params: { time: '19:30' } },
+    ]);
+  });
+
+  it('keeps the end, and the promise beside it, when the promise is later — it never lengthens', () => {
+    expect(sittingEndLines({ ...ENDS, promisedFreeByUtc: '2026-10-20T15:40:00Z' }, 'en')).toEqual([
+      { key: 'bookings.detail.until', params: { time: '19:30' } },
+      { key: 'booking.freeBy.promised', params: { time: '19:40' } },
+    ]);
   });
 });

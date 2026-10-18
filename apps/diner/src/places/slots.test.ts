@@ -57,36 +57,52 @@ describe('dayOptions', () => {
 });
 
 describe('timeSlots', () => {
-  it('cuts half-hour slots from opening up to, but not including, closing', () => {
+  it('cuts quarter-hour slots from opening up to, but not including, closing', () => {
     const slots = timeSlots(
       place(every('10:00', '12:00')),
       '2026-09-20',
       new Date('2026-09-01T00:00:00Z'),
     );
-    expect(slots.map((slot) => slot.key)).toEqual(['10:00', '10:30', '11:00', '11:30']);
+    expect(slots.map((slot) => slot.key)).toEqual([
+      '10:00',
+      '10:15',
+      '10:30',
+      '10:45',
+      '11:00',
+      '11:15',
+      '11:30',
+      '11:45',
+    ]);
     // 10:00 in Yerevan (UTC+4) is 06:00 UTC.
     expect(slots[0]?.at.toISOString()).toBe('2026-09-20T06:00:00.000Z');
   });
 
-  it('drops anything already past or inside the 30-minute lead', () => {
-    // 14:05 in Yerevan. 14:30 is 25 minutes away: too soon. 15:00 is the first.
+  it('drops anything already past or inside the 10-minute lead', () => {
+    // 14:05 in Yerevan. 14:15 is 10 minutes away: just in. 14:00 is gone.
     const now = new Date('2026-09-20T10:05:00Z');
     const slots = timeSlots(place(every('08:00', '23:00')), '2026-09-20', now);
-    expect(slots[0]?.key).toBe('15:00');
-    expect(slots.at(-1)?.key).toBe('22:30');
+    expect(slots[0]?.key).toBe('14:15');
+    expect(slots.at(-1)?.key).toBe('22:45');
+    // 14:06: 14:15 is nine minutes away, too soon; 14:30 is the first.
+    const later = timeSlots(
+      place(every('08:00', '23:00')),
+      '2026-09-20',
+      new Date('2026-09-20T10:06:00Z'),
+    );
+    expect(later[0]?.key).toBe('14:30');
   });
 
   it("keeps to the branch's own lead: nothing sooner than two hours when it asks for 120 minutes", () => {
-    // 14:05 in Yerevan. With a 120-minute lead the first slot is 16:30, not 15:00.
+    // 14:05 in Yerevan. With a 120-minute lead the first slot is 16:15, not 14:15.
     const now = new Date('2026-09-20T10:05:00Z');
     const hours = place(every('08:00', '23:00'));
 
-    expect(timeSlots(hours, '2026-09-20', now, 120)[0]?.key).toBe('16:30');
-    expect(timeSlots(hours, '2026-09-20', now)[0]?.key).toBe('15:00');
-    expect(timeSlots(hours, '2026-09-20', now, LEAD_MINUTES)[0]?.key).toBe('15:00');
+    expect(timeSlots(hours, '2026-09-20', now, 120)[0]?.key).toBe('16:15');
+    expect(timeSlots(hours, '2026-09-20', now)[0]?.key).toBe('14:15');
+    expect(timeSlots(hours, '2026-09-20', now, LEAD_MINUTES)[0]?.key).toBe('14:15');
     // A 180-minute lead, as set in the console: nothing before 17:05 is offered.
     const later = timeSlots(hours, '2026-09-20', now, 180);
-    expect(later[0]?.key).toBe('17:30');
+    expect(later[0]?.key).toBe('17:15');
     expect(later.every((slot) => slot.at.getTime() >= now.getTime() + 180 * 60_000)).toBe(true);
   });
 
@@ -102,8 +118,8 @@ describe('timeSlots', () => {
     const slots = timeSlots(
       place(every('08:00', '22:00')),
       '2026-09-20',
-      // 21:45 in Yerevan: 22:00 is closing, so nothing is left.
-      new Date('2026-09-20T17:45:00Z'),
+      // 21:51 in Yerevan: 22:00 is closing, so nothing is left.
+      new Date('2026-09-20T17:51:00Z'),
     );
     expect(slots).toEqual([]);
   });
@@ -116,18 +132,28 @@ describe('timeSlots', () => {
     );
     expect(slots.map((slot) => slot.key)).toEqual([
       '20:00',
+      '20:15',
       '20:30',
+      '20:45',
       '21:00',
+      '21:15',
       '21:30',
+      '21:45',
       '22:00',
+      '22:15',
       '22:30',
+      '22:45',
       '23:00',
+      '23:15',
       '23:30',
+      '23:45',
       '00:00',
+      '00:15',
       '00:30',
+      '00:45',
     ]);
-    // 00:30 is on the 21st in Yerevan — 20:30 UTC on the 20th.
-    expect(slots.at(-1)?.at.toISOString()).toBe('2026-09-20T20:30:00.000Z');
+    // 00:45 is on the 21st in Yerevan — 20:45 UTC on the 20th.
+    expect(slots.at(-1)?.at.toISOString()).toBe('2026-09-20T20:45:00.000Z');
   });
 
   it('uses the hours of the day asked for, not of today', () => {
@@ -138,7 +164,7 @@ describe('timeSlots', () => {
     // Asked on a Monday about the coming Saturday.
     const slots = timeSlots(place(hours), '2026-09-19', new Date('2026-09-14T06:00:00Z'));
     expect(slots[0]?.key).toBe('11:00');
-    expect(slots.at(-1)?.key).toBe('14:30');
+    expect(slots.at(-1)?.key).toBe('14:45');
   });
 
   it('offers both services of a split day, and nothing in the gap', () => {
@@ -151,15 +177,25 @@ describe('timeSlots', () => {
     const all = timeSlots(place(split), '2026-09-20', new Date('2026-09-01T00:00:00Z'));
     expect(all.map((slot) => slot.key)).toEqual([
       '12:00',
+      '12:15',
       '12:30',
+      '12:45',
       '13:00',
+      '13:15',
       '13:30',
+      '13:45',
       '18:00',
+      '18:15',
       '18:30',
+      '18:45',
       '19:00',
+      '19:15',
       '19:30',
+      '19:45',
       '20:00',
+      '20:15',
       '20:30',
+      '20:45',
     ]);
 
     // 15:00 in Yerevan: lunch is over, dinner is still to come.

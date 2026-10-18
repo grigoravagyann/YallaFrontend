@@ -3,6 +3,7 @@ import {
   awaitsVenueAnswer,
   declinedCopy,
   freeCancellationCopy,
+  promisedFreeByCopy,
   venueAnswerCopy,
 } from '@yalla/api';
 import {
@@ -112,8 +113,10 @@ export function ManageBookingRoute() {
     locale,
   );
   const past = new Date(booking.freeCancellationUntilUtc).getTime() < now.getTime();
-  const answer = venueAnswerCopy(booking, now);
-  const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now);
+  const answer = venueAnswerCopy(booking, now, locale);
+  // Booking times: the promise made when booking, because another follows.
+  const promise = promisedFreeByCopy(booking.promisedFreeByUtc, booking.timeZoneId, locale);
+  const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now, locale);
 
   const declinedTitle = declinedCopy(booking.declinedBecause, 'title');
   if (booking.status === 'cancelled' && declinedTitle) {
@@ -182,9 +185,14 @@ export function ManageBookingRoute() {
 
         {booking.status === 'pendingApproval' ? (
           <p className="pub-notice">
-            {booking.approvalExpiresAtUtc ? td('booking.approval.why') : td('success.pendingBody')}
+            {booking.awaitingApprovalBecause === 'earlierGuestConsent'
+              ? td('table.requestable.earlierGuest')
+              : booking.approvalExpiresAtUtc
+                ? td('booking.approval.why')
+                : td('success.pendingBody')}
           </p>
         ) : null}
+        {promise ? <p className="pub-notice">{td(promise.key, promise.params)}</p> : null}
         {answer ? (
           <p
             className={`pub-answer${countdown?.urgent ? ' is-urgent' : ''}`}

@@ -7,7 +7,15 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { newCommandId } from '../lib/commandId';
 import { invalidateForPush } from './invalidation';
-import { actionFor, parsePushTarget, PUSH_ACTIONS, routeFor, type PushData } from './payload';
+import {
+  actionFor,
+  parsePushTarget,
+  PUSH_ACTIONS,
+  routeFor,
+  tableRequestAnswer,
+  tableRequestRoute,
+  type PushData,
+} from './payload';
 import { onTokenRotation, platformCode, registerCategories, registerDevice } from './registration';
 
 /**
@@ -101,6 +109,8 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
     void registerCategories({
       cancel: t('push.action.cancel'),
       extendHold: t('push.action.extendHold'),
+      tableRequestYes: t('booking.tableRequest.yes'),
+      tableRequestNo: t('booking.tableRequest.no'),
     });
   }, [t]);
 
@@ -170,7 +180,19 @@ export function usePushNotifications({ projectId, signedIn }: PushOptions): void
       const target = parsePushTarget(data);
       const action = actionFor(response.actionIdentifier);
 
-      if (action && target.kind === 'booking') {
+      // "Yes, I'll have left" or "No": the button opened the app (see
+      // `registerCategories`), and the booking's card sends the answer and
+      // says whether it went through — never answered unseen.
+      const accept = tableRequestAnswer(action);
+      if (accept !== null && target.kind === 'tableRequest') {
+        if (!cancelled) router.push(tableRequestRoute(target, accept));
+        return;
+      }
+
+      if (
+        (action === PUSH_ACTIONS.cancel || action === PUSH_ACTIONS.extendHold) &&
+        target.kind === 'booking'
+      ) {
         // A lock-screen button. The whole point is that this does not open the
         // app, so it runs here and navigates nowhere.
         try {

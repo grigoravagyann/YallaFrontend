@@ -74,7 +74,8 @@
     "noTabWhy": "Заказы идут на счёт. Гость открывает его, сканируя код стола, а если гость сканировать не будет, счёт можно открыть здесь.",
     "startTabNeedsOnline": "Чтобы открыть счёт, нужно подключение.",
     "nextBookingTomorrow": "Завтра в {{time}}",
-    "nextBookingOn": "{{date}}, {{time}}"
+    "nextBookingOn": "{{date}}, {{time}}",
+    "mustFreeBy": "освободить до {{time}}"
   },
   "queue": {
     "pending_one": "{{count}} действие ждёт отправки",
@@ -182,7 +183,8 @@
       "largeParty": "Большая компания",
       "noShowHistory": "Были неявки",
       "branchApprovesEveryBooking": "Каждая бронь требует подтверждения",
-      "unknown": "Нужно подтверждение"
+      "unknown": "Нужно подтверждение",
+      "earlierGuestConsent": "Предыдущего гостя нельзя спросить в приложении — позвоните ему"
     },
     "answerWithin": "Ответьте за",
     "leftLabel": "На ответ осталось {{time}}",
@@ -228,7 +230,10 @@
     "arrived_one": "Новая заявка на бронь: стол {{label}} в {{time}}, {{count}} гость.",
     "arrived_few": "Новая заявка на бронь: стол {{label}} в {{time}}, {{count}} гостя.",
     "arrived_many": "Новая заявка на бронь: стол {{label}} в {{time}}, {{count}} гостей.",
-    "arrived_other": "Новая заявка на бронь: стол {{label}} в {{time}}, {{count}} гостя."
+    "arrived_other": "Новая заявка на бронь: стол {{label}} в {{time}}, {{count}} гостя.",
+    "askBefore": "Спросите {{name}}, освободится ли стол до {{time}}",
+    "leavesBy": "освободит до {{time}}",
+    "awaitingEarlierGuest": "Предыдущий гость отвечает в приложении. Бронь решится по его ответу, а без ответа будет отклонена."
   },
   "conflicts": {
     "title": "Требует решения",

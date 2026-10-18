@@ -360,6 +360,68 @@ describe('the floor tablet', () => {
     expect(screen.queryByText(/Only a pending reservation/u)).toBeNull();
   });
 
+  it('stops offering a decision once the server says the guest before answers it in the app', async () => {
+    const user = userEvent.setup();
+    signIn();
+    const base = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now });
+    const theirs: StaffGateway = {
+      ...base,
+      approveReservation: () =>
+        Promise.reject(
+          new ConcurrencyConflictError({
+            url: 'mock://approve',
+            problem: {
+              type: 'about:blank',
+              title: 'Conflict',
+              status: 409,
+              detail: 'Y3107 waits on the earlier guest.',
+              code: 'reservation-awaiting-earlier-guest',
+              traceId: 'mock',
+            },
+          }),
+        ),
+    };
+    renderFloor(theirs);
+
+    const request = await card('7');
+    await user.click(within(request).getByRole('button', { name: 'Approve' }));
+
+    const alert = await within(request).findByRole('alert');
+    expect(alert.textContent).toBe(
+      'The guest before is answering this in the app. It is decided when they do, or declined if they do not.',
+    );
+    expect(within(request).queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(within(request).queryByRole('button', { name: 'Decline' })).toBeNull();
+  });
+
+  it('offers no decision on a booking the guest before answers in the app', async () => {
+    signIn();
+    const base = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now });
+    const theirs: StaffGateway = {
+      ...base,
+      listAwaitingApproval: async (branchId) =>
+        (await base.listAwaitingApproval(branchId)).map((request) =>
+          request.tableLabel === '7'
+            ? {
+                ...request,
+                because: 'earlierGuestConsent' as const,
+                approvalExpiresAtUtc: new Date(Date.now() + 90 * 60_000).toISOString(),
+              }
+            : request,
+        ),
+    };
+    renderFloor(theirs);
+
+    const request = await card('7');
+    expect(
+      within(request).getByText(
+        'The guest before is answering this in the app. It is decided when they do, or declined if they do not.',
+      ),
+    ).toBeTruthy();
+    expect(within(request).queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(within(request).queryByRole('button', { name: 'Decline' })).toBeNull();
+  });
+
   it('wakes the chime on every tap, not only the first', async () => {
     const user = userEvent.setup();
     signIn();

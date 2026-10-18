@@ -9,6 +9,7 @@ import {
   type VerifiedPhone,
 } from '@yalla/api';
 import { useGateway } from '@yalla/api/react';
+import { formatTime } from '@yalla/format';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
@@ -58,6 +59,7 @@ export default function BookingSheet({
   const { t } = useTranslation('diner');
   const { t: tp } = useTranslation('public');
   const nameId = useId();
+  const freeById = useId();
   const { locale } = useLocale();
   const gateway = useGateway();
   const queryClient = useQueryClient();
@@ -70,6 +72,16 @@ export default function BookingSheet({
   const [guestName, setGuestName] = useState('');
   /** The last attempt may have committed, so the button checks rather than books. */
   const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+  /*
+   * Booking times: a booking follows on this table, so the sitting is cut to
+   * the next one's start less the clearing time, and the visitor agrees to
+   * free it by then before anything is sent — the server refuses without it.
+   * The server's own time replaces the room's when they disagree.
+   */
+  const [requiredFreeBy, setRequiredFreeBy] = useState<string | null>(
+    availability.mustFreeByUtc ?? null,
+  );
+  const [agreedFreeBy, setAgreedFreeBy] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
 
   /*
@@ -107,6 +119,7 @@ export default function BookingSheet({
         guestPhone: who.guestPhone,
         // No app, so no push channel: the server knows not to promise one.
         channel: 'web',
+        ...(requiredFreeBy && agreedFreeBy ? { acceptsFreeByUtc: requiredFreeBy } : {}),
       }),
     retry: false,
   });
@@ -115,6 +128,7 @@ export default function BookingSheet({
     async (phone: VerifiedPhone | null) => {
       const name = guestName.trim();
       if (!phone || !name) return;
+      if (requiredFreeBy && !agreedFreeBy) return;
       setErrorText(null);
       try {
         const created = await createBooking.mutateAsync({
@@ -145,11 +159,23 @@ export default function BookingSheet({
           return;
         }
 
+        // A booking landed meanwhile: the table now needs the promise, or a
+        // different time for it. Asked again, unticked, with the server's time.
+        if (failure.kind === 'freeByRequired') {
+          setOutcomeUnknown(false);
+          if (failure.requiredFreeByUtc) setRequiredFreeBy(failure.requiredFreeByUtc);
+          setAgreedFreeBy(false);
+          setErrorText(t(failure.line.key, failure.line.params));
+          return;
+        }
+
         setOutcomeUnknown(failure.kind === 'unknown');
         setErrorText(t(failure.line.key, failure.line.params));
       }
     },
     [
+      requiredFreeBy,
+      agreedFreeBy,
       guestName,
       createBooking,
       branch.id,
@@ -222,6 +248,23 @@ export default function BookingSheet({
               ) : null}
               {copy.approval ? <p className="pub-notice">{line(copy.approval)}</p> : null}
 
+              {/* A booking follows: the promise, asked for before any send. */}
+              {requiredFreeBy ? (
+                <label className="pub-check" htmlFor={freeById}>
+                  <input
+                    id={freeById}
+                    type="checkbox"
+                    checked={agreedFreeBy}
+                    onChange={(event) => setAgreedFreeBy(event.currentTarget.checked)}
+                  />
+                  <span>
+                    {t('book.freeBy.agree', {
+                      time: formatTime(requiredFreeBy, branch.timeZoneId, locale),
+                    })}
+                  </span>
+                </label>
+              ) : null}
+
               {step === 'confirm' ? (
                 // Named by the visible text, explicitly: QA found the field
                 // read by its placeholder instead.
@@ -255,7 +298,11 @@ export default function BookingSheet({
                 <button
                   type="button"
                   className="pub-button pub-button-primary"
-                  disabled={createBooking.isPending || !guestName.trim()}
+                  disabled={
+                    createBooking.isPending ||
+                    !guestName.trim() ||
+                    (requiredFreeBy !== null && !agreedFreeBy)
+                  }
                   onClick={() => void submit(verified)}
                 >
                   {/* No optimistic success: a booking either exists on the

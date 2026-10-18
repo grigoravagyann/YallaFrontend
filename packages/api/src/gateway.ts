@@ -1,5 +1,6 @@
 import type { FloorPlanData } from './contracts/tableFloor';
 import type {
+  AnswerTableRequestCommand,
   Booking,
   BookingRules,
   CreateBookingCommand,
@@ -471,6 +472,8 @@ export interface YallaGateway {
    * @throws {BookingsNotAcceptedError} an app booking at a branch whose
    * `acceptsAppBookings` is false (K9).
    * @throws {ValidationError} a `note` over 500 characters; `field` is `note`.
+   * @throws {FreeByRequiredError} a booking follows on the table and
+   * `acceptsFreeByUtc` was missing or not the time it needs; carries that time.
    */
   createBooking(command: CreateBookingCommand): Promise<Booking>;
 
@@ -503,8 +506,21 @@ export interface YallaGateway {
    * @throws {BookingBusyError} the table was locked; tap again, same command.
    * @throws {ConcurrencyConflictError} the booking changed underneath — read it again.
    * @throws {PhoneNotVerifiedError} the account's number is not confirmed.
+   * @throws {FreeByRequiredError} as for a new booking.
    */
   rescheduleBooking(command: RescheduleBookingCommand): Promise<Booking>;
+
+  /**
+   * The earlier guest's answer to a later guest's request for their table —
+   * see {@link AnswerTableRequestCommand}. Their own booking only. Answers with
+   * their booking as it now stands: on yes, cut to the time and carrying the
+   * promise; either way with no request left on it.
+   *
+   * @throws {TableRequestClosedError} it lapsed, the later guest let it go, or
+   * it was already answered.
+   * @throws {NotFoundError} no booking of the diner's has that id.
+   */
+  answerTableRequest(command: AnswerTableRequestCommand): Promise<Booking>;
 
   // --- Notifications ------------------------------------------------------
 

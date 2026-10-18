@@ -19,6 +19,8 @@
  * | `participant-approved`    | `tabId`                                    |
  * | `order-ready`             | `tabId`                                    |
  * | `tabJoinRequested`        | `tabId` — to the host, someone is waiting  |
+ * | `table-request`           | `reservationId`, `requestId`, `requestedTime`, `freeByTime` — somebody would like the diner's table after them; Yes/No buttons answer it |
+ * | `table-request-decided`   | `reservationId`, `requestId`, `accepted`, `freeByTime` — what the answer did |
  *
  * `expired` is `"true"` on the decision nobody made: a short-notice request
  * the floor did not answer in its fifteen minutes, declined by the server with
@@ -54,6 +56,13 @@ export type PushTarget =
     }
   | { readonly kind: 'tab'; readonly tabId: string }
   /**
+   * Somebody would like the diner's table after them, on another day, and asks
+   * whether they will have left by then (booking times). Lands on the booking,
+   * whose card asks the question again from the booking as it stands — the
+   * lock screen's Yes and No answer it without opening the app.
+   */
+  | { readonly kind: 'tableRequest'; readonly reservationId: string; readonly requestId: string }
+  /**
    * A payload this build does not understand, or one missing the id its screen
    * needs.
    *
@@ -77,9 +86,13 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
   const kind = str(data, 'kind');
 
   switch (kind) {
+    // `table-request-decided` (booking times): the earlier guest's answer took
+    // effect ("please free the table by 19:40"). It lands on their booking,
+    // which carries the promise.
     case 'reservation-reminder':
     case 'reservation-late-nudge':
-    case 'reservation-decided': {
+    case 'reservation-decided':
+    case 'table-request-decided': {
       const reservationId = str(data, 'reservationId');
       // A booking notification with no booking id is not routable. Landing on
       // the bookings list would be a guess, and a wrong guess here is somebody
@@ -95,6 +108,14 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
         action: action === 'cancel' ? 'cancel' : action === 'extend-hold' ? 'extendHold' : null,
         extensionMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : null,
       };
+    }
+
+    case 'table-request': {
+      const reservationId = str(data, 'reservationId');
+      const requestId = str(data, 'requestId');
+      return reservationId && requestId
+        ? { kind: 'tableRequest', reservationId, requestId }
+        : { kind: 'unknown' };
     }
 
     // `tabJoinRequested` is the host's: somebody scanned their table and waits
@@ -120,12 +141,24 @@ export function parsePushTarget(data: PushData | null | undefined): PushTarget {
  * and so a test can assert the href without a navigator.
  */
 export type PushRoute =
-  | { readonly pathname: '/booking/[bookingId]'; readonly params: { bookingId: string } }
+  | {
+      readonly pathname: '/booking/[bookingId]';
+      readonly params: {
+        bookingId: string;
+        /**
+         * A lock-screen Yes or No to a later guest's request: the booking's own
+         * card sends it, and says whether it went through.
+         */
+        answer?: 'yes' | 'no';
+        requestId?: string;
+      };
+    }
   | { readonly pathname: '/tab/[tabId]'; readonly params: { tabId: string } };
 
 export function routeFor(target: PushTarget): PushRoute | null {
   switch (target.kind) {
     case 'booking':
+    case 'tableRequest':
       return {
         pathname: '/booking/[bookingId]',
         params: { bookingId: target.reservationId },
@@ -138,6 +171,30 @@ export function routeFor(target: PushTarget): PushRoute | null {
 }
 
 /**
+ * Where a lock-screen Yes or No to a table request goes: the booking, carrying
+ * the answer and the request it was for.
+ *
+ * The button opens the app rather than answering from the lock screen: a
+ * killed app has no listener to answer with, and on a locked iPhone the session
+ * cannot be read from the keychain, so an answer sent from there would fail
+ * unseen. Opened, the booking's card sends it — for that request only — and
+ * shows the guest whether it went through.
+ */
+export function tableRequestRoute(
+  target: Extract<PushTarget, { kind: 'tableRequest' }>,
+  accept: boolean,
+): Extract<PushRoute, { pathname: '/booking/[bookingId]' }> {
+  return {
+    pathname: '/booking/[bookingId]',
+    params: {
+      bookingId: target.reservationId,
+      answer: accept ? 'yes' : 'no',
+      requestId: target.requestId,
+    },
+  };
+}
+
+/**
  * The identifiers the two action buttons use.
  *
  * These are the `identifier` values registered with the notification category
@@ -147,6 +204,9 @@ export function routeFor(target: PushTarget): PushRoute | null {
 export const PUSH_ACTIONS = {
   cancel: 'cancel-reservation',
   extendHold: 'extend-hold',
+  /** The `table-request` category's two answers: "Yes, I'll have left" and "No". */
+  tableRequestYes: 'table-request-yes',
+  tableRequestNo: 'table-request-no',
 } as const;
 
 export type PushActionId = (typeof PUSH_ACTIONS)[keyof typeof PUSH_ACTIONS];
@@ -158,5 +218,14 @@ export type PushActionId = (typeof PUSH_ACTIONS)[keyof typeof PUSH_ACTIONS];
  * than a button, which always means "open the screen".
  */
 export function actionFor(actionId: string | null | undefined): PushActionId | null {
-  return actionId === PUSH_ACTIONS.cancel || actionId === PUSH_ACTIONS.extendHold ? actionId : null;
+  return (Object.values(PUSH_ACTIONS) as readonly string[]).includes(actionId ?? '')
+    ? (actionId as PushActionId)
+    : null;
+}
+
+/** The answer a `table-request` button gives, or `null` for any other button. */
+export function tableRequestAnswer(action: PushActionId | null): boolean | null {
+  if (action === PUSH_ACTIONS.tableRequestYes) return true;
+  if (action === PUSH_ACTIONS.tableRequestNo) return false;
+  return null;
 }

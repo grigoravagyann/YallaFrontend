@@ -8,8 +8,13 @@ import { useState } from 'react';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 import { AtMyTableAction } from '../../src/components/AtMyTableAction';
 import { BookingBadge } from '../../src/components/bookings/BookingCard';
-import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
+import {
+  bookingShareLine,
+  sittingEndLines,
+  tableWithRoom,
+} from '../../src/components/bookings/bookingText';
 import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { TableRequestCard } from '../../src/components/bookings/TableRequestCard';
 import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
 import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
 import { Button } from '../../src/components/Button';
@@ -54,7 +59,17 @@ const THUMB = 64;
 export default function BookingDetailScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
-  const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
+  // `answer` and `requestId`: a lock-screen Yes or No to a table request,
+  // which opened the app here for the card to send (see `registerCategories`).
+  const { bookingId, answer, requestId } = useLocalSearchParams<{
+    bookingId: string;
+    answer?: string;
+    requestId?: string;
+  }>();
+  const autoAnswer =
+    requestId && (answer === 'yes' || answer === 'no')
+      ? { requestId, accept: answer === 'yes' }
+      : undefined;
   const bookingQuery = useBooking(bookingId);
   const { data: booking, isLoading, isError, error, refetch } = bookingQuery;
 
@@ -108,12 +123,18 @@ export default function BookingDetailScreen() {
     <Screen edges={['top', 'left', 'right', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       {header}
-      <BookingDetail booking={booking} />
+      <BookingDetail booking={booking} autoAnswer={autoAnswer} />
     </Screen>
   );
 }
 
-function BookingDetail({ booking }: { readonly booking: Booking }) {
+function BookingDetail({
+  booking,
+  autoAnswer,
+}: {
+  readonly booking: Booking;
+  readonly autoAnswer?: { readonly requestId: string; readonly accept: boolean } | undefined;
+}) {
   const { t } = useTranslation('diner');
   const { locale } = useLocale();
   const router = useRouter();
@@ -149,6 +170,11 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
     locale,
     now,
   );
+  // "Until 19:30", and a promise to free the table beside it when that is a
+  // different time (see `sittingEndLines`).
+  const sittingEnd = sittingEndLines(booking, locale)
+    .map((line) => t(line.key, line.params))
+    .join(' · ');
 
   const share = () => {
     const line = bookingShareLine(booking, where, when);
@@ -216,14 +242,12 @@ function BookingDetail({ booking }: { readonly booking: Booking }) {
               icon={actionIcon.people}
               text={t('booking.guests', { count: booking.partySize })}
             />
-            <Fact
-              icon={actionIcon.time}
-              text={t('bookings.detail.until', {
-                time: formatTime(booking.endUtc, booking.timeZoneId, locale),
-              })}
-            />
+            <Fact icon={actionIcon.time} text={sittingEnd} />
           </View>
         </Card>
+
+        {/* Somebody would like this table after the diner: will they have left by then? */}
+        <TableRequestCard booking={booking} autoAnswer={autoAnswer} />
 
         {/*
           The way onto the tab at the table they booked. Offered while the

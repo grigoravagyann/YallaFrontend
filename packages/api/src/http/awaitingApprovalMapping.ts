@@ -1,6 +1,12 @@
 import type { AwaitingApproval, PreviousBookingContext } from '../contracts/approvals';
 import type { components } from '../generated/schema';
 import { approvalExpiry, approvalTrigger } from './approvalMapping';
+import {
+  instantOrNull,
+  type WireAwaitingNeighbourTimes,
+  type WireAwaitingTimes,
+  type WireReservationTimes,
+} from './bookingTimesWire';
 import { reservationStatus } from './dinerMapping';
 
 /**
@@ -18,7 +24,13 @@ import { reservationStatus } from './dinerMapping';
  * context field is absent when there is none, like every null in this API.
  */
 export type WireAwaitingApproval =
-  components['schemas']['Yalla.Application.Reservations.AwaitingApproval'];
+  components['schemas']['Yalla.Application.Reservations.AwaitingApproval'] & WireAwaitingTimes;
+
+/** The booking before, and after, with their promises — booking times, ahead of the schema. */
+type WirePreviousBooking = NonNullable<WireAwaitingApproval['previousBooking']> &
+  WireAwaitingNeighbourTimes;
+type WireNextBooking = NonNullable<WireAwaitingApproval['nextBooking']> &
+  WireAwaitingNeighbourTimes;
 
 function blank(value: string | null | undefined): string | null {
   return value?.trim() ? value.trim() : null;
@@ -26,7 +38,7 @@ function blank(value: string | null | undefined): string | null {
 
 export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingApproval {
   const view = wire.reservation;
-  const previous = wire.previousBooking;
+  const previous = wire.previousBooking as WirePreviousBooking | null | undefined;
   const previousBooking: PreviousBookingContext | null = previous
     ? {
         startUtc: previous.startUtc,
@@ -34,6 +46,7 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
         guestName: previous.guestName,
         guestPhone: blank(previous.guestPhone),
         status: reservationStatus(previous.status),
+        promisedFreeByUtc: instantOrNull(previous.promisedFreeByUtc),
       }
     : null;
 
@@ -55,9 +68,17 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
     // The row's own fields first; the reservation's when a server sends only those.
     approvalExpiresAtUtc: approvalExpiry(wire.approvalExpiresAtUtc ?? view.approvalExpiresAtUtc),
     because: approvalTrigger(wire.trigger ?? view.awaitingApprovalBecause),
+    // This booking's own promise, from its view; and the time to ask the
+    // guest before for, when there is one.
+    promisedFreeByUtc: instantOrNull((view as WireReservationTimes).promisedFreeByUtc),
+    earlierGuestFreeByUtc: instantOrNull(wire.earlierGuestFreeByUtc),
     previousBooking,
     nextBooking: wire.nextBooking
-      ? { startUtc: wire.nextBooking.startUtc, partySize: wire.nextBooking.partySize }
+      ? {
+          startUtc: wire.nextBooking.startUtc,
+          partySize: wire.nextBooking.partySize,
+          promisedFreeByUtc: instantOrNull((wire.nextBooking as WireNextBooking).promisedFreeByUtc),
+        }
       : null,
     currentSitting: wire.currentSitting
       ? {

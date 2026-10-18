@@ -2,10 +2,12 @@ import {
   unavailableCopy,
   type CopyLine,
   type DaySlots,
+  type SlotFloor,
   type TableUnavailableReason,
 } from '@yalla/api';
 import { branchDayKey } from '@yalla/format';
 import type { TimeSlot } from './slots';
+import type { SlotState, WheelSlot } from './wheelTimes';
 
 /**
  * Which of the booking screen's times nobody can have, from the server's day
@@ -28,6 +30,14 @@ export interface SlotAvailability {
    * chip would say "no free table" of a time nobody can ever book.
    */
   readonly hidden: ReadonlySet<number>;
+  /**
+   * Times whose only tables are requestable — somebody booked them shortly
+   * before, and the guest before (another day) or the floor (today) decides.
+   * On offer, labelled so; never struck.
+   */
+  readonly requestable: ReadonlySet<number>;
+  /** Times at which every table to be had is cut short, with the time to free it by. */
+  readonly mustFreeBy: ReadonlyMap<number, string>;
   /**
    * The whole day refused — shut, too far ahead, too late today. Every time of
    * that date is struck then, and the hint says why in the day's words.
@@ -73,6 +83,8 @@ export function slotAvailability(
   );
   const struck = new Set<number>();
   const hidden = new Set<number>();
+  const requestable = new Set<number>();
+  const mustFreeBy = new Map<number, string>();
   for (const slot of slots) {
     const at = slot.at.getTime();
     const answer = byDate.get(branchDayKey(slot.at, timeZoneId));
@@ -82,13 +94,21 @@ export function slotAvailability(
       continue;
     }
     const time = answer.at.get(at);
-    if (!time) hidden.add(at);
+    if (!time) {
+      hidden.add(at);
+      continue;
+    }
+    // A requestable time is on offer whichever way the server counts it.
+    if (time.requestable) requestable.add(at);
     else if (!time.isAvailable) struck.add(at);
+    if (time.mustFreeByUtc) mustFreeBy.set(at, time.mustFreeByUtc);
   }
   const chosenDay = answers[0];
   return {
     struck,
     hidden,
+    requestable,
+    mustFreeBy,
     dayReason:
       chosenDay && chosenDay.unavailableReason !== null && struck.size > 0
         ? chosenDay.unavailableReason
@@ -141,4 +161,123 @@ export function dayRefusalLine(reason: TableUnavailableReason, partySize: number
   if (reason === 'tooFarAhead') return { key: 'book.dayUnavailable.tooFarAhead', params: {} };
   if (reason === 'pastLeadTime') return { key: 'book.noSlots', params: {} };
   return unavailableCopy(reason, partySize);
+}
+
+/** What the room at one minute says about it, for a time the day does not list. */
+export interface SlotVerdict {
+  readonly state: SlotState;
+  /** Every table to be had then is cut short: the latest time to free it by. */
+  readonly mustFreeByUtc: string | null;
+}
+
+/**
+ * "In 10 min" is not on the quarter hours, so the day of slots cannot judge
+ * it; the room at that minute does — the same read the booking will be made
+ * against. Busy when the request is refused or no table is to be had,
+ * requestable when every table is only a request, and cut short when every
+ * plain table is. `null` until the room has answered.
+ */
+export function slotFloorVerdict(floor: SlotFloor | null | undefined): SlotVerdict | null {
+  if (!floor) return null;
+  const bookable = floor.tables.filter((table) => table.isBookable);
+  if (floor.rejection !== null || bookable.length === 0)
+    return { state: 'busy', mustFreeByUtc: null };
+  const plain = bookable.filter((table) => !table.isRequestable);
+  if (plain.length === 0) return { state: 'requestable', mustFreeByUtc: null };
+  // The server's rule: a time "until" only when no table on offer gives a full sitting.
+  const cuts = bookable.map((table) => table.mustFreeByUtc ?? null);
+  return {
+    state: 'free',
+    mustFreeByUtc: cuts.every((cut) => cut !== null)
+      ? new Date(Math.max(...cuts.map((cut) => Date.parse(cut!)))).toISOString()
+      : null,
+  };
+}
+
+/**
+ * The day with "in 10 min" in its place among the times, judged by the room
+ * at that minute: never hidden for not being one of the day's quarter hours,
+ * struck when the room says no table, offered while it has not answered.
+ */
+export function withSoon(
+  slots: readonly TimeSlot[],
+  availability: SlotAvailability,
+  soon: TimeSlot | null,
+  verdict: SlotVerdict | null,
+): { readonly slots: readonly TimeSlot[]; readonly availability: SlotAvailability } {
+  if (!soon) return { slots, availability };
+  const at = soon.at.getTime();
+  const onGrid = slots.some((slot) => slot.at.getTime() === at);
+  const merged = onGrid ? slots : [...slots, soon].sort((a, b) => a.at.getTime() - b.at.getTime());
+  if (onGrid) return { slots: merged, availability };
+
+  const hidden = new Set(availability.hidden);
+  hidden.delete(at);
+  const struck = new Set(availability.struck);
+  const requestable = new Set(availability.requestable);
+  const mustFreeBy = new Map(availability.mustFreeBy);
+  if (verdict?.state === 'busy') struck.add(at);
+  if (verdict?.state === 'requestable') requestable.add(at);
+  if (verdict?.mustFreeByUtc) mustFreeBy.set(at, verdict.mustFreeByUtc);
+  return {
+    slots: merged,
+    availability: { ...availability, hidden, struck, requestable, mustFreeBy },
+  };
+}
+
+/** The wheel's rows: every time on offer that day, each free, requestable or busy. */
+export function wheelSlots(
+  slots: readonly TimeSlot[],
+  availability: Pick<SlotAvailability, 'struck' | 'hidden' | 'requestable'>,
+): readonly WheelSlot[] {
+  return slots
+    .filter((slot) => !availability.hidden.has(slot.at.getTime()))
+    .map((slot) => {
+      const at = slot.at.getTime();
+      return {
+        at,
+        // The branch's own clock, 24-hour, as the wheel's two columns read it.
+        label: slot.key,
+        state: availability.struck.has(at)
+          ? 'busy'
+          : availability.requestable.has(at)
+            ? 'requestable'
+            : 'free',
+      };
+    });
+}
+
+/**
+ * The room's answer for the time and party on screen — `undefined` while the
+ * last one is still drawn. The slot read keeps the previous answer on screen
+ * as the next loads, so the rooms do not blink between two times; but that
+ * answer says nothing about this time, and booking on it would book 19:30 on
+ * 19:00's tables — the table it would pick, whether it needs a promise. Read
+ * by instant: the server echoes `…:00Z`, the screen asks with milliseconds.
+ */
+export function answerFor(
+  floor: SlotFloor | null | undefined,
+  slotMs: number | null,
+  partySize: number,
+): SlotFloor | undefined {
+  if (!floor || slotMs === null) return undefined;
+  return Date.parse(floor.slotUtc) === slotMs && floor.partySize === partySize ? floor : undefined;
+}
+
+/**
+ * Whether a time offers a table with no limit — after a "no" to freeing the
+ * table by a time, the times worth offering instead. For the chosen table that
+ * table, free outright: bookable, nobody to ask, no booking after it cutting
+ * it short. With none chosen, any such table — the one a press would book
+ * (see `preferredTable`). A day slot's own must-free-by cannot say this: it is
+ * set only when *every* table is cut short, so it would offer the chosen
+ * table at a time it is cut short too.
+ */
+export function unlimitedAt(floor: SlotFloor | null | undefined, tableId: string | null): boolean {
+  if (!floor || floor.rejection !== null) return false;
+  const plain = (table: SlotFloor['tables'][number]) =>
+    table.isBookable && !table.isRequestable && !table.mustFreeByUtc;
+  if (tableId === null) return floor.tables.some(plain);
+  const table = floor.tables.find((candidate) => candidate.tableId === tableId);
+  return table ? plain(table) : false;
 }

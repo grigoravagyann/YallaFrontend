@@ -3,6 +3,22 @@ import { ApiError, describeFailure, isApprovalExpired } from '@yalla/api';
 /** The server's code for a decision on a booking that is no longer pending. */
 const ANSWERED_ELSEWHERE_CODE = 'conflicting-state';
 
+/**
+ * The server's code for a decision on a booking that waits on the guest before
+ * it to answer in the app (booking times): theirs to answer, not the floor's.
+ */
+const AWAITING_EARLIER_GUEST_CODE = 'reservation-awaiting-earlier-guest';
+
+/**
+ * The decision was refused because the guest before answers it in the app: the
+ * screen stops offering one for that booking.
+ */
+export function isAwaitingEarlierGuest(error: unknown): boolean {
+  return (
+    error instanceof ApiError && error.status === 409 && error.code === AWAITING_EARLIER_GUEST_CODE
+  );
+}
+
 /** The console's own sentences, for the failures the server's are not written for. */
 export interface DecisionFailureCopy {
   readonly offline: string;
@@ -20,6 +36,11 @@ export interface DecisionFailureCopy {
    * is read in Armenian says it in its own words when it has them.
    */
   readonly answeredElsewhere?: string | undefined;
+  /**
+   * The booking waits on the guest before it to answer in the app whether they
+   * will have left in time: it is decided when they do, or declined if not.
+   */
+  readonly awaitingEarlierGuest?: string | undefined;
 }
 
 /**
@@ -36,6 +57,7 @@ export interface DecisionFailureCopy {
  */
 export function decisionFailureText(error: unknown, copy: DecisionFailureCopy): string {
   if (copy.tooLate && isApprovalExpired(error)) return copy.tooLate;
+  if (copy.awaitingEarlierGuest && isAwaitingEarlierGuest(error)) return copy.awaitingEarlierGuest;
   if (
     copy.answeredElsewhere &&
     error instanceof ApiError &&

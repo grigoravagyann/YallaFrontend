@@ -1,13 +1,19 @@
 import { branchDayKey, formatDate, formatTime, type Locale, type TimeZone } from '@yalla/format';
-import { approvalCountdown, type DeclineReason } from './approvals';
+import { approvalCountdown, type ApprovalTrigger, type DeclineReason } from './approvals';
 import { isKnownUnavailableReason } from './booking';
-import type { AvailabilityWindowDto, TableAvailability, TableUnavailableReason } from './booking';
+import type {
+  AvailabilityWindowDto,
+  IncomingTableRequest,
+  TableAvailability,
+  TableUnavailableReason,
+} from './booking';
 import {
   BookingBusyError,
   BookingCommandInUseError,
   BookingRejectedError,
   BranchUnavailableError,
   ExpiredCodeError,
+  FreeByRequiredError,
   LeadTimeExceededError,
   PhoneNotVerifiedError,
   RateLimitedError,
@@ -186,6 +192,12 @@ export interface VenueAnswerState {
   readonly status: string;
   readonly approvalExpiresAtUtc: string | null | undefined;
   readonly declinedBecause: DeclineReason | null | undefined;
+  /**
+   * Why it waits, when the surface knows: a booking waiting for the guest
+   * before says so ("Asking the guest before you"), every other wait says the
+   * venue. Absent on a surface that does not carry it — the venue sentence.
+   */
+  readonly awaitingApprovalBecause?: ApprovalTrigger | null | undefined;
 }
 
 /**
@@ -198,16 +210,40 @@ export interface VenueAnswerState {
  * sentences, and the second one apologises. A booking that waits with no clock
  * (a large party) has nothing to add to the pending title it already shows.
  */
-export function venueAnswerCopy(booking: VenueAnswerState, now: Date): CopyLine | null {
+export function venueAnswerCopy(
+  booking: VenueAnswerState,
+  now: Date,
+  locale?: Locale,
+): CopyLine | null {
   if (booking.status === 'pendingApproval') {
-    const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now);
-    if (!countdown) return null;
-    return countdown.expired
-      ? line('booking.approval.checking')
-      : line('booking.approval.waiting', { time: countdown.label });
+    const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now, locale);
+    const earlierGuest = booking.awaitingApprovalBecause === 'earlierGuestConsent';
+    // The floor asks the guest before for another day, after ringing them: no
+    // clock, and the venue's answer is the one to wait for.
+    if (!countdown) return earlierGuest ? line('booking.approval.venueWillConfirm') : null;
+    if (countdown.expired) {
+      return line(
+        earlierGuest ? 'booking.approval.checkingEarlierGuest' : 'booking.approval.checking',
+      );
+    }
+    return line(
+      earlierGuest ? 'booking.approval.waitingEarlierGuest' : 'booking.approval.waiting',
+      {
+        time: countdown.label,
+      },
+    );
   }
   return declinedCopy(booking.declinedBecause, 'body');
 }
+
+/** Which sentence pair a decline reason reads as. */
+const DECLINED_AS: Readonly<Record<DeclineReason, string>> = {
+  staffDeclined: 'byVenue',
+  noAnswer: 'noAnswer',
+  earlierGuestDeclined: 'earlierGuest',
+  earlierGuestNoAnswer: 'earlierGuestNoAnswer',
+  unknown: 'byVenue',
+};
 
 /**
  * The title or the sentence for a booking the venue declined, by why. `null`
@@ -219,8 +255,71 @@ export function declinedCopy(
 ): CopyLine | null {
   // Absent as well as null: a booking kept from before the field existed.
   if (!reason) return null;
-  const which = reason === 'noAnswer' ? 'noAnswer' : 'byVenue';
+  const which = DECLINED_AS[reason] ?? 'byVenue';
   return line(part === 'title' ? `booking.declined.${which}Title` : `booking.declined.${which}`);
+}
+
+// ---------------------------------------------------------------------------
+// Booking times: a sitting cut short, a table asked for, the earlier guest
+// ---------------------------------------------------------------------------
+
+/**
+ * "You would free the table by 21:25" — for a table the next booking cuts
+ * short. Shown with the window, before any button, on every surface.
+ */
+export function mustFreeByCopy(
+  mustFreeByUtc: string | null | undefined,
+  timeZoneId: TimeZone,
+  locale: Locale,
+): CopyLine | null {
+  if (!mustFreeByUtc) return null;
+  return line('table.mustFreeBy', { time: formatTime(mustFreeByUtc, timeZoneId, locale) });
+}
+
+/**
+ * The question asked before sending: "There is a booking at 21:30. Will you
+ * free the table by 21:25?" The next booking's start, when known, is what makes
+ * the time make sense.
+ */
+export function freeByQuestion(
+  input: { readonly nextStartUtc: string | null | undefined; readonly freeByUtc: string },
+  timeZoneId: TimeZone,
+  locale: Locale,
+): CopyLine {
+  const time = formatTime(input.freeByUtc, timeZoneId, locale);
+  return input.nextStartUtc
+    ? line('book.freeBy.question', {
+        next: formatTime(input.nextStartUtc, timeZoneId, locale),
+        time,
+      })
+    : line('book.freeBy.questionNoNext', { time });
+}
+
+/** "You will free the table by 21:25" — the promise, read back on the booking. */
+export function promisedFreeByCopy(
+  promisedFreeByUtc: string | null | undefined,
+  timeZoneId: TimeZone,
+  locale: Locale,
+): CopyLine | null {
+  if (!promisedFreeByUtc) return null;
+  return line('booking.freeBy.promised', {
+    time: formatTime(promisedFreeByUtc, timeZoneId, locale),
+  });
+}
+
+/**
+ * "Someone would like your table at 19:45. Will you have left by 19:40?" —
+ * the earlier guest's card and push. The later guest stays anonymous.
+ */
+export function tableRequestCopy(
+  request: Pick<IncomingTableRequest, 'requestedStartUtc' | 'freeByUtc'>,
+  timeZoneId: TimeZone,
+  locale: Locale,
+): CopyLine {
+  return line('booking.tableRequest.question', {
+    time: formatTime(request.requestedStartUtc, timeZoneId, locale),
+    freeBy: formatTime(request.freeByUtc, timeZoneId, locale),
+  });
 }
 
 /**
@@ -229,7 +328,13 @@ export function declinedCopy(
  * a slot at short notice, which the floor answers within fifteen minutes — so
  * the sentence names none of them.
  */
-export function approvalCopy(requiresApproval: boolean): CopyLine | null {
+export function approvalCopy(
+  requiresApproval: boolean,
+  requiresEarlierGuestConsent = false,
+): CopyLine | null {
+  // A table somebody booked shortly before, another day: the guest before is
+  // asked, not the venue, and the sentence says who.
+  if (requiresEarlierGuestConsent) return line('table.requestable.earlierGuest');
   return requiresApproval ? line('table.needsApproval') : null;
 }
 
@@ -277,6 +382,8 @@ export interface TableCopy {
   readonly window: AvailabilityWindowCopy | null;
   readonly freeCancellation: CopyLine | null;
   readonly approval: CopyLine | null;
+  /** "You would free the table by 21:25", when the next booking cuts the sitting short. */
+  readonly freeBy: CopyLine | null;
   /** Present exactly when the table is not bookable; then everything above is null. */
   readonly unavailable: CopyLine | null;
 }
@@ -310,6 +417,7 @@ export function tableCopy(
       window: null,
       freeCancellation: null,
       approval: null,
+      freeBy: null,
       unavailable: unavailableCopy(availability.unavailableReason, partySize),
     };
   }
@@ -323,7 +431,11 @@ export function tableCopy(
     freeCancellation: availability.freeCancellationUntilUtc
       ? freeCancellationCopy(availability.freeCancellationUntilUtc, timeZoneId, locale, input.now)
       : null,
-    approval: approvalCopy(availability.requiresApproval),
+    approval: approvalCopy(
+      availability.requiresApproval,
+      availability.requiresEarlierGuestConsent ?? false,
+    ),
+    freeBy: mustFreeByCopy(availability.mustFreeByUtc, timeZoneId, locale),
     unavailable: null,
   };
 }
@@ -396,6 +508,17 @@ export type BookingFailure =
   | { readonly kind: 'commandInUse'; readonly line: CopyLine }
   | { readonly kind: 'branchUnavailable'; readonly line: CopyLine }
   | { readonly kind: 'phoneNotVerified'; readonly line: CopyLine }
+  /**
+   * A booking follows on the table and the promise to free it was missing or
+   * no longer right: the screen asks again with `requiredFreeByUtc`, and a yes
+   * resends the same command with it.
+   */
+  | {
+      readonly kind: 'freeByRequired';
+      readonly line: CopyLine;
+      readonly requiredFreeByUtc: string | null;
+      readonly nextBookingStartUtc: string | null;
+    }
   | { readonly kind: 'unknown'; readonly line: CopyLine }
   | { readonly kind: 'generic'; readonly line: CopyLine };
 
@@ -426,6 +549,18 @@ export function bookingFailure(
   }
   if (error instanceof BookingRejectedError) {
     return { kind: 'rejected', line: unavailableCopy(error.reason, error.partySize) };
+  }
+  if (error instanceof FreeByRequiredError) {
+    return {
+      kind: 'freeByRequired',
+      requiredFreeByUtc: error.requiredFreeByUtc,
+      nextBookingStartUtc: error.nextBookingStartUtc,
+      line: error.requiredFreeByUtc
+        ? line('confirm.error.freeByRequired', {
+            time: formatTime(error.requiredFreeByUtc, timeZoneId, locale),
+          })
+        : line('confirm.error.freeByRequiredNoTime'),
+    };
   }
   if (error instanceof BookingBusyError) {
     return { kind: 'busy', line: line('confirm.error.busy') };

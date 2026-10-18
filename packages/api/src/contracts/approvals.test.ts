@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ConcurrencyConflictError, NotFoundError } from '../errors';
-import { approvalCountdown, isApprovalExpired } from './approvals';
+import { waitsOnEarlierGuestInApp, approvalCountdown, isApprovalExpired } from './approvals';
 
 /**
  * The answer window, as every surface counts it down.
@@ -71,5 +71,15 @@ describe('isApprovalExpired', () => {
     expect(isApprovalExpired(decided)).toBe(false);
     expect(isApprovalExpired(new NotFoundError({ url: 'x' }))).toBe(false);
     expect(isApprovalExpired(new Error('reservation-approval-expired'))).toBe(false);
+  });
+});
+
+describe('waitsOnEarlierGuestInApp', () => {
+  it("is the guest before's to answer only with a clock: their two hours in the app", () => {
+    expect(waitsOnEarlierGuestInApp('earlierGuestConsent', '2026-10-19T12:00:00Z')).toBe(true);
+    // The floor's question for another day has no clock: the floor decides it.
+    expect(waitsOnEarlierGuestInApp('earlierGuestConsent', null)).toBe(false);
+    expect(waitsOnEarlierGuestInApp('shortNotice', '2026-10-19T12:00:00Z')).toBe(false);
+    expect(waitsOnEarlierGuestInApp(null, null)).toBe(false);
   });
 });

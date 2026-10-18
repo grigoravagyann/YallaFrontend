@@ -72,11 +72,12 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
         status: live.status,
         approvalExpiresAtUtc: live.approvalExpiresAtUtc,
         declinedBecause: live.declinedBecause,
+        awaitingApprovalBecause: live.awaitingApprovalBecause ?? booking.awaitingApprovalBecause,
       }
     : booking;
   const now = useNow(awaitsVenueAnswer(answerState) ? 1000 : 30_000);
-  const answer = venueAnswerCopy(answerState, now);
-  const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now);
+  const answer = venueAnswerCopy(answerState, now, locale);
+  const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now, locale);
   const declinedTitle = declinedCopy(answerState.declinedBecause, 'title');
   const declinedBody = declinedCopy(answerState.declinedBecause, 'body');
 
@@ -175,9 +176,11 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
       </h3>
       {pending ? (
         <p className="pub-notice">
-          {answerState.approvalExpiresAtUtc
-            ? td('booking.approval.why')
-            : td('success.pendingBody')}
+          {answerState.awaitingApprovalBecause === 'earlierGuestConsent'
+            ? td('table.requestable.earlierGuest')
+            : answerState.approvalExpiresAtUtc
+              ? td('booking.approval.why')
+              : td('success.pendingBody')}
         </p>
       ) : null}
       {/* While the venue decides: the minutes it has left to answer. A timer,
@@ -220,6 +223,13 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
         </div>
       </dl>
 
+      {booking.promisedFreeByUtc ? (
+        <p className="pub-notice">
+          {td('booking.freeBy.promised', {
+            time: formatTime(booking.promisedFreeByUtc, booking.timeZoneId, locale),
+          })}
+        </p>
+      ) : null}
       <p className="pub-muted">{td(cancellation.key, cancellation.params)}</p>
 
       {/*

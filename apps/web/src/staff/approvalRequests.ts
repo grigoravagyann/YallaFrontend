@@ -1,4 +1,8 @@
-import type { AwaitingApproval, ReservationStatusCode } from '@yalla/api';
+import {
+  earlierGuestFreeByUtc,
+  type AwaitingApproval,
+  type ReservationStatusCode,
+} from '@yalla/api';
 import type { TFunction } from 'i18next';
 
 /**
@@ -31,7 +35,8 @@ export function requestLine(
 
 /** One line of what the table is doing around the request. */
 export interface ContextLine {
-  readonly kind: 'before' | 'next' | 'sitting';
+  /** `ask`: ring the guest before about leaving in time (booking times). */
+  readonly kind: 'before' | 'ask' | 'next' | 'sitting';
   readonly text: string;
   /** Who to ring about it, when the line is about somebody with a number. */
   readonly call: { readonly phoneE164: string; readonly name: string } | null;
@@ -60,34 +65,69 @@ function worthCalling(status: ReservationStatusCode): boolean {
   return status !== 'completed' && status !== 'noShow';
 }
 
+/** The branch's day of an instant, and its date for print — for a line about another day. */
+export interface BranchDays {
+  /** `YYYY-MM-DD` on the branch's calendar. */
+  readonly dayKey: (iso: string) => string;
+  /** "Mon 19 Oct", on the branch's calendar. */
+  readonly date: (iso: string) => string;
+}
+
 /**
  * "Before: 18:00 · 4 guests · Anna · seated now", "Sitting now: since 18:10 ·
  * 4 guests", "Next: 21:30 · 3 guests" — in the order a waiter reasons about
  * the table: who had it and where they stand, whether somebody is there now,
  * who comes after.
+ *
+ * The booking before is the one being asked while a question is open,
+ * whatever day it is on: a 23:00 before a 00:30 is the day before's, and with
+ * `days` it is printed with its date rather than as tonight's 23:00.
  */
 export function contextLines(
   request: AwaitingApproval,
   t: TFunction,
   time: (iso: string) => string,
+  days?: BranchDays,
 ): readonly ContextLine[] {
   const lines: ContextLine[] = [];
   const before = request.previousBooking;
+  const when = (iso: string) =>
+    days && days.dayKey(iso) !== days.dayKey(request.startUtc)
+      ? `${days.date(iso)} ${time(iso)}`
+      : time(iso);
+  // Booking times: the floor asks the guest before — an earlier-guest request
+  // the floor decides, or a short-notice one within three hours of theirs.
+  const askBy =
+    request.earlierGuestFreeByUtc ??
+    (request.because === 'earlierGuestConsent' ? earlierGuestFreeByUtc(request.startUtc) : null);
+  const asking = askBy !== null;
   if (before) {
     const status = PREVIOUS_STATUS[before.status];
     const head = t('approvals.before', {
-      time: time(before.startUtc),
+      time: when(before.startUtc),
       count: before.partySize,
       name: before.guestName,
     });
+    const said = status ? `${head} · ${t(`approvals.previousStatus.${status}`)}` : head;
+    const call =
+      before.guestPhone && worthCalling(before.status)
+        ? { phoneE164: before.guestPhone, name: before.guestName }
+        : null;
     lines.push({
       kind: 'before',
-      text: status ? `${head} · ${t(`approvals.previousStatus.${status}`)}` : head,
-      call:
-        before.guestPhone && worthCalling(before.status)
-          ? { phoneE164: before.guestPhone, name: before.guestName }
-          : null,
+      text: before.promisedFreeByUtc
+        ? `${said} · ${t('approvals.leavesBy', { time: time(before.promisedFreeByUtc) })}`
+        : said,
+      // Asking them is its own line, with the Call on it.
+      call: asking ? null : call,
     });
+    if (askBy !== null) {
+      lines.push({
+        kind: 'ask',
+        text: t('approvals.askBefore', { name: before.guestName, time: time(askBy) }),
+        call,
+      });
+    }
   }
   const sitting = request.currentSitting;
   if (sitting) {
@@ -105,13 +145,32 @@ export function contextLines(
   }
   const next = request.nextBooking;
   if (next) {
+    const head = t('approvals.next', { time: time(next.startUtc), count: next.partySize });
     lines.push({
       kind: 'next',
-      text: t('approvals.next', { time: time(next.startUtc), count: next.partySize }),
+      // This booking was taken on the promise to free the table before it.
+      text: request.promisedFreeByUtc
+        ? `${head} · ${t('table.mustFreeBy', { time: time(request.promisedFreeByUtc) })}`
+        : head,
       call: null,
     });
   }
   return lines;
+}
+
+/**
+ * The floor's next-booking line — "21:30", "tomorrow 21:30" — with the
+ * promise the party before it made: "21:30 · must free by 21:25".
+ */
+export function nextBookingLine(
+  t: TFunction,
+  when: string,
+  promisedFreeByUtc: string | null | undefined,
+  time: (iso: string) => string,
+): string {
+  return promisedFreeByUtc
+    ? `${when} · ${t('table.mustFreeBy', { time: time(promisedFreeByUtc) })}`
+    : when;
 }
 
 /**

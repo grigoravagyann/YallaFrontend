@@ -34,6 +34,15 @@ export const gateway: YallaGateway = resolveGateway({
   // the first request that long after it is made (later ones run out).
   mockApprovalWindowMs: seconds(process.env['EXPO_PUBLIC_MOCK_APPROVAL_WINDOW_SECONDS']),
   mockVenueApprovesAfterMs: seconds(process.env['EXPO_PUBLIC_MOCK_VENUE_APPROVES_AFTER_SECONDS']),
+  // Booking times, in mock mode: other guests' bookings tomorrow evening at
+  // Northern Avenue (struck, requestable and cut-short times to walk) unless
+  // EXPO_PUBLIC_MOCK_NEIGHBOURS=0, and EXPO_PUBLIC_MOCK_EARLIER_GUEST_ANSWERS_AFTER_SECONDS
+  // has another guest say yes to a request for their table that long after.
+  mockNeighbourBookings:
+    process.env['EXPO_PUBLIC_MOCK_NEIGHBOURS'] !== '0' && process.env['NODE_ENV'] !== 'test',
+  mockEarlierGuestAnswersAfterMs: seconds(
+    process.env['EXPO_PUBLIC_MOCK_EARLIER_GUEST_ANSWERS_AFTER_SECONDS'],
+  ),
   // On the web build the mock world survives a full page load (QA F2); a
   // phone keeps the app alive between screens and has no localStorage.
   persist:

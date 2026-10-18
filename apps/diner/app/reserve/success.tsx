@@ -178,9 +178,12 @@ export default function SuccessScreen() {
             {declinedBody
               ? t(declinedBody.key, declinedBody.params)
               : pending
-                ? booking.approvalExpiresAtUtc
-                  ? t('booking.approval.why')
-                  : t('success.pendingBody')
+                ? booking.awaitingApprovalBecause === 'earlierGuestConsent'
+                  ? // Booking times: the guest before is asked, not the venue.
+                    t('table.requestable.earlierGuest')
+                  : booking.approvalExpiresAtUtc
+                    ? t('booking.approval.why')
+                    : t('success.pendingBody')
                 : t('success.expecting')}
           </Text>
         </Rise>

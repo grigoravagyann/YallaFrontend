@@ -20,6 +20,11 @@ import {
   declineReason,
   type WireApprovalFields,
 } from './approvalMapping';
+import {
+  incomingTableRequestFromWire,
+  instantOrNull,
+  type WireReservationTimes,
+} from './bookingTimesWire';
 import { absolutePhoto } from './photoUrl';
 import { orderStatus, totals } from './staffMapping';
 import { photo } from './venueSettingsMapping';
@@ -261,9 +266,10 @@ export function dinerTab(view: TabView, fetchedAtUtc: string, baseUrl: string): 
 
 // --- Reservations, for the notification actions ------------------------------
 
-/** With the booking-approval fields the generated schema does not have yet. */
+/** With the booking-approval and booking-times fields the generated schema does not have yet. */
 type ReservationViewWire = Schemas['Yalla.Application.Reservations.ReservationView'] &
-  WireApprovalFields;
+  WireApprovalFields &
+  WireReservationTimes;
 
 /**
  * `ReservationStatus`: 1 PendingApproval, 2 Confirmed, 4 Seated, 5 Completed,
@@ -321,6 +327,8 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     approvalExpiresAtUtc: view.status === 1 ? approvalExpiry(view.approvalExpiresAtUtc) : null,
     declinedBecause: declineReason(view.declinedBecause),
     manageToken: view.manageToken ?? null,
+    promisedFreeByUtc: instantOrNull(view.promisedFreeByUtc),
+    incomingTableRequest: incomingTableRequestFromWire(view.incomingTableRequest),
   };
 }
 

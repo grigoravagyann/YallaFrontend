@@ -1,4 +1,4 @@
-import { formatCountdown } from '@yalla/format';
+import { branchDayKey, formatCountdown, type Locale, type TimeZone } from '@yalla/format';
 import { ApiError } from '../errors';
 import type { ReservationStatusCode } from './push';
 
@@ -45,30 +45,93 @@ export interface ConsoleBooking {
 
 /**
  * `Yalla.Domain.Enums.ApprovalTrigger`: 1 BranchApprovesEveryBooking,
- * 2 LargeParty, 3 NoShowHistory, 4 ShortNotice. `unknown` for a value a newer
- * server adds.
+ * 2 LargeParty, 3 NoShowHistory, 4 ShortNotice, 5 EarlierGuestConsent.
+ * `unknown` for a value a newer server adds.
  *
  * `shortNotice` is the floor's own: a booking for today, or starting within
  * {@link SHORT_NOTICE_HOURS} hours, is never confirmed blindly for a table
  * somebody may just have sat down at. It is a fixed rule, not a branch setting,
  * and it always comes with an answer window.
+ *
+ * `earlierGuestConsent` is a booking on another day for a table somebody else
+ * booked shortly before it: it starts within {@link REQUESTABLE_WITHIN_MINUTES}
+ * minutes of the earlier booking, so the earlier guest is asked whether they
+ * will have left by then. Through the app when they booked in it; on the floor
+ * tablet, by the staff, when they booked on the web and have no push. Its
+ * window is {@link EARLIER_GUEST_WINDOW_MINUTES} minutes, not fifteen.
  */
 export type ApprovalTrigger =
-  'branchApprovesEveryBooking' | 'largeParty' | 'noShowHistory' | 'shortNotice' | 'unknown';
+  | 'branchApprovesEveryBooking'
+  | 'largeParty'
+  | 'noShowHistory'
+  | 'shortNotice'
+  | 'earlierGuestConsent'
+  | 'unknown';
 
 /**
  * Why a booking the venue had to answer ended declined:
- * `Yalla.Domain.Enums.DeclineReason`, 1 StaffDeclined, 2 NoAnswer.
+ * `Yalla.Domain.Enums.DeclineReason`, 1 StaffDeclined, 2 NoAnswer,
+ * 3 EarlierGuestDeclined, 4 EarlierGuestNoAnswer.
  *
  * Two different sentences to the diner, and the difference is the point. A
  * person said no — the table is not free then. Nobody answered in time — that
  * is the venue's failure, not the diner's, and the copy apologises for it.
+ * The two earlier-guest reasons are the same pair for a table somebody else
+ * booked before: they said they would still be there, or they did not answer
+ * in two hours — and either way another table or time is the next step.
  * `unknown` for a value a newer server adds; it reads as the plain "declined".
  */
-export type DeclineReason = 'staffDeclined' | 'noAnswer' | 'unknown';
+export type DeclineReason =
+  'staffDeclined' | 'noAnswer' | 'earlierGuestDeclined' | 'earlierGuestNoAnswer' | 'unknown';
+
+// ---------------------------------------------------------------------------
+// Booking times and table sequencing — the fixed rules, not branch settings
+// ---------------------------------------------------------------------------
+
+/** A booking may start this many minutes from now, and no sooner — the default lead time. */
+export const MIN_LEAD_MINUTES = 10;
+
+/** The day's times are this far apart: 19:00, 19:15, 19:30. */
+export const SLOT_STEP_MINUTES = 15;
+
+/** Clearing time between one party leaving a table and the next sitting down. */
+export const TABLE_BUFFER_MINUTES = 5;
+
+/** A table just booked is nobody else's for this long after that booking starts. */
+export const TABLE_BLOCK_MINUTES = 90;
+
+/** A booking must start at least this long before the next one on its table. */
+export const NEXT_BOOKING_GAP_MINUTES = 45;
+
+/**
+ * Up to this long after an earlier booking starts, a table is only requestable:
+ * the earlier guest (another day) or the floor (today) says whether it is free.
+ */
+export const REQUESTABLE_WITHIN_MINUTES = 180;
+
+/** How long the earlier guest — or the floor, for a web guest — has to answer. */
+export const EARLIER_GUEST_WINDOW_MINUTES = 120;
 
 /** A booking for today, or for less than this many hours from now, waits for the floor. */
 export const SHORT_NOTICE_HOURS = 6;
+
+/**
+ * Short notice: the booking is for the branch's today, or starts less than
+ * {@link SHORT_NOTICE_HOURS} hours from now. Either alone is enough — a 23:30
+ * booking made at 18:00 is both, a 01:00 one made at 22:00 the second only.
+ * "Today" is the branch's, never the device's or UTC's. The floor decides such
+ * a booking; another day, a requestable one asks the guest before.
+ */
+export function isShortNotice(input: {
+  readonly startUtc: string;
+  readonly timeZoneId: string;
+  readonly now: Date;
+}): boolean {
+  const start = new Date(input.startUtc);
+  if (start.getTime() - input.now.getTime() < SHORT_NOTICE_HOURS * 3_600_000) return true;
+  const zone = input.timeZoneId as TimeZone;
+  return branchDayKey(start, zone) === branchDayKey(input.now, zone);
+}
 
 /** How long the floor has to answer a short-notice booking, at most. */
 export const APPROVAL_WINDOW_MINUTES = 15;
@@ -94,6 +157,22 @@ export function awaitsVenueAnswer(booking: {
 }
 
 /**
+ * Whether a waiting booking is the guest before's to answer, in the app — not
+ * the floor's. Such a booking waits with a clock (two hours, never past their
+ * own booking); the floor's own questions to a guest before, for another day
+ * (they booked on the web, have no device, or the booking needs the floor
+ * anyway), have none. The floor's approve and reject are refused for it (409
+ * `reservation-awaiting-earlier-guest`), so no screen offers them — it says
+ * whose answer it waits for instead. Short-notice ones are `shortNotice`.
+ */
+export function waitsOnEarlierGuestInApp(
+  because: ApprovalTrigger | null | undefined,
+  approvalExpiresAtUtc: string | null | undefined,
+): boolean {
+  return because === 'earlierGuestConsent' && Boolean(approvalExpiresAtUtc);
+}
+
+/**
  * How long is left to answer, for a request with a window.
  *
  * Computed from the server's instant and the device's clock, ticking once a
@@ -116,6 +195,8 @@ export interface ApprovalCountdown {
 export function approvalCountdown(
   expiresAtUtc: string | null | undefined,
   now: Date,
+  /** Given, a window past an hour reads "1 hr 59 min" rather than "119:00". */
+  locale?: Locale,
 ): ApprovalCountdown | null {
   if (!expiresAtUtc) return null;
   const at = Date.parse(expiresAtUtc);
@@ -123,7 +204,7 @@ export function approvalCountdown(
   const secondsLeft = Math.max(0, Math.ceil((at - now.getTime()) / 1000));
   return {
     secondsLeft,
-    label: formatCountdown(secondsLeft),
+    label: formatCountdown(secondsLeft, locale),
     expired: secondsLeft === 0,
     urgent: secondsLeft > 0 && secondsLeft <= APPROVAL_URGENT_SECONDS,
   };
@@ -174,6 +255,18 @@ export interface AwaitingApproval {
   /** When the answer window closes. `null` for a request that waits without one. */
   readonly approvalExpiresAtUtc: string | null;
   readonly because: ApprovalTrigger | null;
+  /**
+   * The time this booking's guest promised to free the table by, when a later
+   * booking on it made the sitting shorter: "must free by 21:25". Absent or
+   * `null` when nothing was promised — and from a server before booking times.
+   */
+  readonly promisedFreeByUtc?: string | null | undefined;
+  /**
+   * The time to ask the guest before to have left by — an `earlierGuestConsent`
+   * booking the floor decides, or a short-notice one within three hours of the
+   * booking before. "Ask Anna whether the table will be free by 19:40".
+   */
+  readonly earlierGuestFreeByUtc?: string | null | undefined;
   /** The booking before this one on the same table that day, if any. */
   readonly previousBooking: PreviousBookingContext | null;
   /** The booking after this one on the same table that day, if any. */
@@ -190,12 +283,25 @@ export interface PreviousBookingContext {
   /** E.164, or `null` when the booking carried none. */
   readonly guestPhone: string | null;
   readonly status: ReservationStatusCode;
+  /** When that guest promised to be gone by, if they did. */
+  readonly promisedFreeByUtc?: string | null | undefined;
 }
 
 /** "Next: 21:30 · 2 guests". */
 export interface NextBookingContext {
   readonly startUtc: string;
   readonly partySize: number;
+  /** When that booking's guest promised to be gone by, if they did. */
+  readonly promisedFreeByUtc?: string | null | undefined;
+}
+
+/**
+ * The time the earlier guest is asked to be gone by, for a booking waiting on
+ * their consent: the later booking's start less the clearing time — "will you
+ * have left by 19:40?" for a 19:45 booking.
+ */
+export function earlierGuestFreeByUtc(startUtc: string): string {
+  return new Date(Date.parse(startUtc) - TABLE_BUFFER_MINUTES * 60_000).toISOString();
 }
 
 /** "Sitting now: since 18:10". */

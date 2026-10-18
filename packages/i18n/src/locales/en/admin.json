@@ -1274,7 +1274,8 @@
       "branchApprovesEveryBooking": "Every booking is approved here",
       "noShowHistory": "No-show history",
       "shortNotice": "Short notice",
-      "unknown": "Needs a decision"
+      "unknown": "Needs a decision",
+      "earlierGuestConsent": "Asking the guest before"
     },
     "leftToAnswer": "{{time}} left to answer",
     "timeUp": "Time is up. The diner is being told the venue could not confirm.",
@@ -1287,7 +1288,8 @@
     "failed": "Could not record the decision. Try again.",
     "tooLate": "Too late: the time to answer ran out, and the diner has been told the venue could not confirm.",
     "answeredElsewhere": "Already answered by someone else.",
-    "offline": "You are offline. The decision was not sent."
+    "offline": "You are offline. The decision was not sent.",
+    "awaitingEarlierGuest": "The guest before is answering this in the app. It is decided when they do, or declined if they do not."
   },
   "onboarding": {
     "steps": {

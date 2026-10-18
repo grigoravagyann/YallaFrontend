@@ -33,6 +33,17 @@ export interface ResolveGatewayOptions {
    * session. See `MockGatewayOptions.simulateVenueApprovalAfterMs`.
    */
   readonly mockVenueApprovesAfterMs?: number | undefined;
+  /**
+   * Mock only: other guests' bookings tomorrow evening at Northern Avenue, so
+   * struck, requestable and cut-short times can be walked. See
+   * `MockGatewayOptions.seedNeighbourBookings`.
+   */
+  readonly mockNeighbourBookings?: boolean | undefined;
+  /**
+   * Mock only: another guest who booked in the app says yes to a request for
+   * their table this long after it is made. Absent, nobody answers.
+   */
+  readonly mockEarlierGuestAnswersAfterMs?: number | undefined;
   /** This install's device id, for opening and joining tabs. Real only. */
   readonly deviceId?: (() => Promise<string>) | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
@@ -62,6 +73,8 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       simulateTelegramConfirm: true,
       approvalWindowMs: options.mockApprovalWindowMs,
       simulateVenueApprovalAfterMs: options.mockVenueApprovesAfterMs,
+      seedNeighbourBookings: options.mockNeighbourBookings ?? false,
+      simulateEarlierGuestAnswerAfterMs: options.mockEarlierGuestAnswersAfterMs,
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({

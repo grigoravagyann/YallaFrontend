@@ -49,6 +49,7 @@ import {
   EmailTakenError,
   ExpiredCodeError,
   ExtensionsNotOfferedError,
+  FreeByRequiredError,
   HoldAlreadyExtendedError,
   HoldNotActiveError,
   InvalidCredentialsError,
@@ -65,6 +66,7 @@ import {
   TabClosedError,
   TabNotAcceptingOrdersError,
   TableOutOfServiceError,
+  TableRequestClosedError,
   TableTakenError,
   TabsNotEnabledError,
   TelegramUnavailableError,
@@ -222,6 +224,50 @@ function branchQuery(query: BranchSearchQuery | undefined): Record<string, strin
     out['lng'] = roundCoordinate(position.longitude);
   }
   return out;
+}
+
+/**
+ * `acceptsFreeByUtc` on a booking body, only when one was agreed: an older
+ * server then sees exactly the body it always did.
+ *
+ * Booking times, ahead of the generated request shapes — the bodies are built
+ * with `satisfies` against them and this adds the one key they do not have
+ * yet. After `api:generate` it can go back inline.
+ */
+function withFreeBy<T extends object>(
+  body: T,
+  acceptsFreeByUtc: string | null | undefined,
+): T & { readonly acceptsFreeByUtc?: string } {
+  return acceptsFreeByUtc ? { ...body, acceptsFreeByUtc } : body;
+}
+
+/**
+ * The refusal that asks for the promise: a 422 (or 409) naming
+ * `acceptsFreeByUtc`, or carrying the `requiredFreeByUtc` it needs. Read
+ * leniently — the field's name in either case, in `field` or among `fields` —
+ * because the one thing that matters is the time to ask about.
+ */
+function freeByRefusal(error: ApiError): FreeByRequiredError | null {
+  if (error.status !== 422 && error.status !== 409) return null;
+  const context = error.problem?.context ?? {};
+  const instant = (value: unknown) =>
+    typeof value === 'string' && value.trim() !== '' ? value : null;
+  const named = (value: unknown) =>
+    typeof value === 'string' && value.toLowerCase() === 'acceptsfreebyutc';
+  const fields = Array.isArray(context['fields']) ? (context['fields'] as unknown[]) : [];
+  const required = context['requiredFreeByUtc'];
+  const blamed =
+    error.problem?.code === 'reservation-free-by-required' ||
+    named(context['field']) ||
+    fields.some((entry) => named((entry as { field?: unknown } | null)?.field)) ||
+    Object.keys(error.problem?.errors ?? {}).some(named);
+  if (!blamed && typeof required !== 'string') return null;
+  return new FreeByRequiredError({
+    url: error.url,
+    requestId: error.requestId,
+    requiredFreeByUtc: instant(required),
+    nextBookingStartUtc: instant(context['nextBookingStartUtc']),
+  });
 }
 
 /** Trimmed, and blank as `null` — the server's own reading of an optional note. */
@@ -604,6 +650,11 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     const context = error.problem.context ?? {};
     const code = error.problem.code;
     const base = { url: error.url, requestId: error.requestId };
+
+    // Before every other reading: it is a 422 like a validation failure, and
+    // what the screen does next is ask, not show an error.
+    const freeBy = freeByRefusal(error);
+    if (freeBy) throw freeBy;
 
     switch (code) {
       case 'phone-not-verified':
@@ -1641,22 +1692,24 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async createBooking(command): Promise<Booking> {
       const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
+      // Checked against the request shape by `satisfies` while `acceptsFreeByUtc`
+      // is ahead of it (booking times); inline again once the schema has it.
+      const body = {
+        branchId: command.branchId,
+        tableId: command.tableId,
+        date,
+        time,
+        partySize: command.partySize,
+        guestName: command.guestName,
+        guestPhone: command.guestPhone,
+        clientCommandId: command.commandId,
+        channel: CHANNEL_CODE[command.channel],
+        note: noteOrNull(command.note),
+      } satisfies Schemas['Yalla.Api.Endpoints.CreateReservationRequest'];
       try {
-        // Inline, so check-gateway-schema reads every key against the request shape.
         const { data } = await client.post<
           Schemas['Yalla.Application.Reservations.ReservationView']
-        >('/api/reservations', {
-          branchId: command.branchId,
-          tableId: command.tableId,
-          date,
-          time,
-          partySize: command.partySize,
-          guestName: command.guestName,
-          guestPhone: command.guestPhone,
-          clientCommandId: command.commandId,
-          channel: CHANNEL_CODE[command.channel],
-          note: noteOrNull(command.note),
-        });
+        >('/api/reservations', withFreeBy(body, command.acceptsFreeByUtc));
         return toBooking(data);
       } catch (error) {
         rethrowBooking(error, command);
@@ -1679,16 +1732,20 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
      */
     async rescheduleBooking(command): Promise<Booking> {
       const { date, time } = localDateTime(command.slotUtc, command.timeZoneId);
+      const body = {
+        date,
+        time,
+        partySize: command.partySize,
+        diningTableId: command.tableId,
+        clientCommandId: command.commandId,
+      } satisfies Schemas['Yalla.Api.Endpoints.RescheduleReservationRequest'];
       try {
         const { data } = await client.post<
           Schemas['Yalla.Application.Reservations.ReservationView']
-        >(`/api/reservations/${command.bookingId}/reschedule`, {
-          date,
-          time,
-          partySize: command.partySize,
-          diningTableId: command.tableId,
-          clientCommandId: command.commandId,
-        } satisfies Schemas['Yalla.Api.Endpoints.RescheduleReservationRequest']);
+        >(
+          `/api/reservations/${command.bookingId}/reschedule`,
+          withFreeBy(body, command.acceptsFreeByUtc),
+        );
         return toBooking(data);
       } catch (error) {
         rethrowBooking(error, {
@@ -1697,6 +1754,40 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           partySize: command.partySize,
         });
       }
+    },
+
+    /**
+     * `POST /api/reservations/{id}/table-requests/{requestId}/answer` — the
+     * earlier guest's yes or no. The server answers with the booking as it now
+     * stands; a bodiless answer is read back from `/mine` rather than guessed.
+     */
+    async answerTableRequest({ bookingId, requestId, accept, commandId }): Promise<Booking> {
+      let data: ReservationViewWire | undefined;
+      try {
+        ({ data } = await client.post<ReservationViewWire | undefined>(
+          `/api/reservations/${bookingId}/table-requests/${requestId}/answer`,
+          { accept, clientCommandId: commandId },
+        ));
+      } catch (error) {
+        // Lapsed, let go by the later guest, or answered on another device.
+        if (
+          error instanceof ApiError &&
+          (error.status === 409 ||
+            error.status === 410 ||
+            (error.status === 404 && (error.code ?? '').includes('table-request')))
+        ) {
+          throw new TableRequestClosedError({ url: error.url, requestId, status: error.status });
+        }
+        throw error;
+      }
+      if (data && typeof data === 'object' && typeof data.id === 'string') return toBooking(data);
+      const current = await findMine(bookingId);
+      if (!current) {
+        throw new NotFoundError({
+          url: `/api/reservations/${bookingId}/table-requests/${requestId}/answer`,
+        });
+      }
+      return current;
     },
 
     // --- Notifications --------------------------------------------------------

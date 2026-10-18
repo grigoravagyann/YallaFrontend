@@ -297,6 +297,14 @@ export interface StaffTableDetail {
    * thing that knows what it means.
    */
   readonly rowVersion: string;
+  /**
+   * The next booking's guest promised to free the table by this — "must free
+   * by 21:25" on the floor's next-booking line. Absent or `null` when nobody
+   * promised anything (and from a server before booking times).
+   */
+  readonly nextReservationPromisedFreeByUtc?: string | null | undefined;
+  /** The party sitting at the table now promised to have left by this. */
+  readonly sittingPromisedFreeByUtc?: string | null | undefined;
 }
 
 /**

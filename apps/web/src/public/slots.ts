@@ -1,4 +1,10 @@
-import { closesNextDay, toMinutes, type WeeklyHours } from '@yalla/api';
+import {
+  SLOT_STEP_MINUTES,
+  closesNextDay,
+  toMinutes,
+  type DaySlots,
+  type WeeklyHours,
+} from '@yalla/api';
 import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/format';
 
 /**
@@ -17,8 +23,8 @@ import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/forma
  * a timezone in.
  */
 
-/** Half-hourly, matching the slots the backend reasons in. */
-const SLOT_MINUTES = 30;
+/** Every quarter hour, matching the slots the backend reasons in since booking times. */
+const SLOT_MINUTES = SLOT_STEP_MINUTES;
 
 export interface SlotSelection {
   /** `YYYY-MM-DD`, in the branch's zone. */
@@ -69,11 +75,11 @@ export interface DefaultSlotRules {
   readonly turnTimeMinutes?: number;
 }
 
-const HALF_HOUR_MS = SLOT_MINUTES * 60_000;
+const SLOT_MS = SLOT_MINUTES * 60_000;
 
-/** The instant rounded *up* to the next half-hour boundary (unchanged if on one). */
+/** The instant rounded *up* to the next quarter-hour boundary (unchanged if on one). */
 function ceilToSlot(instant: Date): Date {
-  return new Date(Math.ceil(instant.getTime() / HALF_HOUR_MS) * HALF_HOUR_MS);
+  return new Date(Math.ceil(instant.getTime() / SLOT_MS) * SLOT_MS);
 }
 
 /**
@@ -164,7 +170,7 @@ export function defaultSelection(
   };
 }
 
-/** Every half hour of a day, as `HH:mm`. */
+/** Every quarter hour of a day, as `HH:mm`. */
 export function timeOptions(): readonly string[] {
   const options: string[] = [];
   for (let minutes = 0; minutes < 24 * 60; minutes += SLOT_MINUTES) {
@@ -248,4 +254,96 @@ export function slotInstant(selection: SlotSelection, timeZoneId: TimeZone): Dat
   const [year, month, day] = date;
   const [hour, minute] = time;
   return instantFromZonedClock({ year, month, day, hour, minute }, timeZoneId);
+}
+
+/** One option of the time select: whether it can be had, and by when a table then must be free. */
+export interface TimeChoice {
+  /** `HH:mm`, the branch's clock. */
+  readonly time: string;
+  /** `busy` is drawn and disabled; `requestable` is offered, labelled "on request". */
+  readonly state: 'free' | 'requestable' | 'busy';
+  /** Every table then is cut short by the next booking: free it by this. */
+  readonly mustFreeByUtc: string | null;
+}
+
+/**
+ * The time select's options for one calendar date.
+ *
+ * The server's day of slots once it has answered for that date: every quarter
+ * hour whose whole sitting fits the hours, struck when no table can be had,
+ * "on request" when only requestable tables are left — and a time it does not
+ * list (the sitting would run past closing) is not an option at all. Until it
+ * answers, or when it fails, the quarter hours the published hours allow, all
+ * on offer; with no hours published, every quarter hour of the day.
+ */
+export function timeChoices(input: {
+  readonly date: string;
+  readonly day: DaySlots | null | undefined;
+  readonly weeklyHours: WeeklyHours;
+  readonly turnTimeMinutes: number;
+  readonly timeZoneId: TimeZone;
+}): readonly TimeChoice[] {
+  const { day } = input;
+  if (day && day.date === input.date && day.slots.length > 0) {
+    const refused = day.unavailableReason !== null;
+    // A time already too soon today is gone, not "no free table": left out,
+    // as the app leaves out times inside the lead.
+    return day.slots
+      .filter((slot) => refused || slot.unavailableReason !== 'pastLeadTime')
+      .map((slot) => ({
+        time: slot.time,
+        state:
+          !refused && slot.requestable
+            ? 'requestable'
+            : !refused && slot.isAvailable
+              ? 'free'
+              : 'busy',
+        mustFreeByUtc: !refused && slot.isAvailable ? (slot.mustFreeByUtc ?? null) : null,
+      }));
+  }
+  const fromHours = hoursChoices(input);
+  const times = fromHours.length > 0 ? fromHours : timeOptions();
+  // A day refused outright (shut, out of reach) offers nothing that day.
+  const refused = Boolean(day && day.date === input.date && day.unavailableReason !== null);
+  return times.map((time) => ({ time, state: refused ? 'busy' : 'free', mustFreeByUtc: null }));
+}
+
+/** The quarter hours of `date` whose whole sitting fits one of the published sittings. */
+function hoursChoices(input: {
+  readonly date: string;
+  readonly weeklyHours: WeeklyHours;
+  readonly turnTimeMinutes: number;
+  readonly timeZoneId: TimeZone;
+}): readonly string[] {
+  const turn = Math.max(input.turnTimeMinutes, 1) * 60_000;
+  const out = new Map<number, string>();
+  for (const sitting of sittingsAround(input.date, input.weeklyHours, input.timeZoneId)) {
+    for (let at = sitting.start.getTime(); at + turn <= sitting.end.getTime(); at += SLOT_MS) {
+      const instant = new Date(at);
+      if (branchDayKey(instant, input.timeZoneId) !== input.date) continue;
+      out.set(at, branchClock(instant, input.timeZoneId));
+    }
+  }
+  return [...out.entries()].sort((a, b) => a[0] - b[0]).map(([, time]) => time);
+}
+
+/**
+ * Where a selection on a time that cannot be had goes: the nearest option that
+ * can, by the clock — the later of two equally near. `null` when none can.
+ */
+export function nearestChoice(choices: readonly TimeChoice[], time: string): TimeChoice | null {
+  const wanted = toMinutes(time);
+  let best: TimeChoice | null = null;
+  for (const choice of choices) {
+    if (choice.state === 'busy') continue;
+    const distance = Math.abs(toMinutes(choice.time) - wanted);
+    const bestDistance = best === null ? Infinity : Math.abs(toMinutes(best.time) - wanted);
+    if (
+      distance < bestDistance ||
+      (distance === bestDistance && best !== null && choice.time > best.time)
+    ) {
+      best = choice;
+    }
+  }
+  return best;
 }

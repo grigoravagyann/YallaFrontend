@@ -1,3 +1,4 @@
+import { MIN_LEAD_MINUTES, SLOT_STEP_MINUTES } from '@yalla/api';
 import { branchDayKey } from '@yalla/format';
 import {
   hoursBlocksOn,
@@ -20,16 +21,17 @@ import {
  */
 
 /**
- * How soon a booking may start when the branch's own rule is not known yet.
- * Only a stand-in while the rules load: the branch's `minLeadMinutes` replaces it.
+ * How soon a booking may start when the branch's own rule is not known yet —
+ * the fixed default, ten minutes. Only a stand-in while the rules load: the
+ * branch's `minLeadMinutes` replaces it.
  */
-export const LEAD_MINUTES = 30;
+export const LEAD_MINUTES = MIN_LEAD_MINUTES;
 
 /** How many days the strip offers while the branch's `bookingWindowDays` is not known yet. */
 export const WINDOW_DAYS = 7;
 
-/** Slots are cut every half hour. */
-export const SLOT_MINUTES = 30;
+/** Slots are cut every quarter hour, as the server's day of slots is. */
+export const SLOT_MINUTES = SLOT_STEP_MINUTES;
 
 const MINUTE_MS = 60_000;
 
@@ -89,7 +91,8 @@ export interface TimeSlot {
   readonly at: Date;
 }
 
-function clockOf(instant: Date, timeZoneId: string): ClockTime {
+/** `HH:mm` on the place's clock, 24-hour, for an instant: a {@link TimeSlot}'s key. */
+export function clockOf(instant: Date, timeZoneId: string): ClockTime {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timeZoneId,
     hour: '2-digit',
@@ -102,7 +105,7 @@ function clockOf(instant: Date, timeZoneId: string): ClockTime {
 }
 
 /**
- * The bookable half-hour slots of one day.
+ * The bookable quarter-hour slots of one day.
  *
  * Inside any of the place's opening blocks for that weekday — a split lunch
  * and dinner service offers both, and nothing in the gap — (a close after

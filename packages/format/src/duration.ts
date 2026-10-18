@@ -125,9 +125,15 @@ export function minutesBetween(
  * still shows `00:01` rather than a premature `00:00`, and nothing counts into
  * negatives. Minutes keep counting past an hour instead of wrapping: an answer
  * window is minutes long, and "75:00" is honest where "15:00" would be a lie.
+ * Given a `locale`, a countdown past an hour is said as hours and minutes
+ * instead ("1 hr 59 min") — the earlier guest's two-hour window.
  */
-export function formatCountdown(seconds: number): string {
+export function formatCountdown(seconds: number, locale?: Locale): string {
   const whole = Number.isFinite(seconds) ? Math.max(0, Math.ceil(seconds)) : 0;
+  // Past an hour — the two hours the guest before has to answer in — the
+  // clock reads as hours and minutes in the reader's language ("1 hr 59 min");
+  // the last hour counts down by the second as before.
+  if (locale && whole > 3600) return formatDuration(Math.ceil(whole / 60), locale);
   const minutes = Math.floor(whole / 60);
   const rest = whole % 60;
   return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;

@@ -2,6 +2,7 @@ import {
   APPROVAL_POLL_MS,
   awaitsVenueAnswer,
   staleTime,
+  type AnswerTableRequestCommand,
   type Booking,
   type CreateBookingCommand,
   type JoinTabCommand,
@@ -21,7 +22,13 @@ import { orderKeys } from './orderQueries';
  * console so the two apps cannot cache the same floor under different keys.
  * Everything below is diner-only.
  */
-export { useSlotFloor, useTableAvailability, useVenue, useVenues } from '@yalla/api/react';
+export {
+  useSlotFloor,
+  useSlotFloors,
+  useTableAvailability,
+  useVenue,
+  useVenues,
+} from '@yalla/api/react';
 
 /**
  * A day of slots (which times a party can still have) and moving a booking,
@@ -129,6 +136,34 @@ export function useCreateBooking() {
       void queryClient.invalidateQueries({ queryKey: keys.bookings });
       // The room: every slot-aware read of the branch sits under this prefix.
       void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
+    },
+  });
+}
+
+/**
+ * The earlier guest's yes or no to a later guest's request for their table.
+ *
+ * Retry is off: the `commandId` makes a deliberate retry (a second tap after a
+ * lost answer) safe, and the card says what happened in between. Answered or
+ * refused, the booking is read again — cut to the promise on yes, the question
+ * gone either way — and so is every list and room: a yes fills the table at
+ * the later time, a no leaves it free.
+ */
+export function useAnswerTableRequest() {
+  const gateway = useGateway();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (command: AnswerTableRequestCommand) => gateway.answerTableRequest(command),
+    retry: false,
+    onSettled: (booking, _error, command) => {
+      if (booking) queryClient.setQueryData(keys.booking(booking.id), booking);
+      void queryClient.invalidateQueries({ queryKey: keys.booking(command.bookingId) });
+      void queryClient.invalidateQueries({ queryKey: keys.bookings });
+      void queryClient.invalidateQueries({ queryKey: keys.reservationState(command.bookingId) });
+      if (booking) {
+        void queryClient.invalidateQueries({ queryKey: ['availability', booking.branchId] });
+      }
     },
   });
 }

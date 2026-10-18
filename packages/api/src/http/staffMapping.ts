@@ -39,6 +39,7 @@ import type {
   TabShares,
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
+import { instantOrNull, type WireFloorTableTimes } from './bookingTimesWire';
 import { derivedTableState } from './mapping';
 import { absolutePhoto } from './photoUrl';
 import { photo } from './venueSettingsMapping';
@@ -251,23 +252,29 @@ const TAB_EVENT_TYPES: readonly TabEventType[] = [
  * that has already ended.
  */
 export function staffFloorDetails(state: FloorState): readonly StaffTableDetail[] {
-  return state.tables.map((table) => ({
-    tableId: table.tableId,
-    label: table.label,
-    seats: table.seats,
-    physicalStatus: tableStatus(table.physicalStatus),
-    currentSessionId: table.currentSessionId ?? null,
-    seatedAtUtc: table.seatedAtUtc ?? null,
-    partySize: table.partySize ?? null,
-    nextReservationId: table.nextReservationId ?? null,
-    nextReservationStartUtc: table.nextReservationStartUtc ?? null,
-    // Still not on the floor payload. The panel shows the booked time and no
-    // party size, rather than showing the party sitting there as the one booked.
-    nextReservationPartySize: null,
-    freeUntilUtc: table.freeUntilUtc ?? null,
-    openTabId: table.openTabId ?? null,
-    rowVersion: table.rowVersion,
-  }));
+  return (state.tables as readonly (FloorState['tables'][number] & WireFloorTableTimes)[]).map(
+    (table) => ({
+      tableId: table.tableId,
+      label: table.label,
+      seats: table.seats,
+      physicalStatus: tableStatus(table.physicalStatus),
+      currentSessionId: table.currentSessionId ?? null,
+      seatedAtUtc: table.seatedAtUtc ?? null,
+      partySize: table.partySize ?? null,
+      nextReservationId: table.nextReservationId ?? null,
+      nextReservationStartUtc: table.nextReservationStartUtc ?? null,
+      // Still not on the floor payload. The panel shows the booked time and no
+      // party size, rather than showing the party sitting there as the one booked.
+      nextReservationPartySize: null,
+      freeUntilUtc: table.freeUntilUtc ?? null,
+      openTabId: table.openTabId ?? null,
+      rowVersion: table.rowVersion,
+      // Booking times: the promises on the table — the next booking's guest's,
+      // and the party sitting now.
+      nextReservationPromisedFreeByUtc: instantOrNull(table.nextReservationPromisedFreeByUtc),
+      sittingPromisedFreeByUtc: instantOrNull(table.sittingPromisedFreeByUtc),
+    }),
+  );
 }
 
 // --- Transitions ------------------------------------------------------------

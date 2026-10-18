@@ -111,4 +111,15 @@ describe('formatCountdown', () => {
   it('keeps counting minutes past an hour rather than wrapping', () => {
     expect(formatCountdown(75 * 60)).toBe('75:00');
   });
+
+  it('says hours and minutes past an hour when it knows the language — a two-hour wait', () => {
+    // The duration's own words, rounded up to the minute: never "0 min" left.
+    expect(formatCountdown(119 * 60, 'en')).toBe(formatDuration(119, 'en'));
+    expect(formatCountdown(119 * 60 - 30, 'ru')).toBe(formatDuration(119, 'ru'));
+    expect(formatCountdown(2 * 3600, 'en')).toBe(formatDuration(120, 'en'));
+    expect(formatCountdown(119 * 60, 'en')).toMatch(/^1 hr,? 59 mins?$/u);
+    // An hour or less is still the clock: the last hour counts down by the second.
+    expect(formatCountdown(60 * 60, 'en')).toBe('60:00');
+    expect(formatCountdown(59 * 60 + 5, 'en')).toBe('59:05');
+  });
 });

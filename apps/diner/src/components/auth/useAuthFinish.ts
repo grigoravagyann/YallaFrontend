@@ -16,6 +16,8 @@ export type AuthRouteParams = {
   slotUtc?: string;
   partySize?: string;
   requests?: string;
+  /** The promise to free the table by a time, agreed before the SMS detour (booking times). */
+  acceptsFreeByUtc?: string;
   from?: string;
   /**
    * A Telegram verification challenge to pick up polling, from the bot's
@@ -41,6 +43,7 @@ const BOOKING_KEYS = [
   'slotUtc',
   'partySize',
   'requests',
+  'acceptsFreeByUtc',
 ] as const;
 
 type BookingKey = (typeof BOOKING_KEYS)[number];
@@ -72,10 +75,20 @@ export type AuthRoute = '/auth/login' | '/auth/signup' | '/auth/code';
 export function useAuthFinish(params: AuthRouteParams) {
   const router = useRouter();
   const navigation = useNavigation();
-  const { branchId, venueId, tableId, slotUtc, partySize, requests, from } = params;
+  const { branchId, venueId, tableId, slotUtc, partySize, requests, acceptsFreeByUtc, from } =
+    params;
   const forward = useMemo(
-    () => bookingParams({ branchId, venueId, tableId, slotUtc, partySize, requests }),
-    [branchId, venueId, tableId, slotUtc, partySize, requests],
+    () =>
+      bookingParams({
+        branchId,
+        venueId,
+        tableId,
+        slotUtc,
+        partySize,
+        requests,
+        acceptsFreeByUtc,
+      }),
+    [branchId, venueId, tableId, slotUtc, partySize, requests, acceptsFreeByUtc],
   );
 
   const finish = useCallback(() => {
