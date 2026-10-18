@@ -270,11 +270,13 @@
       "checking": "Checking the menu…",
       "checkingTabs": "Checking the open tabs…",
       "paid1": "Guests will order from their phones, by the table QR or a booking code",
-      "paid2": "Table tabs open, with payment in the app",
+      "paid2": "Table tabs open; guests ask for the bill in the app and pay the waiter",
       "paid3": "Bookings and the public page keep working as before",
       "free1": "Guests will no longer order from their phones",
-      "free2": "No table tabs will open; guests pay the waiter only",
+      "free2": "No table tabs will open, and nobody can ask for the bill from their phone",
       "free3": "Bookings, the menu and the public page stay",
+      "noReturn": "It can't go back to Paid until its menu is finished:",
+      "noReturnVenue": "These branches can't go back to Paid until their menu is finished:",
       "cancel": "Cancel",
       "toPaid": "Make paid",
       "toFree": "Make free",
@@ -1460,7 +1462,7 @@
       "branches": "Branches",
       "tables_one": "{{count}} table",
       "tables_other": "{{count}} tables",
-      "bookings30": "Bookings in 30 days",
+      "bookings30": "Bookings, last 30 days",
       "pending_one": "{{count}} waiting for approval",
       "pending_other": "{{count}} waiting for approval",
       "openTabs": "Open tabs now",
@@ -1520,7 +1522,7 @@
       "owner": "Owner",
       "noOwner": "None yet",
       "plan": "Plan",
-      "planPaid": "Ordering by phone, table tabs, paying in the app",
+      "planPaid": "Ordering by phone, table tabs, asking for the bill in the app",
       "planFree": "Bookings and the public page",
       "planMixed": "The branches are on different plans",
       "added": "Added",
@@ -1876,10 +1878,11 @@
         "reviewHide": "hid a review at {{target}}",
         "reviewUnhide": "showed a review again at {{target}}",
         "reviewDismiss": "dismissed the reports on a review at {{target}}",
+        "reviewRestore": "put back the reports on a review at {{target}}",
         "tableQr": "replaced the QR code of table {{target}}",
         "rename": "changed their name",
         "password": "changed their password",
-        "other": "made a change: {{action}}"
+        "other": "made a change"
       }
     }
   }

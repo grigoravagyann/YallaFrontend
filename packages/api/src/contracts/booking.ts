@@ -399,11 +399,18 @@ export interface Booking {
    */
   readonly awaitingApprovalBecause: ApprovalTrigger | null;
   /**
-   * When the venue's answer window closes, for a short-notice request that is
-   * still waiting — the diner's "answer within 12:40". Past it the server
-   * declines the booking itself and apologises. `null` otherwise.
+   * When the answer window closes, for a short-notice request, or one asking
+   * the guest before for their table, that is still waiting — the diner's
+   * "answer within 12:40". Past it the server declines the booking itself and
+   * apologises. `null` otherwise.
    */
   readonly approvalExpiresAtUtc: string | null;
+  /**
+   * It waits on the guest before's own answer in the app, rather than on the
+   * venue ringing them. Absent from a server that does not say; false once it
+   * stops waiting.
+   */
+  readonly awaitsEarlierGuestAnswer?: boolean | undefined;
   /**
    * Why the venue declined it: a person said no, or nobody answered in time.
    * `null` for every booking the venue did not decline — including one the

@@ -15,7 +15,8 @@ import { randomUuid } from './subject';
  * > naming the field, with `context.requiredFreeByUtc`, otherwise);
  * > `promisedFreeByUtc` records it. From 90 to 180 minutes after an earlier
  * > booking the table is requestable: another day, the later booking waits
- * > (`EarlierGuestConsent`) for up to two hours.
+ * > (`EarlierGuestConsent`) for up to two hours — whether the earlier guest
+ * > answers in the app or the floor rings them and decides.
  *
  * One diner books both sides, so the suite holds against the mock (a world per
  * diner) and a live backend alike. Whether the earlier guest is asked by push
@@ -149,15 +150,15 @@ export function describeBookingTimesContract(subject: ContractSubject): void {
         expect(later.status).toBe('pendingApproval');
         // Tomorrow is short notice only late in the evening; otherwise the guest before is asked.
         expect(['earlierGuestConsent', 'shortNotice']).toContain(later.awaitingApprovalBecause);
-        // Asked in the app (a guest with a device): two hours at most. Decided by the floor (no
-        // device to ask, as this run's diner): no clock at all - the venue answers when it can.
-        if (
-          later.awaitingApprovalBecause === 'earlierGuestConsent' &&
-          later.approvalExpiresAtUtc !== null
-        ) {
-          const window = Date.parse(later.approvalExpiresAtUtc) - Date.now();
+        // Asked in the app (a guest with a device) or decided by the floor after ringing them
+        // (no device to ask, as this run's diner): two hours at most either way, never past
+        // the later booking's start - nobody's answer is waited for indefinitely.
+        if (later.awaitingApprovalBecause === 'earlierGuestConsent') {
+          expect(later.approvalExpiresAtUtc, 'an earlier-guest wait with no clock').not.toBeNull();
+          const window = Date.parse(later.approvalExpiresAtUtc!) - Date.now();
           expect(window).toBeGreaterThan(0);
           expect(window).toBeLessThanOrEqual(EARLIER_GUEST_WINDOW_MINUTES * MINUTE + MINUTE);
+          expect(Date.parse(later.approvalExpiresAtUtc!)).toBeLessThanOrEqual(Date.parse(slotUtc));
         }
         await diner.gateway.cancelBooking(later.id);
       } finally {

@@ -349,6 +349,12 @@ describe('createBooking', () => {
       // look at a table with nobody at it.
       expect(busy?.unavailableReason).toBe('alreadyBooked');
 
+      // Somebody else: the same diner asking again is their own overlap, a different refusal.
+      const challenge = await gateway.requestPhoneCode('+37411223355');
+      const rival = await gateway.verifyPhoneCode({
+        challengeId: challenge.challengeId,
+        code: challenge.devCode ?? '123456',
+      });
       await expect(
         gateway.createBooking({
           commandId: '0d2c7fb5-ed5f-4ac9-8a3c-857a7ea7186a',
@@ -356,7 +362,7 @@ describe('createBooking', () => {
           tableId: target,
           slotUtc: SLOT,
           partySize: 2,
-          guestPhone: await verifiedPhone(),
+          guestPhone: rival.phoneE164,
           timeZoneId: 'Asia/Yerevan',
           guestName: 'Ani',
           channel: 'app' as const,

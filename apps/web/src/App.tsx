@@ -120,7 +120,7 @@ function ConsoleApp() {
     );
   }
 
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen standalone />;
   if (isError && !user) return <StartupFailure />;
   if (!user) return <Forbidden standalone />;
 

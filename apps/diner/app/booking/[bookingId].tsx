@@ -13,7 +13,8 @@ import {
   sittingEndLines,
   tableWithRoom,
 } from '../../src/components/bookings/bookingText';
-import { changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { anotherTimeRoute, changeBookingRoute } from '../../src/components/bookings/changeBooking';
+import { PromiseNote } from '../../src/components/bookings/PromiseNote';
 import { TableRequestCard } from '../../src/components/bookings/TableRequestCard';
 import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
 import { useCanChangeBooking } from '../../src/components/bookings/useCanChangeBooking';
@@ -162,6 +163,8 @@ function BookingDetail({
     booking.status === 'cancelledByDiner' || booking.status === 'cancelledByVenue';
   // Declined rather than cancelled: never confirmed, and the note says why.
   const declined = Boolean(booking.declinedBecause);
+  // And the booking is gone for it — not a declined change that left it standing.
+  const declinedOutright = declined && booking.status === 'cancelledByVenue';
   // The server's deadline. Past it the cancellation is late — but never blocked.
   const isLate = now.getTime() > new Date(booking.freeCancellationUntilUtc).getTime();
   const cancellation = freeCancellationCopy(
@@ -232,6 +235,8 @@ function BookingDetail({
           {/* While the venue decides, the minutes it has left; once it has
               declined, why — sorry, when nobody answered in time. */}
           <VenueAnswerNote booking={booking} style={styles.answer} />
+          {/* The guest's own yes to the guest after them, for as long as it binds. */}
+          <PromiseNote booking={booking} style={styles.answer} />
           <View style={styles.facts}>
             <Fact
               icon={actionIcon.table}
@@ -278,9 +283,14 @@ function BookingDetail({
           >
             {booking.code}
           </Text>
-          {/* A cancelled code opens no table: never "show this at the door" (QA B7). */}
+          {/* A cancelled code opens no table: never "show this at the door" (QA B7).
+              A declined one was never confirmed: not "cancelled" either. */}
           <Text style={styles.codeHint}>
-            {isCancelled ? t('bookings.detail.codeCancelled') : t('success.codeHint')}
+            {declinedOutright
+              ? t('bookings.detail.codeDeclined')
+              : isCancelled
+                ? t('bookings.detail.codeCancelled')
+                : t('success.codeHint')}
           </Text>
         </Card>
 
@@ -306,6 +316,15 @@ function BookingDetail({
         ) : null}
 
         <View style={styles.actions}>
+          {/* Declined — by the venue, or for the guest before — is not the end:
+              the same place, day and party, and a time chosen again. */}
+          {declinedOutright ? (
+            <Button
+              label={t('bookings.detail.chooseAnotherTime')}
+              icon={actionIcon.time}
+              onPress={() => router.push(anotherTimeRoute(booking))}
+            />
+          ) : null}
           {/* Moves this booking — same code — while the server would still
               accept it and its own time can still be chosen: waiting or
               confirmed, and not yet inside the branch's lead time. */}

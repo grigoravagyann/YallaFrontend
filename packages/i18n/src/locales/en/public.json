@@ -89,7 +89,11 @@
     "pick": "Book a table",
     "closedNotice": "You can still book ahead.",
     "back": "Back to the room",
-    "timeOnRequest": "{{time}} · on request"
+    "timeOnRequest": "{{time}} · on request",
+    "overlapsOwn": "You already have a booking here at {{time}} (table {{table}}). Change or cancel that one first.",
+    "overlapsOwnPlain": "You already have a booking here at {{time}}. Change or cancel that one first.",
+    "overlapsOwnOn": "You already have a booking here on {{date}} at {{time}} (table {{table}}). Change or cancel that one first.",
+    "overlapsOwnOnPlain": "You already have a booking here on {{date}} at {{time}}. Change or cancel that one first."
   },
   "done": {
     "addCalendar": "Add to my calendar",

@@ -136,8 +136,9 @@ describe('F6 — booking codes are minted, not derived from the booking count', 
     const gateway = createMockGateway({ now: WEDNESDAY_2PM, simulateJoiners: false });
     await verified(gateway);
     const seen = new Set<string>();
-    for (const hour of [11, 12, 13, 14, 15, 16]) {
-      const { code } = await bookAt(gateway, NORTH, `2026-09-17T${hour}:00:00.000Z`);
+    // A sitting apart: one diner holds one table at a time.
+    for (const time of ['11:00', '12:30', '14:00', '15:30', '17:00', '18:30']) {
+      const { code } = await bookAt(gateway, NORTH, `2026-09-17T${time}:00.000Z`);
       expect(seen.has(code)).toBe(false);
       seen.add(code);
     }

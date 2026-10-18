@@ -1,4 +1,5 @@
 import {
+  BookingOverlapsOwnError,
   FreeByRequiredError,
   LeadTimeExceededError,
   createMockGateway,
@@ -472,6 +473,82 @@ describe('the Book screen against the day of slots', () => {
     // A time the diner picks is theirs, and the note goes.
     stepTo('19:30');
     expect(screen.queryByText(note)).toBeNull();
+  });
+
+  it('says a change that would overlap the diner’s own booking names that booking', async () => {
+    const at = (time: string) => new Date(`2026-10-16T${time}:00+04:00`).toISOString();
+    const [seven, half] = await Promise.all(
+      ['19:00', '19:30'].map((time) =>
+        mock.getSlotFloor({
+          branchId: BRANCH,
+          slotUtc: at(time),
+          partySize: 2,
+          timeZoneId: 'Asia/Yerevan',
+        }),
+      ),
+    );
+    const table = seven!.tables.find(
+      (candidate) =>
+        candidate.isBookable &&
+        half!.tables.find((other) => other.tableId === candidate.tableId)?.isBookable,
+    )!;
+    vi.spyOn(mock, 'rescheduleBooking').mockRejectedValue(
+      new BookingOverlapsOwnError({
+        url: '/api/reservations/r-change/reschedule',
+        existingReservationId: 'r-other',
+        localStartTime: '19:45',
+        tableLabel: '2',
+      }),
+    );
+    params.current = {
+      placeId: BRANCH,
+      bookingId: 'r-change',
+      slotUtc: at('19:00'),
+      party: '2',
+      tableId: table.tableId,
+      tableLabel: table.tableLabel,
+    };
+    router.dismissTo.mockClear();
+    renderScreen(<BookingScreen />);
+    await waitFor(() => expect(chosenTime()).toBe('19:00'));
+    stepTo('19:30');
+    const save = screen.getByRole('button', { name: /^Save changes, / });
+    await waitFor(() => expect(save.getAttribute('aria-disabled')).not.toBe('true'));
+    fireEvent.click(save);
+
+    expect(
+      await screen.findByText(
+        'You already have a booking here at 19:45 (table 2). Choose another time, or change that booking.',
+      ),
+    ).toBeTruthy();
+    expect(router.dismissTo).not.toHaveBeenCalled();
+  });
+
+  it('opens a new booking after a declined one on its day and party, with no time chosen', async () => {
+    // Declined for 19:30 on Sunday the 18th, for three.
+    params.current = { placeId: BRANCH, dayOf: '2026-10-18T15:30:00Z', party: '3' };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText('Book a Table')).toBeTruthy();
+    expect(await screen.findByRole('radio', { name: '3', checked: true })).toBeTruthy();
+    const chosenDay = screen
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-selected') === 'true');
+    expect(chosenDay?.getAttribute('aria-label')).toMatch(/18/u);
+    // A new booking: nothing to change, and the time is the diner's to choose.
+    expect(screen.queryByText('Change booking')).toBeNull();
+  });
+
+  it('opens on a declined booking’s day past the first week, before the branch’s rules load', async () => {
+    // Ten days out: beyond the seven-day strip the screen starts with.
+    params.current = { placeId: BRANCH, dayOf: '2026-10-26T15:30:00Z', party: '2' };
+    renderScreen(<BookingScreen />);
+
+    expect(await screen.findByText('Book a Table')).toBeTruthy();
+    const chosenDay = screen
+      .getAllByRole('button')
+      .find((button) => button.getAttribute('aria-selected') === 'true');
+    expect(chosenDay?.getAttribute('aria-label')).toMatch(/26/u);
   });
 
   it('keeps a party bigger than the list as it is, chosen', async () => {

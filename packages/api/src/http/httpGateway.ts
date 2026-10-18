@@ -49,6 +49,8 @@ import {
   EmailTakenError,
   ExpiredCodeError,
   ExtensionsNotOfferedError,
+  BOOKING_OVERLAPS_OWN_CODE,
+  BookingOverlapsOwnError,
   FreeByRequiredError,
   HoldAlreadyExtendedError,
   HoldNotActiveError,
@@ -689,6 +691,22 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
           leadTimeMinutes: Number(context['minLeadMinutes'] ?? 0),
           earliestSlotUtc: String(context['earliestStartUtc'] ?? ''),
         });
+      case BOOKING_OVERLAPS_OWN_CODE: {
+        // The booking the diner already holds there, to name it: "19:30 (table 2)".
+        const text = (value: unknown) =>
+          typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+        throw new BookingOverlapsOwnError({
+          ...base,
+          problem: error.problem,
+          existingReservationId: text(context['reservationId']),
+          existingCode: text(context['code']),
+          // "2026-10-20", the branch's day: said when it is not the day being booked.
+          localDate: text(context['localDate']),
+          // "19:30:00" as the server writes a branch wall clock; said as "19:30".
+          localStartTime: text(context['localStartTime'])?.slice(0, 5) ?? null,
+          tableLabel: text(context['tableLabel']),
+        });
+      }
       case 'reservation-lock-timeout':
         throw new BookingBusyError(base);
       case 'client-command-id-in-use':

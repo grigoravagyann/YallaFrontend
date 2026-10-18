@@ -186,7 +186,12 @@ export function ManageBookingRoute() {
         {booking.status === 'pendingApproval' ? (
           <p className="pub-notice">
             {booking.awaitingApprovalBecause === 'earlierGuestConsent'
-              ? td('table.requestable.earlierGuest')
+              ? // The venue rings a guest before who cannot answer in the app.
+                td(
+                  booking.awaitsEarlierGuestAnswer === false
+                    ? 'booking.approval.venueAsksEarlierGuest'
+                    : 'table.requestable.earlierGuest',
+                )
               : booking.approvalExpiresAtUtc
                 ? td('booking.approval.why')
                 : td('success.pendingBody')}

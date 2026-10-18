@@ -16,6 +16,7 @@ import type { Photo } from '../contracts/menuAdmin';
 import type { ReservationState, ReservationStatusCode } from '../contracts/push';
 import {
   approvalExpiry,
+  awaitsEarlierGuestAnswer,
   approvalTrigger,
   declineReason,
   type WireApprovalFields,
@@ -325,6 +326,7 @@ export function booking(view: ReservationViewWire, venueName: string | null): Bo
     awaitingApprovalBecause: approvalTrigger(view.awaitingApprovalBecause),
     // Only while it waits: a decided booking's old window is no promise.
     approvalExpiresAtUtc: view.status === 1 ? approvalExpiry(view.approvalExpiresAtUtc) : null,
+    awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view),
     declinedBecause: declineReason(view.declinedBecause),
     manageToken: view.manageToken ?? null,
     promisedFreeByUtc: instantOrNull(view.promisedFreeByUtc),

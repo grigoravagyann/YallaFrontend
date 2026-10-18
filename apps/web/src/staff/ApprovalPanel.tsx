@@ -1,5 +1,4 @@
 import { approvalCountdown, waitsOnEarlierGuestInApp, type AwaitingApproval } from '@yalla/api';
-import { branchDayKey } from '@yalla/format';
 import { useFloorApproveReservation, useFloorRejectReservation, useNow } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -9,6 +8,7 @@ import {
 } from '../console/venue/policy/decisionFailure';
 import {
   arrivalAnnouncement,
+  branchToday,
   contextLines,
   newArrivals,
   requestLine,
@@ -154,14 +154,15 @@ function ApprovalCard({
    */
   const [decided, setDecided] = useState<'approved' | 'declined' | null>(null);
   /*
-   * The guest before answers this one in the app — known from its clock, or
-   * from the server refusing a decision for it — so the floor has nothing to
+   * The guest before answers this one in the app — as the server says, or as
+   * it says by refusing a decision for it — so the floor has nothing to
    * decide: no approve or reject, which would only be refused, and whose
-   * answer it waits for instead.
+   * answer it waits for instead. Not from the clock: the floor's own question
+   * to a guest before has the same two hours.
    */
   const [theirsToAnswer, setTheirsToAnswer] = useState(false);
   const guestAnswers =
-    theirsToAnswer || waitsOnEarlierGuestInApp(request.because, request.approvalExpiresAtUtc);
+    theirsToAnswer || waitsOnEarlierGuestInApp(request.because, request.awaitsEarlierGuestAnswer);
   /**
    * A send is under way. A ref, not the mutation's own pending state, because
    * two taps in one frame both run before that state reaches a render — and
@@ -177,10 +178,9 @@ function ApprovalCard({
   // offered that it would refuse.
   const closed = countdown?.expired ?? false;
   const busy = approve.isPending || reject.isPending;
-  const lines = contextLines(request, t, format.time, {
-    dayKey: (iso) => branchDayKey(iso, timeZoneId),
-    date: (iso) => format.dayAndTime(iso).date,
-  });
+  // The branch's today, on the card's own clock: a booking for another day is dated.
+  const days = branchToday(timeZoneId, (iso) => format.dayAndTime(iso).date, now);
+  const lines = contextLines(request, t, format.time, days);
 
   function decide(approved: boolean) {
     if (sending.current || decided !== null) return;
@@ -240,7 +240,7 @@ function ApprovalCard({
         ) : null}
       </div>
 
-      <p className="approval-line">{requestLine(request, t, format.time)}</p>
+      <p className="approval-line">{requestLine(request, t, format.time, days)}</p>
       <p className="approval-because">
         <span className="badge badge-warn">
           {t(`approvals.because.${request.because ?? 'unknown'}`)}
@@ -394,6 +394,7 @@ export function useRequestArrivals(
           requests.filter((request) => arrived.includes(request.id)),
           t,
           format.time,
+          branchToday(timeZoneId, (iso) => format.dayAndTime(iso).date, new Date()),
         ),
       });
     }

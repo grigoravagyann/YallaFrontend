@@ -73,6 +73,7 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
         approvalExpiresAtUtc: live.approvalExpiresAtUtc,
         declinedBecause: live.declinedBecause,
         awaitingApprovalBecause: live.awaitingApprovalBecause ?? booking.awaitingApprovalBecause,
+        awaitsEarlierGuestAnswer: live.awaitsEarlierGuestAnswer ?? booking.awaitsEarlierGuestAnswer,
       }
     : booking;
   const now = useNow(awaitsVenueAnswer(answerState) ? 1000 : 30_000);
@@ -177,7 +178,12 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
       {pending ? (
         <p className="pub-notice">
           {answerState.awaitingApprovalBecause === 'earlierGuestConsent'
-            ? td('table.requestable.earlierGuest')
+            ? // The venue rings a guest before who cannot answer in the app.
+              td(
+                answerState.awaitsEarlierGuestAnswer === false
+                  ? 'booking.approval.venueAsksEarlierGuest'
+                  : 'table.requestable.earlierGuest',
+              )
             : answerState.approvalExpiresAtUtc
               ? td('booking.approval.why')
               : td('success.pendingBody')}

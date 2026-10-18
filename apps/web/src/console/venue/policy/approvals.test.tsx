@@ -252,6 +252,7 @@ describe('a booking the guest before answers in the app', () => {
                 ...booking,
                 awaitingApprovalBecause: 'earlierGuestConsent' as const,
                 approvalExpiresAtUtc: new Date(Date.now() + 90 * 60_000).toISOString(),
+                awaitsEarlierGuestAnswer: true,
               }
             : booking,
         ),
@@ -263,6 +264,32 @@ describe('a booking the guest before answers in the app', () => {
     expect(within(row).getByText(THEIRS)).toBeTruthy();
     expect(within(row).queryByRole('button', { name: /^approve$/i })).toBeNull();
     expect(within(row).queryByRole('button', { name: /^decline$/i })).toBeNull();
+  });
+
+  it('offers the decision, with its clock, when the venue rings the guest before itself', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const venues: ConsoleGateway = {
+      ...base,
+      listPendingReservations: async (branchId) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.id === first!.id
+            ? {
+                ...booking,
+                awaitingApprovalBecause: 'earlierGuestConsent' as const,
+                approvalExpiresAtUtc: new Date(Date.now() + 90 * 60_000).toISOString(),
+                awaitsEarlierGuestAnswer: false,
+              }
+            : booking,
+        ),
+    };
+    renderPolicy({ gateway: venues });
+    const panel = await waitForPanel();
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    expect(within(row).getByRole('timer').textContent).toMatch(/left to answer$/u);
+    expect(within(row).getByRole('button', { name: /^approve$/i })).toBeTruthy();
+    expect(within(row).queryByText(THEIRS)).toBeNull();
   });
 
   it('stops offering one once the server says so', async () => {

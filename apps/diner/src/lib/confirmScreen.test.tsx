@@ -1,4 +1,10 @@
-import { FreeByRequiredError, createMockGateway, type Booking, type SlotFloor } from '@yalla/api';
+import {
+  BookingOverlapsOwnError,
+  FreeByRequiredError,
+  createMockGateway,
+  type Booking,
+  type SlotFloor,
+} from '@yalla/api';
 import { GatewayProvider } from '@yalla/api/react';
 import type * as I18nModule from '@yalla/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -146,5 +152,89 @@ describe('the confirm screen, a booking following on the table', () => {
       }),
     );
     expect(screen.queryByRole('button', { name: /^Yes, I'll free it by/u })).toBeNull();
+  });
+});
+
+/*
+ * One diner, two overlapping bookings at the same branch: the server refuses
+ * the second (QA round 2), and the screen names the one already held.
+ */
+describe('the confirm screen, a booking that overlaps the diner’s own', () => {
+  async function refusedWith(error: BookingOverlapsOwnError) {
+    const seven = await mock.getSlotFloor({
+      branchId: BRANCH,
+      slotUtc: at('19:00'),
+      partySize: 2,
+      timeZoneId: 'Asia/Yerevan',
+    });
+    const table = seven!.tables.find(
+      (candidate) => candidate.isBookable && !candidate.mustFreeByUtc,
+    )!;
+    const create = vi.spyOn(mock, 'createBooking').mockRejectedValue(error);
+    params.current = {
+      branchId: BRANCH,
+      venueId: 'v-lumen',
+      tableId: table.tableId,
+      slotUtc: at('19:00'),
+      partySize: '2',
+    };
+    renderScreen();
+    const submit = await screen.findByRole('button', {
+      name: /^(Confirm booking|Request table)$/u,
+    });
+    await waitFor(() => expect(submit.getAttribute('aria-disabled')).not.toBe('true'));
+    fireEvent.click(submit);
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+  }
+
+  it('says the diner already has a booking then, and at which table', async () => {
+    await refusedWith(
+      new BookingOverlapsOwnError({
+        url: '/api/reservations',
+        existingReservationId: 'r-own',
+        existingCode: 'ABC123',
+        localStartTime: '19:30',
+        tableLabel: '2',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        'You already have a booking here at 19:30 (table 2). Choose another time, or change that booking.',
+      ),
+    ).toBeTruthy();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('names the day too when the booking held is on another day', async () => {
+    await refusedWith(
+      new BookingOverlapsOwnError({
+        url: '/api/reservations',
+        existingReservationId: 'r-own',
+        localStartTime: '19:30',
+        localDate: '2026-10-15',
+        tableLabel: '2',
+      }),
+    );
+    expect(
+      await screen.findByText(
+        /^You already have a booking here on .*15.* at 19:30 \(table 2\)\. Choose another time, or change that booking\.$/u,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('says the time alone when the refusal names no table', async () => {
+    await refusedWith(
+      new BookingOverlapsOwnError({
+        url: '/api/reservations',
+        existingReservationId: 'r-own',
+        localStartTime: '19:30',
+        tableLabel: null,
+      }),
+    );
+    expect(
+      await screen.findByText(
+        'You already have a booking here at 19:30. Choose another time, or change that booking.',
+      ),
+    ).toBeTruthy();
   });
 });

@@ -16,6 +16,7 @@ import { SuccessMark } from '../../src/components/motion/SuccessMark';
 import { usePressScale } from '../../src/components/motion/usePressScale';
 import { PhotoImage } from '../../src/components/PhotoImage';
 import { bookingShareLine, tableWithRoom } from '../../src/components/bookings/bookingText';
+import { anotherTimeRoute } from '../../src/components/bookings/changeBooking';
 import { VenueAnswerNote } from '../../src/components/bookings/VenueAnswer';
 import { directionsUrl } from '../../src/components/place/PlaceActions';
 import { QueryErrorState } from '../../src/components/QueryErrorState';
@@ -179,8 +180,12 @@ export default function SuccessScreen() {
               ? t(declinedBody.key, declinedBody.params)
               : pending
                 ? booking.awaitingApprovalBecause === 'earlierGuestConsent'
-                  ? // Booking times: the guest before is asked, not the venue.
-                    t('table.requestable.earlierGuest')
+                  ? // Booking times: the guest before is asked — by the app, or
+                    // by the venue for a guest it has to ring. A server that
+                    // does not say reads as the neutral sentence, as the note does.
+                    booking.awaitsEarlierGuestAnswer === false
+                    ? t('booking.approval.venueAsksEarlierGuest')
+                    : t('table.requestable.earlierGuest')
                   : booking.approvalExpiresAtUtc
                     ? t('booking.approval.why')
                     : t('success.pendingBody')
@@ -265,13 +270,17 @@ export default function SuccessScreen() {
           </Rise>
         )}
 
-        {/* What the code is actually for once they are standing there — and
-            nothing about reminders for a booking the venue could not take. */}
+        {/* What the code is actually for once they are standing there — only
+            once the table is theirs: a request still waiting has no table to
+            tap in at. Nothing about reminders for a booking the venue could
+            not take. */}
         {declinedTitle ? null : (
           <>
-            <Rise delay={340}>
-              <Text style={styles.hint}>{t('success.atTableHint')}</Text>
-            </Rise>
+            {pending ? null : (
+              <Rise delay={340}>
+                <Text style={styles.hint}>{t('success.atTableHint')}</Text>
+              </Rise>
+            )}
 
             {/*
               The one place the notification permission is asked for.
@@ -279,16 +288,25 @@ export default function SuccessScreen() {
               launch it is a prompt nobody understands and therefore declines.
             */}
             <View style={styles.stretch}>
-              <ReminderOptIn startUtc={booking.slotUtc} />
+              <ReminderOptIn startUtc={booking.slotUtc} pending={pending} />
             </View>
           </>
         )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + space.sm }]}>
+        {/* Declined while the diner watched: the way forward first. */}
+        {declinedTitle ? (
+          <Button
+            label={t('bookings.detail.chooseAnotherTime')}
+            size="large"
+            onPress={() => router.push(anotherTimeRoute(booking))}
+          />
+        ) : null}
         <Button
           label={t('success.viewBookings')}
           size="large"
+          variant={declinedTitle ? 'secondary' : 'primary'}
           onPress={() => router.replace('/(tabs)/bookings')}
         />
         <Button label={t('booking.done')} variant="text" onPress={() => router.replace('/')} />

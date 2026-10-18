@@ -39,7 +39,8 @@ const REQUEST: AwaitingApproval = {
   localStartTime: '23:45:00',
   timeZoneId: 'Asia/Yerevan',
   note: null,
-  // The floor's question for another day: no clock (reservations.md §3e).
+  // The floor's question for another day has a two-hour clock (reservations.md
+  // §3e); these lines do not read it.
   approvalExpiresAtUtc: null,
   because: 'earlierGuestConsent',
   promisedFreeByUtc: '2026-10-20T21:55:00Z',
@@ -175,5 +176,40 @@ describe('the booking before, from another day', () => {
 
   it('says only the time on the same day', () => {
     expect(contextLines(REQUEST, t, time, days)[0]?.text).toMatch(/^Before: 18:00 · /u);
+  });
+});
+
+/*
+ * Who sits at the table now matters to a booking for tonight, not to one three
+ * days away: QA saw "Sitting now: since 23:40" on a Wednesday request.
+ */
+describe('the party at the table now', () => {
+  const t = i18next.getFixedT('en', 'staff');
+  const seated: AwaitingApproval = {
+    ...REQUEST,
+    currentSitting: { sinceUtc: '2026-10-17T19:40:00Z', partySize: 2 },
+  };
+  const sitting = (request: AwaitingApproval, nowIso: string) =>
+    contextLines(request, t, time, {
+      dayKey: (iso: string) => iso.slice(0, 10),
+      date: (iso: string) => iso.slice(5, 10),
+      today: nowIso.slice(0, 10),
+      now: new Date(nowIso),
+    }).find((line) => line.kind === 'sitting');
+
+  it('is left out for a booking on another day', () => {
+    expect(sitting(seated, '2026-10-17T19:45:00Z')).toBeUndefined();
+  });
+
+  it('is said for a booking today', () => {
+    expect(sitting(seated, '2026-10-20T15:00:00Z')?.text).toBe(
+      'Sitting now: since 19:40 · 2 guests',
+    );
+  });
+
+  it('is said for a booking just past midnight, within six hours', () => {
+    expect(
+      sitting({ ...seated, startUtc: '2026-10-21T00:30:00Z' }, '2026-10-20T21:45:00Z'),
+    ).toBeDefined();
   });
 });

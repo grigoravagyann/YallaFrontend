@@ -857,6 +857,8 @@ function sentence(entry: PlatformActivityEntry, t: Translate): string {
       return t('home.activity.action.reviewUnhide', { target });
     case 'review.dismiss-reports':
       return t('home.activity.action.reviewDismiss', { target });
+    case 'review.restore-reports':
+      return t('home.activity.action.reviewRestore', { target });
     case 'table.regenerate-qr':
       return t('home.activity.action.tableQr', { target });
     case 'admin.rename':
@@ -864,7 +866,8 @@ function sentence(entry: PlatformActivityEntry, t: Translate): string {
     case 'admin.password-change':
       return t('home.activity.action.password');
     default:
-      return t('home.activity.action.other', { action: entry.action });
+      // An action this build has no words for: a neutral sentence, never the code.
+      return t('home.activity.action.other');
   }
 }
 

@@ -251,8 +251,10 @@ export type {
 } from './contracts/reports';
 
 export {
+  BOOKING_OVERLAPS_OWN_CODE,
   BookingBusyError,
   BookingCommandInUseError,
+  BookingOverlapsOwnError,
   BookingRejectedError,
   BranchUnavailableError,
   EndpointNotWiredError,
@@ -282,6 +284,7 @@ export {
   TooManyAttemptsError,
   UnknownTableCodeError,
   WrongCodeError,
+  isBookingOverlapsOwn,
   isEndpointNotWired,
   isFreeByRequired,
   isTableTaken,

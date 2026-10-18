@@ -143,3 +143,26 @@ describe('opening a sign-in link', () => {
     expect(window.location.hash).toBe('');
   });
 });
+
+describe('a full reload while the session is restored', () => {
+  it("shows the console's loading state, not a blank page", async () => {
+    // The refresh the reload waits on, held open: what the ~2 s looked like.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined)),
+    );
+    await authSession.signIn({
+      accessToken: 'access-stale',
+      refreshToken: 'refresh-held',
+      expiresInSeconds: 0,
+    });
+
+    renderApp('/platform');
+
+    const status = await screen.findByRole('status');
+    expect(status.textContent).toBe('Loading…');
+    // A page of the console's own, on its canvas — not a line on the bare ground.
+    const page = status.closest('[aria-busy="true"]');
+    expect(page?.classList.contains('yc')).toBe(true);
+  });
+});

@@ -5,7 +5,7 @@ import type {
   TableAvailability,
   TableUnavailableReason,
 } from '@yalla/api';
-import type { PlaceRoom, TablePhotoMarker, TableStatus } from './model';
+import type { PlaceRoom, TableRequestKind, TablePhotoMarker, TableStatus } from './model';
 
 /**
  * Rooms, their photos and the pins on them, for one slot.
@@ -71,24 +71,28 @@ const byLabel = (a: TablePhotoMarker, b: TablePhotoMarker) => compareLabels(a.la
  * `bookable`, when given, is the slot's own per-table verdict for this party
  * (availability's `isBookable`); without it, the venue's flag on the table.
  * `reasonOf` is the server's reason for a refusal, carried onto the pin so it
- * can say why rather than guess.
+ * can say why rather than guess. `requestOf` marks a table this party can
+ * have only by asking — never one it cannot book at all.
  */
 export function roomsAtSlot(
   rooms: readonly PlaceRoom[],
   tables: readonly FloorTable[],
   bookable?: (tableId: string) => boolean,
   reasonOf?: (tableId: string) => TableUnavailableReason | null,
+  requestOf?: (tableId: string) => TableRequestKind | null,
 ): PlaceRoom[] {
   const onPhoto = new Map<string, TablePhotoMarker[]>();
   for (const table of tables) {
     if (!table.pin) continue;
     const pins = onPhoto.get(table.pin.photoId) ?? [];
+    const isBookable = bookable ? bookable(table.id) : table.isBookable;
     pins.push({
       tableId: table.id,
       label: table.label,
       status: statusAtSlot(table.state),
-      isBookable: bookable ? bookable(table.id) : table.isBookable,
+      isBookable,
       ...(reasonOf ? { unavailableReason: reasonOf(table.id) } : {}),
+      ...(requestOf ? { request: isBookable ? requestOf(table.id) : null } : {}),
       // Tables have seats and no minimum party; one person may book any table.
       capacityMin: 1,
       capacityMax: table.seats,

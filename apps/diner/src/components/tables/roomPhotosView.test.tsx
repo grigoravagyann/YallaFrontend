@@ -6,6 +6,7 @@ import { Image } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlaceRoom, RoomPhoto, TablePhotoMarker } from '../../places/model';
 import { RoomPhotosView } from './RoomPhotosView';
+import { TableLegend } from './TableLegend';
 
 /**
  * The rooms a diner books from: pick a room, see its photo, read every pin by
@@ -169,6 +170,43 @@ describe('RoomPhotosView', () => {
     // A free table the party fits is still offered.
     fireEvent.click(screen.getByRole('button', { name: 'Table 7, free' }));
     expect(onSelect).toHaveBeenCalledWith('7');
+  });
+
+  it('names a table booked just before as one to ask for, never as reserved', () => {
+    const asked: PlaceRoom[] = [
+      {
+        roomId: 'hall',
+        name: 'Hall',
+        photos: [
+          photo('h1', [
+            { ...pin('1', 'reserved'), request: 'earlierGuest' },
+            { ...pin('2', 'reserved'), request: 'venue' },
+          ]),
+        ],
+      },
+    ];
+    render(<RoomPhotosView rooms={asked} selectedTableId={null} onSelect={() => undefined} />);
+
+    expect(screen.queryByRole('button', { name: 'Table 1, reserved' })).toBeNull();
+    expect(
+      screen.getByRole('button', {
+        name: 'Table 1, booked just before you: the guest before you will be asked',
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', {
+        name: 'Table 2, booked just before you: the venue will check with the guest before you',
+      }),
+    ).toBeTruthy();
+  });
+
+  it('gives a table to ask for its own legend entry, apart from Reserved', () => {
+    render(<TableLegend request />);
+    expect(screen.getByText('Reserved')).toBeTruthy();
+    expect(screen.getByText('On request')).toBeTruthy();
+    cleanup();
+    render(<TableLegend />);
+    expect(screen.queryByText('On request')).toBeNull();
   });
 
   it('says on the photo why a booked table cannot be picked when it is tapped', () => {

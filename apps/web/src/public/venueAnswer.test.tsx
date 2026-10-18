@@ -2,7 +2,7 @@
 import type { Booking, PublicBranch, TableAvailability } from '@yalla/api';
 import { queryKeys } from '@yalla/api/react';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BookingDone } from './BookingDone';
 import { PublicApp } from './PublicApp';
 import { defaultSelection, slotInstant } from './slots';
@@ -19,13 +19,29 @@ import { createHarness, initTestI18n, type Harness, type HarnessOptions } from '
  * The bookings here are two hours out, which is short notice by the server's
  * rule. The mock plays the floor: it approves the first request when told to,
  * and otherwise lets the window run out.
+ *
+ * On a pinned afternoon in Yerevan, still ticking: "two hours out" late in the
+ * evening is a closed slot, and the page's default moves to tomorrow morning —
+ * not short notice, so confirmed at once, and every test here failed after
+ * about 22:00.
  */
+
+/** Tuesday 20 October 2026, 14:00 in Yerevan. */
+const AFTERNOON = new Date('2026-10-20T10:00:00Z');
 
 beforeAll(async () => {
   await initTestI18n();
 });
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+  vi.setSystemTime(AFTERNOON);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 async function bookTonight(
   options: HarnessOptions,
@@ -73,8 +89,10 @@ async function readAgain(harness: Harness, token: string): Promise<void> {
   });
 }
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
+/** Lets `ms` pass on the pinned clock, then lets anything waiting on it run. */
+async function elapse(ms: number): Promise<void> {
+  vi.setSystemTime(Date.now() + ms);
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe('the confirmation of a booking for tonight', () => {
@@ -95,7 +113,7 @@ describe('the confirmation of a booking for tonight', () => {
     render(harness.wrap(<BookingDone booking={booking} branch={branch} />));
     await screen.findByRole('heading', { name: 'Request sent' });
 
-    await sleep(5);
+    await elapse(5);
     await readAgain(harness, booking.manageToken!);
 
     expect(await screen.findByRole('heading', { name: 'Table booked' })).toBeTruthy();
@@ -107,7 +125,7 @@ describe('the confirmation of a booking for tonight', () => {
     const { harness, branch, booking } = await bookTonight({ approvalWindowMs: 5 });
     render(harness.wrap(<BookingDone booking={booking} branch={branch} />));
 
-    await sleep(10);
+    await elapse(10);
     await readAgain(harness, booking.manageToken!);
 
     expect(
@@ -137,7 +155,7 @@ describe('the manage link of a booking for tonight', () => {
 
   it('says why it was declined rather than that it was cancelled', async () => {
     const { harness, branch, booking } = await bookTonight({ approvalWindowMs: 5 });
-    await sleep(10);
+    await elapse(10);
     render(
       harness.wrap(
         <PublicApp />,

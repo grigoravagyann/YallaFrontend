@@ -304,7 +304,9 @@ describe('the app booking gate and the note in the mock (K9)', () => {
     const noted = await bookAt(gateway, NORTH, slotUtc, { note: '  A quiet corner, please.  ' });
     expect(noted.note).toBe('A quiet corner, please.');
     expect((await gateway.getBooking(noted.id))?.note).toBe('A quiet corner, please.');
-    expect((await bookAt(gateway, NORTH, slotUtc, { note: '   ' })).note).toBeNull();
+    // A sitting later: one diner holds one table at a time.
+    const later = new Date(Date.parse(slotUtc) + 2 * HOUR_MS).toISOString();
+    expect((await bookAt(gateway, NORTH, later, { note: '   ' })).note).toBeNull();
 
     const refusal = await caught(bookAt(gateway, NORTH, slotUtc, { note: 'x'.repeat(501) }));
     expect((refusal as ValidationError).violations).toEqual([
@@ -444,7 +446,8 @@ describe('the notifications feed in the mock (K12)', () => {
     const gateway = createMockGateway({ now: time.now, floorApprovesAtOnce: true });
     await signUp(gateway, 5);
     const bookings = [];
-    for (const hours of [5, 6, 7]) {
+    // A sitting apart: one diner holds one table at a time.
+    for (const hours of [5, 6.5, 8]) {
       bookings.push(
         await bookAt(
           gateway,
@@ -455,7 +458,8 @@ describe('the notifications feed in the mock (K12)', () => {
     }
     expect((await gateway.listNotifications()).items).toEqual([]);
 
-    time.advance(5.5 * HOUR_MS);
+    // Within two hours of the last, and before the first one's sitting ends.
+    time.advance(6.1 * HOUR_MS);
     expect(await gateway.getUnreadNotificationCount()).toBe(3);
 
     const first = await gateway.listNotifications({ limit: 2 });

@@ -1076,7 +1076,7 @@ export interface paths {
          *
          *     Sorted by the branch's local date, then local start time. **No paging: at most 200 rows**, the earliest first, so what a cap would cut is what is furthest away.
          *
-         *     Manager or above: a branch manager lists their own branch only; an owner or general manager, any branch of their venue; a platform admin, any branch. (Approving and rejecting are open to the branch's waiters too; the floor's own list is `/reservations/awaiting`.) `awaitingApprovalBecause` is the reason stored when the booking went to approval - worked out against the branch's current policy only for a booking from before that was stored - and `approvalExpiresAtUtc` the short-notice deadline to count down to.
+         *     Manager or above: a branch manager lists their own branch only; an owner or general manager, any branch of their venue; a platform admin, any branch. (Approving and rejecting are open to the branch's waiters too; the floor's own list is `/reservations/awaiting`.) `awaitingApprovalBecause` is the reason stored when the booking went to approval - worked out against the branch's current policy only for a booking from before that was stored - and `approvalExpiresAtUtc` the deadline to count down to: fifteen minutes at short notice, two hours for a booking waiting on the guest before it (`awaitingApprovalBecause` 5). `awaitsEarlierGuestAnswer` true means that guest answers in the app and only they can - approve and reject are `409 reservation-awaiting-earlier-guest` - so show the countdown, not the buttons; false, the floor decides it after calling them.
          */
         get: operations["listBranchReservations"];
         put?: never;
@@ -1098,7 +1098,7 @@ export interface paths {
          * The bookings waiting for the floor's yes or no, with each table's evening
          * @description What the staff tablet's *awaiting approval* panel polls (every ten seconds or so) before calling `approve` or `reject`. The branch's bookings in `PendingApproval` that can still be answered - not past `approvalExpiresAtUtc`, not started - **soonest deadline first**, then those with no deadline by start. At most 200; no paging.
          *
-         *     Each item: `reservation` (the `ReservationView` - code, start, party, table, room, guest name, and `guestPhone` for calling), `approvalExpiresAtUtc` (count down to it; null for a booking that waits as long as it takes), `trigger` (the `ApprovalTrigger`, 4 ShortNotice), and the table's context that day: `previousBooking` (`reservationId`, `startUtc`, `localStartTime`, `partySize`, `guestName`, `guestPhone`, `status` - the booking before it, cancelled ones skipped), `nextBooking` (`reservationId`, `startUtc`, `localStartTime`, `partySize`) and `currentSitting` (`seatedAtUtc`, `partySize` - absent when a diner's scan opened the table and only guessed). Each is absent when there is none, like every null in this API.
+         *     Each item: `reservation` (the `ReservationView` - code, start, party, table, room, guest name, and `guestPhone` for calling), `approvalExpiresAtUtc` (count down to it - fifteen minutes at short notice, two hours for a booking waiting on the guest before it, whom the floor calls; null for a booking that waits as long as it takes), `trigger` (the `ApprovalTrigger`, 4 ShortNotice), and the table's context that day: `previousBooking` (`reservationId`, `startUtc`, `localStartTime`, `partySize`, `guestName`, `guestPhone`, `status` - the booking before it, cancelled ones skipped), `nextBooking` (`reservationId`, `startUtc`, `localStartTime`, `partySize`) and `currentSitting` (`seatedAtUtc`, `partySize` - absent when a diner's scan opened the table and only guessed). Each is absent when there is none, like every null in this API.
          *
          *     One query however many are waiting. A waiter or above at this branch; an owner or general manager at any branch of their venue. A platform admin reads the list with every guest number blank (`guestPhone` empty, `previousBooking.guestPhone` absent).
          */
@@ -1796,7 +1796,7 @@ export interface paths {
         };
         /**
          * The activity feed: the newest audit rows, newest first
-         * @description Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`).
+         * @description Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), and `admin.password-change-failed`, the password lockout's counter.
          *
          *     `limit` 1-100 (default 20). `venueId` narrows it to one venue.
          */
@@ -2174,7 +2174,7 @@ export interface paths {
         };
         /**
          * One booking, by the manage link that was mailed with it
-         * @description What the confirmation screen renders, for somebody holding nothing but the link: venue, branch, address, table and the room it is in (`roomName`, absent for a table in no room), local date and time, party size, status, the code quoted at the door, and the instant past which cancelling counts as late.
+         * @description What the confirmation screen renders, for somebody holding nothing but the link: venue, branch, address, table and the room it is in (`roomName`, absent for a table in no room), local date and time, party size, status, the code quoted at the door, and the instant past which cancelling counts as late. A waiting booking carries `approvalExpiresAtUtc` to count down to and `awaitsEarlierGuestAnswer`: true while the guest with the table before it is asked in the app whether they will have left in time (only they answer), false when the venue decides it.
          *
          *     **Nothing else.** No diner id, no phone number, no other bookings, no floor state. The token is the whole credential and it will be pasted into WhatsApp, left in browser history and read by whoever picks the phone up, so this response is a hand-picked subset rather than a trimmed reservation.
          *
@@ -2489,6 +2489,10 @@ export interface paths {
          * @description Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.
          *
          *     A short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.
+         *
+         *     A booking for a table whose previous booking started under three hours before (`awaitingApprovalBecause` 5 EarlierGuestConsent) waits on that guest's yes, for **two hours** at most (`approvalExpiresAtUtc`, never past their start nor this one's). When `awaitsEarlierGuestAnswer` is true they are asked in the app and only they answer - unanswered it is declined with `declinedBecause` 4 EarlierGuestNoAnswer. When it is false the floor calls them and decides, by the same deadline - unanswered it is declined with `declinedBecause` 2 NoAnswer.
+         *
+         *     **One table at a time per diner at a branch**: a sitting that overlaps another of the diner's own live bookings there (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`"2026-10-22"`, the branch's calendar - say the day when it differs), `localStartTime` (`"19:30:00"`) and `tableLabel` - so the app can say "You already have a booking at 19:30 (table 2)". Sittings that only touch do not overlap; another branch is not refused. A retry with the same `clientCommandId` still answers as a replay.
          */
         post: operations["createReservation"];
         delete?: never;
@@ -2657,7 +2661,9 @@ export interface paths {
          *
          *     **Judged as a new booking would be**, with the same `reservation-*` 422s: the branch open for business and still taking bookings from the channel the booking came from, lead time and booking window, opening hours, the table pinned on its room and fitting the party. The clash check runs under the target table's lock **excluding this booking**, so moving dinner by half an hour on the same table is never refused because of itself - and the 409's fresh floor shows the diner's own table free.
          *
-         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking that keeps its **table and start** and does not grow stays `Confirmed`, today included - nothing about it got harder to keep. Otherwise a move into the short-notice window (today, or under six hours away) goes to `PendingApproval` with a fifteen-minute `approvalExpiresAtUtc` - and keeps the slot it had: if the change is declined, or nobody answers it, the booking goes back to that slot, `Confirmed` as before, when it is still free. A booking **already waiting** on a short-notice answer keeps its deadline through a move (never past the new start); past the deadline it cannot be moved at all - `409 reservation-approval-expired`. A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history.
+         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking that keeps its **table and start** and does not grow stays `Confirmed`, today included - nothing about it got harder to keep. Otherwise a move into the short-notice window (today, or under six hours away) goes to `PendingApproval` with a fifteen-minute `approvalExpiresAtUtc` - and keeps the slot it had: if the change is declined, or nobody answers it, the booking goes back to that slot, `Confirmed` as before, when it is still free. A booking **already waiting** on a short-notice answer keeps its deadline through a move (never past the new start); past the deadline it cannot be moved at all - `409 reservation-approval-expired`. A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history. A booking waiting on the guest before it (`awaitingApprovalBecause` 5) keeps its two-hour deadline through a move in the same way, whoever answers - the floor or that guest in the app.
+         *
+         *     **One table at a time per diner at a branch**: a sitting that overlaps another of the diner's own live bookings there (pending, confirmed or seated) is `409 reservation-overlaps-own`, with `context` naming the booking already held - `reservationId`, `code` (its door code), `localDate` (`"2026-10-22"`, the branch's calendar - say the day when it differs), `localStartTime` (`"19:30:00"`) and `tableLabel` - so the app can say "You already have a booking at 19:30 (table 2)". Sittings that only touch do not overlap; another branch is not refused. A retry with the same `clientCommandId` still answers as a replay. The booking being moved is left out of that check, and a change that keeps its table, start and end (a party size) is not judged by it.
          *
          *     The reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.
          */
@@ -7478,10 +7484,18 @@ export interface components {
         "Yalla.Application.Public.PublicBookingView": {
             /**
              * Format: date-time
-             * @description For a booking waiting on a short-notice decision, when the venue's chance to answer runs out - the
-             *     page counts down to it and reads the link again until the booking is decided. Null otherwise.
+             * @description For a booking waiting on a short-notice decision or on the guest before it on the table, when the
+             *     chance to answer runs out - the page counts down to it and reads the link again until the booking is
+             *     decided. Null otherwise.
              */
             approvalExpiresAtUtc?: string | null;
+            /**
+             * @description True while the booking waits on the guest before it on the table to answer in the app - only they can,
+             *     and the venue cannot decide it meanwhile - and false otherwise, a wait the venue decides after calling
+             *     them included. Both count down to ApprovalExpiresAtUtc; this says whose answer the
+             *     page is waiting for.
+             */
+            awaitsEarlierGuestAnswer: boolean;
             /** @description Where to go. */
             branchAddress: string;
             /** @description Which location. */
@@ -8325,8 +8339,10 @@ export interface components {
         "Yalla.Application.Reservations.AwaitingApproval": {
             /**
              * Format: date-time
-             * @description When the chance to answer runs out - null for a booking with no deadline, which waits for
-             *     the venue as long as it takes (a large party next week, a branch that approves every booking).
+             * @description When the chance to answer runs out - fifteen minutes at short notice, two hours for a booking
+             *     waiting on the guest before it (Yalla.Application.Reservations.AwaitingApproval.Trigger 5) - or null for a booking with no deadline,
+             *     which waits for the venue as long as it takes (a large party next week, a branch that approves
+             *     every booking).
              */
             approvalExpiresAtUtc?: string | null;
             /** @description The party sitting at the table right now, or null when nobody is. */
@@ -8689,12 +8705,17 @@ export interface components {
         "Yalla.Application.Reservations.ReservationView": {
             /**
              * Format: date-time
-             * @description When the venue's chance to answer runs out, for a booking waiting on a short-notice decision;
-             *     null for every other booking, and once it is decided.
+             * @description When the chance to answer runs out, for a booking waiting on a short-notice decision or on the
+             *     guest before it on the table; null for every other booking, and once it is decided.
              */
             approvalExpiresAtUtc?: string | null;
             /** @description Why the booking is waiting for a human, when it is. Null for a confirmed booking. */
             awaitingApprovalBecause?: components["schemas"]["Yalla.Domain.Enums.ApprovalTrigger"] | null;
+            /**
+             * @description True while the booking waits on the guest before it on the table to answer in the app - "will you
+             *     have left by 19:40?" - and false otherwise, the floor's own questions included.
+             */
+            awaitsEarlierGuestAnswer: boolean;
             /** Format: uuid */
             branchId: string;
             branchName: string;
@@ -19686,7 +19707,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. */
+            /** @description `table-already-booked` / `table-currently-occupied`: Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: the diner already has a booking at this branch then - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel` name it. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -20327,7 +20348,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `reservation-not-changeable`: the booking is finished with or has started. `table-already-booked` / `table-currently-occupied`: the new slot is taken - Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `concurrent-update`: the booking was cancelled, approved or seated while this was in flight; read it again. `bookings-not-accepted`, `web-bookings-not-accepted`, `branch-unavailable`: the branch stopped taking bookings. `client-command-id-in-use`: the id belongs to another command or to a different change. */
+            /** @description `reservation-not-changeable`: the booking is finished with or has started. `table-already-booked` / `table-currently-occupied`: the new slot is taken - Someone else took that table between the diner seeing it free and confirming. The body's `context` carries the clashing window and a fresh availability snapshot, so the app can redraw the floor and show what changed rather than only saying no. Never retried automatically: this answer will not change on a repeat. `reservation-overlaps-own`: another of the diner's bookings at this branch runs then - `context.reservationId`, `code`, `localDate`, `localStartTime`, `tableLabel` name it. `concurrent-update`: the booking was cancelled, approved or seated while this was in flight; read it again. `bookings-not-accepted`, `web-bookings-not-accepted`, `branch-unavailable`: the branch stopped taking bookings. `client-command-id-in-use`: the id belongs to another command or to a different change. */
             409: {
                 headers: {
                     [name: string]: unknown;

@@ -21,6 +21,7 @@ import type { ModeratedReview, VenueModeratedReview } from '../contracts/reviews
 import type { components } from '../generated/schema';
 import {
   approvalExpiry,
+  awaitsEarlierGuestAnswer,
   approvalTrigger,
   type WireReservationWithApproval,
 } from './approvalMapping';
@@ -264,6 +265,7 @@ export function consoleBookingFromWire(view: WireReservationWithApproval): Conso
     status: RESERVATION_STATUS[view.status] ?? 'unknown',
     awaitingApprovalBecause: approvalTrigger(view.awaitingApprovalBecause),
     approvalExpiresAtUtc: approvalExpiry(view.approvalExpiresAtUtc),
+    awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view),
     note: view.note ?? null,
   };
 }

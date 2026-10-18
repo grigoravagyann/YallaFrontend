@@ -92,11 +92,13 @@ function BookingRow({
   const [reason, setReason] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
   // The guest before answers it in the app: nothing for the venue to decide
-  // (see `waitsOnEarlierGuestInApp`) — known from its clock, or from the refusal.
+  // (see `waitsOnEarlierGuestInApp`) — as the server says, or as its refusal
+  // says. Never from the clock: the venue's own two hours to ring them look
+  // the same.
   const [theirsToAnswer, setTheirsToAnswer] = useState(false);
   const guestAnswers =
     theirsToAnswer ||
-    waitsOnEarlierGuestInApp(booking.awaitingApprovalBecause, booking.approvalExpiresAtUtc);
+    waitsOnEarlierGuestInApp(booking.awaitingApprovalBecause, booking.awaitsEarlierGuestAnswer);
 
   const { locale } = useLocale();
   const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now, locale);

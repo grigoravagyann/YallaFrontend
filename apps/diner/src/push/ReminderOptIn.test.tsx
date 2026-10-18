@@ -67,6 +67,16 @@ describe('the reminder opt-in', () => {
     expect(screen.queryByText('push.optIn.granted')).toBeNull();
   });
 
+  it('never says the table is held for a booking the venue has still to confirm', async () => {
+    registration.permissionState.mockResolvedValue('denied');
+
+    render(<ReminderOptIn startUtc={tomorrow()} pending />);
+
+    // "No reminder will arrive", without "your table is still held".
+    expect(await screen.findByText('push.optIn.declinedPending')).toBeTruthy();
+    expect(screen.queryByText('push.optIn.declined')).toBeNull();
+  });
+
   it('promises the reminder once a granted device is registered', async () => {
     registration.permissionState.mockResolvedValue('granted');
     registration.registerDevice.mockResolvedValue('device-1');

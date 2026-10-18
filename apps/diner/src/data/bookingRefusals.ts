@@ -1,5 +1,6 @@
 import {
   BookingNotChangeableError,
+  type BookingOverlapsOwnError,
   BookingsNotAcceptedError,
   MAX_BOOKING_NOTE,
   ValidationError,
@@ -7,6 +8,13 @@ import {
   type BookingFailure,
   type CopyLine,
 } from '@yalla/api';
+import {
+  branchDayKey,
+  formatDayAndTime,
+  instantFromZonedClock,
+  type Locale,
+  type TimeZone,
+} from '@yalla/format';
 
 /**
  * The refusals a booking can meet that `bookingFailure` does not name, because
@@ -49,4 +57,45 @@ export function changeFailureLine(failure: BookingFailure): CopyLine {
   if (failure.kind === 'generic') return { key: 'book.changeError.generic', params: {} };
   if (failure.kind === 'unknown') return { key: 'book.changeError.unknownOutcome', params: {} };
   return failure.line;
+}
+
+/**
+ * "You already have a booking here at 19:30 (table 2)" — and its day as well
+ * when that is not the day being booked: last night's 23:30 sitting runs into
+ * a booking for 00:15, and "at 23:30" alone reads as tonight's. `localDate`
+ * is the booking held's day on the branch's clock, as the server said it.
+ */
+export function overlapsOwnLine(
+  error: BookingOverlapsOwnError,
+  slotUtc: string,
+  timeZoneId: TimeZone,
+  locale: Locale,
+): CopyLine {
+  const { localStartTime: time, tableLabel: table } = error;
+  if (!time) return { key: 'confirm.error.generic', params: {} };
+  const date = otherBranchDay(error.localDate, slotUtc, timeZoneId, locale);
+  if (date) {
+    return table
+      ? { key: 'confirm.error.overlapsOwnOn', params: { date, time, table } }
+      : { key: 'confirm.error.overlapsOwnOnPlain', params: { date, time } };
+  }
+  return table
+    ? { key: 'confirm.error.overlapsOwn', params: { time, table } }
+    : { key: 'confirm.error.overlapsOwnPlain', params: { time } };
+}
+
+/** `localDate` ("2026-10-20") as the branch writes a day, or `null` when it is the day of `slotUtc`. */
+function otherBranchDay(
+  localDate: string | null,
+  slotUtc: string,
+  timeZoneId: TimeZone,
+  locale: Locale,
+): string | null {
+  const parts = localDate?.match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+  if (!parts || localDate === branchDayKey(slotUtc, timeZoneId)) return null;
+  const noon = instantFromZonedClock(
+    { year: Number(parts[1]), month: Number(parts[2]), day: Number(parts[3]), hour: 12, minute: 0 },
+    timeZoneId,
+  );
+  return formatDayAndTime(noon, timeZoneId, locale).date;
 }

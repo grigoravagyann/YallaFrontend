@@ -53,6 +53,11 @@ interface Refused {
  * refusal is shown **under the choice**, and only its button is disabled: a
  * mixed venue whose free branch stops it going Paid can still go Free. Given a
  * `branch`, the same dialog switches that branch alone, with the same check.
+ *
+ * Going Free is a door that can lock behind it: a branch whose menu has gone
+ * unfinished since it went Paid cannot come back until the menu is done. That
+ * is said before the switch — "It can't go back to Paid until …", with each
+ * branch's reason — and is not a refusal: the confirm is the same.
  */
 export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: TierDialogProps) {
   const { t } = useTranslation(['admin', 'common']);
@@ -124,6 +129,16 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
         )
       : null;
   const shownRefusal: Refused | null = refused ?? (isChoice ? null : checked);
+  // Going Free: the branches that could not come back to Paid as they stand.
+  const noReturn =
+    target === 'free' && check.data && !check.isPlaceholderData
+      ? check.data.cannotReturnToPaid.map((entry) => {
+          const reason = t('venues.tierDialog.notReady', { count: entry.incompleteMenuItemCount });
+          return branch
+            ? reason
+            : t('venues.tierDialog.atBranch', { branch: entry.branch.name, reason });
+        })
+      : [];
   // Under the choice instead: this plan's button is off, the other stays.
   const inlineBlock = isChoice ? checked : null;
 
@@ -293,6 +308,20 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
           </li>
         ))}
       </ul>
+
+      {noReturn.length > 0 ? (
+        <div className="yc-refuse" role="note">
+          <ReceiptIcon />
+          <div className="yc-refuse-body">
+            <p>{t(branch ? 'venues.tierDialog.noReturn' : 'venues.tierDialog.noReturnVenue')}</p>
+            <ul>
+              {noReturn.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
 
       {inlineBlock ? (
         <div className="yc-refuse-inline" id={blockedId}>

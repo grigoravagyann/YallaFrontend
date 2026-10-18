@@ -33,12 +33,20 @@ export interface ConsoleBooking {
   /** Why it is waiting. Null once decided, or when it never waited. */
   readonly awaitingApprovalBecause: ApprovalTrigger | null;
   /**
-   * When the venue's answer window closes — a short-notice booking only, and
-   * only while it waits. Past it the server declines the booking itself and
-   * tells the diner sorry. Null for a booking that waits without a clock (a
-   * large party a week out), and once it is decided.
+   * When the answer window closes — a short-notice booking, or one asking the
+   * guest before for their table, and only while it waits. Past it the server
+   * declines the booking itself and tells the diner sorry. Null for a booking
+   * that waits without a clock (a large party a week out), and once it is
+   * decided.
    */
   readonly approvalExpiresAtUtc: string | null;
+  /**
+   * The guest before answers this one themselves, in the app: the venue's
+   * approve and reject are refused for it. False — or absent, from a server
+   * that does not say — while it is the venue's to decide; see
+   * {@link waitsOnEarlierGuestInApp}.
+   */
+  readonly awaitsEarlierGuestAnswer?: boolean | undefined;
   /** The diner's note for the venue (K9), or `null`. */
   readonly note: string | null;
 }
@@ -57,8 +65,9 @@ export interface ConsoleBooking {
  * booked shortly before it: it starts within {@link REQUESTABLE_WITHIN_MINUTES}
  * minutes of the earlier booking, so the earlier guest is asked whether they
  * will have left by then. Through the app when they booked in it; on the floor
- * tablet, by the staff, when they booked on the web and have no push. Its
- * window is {@link EARLIER_GUEST_WINDOW_MINUTES} minutes, not fifteen.
+ * tablet, by the staff, when they booked on the web and have no push. Either
+ * way its window is {@link EARLIER_GUEST_WINDOW_MINUTES} minutes, not fifteen,
+ * and never past either booking's start.
  */
 export type ApprovalTrigger =
   | 'branchApprovesEveryBooking'
@@ -78,7 +87,9 @@ export type ApprovalTrigger =
  * is the venue's failure, not the diner's, and the copy apologises for it.
  * The two earlier-guest reasons are the same pair for a table somebody else
  * booked before: they said they would still be there, or they did not answer
- * in two hours — and either way another table or time is the next step.
+ * in two hours in the app — and either way another table or time is the next
+ * step. The floor letting its own two hours to ring them run out is `noAnswer`:
+ * the venue did not answer.
  * `unknown` for a value a newer server adds; it reads as the plain "declined".
  */
 export type DeclineReason =
@@ -109,7 +120,7 @@ export const NEXT_BOOKING_GAP_MINUTES = 45;
  */
 export const REQUESTABLE_WITHIN_MINUTES = 180;
 
-/** How long the earlier guest — or the floor, for a web guest — has to answer. */
+/** How long the earlier guest — or the floor, for a web guest — has to answer. Never past a start. */
 export const EARLIER_GUEST_WINDOW_MINUTES = 120;
 
 /** A booking for today, or for less than this many hours from now, waits for the floor. */
@@ -158,18 +169,21 @@ export function awaitsVenueAnswer(booking: {
 
 /**
  * Whether a waiting booking is the guest before's to answer, in the app — not
- * the floor's. Such a booking waits with a clock (two hours, never past their
- * own booking); the floor's own questions to a guest before, for another day
- * (they booked on the web, have no device, or the booking needs the floor
- * anyway), have none. The floor's approve and reject are refused for it (409
- * `reservation-awaiting-earlier-guest`), so no screen offers them — it says
- * whose answer it waits for instead. Short-notice ones are `shortNotice`.
+ * the floor's. Both wait with the same clock (two hours, never past either
+ * booking's start): the guest's own answer in the app, and the floor's, for a
+ * guest it has to ring (they booked on the web, have no device, or the booking
+ * needs the floor anyway). So the clock does not say whose it is; the server's
+ * `awaitsEarlierGuestAnswer` does. The floor's approve and reject are refused
+ * for the guest's own (409 `reservation-awaiting-earlier-guest`), so no screen
+ * offers them — it says whose answer it waits for instead. A server that does
+ * not say reads as the floor's: the decision is offered, and that 409 turns the
+ * screen round if it was not. Short-notice ones are `shortNotice`.
  */
 export function waitsOnEarlierGuestInApp(
   because: ApprovalTrigger | null | undefined,
-  approvalExpiresAtUtc: string | null | undefined,
+  awaitsEarlierGuestAnswer: boolean | null | undefined,
 ): boolean {
-  return because === 'earlierGuestConsent' && Boolean(approvalExpiresAtUtc);
+  return because === 'earlierGuestConsent' && awaitsEarlierGuestAnswer === true;
 }
 
 /**
@@ -252,9 +266,18 @@ export interface AwaitingApproval {
   readonly localStartTime: string;
   readonly timeZoneId: string;
   readonly note: string | null;
-  /** When the answer window closes. `null` for a request that waits without one. */
+  /**
+   * When the answer window closes. `null` for a request that waits without one.
+   * An `earlierGuestConsent` request the floor decides has two hours, as the
+   * guest before would have had in the app.
+   */
   readonly approvalExpiresAtUtc: string | null;
   readonly because: ApprovalTrigger | null;
+  /**
+   * The guest before answers it themselves. The server lists only the floor's
+   * own, so this is false there; read to be safe, as on {@link ConsoleBooking}.
+   */
+  readonly awaitsEarlierGuestAnswer?: boolean | undefined;
   /**
    * The time this booking's guest promised to free the table by, when a later
    * booking on it made the sitting shorter: "must free by 21:25". Absent or

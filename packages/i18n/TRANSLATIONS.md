@@ -456,6 +456,25 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `rejectNamed` are what a screen reader hears for one person, and must keep
   the visible label in them. `notAll` follows what went through with "the
   rest are still waiting", the people the banner still shows.
+- `diner` — QA round 2 (2026-10-18), provisional and **not** reviewed:
+  `bookings.detail.chooseAnotherTime` (the way forward from a declined booking:
+  the same place, day and party), `bookings.detail.codeDeclined` (the code of a
+  booking that was **never confirmed** — not "cancelled"),
+  `push.optIn.declinedPending` (no reminder, said of a request still waiting —
+  it must **not** say the table is held), `booking.freeBy.promisedNote` (the
+  earlier guest's own promise, "You said you'll leave by {{time}} — the table is
+  booked after you"; hy joins the two halves with `․`),
+  `booking.approval.waitingVenueEarlierGuest` / `checkingVenueEarlierGuest` /
+  `venueAsksEarlierGuest` (the floor checking with a guest before who cannot
+  answer in the app: the **venue** asks, with the same two-hour countdown as
+  `waitingEarlierGuest`), `tables.pin.requestEarlierGuest` / `requestVenue` (a
+  table booked just before that can be had by asking — never "reserved") and
+  `tables.legend.request` ("On request", short: a legend entry),
+  `confirm.error.overlapsOwn` / `overlapsOwnPlain` (the diner's own booking at
+  the same place and time; hy writes "ժամը {{time}}" and "(սեղան {{table}})",
+  as `public` does, rather than a suffix glued onto either) and
+  `overlapsOwnOn` / `overlapsOwnOnPlain` (the same, with the day, when the
+  booking held is on another day than the one being booked).
 - Booking times and table sequencing (2026-10-18), provisional and **not**
   reviewed. `diner` `book.wheel.*` — the time wheel: `snapped` ("No free table
   at {{busy}} — {{time}} suggested"; hy writes "Ժամը {{busy}}" rather than a
@@ -501,6 +520,26 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `booking.approval.venueWillConfirm` (the floor's own question to the guest
   before, for another day: **no clock** — so no time in it, and the venue,
   not the guest before, is who answers).
+
+- `staff`, `admin` and `public` — QA round 2 (2026-10-18), provisional and
+  **not** reviewed. `staff` `approvals.approvedNoticeOn` / `declinedNoticeOn` /
+  `arrivedOn_*` (a booking request **not for the branch's today**, dated — "on
+  Tue 20 Oct at 19:45"; hy and ru put the date between commas rather than
+  after a preposition, and keep "ժամը" / "в" before the time like the undated
+  sentences); `billRequest.pickTitle` (the table **asked for the bill** in the
+  app — nobody pays in the app). `admin` `home.activity.action.reviewRestore`
+  ("put back the reports on a review", the undo of `reviewDismiss`) and
+  `home.activity.action.other` (now a neutral "made a change", **never** the
+  raw action code); `venues.tierDialog.noReturn` / `noReturnVenue` (going Free:
+  the branch can't come back to Paid until its menu is finished — a warning,
+  not a refusal; the reasons follow as a list); `venues.tierDialog.paid2`,
+  `free2` and `venuePage.facts.planPaid` (no payment in the app: guests ask for
+  the bill in the app and pay the waiter); `venuePage.kpi.bookings30` (the
+  **past** 30 days by start, not the next 30). `public` `booking.overlapsOwn` /
+  `overlapsOwnPlain` (the visitor's own booking at the same place and time,
+  with its time and table; formal `Դուք`), and `overlapsOwnOn` /
+  `overlapsOwnOnPlain` (the same, when that booking is on another day — last
+  night's 23:30 — so the date comes first).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

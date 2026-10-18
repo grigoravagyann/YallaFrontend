@@ -15,7 +15,15 @@
  * `LOCALES`; time zone data uses the "golden" set, which includes Yerevan.
  *
  * This module must be the first import of the root layout.
+ *
+ * Where the `DateTimeFormat` polyfill does install — Hermes — its default zone
+ * is UTC, and a time on the diner's own clock read UTC. The phone's calendar
+ * zone (expo-localization, already in the app) is made its default; failing
+ * that, the zone Hermes' own `Intl` gave before the polyfill replaced it.
  */
+import { adoptDefaultTimeZone, platformTimeZone } from './deviceTimeZone';
+import { getCalendars } from 'expo-localization';
+
 import '@formatjs/intl-getcanonicallocales/polyfill.js';
 import '@formatjs/intl-locale/polyfill.js';
 
@@ -48,3 +56,13 @@ import '@formatjs/intl-relativetimeformat/locale-data/hy.js';
 import '@formatjs/intl-relativetimeformat/locale-data/ru.js';
 import '@formatjs/intl-relativetimeformat/locale-data/en.js';
 import '@formatjs/intl-relativetimeformat/locale-data/en-GB.js';
+
+function calendarTimeZone(): string | null {
+  try {
+    return getCalendars()[0]?.timeZone ?? null;
+  } catch {
+    return null;
+  }
+}
+
+if (!adoptDefaultTimeZone(calendarTimeZone())) adoptDefaultTimeZone(platformTimeZone);

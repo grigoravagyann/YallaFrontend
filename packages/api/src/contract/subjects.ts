@@ -130,6 +130,8 @@ export function mockSubject(): ContractSubject {
     // A gateway per diner, as a phone per diner: the mock remembers who is
     // signed in on the instance, the way a session remembers it on a device.
     newDiner: () => signUpDiner(diner()),
+    // Signed up on the same instance: the same bookings, a different account.
+    rivalOf: (first) => signUpDiner(first.gateway),
     fetchPhoto: () => Promise.reject(new Error(MOCK_GAPS.photoBytes)),
     // Free tables first, as a diner walking in would find them.
     tableCodes: async () =>
@@ -226,6 +228,7 @@ export function httpSubject(options: HttpSubjectOptions): ContractSubject {
       tomorrowEveningUtc: tomorrowEvening(options.timeZoneId),
     },
     newDiner: () => signUpDiner(httpDinerGateway(baseUrl)),
+    rivalOf: () => signUpDiner(httpDinerGateway(baseUrl)),
     // The printed QR tokens, read off the console's own floor plan.
     tableCodes: async () =>
       (await consoleAs(options.adminToken).getFloorPlan(options.branchId)).tables

@@ -65,6 +65,17 @@ export function declineReason(value: number | null | undefined): DeclineReason |
   return DECLINE_REASON[value] ?? 'unknown';
 }
 
+/**
+ * Whether a booking waits on the guest before's own answer
+ * (`ReservationView.awaitsEarlierGuestAnswer`): only while it waits
+ * (`ReservationStatus` 1), and only when the server says so.
+ */
+export function awaitsEarlierGuestAnswer(
+  view: Pick<ReservationView, 'status' | 'awaitsEarlierGuestAnswer'>,
+): boolean {
+  return view.status === 1 && view.awaitsEarlierGuestAnswer === true;
+}
+
 /** A blank or absent instant is no window at all. */
 export function approvalExpiry(value: string | null | undefined): string | null {
   return value?.trim() ? value : null;
