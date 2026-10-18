@@ -207,3 +207,91 @@ export function GlobeIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** The Venues artboard's icons. */
+export function PlusIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M5 12h14M12 5v14" />
+    </Icon>
+  );
+}
+
+/** Up and down chevrons: a control that switches between values. */
+export function ChevronsUpDownIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="m7 15 5 5 5-5M7 9l5-5 5 5" />
+    </Icon>
+  );
+}
+
+/** The ⋮ of a row's menu. */
+export function MoreIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </Icon>
+  );
+}
+
+export function PauseIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M10 15V9M14 15V9" />
+    </Icon>
+  );
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </Icon>
+  );
+}
+
+/** Back the way it was: restore, undo a delete. */
+export function RestoreIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+    </Icon>
+  );
+}
+
+/** A cover photo that is not there yet. */
+export function ImageOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m2 2 20 20" />
+      <path d="M10.4 10.4a2 2 0 1 1-2.8-2.8" />
+      <path d="M13.5 13.5 6 21" />
+      <path d="M3.6 3.6A2 2 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.6 0 1-.2 1.4-.6" />
+      <path d="M21 15V5a2 2 0 0 0-2-2H9" />
+    </Icon>
+  );
+}
+
+/** A bill: the Paid refusal's box. */
+export function ReceiptIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z" />
+      <path d="M8 7h8M8 11h8M8 15h5" />
+    </Icon>
+  );
+}
+
+/** "Stays the same" in a list of consequences, between a tick and a cross. */
+export function MinusIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2.2} {...props}>
+      <path d="M5 12h14" />
+    </Icon>
+  );
+}

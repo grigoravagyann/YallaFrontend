@@ -95,6 +95,34 @@ describe('console focus and graphics', () => {
     expect(ratio(consoleColor.toastAction, consoleColor.toast)).toBeGreaterThanOrEqual(3);
   });
 
+  it("a dialog's step bars read on white: the current one and the finished ones", () => {
+    expect(ratio(consoleColor.brand, consoleColor.surface)).toBeGreaterThanOrEqual(3);
+    expect(ratio(consoleColor.stepDone, consoleColor.surface)).toBeGreaterThanOrEqual(3);
+  });
+
+  /*
+   * WCAG 1.4.11: the edge is the only thing that says "type here" on an empty
+   * input, so it must read at 3:1 against every ground an input sits on, at
+   * rest and under the pointer. Phase 1 shipped the artboards' #D8C8B6, which
+   * is 1.63:1 on white: an empty search field was a faint smudge.
+   */
+  it("an input's edge clears 3:1 on every ground it sits on, at rest and hovered", () => {
+    for (const ground of [
+      consoleColor.surface,
+      consoleColor.canvas,
+      consoleColor.surfaceMuted,
+      consoleColor.hover,
+      consoleColor.brandTint,
+    ]) {
+      expect(ratio(consoleColor.control, ground)).toBeGreaterThanOrEqual(3);
+      expect(ratio(consoleColor.controlHover, ground)).toBeGreaterThanOrEqual(3);
+    }
+    // Hovering darkens the edge rather than fading it.
+    expect(ratio(consoleColor.controlHover, consoleColor.surface)).toBeGreaterThan(
+      ratio(consoleColor.control, consoleColor.surface),
+    );
+  });
+
   it('every step of the password meter is a visible bar on white', () => {
     for (const bar of [
       consoleColor.red,

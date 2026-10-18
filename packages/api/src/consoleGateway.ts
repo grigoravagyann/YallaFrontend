@@ -147,6 +147,19 @@ export interface ConsoleGateway {
    */
   deleteVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;
 
+  /**
+   * Undo a soft delete: the venue comes back as it was, suspended if it was
+   * suspended. What the list's "Undo" after a delete and its "Restore" on a
+   * deleted row call. Platform admin only.
+   *
+   * `POST /api/platform/venues/{venueId}/restore` — **the backend has no such
+   * route yet** (`Venue.SoftDelete` is documented as irreversible); requested
+   * with the console redesign.
+   *
+   * @throws {ConcurrencyConflictError} the venue is not deleted.
+   */
+  restoreVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;
+
   /** Platform admin only; an owner cannot change what they are paying for. */
   setBranchTier(input: {
     branchId: string;

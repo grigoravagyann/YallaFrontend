@@ -6,6 +6,8 @@ import type {
   ManagedVenue,
   Page,
   SubscriptionTier,
+  VenueBranchTier,
+  VenueReadinessIssue,
   VenueStatus,
   VenueType,
 } from '../contracts/console';
@@ -63,7 +65,70 @@ export function venueStatus(venue: { isDeleted: boolean; isSuspended: boolean })
   return 'active';
 }
 
-export function venueFromWire(venue: WireVenue): ConsoleVenue {
+/**
+ * The venues list's newer columns, which `GET /api/platform/venues` is being
+ * extended with alongside the console redesign. Not in `generated/schema.ts`
+ * yet; every one is optional on the wire, and read only when present.
+ *
+ * Remove this type once the schema is regenerated with them, and read the
+ * fields off {@link WireVenue} directly — a name that differs from the one
+ * written here will then fail the typecheck rather than silently map nothing.
+ */
+interface WireVenueListColumns {
+  readonly averageRating?: number | null;
+  readonly reviewCount?: number;
+  readonly openTabCount?: number;
+  readonly readinessIssue?: {
+    readonly code: string;
+    readonly count?: number | null;
+    readonly branchName?: string | null;
+  } | null;
+  readonly coverThumbnailUrl?: string | null;
+  readonly branches?: readonly {
+    readonly branchId: string;
+    readonly name: string;
+    readonly subscriptionTier: number;
+  }[];
+  readonly cuisine?: string | null;
+  readonly district?: string | null;
+}
+
+/** The wire's readiness codes, kebab-case as every problem code is. */
+const READINESS_KINDS: Readonly<Record<string, VenueReadinessIssue['kind']>> = {
+  'no-tables': 'noTables',
+  'no-menu': 'noMenu',
+  'incomplete-dishes': 'incompleteDishes',
+  'no-hours': 'noHours',
+  'no-photo': 'noPhoto',
+};
+
+function readinessIssueFromWire(
+  issue: NonNullable<WireVenueListColumns['readinessIssue']>,
+): VenueReadinessIssue {
+  return {
+    // A reason this client does not know yet is still "not ready", never "ready".
+    kind: READINESS_KINDS[issue.code] ?? 'other',
+    count: typeof issue.count === 'number' ? issue.count : null,
+    branchName: issue.branchName ?? null,
+  };
+}
+
+/**
+ * One venue row. `resolveUrl` makes the cover thumbnail's server-relative
+ * link absolute against the API (see `photoUrl.ts`); without it the link is
+ * kept as it came.
+ */
+export function venueFromWire(
+  venue: WireVenue,
+  resolveUrl: (url: string) => string = (url) => url,
+): ConsoleVenue {
+  const extra = venue as WireVenue & WireVenueListColumns;
+  const has = (key: keyof WireVenueListColumns) => Object.hasOwn(extra, key);
+  const branchTiers: VenueBranchTier[] | undefined = extra.branches?.map((branch) => ({
+    id: branch.branchId,
+    name: branch.name,
+    subscriptionTier: subscriptionTier(branch.subscriptionTier),
+  }));
   return {
     id: venue.venueId,
     name: venue.name,
@@ -73,10 +138,28 @@ export function venueFromWire(venue: WireVenue): ConsoleVenue {
     branchCount: venue.branchCount,
     tableCount: venue.tableCount,
     subscriptionTier: subscriptionTier(venue.subscriptionTier),
+    paidBranchCount: venue.paidBranchCount,
     // The platform view does not carry a creation timestamp; the screen omits
     // the line rather than inventing one.
     createdAtUtc: null,
     suspendedAtUtc: venue.suspendedAtUtc ?? null,
+    // Absent stays absent: "not reported" must not read as zero or as none.
+    ...(has('averageRating') ? { rating: extra.averageRating ?? null } : {}),
+    ...(typeof extra.reviewCount === 'number' ? { reviewCount: extra.reviewCount } : {}),
+    ...(typeof extra.openTabCount === 'number' ? { openTabCount: extra.openTabCount } : {}),
+    ...(has('readinessIssue')
+      ? {
+          readinessIssue: extra.readinessIssue
+            ? readinessIssueFromWire(extra.readinessIssue)
+            : null,
+        }
+      : {}),
+    ...(has('coverThumbnailUrl')
+      ? { coverThumbnailUrl: extra.coverThumbnailUrl ? resolveUrl(extra.coverThumbnailUrl) : null }
+      : {}),
+    ...(branchTiers ? { branchTiers } : {}),
+    ...(has('cuisine') ? { cuisine: extra.cuisine ?? null } : {}),
+    ...(has('district') ? { district: extra.district ?? null } : {}),
   };
 }
 
@@ -134,9 +217,12 @@ export function managedVenueFromWire(venue: WireManagedVenue): ManagedVenue {
   };
 }
 
-export function venuePageFromWire(page: WirePage): Page<ConsoleVenue> {
+export function venuePageFromWire(
+  page: WirePage,
+  resolveUrl?: (url: string) => string,
+): Page<ConsoleVenue> {
   return {
-    items: (page.items ?? []).map(venueFromWire),
+    items: (page.items ?? []).map((venue) => venueFromWire(venue, resolveUrl)),
     total: page.totalCount,
     page: page.page,
     pageSize: page.pageSize,

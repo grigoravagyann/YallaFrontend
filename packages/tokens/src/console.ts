@@ -62,9 +62,23 @@ export const consoleColor = {
   line: '#E8DDD0',
   /** The divider inside a card. */
   lineSoft: '#F1E9DF',
-  /** An input's or secondary button's edge. */
-  control: '#D8C8B6',
-  controlHover: '#C8B39C',
+  /**
+   * An input's or a select's edge. 3.70:1 on white, 3.29:1 on the canvas.
+   *
+   * Darker than the artboards' #D8C8B6 (1.63:1 on white), on purpose: on an
+   * empty field the edge is the only thing that says "type here", so it is
+   * held to WCAG 1.4.11's 3:1 (2026-10-18). Same warm hue, more weight.
+   */
+  control: '#988169',
+  /** The same edge under the pointer: darker still, never fainter. 4.70:1 on white. */
+  controlHover: '#85705B',
+  /**
+   * A secondary button's edge: the artboards' soft line. A button's label
+   * already says what it is, so its edge is decoration and keeps the lighter
+   * approved weight; only inputs needed the 3:1 edge.
+   */
+  buttonEdge: '#D8C8B6',
+  buttonEdgeHover: '#C8B39C',
 
   // --- Sidebar ----------------------------------------------------------------
   sidebar: '#2B1608',
@@ -107,6 +121,10 @@ export const consoleColor = {
   greyLine: '#DDD3C8',
   /** The password meter's third step, between amber and green. */
   meterFair: '#6E8B3D',
+  /** A finished step in a dialog's step list: a warm bar beside the step's name. */
+  stepDone: '#B07A45',
+  /** A loading placeholder's block, pulsing on the white card. */
+  skeleton: '#EFE6DB',
 
   // --- Toast ------------------------------------------------------------------
   toast: '#2A1A10',
@@ -202,6 +220,8 @@ export const consoleText = {
 export const consoleShadow = {
   dialog: '0 24px 60px rgba(42, 26, 16, 0.3)',
   toast: '0 10px 30px rgba(42, 26, 16, 0.25)',
+  /** A row's ⋮ menu, over the table. */
+  menu: '0 12px 32px rgba(42, 26, 16, 0.14)',
   /** Under the sign-in claim, so it reads over the brightest part of the photo. */
   photoText: '0 1px 12px rgba(0, 0, 0, 0.5)',
 } as const;

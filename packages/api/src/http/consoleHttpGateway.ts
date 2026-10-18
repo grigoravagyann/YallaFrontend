@@ -33,7 +33,7 @@ import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../cont
 import type { BranchPublicProfile } from '../contracts/publicProfile';
 import type { VenueListing } from '../contracts/listing';
 import { photoRejection } from './photoErrors';
-import { absolutePhoto } from './photoUrl';
+import { absolutePhoto, absolutePhotoUrl } from './photoUrl';
 import type { PhotoUpload } from '../consoleGateway';
 import { REPORT_MAX_DAYS } from '../contracts/reports';
 import type { ReportExport, ReportQuery } from '../contracts/reports';
@@ -425,7 +425,7 @@ export function createConsoleHttpGateway(
           ...(query.includeDeleted ? { includeDeleted: true } : {}),
         },
       });
-      return venuePageFromWire(data);
+      return venuePageFromWire(data, (url) => absolutePhotoUrl(client.baseUrl, url));
     },
 
     getVenue: (venueId) => venueDetail(`${PLATFORM}/venues/${venueId}`),
@@ -533,6 +533,12 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    async restoreVenue({ venueId }) {
+      // gateway-schema: awaiting-route — console redesign: undoing a soft delete
+      const { data } = await client.post<WireDetail>(`${PLATFORM}/venues/${venueId}/restore`);
+      return venueDetailFromWire(data);
     },
 
     // --- The rooms editor -------------------------------------------------

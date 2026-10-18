@@ -392,7 +392,8 @@
 
 .yc .yc-btn-sec,
 .yc-btn-sec {
-  border-color: var(--console-control);
+  /* A button's label says what it is; its edge keeps the approved soft weight. */
+  border-color: var(--console-button-edge);
   background: var(--console-surface);
   color: var(--console-brand);
 }
@@ -479,6 +480,8 @@
 
 .yc-ctl {
   width: 100%;
+  /* The venue console's global \`select\` is 48px tall for touch; here a select is a 40px control. */
+  min-height: 0;
   height: var(--console-size-button);
   padding: 0 var(--space-md);
   border: 1px solid var(--console-control);
@@ -647,6 +650,9 @@ textarea.yc-ctl {
   inset: 0;
   z-index: 30;
   display: grid;
+  /* One column no wider than the screen: an auto column took the dialog's
+     460px and ran it off a 390px phone, past its own max-width. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: var(--space-lg);
   overflow-y: auto;
@@ -689,6 +695,9 @@ textarea.yc-ctl {
   left: 50%;
   bottom: var(--space-xl);
   z-index: 40;
+  /* As wide as the sentence, up to the screen: shrink-to-fit from \`left: 50%\`
+     alone squeezed a toast into half a phone's width. */
+  width: max-content;
   max-width: calc(100% - var(--space-xxl));
   transform: translateX(-50%);
 }
@@ -1166,6 +1175,743 @@ textarea.yc-ctl {
   flex-direction: column;
   gap: var(--space-xl);
   max-width: 720px;
+}
+
+/* --------------------------------------------------------------------------
+ * The venues list (Venues artboard)
+ * -------------------------------------------------------------------------- */
+.yc-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.yc-tools .yc-fld > label {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-tools .yc-ctl {
+  width: auto;
+}
+
+.yc-fld-grow {
+  flex: 1 1 280px;
+}
+
+.yc .yc-fld-grow .yc-ctl {
+  width: 100%;
+}
+
+.yc-search {
+  position: relative;
+}
+
+.yc-search .yc-i {
+  position: absolute;
+  top: 11px;
+  left: var(--space-md);
+  color: var(--console-muted);
+  pointer-events: none;
+}
+
+.yc-search .yc-ctl {
+  padding-left: 38px;
+}
+
+.yc-tscroll {
+  /* Positioned, so the screen-reader-only text in its cells is clipped by it
+     too: otherwise those absolutely placed spans widen the whole page on a phone. */
+  position: relative;
+  overflow-x: auto;
+}
+
+.yc-tbl {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.yc-tbl th {
+  padding: 10px var(--space-lg);
+  border-bottom: 1px solid var(--console-line);
+  background: var(--console-surface-muted);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.yc-tbl td {
+  padding: 10px var(--space-lg);
+  border-bottom: 1px solid var(--console-line-soft);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.yc-tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.yc-tbl tbody tr:hover td {
+  background: var(--console-hover);
+}
+
+.yc-tbl .yc-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-tbl tr.is-dim td {
+  color: var(--console-muted);
+}
+
+.yc .yc-tbl tr.is-dim .yc-vname {
+  color: var(--console-muted);
+}
+
+.yc-sortb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--console-muted);
+  font: inherit;
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-sortb:hover,
+.yc-sortb.is-on {
+  color: var(--console-ink);
+}
+
+.yc-ar {
+  display: inline-block;
+  width: 10px;
+  font-size: var(--console-text-caption);
+}
+
+.yc-vcell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 240px;
+  max-width: 340px;
+}
+
+.yc-thumb {
+  width: 56px;
+  height: 42px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--console-radius-small);
+  object-fit: cover;
+}
+
+.yc-thumb-none {
+  border: 1.5px dashed var(--console-amber-line);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-thumb-letter {
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-vtext {
+  min-width: 0;
+  /* A long readiness line wraps under the name rather than widening the table. */
+  white-space: normal;
+}
+
+/* Free text (the cuisine line) wraps in a column of its own width. */
+.yc-tbl td.yc-wrap {
+  min-width: 120px;
+  max-width: 200px;
+  white-space: normal;
+}
+
+.yc .yc-vname {
+  color: var(--console-ink);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+  text-decoration: none;
+}
+
+.yc .yc-vname:hover {
+  color: var(--console-ink);
+  text-decoration: underline;
+}
+
+.yc-slug {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-issue {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin-top: 2px;
+  color: var(--console-amber);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-issue .yc-i {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.yc-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--console-button-edge);
+  border-radius: var(--console-radius-small);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-tier:hover {
+  border-color: var(--console-button-edge-hover);
+  background: var(--console-hover);
+}
+
+.yc-tier.is-paid {
+  color: var(--console-brand);
+}
+
+.yc-tier.is-free {
+  color: var(--console-grey);
+}
+
+.yc-tier .yc-i {
+  width: 14px;
+  height: 14px;
+  color: var(--console-muted);
+}
+
+.yc-tier-text {
+  color: var(--console-muted);
+}
+
+.yc-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.yc-tbl .yc-mcell {
+  width: 48px;
+  text-align: right;
+}
+
+.yc-kebab {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--console-radius-small);
+  background: none;
+  color: var(--console-muted);
+  cursor: pointer;
+}
+
+.yc-kebab:hover,
+.yc-kebab.is-open {
+  background: var(--console-brand-tint);
+  color: var(--console-ink);
+}
+
+.yc-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+  box-shadow: var(--console-shadow-menu);
+}
+
+.yc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-body);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-menu-item:hover,
+.yc-menu-item:focus-visible {
+  background: var(--console-hover);
+}
+
+.yc-menu-item .yc-i {
+  width: 16px;
+  height: 16px;
+  color: var(--console-muted);
+}
+
+.yc-menu-item.is-danger,
+.yc-menu-item.is-danger .yc-i {
+  color: var(--console-red);
+}
+
+.yc-menu-sep {
+  height: 1px;
+  margin: 6px var(--space-xs);
+  background: var(--console-line-soft);
+}
+
+.yc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px var(--space-xl);
+  text-align: center;
+}
+
+.yc-empty p {
+  margin: 0;
+  color: var(--console-muted);
+}
+
+.yc-empty-ic {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-empty-ic .yc-i {
+  width: 24px;
+  height: 24px;
+}
+
+.yc-foot {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--console-line-soft);
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+/* Loading: the table's shape, pulsing; still under reduced motion. */
+.yc-sk {
+  display: block;
+  border-radius: 6px;
+  background: var(--console-skeleton);
+  animation: yc-pulse 1.4s ease-in-out infinite;
+}
+
+.yc-sk-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yc-sk-thumb {
+  width: 56px;
+  height: 42px;
+  border-radius: var(--console-radius-small);
+}
+
+.yc-sk-name {
+  width: 140px;
+  height: 14px;
+}
+
+.yc-sk-slug {
+  width: 90px;
+  height: 10px;
+}
+
+.yc-sk-cell {
+  width: 64px;
+  height: 12px;
+}
+
+@keyframes yc-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * The venues list's dialogs: plan, delete, create, the link shown once
+ * -------------------------------------------------------------------------- */
+.yc-consq {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+  list-style: none;
+}
+
+.yc-consq li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.yc-consq .yc-i {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.yc-consq .is-on {
+  color: var(--console-green);
+}
+
+.yc-consq .is-off {
+  color: var(--console-red);
+}
+
+.yc-consq .is-same {
+  color: var(--console-muted);
+}
+
+.yc-refuse {
+  display: flex;
+  gap: 10px;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-refuse ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.yc-choice legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-choice .yc-radio {
+  flex: 1 1 140px;
+  height: 44px;
+}
+
+.yc-bbox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-red-bg);
+}
+
+.yc-bbox h3 {
+  margin: 0;
+  color: var(--console-red);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-blist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-blist li {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--console-red-line);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-red);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.yc-form b {
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-stepn {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-steps {
+  display: flex;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-steps li {
+  flex: 1;
+  padding-top: var(--space-sm);
+  border-top: 3px solid var(--console-line);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-steps li.is-on {
+  border-top-color: var(--console-brand);
+  color: var(--console-brand);
+}
+
+.yc-steps li.is-done {
+  border-top-color: var(--console-step-done);
+  color: var(--console-ink);
+}
+
+.yc-row2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.yc-req {
+  margin-left: 2px;
+  color: var(--console-red);
+}
+
+.yc-optional {
+  margin-left: 6px;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pre {
+  display: flex;
+  align-items: center;
+  height: var(--console-size-button);
+  overflow: hidden;
+  border: 1px solid var(--console-control);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+}
+
+.yc-pre:hover {
+  border-color: var(--console-control-hover);
+}
+
+.yc-pre.is-bad {
+  border-color: var(--console-red);
+}
+
+.yc-pre:focus-within {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-pre span {
+  padding-left: var(--space-md);
+  color: var(--console-muted);
+  white-space: nowrap;
+}
+
+.yc-pre input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-md) 0 1px;
+  border: 0;
+  background: none;
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-body);
+}
+
+.yc .yc-pre input:focus-visible {
+  outline: none;
+}
+
+.yc-dlg-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.yc-legend {
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-dialog .yc-legend {
+  font-size: var(--console-text-caption);
+}
+
+.yc-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-summary dt {
+  color: var(--console-muted);
+}
+
+.yc-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+}
+
+.yc-once {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+}
+
+.yc-strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-linkrow {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.yc-linkrow .yc-ctl {
+  flex: 1;
+  min-width: 0;
+}
+
+.yc-mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--console-text-caption);
+}
+
+.yc .yc-ctl.yc-mono {
+  font-size: var(--console-text-caption);
+}
+
+.yc-once-pin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--console-line);
+}
+
+.yc-pin {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--console-text-title);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.3em;
+}
+
+@media (max-width: 560px) {
+  .yc-row2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-tools .yc-fld {
+    flex: 1 1 140px;
+  }
+
+  .yc .yc-tools .yc-ctl {
+    width: 100%;
+  }
+
+  .yc-linkrow {
+    flex-direction: column;
+  }
+
+  /* In a column, \`flex: 1\` would size the field's height from nothing. */
+  .yc-linkrow .yc-ctl {
+    flex: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

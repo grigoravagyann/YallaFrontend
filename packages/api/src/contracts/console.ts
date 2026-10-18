@@ -107,7 +107,39 @@ export interface ConsoleUser {
 // Venues
 // ---------------------------------------------------------------------------
 
-/** A row in the platform venues list. */
+/**
+ * Why a venue is not ready for diners yet, as the venues list shows it: one
+ * line under the name, amber, never red.
+ *
+ * The first unmet line of the first branch that has one, in the order a
+ * venue is onboarded: tables, then the menu, then the hours, then the cover
+ * photo. `branchName` names that branch when the venue has more than one;
+ * `count` is the number of unfinished dishes, and `null` for every other kind.
+ * `other` is a reason this client does not know yet: still "not ready", never
+ * a blank.
+ */
+export interface VenueReadinessIssue {
+  readonly kind: 'noTables' | 'noMenu' | 'incompleteDishes' | 'noHours' | 'noPhoto' | 'other';
+  readonly count: number | null;
+  readonly branchName: string | null;
+}
+
+/** One branch's tier, as the venues list carries it. */
+export interface VenueBranchTier {
+  readonly id: string;
+  readonly name: string;
+  readonly subscriptionTier: SubscriptionTier;
+}
+
+/**
+ * A row in the platform venues list.
+ *
+ * The fields marked optional are the list's newer columns (rating, open tabs,
+ * readiness, cover, each branch's tier, cuisine, district). **Absent means the
+ * source did not report it**, which is what today's backend answers; `null`
+ * means it reported "none" (no reviews yet, no cover yet). The screen hides a
+ * column nobody reports rather than filling it with dashes that read as zeros.
+ */
 export interface ConsoleVenue {
   readonly id: string;
   readonly name: string;
@@ -117,14 +149,35 @@ export interface ConsoleVenue {
   readonly status: VenueStatus;
   readonly branchCount: number;
   readonly tableCount: number;
-  /** The highest tier across the venue's branches, for the list column. */
+  /** The highest tier across the venue's branches. */
   readonly subscriptionTier: SubscriptionTier;
+  /**
+   * How many of `branchCount` are on Paid. The tier is per branch, so the list
+   * says "Paid", "Free" or "Mixed · 1/2" from this pair.
+   */
+  readonly paidBranchCount: number;
   /**
    * `null` when the source does not report it. The platform list endpoint does
    * not, so the screen omits the line rather than inventing a date.
    */
   readonly createdAtUtc: string | null;
   readonly suspendedAtUtc: string | null;
+
+  /** The average of the published reviews, 1–5; `null` with none yet. */
+  readonly rating?: number | null | undefined;
+  readonly reviewCount?: number | undefined;
+  /** Tabs open right now across every branch. */
+  readonly openTabCount?: number | undefined;
+  /** `null` when every branch is ready for diners. */
+  readonly readinessIssue?: VenueReadinessIssue | null | undefined;
+  /** Absolute URL of the first branch's cover thumbnail; `null` with no cover yet. */
+  readonly coverThumbnailUrl?: string | null | undefined;
+  /** Every branch with its tier, in the server's order. */
+  readonly branchTiers?: readonly VenueBranchTier[] | undefined;
+  /** The first branch's cuisine line from its app listing. */
+  readonly cuisine?: string | null | undefined;
+  /** The first branch's district, for the line under the name. */
+  readonly district?: string | null | undefined;
 }
 
 export interface ConsoleBranch {

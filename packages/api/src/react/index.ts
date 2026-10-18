@@ -37,6 +37,12 @@ import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
 import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
 import { ReportRangeTooLongError } from '../contracts/errors';
+import {
+  applyVenueTier,
+  checkVenueTier,
+  listAllConsoleVenues,
+  type VenueTierResult,
+} from '../platformVenues';
 import type { PublicGateway } from '../publicGateway';
 import type { ReleaseReservationCommand } from '../staffGateway';
 import type { YallaGateway } from '../gateway';
@@ -228,6 +234,15 @@ export const queryKeys = {
   booking: (bookingId: string) => ['booking', bookingId] as const,
   reservationState: (reservationId: string) => ['reservationState', reservationId] as const,
   consoleVenues: (query: ListVenuesQuery) => ['console', 'venues', query] as const,
+  /**
+   * The whole platform, deleted venues included: the redesigned list filters
+   * and sorts in place. Under `['console', 'venues']`, so every venue command's
+   * invalidation reaches it.
+   */
+  allConsoleVenues: ['console', 'venues', 'all'] as const,
+  /** What a tier switch would do. Never cached: it is asked as the dialog opens. */
+  venueTierCheck: (venueId: string, tier: SubscriptionTier) =>
+    ['console', 'venueTierCheck', venueId, tier] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
   // Its own key, not `consoleVenue`'s: the two reads answer different shapes
   // for different callers, and `useVenueCommand` writes a `ConsoleVenueDetail`
@@ -653,6 +668,70 @@ export function useSetBranchTier() {
   return useVenueCommand((input: { branchId: string; tier: SubscriptionTier; commandId: string }) =>
     gateway.setBranchTier(input),
   );
+}
+
+/**
+ * Every venue on the platform, deleted ones included — the redesigned venues
+ * list, which searches, filters and sorts in place and counts what it hides.
+ * See `listAllConsoleVenues`.
+ */
+export function useAllConsoleVenues() {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.allConsoleVenues,
+    queryFn: () => listAllConsoleVenues(gateway),
+    staleTime: staleTime.reference,
+  });
+}
+
+/** Undo a soft delete. Platform admin only; caches like every venue command. */
+export function useRestoreVenue() {
+  const gateway = useConsoleGateway();
+  return useVenueCommand((input: { venueId: string; commandId: string }) =>
+    gateway.restoreVenue(input),
+  );
+}
+
+/**
+ * What switching every branch of a venue to `tier` would do, asked as the
+ * tier dialog opens (`checkVenueTier`): the branches it would move, and going
+ * Paid, the ones whose menu refuses. Read fresh every time — a stale "ready"
+ * is the one answer worse than none.
+ */
+export function useVenueTierCheck(
+  input: { readonly venueId: string; readonly tier: SubscriptionTier } | null,
+) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.venueTierCheck(input?.venueId ?? '', input?.tier ?? 'free'),
+    queryFn: () => checkVenueTier(gateway, input!),
+    enabled: input !== null,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+/**
+ * Switch every branch of a venue to one tier (`applyVenueTier`). Resolves
+ * with what moved and what refused — a refusal is an answer, not a failure —
+ * and refreshes the list and the venue whatever happened, since a switch that
+ * stopped halfway still changed something.
+ */
+export function useSetVenueTier() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { venueId: string; tier: SubscriptionTier; commandId: string }) =>
+      applyVenueTier(gateway, input),
+    onSuccess: (result: VenueTierResult) => {
+      queryClient.setQueryData(queryKeys.consoleVenue(result.venue.id), result.venue);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.managedVenue(result.venue.id) });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+    },
+  });
 }
 
 // --- The floor plan editor -----------------------------------------------------

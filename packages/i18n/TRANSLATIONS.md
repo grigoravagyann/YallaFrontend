@@ -279,6 +279,41 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `goToSignIn`, `invalidTitle`, `signedInBody`.
   - Changed in hy to the artboards' words: `role.platformAdmin`
     ("Պլատֆորմի ադմին") and `shell.signOut` ("Դուրս գալ").
+- `admin` — the platform-admin console redesign, phase 2 (2026-10-18): the
+  venues list, its plan / delete / create dialogs and the sign-in link shown
+  once. `hy` is the Venues artboard's copy, with one deliberate change: the
+  artboard glues suffixes onto names ("Sunset Lounge-ը կասեցվեց"), which
+  `i18n:check` refuses, so every such line reads `«{{name}}» վայրը …`. `ru` and
+  `en` were written from it and are **not** reviewed.
+  - New under `venues.*`: `deletedCount_*`, `shownCount_*`, `footOf`,
+    `deletedHidden`, `list`, `loading`, `filter.*` (search, the five status
+    choices — `statusLive` is the default and must keep saying **active and
+    suspended**, never "all" — and the four plan choices), `column.*`,
+    `rating`, `ratingSr_*` (read instead of the star line), `noRating`,
+    `issue.*` (the amber readiness line; `atBranch` appends the branch),
+    `tierSummary.mixed` ("Mixed · 1/2": paid branches / all branches),
+    `tierSummary.none`, `tierButton`, `menu.*` (hy uses "Վերականգնել" for both
+    resume and restore, as the artboard does), `toast.*`, `empty.*`,
+    `tierDialog.*`, `deleteDialog.*`, `add.*` and `once.*`.
+  - `tierDialog.lead` must keep saying the change applies to **every branch**:
+    the list's button switches all of them. `tierDialog.notReady_*` is the
+    server's `branch-not-ready` refusal and `tierDialog.openTabs` its refusal
+    to go Free with tabs open; both are read after the branch's name
+    (`tierDialog.atBranch`).
+  - `deleteDialog.typeName` carries a `<b>` around the name (rendered with
+    `Trans`); keep the tag. `deleteDialog.body` must keep saying the venue
+    can be **restored** from the Deleted filter.
+  - `add.ownerLead` must keep saying the owner is **optional** and the link
+    is shown, not sent. `once.body` must keep saying the link is shown **now
+    and never again**; `once.help` takes the link's own expiry (`{{when}}`)
+    rather than naming a lifetime. `once.pinHelp` exists because the server
+    requires a tablet PIN of every staff member, so one is drawn for the owner.
+  - Removed: `venues.search`, `venues.column.branches`, `venues.error`, and
+    the old create page's `create.title`, `.lead`, `.venueSection`,
+    `.branchSection`, `.namePlaceholder`, `.slugPlaceholder`, `.submit`,
+    `.submitting`, `.cancel`, `create.error.branchRequired` and
+    `create.error.generic`. The other `create.*` keys stay for the venue
+    page's edit and add-branch forms (phase 3).
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

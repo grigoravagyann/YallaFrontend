@@ -439,9 +439,24 @@ export type {
   UpdateVenueCommand,
   UserRole,
   UserScope,
+  VenueBranchTier,
+  VenueReadinessIssue,
   VenueStatus,
 } from './contracts/console';
 export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+export {
+  applyVenueTier,
+  checkVenueTier,
+  listAllConsoleVenues,
+  venueTierSummary,
+} from './platformVenues';
+export type {
+  VenueTierBlocker,
+  VenueTierCheck,
+  VenueTierRefusal,
+  VenueTierResult,
+  VenueTierSummary,
+} from './platformVenues';
 export type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 export type { AmenityKey, VenueListing, VenueListingInput } from './contracts/listing';
 export { AMENITY_KEYS, MAX_DISTRICT_LENGTH, MAX_GALLERY_PHOTOS } from './contracts/listing';

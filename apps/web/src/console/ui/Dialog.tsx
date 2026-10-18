@@ -6,6 +6,12 @@ export interface DialogProps {
   readonly title: ReactNode;
   /** The sentence under the title, read out as the dialog's description. */
   readonly description?: ReactNode;
+  /**
+   * The id of an element in `children` that describes the dialog instead,
+   * for a description that is not a plain sentence under the title (a refusal
+   * box, say). Wins over `description` for `aria-describedby`.
+   */
+  readonly describedBy?: string;
   /** Escape, a press on the scrim, and whatever close button the body has. */
   readonly onClose: () => void;
   /**
@@ -16,6 +22,12 @@ export interface DialogProps {
   readonly dismissible?: boolean;
   /** 560px rather than 460px, for a dialog with a form or a step list in it. */
   readonly wide?: boolean;
+  /**
+   * An `alertdialog`: a confirm or a refusal that interrupts, rather than a
+   * form the person opened to fill in (WAI-ARIA's distinction). Screen
+   * readers read its description out on open.
+   */
+  readonly alert?: boolean;
   /** Where the focus goes on close, when the opener is gone (a menu item). */
   readonly returnFocusTo?: () => HTMLElement | null;
   readonly children: ReactNode;
@@ -32,9 +44,11 @@ export interface DialogProps {
 export function Dialog({
   title,
   description,
+  describedBy,
   onClose,
   dismissible = true,
   wide = false,
+  alert = false,
   returnFocusTo,
   children,
 }: DialogProps) {
@@ -59,10 +73,14 @@ export function Dialog({
       <div
         ref={ref}
         className={wide ? 'yc-dialog yc-dialog-wide' : 'yc-dialog'}
-        role="dialog"
+        role={alert ? 'alertdialog' : 'dialog'}
         aria-modal="true"
         aria-labelledby={titleId}
-        {...(description ? { 'aria-describedby': descriptionId } : {})}
+        {...(describedBy
+          ? { 'aria-describedby': describedBy }
+          : description
+            ? { 'aria-describedby': descriptionId }
+            : {})}
       >
         <h2 className="yc-h2" id={titleId}>
           {title}

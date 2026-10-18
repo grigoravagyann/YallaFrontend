@@ -1053,6 +1053,7 @@ describe('what the layout hands down', () => {
         branchCount: 2,
         tableCount: 0,
         subscriptionTier: 'free',
+        paidBranchCount: 0,
         createdAtUtc: null,
         suspendedAtUtc: null,
         staff: null,

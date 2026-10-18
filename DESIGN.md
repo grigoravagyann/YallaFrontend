@@ -96,7 +96,8 @@ components.
 | `sidebar` / `sidebarActive`     | `#2B1608` / `#4A2817`             | The 232px sidebar and its current item                |
 | `brand` / `brandForeground`     | `#3A1D0C` / `#FFF3E4`             | The primary button, links, the focus outline. 14.10:1 |
 | `ink` / `muted`                 | `#2A1A10` / `#6B5A4F`             | Text, 14.92:1 and 5.84:1 on the canvas                |
-| `line` / `lineSoft` / `control` | `#E8DDD0` / `#F1E9DF` / `#D8C8B6` | Card edges, dividers inside cards, input edges        |
+| `line` / `lineSoft` / `control` | `#E8DDD0` / `#F1E9DF` / `#988169` | Card edges, dividers inside cards, input edges (3:1)  |
+| `buttonEdge`                    | `#D8C8B6`                         | A secondary button's edge: decoration, label says it  |
 | `amber` on `amberBg`            | `#8A4B08` on `#FDF1DE`            | Not ready yet. **Never red**                          |
 | `red` on `redBg`                | `#A8261B` on `#FCEAE7`            | Real failures and destructive buttons only            |
 | `green` on `greenBg`            | `#0F6A4B` on `#E4F2EA`            | Done, active, saved                                   |
@@ -120,11 +121,13 @@ The rules the artboards were reviewed against, and that the screens keep:
 - Every text pair clears AA, and the focus outline 3:1, on every ground it
   sits on; `packages/tokens/src/console.test.ts` holds each one.
 
-**Open question for the user.** An input's edge, `control` `#D8C8B6`, is
-1.63:1 on white. WCAG 1.4.11 asks 3:1 of a boundary that is the only way to see
-a field, and on a white card it is. The approved value is kept as approved and
-not pinned by a test; darkening it (for example to `#9C8670`) is a one-token
-change once decided.
+**Input edges are darker than the artboards (decided 2026-10-18).** The
+artboards drew every input with `#D8C8B6`, which is 1.63:1 on white. On an
+empty field the edge is the only thing that says "type here", and WCAG 1.4.11
+asks 3:1 of it, so `control` is now `#988169` (3.70:1 on white, 3.29:1 on the
+canvas, the same warm hue) and `controlHover` `#85705B`. A secondary button
+keeps the approved soft edge as `buttonEdge`: its label already says what it
+is. `console.test.ts` holds the input edge to 3:1 on every ground it sits on.
 
 ---
 

@@ -199,8 +199,10 @@
   --console-focus: #3A1D0C;
   --console-line: #E8DDD0;
   --console-line-soft: #F1E9DF;
-  --console-control: #D8C8B6;
-  --console-control-hover: #C8B39C;
+  --console-control: #988169;
+  --console-control-hover: #85705B;
+  --console-button-edge: #D8C8B6;
+  --console-button-edge-hover: #C8B39C;
   --console-sidebar: #2B1608;
   --console-sidebar-active: #4A2817;
   --console-sidebar-text: #D9C5B0;
@@ -226,6 +228,8 @@
   --console-grey-bg: #EEE8E1;
   --console-grey-line: #DDD3C8;
   --console-meter-fair: #6E8B3D;
+  --console-step-done: #B07A45;
+  --console-skeleton: #EFE6DB;
   --console-toast: #2A1A10;
   --console-toast-foreground: #FFF3E4;
   --console-toast-icon: #9FD9BD;
@@ -273,6 +277,7 @@
   --console-text-claim-narrow: 19px;
   --console-shadow-dialog: 0 24px 60px rgba(42, 26, 16, 0.3);
   --console-shadow-toast: 0 10px 30px rgba(42, 26, 16, 0.25);
+  --console-shadow-menu: 0 12px 32px rgba(42, 26, 16, 0.14);
   --console-shadow-photo-text: 0 1px 12px rgba(0, 0, 0, 0.5);
 }
 

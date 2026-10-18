@@ -17,11 +17,16 @@ const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** Every file the redesign owns, so a new screen is covered by being put there. */
 function redesignFiles(): string[] {
   const ui = join(SRC, 'console', 'ui');
-  const own = readdirSync(ui)
-    .filter((name) => /\.(css|tsx?)$/u.test(name) && !name.includes('.test.'))
-    .map((name) => join(ui, name));
+  const inFolder = (folder: string) =>
+    readdirSync(folder)
+      .filter((name) => /\.(css|tsx?)$/u.test(name) && !name.includes('.test.'))
+      .map((name) => join(folder, name));
+  const venues = join(SRC, 'console', 'platform', 'venues');
   return [
-    ...own,
+    ...inFolder(ui),
+    // The venues list (redesign phase 2): the route and everything in its folder.
+    ...inFolder(venues),
+    join(SRC, 'console', 'platform', 'VenuesRoute.tsx'),
     join(SRC, 'console', 'platform', 'PlatformLayout.tsx'),
     join(SRC, 'console', 'platform', 'SettingsRoute.tsx'),
     join(SRC, 'auth', 'AuthLayout.tsx'),
@@ -42,6 +47,7 @@ describe('the console redesign', () => {
   it('names no colour outside @yalla/tokens', () => {
     const files = redesignFiles();
     expect(files.some((file) => file.endsWith('.css'))).toBe(true);
+    expect(files.some((file) => file.endsWith('TierDialog.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {

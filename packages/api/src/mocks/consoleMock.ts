@@ -14,6 +14,8 @@ import type {
   Page,
   SubscriptionTier,
   UserRole,
+  VenueBranchTier,
+  VenueReadinessIssue,
   VenueStatus,
   VenueType,
 } from '../contracts/console';
@@ -99,6 +101,7 @@ import { createMockReports } from './reports';
 import { mockRegistry, mockTokenHash, type MockRegistry } from './mockRegistry';
 import { fixtureStaffFor } from './staffFixture';
 import { mockVenues } from './venues';
+import { demoCoverThumbnail, demoVenues } from './consoleDemoVenues';
 
 const URL_TAG = 'mock://yalla/console';
 // ---------------------------------------------------------------------------
@@ -228,6 +231,19 @@ interface VenueRecord {
   suspendedAtUtc: string | null;
   branches: ConsoleBranch[];
   staff: ConsoleStaffMember[];
+  /**
+   * What the venues list shows beside the name for a demo venue
+   * (`consoleDemoVenues.ts`): rating, cuisine, district and the cover. Absent
+   * for the shared fixture and for created venues, whose list columns are
+   * read from the mock's own reviews, listing and public profile instead.
+   */
+  demo?: {
+    readonly rating: number | null;
+    readonly reviewCount: number;
+    readonly cuisine: string;
+    readonly district: string;
+    readonly coverThumbnailUrl: string | null;
+  };
 }
 
 export interface ConsoleMockOptions {
@@ -313,34 +329,64 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   let mockSequence = 0;
   const nextId = (prefix: string) => `${prefix}-${(mockSequence += 1)}`;
 
+  /**
+   * The demo branches' menus, by how many dishes are unfinished
+   * (`consoleDemoVenues.ts`). Every other dish there is complete, so the
+   * count the Paid refusal quotes is exactly the seeded one: Mountain View's
+   * four, and none at Sunset Lounge, which may go Paid.
+   */
+  const demoMenuGaps = new Map<string, number>();
+  /** Demo branches with no opening hours yet. */
+  const demoNoHours = new Set<string>();
+  /**
+   * A branch's own web address, where the console was given one. A branch
+   * named in Armenian slugifies to nothing, so the name cannot stand in for it.
+   */
+  const branchSlugs = new Map<string, string>();
+  const slugOf = (branch: ConsoleBranch) => branchSlugs.get(branch.id) ?? slugify(branch.name);
+
   /** A branch's menu, seeded from the shared fixture on first read. */
   function menuFor(branchId: string): MockCategory[] {
     const existing = menus.get(branchId);
     if (existing) return existing;
 
+    const gaps = demoMenuGaps.get(branchId);
+    let dish = 0;
     const seeded: MockCategory[] = mockBranchMenu(branchId, 'cafe').categories.map(
       (category, categoryIndex) => ({
         id: category.id,
         name: category.name,
         displayOrder: categoryIndex,
-        items: category.items.map((item, itemIndex) => ({
-          id: item.id,
-          categoryId: category.id,
-          name: item.name,
-          description: item.description,
-          priceDram: item.priceDram,
-          ingredients: item.ingredients,
-          allergens: item.allergens,
-          portionSize: item.portionSize,
-          spiceLevel: item.spiceLevel,
-          prepMinutes: item.prepMinutes,
-          // Two seeded items have no photo and one has no allergens, so the
-          // completeness filter and its count are reachable on first load —
-          // which is the state every real venue is in on day one.
-          photoId: itemIndex === 0 && categoryIndex === 0 ? null : item.photo.photoId,
-          isAvailable: item.isAvailable,
-          displayOrder: itemIndex,
-        })),
+        items: category.items.map((item, itemIndex) => {
+          const unfinished = gaps === undefined ? null : dish++ < gaps;
+          return {
+            id: item.id,
+            categoryId: category.id,
+            name: item.name,
+            // A demo menu is finished in every detail but the photo, so its
+            // unfinished count is the seeded one and nothing else.
+            description: item.description || (unfinished === null ? '' : item.name),
+            priceDram: item.priceDram,
+            ingredients: item.ingredients || (unfinished === null ? '' : item.name),
+            allergens: item.allergens || (unfinished === null ? '' : 'None'),
+            portionSize: item.portionSize || (unfinished === null ? '' : '1 portion'),
+            spiceLevel: item.spiceLevel,
+            prepMinutes: item.prepMinutes > 0 || unfinished === null ? item.prepMinutes : 10,
+            // Two seeded items have no photo and one has no allergens, so the
+            // completeness filter and its count are reachable on first load —
+            // which is the state every real venue is in on day one.
+            photoId:
+              unfinished === null
+                ? itemIndex === 0 && categoryIndex === 0
+                  ? null
+                  : item.photo.photoId
+                : unfinished
+                  ? null
+                  : item.photo.photoId,
+            isAvailable: item.isAvailable,
+            displayOrder: itemIndex,
+          };
+        }),
       }),
     );
 
@@ -431,8 +477,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     const seeded: WeeklyHours = WEEK_ORDER.map((day) => ({
       day,
-      blocks:
-        day === 0
+      blocks: demoNoHours.has(branchId)
+        ? []
+        : day === 0
           ? // Sunday shut, so the "closed" row is on screen from the first load
             // rather than being a state somebody has to construct.
             []
@@ -1027,6 +1074,79 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     });
   });
 
+  // The Venues artboard's world, after the shared fixture: see
+  // `consoleDemoVenues.ts` for what each one is there to show.
+  for (const demo of demoVenues) {
+    for (const seed of demo.branches) {
+      demoMenuGaps.set(seed.id, seed.unfinishedDishes);
+      if (!seed.hours) demoNoHours.add(seed.id);
+      branchSlugs.set(seed.id, seed.slug);
+    }
+    venues.set(demo.id, {
+      id: demo.id,
+      name: demo.name,
+      slug: demo.slug,
+      type: demo.type,
+      status: demo.status,
+      createdAtUtc: '2026-07-01T09:00:00Z',
+      suspendedAtUtc: demo.status === 'suspended' ? '2026-10-02T09:00:00Z' : null,
+      branches: demo.branches.map((seed) => ({
+        id: seed.id,
+        venueId: demo.id,
+        name: seed.name,
+        timeZoneId: 'Asia/Yerevan',
+        tableCount: seed.tableCount,
+        subscriptionTier: seed.tier,
+        openTabCount: seed.openTabs,
+      })),
+      staff: [],
+      demo: {
+        rating: demo.rating,
+        reviewCount: demo.reviewCount,
+        cuisine: demo.cuisine,
+        district: demo.branches[0]?.district ?? '',
+        coverThumbnailUrl: demo.cover ? demoCoverThumbnail(demo.name, demo.cover) : null,
+      },
+    });
+  }
+
+  /**
+   * The list's readiness line: the first branch with an unmet line, and its
+   * first one, in the order a venue is onboarded (tables, menu, hours, cover).
+   * Staff, tablets and the policy are on the venue's own checklist, not here.
+   */
+  function readinessIssueOf(record: VenueRecord): VenueReadinessIssue | null {
+    const named = record.branches.length > 1;
+    for (const branch of record.branches) {
+      const issue = (
+        kind: VenueReadinessIssue['kind'],
+        count: number | null = null,
+      ): VenueReadinessIssue => ({ kind, count, branchName: named ? branch.name : null });
+      if (branch.tableCount === 0) return issue('noTables');
+      const items = menuFor(branch.id).flatMap((category) => category.items);
+      if (items.length === 0) return issue('noMenu');
+      const unfinished = items.filter(isIncompleteItem).length;
+      if (unfinished > 0) return issue('incompleteDishes', unfinished);
+      if (!hoursFor(branch.id).some((day) => day.blocks.length > 0)) return issue('noHours');
+      const covered = record.demo
+        ? record.demo.coverThumbnailUrl !== null
+        : profileFor(branch.id).coverPhoto !== null;
+      if (!covered) return issue('noPhoto');
+    }
+    return null;
+  }
+
+  /** Published reviews across the venue's branches, as the list's rating column reads them. */
+  function ratingOf(record: VenueRecord): { rating: number | null; reviewCount: number } {
+    if (record.demo) return { rating: record.demo.rating, reviewCount: record.demo.reviewCount };
+    const ratings = record.branches.flatMap((branch) =>
+      reviewStore.visible(branch.id).map((review) => review.rating),
+    );
+    if (ratings.length === 0) return { rating: null, reviewCount: 0 };
+    const average = ratings.reduce((sum, value) => sum + value, 0) / ratings.length;
+    return { rating: Math.round(average * 10) / 10, reviewCount: ratings.length };
+  }
+
   /** The tier the list column shows: the best one any branch is on. */
   function headlineTier(record: VenueRecord): SubscriptionTier {
     const order: readonly SubscriptionTier[] = ['free', 'paid'];
@@ -1040,6 +1160,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   }
 
   function toRow(record: VenueRecord): ConsoleVenue {
+    const first = record.branches[0];
+    const listing = first ? listingFor(first.id) : null;
+    const cover = first ? profileFor(first.id).coverPhoto : null;
+    const branchTiers: VenueBranchTier[] = record.branches.map((branch) => ({
+      id: branch.id,
+      name: branch.name,
+      subscriptionTier: branch.subscriptionTier,
+    }));
     return {
       id: record.id,
       name: record.name,
@@ -1049,8 +1177,20 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       branchCount: record.branches.length,
       tableCount: record.branches.reduce((sum, branch) => sum + branch.tableCount, 0),
       subscriptionTier: headlineTier(record),
+      paidBranchCount: record.branches.filter((branch) => branch.subscriptionTier === 'paid')
+        .length,
       createdAtUtc: record.createdAtUtc,
       suspendedAtUtc: record.suspendedAtUtc,
+      // The list's newer columns, which the mock always reports.
+      ...ratingOf(record),
+      openTabCount: record.branches.reduce((sum, branch) => sum + (branch.openTabCount ?? 0), 0),
+      readinessIssue: readinessIssueOf(record),
+      coverThumbnailUrl: record.demo
+        ? record.demo.coverThumbnailUrl
+        : (cover?.thumbnailUrl ?? null),
+      branchTiers,
+      cuisine: record.demo ? record.demo.cuisine : (listing?.cuisine ?? null),
+      district: record.demo ? record.demo.district : (listing?.district ?? null),
     };
   }
 
@@ -1330,7 +1470,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     const toManaged = (branch: ConsoleBranch): ManagedBranch => ({
       ...branch,
-      slug: slugify(branch.name),
+      slug: slugOf(branch),
       // The fixture has no inactive branch; the field is on the wire so the
       // screens are exercised against the real shape.
       isActive: true,
@@ -1543,6 +1683,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       sequence += 1;
       const venueId = `v-new-${sequence}`;
       const branchId = `${venueId}-b1`;
+      const branchSlug = command.firstBranch.slug.trim().toLocaleLowerCase();
+      if (branchSlug) branchSlugs.set(branchId, branchSlug);
 
       const record: VenueRecord = {
         id: venueId,
@@ -1591,10 +1733,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // The record keeps no branch slug; the managed view derives one from the
       // name, so the same derivation is the collision the server would refuse.
       const wanted = command.slug.trim().toLocaleLowerCase();
-      if (record.branches.some((branch) => slugify(branch.name) === wanted)) {
+      if (record.branches.some((branch) => slugOf(branch) === wanted)) {
         throw new SlugTakenError({ url: URL_TAG, slug: wanted });
       }
       sequence += 1;
+      branchSlugs.set(`${record.id}-b${sequence}`, wanted);
       record.branches.push({
         id: `${record.id}-b${sequence}`,
         venueId: record.id,
@@ -1666,6 +1809,24 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       }
 
       record.status = 'deleted';
+      return toDetail(record);
+    },
+
+    async restoreVenue({ venueId }) {
+      await wait();
+      if (role !== 'platformAdmin') {
+        throw new ForbiddenError({ url: `${URL_TAG}/platform/venues/${venueId}/restore` });
+      }
+      const record = requireVenue(venueId);
+      // Only a deleted venue comes back; anything else is the conflicting
+      // state the server answers, not a quiet no-op.
+      if (record.status !== 'deleted') {
+        throw conflict(
+          `Venue '${record.name}' has not been deleted, so there is nothing to restore.`,
+        );
+      }
+      // A venue suspended before it was deleted comes back suspended.
+      record.status = record.suspendedAtUtc ? 'suspended' : 'active';
       return toDetail(record);
     },
 

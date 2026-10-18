@@ -15,7 +15,6 @@ import { ErrorState, errorKindFor } from './console/ui/ErrorState';
 import { BranchFloorPlanRoute } from './console/platform/BranchFloorPlanRoute';
 import { BranchPublicPageRoute } from './console/platform/BranchPublicPageRoute';
 import { BranchReviewsRoute } from './console/platform/BranchReviewsRoute';
-import { CreateVenueRoute } from './console/platform/CreateVenueRoute';
 import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
@@ -212,12 +211,13 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
                 </RequireRole>
               }
             />
-            {/* Before `:venueId`, or "new" would be read as an id. */}
+            {/* Before `:venueId`, or "new" would be read as an id. Creating a
+                venue is a dialog on the list now; the old page's address opens it. */}
             <Route
               path="/platform/venues/new"
               element={
                 <RequireRole allow={PLATFORM_ROLES}>
-                  <CreateVenueRoute />
+                  <Navigate to="/platform/venues" replace state={{ create: true }} />
                 </RequireRole>
               }
             />
