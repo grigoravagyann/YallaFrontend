@@ -1,0 +1,69 @@
+import type { AwaitingApproval, PreviousBookingContext } from '../contracts/approvals';
+import type { components } from '../generated/schema';
+import { approvalExpiry, approvalTrigger } from './approvalMapping';
+import { reservationStatus } from './dinerMapping';
+
+/**
+ * The floor tablet's awaiting list, from the wire.
+ *
+ * Its own file because it reads the diner mapper's reservation status, and the
+ * diner mapper reads the approval enums: one file holding both would import
+ * itself in a circle. The route is ahead of `generated/schema.ts` — see
+ * `approvalMapping.ts` — so its row is declared here.
+ */
+
+/**
+ * One row of `GET /api/branches/{branchId}/reservations/awaiting`: the
+ * booking, why and until when it waits, and the table around it. Every
+ * context field is absent when there is none, like every null in this API.
+ */
+export type WireAwaitingApproval =
+  components['schemas']['Yalla.Application.Reservations.AwaitingApproval'];
+
+function blank(value: string | null | undefined): string | null {
+  return value?.trim() ? value.trim() : null;
+}
+
+export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingApproval {
+  const view = wire.reservation;
+  const previous = wire.previousBooking;
+  const previousBooking: PreviousBookingContext | null = previous
+    ? {
+        startUtc: previous.startUtc,
+        partySize: previous.partySize,
+        guestName: previous.guestName,
+        guestPhone: blank(previous.guestPhone),
+        status: reservationStatus(previous.status),
+      }
+    : null;
+
+  return {
+    id: view.id,
+    code: view.code,
+    branchId: view.branchId,
+    guestName: view.guestName,
+    guestPhone: view.guestPhone,
+    partySize: view.partySize,
+    tableId: view.tableId,
+    tableLabel: view.tableLabel,
+    roomName: blank(view.roomName),
+    startUtc: view.startUtc,
+    localDate: view.localDate,
+    localStartTime: view.localStartTime,
+    timeZoneId: view.timeZoneId,
+    note: view.note ?? null,
+    // The row's own fields first; the reservation's when a server sends only those.
+    approvalExpiresAtUtc: approvalExpiry(wire.approvalExpiresAtUtc ?? view.approvalExpiresAtUtc),
+    because: approvalTrigger(wire.trigger ?? view.awaitingApprovalBecause),
+    previousBooking,
+    nextBooking: wire.nextBooking
+      ? { startUtc: wire.nextBooking.startUtc, partySize: wire.nextBooking.partySize }
+      : null,
+    currentSitting: wire.currentSitting
+      ? {
+          sinceUtc: wire.currentSitting.seatedAtUtc,
+          partySize: wire.currentSitting.partySize ?? null,
+        }
+      : null,
+  };
+}

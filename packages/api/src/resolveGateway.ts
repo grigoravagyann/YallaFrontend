@@ -22,6 +22,17 @@ export interface ResolveGatewayOptions {
    * without a second device. Mock only; ignored against a real backend.
    */
   readonly simulateTableTaken?: boolean | undefined;
+  /**
+   * Mock only: the floor's answer window for a short-notice booking, shorter
+   * than fifteen minutes so its expiry can be walked without the wait.
+   */
+  readonly mockApprovalWindowMs?: number | undefined;
+  /**
+   * Mock only: the floor approves the first short-notice request this long
+   * after it is made, and lets later ones run out — both endings in one
+   * session. See `MockGatewayOptions.simulateVenueApprovalAfterMs`.
+   */
+  readonly mockVenueApprovesAfterMs?: number | undefined;
   /** This install's device id, for opening and joining tabs. Real only. */
   readonly deviceId?: (() => Promise<string>) | undefined;
   /** Mock only: keep the world across a reload (QA F2). */
@@ -49,6 +60,8 @@ export function resolveGateway(options: ResolveGatewayOptions): YallaGateway {
       // There is no bot in mock mode; the challenge confirms itself after a
       // couple of polls so the Telegram screen can be walked end to end.
       simulateTelegramConfirm: true,
+      approvalWindowMs: options.mockApprovalWindowMs,
+      simulateVenueApprovalAfterMs: options.mockVenueApprovesAfterMs,
     };
     if (options.persist) {
       return persistMockGateway<YallaGateway>({

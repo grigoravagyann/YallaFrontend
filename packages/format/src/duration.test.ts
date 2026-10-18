@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, formatRelativeMinutes, minutesBetween } from './duration';
+import { formatCountdown, formatDuration, formatRelativeMinutes, minutesBetween } from './duration';
 import { LOCALES } from './locale';
 
 describe('formatDuration', () => {
@@ -89,5 +89,26 @@ describe('minutesBetween', () => {
     const booked = '2026-09-04T19:00:00Z';
     const now = '2026-09-04T19:06:00Z';
     expect(formatRelativeMinutes(-minutesBetween(booked, now), 'en')).toBe('6 min ago');
+  });
+});
+
+describe('formatCountdown', () => {
+  it('writes minutes and seconds, both two digits', () => {
+    expect(formatCountdown(14 * 60 + 5)).toBe('14:05');
+    expect(formatCountdown(59)).toBe('00:59');
+  });
+
+  it('rounds a part-second up, so the last second still reads 00:01', () => {
+    expect(formatCountdown(0.2)).toBe('00:01');
+    expect(formatCountdown(61.4)).toBe('01:02');
+  });
+
+  it('stops at zero rather than counting into negatives', () => {
+    expect(formatCountdown(0)).toBe('00:00');
+    expect(formatCountdown(-30)).toBe('00:00');
+  });
+
+  it('keeps counting minutes past an hour rather than wrapping', () => {
+    expect(formatCountdown(75 * 60)).toBe('75:00');
   });
 });

@@ -14,6 +14,7 @@ import type {
 import type { BranchSummary, VenueSummary, VenueType } from '../contracts/booking';
 import type { components } from '../generated/schema';
 import { openStateFrom } from '../contracts/openState';
+import { approvalExpiry, declineReason, type WireApprovalFields } from './approvalMapping';
 import { absolutePhotoUrl } from './photoUrl';
 import { venueTypeFromCode } from './venueTypeMapping';
 
@@ -21,7 +22,13 @@ type Schemas = components['schemas'];
 export type WirePublicBranch = Schemas['Yalla.Application.Public.PublicBranchPage'];
 export type WirePublicVenueCard = Schemas['Yalla.Application.Public.PublicVenueCard'];
 export type WirePublicBranchMeta = Schemas['Yalla.Application.Public.PublicBranchMeta'];
-export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingView'];
+/**
+ * The booking behind a manage link — with the approval window and the decline
+ * reason, which the booking-approval backend adds and the generated schema does
+ * not have yet (see `approvalMapping.ts`).
+ */
+export type WirePublicBooking = Schemas['Yalla.Application.Public.PublicBookingView'] &
+  WireApprovalFields;
 
 /**
  * The public wire shapes to the public page's contract types.
@@ -452,6 +459,9 @@ export function managedBookingFromWire(
     // No turn time on this route — see the note on the contract field.
     endsAtUtc: null,
     freeCancellationUntilUtc: wire.cancellationDeadlineUtc ?? '',
+    // While it waits for the venue, and only then.
+    approvalExpiresAtUtc: wire.status === 1 ? approvalExpiry(wire.approvalExpiresAtUtc) : null,
+    declinedBecause: declineReason(wire.declinedBecause),
 
     /*
      * Server-decided, and taken as sent. Lateness must not turn this false:

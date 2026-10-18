@@ -1,5 +1,6 @@
 import {
   BookingNotChangeableError,
+  ConcurrencyConflictError,
   BookingsNotAcceptedError,
   MAX_BOOKING_NOTE,
   ValidationError,
@@ -37,6 +38,25 @@ describe('bookingRefusal', () => {
     });
 
     expect(bookingRefusal(error)).toEqual({ key: 'book.changeError.notChangeable', params: {} });
+  });
+
+  it('says a change of a request whose answer window has closed is too late', () => {
+    const error = new ConcurrencyConflictError({
+      url: '/api/reservations/r1/reschedule',
+      problem: {
+        type: 'about:blank',
+        title: 'Too late to answer this booking',
+        status: 409,
+        detail: 'The answer window for LM7Q closed at 18:15.',
+        code: 'reservation-approval-expired',
+        traceId: 't',
+      },
+    });
+
+    expect(bookingRefusal(error)).toEqual({
+      key: 'book.changeError.approvalExpired',
+      params: {},
+    });
   });
 
   it('leaves every other failure to bookingFailure', () => {

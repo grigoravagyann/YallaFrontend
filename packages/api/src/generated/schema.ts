@@ -1070,9 +1070,33 @@ export interface paths {
          *
          *     Sorted by the branch's local date, then local start time. **No paging: at most 200 rows**, the earliest first, so what a cap would cut is what is furthest away.
          *
-         *     Scoped like approve and reject: a manager whose record names a home branch lists that branch only; a manager or owner whose record names none, any branch of their venue; a platform admin, any branch. `awaitingApprovalBecause` is worked out against the branch's current policy.
+         *     Manager or above: a branch manager lists their own branch only; an owner or general manager, any branch of their venue; a platform admin, any branch. (Approving and rejecting are open to the branch's waiters too; the floor's own list is `/reservations/awaiting`.) `awaitingApprovalBecause` is the reason stored when the booking went to approval - worked out against the branch's current policy only for a booking from before that was stored - and `approvalExpiresAtUtc` the short-notice deadline to count down to.
          */
         get: operations["listBranchReservations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/reservations/awaiting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The bookings waiting for the floor's yes or no, with each table's evening
+         * @description What the staff tablet's *awaiting approval* panel polls (every ten seconds or so) before calling `approve` or `reject`. The branch's bookings in `PendingApproval` that can still be answered - not past `approvalExpiresAtUtc`, not started - **soonest deadline first**, then those with no deadline by start. At most 200; no paging.
+         *
+         *     Each item: `reservation` (the `ReservationView` - code, start, party, table, room, guest name, and `guestPhone` for calling), `approvalExpiresAtUtc` (count down to it; null for a booking that waits as long as it takes), `trigger` (the `ApprovalTrigger`, 4 ShortNotice), and the table's context that day: `previousBooking` (`reservationId`, `startUtc`, `localStartTime`, `partySize`, `guestName`, `guestPhone`, `status` - the booking before it, cancelled ones skipped), `nextBooking` (`reservationId`, `startUtc`, `localStartTime`, `partySize`) and `currentSitting` (`seatedAtUtc`, `partySize` - absent when a diner's scan opened the table and only guessed). Each is absent when there is none, like every null in this API.
+         *
+         *     One query however many are waiting. A waiter or above at this branch; an owner or general manager at any branch of their venue. A platform admin reads the list with every guest number blank (`guestPhone` empty, `previousBooking.guestPhone` absent).
+         */
+        get: operations["listAwaitingApproval"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2272,7 +2296,9 @@ export interface paths {
         put?: never;
         /**
          * Book a table
-         * @description Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` when the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.
+         * @description Idempotent on `clientCommandId`: a retry returns the original booking and creates nothing, answering 200 rather than 201. Lands as `Confirmed`, or `PendingApproval` (`awaitingApprovalBecause` says why) when the booking is at **short notice** - for the branch's today, or starting under six hours from now - the branch approves every booking, the party is over the branch's threshold, or the diner is over the rolling no-show threshold.
+         *
+         *     A short-notice booking (`awaitingApprovalBecause` 4) is the floor's to decide, by `approvalExpiresAtUtc` - fifteen minutes from now, or the start if sooner. Unanswered by then it is declined (`CancelledByVenue`, `declinedBecause` 2 NoAnswer) and the diner gets a `reservation-decided` push with `expired` true. Count down to `approvalExpiresAtUtc`; read the booking again to see the answer.
          */
         post: operations["createReservation"];
         delete?: never;
@@ -2292,7 +2318,9 @@ export interface paths {
         put?: never;
         /**
          * Accept a booking that is waiting for approval
-         * @description Scoped to the acting staff member's own branch and venue. A manager of one venue cannot decide another's bookings by guessing an id.
+         * @description A waiter or above at the booking's own branch - an owner or general manager at any branch of their venue, a platform admin anywhere. Staff of one branch cannot decide another's bookings by guessing an id.
+         *
+         *     A short-notice booking (`awaitingApprovalBecause` 4) can be approved until `approvalExpiresAtUtc`, and no booking once it has started. The caller's **stored** role counts, not only the token's: a waiter moved to the kitchen is refused at once. A platform admin gets the booking back with `guestPhone` empty.
          */
         post: operations["approveReservation"];
         delete?: never;
@@ -2382,7 +2410,9 @@ export interface paths {
         put?: never;
         /**
          * Decline a booking that is waiting for approval
-         * @description Refuses a booking that was already confirmed: the diner has been told it is theirs.
+         * @description Scoped as `approve`. Refuses a booking that was already confirmed: the diner has been told it is theirs. `reason` is optional and recorded as `cancellationReason`; the booking answers `declinedBecause` 1 (StaffDeclined). A short-notice booking can be declined until `approvalExpiresAtUtc` - after that it is declined for nobody answering, and the diner is told that instead.
+         *
+         *     **A change of a confirmed booking** is declined as a change: when the slot it had is still free the answer is the booking back there - `Confirmed`, its old `startUtc`, `tableId` and `partySize` - and the diner is told it stands (`reservation-decided` with `wasChange` and `originalKept` "true"); when that slot has gone too it is declined as above, with `originalKept` "false". A platform admin gets `guestPhone` empty.
          */
         post: operations["rejectReservation"];
         delete?: never;
@@ -2437,7 +2467,7 @@ export interface paths {
          *
          *     **Judged as a new booking would be**, with the same `reservation-*` 422s: the branch open for business and still taking bookings from the channel the booking came from, lead time and booking window, opening hours, the table pinned on its room and fitting the party. The clash check runs under the target table's lock **excluding this booking**, so moving dinner by half an hour on the same table is never refused because of itself - and the 409's fresh floor shows the diner's own table free.
          *
-         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history.
+         *     **The status is decided again** by the create rules: the move can keep it `Confirmed`, confirm a pending one, or send it back to `PendingApproval` (`awaitingApprovalBecause` says why). A `Confirmed` booking that keeps its **table and start** and does not grow stays `Confirmed`, today included - nothing about it got harder to keep. Otherwise a move into the short-notice window (today, or under six hours away) goes to `PendingApproval` with a fifteen-minute `approvalExpiresAtUtc` - and keeps the slot it had: if the change is declined, or nobody answers it, the booking goes back to that slot, `Confirmed` as before, when it is still free. A booking **already waiting** on a short-notice answer keeps its deadline through a move (never past the new start); past the deadline it cannot be moved at all - `409 reservation-approval-expired`. A `Confirmed` booking whose party does not grow keeps its confirmation against the party-size threshold - the venue already said yes to that many people - but not against a branch that approves every booking or the diner's no-show history.
          *
          *     The reminder and late nudge are replaced with ones for the new time. Idempotent on `clientCommandId`: a retry of the same change answers `200` with the booking **as it stands now** and `wasReplay: true`, moving nothing; the same id on another command, or on a different change (another table, start or party size), is `409 client-command-id-in-use` - mint a fresh id per change.
          */
@@ -6594,6 +6624,12 @@ export interface components {
         };
         /** @description One booking as its manage link shows it, to somebody holding nothing but the link. */
         "Yalla.Application.Public.PublicBookingView": {
+            /**
+             * Format: date-time
+             * @description For a booking waiting on a short-notice decision, when the venue's chance to answer runs out - the
+             *     page counts down to it and reads the link again until the booking is decided. Null otherwise.
+             */
+            approvalExpiresAtUtc?: string | null;
             /** @description Where to go. */
             branchAddress: string;
             /** @description Which location. */
@@ -6614,6 +6650,11 @@ export interface components {
             cancelledAfterDeadline: boolean;
             /** @description The short code quoted at the door. */
             code: string;
+            /**
+             * @description Why a booking that was waiting was declined - the venue said no, or nobody answered in time - so
+             *     the page can apologise for the right thing. Null for a booking that was not declined.
+             */
+            declinedBecause?: components["schemas"]["Yalla.Domain.Enums.DeclineReason"] | null;
             /**
              * Format: date
              * @description The booked date, as the diner reads it off the confirmation.
@@ -7426,13 +7467,99 @@ export interface components {
             sessions: number;
         };
         /**
-         * Format: int32
-         * @description Why a booking needs a human before it is promised.
-         *
-         *     Values: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory.
-         * @enum {integer}
+         * @description One booking waiting for the floor to say yes or no, with what the floor needs to know about its
+         *     table to decide.
          */
-        "Yalla.Application.Reservations.ApprovalTrigger": 1 | 2 | 3;
+        "Yalla.Application.Reservations.AwaitingApproval": {
+            /**
+             * Format: date-time
+             * @description When the chance to answer runs out - null for a booking with no deadline, which waits for
+             *     the venue as long as it takes (a large party next week, a branch that approves every booking).
+             */
+            approvalExpiresAtUtc?: string | null;
+            /** @description The party sitting at the table right now, or null when nobody is. */
+            currentSitting?: components["schemas"]["Yalla.Application.Reservations.AwaitingCurrentSitting"] | null;
+            /** @description The next booking after this one on the same table that day, or null when there is none. */
+            nextBooking?: components["schemas"]["Yalla.Application.Reservations.AwaitingNextBooking"] | null;
+            /**
+             * @description The booking before this one on the same table that day - still to come, sitting there, gone
+             *     home or never turned up - or null when there is none. Cancelled bookings are not counted.
+             */
+            previousBooking?: components["schemas"]["Yalla.Application.Reservations.AwaitingPreviousBooking"] | null;
+            /** @description The booking, as every client sees it - code, start, party, table, room, guest. */
+            reservation: components["schemas"]["Yalla.Application.Reservations.ReservationView"];
+            /** @description Why a booking needs a human before it is promised. */
+            trigger: components["schemas"]["Yalla.Domain.Enums.ApprovalTrigger"];
+        };
+        /** @description The party at the table of a booking awaiting approval, right now. */
+        "Yalla.Application.Reservations.AwaitingCurrentSitting": {
+            /**
+             * Format: int32
+             * @description How many, when a waiter seated them or they came on a booking; null when a diner's scan opened the
+             *     table, which only guesses.
+             */
+            partySize?: number | null;
+            /**
+             * Format: date-time
+             * @description Since when they have been sitting there.
+             */
+            seatedAtUtc: string;
+        };
+        /** @description The booking after one awaiting approval, on its table, that day. */
+        "Yalla.Application.Reservations.AwaitingNextBooking": {
+            /**
+             * Format: time
+             * @description When it starts, on the branch's wall clock.
+             */
+            localStartTime: string;
+            /**
+             * Format: int32
+             * @description How many it is for.
+             */
+            partySize: number;
+            /**
+             * Format: uuid
+             * @description The later booking.
+             */
+            reservationId: string;
+            /**
+             * Format: date-time
+             * @description When it starts.
+             */
+            startUtc: string;
+        };
+        /** @description The booking before one awaiting approval, on its table, that day. */
+        "Yalla.Application.Reservations.AwaitingPreviousBooking": {
+            /** @description Who it is for. */
+            guestName: string;
+            /**
+             * @description Their number, E.164, so the floor can call and ask how long they will be. Null for a platform
+             *     admin reading the list.
+             */
+            guestPhone?: string | null;
+            /**
+             * Format: time
+             * @description When it starts, on the branch's wall clock.
+             */
+            localStartTime: string;
+            /**
+             * Format: int32
+             * @description How many it is for.
+             */
+            partySize: number;
+            /**
+             * Format: uuid
+             * @description The earlier booking.
+             */
+            reservationId: string;
+            /**
+             * Format: date-time
+             * @description When it starts.
+             */
+            startUtc: string;
+            /** @description Lifecycle of a booking. Every member is the result of somebody doing something. */
+            status: components["schemas"]["Yalla.Domain.Enums.ReservationStatus"];
+        };
         /** @description Every table in a branch, answered for one requested slot, in one round trip. */
         "Yalla.Application.Reservations.BranchAvailability": {
             /**
@@ -7540,9 +7667,11 @@ export interface components {
              */
             isAvailable: boolean;
             /**
-             * @description True when a booking made at this time will land waiting for approval: the branch approves
-             *     every booking by hand, or the party is over its threshold. The same answer every table in
-             *     the single-slot read gives.
+             * @description True when a booking made at this time will land waiting for approval: the time is at short
+             *     notice (today at the branch, or under six hours away - the floor decides, within fifteen
+             *     minutes), the branch approves every booking by hand, or the party is over its threshold. Asked
+             *     per time, so on tomorrow's picker the first few hours can say yes and the evening no. The same
+             *     answer every table in the single-slot read gives.
              */
             requiresApproval: boolean;
             /**
@@ -7632,8 +7761,14 @@ export interface components {
         };
         /** @description One booking as every client sees it. */
         "Yalla.Application.Reservations.ReservationView": {
+            /**
+             * Format: date-time
+             * @description When the venue's chance to answer runs out, for a booking waiting on a short-notice decision;
+             *     null for every other booking, and once it is decided.
+             */
+            approvalExpiresAtUtc?: string | null;
             /** @description Why the booking is waiting for a human, when it is. Null for a confirmed booking. */
-            awaitingApprovalBecause?: components["schemas"]["Yalla.Application.Reservations.ApprovalTrigger"] | null;
+            awaitingApprovalBecause?: components["schemas"]["Yalla.Domain.Enums.ApprovalTrigger"] | null;
             /** Format: uuid */
             branchId: string;
             branchName: string;
@@ -7659,6 +7794,12 @@ export interface components {
             code: string;
             /** Format: date-time */
             confirmedAtUtc?: string | null;
+            /**
+             * @description Why a booking that was waiting for the venue was declined: a member of staff said no, or
+             *     nobody answered in time. Null for every booking that was not declined - a venue letting an
+             *     accepted booking go is `CancelledByVenue` without one.
+             */
+            declinedBecause?: components["schemas"]["Yalla.Domain.Enums.DeclineReason"] | null;
             /**
              * Format: date-time
              * @description Start plus the branch's turn time, fixed when the booking was made.
@@ -7739,8 +7880,9 @@ export interface components {
             physicalStatus: components["schemas"]["Yalla.Domain.Enums.TableStatus"];
             /**
              * @description True when booking this table will land as `PendingApproval` rather than confirmed: the
-             *     branch approves every booking by hand, or the party is over its threshold. Not a refusal,
-             *     and worth saying before the diner commits.
+             *     slot is at short notice (today at the branch, or under six hours away - the floor decides,
+             *     within fifteen minutes), the branch approves every booking by hand, or the party is over its
+             *     threshold. Not a refusal, and worth saying before the diner commits.
              */
             requiresApproval: boolean;
             /** Format: int32 */
@@ -8489,6 +8631,14 @@ export interface components {
         "Yalla.Domain.Enums.AdjustmentKind": 1 | 2;
         /**
          * Format: int32
+         * @description Why a booking needs a human before it is promised.
+         *
+         *     Values: 1 BranchApprovesEveryBooking, 2 LargeParty, 3 NoShowHistory, 4 ShortNotice.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.ApprovalTrigger": 1 | 2 | 3 | 4;
+        /**
+         * Format: int32
          * @description How much of the tab a request for the bill is about. Only a Yalla.Domain.Enums.ServiceRequestPreset.TheBill
          *     request carries one.
          *
@@ -8496,6 +8646,14 @@ export interface components {
          * @enum {integer}
          */
         "Yalla.Domain.Enums.BillScope": 1 | 2;
+        /**
+         * Format: int32
+         * @description Why a booking that was waiting for the venue was declined.
+         *
+         *     Values: 1 StaffDeclined, 2 NoAnswer.
+         * @enum {integer}
+         */
+        "Yalla.Domain.Enums.DeclineReason": 1 | 2;
         /**
          * Format: int32
          * @description What a client should draw for a table: its physical Yalla.Domain.Enums.TableStatus with the
@@ -12729,6 +12887,73 @@ export interface operations {
             };
             /** @description `status` is missing or is not a booking status. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listAwaitingApproval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reservations.AwaitingApproval"][];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not a waiter or above at this branch - a cook, a diner, another branch's staff. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -17918,7 +18143,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Not a manager of this booking's branch. */
+            /** @description Not a waiter or above at this booking's branch. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -17936,7 +18161,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The booking is not in a state that permits this - cancelling one that is already seated, or approving one that was never pending. */
+            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -18274,7 +18499,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description Not a manager of this booking's branch. */
+            /** @description Not a waiter or above at this booking's branch. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -18292,7 +18517,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The booking is not in a state that permits this - cancelling one that is already seated, or approving one that was never pending. */
+            /** @description `reservation-approval-expired`: too late to answer - the short-notice answer window (`approvalExpiresAtUtc`) has closed, or the booking was already declined because nobody answered in time (`declinedBecause` 2); approving also once the booking has started. `context` carries `reservationId`, `status`, `startUtc` and `approvalExpiresAtUtc`. Drop the request from the panel: the diner is told the venue did not answer in time. `conflicting-state`: the booking is not waiting for approval. */
             409: {
                 headers: {
                     [name: string]: unknown;

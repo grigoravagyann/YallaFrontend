@@ -245,6 +245,32 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `panel.orders.awaitingWaiter`. Removed: `connection.notWired`,
   `connection.notWiredHint`, `order.tabWillOpen` — each promised something the
   screen could not do.
+- Short-notice bookings waiting for the floor (2026-10-18), provisional and
+  **not** reviewed. `staff` `approvals.*` — the floor tablet's requests panel:
+  the header count, the countdown (`leftLabel`, `answerWithin`), the context
+  lines (`before_*`, `sittingNow*`, `next_*`, written so the time stands alone:
+  hy "սկսած {{time}}", never a suffix glued onto it), Call, Approve / Decline
+  and the optional reason, the notices, `tooLate` and the screen-reader line
+  `arrived_*`; and (review round) `previousStatus.*` — the word after the
+  earlier booking on the "Before" line, lower case, read after the guest's
+  name ("seated now", "finished", "didn't come") — `doneApproved`,
+  `doneDeclined` and `answeredElsewhere`, which must say **someone else**
+  answered, never that the tap failed. `admin` `approvals.because.shortNotice`, `leftToAnswer`,
+  `timeUp`, `tooLate`, and `approvals.body` reworded to say short-notice
+  bookings land here too. `diner` `booking.approval.*` (`waiting` must keep the
+  time as a countdown, "answer within 12:41"), `booking.declined.*` — the
+  `noAnswer` pair must **apologise** (the venue failed to answer, not the diner),
+  the `byVenue` pair must not blame the diner — `bookings.status.declined`
+  ("Not confirmed", never "cancelled": it was never confirmed) and
+  `notifications.kind.bookingExpired.*`, the feed's apology for the same.
+  Added with the declined-change rules (2026-10-18), **not** reviewed:
+  `notifications.kind.bookingChangeKept*.*` — a change the venue did not
+  confirm, the booking **standing at its old time** ({{time}}); the `Expired`
+  pair apologises — and `bookingChangeEnded*.*`, the same change when the old
+  time had gone too and the booking **ended**; `book.changeError.approvalExpired`
+  ("too late to change"), which must not read as a table rule. hy writes the
+  requested time in brackets ("(ժամը {{requestedTime}})") rather than gluing a
+  suffix onto it.
 - `diner` — the host's join banner (2026-10-18), provisional and **not**
   reviewed: `tab.joinRequest.*`, the card at the top of the host's bill when
   somebody scanned the table and waits to be let on. `one` keeps the name

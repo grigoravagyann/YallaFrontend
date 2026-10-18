@@ -6,6 +6,7 @@ import {
 } from '@yalla/api';
 import type { UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
+import type { ReactNode } from 'react';
 import { billRequestText } from './billRequestText';
 import { useBranchFormat } from './useBranchFormat';
 
@@ -39,6 +40,12 @@ export interface OrderQueuePanelProps {
   readonly loading: boolean;
   /** The queue could not be read at all — offline, or the branch is unreachable. */
   readonly failed: boolean;
+  /**
+   * What goes above the orders, in the same column: the floor puts the
+   * bookings waiting for its answer there, the first thing a waiter's eye
+   * lands on in the panel. Nothing on the kitchen's screen.
+   */
+  readonly lead?: ReactNode | undefined;
 }
 
 /** Minutes at which an order stops being fresh, and then stops being acceptable. */
@@ -82,6 +89,8 @@ export function OrderQueuePanel(props: OrderQueuePanelProps) {
 
   return (
     <aside className="floor-panel" aria-label={t('panel.orders.title')}>
+      {props.lead}
+
       <section className="queue-block">
         <h2>{t('panel.orders.title')}</h2>
 

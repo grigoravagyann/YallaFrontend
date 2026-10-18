@@ -1098,7 +1098,7 @@
   },
   "approvals": {
     "title": "Awaiting approval",
-    "body": "Bookings the policy stopped. Nothing is promised to the diner until somebody here decides.",
+    "body": "Bookings the policy stopped, and app bookings at short notice, which the floor has 15 minutes to answer. Nothing is promised to the diner until somebody decides.",
     "empty": "Nothing is waiting.",
     "count_one": "{{count}} waiting",
     "count_other": "{{count}} waiting",
@@ -1109,8 +1109,11 @@
       "largeParty": "Large party",
       "branchApprovesEveryBooking": "Every booking is approved here",
       "noShowHistory": "No-show history",
+      "shortNotice": "Short notice",
       "unknown": "Needs a decision"
     },
+    "leftToAnswer": "{{time}} left to answer",
+    "timeUp": "Time is up. The diner is being told the venue could not confirm.",
     "approve": "Approve",
     "decline": "Decline",
     "reasonLabel": "Reason (optional)",
@@ -1118,6 +1121,8 @@
     "confirmDecline": "Decline the booking",
     "keep": "Keep it",
     "failed": "Could not record the decision. Try again.",
+    "tooLate": "Too late: the time to answer ran out, and the diner has been told the venue could not confirm.",
+    "answeredElsewhere": "Already answered by someone else.",
     "offline": "You are offline. The decision was not sent."
   },
   "onboarding": {

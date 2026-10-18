@@ -389,7 +389,14 @@ describe('changing a booking', () => {
 
   it('refuses a cancelled booking and one that has started, and nothing it does not know', async () => {
     const time = clock();
-    const gateway = world(time);
+    // Today's booking is short notice; this is about one the floor confirmed.
+    const gateway = createMockGateway({
+      latencyMs: 0,
+      simulateJoiners: false,
+      now: time.now,
+      codeSeed: 7,
+      floorApprovesAtOnce: true,
+    });
     const cancelled = await book(gateway, at(TOMORROW, '18:00'));
     await gateway.cancelBooking(cancelled.id);
     const started = await book(gateway, at(TODAY, '14:00'));
@@ -434,7 +441,14 @@ describe('changing a booking', () => {
 
   it('moves the reminder with the booking', async () => {
     const time = clock();
-    const gateway = world(time);
+    // A reminder is for a confirmed booking; today's wait for the floor first.
+    const gateway = createMockGateway({
+      latencyMs: 0,
+      simulateJoiners: false,
+      now: time.now,
+      codeSeed: 7,
+      floorApprovesAtOnce: true,
+    });
     await gateway.loginDiner({
       identifier: SEEDED_ACCOUNT.username,
       password: SEEDED_ACCOUNT.password,

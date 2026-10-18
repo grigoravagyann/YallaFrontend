@@ -83,6 +83,13 @@ function publicRuntime(): PublicRuntime {
     mockLatencyMs: 200,
     // No mock journal here, unlike the console's gateways: this page keeps
     // nothing past the tab, mock data source included (productionBundle.test).
+    // Mock only: a shorter answer window for a short-notice booking, and a
+    // floor that approves the first one — see the diner app's flags of the
+    // same names.
+    mockApprovalWindowMs: mockSeconds(import.meta.env['VITE_MOCK_APPROVAL_WINDOW_SECONDS']),
+    mockVenueApprovesAfterMs: mockSeconds(
+      import.meta.env['VITE_MOCK_VENUE_APPROVES_AFTER_SECONDS'],
+    ),
   });
 
   /** The unauthenticated half: slug resolution, the published profile, the manage link. */
@@ -117,4 +124,10 @@ export function publicGateway(): PublicGateway {
 /** Where the diner app can be installed, or `null` when it is not published. */
 export function appUrl(): string | null {
   return publicRuntime().appUrl;
+}
+
+/** A whole number of seconds from a mock flag, in milliseconds, or nothing. */
+function mockSeconds(value: string | undefined): number | undefined {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : undefined;
 }

@@ -1,4 +1,6 @@
 import {
+  APPROVAL_POLL_MS,
+  awaitsVenueAnswer,
   staleTime,
   type Booking,
   type CreateBookingCommand,
@@ -64,6 +66,11 @@ export function useBookings(enabled = true) {
     queryFn: () => gateway.listBookings(),
     staleTime: staleTime.frequent,
     enabled,
+    // While a short-notice request waits for the floor, read again until it is
+    // answered. The push says so first when it can; a phone that never gave
+    // permission, and the web build, only hear it this way.
+    refetchInterval: (query) =>
+      query.state.data?.upcoming.some(awaitsVenueAnswer) ? APPROVAL_POLL_MS : false,
   });
 }
 
@@ -93,6 +100,12 @@ export function useBooking(bookingId: string | undefined) {
     queryFn: () => gateway.getBooking(bookingId!),
     enabled: Boolean(bookingId),
     staleTime: staleTime.frequent,
+    // The success screen and the detail count down the venue's answer; this is
+    // how the answer reaches them when no push does. Only while it waits.
+    refetchInterval: (query) => {
+      const booking = query.state.data;
+      return booking && awaitsVenueAnswer(booking) ? APPROVAL_POLL_MS : false;
+    },
   });
 }
 

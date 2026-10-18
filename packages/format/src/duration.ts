@@ -115,3 +115,20 @@ export function minutesBetween(
   const to = later instanceof Date ? later : new Date(later);
   return Math.trunc((to.getTime() - from.getTime()) / 60_000);
 }
+
+/**
+ * A countdown as `mm:ss` — "14:05" — from a number of seconds.
+ *
+ * Digits and a colon in every language: a clock face reads the same in
+ * Armenian, Russian and English, and nothing here needs `Intl` (which Hermes
+ * only has through polyfills). A part-second rounds **up**, so the last second
+ * still shows `00:01` rather than a premature `00:00`, and nothing counts into
+ * negatives. Minutes keep counting past an hour instead of wrapping: an answer
+ * window is minutes long, and "75:00" is honest where "15:00" would be a lie.
+ */
+export function formatCountdown(seconds: number): string {
+  const whole = Number.isFinite(seconds) ? Math.max(0, Math.ceil(seconds)) : 0;
+  const minutes = Math.floor(whole / 60);
+  const rest = whole % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+}

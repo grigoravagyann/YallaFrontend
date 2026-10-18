@@ -3,6 +3,7 @@ import { isOfflinePaused } from '@yalla/api/react';
 import { intlTag } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
@@ -24,7 +25,7 @@ import { Screen } from '../src/components/Screen';
 import { Skeleton } from '../src/components/Skeleton';
 import { Text } from '../src/components/Text';
 import { useMarkNotificationsRead, useNotificationFeed } from '../src/data/notificationQueries';
-import { notificationCopy, notificationRoute } from '../src/data/notifications';
+import { bookingKeysForRow, notificationCopy, notificationRoute } from '../src/data/notifications';
 import { useNow } from '../src/hooks/useNow';
 import { useSession } from '../src/stores/session';
 import {
@@ -111,6 +112,7 @@ const DAY_TITLE: Readonly<Record<Day, string>> = {
 export default function NotificationsScreen() {
   const { t } = useTranslation('diner');
   const router = useRouter();
+  const queryClient = useQueryClient();
   const signedIn = useSession((state) => state.signedIn);
   const feed = useNotificationFeed();
   const markRead = useMarkNotificationsRead();
@@ -134,6 +136,11 @@ export default function NotificationsScreen() {
 
   const openRow = (notification: DinerNotification) => {
     if (!notification.read) markRead.mutate({ ids: [notification.notificationId] });
+    // The booking a row is about is read again on the way in: the row may
+    // know what the cached copy does not (a declined change put it back).
+    for (const queryKey of bookingKeysForRow(notification)) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
     const route = notificationRoute(notification);
     if (route) router.push(route);
   };

@@ -1,4 +1,5 @@
 import { branchDayKey, formatDate, formatTime, type Locale, type TimeZone } from '@yalla/format';
+import { approvalCountdown, type DeclineReason } from './approvals';
 import { isKnownUnavailableReason } from './booking';
 import type { AvailabilityWindowDto, TableAvailability, TableUnavailableReason } from './booking';
 import {
@@ -180,7 +181,54 @@ export function freeCancellationCopy(
   });
 }
 
-/** The "a party this size needs the venue to confirm" line, or nothing. */
+/** The slice of a booking the venue's answer is read from: the app's and the manage link's. */
+export interface VenueAnswerState {
+  readonly status: string;
+  readonly approvalExpiresAtUtc: string | null | undefined;
+  readonly declinedBecause: DeclineReason | null | undefined;
+}
+
+/**
+ * What a booking says about the venue's answer, or nothing.
+ *
+ * Waiting with a clock: "Waiting for the venue · answer within 12:41", and once
+ * this device's clock reaches the end, only that it is waiting — the server
+ * declines at its own instant and the next read says so. Declined: which way,
+ * because "the venue said no" and "nobody answered in time" are different
+ * sentences, and the second one apologises. A booking that waits with no clock
+ * (a large party) has nothing to add to the pending title it already shows.
+ */
+export function venueAnswerCopy(booking: VenueAnswerState, now: Date): CopyLine | null {
+  if (booking.status === 'pendingApproval') {
+    const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now);
+    if (!countdown) return null;
+    return countdown.expired
+      ? line('booking.approval.checking')
+      : line('booking.approval.waiting', { time: countdown.label });
+  }
+  return declinedCopy(booking.declinedBecause, 'body');
+}
+
+/**
+ * The title or the sentence for a booking the venue declined, by why. `null`
+ * for one it did not decline — a cancellation after confirming is not this.
+ */
+export function declinedCopy(
+  reason: DeclineReason | null | undefined,
+  part: 'title' | 'body',
+): CopyLine | null {
+  // Absent as well as null: a booking kept from before the field existed.
+  if (!reason) return null;
+  const which = reason === 'noAnswer' ? 'noAnswer' : 'byVenue';
+  return line(part === 'title' ? `booking.declined.${which}Title` : `booking.declined.${which}`);
+}
+
+/**
+ * The "the venue confirms this booking first" line, or nothing. Said for every
+ * reason the server gives — a large party, a branch that approves by hand, and
+ * a slot at short notice, which the floor answers within fifteen minutes — so
+ * the sentence names none of them.
+ */
 export function approvalCopy(requiresApproval: boolean): CopyLine | null {
   return requiresApproval ? line('table.needsApproval') : null;
 }

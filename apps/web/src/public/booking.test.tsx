@@ -55,6 +55,8 @@ async function setUp(options: { simulateTableTaken?: boolean } = {}) {
     ...(options.simulateTableTaken === undefined
       ? {}
       : { simulateTableTaken: options.simulateTableTaken }),
+    // Two hours out is short notice; these are about a booking the floor took.
+    floorApprovesAtOnce: true,
   });
 
   const branch = (await harness.publicGateway.resolveBranch({

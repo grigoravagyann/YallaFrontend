@@ -94,6 +94,8 @@ import {
   REVIEW_VISIT_WINDOW_DAYS,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
+import { APPROVAL_EXPIRED_CODE } from '../contracts/approvals';
+import { APPROVAL_WINDOW_MS, approvalExpiryFor, isShortNotice } from './approvalWindow';
 import { invalidRequest, requireClientCommandId, validationFailed } from './problems';
 
 /** Great-circle distance in kilometres. */
@@ -265,6 +267,27 @@ export interface MockGatewayOptions {
    * writing a review is walkable from the seed.
    */
   readonly visits?: readonly MockVisit[];
+  /**
+   * How long the floor has to answer a short-notice booking, in the mock.
+   * Fifteen minutes, as on the server, when absent; shorter for walking the
+   * expiry in the mock-mode app without waiting a quarter of an hour.
+   */
+  readonly approvalWindowMs?: number | undefined;
+  /**
+   * Play the floor: the **first** short-notice request this world sees is
+   * approved this many milliseconds after it was made, and every later one is
+   * left to run out — so the success screen's countdown can be walked to both
+   * of its endings in one session. Absent, nobody answers and every one runs
+   * out. Mock only.
+   */
+  readonly simulateVenueApprovalAfterMs?: number | undefined;
+  /**
+   * A floor that says yes to every short-notice request the moment it lands:
+   * such a booking comes back confirmed, as one for another day does. For the
+   * tests of what happens to a same-day booking once it is confirmed — the
+   * table at arrival, the reminder, the tab — which are not about the asking.
+   */
+  readonly floorApprovesAtOnce?: boolean | undefined;
   /**
    * The seed the booking codes are minted from. Random when absent, as the
    * server's `ReservationCode.Generate` is: two worlds started fresh must not
@@ -468,7 +491,180 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
     }
   }
 
-  const wait = () => (latency > 0 ? new Promise((r) => setTimeout(r, latency)) : Promise.resolve());
+  /**
+   * Before every call, the floor's answers catch up with the clock: a
+   * short-notice request the simulated floor approves, or one whose window
+   * closed with nobody answering. On the call rather than on a timer, so a
+   * frozen test clock and a replayed journal see exactly what the original
+   * world saw.
+   */
+  const wait = () => {
+    settleApprovals();
+    return latency > 0 ? new Promise((r) => setTimeout(r, latency)) : Promise.resolve();
+  };
+
+  // --- The floor's answer to a short-notice booking -----------------------------
+
+  const approvalWindowMs = options.approvalWindowMs ?? APPROVAL_WINDOW_MS;
+  /** How many requests the simulated floor will still approve. One, or none. */
+  let venueApprovalsLeft = options.simulateVenueApprovalAfterMs !== undefined ? 1 : 0;
+  /** Booking id -> when the simulated floor approves it. */
+  const venueApproves = new Map<string, number>();
+  /**
+   * Booking id -> what the floor decided and when, for the feed. A declined
+   * change says what became of the booking it was a change of.
+   */
+  const venueDecisions = new Map<
+    string,
+    {
+      readonly approved: boolean;
+      readonly atUtc: string;
+      readonly change: {
+        readonly originalKept: boolean;
+        readonly requestedSlotUtc: string;
+      } | null;
+    }
+  >();
+  /**
+   * Booking id -> the confirmed booking a short-notice change was made from.
+   * The server keeps the slot a confirmed booking had while its change waits
+   * for the floor, and gives it back if the change is not confirmed and the
+   * slot is still free.
+   */
+  const changeOrigins = new Map<string, Booking>();
+
+  /**
+   * How a new or moved booking starts out, by the server's rules in its order.
+   *
+   * Short notice first: a booking for the branch's today, or within six hours,
+   * waits for the floor with a window — whatever its size, because the window
+   * is what the floor has to see. Then the large-party rule, which waits with
+   * no clock. Everything else is confirmed.
+   */
+  function decideApproval(input: {
+    readonly partySize: number;
+    readonly slotUtc: string;
+    readonly timeZoneId: string;
+  }): Pick<Booking, 'status' | 'awaitingApprovalBecause' | 'approvalExpiresAtUtc'> {
+    const at = now();
+    const shortNotice = isShortNotice({
+      startUtc: input.slotUtc,
+      timeZoneId: input.timeZoneId,
+      now: at,
+    });
+    if (shortNotice && !options.floorApprovesAtOnce) {
+      return {
+        status: 'pendingApproval',
+        awaitingApprovalBecause: 'shortNotice',
+        approvalExpiresAtUtc: approvalExpiryFor(at, input.slotUtc, approvalWindowMs),
+      };
+    }
+    if (input.partySize > DEFAULT_POLICY.instantConfirmationMaxPartySize) {
+      return {
+        status: 'pendingApproval',
+        awaitingApprovalBecause: 'largeParty',
+        approvalExpiresAtUtc: null,
+      };
+    }
+    return { status: 'confirmed', awaitingApprovalBecause: null, approvalExpiresAtUtc: null };
+  }
+
+  /** The simulated floor takes the first short-notice request it is offered. */
+  function offerToFloor(booking: Booking): void {
+    if (booking.awaitingApprovalBecause !== 'shortNotice' || venueApprovalsLeft === 0) return;
+    venueApprovalsLeft -= 1;
+    venueApproves.set(booking.id, now().getTime() + (options.simulateVenueApprovalAfterMs ?? 0));
+  }
+
+  function settleApprovals(): void {
+    const t = now().getTime();
+    for (const booking of bookings.values()) {
+      if (booking.status !== 'pendingApproval' || !booking.approvalExpiresAtUtc) continue;
+      const closesAt = Date.parse(booking.approvalExpiresAtUtc);
+      const approvesAt = venueApproves.get(booking.id);
+
+      if (approvesAt !== undefined && approvesAt <= t && approvesAt < closesAt) {
+        venueApproves.delete(booking.id);
+        changeOrigins.delete(booking.id);
+        bookings.set(booking.id, {
+          ...booking,
+          status: 'confirmed',
+          awaitingApprovalBecause: null,
+          approvalExpiresAtUtc: null,
+        });
+        venueDecisions.set(booking.id, {
+          approved: true,
+          atUtc: new Date(approvesAt).toISOString(),
+          change: null,
+        });
+      } else if (t >= closesAt) {
+        venueApproves.delete(booking.id);
+        const original = changeOrigins.get(booking.id);
+        changeOrigins.delete(booking.id);
+        const at = booking.approvalExpiresAtUtc;
+
+        // A change nobody answered: the booking goes back to the slot it had,
+        // confirmed, when that slot is still free — the server's rule.
+        if (original && originalSlotFree(original)) {
+          bookings.set(booking.id, {
+            ...original,
+            status: 'confirmed',
+            awaitingApprovalBecause: null,
+            approvalExpiresAtUtc: null,
+            declinedBecause: null,
+          });
+          venueDecisions.set(booking.id, {
+            approved: false,
+            atUtc: at,
+            change: { originalKept: true, requestedSlotUtc: booking.slotUtc },
+          });
+          moveFloorMark(booking, original);
+          continue;
+        }
+
+        // Nobody answered: declined, for want of an answer, at the window's close.
+        bookings.set(booking.id, {
+          ...booking,
+          status: 'cancelledByVenue',
+          awaitingApprovalBecause: null,
+          approvalExpiresAtUtc: null,
+          declinedBecause: 'noAnswer',
+          cancelledAtUtc: at,
+        });
+        venueDecisions.set(booking.id, {
+          approved: false,
+          atUtc: at,
+          change: original ? { originalKept: false, requestedSlotUtc: booking.slotUtc } : null,
+        });
+        moveFloorMark(booking, null);
+      }
+    }
+  }
+
+  /** Whether the slot a change was made from is still the booking's to have back. */
+  function originalSlotFree(original: Booking): boolean {
+    const table = floors.get(original.branchId)?.tables.find((t) => t.id === original.tableId);
+    if (!table) return false;
+    return stateAt(table, new Date(original.slotUtc), DEFAULT_POLICY, original.id) === 'free';
+  }
+
+  /** A booking's mark comes off the table it was on, and onto the one it is back on. */
+  function moveFloorMark(from: Booking, to: Booking | null): void {
+    const floor = floors.get(from.branchId);
+    if (!floor) return;
+    floors.set(from.branchId, {
+      ...floor,
+      tables: floor.tables.map((table) => {
+        if (to && table.id === to.tableId) {
+          return { ...table, state: 'reservedSoon', nextReservationStartUtc: to.slotUtc };
+        }
+        if (table.id === from.tableId && table.nextReservationStartUtc === from.slotUtc) {
+          return { ...table, state: 'free', nextReservationStartUtc: null };
+        }
+        return table;
+      }),
+    });
+  }
 
   /**
    * The tab side of the mock backend, sharing this instance's floors so a table
@@ -1015,9 +1211,22 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         unavailableReason: reason,
         window: reason === null ? windowFor(table, slotUtc, policy, excludeBookingId) : null,
         freeCancellationUntilUtc,
-        requiresApproval: partySize > policy.instantConfirmationMaxPartySize,
+        requiresApproval: needsApproval(branchId, slotUtc, partySize),
       };
     });
+  }
+
+  /**
+   * Whether a booking at this slot will wait for the venue, as the server
+   * says it before the diner commits: the slot is at short notice, or the
+   * party is over the instant-confirmation size. One answer for the table read
+   * and the day's slots, as on the server.
+   */
+  function needsApproval(branchId: string, slotUtc: string, partySize: number): boolean {
+    if (partySize > DEFAULT_POLICY.instantConfirmationMaxPartySize) return true;
+    if (options.floorApprovesAtOnce) return false;
+    const timeZoneId = findBranch(branchId)?.branch.timeZoneId;
+    return timeZoneId !== undefined && isShortNotice({ startUtc: slotUtc, timeZoneId, now: now() });
   }
 
   /** The tables a diner may be offered: pinned on a photo of their own room. */
@@ -1120,7 +1329,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
         slotUtc,
         isAvailable: free > 0,
-        requiresApproval: partySize > policy.instantConfirmationMaxPartySize,
+        requiresApproval: needsApproval(branchId, slotUtc, partySize),
         freeTableCount: free,
         unavailableReason: free > 0 ? null : slotReason(tables),
       });
@@ -1185,13 +1394,6 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         slotFloorFor(input.branchId, input.slotUtc, input.partySize, input.excludeBookingId)
           ?.plan ?? null,
     });
-  }
-
-  /** Waiting for the venue when the party is over the instant-confirmation size, else confirmed. */
-  function decideStatus(partySize: number): BookingStatus {
-    return partySize > DEFAULT_POLICY.instantConfirmationMaxPartySize
-      ? 'pendingApproval'
-      : 'confirmed';
   }
 
   // --- Places ----------------------------------------------------------------
@@ -1331,9 +1533,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
    *
    * Only what this mock can observe is produced: a reminder once a booking of
    * the diner's is within two hours of starting, and `review-hidden` once a
-   * review of theirs is taken down (by a console mock sharing the store). The
-   * venue's decisions and order-ready never happen in the diner mock, so no row
-   * for them is invented.
+   * review of theirs is taken down (by a console mock sharing the store), and
+   * the floor's answer to a short-notice request — the simulated approval, or
+   * the window running out. The venue's other decisions and order-ready never
+   * happen in the diner mock, so no row for them is invented.
    */
   function feedOf(accountId: string): DinerNotification[] {
     const feed = feeds.get(accountId) ?? [];
@@ -1366,6 +1569,50 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         tabId: null,
         orderId: null,
         createdAtUtc: new Date(remindAt).toISOString(),
+      });
+    }
+
+    // What the floor answered a short-notice request: yes, or nobody in time.
+    for (const [reservationId, decision] of venueDecisions) {
+      const booking = bookings.get(reservationId);
+      if (!booking || bookingOwners.get(reservationId) !== accountId) continue;
+      const kind = decision.approved ? 'booking-confirmed' : 'booking-declined';
+      if (feed.some((row) => row.kind === kind && row.reservationId === reservationId)) continue;
+      // As the server writes them: text, and `date`/`time` the booking as it
+      // now stands — back at its old slot, when a declined change kept it.
+      const local = localDateTime(booking.slotUtc, booking.timeZoneId);
+      const requested = decision.change
+        ? localDateTime(decision.change.requestedSlotUtc, booking.timeZoneId)
+        : null;
+      add({
+        kind,
+        params: {
+          venueName: booking.venueName,
+          branchName: booking.branchName,
+          tableLabel: booking.tableLabel,
+          partySize: booking.partySize,
+          startUtc: booking.slotUtc,
+          timeZoneId: booking.timeZoneId,
+          date: local.date,
+          time: local.time,
+          ...(decision.approved
+            ? {}
+            : {
+                // The apology rather than a refusal: nobody answered in time.
+                expired: 'true',
+                wasChange: decision.change ? 'true' : 'false',
+                originalKept: decision.change?.originalKept ? 'true' : 'false',
+                ...(requested
+                  ? { requestedDate: requested.date, requestedTime: requested.time }
+                  : {}),
+              }),
+        },
+        branchId: booking.branchId,
+        branchName: booking.branchName,
+        reservationId,
+        tabId: null,
+        orderId: null,
+        createdAtUtc: decision.atUtc,
       });
     }
 
@@ -2153,13 +2400,17 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         });
       }
 
-      const status = decideStatus(command.partySize);
+      const decision = decideApproval({
+        partySize: command.partySize,
+        slotUtc: command.slotUtc,
+        timeZoneId: found.branch.timeZoneId,
+      });
 
       const id = `bk_${sequence++}`;
       const booking: Booking = {
         id,
         code: mintBookingCode(),
-        status,
+        ...decision,
         venueName: found.venue.name,
         branchId: found.branch.id,
         branchName: found.branch.name,
@@ -2177,6 +2428,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         cancelledAtUtc: null,
         cancelledAfterDeadline: false,
         note: note === '' ? null : note,
+        declinedBecause: null,
         // The mock issues one for every booking, so the manage-booking page is
         // walkable from the app's own flow too. See `publicMock.ts` for what
         // the token is and, more importantly, what it is not.
@@ -2185,6 +2437,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
 
       bookings.set(id, booking);
       commandLog.set(command.commandId, id);
+      offerToFloor(booking);
       if (signedInAccountId && !deletedAccounts.has(signedInAccountId)) {
         bookingOwners.set(id, signedInAccountId);
       }
@@ -2341,6 +2594,10 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
      * the booking as it now stands.
      */
     async rescheduleBooking(command: RescheduleBookingCommand): Promise<Booking> {
+      // As it stood before the floor's answers catch up with the clock: the
+      // server refuses a change to a request whose answer window has closed,
+      // whatever its sweep has made of it yet.
+      const before = bookings.get(command.bookingId);
       await wait();
       const url = `${URL_TAG}/api/reservations/${command.bookingId}/reschedule`;
       requireClientCommandId(url, command.commandId);
@@ -2349,6 +2606,18 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const replayed = rescheduleLog.get(command.commandId);
       const current = replayed !== undefined ? bookings.get(replayed) : undefined;
       if (current) return current;
+
+      if (
+        before?.status === 'pendingApproval' &&
+        before.approvalExpiresAtUtc &&
+        now().getTime() >= Date.parse(before.approvalExpiresAtUtc)
+      ) {
+        throw conflict(
+          url,
+          APPROVAL_EXPIRED_CODE,
+          `The answer window for ${before.code} has closed; it can no longer be changed.`,
+        );
+      }
 
       // Somebody else's booking answers exactly as one that does not exist.
       const booking = bookings.get(command.bookingId);
@@ -2387,9 +2656,48 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         throw new BookingRejectedError({ url, reason: refusal, partySize: command.partySize });
       }
 
+      // Re-decided like a new booking, except that a confirmed one the floor
+      // already said yes to stays confirmed while its start and table hold and
+      // its party does not grow — nothing the floor agreed to has changed.
+      const unchanged =
+        booking.status === 'confirmed' &&
+        command.slotUtc === booking.slotUtc &&
+        table.id === booking.tableId &&
+        command.partySize <= booking.partySize;
+      const decided = unchanged
+        ? {
+            status: 'confirmed' as const,
+            awaitingApprovalBecause: null,
+            approvalExpiresAtUtc: null,
+          }
+        : decideApproval({
+            partySize: command.partySize,
+            slotUtc: command.slotUtc,
+            timeZoneId: booking.timeZoneId,
+          });
+      // A request already waiting on a short-notice answer keeps its deadline:
+      // moving it is not a way to buy the floor fifteen more minutes.
+      const waitingWindow =
+        booking.awaitingApprovalBecause === 'shortNotice' ? booking.approvalExpiresAtUtc : null;
+      const decision =
+        decided.awaitingApprovalBecause === 'shortNotice' && waitingWindow
+          ? {
+              ...decided,
+              approvalExpiresAtUtc: new Date(
+                Math.min(Date.parse(waitingWindow), Date.parse(command.slotUtc)),
+              ).toISOString(),
+            }
+          : decided;
+      // A confirmed booking moved into short notice keeps the slot it had
+      // until the floor answers; a change of a change keeps the first one.
+      if (decision.awaitingApprovalBecause === 'shortNotice') {
+        if (booking.status === 'confirmed') changeOrigins.set(booking.id, booking);
+      } else {
+        changeOrigins.delete(booking.id);
+      }
       const moved: Booking = {
         ...booking,
-        status: decideStatus(command.partySize),
+        ...decision,
         tableId: table.id,
         tableLabel: table.label,
         roomId: table.floorAreaId,

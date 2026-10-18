@@ -74,6 +74,15 @@ export interface HarnessOptions {
    * is not run at four in the morning.
    */
   readonly now?: () => Date;
+  /**
+   * The floor's answer to a short-notice booking, in the mock world. A booking
+   * two hours out — the one these tests make — is short notice and waits for
+   * it: `floorApprovesAtOnce` has it confirmed as it is made, for the tests
+   * that are about what follows a confirmation; the other two walk the wait.
+   */
+  readonly floorApprovesAtOnce?: boolean;
+  readonly approvalWindowMs?: number;
+  readonly simulateVenueApprovalAfterMs?: number;
 }
 
 export function createHarness(options: HarnessOptions = {}): Harness {
@@ -84,6 +93,9 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     // assertion, which is a flake and never a finding.
     simulateJoiners: false,
     ...(options.now ? { now: options.now } : {}),
+    floorApprovesAtOnce: options.floorApprovesAtOnce ?? false,
+    approvalWindowMs: options.approvalWindowMs,
+    simulateVenueApprovalAfterMs: options.simulateVenueApprovalAfterMs,
   });
   const publicGateway = createPublicMockGateway({ gateway, now: options.now });
   // Retry off, so a deliberate failure is one attempt and not four.

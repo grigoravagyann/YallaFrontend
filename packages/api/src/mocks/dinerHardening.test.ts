@@ -149,7 +149,13 @@ describe('reviews in the mock (K8)', () => {
 
   it('counts a booking the diner was seated for through "I\'m at my table"', async () => {
     const time = clock();
-    const gateway = createMockGateway({ now: time.now, visits: [], simulateJoiners: false });
+    const gateway = createMockGateway({
+      now: time.now,
+      visits: [],
+      simulateJoiners: false,
+      // Two hours out is short notice; the floor's yes is not what this is about.
+      floorApprovesAtOnce: true,
+    });
     await signUp(gateway, 1);
     const booking = await bookAt(
       gateway,
@@ -434,7 +440,8 @@ describe('favourites in the mock (K11)', () => {
 describe('the notifications feed in the mock (K12)', () => {
   it('writes a reminder once a booking is two hours away, pages it, and marks it read', async () => {
     const time = clock();
-    const gateway = createMockGateway({ now: time.now });
+    // Reminders are for confirmed bookings, and these are all short notice.
+    const gateway = createMockGateway({ now: time.now, floorApprovesAtOnce: true });
     await signUp(gateway, 5);
     const bookings = [];
     for (const hours of [5, 6, 7]) {

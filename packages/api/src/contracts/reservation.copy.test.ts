@@ -5,8 +5,10 @@ import * as errors from './errors';
 import { RateLimitedError, WrongCodeError } from './errors';
 import {
   bookingFailure,
+  declinedCopy,
   freeCancellationCopy,
   tableCopy,
+  venueAnswerCopy,
   verificationFailureCopy,
 } from './reservation';
 
@@ -128,5 +130,53 @@ describe('the free-cancellation promise', () => {
     expect(
       tableCopy(table, { partySize: 2, timeZoneId: YEREVAN, locale: 'en' }).freeCancellation,
     ).toBeNull();
+  });
+});
+
+describe("the venue's answer, on the booking", () => {
+  const waiting = {
+    status: 'pendingApproval',
+    approvalExpiresAtUtc: '2026-10-18T18:15:00Z',
+    declinedBecause: null,
+  } as const;
+
+  it('counts down while the venue decides', () => {
+    expect(venueAnswerCopy(waiting, new Date('2026-10-18T18:02:19Z'))).toEqual({
+      key: 'booking.approval.waiting',
+      params: { time: '12:41' },
+    });
+  });
+
+  it('only says it is waiting once the clock here has run out', () => {
+    expect(venueAnswerCopy(waiting, new Date('2026-10-18T18:16:00Z'))).toEqual({
+      key: 'booking.approval.checking',
+      params: {},
+    });
+  });
+
+  it('adds nothing to a booking that waits without a clock, or was never in question', () => {
+    const now = new Date('2026-10-18T18:00:00Z');
+    expect(venueAnswerCopy({ ...waiting, approvalExpiresAtUtc: null }, now)).toBeNull();
+    expect(
+      venueAnswerCopy(
+        { status: 'confirmed', approvalExpiresAtUtc: null, declinedBecause: null },
+        now,
+      ),
+    ).toBeNull();
+  });
+
+  it('apologises when nobody answered, and says the venue could not when somebody said no', () => {
+    const now = new Date('2026-10-18T18:20:00Z');
+    const declined = { status: 'cancelledByVenue', approvalExpiresAtUtc: null } as const;
+    expect(venueAnswerCopy({ ...declined, declinedBecause: 'noAnswer' }, now)?.key).toBe(
+      'booking.declined.noAnswer',
+    );
+    expect(venueAnswerCopy({ ...declined, declinedBecause: 'staffDeclined' }, now)?.key).toBe(
+      'booking.declined.byVenue',
+    );
+    // A reason a newer server adds reads as the plain "the venue could not".
+    expect(declinedCopy('unknown', 'title')?.key).toBe('booking.declined.byVenueTitle');
+    expect(declinedCopy('noAnswer', 'title')?.key).toBe('booking.declined.noAnswerTitle');
+    expect(declinedCopy(null, 'title')).toBeNull();
   });
 });

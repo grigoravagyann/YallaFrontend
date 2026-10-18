@@ -654,6 +654,21 @@
   border-color: var(--color-info);
 }
 
+/* The minutes the venue has left to answer a booking for tonight. */
+.pub-answer {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px dashed var(--color-info);
+  border-radius: var(--radius-soft);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.pub-answer.is-urgent {
+  border-style: solid;
+  border-color: var(--color-warning);
+}
+
 .pub-code-label,
 .pub-code-hint {
   margin: 0;
