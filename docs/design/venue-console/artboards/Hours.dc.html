@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Աշխատաժամեր — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.app{display:flex;flex-wrap:wrap;min-height:100vh}
+.side{flex:1 0 248px;background:var(--side);color:#E9D9C6;display:flex;flex-direction:column;gap:16px;padding:20px 14px}
+.brand{display:flex;align-items:baseline;gap:8px;padding:0 10px;font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;line-height:1}
+.brand small{font-family:'Noto Sans Armenian',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#BFA88F}
+.venue{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:rgba(255,243,228,.06)}
+.venue-t{display:flex;align-items:center;gap:10px;min-width:0}
+.venue-t img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none}
+.venue-t b{display:block;color:#FFF3E4;font-family:'Noto Serif Armenian',Georgia,serif;font-size:15px;line-height:1.25}
+.venue-t span{font-size:12px;color:#BFA88F}
+.bsw{display:flex;flex-direction:column;gap:6px}
+.bsw label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#BFA88F}
+.bsw select{width:100%;height:40px;border-radius:9px;border:1px solid #4E2D1B;background:#351B0D;color:#F3E6D6;font:inherit;font-size:14px;padding:0 10px}
+.bfix{display:flex;align-items:center;gap:8px;min-height:40px;padding:8px 10px;border-radius:9px;background:#351B0D;color:#F3E6D6;font-size:13px}
+.bfix svg{width:14px;height:14px;color:#BFA88F;flex:none}
+.nav{display:flex;flex-direction:column;gap:2px}
+.ngroup{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#A8907A;padding:12px 12px 4px}
+.nav a{display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:9px;color:#D9C5B0;text-decoration:none;font-weight:500;font-size:14px;white-space:nowrap}
+.nav a:hover{background:rgba(255,243,228,.07);color:#FFF3E4}
+.nav a.on{background:#4A2817;color:#FFF3E4;font-weight:600}
+.nav svg{width:18px;height:18px;flex:none}
+.nbadge{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:700;display:grid;place-items:center;background:#E2B77A;color:#2B1608}
+.side-foot{margin-top:auto}
+.me{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,243,228,.05);text-decoration:none;color:inherit}
+.me:hover{background:rgba(255,243,228,.1);color:inherit}
+.avatar{width:32px;height:32px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
+.me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.me-n{color:#FFF3E4;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-r{color:#BFA88F;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side :focus-visible{outline-color:#F3D9B8}
+.main{flex:999 1 560px;min-width:0;padding:28px 36px 48px;display:flex;flex-direction:column;gap:20px}
+.ph{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;margin:0;text-wrap:balance}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px;max-width:80ch}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line-2)}
+.h2{font-family:'Noto Serif Armenian',Georgia,serif;font-size:17px;font-weight:700;margin:0;line-height:1.3}
+.cap{font-size:13px;color:var(--muted);margin:2px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:background .15s}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}.btn-sec:hover{background:var(--hover)}
+.btn-ghost{background:none;color:var(--brand)}.btn-ghost:hover{background:#F4ECE2}
+.btn-sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.muted{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.help{font-size:12px;color:var(--muted)}
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;font-size:14px}
+.banner .grow{flex:1;min-width:220px}
+.b-red{background:var(--red-bg);color:var(--red);border:1px solid #F2C9C2}
+.overlay{position:fixed;inset:0;z-index:30;background:rgba(42,26,16,.45);display:grid;place-items:center;padding:16px}
+.dialog{width:460px;max-width:100%;background:var(--paper);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(42,26,16,.3)}
+.dialog p{margin:0;color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:10px;padding:10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(42,26,16,.25);max-width:calc(100% - 32px)}
+.toast svg{color:#9FD9BD}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+svg.i{width:18px;height:18px;flex:none}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(58,29,12,.25);border-top-color:currentColor;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* page */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.week{list-style:none;margin:0;padding:0}
+.day{display:grid;grid-template-columns:150px 120px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line-2)}
+.day:last-child{border-bottom:0}
+.day.bad{background:#FFF8F6}
+.day.today .dname::after{content:'այսօր';margin-left:8px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:#F4ECE2;color:var(--brand)}
+.dname{font-weight:600}
+.swl{display:inline-flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap;cursor:pointer}
+.sw{position:relative;width:40px;height:24px;border-radius:999px;border:0;background:#CDBFAF;cursor:pointer;flex:none;padding:0;transition:background .15s}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#FFF;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .15s}
+.sw[aria-checked="true"]{background:var(--green)}
+.sw[aria-checked="true"]::after{transform:translateX(16px)}
+.spans{display:flex;flex-direction:column;gap:6px;min-width:0}
+.span{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tm{height:38px;width:112px;border-radius:9px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 10px;font-variant-numeric:tabular-nums}
+.tm.bad{border-color:var(--red)}
+.next{font-size:12px;color:var(--amber);font-weight:600}
+.closed{color:var(--muted);font-size:13px}
+.ib{width:32px;height:32px;border-radius:8px;border:0;background:none;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.ib:hover{background:var(--hover);color:var(--red)}
+.ib svg{width:16px;height:16px}
+.dacts{display:flex;gap:4px;align-items:center;position:relative}
+.pop{position:absolute;right:0;top:40px;z-index:10;width:240px;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(42,26,16,.14);padding:12px;display:flex;flex-direction:column;gap:8px}
+.pop label{display:flex;align-items:center;gap:8px;font-size:13px;height:30px;cursor:pointer}
+.pop input{accent-color:#3A1D0C;width:16px;height:16px;margin:0}
+.now{padding:20px;display:flex;flex-direction:column;gap:6px}
+.now-s{display:flex;align-items:center;gap:10px;font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700}
+.now-s i{width:12px;height:12px;border-radius:50%;background:var(--green)}
+.now-s i.off{background:var(--red)}
+.sum{list-style:none;margin:0;padding:8px 20px 16px;display:flex;flex-direction:column;gap:6px}
+.sum li{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.sum b{font-weight:600}
+.sum span{font-variant-numeric:tabular-nums;text-align:right}
+.sd{list-style:none;margin:0;padding:0}
+.sd li{display:grid;grid-template-columns:150px 1fr auto;gap:12px;align-items:center;padding:10px 20px;border-bottom:1px solid var(--line-2)}
+.sd li:last-child{border-bottom:0}
+.sd b{font-weight:600;display:block}
+.sd small{font-size:12px;color:var(--muted)}
+.sdadd{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:14px 20px;border-top:1px solid var(--line-2);background:#FCF9F5}
+.sdadd label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+.sdadd input,.sdadd select{height:38px;border-radius:9px;border:1px solid #D8C8B6;font:inherit;font-size:14px;padding:0 10px;color:var(--ink);background:var(--paper)}
+.savebar{position:sticky;bottom:16px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:var(--ink);color:#FFF3E4;box-shadow:0 10px 30px rgba(42,26,16,.25)}
+.savebar .grow{flex:1;min-width:200px;font-size:14px}
+.savebar .btn-sec{background:transparent;color:#FFF3E4;border-color:rgba(255,243,228,.3)}
+.savebar .btn-sec:hover{background:rgba(255,243,228,.08)}
+.savebar .btn-pri{background:#FFF3E4;color:var(--brand)}
+.savebar :focus-visible{outline-color:#F3D9B8}
+@media (max-width:1180px){.layout{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760px){.day{grid-template-columns:1fr auto;}.day .spans{grid-column:1 / -1}.main{padding:20px 16px 40px}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+
+<aside class="side" aria-label="Վահանակի նավիգացիա">
+<div class="brand">Yalla <small>վահանակ</small></div>
+<div class="venue">
+<div class="venue-t"><img src="/_blob/6c604900fafe4c60510223e5fdec12de" alt=""><div><b>Cascade Cafe</b><span>{{ sbRole }}</span></div></div>
+<sc-if value="{{ sbMulti }}" hint-placeholder-val="{{ true }}"><div class="bsw"><label for="sb-branch">Մասնաճյուղ</label><select id="sb-branch" value="{{ sbBranch }}" onChange="{{ onBranch }}"><option>Կասկադ</option><option>Արաբկիր</option></select></div></sc-if>
+<sc-if value="{{ sbFixed }}" hint-placeholder-val="{{ false }}"><div class="bfix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>Կասկադ մասնաճյուղ</div></sc-if>
+</div>
+<nav class="nav" aria-label="Բաժիններ">
+<span class="ngroup">Այսօր</span>
+<a href="Main.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>Ամփոփում<span class="nbadge" aria-label="3 ամրագրում սպասում է որոշման">3</span></a>
+<span class="ngroup">Վայրը</span>
+<a href="Menu.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>Ճաշացանկ<span class="nbadge" aria-label="4 անավարտ ուտեստ">4</span></a>
+<a href="Rooms.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>Սրահներ և սեղաններ</a>
+<a href="Hours.dc.html" class="on" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>Աշխատաժամեր</a>
+<a href="Policy.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"></path></svg>Ամրագրման կանոններ</a>
+<a href="Public.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"></path></svg>Հանրային էջ</a>
+<span class="ngroup">Թիմ</span>
+<a href="Staff.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Աշխատողներ</a>
+<span class="ngroup">Արդյունքներ</span>
+<a href="Reviews.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.5 2.3a.5.5 0 0 1 1 0l2.3 4.7 5.2.8a.5.5 0 0 1 .3.9l-3.8 3.6.9 5.2a.5.5 0 0 1-.8.6L12 15.6l-4.6 2.5a.5.5 0 0 1-.8-.6l.9-5.2L3.7 8.7a.5.5 0 0 1 .3-.9l5.2-.8z"></path></svg>Կարծիքներ<span class="nbadge" aria-label="2 բողոքարկված">2</span></a>
+<a href="Reports.dc.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>Հաշվետվություններ</a>
+</nav>
+<div class="side-foot"><a class="me" href="Account.dc.html" aria-label="Իմ հաշիվը"><span class="avatar" aria-hidden="true">{{ sbInit }}</span><span class="me-t"><span class="me-n">{{ sbName }}</span><span class="me-r">Իմ հաշիվը</span></span></a></div>
+</aside>
+
+<main class="main" id="main">
+<div class="ph">
+<div><h1 class="h1">Աշխատաժամեր</h1><p class="sub">{{ sbBranch }} · Ամբողջ շաբաթը պահպանվում է միանգամից։ Եթե փակվելու ժամը բացվելուց շուտ է, նշանակում է՝ հաջորդ օրը։</p></div>
+<button type="button" class="btn btn-sec" onClick="{{ sameAll }}">Նույնը ամեն օր</button>
+</div>
+
+<sc-if value="{{ hasOverlap }}" hint-placeholder-val="{{ false }}">
+<div class="banner b-red" role="alert"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span class="grow">Նույն օրվա երկու ժամանակահատվածը համընկնում են։ Ուղղեք նշված տողերը պահպանելուց առաջ։</span></div>
+</sc-if>
+
+<div class="layout">
+<section class="card" aria-labelledby="wk-h">
+<div class="card-h"><div><h2 class="h2" id="wk-h">Շաբաթ</h2><p class="cap">Ժամային գոտի՝ Asia/Yerevan</p></div></div>
+<ul class="week">
+<sc-for list="{{ days }}" as="d" hint-placeholder-count="7">
+<li class="{{ d.cls }}">
+<span class="dname">{{ d.name }}</span>
+<label class="swl"><button type="button" class="sw" role="switch" aria-checked="{{ d.openStr }}" aria-label="{{ d.swAria }}" onClick="{{ d.toggle }}"></button>{{ d.openLabel }}</label>
+<div class="spans">
+<sc-if value="{{ d.isClosed }}" hint-placeholder-val="{{ false }}"><span class="closed">Փակ է ամբողջ օրը</span></sc-if>
+<sc-for list="{{ d.spans }}" as="p" hint-placeholder-count="1">
+<div class="span"><label class="sr" for="{{ p.fid }}">{{ p.fromAria }}</label><input id="{{ p.fid }}" type="time" class="{{ p.cls }}" value="{{ p.from }}" onInput="{{ p.onFrom }}"><span aria-hidden="true">–</span><label class="sr" for="{{ p.tid }}">{{ p.toAria }}</label><input id="{{ p.tid }}" type="time" class="{{ p.cls }}" value="{{ p.to }}" onInput="{{ p.onTo }}"><sc-if value="{{ p.next }}" hint-placeholder-val="{{ false }}"><span class="next">(հաջորդ օր)</span></sc-if><sc-if value="{{ p.removable }}" hint-placeholder-val="{{ false }}"><button type="button" class="ib" aria-label="{{ p.removeAria }}" onClick="{{ p.remove }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></sc-if></div>
+</sc-for>
+</div>
+<div class="dacts">
+<sc-if value="{{ d.canSplit }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-ghost btn-sm" onClick="{{ d.split }}">+ Ընդմիջում</button></sc-if>
+<button type="button" class="btn btn-ghost btn-sm" data-copy="{{ d.k }}" aria-expanded="{{ d.copyOpen }}" onClick="{{ d.toggleCopy }}">Պատճենել…</button>
+<sc-if value="{{ d.showCopy }}" hint-placeholder-val="{{ false }}">
+<div class="pop" role="dialog" aria-label="{{ d.copyAria }}" onKeyDown="{{ popKey }}">
+<span class="help" style="font-weight: 600">Պատճենել {{ d.short }}-ը նաև՝</span>
+<sc-for list="{{ d.targets }}" as="t" hint-placeholder-count="6"><label><sc-if value="{{ t.on }}" hint-placeholder-val="{{ false }}"><input type="checkbox" checked="" onChange="{{ t.toggle }}"></sc-if><sc-if value="{{ t.off }}" hint-placeholder-val="{{ true }}"><input type="checkbox" onChange="{{ t.toggle }}"></sc-if>{{ t.name }}</label></sc-for>
+<div style="display: flex; gap: 6px; justify-content: flex-end"><button type="button" class="btn btn-sec btn-sm" onClick="{{ closeCopy }}">Չեղարկել</button><button type="button" class="btn btn-pri btn-sm" onClick="{{ d.doCopy }}">{{ copyBtn }}</button></div>
+</div>
+</sc-if>
+</div>
+</li>
+</sc-for>
+</ul>
+</section>
+
+<aside style="display: flex; flex-direction: column; gap: 16px">
+<section class="card" aria-labelledby="sd-h">
+<div class="card-h"><div><h2 class="h2" id="sd-h">Հատուկ օրեր</h2><p class="cap">Տոներ, արձակուրդ, մեկ օրով փակում։ Գերակայում են շաբաթվա ժամերին։</p></div></div>
+<sc-if value="{{ hasSpecial }}" hint-placeholder-val="{{ true }}"><ul class="sd"><sc-for list="{{ special }}" as="x" hint-placeholder-count="3"><li><span><b>{{ x.date }}</b><small>{{ x.name }}</small></span><span class="{{ x.cls }}">{{ x.hours }}</span><button type="button" class="ib" aria-label="{{ x.removeAria }}" onClick="{{ x.remove }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></li></sc-for></ul></sc-if>
+<sc-if value="{{ noSpecial }}" hint-placeholder-val="{{ false }}"><p class="muted" style="margin: 0; padding: 14px 20px; font-size: 13px">Հատուկ օր չկա։ Հունվարի 1-ը սովորաբար առաջինն է։</p></sc-if>
+<form class="sdadd" onSubmit="{{ addSpecial }}" novalidate=""><label for="sd-date">Ամսաթիվ<input id="sd-date" type="date" value="{{ sdDate }}" onInput="{{ onSdDate }}"></label><label for="sd-name">Անուն<input id="sd-name" placeholder="Ամանոր" value="{{ sdName }}" onInput="{{ onSdName }}" style="width: 130px"></label><label for="sd-kind">Ինչպես<select id="sd-kind" value="{{ sdKind }}" onChange="{{ onSdKind }}"><option value="closed">Փակ է</option><option value="hours">Այլ ժամեր</option></select></label><sc-if value="{{ sdHours }}" hint-placeholder-val="{{ false }}"><label for="sd-from">Սկսած<input id="sd-from" type="time" value="{{ sdFrom }}" onInput="{{ onSdFrom }}"></label><label for="sd-to">Մինչև<input id="sd-to" type="time" value="{{ sdTo }}" onInput="{{ onSdTo }}"></label></sc-if><button type="submit" class="btn btn-sec btn-sm" style="height: 38px">Ավելացնել</button></form>
+<sc-if value="{{ sdErr }}" hint-placeholder-val="{{ false }}"><span class="err" role="alert" style="padding: 0 20px 12px; display: block">{{ sdErrText }}</span></sc-if>
+</section>
+<section class="card" aria-labelledby="now-h">
+<div class="now"><span class="help" id="now-h" style="font-weight: 600">Հյուրն այս պահին տեսնում է</span><span class="now-s"><i class="{{ nowDot }}" aria-hidden="true"></i>{{ nowTitle }}</span><span class="muted" style="font-size: 13px">{{ nowSub }}</span></div>
+</section>
+<section class="card" aria-labelledby="sum-h">
+<div class="card-h"><h2 class="h2" id="sum-h" style="font-size: 15px">Այսպես կերևա էջում</h2></div>
+<ul class="sum"><sc-for list="{{ summary }}" as="x" hint-placeholder-count="4"><li><b>{{ x.days }}</b><span>{{ x.hours }}</span></li></sc-for></ul>
+</section>
+</aside>
+</div>
+
+<div class="savebar" role="region" aria-label="Պահպանում">
+<span class="grow">{{ saveText }}</span>
+<sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-sec btn-sm" onClick="{{ discard }}">Չեղարկել փոփոխությունները</button></sc-if>
+<sc-if value="{{ idle }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-pri btn-sm" onClick="{{ save }}">Պահպանել շաբաթը</button></sc-if>
+<sc-if value="{{ saving }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-pri btn-sm" aria-busy="true"><span class="spin"></span>Պահպանվում է…</button></sc-if>
+</div>
+</main>
+</div>
+
+<sc-if value="{{ leaveOpen }}" hint-placeholder-val="{{ false }}">
+<div class="overlay" onKeyDown="{{ leaveKey }}">
+<div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="lv-h" aria-describedby="lv-p">
+<h2 class="h2" id="lv-h">Անցնե՞լ {{ leaveTo }}՝ առանց պահպանելու</h2>
+<p id="lv-p">{{ sbBranch }}-ի ժամերում չպահպանված փոփոխություններ կան։ Եթե անցնեք, դրանք կկորչեն։</p>
+<div class="acts"><button type="button" class="btn btn-sec" data-af="" onClick="{{ stay }}">Մնալ</button><button type="button" class="btn btn-pri" onClick="{{ leave }}">Անցնել առանց պահպանելու</button></div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"role":{"editor":"enum","options":["owner","generalManager","manager"],"default":"owner","section":"Դեր"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const week = {
+      mon: [['09:00', '23:00']], tue: [['09:00', '23:00']], wed: [['09:00', '23:00']], thu: [['09:00', '23:00']],
+      fri: [['09:00', '01:00']], sat: [['10:00', '01:00']], sun: [['10:00', '15:00'], ['17:00', '23:00']]
+    };
+    this.base = week;
+    this.state = { branch: null, week: week, copyFrom: null, copyTo: {}, saving: false, toast: null, leaveTo: null, special: [{ date: '2026-12-31', name: 'Ամանորի գիշեր', kind: 'hours', from: '18:00', to: '03:00' }, { date: '2027-01-01', name: 'Ամանոր', kind: 'closed' }, { date: '2027-01-06', name: 'Սուրբ Ծնունդ', kind: 'closed' }], sdDate: '', sdName: '', sdKind: 'closed', sdFrom: '12:00', sdTo: '18:00', sdErr: '' };
+  }
+  componentWillUnmount() { clearTimeout(this._t); clearTimeout(this._s); }
+  focusLater(sel) { setTimeout(() => { const el = sel && document.querySelector(sel); if (el) el.focus(); }, 30); }
+  say(msg) { this.setState({ toast: msg }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 3500); }
+  shell() {
+    const r = this.props.role ?? 'owner';
+    const u = { owner: ['Aram Hakobyan', 'AH', 'Սեփականատեր'], generalManager: ['Lilit Sargsyan', 'LS', 'Գլխավոր մենեջեր'], manager: ['Davit Grigoryan', 'DG', 'Մասնաճյուղի մենեջեր'] }[r] || ['Aram Hakobyan', 'AH', 'Սեփականատեր'];
+    const dirty = JSON.stringify(this.state.week) !== JSON.stringify(this.base);
+    return { sbName: u[0], sbInit: u[1], sbRole: u[2], sbMulti: r !== 'manager', sbFixed: r === 'manager', sbBranch: r === 'manager' ? 'Կասկադ' : (this.state.branch || 'Կասկադ'),
+      onBranch: (e) => { const v = e.target.value; if (dirty) { this.setState({ leaveTo: v }); this.focusLater('.dialog [data-af]'); } else this.setState({ branch: v }); } };
+  }
+  setDay(k, spans) { this.setState({ week: Object.assign({}, this.state.week, { [k]: spans }) }); }
+  renderVals() {
+    const s = this.state;
+    const sh = this.shell();
+    const keys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    const names = { mon: 'Երկուշաբթի', tue: 'Երեքշաբթի', wed: 'Չորեքշաբթի', thu: 'Հինգշաբթի', fri: 'Ուրբաթ', sat: 'Շաբաթ', sun: 'Կիրակի' };
+    const short = { mon: 'Երկ', tue: 'Երք', wed: 'Չրք', thu: 'Հնգ', fri: 'Ուրբ', sat: 'Շբթ', sun: 'Կիր' };
+    const mins = (t) => { const p = (t || '00:00').split(':'); return +p[0] * 60 + +p[1]; };
+    const end = (sp) => { const a = mins(sp[0]), b = mins(sp[1]); return b <= a ? b + 1440 : b; };
+    const overlapOf = (spans) => spans.length > 1 && !(end(spans[0]) <= mins(spans[1][0]) || end(spans[1]) <= mins(spans[0][0]));
+    const dirty = JSON.stringify(s.week) !== JSON.stringify(this.base);
+    const fmtDate = (d) => { const p = d.split('-'); const mn = ['հունվ', 'փետր', 'մարտ', 'ապր', 'մայ', 'հուն', 'հուլ', 'օգ', 'սեպտ', 'հոկտ', 'նոյ', 'դեկտ']; return +p[2] + ' ' + mn[+p[1] - 1] + ' ' + p[0]; };
+    const anyOverlap = keys.some((k) => overlapOf(s.week[k]));
+    const fmtSpans = (sp) => (sp.length ? sp.map((x) => x[0] + '–' + x[1]).join(', ') : 'Փակ է');
+    const groups = [];
+    keys.forEach((k) => { const v = fmtSpans(s.week[k]); const g = groups[groups.length - 1]; if (g && g.v === v) g.to = k; else groups.push({ from: k, to: k, v: v }); });
+    const sat = s.week.sat;
+    const nowM = 18 * 60 + 42;
+    const openNow = sat.some((x) => mins(x[0]) <= nowM && nowM < end(x));
+    const closing = sat.find((x) => mins(x[0]) <= nowM && nowM < end(x));
+    const nextOpen = sat.find((x) => mins(x[0]) > nowM);
+    return Object.assign(sh, {
+      hasOverlap: anyOverlap,
+      hasSpecial: s.special.length > 0, noSpecial: s.special.length === 0,
+      special: s.special.slice().sort((a, b) => a.date.localeCompare(b.date)).map((x) => ({ date: fmtDate(x.date), name: x.name, hours: x.kind === 'closed' ? 'Փակ է' : x.from + '–' + x.to + (mins(x.to) <= mins(x.from) ? ' (հաջորդ օր)' : ''), cls: x.kind === 'closed' ? 'closed' : '', removeAria: 'Հեռացնել ' + x.name, remove: () => { const prev = s.special; this.setState({ special: s.special.filter((y) => y !== x) }); this.say(x.name + '-ը հեռացվեց հատուկ օրերից'); } })),
+      sdDate: s.sdDate, sdName: s.sdName, sdKind: s.sdKind, sdFrom: s.sdFrom, sdTo: s.sdTo, sdHours: s.sdKind === 'hours',
+      onSdDate: (e) => this.setState({ sdDate: e.target.value, sdErr: '' }), onSdName: (e) => this.setState({ sdName: e.target.value }), onSdKind: (e) => this.setState({ sdKind: e.target.value }), onSdFrom: (e) => this.setState({ sdFrom: e.target.value }), onSdTo: (e) => this.setState({ sdTo: e.target.value }),
+      sdErr: !!s.sdErr, sdErrText: s.sdErr,
+      addSpecial: (e) => {
+        e.preventDefault();
+        if (!s.sdDate) { this.setState({ sdErr: 'Ընտրեք ամսաթիվը' }); this.focusLater('#sd-date'); return; }
+        if (s.special.some((x) => x.date === s.sdDate)) { this.setState({ sdErr: 'Այս օրն արդեն ցանկում է' }); this.focusLater('#sd-date'); return; }
+        const n = s.sdName.trim() || (s.sdKind === 'closed' ? 'Փակ օր' : 'Հատուկ ժամեր');
+        this.setState({ special: s.special.concat([{ date: s.sdDate, name: n, kind: s.sdKind, from: s.sdFrom, to: s.sdTo }]), sdDate: '', sdName: '', sdErr: '' });
+        this.say(fmtDate(s.sdDate) + ' · ' + n + ' ավելացվեց');
+      },
+      days: keys.map((k) => {
+        const sp = s.week[k];
+        const isOpen = sp.length > 0;
+        const bad = overlapOf(sp);
+        const open = s.copyFrom === k;
+        return {
+          k: k, name: names[k], short: short[k],
+          cls: 'day' + (bad ? ' bad' : '') + (k === 'sat' ? ' today' : ''),
+          openStr: isOpen ? 'true' : 'false', openLabel: isOpen ? 'Բաց է' : 'Փակ է', swAria: names[k] + '՝ բաց է',
+          isClosed: !isOpen,
+          toggle: () => this.setDay(k, isOpen ? [] : [['09:00', '23:00']]),
+          spans: sp.map((x, i) => ({
+            fid: k + '-f' + i, tid: k + '-t' + i, from: x[0], to: x[1],
+            fromAria: names[k] + ', ' + (i + 1) + '-ին ժամանակահատվածի սկիզբ', toAria: names[k] + ', ' + (i + 1) + '-ին ժամանակահատվածի ավարտ',
+            cls: 'tm' + (bad ? ' bad' : ''),
+            next: mins(x[1]) <= mins(x[0]),
+            removable: i > 0, removeAria: 'Հեռացնել ընդմիջումից հետո ժամանակահատվածը',
+            onFrom: (e) => this.setDay(k, sp.map((y, j) => (j === i ? [e.target.value, y[1]] : y))),
+            onTo: (e) => this.setDay(k, sp.map((y, j) => (j === i ? [y[0], e.target.value] : y))),
+            remove: () => this.setDay(k, sp.filter((_, j) => j !== i))
+          })),
+          canSplit: isOpen && sp.length === 1,
+          split: () => this.setDay(k, [[sp[0][0], '15:00'], ['17:00', sp[0][1]]]),
+          copyOpen: open ? 'true' : 'false', showCopy: open,
+          copyAria: 'Պատճենել ' + names[k] + '-ը այլ օրերի վրա',
+          toggleCopy: () => { this.setState({ copyFrom: open ? null : k, copyTo: {} }); if (!open) this.focusLater('.pop input'); },
+          targets: keys.filter((x) => x !== k).map((x) => ({ name: names[x], on: !!s.copyTo[x], off: !s.copyTo[x], toggle: () => this.setState({ copyTo: Object.assign({}, s.copyTo, { [x]: !s.copyTo[x] }) }) })),
+          doCopy: () => {
+            const tgt = keys.filter((x) => s.copyTo[x]);
+            if (!tgt.length) { this.say('Ընտրեք առնվազն մեկ օր'); return; }
+            const w = Object.assign({}, s.week); tgt.forEach((x) => { w[x] = JSON.parse(JSON.stringify(sp)); });
+            this.setState({ week: w, copyFrom: null, copyTo: {} });
+            this.focusLater('[data-copy="' + k + '"]');
+            this.say(names[k] + '-ի ժամերը պատճենվեցին ' + tgt.length + ' օրվա վրա');
+          }
+        };
+      }),
+      copyBtn: 'Պատճենել' + (Object.keys(s.copyTo).filter((x) => s.copyTo[x]).length ? ' (' + Object.keys(s.copyTo).filter((x) => s.copyTo[x]).length + ')' : ''),
+      closeCopy: () => { const k = s.copyFrom; this.setState({ copyFrom: null, copyTo: {} }); this.focusLater('[data-copy="' + k + '"]'); },
+      popKey: (e) => { if (e.key === 'Escape') { e.preventDefault(); const k = s.copyFrom; this.setState({ copyFrom: null, copyTo: {} }); this.focusLater('[data-copy="' + k + '"]'); } },
+      sameAll: () => { const w = {}; keys.forEach((k) => { w[k] = JSON.parse(JSON.stringify(s.week.mon)); }); this.setState({ week: w }); this.say('Երկուշաբթին պատճենվեց բոլոր օրերի վրա'); },
+      nowDot: openNow ? '' : 'off',
+      nowTitle: openNow ? 'Բաց է' : 'Փակ է',
+      nowSub: openNow ? 'Շաբաթ · փակվում է ' + closing[1] + '-ին' + (mins(closing[1]) <= mins(closing[0]) ? ' (կիրակի գիշեր)' : '') : nextOpen ? 'Կբացվի այսօր ' + nextOpen[0] + '-ին' : 'Այսօր այլևս չի բացվի',
+      summary: groups.map((g) => ({ days: g.from === g.to ? short[g.from] : short[g.from] + '–' + short[g.to], hours: g.v })),
+      dirty: dirty, idle: !s.saving, saving: s.saving,
+      saveText: anyOverlap ? 'Համընկնող ժամեր կան. ուղղեք, հետո պահպանեք' : dirty ? 'Չպահպանված փոփոխություններ' : 'Պահպանված է',
+      discard: () => { this.setState({ week: this.base }); this.say('Փոփոխությունները չեղարկվեցին'); },
+      save: () => {
+        if (anyOverlap) { this.say('Նախ ուղղեք համընկնող ժամերը'); return; }
+        if (!dirty) { this.say('Փոփոխություն չկա'); return; }
+        this.setState({ saving: true }); clearTimeout(this._s);
+        this._s = setTimeout(() => { this.base = this.state.week; this.setState({ saving: false }); this.say('Աշխատաժամերը պահպանվեցին'); }, 800);
+      },
+      leaveOpen: !!s.leaveTo, leaveTo: s.leaveTo || '',
+      stay: () => { this.setState({ leaveTo: null }); this.focusLater('#sb-branch'); },
+      leave: () => { this.base = this.base; this.setState({ week: this.base, branch: s.leaveTo, leaveTo: null }); },
+      leaveKey: (e) => { if (e.key === 'Escape') { e.preventDefault(); this.setState({ leaveTo: null }); } if (e.key === 'Tab') { const b = Array.from(e.currentTarget.querySelectorAll('button')); const at = document.activeElement; if (e.shiftKey && at === b[0]) { e.preventDefault(); b[b.length - 1].focus(); } else if (!e.shiftKey && at === b[b.length - 1]) { e.preventDefault(); b[0].focus(); } } },
+      hasToast: !!s.toast, toast: s.toast || ''
+    });
+  }
+}
+</script>
+</body>
+</html>
