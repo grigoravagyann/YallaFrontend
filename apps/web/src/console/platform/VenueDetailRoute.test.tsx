@@ -1,144 +1,588 @@
 // @vitest-environment jsdom
-import { createConsoleMockGateway, type ConsoleGateway } from '@yalla/api';
+import 'fake-indexeddb/auto';
+import {
+  ConcurrencyConflictError,
+  StaffPinTakenError,
+  createConsoleMockGateway,
+  type ConsoleGateway,
+  type ConsoleUser,
+} from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { VenueDetailRoute } from './VenueDetailRoute';
+import type { AppRoutes as AppRoutesComponent } from '../../App';
 import { createConsoleHarness, initConsoleTestI18n } from '../venue/reports/testHarness';
 
 /**
- * The venue bootstrap path.
+ * One venue, for the platform admin (VenueDetail artboard; HANDOFF section 8
+ * step 3): the suspended banner, edit, suspend and delete, the tabs Overview /
+ * Staff / Bookings on a roving tabindex, the branch table with each branch's
+ * own plan, adding a branch, the four-step add-staff wizard with its sign-in
+ * shown once, and the bookings as aggregates only.
  *
- * A new venue has nobody in it, an owner cannot create another owner, and the
- * only actor above an owner is the platform admin — so this page is where the
- * first owner is made and the only place an owner's sign-in can be issued or
- * repaired. Before this, a hire here produced an owner nobody could ever sign
- * in as, and nobody could fix it afterwards.
+ * Against the real console mock: Lumen Coffee has staff, Mountain View has a
+ * branch whose menu refuses Paid, Cascade Cafe's open tabs block its delete.
  */
 
+let AppRoutes: typeof AppRoutesComponent;
+
 beforeAll(async () => {
+  vi.stubEnv('VITE_DATA_SOURCE', 'mock');
   await initConsoleTestI18n();
+  ({ AppRoutes } = await import('../../App'));
 });
 
 afterEach(cleanup);
 
-function renderVenue(gateway?: ConsoleGateway) {
+const ADMIN: ConsoleUser = {
+  id: 'u-platform',
+  displayName: 'Grigor Avagyan',
+  role: 'platformAdmin',
+  scope: { venueId: null, branchIds: [] },
+};
+
+function renderVenue(venueId = 'v-lumen', gateway?: ConsoleGateway, query = '') {
   const harness = createConsoleHarness({
     gateway: gateway ?? createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' }),
   });
-  render(
-    harness.wrap(
-      <Routes>
-        <Route path="/platform/venues/:venueId" element={<VenueDetailRoute />} />
-      </Routes>,
-      '/platform/venues/v-lumen',
-    ),
-  );
+  render(harness.wrap(<AppRoutes user={ADMIN} />, `/platform/venues/${venueId}${query}`));
   return harness;
 }
 
-/** Waits for the staff card's list, which arrives after the venue itself. */
-async function waitForStaff() {
-  await waitFor(() => expect(screen.getByText('Aram Sargsyan')).toBeTruthy(), { timeout: 5000 });
+const heading = (name: string) =>
+  screen.findByRole('heading', { level: 1, name }, { timeout: 5000 });
+const branchRow = (name: string) =>
+  within(screen.getByRole('table', { name: 'Branches' }))
+    .getByText(name)
+    .closest('tr')!;
+const staffRow = (name: string) => screen.getByText(name).closest('tr')!;
+
+async function openTab(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+  await user.click(screen.getByRole('tab', { name }));
 }
 
-const rowOf = (name: string) => screen.getByText(name).closest('li')!;
-
-/** The 409 the server answers a taken address with, as the gateway raises it. */
-async function addressTaken() {
-  const { ConcurrencyConflictError } = await import('@yalla/api');
-  return new ConcurrencyConflictError({
-    url: 'mock://yalla',
-    problem: {
-      type: 'about:blank',
-      title: 'Conflicting state',
-      status: 409,
-      detail: 'That email address already has an account.',
-      code: 'conflicting-state',
-      traceId: 'mock',
-    },
+describe('the venue page', () => {
+  it('heads with the venue, its state, its actions and the way back', async () => {
+    renderVenue('v-cascade');
+    await heading('Cascade Cafe');
+    const crumbs = screen.getByRole('navigation', { name: 'You are here' });
+    expect(within(crumbs).getByRole('link', { name: 'Venues' }).getAttribute('href')).toBe(
+      '/platform/venues',
+    );
+    expect(screen.getByText('Active')).toBeTruthy();
+    // In the header and again in the details card.
+    expect(screen.getAllByText('yalla.am/cascade-cafe')).toHaveLength(2);
+    for (const name of ['Edit', 'Suspend', 'Delete']) {
+      expect(screen.getByRole('button', { name })).toBeTruthy();
+    }
   });
-}
 
-/** Holds the issue call open until `release`, as the venue staff screen's tests do. */
-function withDeferredIssue(gateway: ConsoleGateway) {
-  const real = gateway.issueStaffSignIn.bind(gateway);
-  let release: () => void = () => {};
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
+  it('says a missing venue is not found, with the way back to the list', async () => {
+    renderVenue('v-nowhere');
+    expect(
+      await screen.findByRole('heading', { name: 'This venue was not found' }, { timeout: 5000 }),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Venues list' })).toBeTruthy();
   });
-  const issue = vi.spyOn(gateway, 'issueStaffSignIn').mockImplementation(async (input) => {
-    await gate;
-    return real(input);
+
+  it('moves between its tabs on the arrow keys, one Tab stop for all three', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+
+    const list = screen.getByRole('tablist', { name: 'Venue sections' });
+    const tabs = within(list).getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent?.replace(/\d+/u, '').trim())).toEqual([
+      'Overview',
+      'Staff',
+      'Bookings',
+    ]);
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
+    expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
+
+    tabs[0]!.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: /^Staff/u }));
+    expect(screen.getByRole('tab', { name: /^Staff/u }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel', { name: /^Staff/u })).toBeTruthy();
+    await user.keyboard('{End}');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Bookings' }));
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Overview' }));
+    await user.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Bookings' }));
   });
-  return { issue, release: () => release() };
-}
+});
 
-async function hireOwner(user: ReturnType<typeof userEvent.setup>, email: string) {
-  await user.click(screen.getByRole('button', { name: /add someone/i }));
-  const form = screen.getByRole('form');
-  await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
-  await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
-  await user.type(within(form).getByLabelText(/^email$/i), email);
-  await user.type(within(form).getByLabelText(/pin/i), '7315');
-  await user.click(within(form).getByRole('button', { name: /^add$/i }));
-}
+describe('the tabs', () => {
+  it('point only at a panel that is on the page', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+    for (const name of [/^Overview/u, /^Staff/u, /^Bookings/u]) {
+      await openTab(user, name);
+      for (const tab of screen.getAllByRole('tab')) {
+        const controls = tab.getAttribute('aria-controls');
+        if (controls) expect(document.getElementById(controls), controls).toBeTruthy();
+      }
+    }
+  });
+});
 
-describe('hiring the first owner', () => {
-  it('creates the owner and issues their sign-in in one go, showing PIN and link once', async () => {
+describe('the branch table', () => {
+  it('links each branch to its public page, rooms and reviews', async () => {
+    renderVenue();
+    await heading('Lumen Coffee');
+    const row = branchRow('Northern Avenue');
+    expect(within(row).getByRole('link', { name: 'Public page' }).getAttribute('href')).toBe(
+      '/platform/venues/v-lumen/branches/b-lumen-north/public',
+    );
+    expect(within(row).getByRole('link', { name: 'Rooms' }).getAttribute('href')).toBe(
+      '/platform/venues/v-lumen/branches/b-lumen-north/floorplan',
+    );
+    expect(within(row).getByRole('link', { name: 'Reviews' }).getAttribute('href')).toBe(
+      '/platform/venues/v-lumen/branches/b-lumen-north/reviews',
+    );
+  });
+
+  it("counts each branch's bookings for today, as the summary's week reports them", async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const week = await gateway.getVenueBookingsSummary({ venueId: 'v-lumen', days: 7 });
+    renderVenue('v-lumen', gateway);
+    await heading('Lumen Coffee');
+    const table = screen.getByRole('table', { name: 'Branches' });
+    expect(within(table).getByRole('columnheader', { name: 'Bookings today' })).toBeTruthy();
+    const north = week.byBranch.find((branch) => branch.name === 'Northern Avenue')!;
+    await waitFor(() =>
+      expect(within(branchRow('Northern Avenue')).getByText(String(north.todayCount))).toBeTruthy(),
+    );
+  });
+
+  it("refuses the unready branch's Paid before anything is sent, naming the dishes", async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const setTier = vi.spyOn(gateway, 'setBranchTier');
+    renderVenue('v-mountain', gateway);
+    await heading('Mountain View');
+
+    await user.click(within(branchRow('Նոր Նորք')).getByRole('button', { name: /plan at/u }));
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'The Նոր Նորք branch cannot go paid yet',
+    });
+    expect(within(dialog).getByText(/4 dishes are not ready/u)).toBeTruthy();
+    expect(setTier).not.toHaveBeenCalled();
+  });
+
+  it('moves one branch to Paid and leaves the other alone', async () => {
+    const user = userEvent.setup();
+    renderVenue('v-mountain');
+    await heading('Mountain View');
+
+    await user.click(within(branchRow('Քանաքեռ')).getByRole('button', { name: /plan at/u }));
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'Make the Քանաքեռ branch paid?',
+    });
+    expect(within(dialog).getByText(/at this branch only/u)).toBeTruthy();
+    await user.click(await within(dialog).findByRole('button', { name: 'Make paid' }));
+
+    expect(await screen.findByText('Քանաքեռ is now on the Paid plan')).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        within(branchRow('Քանաքեռ')).getByRole('button', { name: /^Paid plan/u }),
+      ).toBeTruthy(),
+    );
+    expect(within(branchRow('Նոր Նորք')).getByRole('button', { name: /^Free plan/u })).toBeTruthy();
+  });
+
+  it("refuses going Free while the branch's tabs are open", async () => {
+    const user = userEvent.setup();
+    renderVenue('v-cascade');
+    await heading('Cascade Cafe');
+    await user.click(within(branchRow('Կենտրոն')).getByRole('button', { name: /plan at/u }));
+    // Refused as the dialog opens, from the tabs the venue read reports: nothing to press.
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'The Կենտրոն branch cannot go free yet',
+    });
+    expect(within(dialog).queryByRole('button', { name: 'Make free' })).toBeNull();
+    expect(within(dialog).getByText(/Tabs are open/u)).toBeTruthy();
+  });
+
+  it('adds a branch, with errors under the fields first', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+
+    await user.click(screen.getByRole('button', { name: 'Add a branch' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add a branch' });
+    await user.type(within(dialog).getByLabelText(/^Name/u), 'Կոնդ');
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+    const slug = within(dialog).getByLabelText(/^Web address/u);
+    expect(within(dialog).getByText(/does not make one by itself/u)).toBeTruthy();
+    expect(within(dialog).getByText('Write the street address')).toBeTruthy();
+    expect(document.activeElement).toBe(slug);
+    expect(slug.getAttribute('aria-invalid')).toBe('true');
+
+    await user.type(slug, 'kond');
+    await user.type(within(dialog).getByLabelText(/^Address/u), '3 Paronyan Street');
+    await user.type(within(dialog).getByLabelText(/^Latitude/u), '40.18');
+    await user.type(within(dialog).getByLabelText(/^Longitude/u), '44.50');
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+
+    expect(await screen.findByText('Branch Կոնդ was added')).toBeTruthy();
+    await waitFor(() => expect(branchRow('Կոնդ')).toBeTruthy());
+    expect(within(branchRow('Կոնդ')).getByText('No rooms or menu yet')).toBeTruthy();
+  });
+});
+
+describe('the overview', () => {
+  it('says what is not ready yet, amber, and counts what is', async () => {
+    renderVenue('v-mountain');
+    await heading('Mountain View');
+    const card = screen.getByRole('region', { name: 'Readiness' });
+    expect(await within(card).findByText('4 dishes unfinished')).toBeTruthy();
+    expect(within(card).getByText(/\d \/ 5/u)).toBeTruthy();
+  });
+
+  it('shows the bookings of the last 30 days and how many wait for approval', async () => {
+    renderVenue('v-cascade');
+    await heading('Cascade Cafe');
+    const kpi = screen.getByText('Bookings in 30 days').closest('.yc-kpi')!;
+    await waitFor(() =>
+      expect(within(kpi as HTMLElement).getByText(/waiting for approval/u)).toBeTruthy(),
+    );
+  });
+});
+
+describe('suspending and resuming', () => {
+  it('suspends after a confirm, shows the banner, and undoes from the toast', async () => {
+    const user = userEvent.setup();
+    renderVenue('v-luna');
+    await heading('Luna Cafe');
+
+    await user.click(screen.getByRole('button', { name: 'Suspend' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Suspend Luna Cafe?' });
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Suspend' }));
+
+    expect(await screen.findByText('Luna Cafe was suspended')).toBeTruthy();
+    const resume = await screen.findByRole('button', { name: 'Resume' });
+    expect(screen.getByText(/Guests do not see the venue/u)).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(resume));
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull());
+    expect(await screen.findByText('Luna Cafe is active again')).toBeTruthy();
+  });
+
+  it('resumes from the banner of a suspended venue', async () => {
+    const user = userEvent.setup();
+    renderVenue('v-garden');
+    await heading('Garden Bistro');
+    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(await screen.findByText('Garden Bistro is active again')).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Suspend' })).toBeTruthy());
+  });
+});
+
+describe('editing the venue', () => {
+  it('saves a new name, warns before the web address moves, and undoes', async () => {
+    const user = userEvent.setup();
+    renderVenue('v-luna');
+    await heading('Luna Cafe');
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit the venue' });
+    const name = within(dialog).getByLabelText(/^Name/u);
+    expect(document.activeElement).toBe(name);
+    await user.clear(name);
+    await user.type(name, 'Luna Caffè');
+    const slug = within(dialog).getByLabelText(/^Web address/u);
+    await user.clear(slug);
+    await user.type(slug, 'luna-caffe');
+    expect(within(dialog).getByText(/old link yalla\.am\/luna-cafe stops working/u)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await heading('Luna Caffè');
+    expect(await screen.findByText('Venue saved')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await heading('Luna Cafe');
+  });
+
+  it('puts a web address another venue has under the field', async () => {
+    const user = userEvent.setup();
+    renderVenue('v-luna');
+    await heading('Luna Cafe');
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit the venue' });
+    const slug = within(dialog).getByLabelText(/^Web address/u);
+    await user.clear(slug);
+    await user.type(slug, 'cascade-cafe');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(
+      await within(dialog).findByText('"cascade-cafe" is taken. Choose another.'),
+    ).toBeTruthy();
+    expect(slug.getAttribute('aria-invalid')).toBe('true');
+  });
+});
+
+describe('deleting the venue', () => {
+  it('is refused while tabs are open, and suspends instead', async () => {
+    const user = userEvent.setup();
+    renderVenue('v-cascade');
+    await heading('Cascade Cafe');
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete Cascade Cafe?' });
+    await user.type(within(dialog).getByLabelText('Type Cascade Cafe to confirm'), 'Cascade Cafe');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    const blocked = await screen.findByRole('alertdialog', {
+      name: 'Cascade Cafe is still in use',
+    });
+    await user.click(within(blocked).getByRole('button', { name: 'Suspend instead' }));
+    expect(await screen.findByRole('button', { name: 'Resume' })).toBeTruthy();
+  });
+
+  it('goes back to the list once deleted, with an undo', async () => {
+    const user = userEvent.setup();
+    renderVenue('v-sunset');
+    await heading('Sunset Lounge');
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete Sunset Lounge?' });
+    await user.type(
+      within(dialog).getByLabelText('Type Sunset Lounge to confirm'),
+      'Sunset Lounge',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Venues' })).toBeTruthy();
+    expect(await screen.findByText('Sunset Lounge was deleted')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+  });
+
+  it('says so, as a failure, when the undo of a delete does not go through', async () => {
+    const user = userEvent.setup();
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const gateway: ConsoleGateway = {
+      ...mock,
+      restoreVenue: () => Promise.reject(new Error('down')),
+    };
+    renderVenue('v-sunset', gateway);
+    await heading('Sunset Lounge');
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete Sunset Lounge?' });
+    await user.type(
+      within(dialog).getByLabelText('Type Sunset Lounge to confirm'),
+      'Sunset Lounge',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/did not go through|failed|try again/iu);
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+});
+
+describe('the staff tab', () => {
+  it('shows every sign-in state and offers the action on each admin row', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await screen.findByText('Aram Sargsyan');
+
+    const owner = staffRow('Aram Sargsyan');
+    expect(within(owner).getByText('owner@lumen-coffee.am')).toBeTruthy();
+    expect(within(owner).getByText('Active')).toBeTruthy();
+    expect(within(owner).getByRole('button', { name: 'New link: Aram Sargsyan' })).toBeTruthy();
+
+    const manager = staffRow('Nare Petrosyan');
+    expect(within(manager).getByText('No sign-in')).toBeTruthy();
+    expect(
+      within(manager).getByRole('button', { name: 'Give sign-in: Nare Petrosyan' }),
+    ).toBeTruthy();
+
+    const waiter = staffRow('Ani Hakobyan (Northern Avenue)');
+    expect(within(waiter).queryByRole('button')).toBeNull();
+    expect(within(waiter).getByText('By PIN')).toBeTruthy();
+  });
+
+  it('narrows to a branch, venue-wide people included', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await screen.findByText('Aram Sargsyan');
+    await user.selectOptions(screen.getByLabelText('Branch'), 'b-lumen-north');
+    expect(screen.getByText('Aram Sargsyan')).toBeTruthy();
+    expect(screen.getByText('Nare Petrosyan')).toBeTruthy();
+    expect(screen.queryByText('Tigran Avetisyan')).toBeNull();
+  });
+
+  it('gives a manager a sign-in from their row, shown once', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await user.click(await screen.findByRole('button', { name: 'Give sign-in: Nare Petrosyan' }));
+    const dialog = screen.getByRole('dialog', { name: 'Sign-in link: Nare Petrosyan' });
+    await user.click(within(dialog).getByRole('button', { name: 'Make the link' }));
+    expect(within(dialog).getByText('Write the address they will sign in with')).toBeTruthy();
+    await user.type(within(dialog).getByLabelText(/^Email/u), 'nare@lumen.am');
+    await user.click(within(dialog).getByRole('button', { name: 'Make the link' }));
+
+    const once = await screen.findByRole('dialog', { name: 'Sign-in: Nare Petrosyan' });
+    expect((within(once).getByLabelText('Sign-in link') as HTMLInputElement).value).toMatch(
+      /token=/u,
+    );
+  });
+
+  it('says what a new link does to an owner who already signs in', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await user.click(await screen.findByRole('button', { name: 'New link: Aram Sargsyan' }));
+    const dialog = screen.getByRole('dialog', { name: 'Sign-in link: Aram Sargsyan' });
+    expect(within(dialog).getByText(/current password keeps working/u)).toBeTruthy();
+    const field = within(dialog).getByLabelText(/^Email/u);
+    await user.clear(field);
+    await user.type(field, 'aram@lumen.am');
+    expect(
+      within(dialog).getByText(/sign in with aram@lumen\.am instead of owner@lumen-coffee\.am/u),
+    ).toBeTruthy();
+  });
+});
+
+describe('adding staff', () => {
+  async function walkToStepFour(
+    user: ReturnType<typeof userEvent.setup>,
+    role: string,
+    pin = '7315',
+  ) {
+    await user.click(screen.getByRole('button', { name: 'Add staff' }));
+    const dialog = screen.getByRole('dialog', { name: 'New staff member' });
+    await user.type(within(dialog).getByLabelText(/^Full name/u), 'Hasmik Sargsyan');
+    await user.type(within(dialog).getByLabelText(/^Phone/u), '+37477999999');
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+    await user.click(within(dialog).getByRole('radio', { name: new RegExp(`^${role}`, 'u') }));
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+    await user.type(within(dialog).getByLabelText(/^Tablet PIN/u), pin);
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+    return dialog;
+  }
+
+  it('walks four steps and shows the PIN and the link once', async () => {
+    const user = userEvent.setup();
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
     const create = vi.spyOn(gateway, 'createStaff');
     const issue = vi.spyOn(gateway, 'issueStaffSignIn');
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
+    renderVenue('v-lumen', gateway);
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await screen.findByText('Aram Sargsyan');
 
-    await user.click(screen.getByRole('button', { name: /add someone/i }));
-    const form = screen.getByRole('form');
-    // Owner is the platform admin's default: the one hire nobody else can make.
-    expect((within(form).getByLabelText(/^role$/i) as HTMLSelectElement).value).toBe('owner');
+    await user.click(screen.getByRole('button', { name: 'Add staff' }));
+    const dialog = screen.getByRole('dialog', { name: 'New staff member' });
+    expect(within(dialog).getByText('Step 1 of 4')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+    const name = within(dialog).getByLabelText(/^Full name/u);
+    expect(within(dialog).getByText('Write their name')).toBeTruthy();
+    expect(within(dialog).getByText('Write their phone number')).toBeTruthy();
+    expect(document.activeElement).toBe(name);
 
-    await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
-    await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
-    await user.type(within(form).getByLabelText(/^email$/i), 'hasmik@lumen.am');
-    await user.type(within(form).getByLabelText(/pin/i), '7315');
-    await user.click(within(form).getByRole('button', { name: /^add$/i }));
+    await user.type(name, 'Hasmik Sargsyan');
+    await user.type(within(dialog).getByLabelText(/^Phone/u), '+37477999999');
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
 
-    // Two calls, one address, and no email anywhere near the create call: the
-    // server refuses an email without a password there.
+    // Owner and general manager work everywhere: no branch to pick.
+    await user.click(within(dialog).getByRole('radio', { name: /^Owner/u }));
+    expect(within(dialog).queryByLabelText('At which branch')).toBeNull();
+    expect(within(dialog).getByText(/An owner works at every branch/u)).toBeTruthy();
+    await user.click(within(dialog).getByRole('radio', { name: /^Branch manager/u }));
+    expect(within(dialog).getByLabelText('At which branch')).toBeTruthy();
+    await user.click(within(dialog).getByRole('radio', { name: /^Owner/u }));
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+    expect(within(dialog).getByText('A PIN is exactly 4 digits')).toBeTruthy();
+    await user.type(within(dialog).getByLabelText(/^Tablet PIN/u), '73a15');
+    expect((within(dialog).getByLabelText(/^Tablet PIN/u) as HTMLInputElement).value).toBe('7315');
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+
+    await user.type(within(dialog).getByLabelText(/^Email for the console/u), 'hasmik@lumen.am');
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+
     await waitFor(() => expect(issue).toHaveBeenCalledTimes(1));
+    // No email on the create call: the server refuses one without a password.
     expect(create.mock.calls[0]?.[0].staff).not.toHaveProperty('email');
-    expect(create.mock.calls[0]?.[0].staff.role).toBe('owner');
-    const created = await create.mock.results[0]!.value;
-    expect(issue.mock.calls[0]?.[0]).toEqual({
-      venueId: 'v-lumen',
-      staffMemberId: created.id,
-      email: 'hasmik@lumen.am',
+    expect(create.mock.calls[0]?.[0].staff).toMatchObject({
+      role: 'owner',
+      branchId: null,
+      pin: '7315',
     });
 
-    const dialog = await screen.findByRole('dialog');
-    expect(screen.getAllByRole('dialog')).toHaveLength(1);
-    expect(within(dialog).getByText('7315')).toBeTruthy();
-    const token = dialog.textContent?.match(/#token=([a-z0-9]{32})/u)?.[1];
-    expect(token).toBeTruthy();
-
-    await user.click(within(dialog).getByRole('button', { name: /^done$/i }));
+    const once = await screen.findByRole('dialog', { name: 'Sign-in: Hasmik Sargsyan' });
+    expect(within(once).getByText('7315')).toBeTruthy();
+    await user.click(within(once).getByRole('button', { name: 'Done' }));
+    expect(within(once).getByRole('alert').textContent).toMatch(/Copy the link first/u);
+    await user.click(within(once).getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(document.body.textContent).not.toContain('7315');
-    expect(document.body.textContent).not.toContain(token!);
 
-    // The new owner is listed as awaiting their password, address shown.
-    await waitFor(() => {
-      const row = rowOf('Hasmik Sargsyan');
-      expect(within(row).getByText(/awaiting password/i)).toBeTruthy();
-      expect(within(row).getByText('hasmik@lumen.am')).toBeTruthy();
-    });
+    await waitFor(() =>
+      expect(within(staffRow('Hasmik Sargsyan')).getByText('Awaiting password')).toBeTruthy(),
+    );
   });
 
-  it('still shows the PIN when the sign-in was refused, and leaves the row repairable', async () => {
+  it('adds a waiter with a PIN alone, and asks for no copy', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await screen.findByText('Aram Sargsyan');
+    const dialog = await walkToStepFour(user, 'Waiter');
+    expect(within(dialog).getByText(/works on the tablet only/u)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+
+    const once = await screen.findByRole('dialog', { name: 'PIN: Hasmik Sargsyan' });
+    expect(within(once).queryByLabelText('Sign-in link')).toBeNull();
+    await user.click(within(once).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await screen.findByText('Staff member added')).toBeTruthy();
+  });
+
+  it('puts a PIN somebody already uses under the PIN field', async () => {
+    const user = userEvent.setup();
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const { ConcurrencyConflictError } = await import('@yalla/api');
+    vi.spyOn(gateway, 'createStaff').mockRejectedValueOnce(
+      new StaffPinTakenError({
+        url: 'mock://yalla',
+        detail: 'Somebody who signs in on this tablet already uses that PIN. Choose another.',
+        problem: {
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail: 'Somebody who signs in on this tablet already uses that PIN. Choose another.',
+          code: 'pin-taken',
+          traceId: 'mock',
+          context: { field: 'pin' },
+        },
+      }),
+    );
+    renderVenue('v-lumen', gateway);
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await screen.findByText('Aram Sargsyan');
+    const dialog = await walkToStepFour(user, 'Waiter');
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
+
+    expect(await within(dialog).findByText(/already uses that PIN/u)).toBeTruthy();
+    const pin = within(dialog).getByLabelText(/^Tablet PIN/u);
+    expect(pin.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(pin);
+  });
+
+  it('still shows the PIN when the link was refused, and asks for the address again', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
     vi.spyOn(gateway, 'issueStaffSignIn').mockRejectedValueOnce(
       new ConcurrencyConflictError({
         url: 'mock://yalla',
@@ -152,443 +596,59 @@ describe('hiring the first owner', () => {
         },
       }),
     );
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
+    renderVenue('v-lumen', gateway);
+    await heading('Lumen Coffee');
+    await openTab(user, /^Staff/u);
+    await screen.findByText('Aram Sargsyan');
+    const dialog = await walkToStepFour(user, 'Owner');
+    await user.type(within(dialog).getByLabelText(/^Email for the console/u), 'taken@lumen.am');
+    await user.click(within(dialog).getByRole('button', { name: 'Add' }));
 
-    await user.click(screen.getByRole('button', { name: /add someone/i }));
-    const form = screen.getByRole('form');
-    await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
-    await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
-    await user.type(within(form).getByLabelText(/^email$/i), 'owner@lumen-coffee.am');
-    await user.type(within(form).getByLabelText(/pin/i), '7315');
-    await user.click(within(form).getByRole('button', { name: /^add$/i }));
+    const once = await screen.findByRole('dialog', { name: 'PIN: Hasmik Sargsyan' });
+    expect(within(once).getByText('7315')).toBeTruthy();
+    expect(within(once).getByRole('alert').textContent).toMatch(/already has an account/u);
+    await user.click(within(once).getByRole('button', { name: 'Try again' }));
 
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('7315')).toBeTruthy();
-    expect(within(dialog).getByRole('alert').textContent).toContain('already has an account');
-    await user.click(within(dialog).getByRole('button', { name: /^done$/i }));
-
-    await waitFor(() => {
-      const row = rowOf('Hasmik Sargsyan');
-      expect(within(row).getByText(/no sign-in/i)).toBeTruthy();
-      expect(within(row).getByRole('button', { name: /issue sign-in/i })).toBeTruthy();
-    });
-  });
-
-  it("carries the refusal to the row's prompt on try again, with the cursor in the field", async () => {
-    /*
-     * The dialog's alert unmounts with the dialog. The sentence the person is
-     * meant to act on has to be under the field they are about to correct,
-     * exactly as a failed send from the row leaves it.
-     */
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    vi.spyOn(gateway, 'issueStaffSignIn').mockRejectedValueOnce(await addressTaken());
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await hireOwner(user, 'owner@lumen-coffee.am');
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: /try again/i }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-
-    const prompt = screen.getByRole('form', { name: /sign-in for hasmik/i });
-    const field = within(prompt).getByLabelText(/^email$/i) as HTMLInputElement;
-    expect(field.value).toBe('owner@lumen-coffee.am');
-    expect(within(prompt).getByRole('alert').textContent).toContain('already has an account');
-    expect(document.activeElement).toBe(field);
-  });
-
-  it('keeps the form saving until the dialog is ready', async () => {
-    // Same rule as the venue staff screen: no moment with the owner made and
-    // nothing on screen about it.
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const { issue, release } = withDeferredIssue(gateway);
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await hireOwner(user, 'hasmik@lumen.am');
-    await waitFor(() => expect(issue).toHaveBeenCalledTimes(1));
-
-    const form = screen.getByRole('form');
-    const submit = within(form).getByRole('button', { name: /saving/i }) as HTMLButtonElement;
-    expect(submit.disabled).toBe(true);
-    expect(screen.queryByRole('dialog')).toBeNull();
-
-    release();
-    await screen.findByRole('dialog');
-    expect(screen.queryByRole('form')).toBeNull();
+    const issue = await screen.findByRole('dialog', { name: 'Sign-in link: Hasmik Sargsyan' });
+    const field = within(issue).getByLabelText(/^Email/u) as HTMLInputElement;
+    expect(field.value).toBe('taken@lumen.am');
+    expect(within(issue).getByText(/already has an account/u)).toBeTruthy();
   });
 });
 
-describe('the branch rows', () => {
-  it('link each branch to its public page, rooms and reviews', async () => {
-    renderVenue();
-    const branches = await screen.findByRole('heading', { name: /^branches$/i });
-    const card = branches.closest('.card') as HTMLElement;
-    const publicLinks = within(card).getAllByRole('link', { name: /public page/i });
-    expect(publicLinks.length).toBeGreaterThan(0);
-    const href = publicLinks[0]!.getAttribute('href')!;
-    expect(href).toMatch(/^\/platform\/venues\/v-lumen\/branches\/[^/]+\/public$/u);
-    const branchId = href.split('/')[5];
-    expect(
-      within(card)
-        .getAllByRole('link', { name: /^rooms$/i })
-        .map((link) => link.getAttribute('href')),
-    ).toContain(`/platform/venues/v-lumen/branches/${branchId}/floorplan`);
-    expect(
-      within(card)
-        .getAllByRole('link', { name: /reviews/i })
-        .map((link) => link.getAttribute('href')),
-    ).toContain(`/platform/venues/v-lumen/branches/${branchId}/reviews`);
-  });
-});
-
-describe('the staff card', () => {
-  it('shows every sign-in state and offers the platform admin the action on each admin row', async () => {
-    renderVenue();
-    await waitForStaff();
-
-    // The seeded owner signs in already: no badge, but a new link can be sent.
-    const owner = rowOf('Aram Sargsyan');
-    expect(within(owner).queryByText(/no sign-in/i)).toBeNull();
-    expect(within(owner).queryByText(/awaiting password/i)).toBeNull();
-    expect(within(owner).getByText('owner@lumen-coffee.am')).toBeTruthy();
-    expect(within(owner).getByRole('button', { name: /send new link/i })).toBeTruthy();
-
-    // Every seeded manager has no address.
-    const manager = rowOf('Nare Petrosyan');
-    expect(within(manager).getByText(/no sign-in/i)).toBeTruthy();
-    expect(within(manager).getByRole('button', { name: /issue sign-in/i })).toBeTruthy();
-
-    // A waiter never signs in here: no badge, no action.
-    const waiter = rowOf('Ani Hakobyan (Northern Avenue)');
-    expect(within(waiter).queryByText(/sign-in/i)).toBeNull();
-    expect(within(waiter).queryByRole('button')).toBeNull();
-  });
-
-  it('shows no sign-in warning on a deactivated row, where no action is offered', async () => {
-    // "Deactivated" explains the state; a warning nobody can act on is noise.
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const list = gateway.listStaff.bind(gateway);
-    vi.spyOn(gateway, 'listStaff').mockImplementation(async (venueId) =>
-      (await list(venueId)).map((member) =>
-        member.id === 'b-lumen-north-manager' ? { ...member, isActive: false } : member,
-      ),
-    );
-    renderVenue(gateway);
-    await waitForStaff();
-
-    const manager = rowOf('Nare Petrosyan');
-    expect(within(manager).getByText(/deactivated/i)).toBeTruthy();
-    expect(within(manager).queryByRole('button')).toBeNull();
-    expect(within(manager).queryByText(/no sign-in/i)).toBeNull();
-  });
-});
-
-describe('repairing an existing owner', () => {
-  it('re-points their address after a second click and hands over one link', async () => {
-    /*
-     * The only path that reaches an owner: an owner cannot act on a peer. The
-     * owner already signs in, so a different address is read back before it
-     * is sent — it changes the moment the server answers — and their
-     * password keeps working until the link is used.
-     */
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const issue = vi.spyOn(gateway, 'issueStaffSignIn');
+describe('the bookings tab', () => {
+  it('shows totals only: by status, by weekday and by branch, for 30 or 7 days', async () => {
     const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const month = await gateway.getVenueBookingsSummary({ venueId: 'v-yalla-demo', days: 30 });
+    const week = await gateway.getVenueBookingsSummary({ venueId: 'v-yalla-demo', days: 7 });
+    renderVenue('v-yalla-demo', gateway);
+    await heading('Yalla Demo Cafe');
+    await openTab(user, /^Bookings/u);
 
-    await user.click(
-      within(rowOf('Aram Sargsyan')).getByRole('button', { name: /send new link/i }),
-    );
-    const prompt = screen.getByRole('form', { name: /sign-in for aram/i });
-    const field = within(prompt).getByLabelText(/^email$/i) as HTMLInputElement;
-    expect(field.value).toBe('owner@lumen-coffee.am');
-    // He signs in already, so what is at stake is the password, said here.
-    expect(within(prompt).getByText(/current password keeps working/i)).toBeTruthy();
-    expect(within(prompt).queryByText(/previous link stops working/i)).toBeNull();
-
-    await user.clear(field);
-    await user.type(field, 'aram@lumen.am');
-    await user.click(within(prompt).getByRole('button', { name: /send link/i }));
+    const panel = screen.getByRole('tabpanel', { name: 'Bookings' });
+    expect(within(panel).getByText(/Only totals here/u)).toBeTruthy();
+    expect(await within(panel).findByText(String(month.total))).toBeTruthy();
     expect(
-      within(prompt).getByText(/aram@lumen\.am instead of owner@lumen-coffee\.am/i),
+      within(panel).getByRole('img', { name: /Bookings by day of the week: Mon \d+/u }),
     ).toBeTruthy();
-    expect(issue).not.toHaveBeenCalled();
+    const byBranch = within(panel).getByRole('table', { name: 'By branch' });
+    expect(within(byBranch).getByText('Կոմիտաս')).toBeTruthy();
+    // The window looks back: what is still ahead of it is "confirmed", not "upcoming".
+    expect(within(byBranch).getByRole('columnheader', { name: 'Confirmed' })).toBeTruthy();
+    expect(within(panel).queryByText('Upcoming')).toBeNull();
+    // The shares of who came and who did not are of the bookings already past.
+    expect(within(panel).getAllByText(/of past bookings/u)).toHaveLength(2);
 
-    await user.click(within(prompt).getByRole('button', { name: /yes, send it/i }));
-    await waitFor(() => expect(issue).toHaveBeenCalledTimes(1));
-    expect(issue.mock.calls[0]?.[0]).toEqual({
-      venueId: 'v-lumen',
-      staffMemberId: 'v-lumen-owner',
-      email: 'aram@lumen.am',
-    });
-
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog.textContent).toMatch(/current password keeps working/i);
-    expect(dialog.textContent).toMatch(/good until/i);
-    await user.click(within(dialog).getByRole('button', { name: /^done$/i }));
-
-    // Address changed, password untouched: no badge, new address on the row.
-    await waitFor(() => {
-      const row = rowOf('Aram Sargsyan');
-      expect(within(row).getByText('aram@lumen.am')).toBeTruthy();
-      expect(within(row).queryByText(/awaiting password/i)).toBeNull();
-    });
-  });
-});
-
-describe('hiring an owner who will be given their sign-in later', () => {
-  it('creates them with a PIN alone when the address is left empty, and shows the PIN once', async () => {
-    /*
-     * The address was required, so an owner who never touches a tablet still
-     * could not be added without an email on hand — and "Issue sign-in", the
-     * row action that exists for exactly this, was unreachable for anybody
-     * new. The server needs a PIN on every create; it does not need an email.
-     */
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const create = vi.spyOn(gateway, 'createStaff');
-    const issue = vi.spyOn(gateway, 'issueStaffSignIn');
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await user.click(screen.getByRole('button', { name: /add someone/i }));
-    const form = screen.getByRole('form');
-    await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
-    await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
-    await user.type(within(form).getByLabelText(/pin/i), '7315');
-    await user.click(within(form).getByRole('button', { name: /^add$/i }));
-
-    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
-    expect(create.mock.calls[0]![0].staff).not.toHaveProperty('email');
-    expect(issue).not.toHaveBeenCalled();
-
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('7315')).toBeTruthy();
-    expect(within(dialog).queryByText(/sign-in link/i)).toBeNull();
-
-    // The row offers the sign-in from here on, as it does for any owner without one.
-    await user.click(within(dialog).getByRole('button'));
-    const row = await waitFor(() => rowOf('Hasmik Sargsyan'));
-    expect(within(row).getByText(/no sign-in/i)).toBeTruthy();
-    expect(within(row).getByRole('button', { name: /issue sign-in/i })).toBeTruthy();
-  });
-});
-
-describe('editing the venue and adding a branch', () => {
-  /*
-   * The page offered tier, staff, suspend and delete, and nothing for the two
-   * things the backend has served all along: PATCH the venue's name, web
-   * address and type, and POST a second branch. A venue with a typo in its
-   * name, or a second site, meant a hand call to the API.
-   */
-  it('saves a new name through "Edit venue" and shows it', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const update = vi.spyOn(gateway, 'updateVenue');
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await user.click(screen.getByRole('button', { name: /edit venue/i }));
-    const form = screen.getByRole('form', { name: /edit venue/i });
-    const name = within(form).getByLabelText(/^venue name$/i) as HTMLInputElement;
-    expect(name.value).toBe('Lumen Coffee');
-    await user.clear(name);
-    await user.type(name, 'Lumen Coffee House');
-    await user.selectOptions(within(form).getByLabelText(/type/i), 'restaurant');
-    await user.click(within(form).getByRole('button', { name: /^save$/i }));
-
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
-    expect(update.mock.calls[0]![0]).toMatchObject({
-      venueId: 'v-lumen',
-      name: 'Lumen Coffee House',
-      type: 'restaurant',
-    });
-    expect(await screen.findByRole('heading', { name: 'Lumen Coffee House' })).toBeTruthy();
-    expect(screen.queryByRole('form', { name: /edit venue/i })).toBeNull();
+    await user.selectOptions(within(panel).getByLabelText('Period'), '7');
+    expect(await within(panel).findByText(String(week.total))).toBeTruthy();
   });
 
-  it('offers a bar as a venue type and saves it', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const update = vi.spyOn(gateway, 'updateVenue');
+  it('says so when the period has no bookings', async () => {
     const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await user.click(screen.getByRole('button', { name: /edit venue/i }));
-    const form = screen.getByRole('form', { name: /edit venue/i });
-    const type = within(form).getByLabelText(/type/i) as HTMLSelectElement;
-    expect([...type.options].map((option) => option.textContent)).toEqual([
-      'Cafe',
-      'Restaurant',
-      'Bar',
-    ]);
-    await user.selectOptions(type, 'bar');
-    await user.click(within(form).getByRole('button', { name: /^save$/i }));
-
-    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
-    expect(update.mock.calls[0]![0]).toMatchObject({ venueId: 'v-lumen', type: 'bar' });
-    expect((await gateway.getVenue('v-lumen'))?.type).toBe('bar');
-  });
-
-  it('names a web address already in use and keeps the form open', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await user.click(screen.getByRole('button', { name: /edit venue/i }));
-    const form = screen.getByRole('form', { name: /edit venue/i });
-    const slug = within(form).getByLabelText(/web address/i);
-    await user.clear(slug);
-    await user.type(slug, 'green-bean');
-    await user.click(within(form).getByRole('button', { name: /^save$/i }));
-
-    expect(await within(form).findByText(/"green-bean" is already in use/i)).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Lumen Coffee' })).toBeTruthy();
-  });
-
-  it('adds a branch with its own address, pin and web address', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const add = vi.spyOn(gateway, 'addBranch');
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await user.click(screen.getByRole('button', { name: /add a branch/i }));
-    const form = screen.getByRole('form', { name: /add a branch/i });
-    await user.type(within(form).getByLabelText(/branch name/i), 'Komitas');
-    await user.type(within(form).getByLabelText(/street address/i), '5 Komitas Avenue, Yerevan');
-    await user.type(within(form).getByLabelText(/latitude/i), '40.2');
-    await user.type(within(form).getByLabelText(/longitude/i), '44.5');
-    await user.click(within(form).getByRole('button', { name: /^add$/i }));
-
-    await waitFor(() => expect(add).toHaveBeenCalledTimes(1));
-    expect(add.mock.calls[0]![0]).toMatchObject({
-      venueId: 'v-lumen',
-      name: 'Komitas',
-      slug: 'komitas',
-      address: '5 Komitas Avenue, Yerevan',
-      latitude: 40.2,
-      longitude: 44.5,
-      timeZoneId: 'Asia/Yerevan',
-    });
-    expect(await screen.findByText('Komitas')).toBeTruthy();
-    expect(screen.queryByRole('form', { name: /add a branch/i })).toBeNull();
-  });
-});
-
-/**
- * The general manager and the branch manager on the platform's form: the
- * same binding the venue's own dialogs follow, and the server's refusals
- * under the field they are about.
- */
-describe('the roles a platform admin hires', () => {
-  const PIN_TAKEN = 'Somebody who signs in on this tablet already uses that PIN. Choose another.';
-
-  it('offers a general manager with no branch, and a branch manager with no "All branches"', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const create = vi.spyOn(gateway, 'createStaff');
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    await user.click(screen.getByRole('button', { name: /add someone/i }));
-    const form = screen.getByRole('form');
-    const role = within(form).getByLabelText(/^role$/i) as HTMLSelectElement;
-    expect([...role.options].map((option) => option.textContent)).toEqual([
-      'Owner',
-      'General manager',
-      'Branch manager',
-      'Waiter',
-      'Kitchen',
-    ]);
-
-    await user.selectOptions(role, 'manager');
-    const branch = within(form).getByLabelText(/which branch/i) as HTMLSelectElement;
-    expect([...branch.options].map((option) => option.value)).not.toContain('__all__');
-
-    await user.selectOptions(role, 'generalManager');
-    expect(within(form).queryByLabelText(/which branch/i)).toBeNull();
-    expect(within(form).getByText(/every branch of the venue/i)).toBeTruthy();
-
-    await user.type(within(form).getByLabelText(/full name/i), 'Hasmik Sargsyan');
-    await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
-    await user.type(within(form).getByLabelText(/pin/i), '7315');
-    await user.click(within(form).getByRole('button', { name: /^add$/i }));
-
-    await waitFor(() => expect(create).toHaveBeenCalled());
-    expect(create.mock.calls[0]?.[0].staff).toMatchObject({
-      role: 'generalManager',
-      branchId: null,
-    });
-  });
-
-  it('puts a taken PIN under the PIN field', async () => {
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    const user = userEvent.setup();
-    renderVenue(gateway);
-    await waitForStaff();
-
-    for (const name of ['Hasmik Sargsyan', 'Lilit Sargsyan']) {
-      await user.click(screen.getByRole('button', { name: /add someone/i }));
-      const form = screen.getByRole('form');
-      await user.selectOptions(within(form).getByLabelText(/^role$/i), 'waiter');
-      await user.type(within(form).getByLabelText(/full name/i), name);
-      await user.type(within(form).getByLabelText(/phone/i), '+37477999999');
-      await user.type(within(form).getByLabelText(/pin/i), '7315');
-      await user.click(within(form).getByRole('button', { name: /^add$/i }));
-      if (name === 'Hasmik Sargsyan') {
-        const dialog = await screen.findByRole('dialog');
-        await user.click(within(dialog).getByRole('button'));
-        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-      }
-    }
-
-    const form = screen.getByRole('form');
-    const alert = await within(form).findByRole('alert');
-    expect(alert.textContent).toBe(PIN_TAKEN);
-    expect(within(form).getByLabelText(/pin/i).getAttribute('aria-describedby')).toBe(alert.id);
-  });
-});
-
-/**
- * Deleting a venue that is still in use. The server answers 409
- * venue-deletion-blocked with the tables that have an open tab and the codes
- * of bookings still to come; the page used to show only "That did not go
- * through", so nobody could tell what was holding the venue.
- */
-describe('deleting a venue that is still in use', () => {
-  it('names the open tables and the upcoming bookings', async () => {
-    const { VenueDeletionBlockedError } = await import('@yalla/api');
-    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
-    gateway.deleteVenue = () =>
-      Promise.reject(
-        new VenueDeletionBlockedError({
-          url: 'mock://yalla',
-          venueId: 'v-lumen',
-          openTables: ['4', '12'],
-          futureBookings: ['K7Q2LM'],
-        }),
-      );
-    renderVenue(gateway);
-    const user = userEvent.setup();
-
-    const heading = await screen.findByRole('heading', { level: 1 });
-    const name = heading.textContent ?? '';
-    await user.click(screen.getByRole('button', { name: 'Delete venue' }));
-    await user.type(screen.getByLabelText(new RegExp(name, 'u')), name);
-    await user.click(screen.getByRole('button', { name: /^Delete$|Delete it|Delete for good/u }));
-
-    const panel = await screen.findByRole('region', { name: /still in use/iu });
-    expect(within(panel).getByText(/Table 4/u)).toBeTruthy();
-    expect(within(panel).getByText(/Table 12/u)).toBeTruthy();
-    expect(within(panel).getByText(/K7Q2LM/u)).toBeTruthy();
-    expect(screen.queryByText('That did not go through. Nothing changed — try again.')).toBeNull();
+    renderVenue('v-sunset');
+    await heading('Sunset Lounge');
+    await openTab(user, /^Bookings/u);
+    expect(await screen.findByText('No bookings in this period.')).toBeTruthy();
   });
 });

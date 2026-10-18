@@ -409,6 +409,7 @@ describe('branch readiness over HTTP', () => {
     const wire: components['schemas']['Yalla.Application.BranchSettings.BranchReadinessView'] = {
       acceptsWebBookings: false,
       blockers: ['Nobody has reviewed the reservation policy; it is still on the defaults.'],
+      issues: [{ code: 'policy-not-reviewed' }],
       branchId: 'b-1',
       deviceCount: 1,
       deviceEnrolled: true,
@@ -433,7 +434,8 @@ describe('branch readiness over HTTP', () => {
     const readiness = await gatewayOver(fetchImpl).getBranchReadiness('b-1');
 
     expect(sent(fetchImpl)).toBe(`GET ${BASE}/api/branches/b-1/readiness`);
-    expect(readiness).toEqual(wire);
+    // The issue codes are for the platform's rollups; the checklist screen reads the sentences.
+    expect(readiness).toEqual({ ...wire, issues: undefined });
   });
 });
 
@@ -454,10 +456,10 @@ describe('review moderation over HTTP', () => {
       .fn()
       .mockResolvedValue(json(200, { items: [WIRE_REVIEW], page: 2, pageSize: 20, total: 21 }));
 
-    const page = await gatewayOver(fetchImpl).listPlatformBranchReviews('b-1', 2);
+    const page = await gatewayOver(fetchImpl).listPlatformBranchReviews('b-1', { page: 2 });
 
     expect(sent(fetchImpl)).toBe(
-      `GET ${BASE}/api/platform/branches/b-1/reviews?page=2&pageSize=20`,
+      `GET ${BASE}/api/platform/branches/b-1/reviews?page=2&pageSize=20&filter=all`,
     );
     expect(page).toEqual({
       items: [
@@ -467,6 +469,9 @@ describe('review moderation over HTTP', () => {
           hiddenReason: null,
           hiddenAtUtc: null,
           hiddenByPlatform: false,
+          // How often diners reported it: the platform list says so too.
+          reportCount: 0,
+          lastReportedAtUtc: null,
         },
       ],
       page: 2,

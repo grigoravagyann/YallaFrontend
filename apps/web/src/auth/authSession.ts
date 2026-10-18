@@ -72,6 +72,18 @@ export function signOut(): Promise<void> {
 }
 
 /**
+ * Ask for a password-reset link by email, in the language the page is in.
+ *
+ * The server answers the same whether or not the address has an account, so
+ * nothing here can tell the person which addresses are real — and neither may
+ * the page that calls it. Against the mock it does nothing, as the server
+ * would for an unknown address.
+ */
+export async function requestPasswordReset(email: string, localeCode: string): Promise<void> {
+  await venueAuth.requestPasswordReset(email, localeCode);
+}
+
+/**
  * Spend a sign-in link on a password.
  *
  * Nothing is signed in afterwards, deliberately: the person sets a password

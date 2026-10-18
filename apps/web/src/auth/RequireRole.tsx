@@ -1,6 +1,6 @@
 import type { UserRole } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { Link } from 'react-router-dom';
+import { ErrorState } from '../console/ui/ErrorState';
 import { landingPathFor, useCurrentUser } from './useCurrentUser';
 
 export interface RequireRoleProps {
@@ -47,21 +47,20 @@ export function LoadingScreen() {
  * both calmer and easier to debug.
  *
  * It is also what an unknown URL renders. Distinguishing "does not exist" from
- * "exists but is not yours" would tell someone which venue ids are real.
+ * "exists but is not yours" would tell someone which venue ids are real — so
+ * this is the Errors artboard's 403, whose copy covers both on purpose.
+ *
+ * `standalone` outside a console shell: a role with no console layout, or no
+ * identity at all, still gets a whole page rather than a card on nothing.
  */
-export function Forbidden() {
-  const { t } = useTranslation(['admin', 'common']);
+export function Forbidden({ standalone = false }: { readonly standalone?: boolean }) {
   const { user } = useCurrentUser();
 
   return (
-    <section className="page page-narrow">
-      <h1>{t('forbidden.title')}</h1>
-      <p className="muted">{t('forbidden.body')}</p>
-      {user ? (
-        <Link className="button" to={landingPathFor(user.role)}>
-          {t('forbidden.back')}
-        </Link>
-      ) : null}
-    </section>
+    <ErrorState
+      kind="forbidden"
+      homeTo={user ? landingPathFor(user.role) : undefined}
+      standalone={standalone}
+    />
   );
 }

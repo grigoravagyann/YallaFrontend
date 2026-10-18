@@ -75,7 +75,15 @@ export interface MockReviewStore {
   deleteByDiner(dinerUserId: string): void;
   /** One report per diner per review; a repeat is ignored. */
   report(report: StoredReport): void;
+  /** The reports nobody has set aside: what `reportCount` and the reported filter read. */
   reports(reviewId: string): readonly StoredReport[];
+  /**
+   * The platform set a review's reports aside: they are kept (each is still a
+   * diner's word) but no longer count; the review stays as it was.
+   */
+  dismissReports(reviewId: string): void;
+  /** Undo the last dismissal: the reports it set aside count again. */
+  restoreReports(reviewId: string): void;
   setVisibility(input: {
     readonly reviewId: string;
     readonly hidden: boolean;
@@ -101,6 +109,8 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
   const now = options.now ?? (() => new Date());
   const reviews = new Map<string, StoredReview>();
   const reports: StoredReport[] = [];
+  /** The reports set aside, per review, by the dismissal that set them aside. */
+  const dismissed = new Map<string, StoredReport[]>();
   let sequence = 0;
 
   const newestFirst = (a: StoredReview, b: StoredReview) =>
@@ -186,6 +196,62 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
       'Personal information.',
     );
 
+    /*
+     * Cascade Cafe's branch, as the Reviews artboard draws it: two reported
+     * reviews that break the rules (a phone number, an advert), the ordinary
+     * ones, and one the platform already hid for being about another venue.
+     */
+    const cascade = 'b-cascade-center';
+    const phone = seed(
+      11,
+      cascade,
+      'Աննա Պետրոսյան',
+      1,
+      'Մատուցողը կոպիտ էր, իսկ մենեջերը (+374 91 •• •• 12) նույնիսկ չպատասխանեց։ Զանգեք նրան։',
+      0,
+    );
+    const advert = seed(
+      12,
+      cascade,
+      'Karen Mkrtchyan',
+      5,
+      'Լավագույն սուրճը Կասկադում։ Ավելի էժան տարբերակի համար այցելեք cheap-coffee-yerevan.am։',
+      1,
+    );
+    seed(
+      13,
+      cascade,
+      'Լիլիթ Սարգսյան',
+      5,
+      'Տեռասից տեսարանը հիասքանչ է, ամրագրումը տևեց մեկ րոպե։',
+      1,
+    );
+    seed(14, cascade, 'Arthur', 3, 'Ուտելիքը լավն էր, բայց ուրբաթ երեկոյան սպասեցինք 25 րոպե։', 3);
+    seed(
+      15,
+      cascade,
+      'Մարիամ Աբրահամյան',
+      2,
+      'Այս կարծիքը Garden Bistro-ի մասին է, սխալմամբ գրեցի այստեղ։',
+      6,
+      'platform',
+      'Գրված է այլ վայրի մասին',
+    );
+    seed(16, cascade, 'Davit Hakobyan', 4, 'Հաճելի մթնոլորտ, լավ երաժշտություն։', 9);
+    const reportBy = (reviewId: string, n: number, reason: StoredReport['reason']) => {
+      for (let i = 0; i < n; i += 1) {
+        reports.push({
+          reviewId,
+          dinerUserId: `diner-report-${reviewId}-${i}`,
+          reason,
+          note: null,
+          createdAtUtc: ago(0),
+        });
+      }
+    };
+    reportBy(phone.reviewId, 3, 'personal-info');
+    reportBy(advert.reviewId, 2, 'spam');
+
     reports.push(
       {
         reviewId: reported.reviewId,
@@ -265,6 +331,25 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
     },
 
     reports: (reviewId) => reports.filter((r) => r.reviewId === reviewId),
+
+    dismissReports(reviewId) {
+      const setAside: StoredReport[] = [];
+      for (let i = reports.length - 1; i >= 0; i -= 1) {
+        if (reports[i]!.reviewId === reviewId) setAside.unshift(...reports.splice(i, 1));
+      }
+      // Idempotent, as on the server: a review with no open report changes nothing.
+      if (setAside.length > 0) dismissed.set(reviewId, setAside);
+    },
+
+    restoreReports(reviewId) {
+      const setAside = dismissed.get(reviewId) ?? [];
+      dismissed.delete(reviewId);
+      for (const report of setAside) {
+        if (!reports.some((r) => r.reviewId === reviewId && r.dinerUserId === report.dinerUserId)) {
+          reports.push(report);
+        }
+      }
+    },
 
     setVisibility({ reviewId, hidden, reason, by, atUtc }) {
       const review = reviews.get(reviewId);

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Մուտք — Yalla Console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--amber:#8A4B08;--amber-bg:#FDF1DE;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.wrap{display:flex;flex-wrap:wrap;min-height:100vh}
+.room{flex:1 1 520px;background:#140904;color:#E9D9C6;padding:40px 48px;display:flex;flex-direction:column;justify-content:space-between;gap:32px;position:relative;overflow:hidden;min-height:420px}
+.photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 55%}
+.shade{position:absolute;inset:0;background:rgba(20,9,4,.38)}
+.brand,.claim{position:relative}
+.brand{font-family:'Noto Serif Armenian',Georgia,serif;font-size:32px;font-weight:700;color:#FFF3E4;line-height:1}
+.claim{font-family:'Noto Serif Armenian',Georgia,serif;font-size:24px;line-height:1.35;color:#FFF3E4;max-width:440px;margin:0;text-wrap:balance;text-shadow:0 1px 12px rgba(0,0,0,.5)}
+.claim small{display:block;font-family:'Noto Sans Armenian',system-ui,sans-serif;font-size:15px;color:#EAD9C5;margin-top:8px}
+.side{flex:1 1 440px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px 24px}
+.card{width:400px;max-width:100%;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:32px;display:flex;flex-direction:column;gap:20px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;font-weight:700;margin:0;line-height:1.2;text-wrap:balance}
+.sub{margin:6px 0 0;color:var(--muted)}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label{font-size:13px;font-weight:600;color:var(--ink)}
+.ctl{height:44px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:15px;color:var(--ink);padding:0 14px;width:100%}
+.ctl:hover{border-color:#C8B39C}
+.ctl.bad{border-color:var(--red)}
+.err{font-size:12px;color:var(--red);font-weight:600}
+.caps{font-size:12px;color:var(--amber);font-weight:600}
+.pw{position:relative}
+.pw .ctl{padding-right:48px}
+.eye{position:absolute;right:4px;top:4px;width:36px;height:36px;border:0;border-radius:8px;background:none;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.eye:hover{background:#F4ECE2;color:var(--ink)}
+.row{display:flex;justify-content:flex-end}
+.lnk{border:0;background:none;padding:0;font:inherit;font-size:13px;font-weight:600;color:var(--brand);cursor:pointer}
+.lnk:hover{text-decoration:underline}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;height:44px;border-radius:10px;font:inherit;font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;border:1px solid transparent;width:100%}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-busy{background:#5A3420;color:var(--brand-ink);cursor:progress}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,243,228,.35);border-top-color:#FFF3E4;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:var(--red-bg);color:var(--red);font-size:13px;font-weight:600}
+.warn{background:var(--amber-bg);color:var(--amber)}
+.ok{background:var(--green-bg);color:var(--green)}
+.note{font-size:13px;color:var(--muted);text-align:center;margin:0;max-width:400px}
+.lang{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.lang select{height:36px;border-radius:8px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:13px;padding:0 8px;color:var(--ink)}
+.welcome{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.wic{width:56px;height:56px;border-radius:50%;background:var(--green-bg);color:var(--green);display:grid;place-items:center}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+svg.i{width:18px;height:18px;flex:none}
+@media (max-width:959px){.room{flex-basis:100%;min-height:168px;padding:24px 20px;gap:16px}.claim{font-size:19px}.claim small{display:none}.side{padding:24px 16px 32px;justify-content:flex-start}}
+@media (max-width:560px){.card{padding:24px}.brand{font-size:26px}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div class="y">
+<div class="wrap">
+
+<section class="room" aria-label="Yalla">
+<img class="photo" src="/_blob/9d36a72c72c119590c1db65e8604f805" alt="">
+<div class="shade" aria-hidden="true"></div>
+<div class="brand">Yalla</div>
+<p class="claim">Վահանակ ռեստորանների և թիմի համար<small>Վայրեր, աշխատողներ և ամրագրումներ՝ մեկ տեղում</small></p>
+</section>
+
+<section class="side">
+<sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+<form class="card" aria-labelledby="si-h" onSubmit="{{ submit }}" novalidate="">
+<div><h1 class="h1" id="si-h">Մուտք</h1><p class="sub">Մուտք գործեք ձեր էլ. փոստով և գաղտնաբառով</p></div>
+<sc-if value="{{ showError }}" hint-placeholder-val="{{ false }}">
+<div class="alert" role="alert"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span>Էլ. փոստը կամ գաղտնաբառը սխալ է։ Ստուգեք և փորձեք կրկին։</span></div>
+</sc-if>
+<sc-if value="{{ showLocked }}" hint-placeholder-val="{{ false }}">
+<div class="alert warn" role="alert"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span>Չափից շատ անհաջող փորձ։ Կրկին փորձեք 15 րոպեից կամ վերականգնեք գաղտնաբառը։</span></div>
+</sc-if>
+<div class="fld"><label for="si-email">Էլ. փոստ</label><input id="si-email" type="email" class="{{ emailCls }}" autocomplete="username" inputmode="email" placeholder="name@yalla.am" value="{{ email }}" onInput="{{ onEmail }}" aria-invalid="{{ emailInvalid }}" aria-describedby="si-email-err"><sc-if value="{{ showEmailErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="si-email-err">{{ emailErr }}</span></sc-if></div>
+<div class="fld"><label for="si-pass">Գաղտնաբառ</label><div class="pw"><input id="si-pass" type="{{ pwType }}" class="{{ pwCls }}" autocomplete="current-password" value="{{ pw }}" onInput="{{ onPw }}" onKeyUp="{{ onPwKey }}" aria-invalid="{{ pwInvalid }}" aria-describedby="si-pass-err si-caps"><button type="button" class="eye" onClick="{{ toggleEye }}" aria-label="{{ eyeLabel }}" aria-pressed="{{ eyePressed }}"><sc-if value="{{ shown }}" hint-placeholder-val="{{ false }}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.7 5.1a10.7 10.7 0 0 1 11.2 6.6 1 1 0 0 1 0 .7 10.7 10.7 0 0 1-1.4 2.5"></path><path d="M14.1 14.2a3 3 0 0 1-4.2-4.2"></path><path d="M17.5 17.5a10.7 10.7 0 0 1-15.4-5.2 1 1 0 0 1 0-.7 10.7 10.7 0 0 1 4.4-5.1"></path><path d="m2 2 20 20"></path></svg></sc-if><sc-if value="{{ hidden }}" hint-placeholder-val="{{ true }}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.1 12.3a1 1 0 0 1 0-.7 10.7 10.7 0 0 1 19.8 0 1 1 0 0 1 0 .7 10.7 10.7 0 0 1-19.8 0"></path><circle cx="12" cy="12" r="3"></circle></svg></sc-if></button></div><sc-if value="{{ showPwErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="si-pass-err">Գրեք գաղտնաբառը</span></sc-if><sc-if value="{{ caps }}" hint-placeholder-val="{{ false }}"><span class="caps" id="si-caps">Caps Lock-ը միացված է</span></sc-if></div>
+<div class="row"><button type="button" class="lnk" onClick="{{ goForgot }}">Մոռացե՞լ եք գաղտնաբառը</button></div>
+<sc-if value="{{ idle }}" hint-placeholder-val="{{ true }}"><button type="submit" class="btn btn-pri">Մուտք</button></sc-if>
+<sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-busy" aria-busy="true" aria-live="polite"><span class="spin" aria-hidden="true"></span>Մուտք…</button></sc-if>
+</form>
+<p class="note">Հաշիվ չունե՞ք։ Աշխատողներին մուտք տալիս է վայրի սեփականատերը կամ մենեջերը, սեփականատերերին՝ Yalla-ն։</p>
+</sc-if>
+
+<sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+<div class="card welcome" role="status">
+<span class="wic"><svg class="i" style="width: 26px; height: 26px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>
+<h1 class="h1">Բարի գալուստ</h1>
+<p class="sub" style="margin: 0">Բացում ենք վահանակը…</p>
+<a class="btn btn-pri" href="Main.dc.html" data-go="">Անցնել վահանակ</a>
+</div>
+</sc-if>
+
+<sc-if value="{{ isForgot }}" hint-placeholder-val="{{ false }}">
+<form class="card" aria-labelledby="fg-h" onSubmit="{{ sendReset }}" novalidate="">
+<div><h1 class="h1" id="fg-h">Վերականգնել գաղտնաբառը</h1><p class="sub">Կուղարկենք հղում, որը գործում է 1 ժամ</p></div>
+<sc-if value="{{ resetSent }}" hint-placeholder-val="{{ false }}">
+<div class="alert ok" role="status"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Եթե այս հասցեով հաշիվ կա, հղումն արդեն ճանապարհին է։ Ստուգեք փոստարկղը։</span></div>
+</sc-if>
+<div class="fld"><label for="fg-email">Էլ. փոստ</label><input id="fg-email" type="email" class="{{ fgCls }}" autocomplete="username" inputmode="email" placeholder="name@yalla.am" value="{{ email }}" onInput="{{ onEmail }}" aria-invalid="{{ fgInvalid }}" aria-describedby="fg-err"><sc-if value="{{ showFgErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="fg-err">{{ emailErr }}</span></sc-if></div>
+<button type="submit" class="btn btn-pri">Ուղարկել հղումը</button>
+<div class="row" style="justify-content: center"><button type="button" class="lnk" onClick="{{ goLogin }}">← Վերադառնալ մուտքին</button></div>
+</form>
+</sc-if>
+
+<div class="lang"><label for="si-lang">Լեզու</label><select id="si-lang"><option>Հայերեն</option><option>Русский</option><option>English</option></select></div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","options":["default","error","locked"],"default":"default","section":"Վիճակ"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { view: 'login', shown: false, email: '', pw: '', tried: false, fgTried: false, sent: false, busy: false, failed: false, caps: false };
+  }
+  componentWillUnmount() { clearTimeout(this._t); clearTimeout(this._g); }
+  focusLater(sel) {
+    setTimeout(() => { const el = document.querySelector(sel); if (el) el.focus(); }, 30);
+  }
+  renderVals() {
+    const s = this.state;
+    const mode = this.props.state ?? 'default';
+    const em = s.email.trim();
+    const emailErr = !em ? 'Գրեք էլ. փոստը' : (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) ? 'Էլ. փոստի ձևաչափը սխալ է՝ օրինակ name@yalla.am' : '');
+    const pwErr = !s.pw;
+    const showEmailErr = s.tried && !!emailErr;
+    const showPwErr = s.tried && pwErr;
+    const serverErr = (mode === 'error' && (s.failed || !s.tried)) || false;
+    const locked = mode === 'locked';
+    return {
+      isLogin: s.view === 'login', isForgot: s.view === 'forgot', isDone: s.view === 'done',
+      showError: serverErr && !s.busy,
+      showLocked: locked,
+      email: s.email, pw: s.pw,
+      onEmail: (e) => this.setState({ email: e.target.value }),
+      onPw: (e) => this.setState({ pw: e.target.value }),
+      onPwKey: (e) => { const c = !!(e.getModifierState && e.getModifierState('CapsLock')); if (c !== s.caps) this.setState({ caps: c }); },
+      caps: s.caps,
+      emailErr: emailErr,
+      showEmailErr: showEmailErr, showPwErr: showPwErr,
+      emailInvalid: showEmailErr || serverErr ? 'true' : 'false',
+      pwInvalid: showPwErr || serverErr ? 'true' : 'false',
+      emailCls: 'ctl' + (showEmailErr || serverErr ? ' bad' : ''),
+      pwCls: 'ctl' + (showPwErr || serverErr ? ' bad' : ''),
+      shown: s.shown, hidden: !s.shown,
+      pwType: s.shown ? 'text' : 'password',
+      eyeLabel: s.shown ? 'Թաքցնել գաղտնաբառը' : 'Ցույց տալ գաղտնաբառը',
+      eyePressed: s.shown ? 'true' : 'false',
+      toggleEye: () => this.setState({ shown: !s.shown }),
+      idle: !s.busy, busy: s.busy,
+      submit: (e) => {
+        e.preventDefault();
+        if (s.busy) return;
+        if (emailErr || pwErr) { this.setState({ tried: true }); this.focusLater(emailErr ? '#si-email' : '#si-pass'); return; }
+        if (locked) return;
+        this.setState({ tried: true, busy: true, failed: false });
+        clearTimeout(this._t);
+        this._t = setTimeout(() => {
+          if ((this.props.state ?? 'default') === 'error') {
+            this.setState({ busy: false, failed: true, pw: '' });
+            this.focusLater('#si-pass');
+            return;
+          }
+          this.setState({ busy: false, view: 'done' });
+          this._g = setTimeout(() => { const a = document.querySelector('[data-go]'); if (a) a.click(); }, 700);
+        }, 1100);
+      },
+      goForgot: () => { this.setState({ view: 'forgot', sent: false, fgTried: false }); this.focusLater('#fg-email'); },
+      goLogin: () => { this.setState({ view: 'login' }); this.focusLater('#si-email'); },
+      resetSent: s.sent,
+      showFgErr: s.fgTried && !!emailErr,
+      fgInvalid: s.fgTried && emailErr ? 'true' : 'false',
+      fgCls: 'ctl' + (s.fgTried && emailErr ? ' bad' : ''),
+      sendReset: (e) => {
+        e.preventDefault();
+        if (emailErr) { this.setState({ fgTried: true, sent: false }); this.focusLater('#fg-email'); return; }
+        this.setState({ sent: true, fgTried: false });
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

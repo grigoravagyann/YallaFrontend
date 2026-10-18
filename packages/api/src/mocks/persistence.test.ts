@@ -64,7 +64,7 @@ describe('a mock world across a reload', () => {
     const second = console_(storage);
     expect(await second.getVenue('v-new-1')).toMatchObject({ name: 'Venue kond' });
     expect((await second.createVenue(venue('arabkir'))).id).toBe('v-new-2');
-    expect((await second.listVenues({})).items.map((v) => v.slug)).toContain('kond');
+    expect((await second.listVenues({ pageSize: 50 })).items.map((v) => v.slug)).toContain('kond');
   });
 
   it('journals only the calls that changed the world, and only when they succeeded', async () => {

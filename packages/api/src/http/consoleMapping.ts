@@ -1,4 +1,6 @@
 import type {
+  BookingStatusCounts,
+  BookingSummaryDays,
   ConsoleBranch,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -6,6 +8,9 @@ import type {
   ManagedVenue,
   Page,
   SubscriptionTier,
+  VenueBookingsSummary,
+  VenueBranchTier,
+  VenueReadinessIssue,
   VenueStatus,
   VenueType,
 } from '../contracts/console';
@@ -67,20 +72,93 @@ export function venueStatus(venue: { isDeleted: boolean; isSuspended: boolean })
   return 'active';
 }
 
-export function venueFromWire(venue: WireVenue): ConsoleVenue {
+/** The wire's readiness codes, kebab-case as every problem code is. */
+const READINESS_KINDS: Readonly<Record<string, VenueReadinessIssue['kind']>> = {
+  'no-tables': 'noTables',
+  'no-menu': 'noMenu',
+  'incomplete-dishes': 'incompleteDishes',
+  'no-hours': 'noHours',
+  'no-photo': 'noPhoto',
+};
+
+/** One readiness issue, from the code the server spells it with. */
+export function readinessIssueFromWire(issue: {
+  readonly code: string;
+  readonly count?: number | null | undefined;
+  readonly branchName?: string | null | undefined;
+}): VenueReadinessIssue {
+  return {
+    // A reason this client does not know yet is still "not ready", never "ready".
+    kind: READINESS_KINDS[issue.code] ?? 'other',
+    count: typeof issue.count === 'number' ? issue.count : null,
+    branchName: issue.branchName ?? null,
+  };
+}
+
+/** `VenueStatus`: 1 Active, 2 Suspended, 3 Inactive (switched off), 4 Deleted. */
+const STATUS_BY_CODE: Readonly<Record<number, VenueStatus>> = {
+  1: 'active',
+  2: 'suspended',
+  3: 'inactive',
+  4: 'deleted',
+};
+
+/**
+ * The venue's state from the server's `status`, or from the flags when a row
+ * has none. A deleted venue is also inactive and may be suspended too; the
+ * most consequential state wins.
+ */
+export function venueStatusFromWire(venue: {
+  readonly status?: number | undefined;
+  readonly isDeleted: boolean;
+  readonly isSuspended: boolean;
+}): VenueStatus {
+  return (
+    (venue.status !== undefined ? STATUS_BY_CODE[venue.status] : undefined) ?? venueStatus(venue)
+  );
+}
+
+/**
+ * One venue row. `resolveUrl` makes the cover thumbnail's server-relative
+ * link absolute against the API (see `photoUrl.ts`); without it the link is
+ * kept as it came.
+ */
+export function venueFromWire(
+  venue: WireVenue,
+  resolveUrl: (url: string) => string = (url) => url,
+): ConsoleVenue {
+  const branchTiers: VenueBranchTier[] = venue.branches.map((branch) => ({
+    id: branch.branchId,
+    name: branch.name,
+    subscriptionTier: subscriptionTier(branch.subscriptionTier),
+  }));
   return {
     id: venue.venueId,
     name: venue.name,
     slug: venue.slug,
     type: venueType(venue.type),
-    status: venueStatus(venue),
+    status: venueStatusFromWire(venue),
     branchCount: venue.branchCount,
     tableCount: venue.tableCount,
     subscriptionTier: subscriptionTier(venue.subscriptionTier),
-    // The platform view does not carry a creation timestamp; the screen omits
-    // the line rather than inventing one.
-    createdAtUtc: null,
+    paidBranchCount: venue.paidBranchCount,
+    createdAtUtc: venue.createdAtUtc,
     suspendedAtUtc: venue.suspendedAtUtc ?? null,
+    // `null` is "no reviews yet", not zero.
+    rating: venue.averageRating ?? null,
+    reviewCount: venue.reviewCount,
+    openTabCount: venue.openTabCount,
+    // The server always names the branch; the list says it only when there is a choice.
+    readinessIssue: venue.readinessIssue
+      ? readinessIssueFromWire({
+          ...venue.readinessIssue,
+          branchName: venue.branchCount > 1 ? venue.readinessIssue.branchName : null,
+        })
+      : null,
+    coverThumbnailUrl: venue.coverThumbnailUrl ? resolveUrl(venue.coverThumbnailUrl) : null,
+    branchTiers,
+    cuisine: venue.cuisine ?? null,
+    district: venue.district ?? null,
   };
 }
 
@@ -89,18 +167,23 @@ export function branchFromWire(branch: WireBranch): ConsoleBranch {
     id: branch.branchId,
     venueId: branch.venueId,
     name: branch.name,
+    slug: branch.slug,
+    address: branch.address,
     timeZoneId: branch.timeZoneId,
     tableCount: branch.tableCount,
     subscriptionTier: subscriptionTier(branch.subscriptionTier),
-    // Open tabs are not part of this view. `null` says "not asked", which is
-    // not the same answer as zero.
-    openTabCount: null,
+    // Absent says "not asked", which is not the same answer as zero.
+    openTabCount: typeof branch.openTabCount === 'number' ? branch.openTabCount : null,
+    ...(branch.district !== undefined ? { district: branch.district ?? null } : {}),
   };
 }
 
-export function venueDetailFromWire(detail: WireDetail): ConsoleVenueDetail {
+export function venueDetailFromWire(
+  detail: WireDetail,
+  resolveUrl: (url: string) => string = (url) => url,
+): ConsoleVenueDetail {
   return {
-    ...venueFromWire(detail.venue),
+    ...venueFromWire(detail.venue, resolveUrl),
     branches: detail.branches.map(branchFromWire),
     // Staff come from a separate venue-scoped endpoint. `null` is "not loaded";
     // an empty array here would render as "nobody has been added yet".
@@ -138,9 +221,12 @@ export function managedVenueFromWire(venue: WireManagedVenue): ManagedVenue {
   };
 }
 
-export function venuePageFromWire(page: WirePage): Page<ConsoleVenue> {
+export function venuePageFromWire(
+  page: WirePage,
+  resolveUrl?: (url: string) => string,
+): Page<ConsoleVenue> {
   return {
-    items: (page.items ?? []).map(venueFromWire),
+    items: (page.items ?? []).map((venue) => venueFromWire(venue, resolveUrl)),
     total: page.totalCount,
     page: page.page,
     pageSize: page.pageSize,
@@ -247,5 +333,53 @@ export function reviewPageFromWire<T>(
     total: wire.total ?? 0,
     page: wire.page,
     pageSize: wire.pageSize,
+  };
+}
+
+// --- A venue's bookings, aggregates only ---------------------------------------
+
+type WireVenueBookingsSummary = Schemas['Yalla.Application.Platform.VenueBookingsSummary'];
+type WireStatusCounts = Schemas['Yalla.Application.Platform.BookingStatusCounts'];
+
+function statusCounts(wire: WireStatusCounts): BookingStatusCounts {
+  return {
+    completed: wire.completed,
+    upcoming: wire.upcoming,
+    pending: wire.pendingApproval,
+    cancelled: wire.cancelled,
+    noShow: wire.noShow,
+  };
+}
+
+/** Monday first, from `System.DayOfWeek` (0 is Sunday, and goes last). */
+function weekMondayFirst(wire: WireVenueBookingsSummary['byWeekday']): number[] {
+  const week = [0, 0, 0, 0, 0, 0, 0];
+  for (const entry of wire) {
+    const slot = (entry.dayOfWeek + 6) % 7;
+    week[slot] = (week[slot] ?? 0) + entry.count;
+  }
+  return week;
+}
+
+/** `GET /api/platform/venues/{venueId}/bookings-summary`. */
+export function venueBookingsSummaryFromWire(wire: WireVenueBookingsSummary): VenueBookingsSummary {
+  return {
+    venueId: wire.venueId,
+    days: (wire.days === 7 ? 7 : 30) as BookingSummaryDays,
+    total: wire.total,
+    byStatus: statusCounts(wire.byStatus),
+    byWeekday: weekMondayFirst(wire.byWeekday),
+    averagePartySize: typeof wire.averagePartySize === 'number' ? wire.averagePartySize : null,
+    byBranch: wire.byBranch.map((branch) => ({
+      branchId: branch.branchId,
+      name: branch.name,
+      total: branch.total,
+      todayCount: branch.todayCount,
+      completed: branch.completed,
+      upcoming: branch.upcoming,
+      pending: branch.pendingApproval,
+      cancelled: branch.cancelled,
+      noShow: branch.noShow,
+    })),
   };
 }

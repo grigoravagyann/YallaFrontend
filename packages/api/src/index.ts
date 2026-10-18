@@ -429,13 +429,16 @@ export type { Availability } from './contracts/helpers';
 export type { ConsoleGateway } from './consoleGateway';
 export { resolveConsoleGateway } from './resolveConsoleGateway';
 export type { ResolveConsoleGatewayOptions } from './resolveConsoleGateway';
-export { createConsoleMockGateway } from './mocks/consoleMock';
+export { createConsoleMockGateway, MOCK_PLATFORM_PASSWORD } from './mocks/consoleMock';
 export type { ConsoleMockOptions } from './mocks/consoleMock';
 export { createConsoleHttpGateway, createMemoryIdentityStore } from './http/consoleHttpGateway';
 export type { ConsoleHttpGatewayOptions, ConsoleIdentityStore } from './http/consoleHttpGateway';
 
 export type {
   AddBranchCommand,
+  BookingStatusCounts,
+  BookingSummaryDays,
+  BranchBookingsSummary,
   ConsoleBranch,
   ConsoleStaffMember,
   ConsoleUser,
@@ -451,9 +454,45 @@ export type {
   UpdateVenueCommand,
   UserRole,
   UserScope,
+  VenueBookingsSummary,
+  VenueBranchTier,
+  VenueReadinessIssue,
   VenueStatus,
 } from './contracts/console';
-export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+export { BOOKING_SUMMARY_DAYS, SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+export type {
+  ChangePlatformPasswordCommand,
+  DailyBookings,
+  NotReadyBranch,
+  OutboxCounts,
+  OutboxDeadLetter,
+  OutboxHealth,
+  OverviewBookings,
+  PlatformActivityEntry,
+  PlatformActivityQuery,
+  PlatformAdminProfile,
+  PlatformOverview,
+  PlatformPasswordChanged,
+  RecentVenue,
+  VenueCount,
+  VenueCounter,
+  VenueTierMix,
+} from './contracts/platformHome';
+export { PLATFORM_NAME_MAX_LENGTH, PLATFORM_PASSWORD_MIN_LENGTH } from './contracts/platformHome';
+export {
+  applyVenueTier,
+  checkVenueTier,
+  listAllConsoleVenues,
+  openTabsRefusal,
+  venueTierSummary,
+} from './platformVenues';
+export type {
+  VenueTierBlocker,
+  VenueTierCheck,
+  VenueTierRefusal,
+  VenueTierResult,
+  VenueTierSummary,
+} from './platformVenues';
 export type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 export type { AmenityKey, VenueListing, VenueListingInput } from './contracts/listing';
 export { AMENITY_KEYS, MAX_DISTRICT_LENGTH, MAX_GALLERY_PHOTOS } from './contracts/listing';

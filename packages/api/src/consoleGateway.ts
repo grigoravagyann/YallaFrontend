@@ -29,6 +29,15 @@ import type {
 } from './contracts/branchSettings';
 import type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
 import type {
+  ChangePlatformPasswordCommand,
+  OutboxHealth,
+  PlatformPasswordChanged,
+  PlatformActivityEntry,
+  PlatformActivityQuery,
+  PlatformAdminProfile,
+  PlatformOverview,
+} from './contracts/platformHome';
+import type {
   CreateStaffInput,
   EnrolmentCode,
   StaffDevice,
@@ -48,6 +57,7 @@ import type {
 } from './contracts/reports';
 import type {
   AddBranchCommand,
+  BookingSummaryDays,
   ConsoleUser,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -57,6 +67,7 @@ import type {
   Page,
   SubscriptionTier,
   UpdateVenueCommand,
+  VenueBookingsSummary,
 } from './contracts/console';
 
 /**
@@ -146,6 +157,64 @@ export interface ConsoleGateway {
    * booking codes, because "cannot delete" alone is not actionable.
    */
   deleteVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;
+
+  /**
+   * Undo a soft delete: the venue comes back as it was, suspended if it was
+   * suspended. What the list's "Undo" after a delete and its "Restore" on a
+   * deleted row call. Platform admin only.
+   *
+   * `POST /api/platform/venues/{venueId}/restore`. A venue that is not deleted
+   * is answered as it is: an Undo pressed twice is not an error.
+   *
+   * @throws {ConcurrencyConflictError} its web address was taken while it was
+   * deleted (409 `conflicting-state`, naming the venue that has it).
+   */
+  restoreVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;
+
+  /**
+   * A venue's bookings over the last 7 or 30 days, aggregates only: counts by
+   * status, by branch and by weekday, and the average party. Platform admin
+   * only; never a guest's name or phone.
+   *
+   * `GET /api/platform/venues/{venueId}/bookings-summary?days=7|30`.
+   */
+  getVenueBookingsSummary(input: {
+    venueId: string;
+    days: BookingSummaryDays;
+  }): Promise<VenueBookingsSummary>;
+
+  // --- Home and Settings (platform admin only) ------------------------------
+
+  /** `GET /api/platform/overview`: Home in one read. */
+  getPlatformOverview(): Promise<PlatformOverview>;
+
+  /**
+   * `GET /api/platform/outbox`: the counts and the messages given up on, for
+   * Home's "Details". There is no retry, by decision.
+   */
+  getOutboxHealth(): Promise<OutboxHealth>;
+
+  /** `GET /api/platform/activity`: the newest audit rows, newest first. */
+  listPlatformActivity(query?: PlatformActivityQuery): Promise<readonly PlatformActivityEntry[]>;
+
+  /** `GET /api/platform/me`. */
+  getPlatformProfile(): Promise<PlatformAdminProfile>;
+
+  /**
+   * `PATCH /api/platform/me`: the admin's own name. The email is fixed.
+   *
+   * @throws {ValidationError} `fullName` blank or over 200 characters.
+   */
+  updatePlatformProfile(input: { fullName: string }): Promise<PlatformAdminProfile>;
+
+  /**
+   * `POST /api/platform/me/password`. Every other sign-in ends; this one stays.
+   *
+   * @throws {ValidationError} one 422 naming each field: `currentPassword`
+   * missing (`required`) or wrong (`conflict`), `newPassword` missing or
+   * shorter than 12 (`min`). A wrong current password is a form error, not a 401.
+   */
+  changePlatformPassword(command: ChangePlatformPasswordCommand): Promise<PlatformPasswordChanged>;
 
   /** Platform admin only; an owner cannot change what they are paying for. */
   setBranchTier(input: {
@@ -422,12 +491,40 @@ export interface ConsoleGateway {
   // --- Review moderation ------------------------------------------------------
 
   /**
-   * A branch's reviews for the platform team, hidden ones included,
-   * `GET /api/platform/branches/{branchId}/reviews`. 20 a page.
+   * A branch's reviews for the platform team, hidden ones included, with how
+   * often diners reported each — `GET /api/platform/branches/{branchId}/reviews
+   * ?filter=all|reported|hidden`. 20 a page by default.
    *
    * @throws {ForbiddenError} not a platform admin.
    */
-  listPlatformBranchReviews(branchId: string, page?: number): Promise<Page<ModeratedReview>>;
+  listPlatformBranchReviews(
+    branchId: string,
+    query?: VenueReviewQuery,
+  ): Promise<Page<VenueModeratedReview>>;
+
+  /**
+   * Set a review's reports aside and leave the review as it is: the platform
+   * read them and found nothing to take down. Audited.
+   *
+   * `POST /api/platform/reviews/{reviewId}/dismiss-reports`, no body. Nothing
+   * un-dismisses: the console defers the call until its Undo is out of reach.
+   *
+   * @throws {NotFoundError} no such review.
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  dismissReviewReports(reviewId: string): Promise<VenueModeratedReview>;
+
+  /**
+   * Undo a dismissal: the reports it set aside count again. What the toast's
+   * Undo after "Dismiss reports" calls. Platform admin only.
+   *
+   * `POST /api/platform/reviews/{reviewId}/restore-reports`, no body — being
+   * added by the backend with the review fixes.
+   *
+   * @throws {NotFoundError} no such review.
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  restoreReviewReports(reviewId: string): Promise<VenueModeratedReview>;
 
   /**
    * The platform's takedown, `PUT /api/platform/reviews/{reviewId}/visibility`.

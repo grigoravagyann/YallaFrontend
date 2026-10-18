@@ -2,9 +2,11 @@
 
 ## Armenian and Russian copy here is PROVISIONAL
 
-The `hy` and `ru` files contain only the handful of strings the placeholder app
-shells need to boot. They were written to get the shells rendering, **not** by a
-native speaker, and they have not been reviewed.
+The `hy` and `ru` bundles now cover every screen of the diner app, the staff
+tablet and both consoles. The platform-admin console's `hy` copy is the approved
+artboards' (`docs/design/console`), so the user has read it; every other `hy`
+string, and all of `ru`, was written by the team, **not** by a native speaker,
+and has not been reviewed. The sections below say which is which.
 
 They exist at all for one structural reason: `hy` is the fallback language. A key
 missing from `hy` has nothing to fall back to and renders as its raw key path in
@@ -245,6 +247,177 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `panel.orders.awaitingWaiter`. Removed: `connection.notWired`,
   `connection.notWiredHint`, `order.tabWillOpen` — each promised something the
   screen could not do.
+- `admin` — the platform-admin console redesign, phase 1 (2026-10-18): the
+  shell, the shared error states, sign-in and the password page. The `hy`
+  copy is the approved artboards' (`docs/design/console`), so the user has
+  read it; `ru` and `en` were written from it and are **not** reviewed.
+  - New: `nav.home`, `nav.settings`, `shell.mainNav`, `shell.skipToContent`,
+    `toast.undo`, the whole `errors.*` section (404, 403, offline, session
+    ended, server error; `errors.forbidden.*` replaces `forbidden.*`, and its
+    body must keep saying the page **either does not exist or is not yours** —
+    it is also what an unknown address shows, and must never tell the two
+    apart), `settings.title` and `settings.language.*` (`changed` is written
+    in its own language in each bundle: it is said after the switch).
+  - Sign-in: `signIn.emailPlaceholder`, `.submitting`, `.locked` and
+    `.lockedFor_*` (too many attempts; `_*` takes the minutes from the
+    server's Retry-After, and the plain one must never name a number),
+    `.emailRequired`, `.emailInvalid`, `.passwordRequired`, `.capsLock`,
+    `.showPassword` / `.hidePassword` (shared with the password page),
+    `.forgot`, `.noAccount`, `.welcomeTitle` / `.welcomeBody` /
+    `.welcomeGo`, `.claim` / `.claimSub` (the sentence on the photo) and
+    `signIn.forgotPage.*`. `forgotPage.body` says **1 hour** because that is
+    `PasswordResetToken.Lifetime`; `forgotPage.sent` must keep not saying
+    whether the address has an account. Rewritten from the artboards:
+    `signIn.body`, `.submit` (hy "Մուտք"), `.failed`, and hy `.expired`
+    ("Սեսիան", the Errors artboard's word).
+  - The password page: `resetPassword.match`, `.ruleMet` / `.ruleNotMet`
+    (read after each rule by a screen reader), `.strength.*`, `.saving`,
+    `.linkNote`, `.claim` / `.claimSub`, `.invalidSignIn`,
+    `.backToConsole`. `tooShort` lost its full stop (it is a rule line now)
+    and `mismatch` was removed with the error it labelled. `invalidBody` and
+    `linkNote` deliberately name no lifetime: the page spends both an
+    invitation (24 hours) and a forgotten-password link (1 hour), and the
+    token does not say which. Rewritten from the artboards in hy: `body`,
+    `goToSignIn`, `invalidTitle`, `signedInBody`.
+  - Changed in hy to the artboards' words: `role.platformAdmin`
+    ("Պլատֆորմի ադմին") and `shell.signOut` ("Դուրս գալ").
+- `admin` — the platform-admin console redesign, phase 2 (2026-10-18): the
+  venues list, its plan / delete / create dialogs and the sign-in link shown
+  once. `hy` is the Venues artboard's copy, with one deliberate change: the
+  artboard glues suffixes onto names ("Sunset Lounge-ը կասեցվեց"), which
+  `i18n:check` refuses, so every such line reads `«{{name}}» վայրը …`. `ru` and
+  `en` were written from it and are **not** reviewed.
+  - New under `venues.*`: `deletedCount_*`, `shownCount_*`, `footOf`,
+    `deletedHidden`, `list`, `loading`, `filter.*` (search, the five status
+    choices — `statusLive` is the default and must keep saying **active and
+    suspended**, never "all" — and the four plan choices), `column.*`,
+    `rating`, `ratingSr_*` (read instead of the star line), `noRating`,
+    `issue.*` (the amber readiness line; `atBranch` appends the branch),
+    `tierSummary.mixed` ("Mixed · 1/2": paid branches / all branches),
+    `tierSummary.none`, `tierButton`, `menu.*` (hy uses "Վերականգնել" for both
+    resume and restore, as the artboard does), `toast.*`, `empty.*`,
+    `tierDialog.*`, `deleteDialog.*`, `add.*` and `once.*`.
+  - `tierDialog.lead` must keep saying the change applies to **every branch**:
+    the list's button switches all of them. `tierDialog.notReady_*` is the
+    server's `branch-not-ready` refusal and `tierDialog.openTabs` its refusal
+    to go Free with tabs open; both are read after the branch's name
+    (`tierDialog.atBranch`).
+  - `deleteDialog.typeName` carries a `<b>` around the name (rendered with
+    `Trans`); keep the tag. `deleteDialog.body` must keep saying the venue
+    can be **restored** from the Deleted filter.
+  - `add.ownerLead` must keep saying the owner is **optional** and the link
+    is shown, not sent. `once.body` must keep saying the link is shown **now
+    and never again**; `once.help` takes the link's own expiry (`{{when}}`)
+    rather than naming a lifetime. `once.pinHelp` exists because the server
+    requires a tablet PIN of every staff member, so one is drawn for the owner.
+  - Removed: `venues.search`, `venues.column.branches`, `venues.error`, and
+    the old create page's `create.title`, `.lead`, `.venueSection`,
+    `.branchSection`, `.namePlaceholder`, `.slugPlaceholder`, `.submit`,
+    `.submitting`, `.cancel`, `create.error.branchRequired` and
+    `create.error.generic`. The other `create.*` keys stay for the venue
+    page's edit and add-branch forms (phase 3).
+- `admin` — the platform-admin console redesign, phase 3 (2026-10-18): the
+  venue page. `hy` is the VenueDetail artboard's copy, with the same
+  deliberate change as phase 2 (no suffix glued onto a name: "Մուտք՝
+  {{name}}" for the artboard's "{{name}}-ի մուտքը", "«{{name}}» վայրը" for
+  "{{name}}-ը"). `ru` and `en` were written from it and are **not** reviewed.
+  - New: the whole `venuePage.*` section — `crumbs`, `banner.*` (suspended,
+    with or without a date, and deleted), `edit` / `suspend` / `delete`,
+    `tabs.*`, `kpi.*`, `branches.*` (the branch table; `planButton` names the
+    plan and the branch), `readiness.*` (the five lines; `ready` / `notReady`
+    are read before each line by a screen reader), `facts.*`, `staff.*`,
+    `wizard.*` (the four steps), `issue.*`, `once.*`, `bookings.*`,
+    `editDialog.*`, `suspendDialog.*`, `branchDialog.*` and `toast.*`; and
+    under `venues.tierDialog`, the one-branch `branchTitlePaid` /
+    `branchTitleFree` / `branchRefusedPaid` / `branchRefusedFree` /
+    `branchLead`.
+  - `bookings.privacy` must keep saying the totals are all the platform
+    sees: guests' names and phones are the restaurant's alone.
+    `bookings.ofPast` and the two shares ("came", "no-shows") are of the
+    bookings already past, never of those still ahead.
+  - `issue.helpKeepsPassword` must keep saying the password works **until
+    the new link is opened**; `issue.helpChangesAddress` that the new
+    address takes over **from the moment the link is made**.
+  - `wizard.phone` is required although the artboard drew it optional: the
+    server refuses a staff member with no phone.
+  - Removed with the old venue page: `venue.branches`, `.branchTables_*`,
+    `.openTabs_*`, `.noBranches`, `.staff`, `.noStaff`, `.slug`, `.created`,
+    `.suspendedOn`, `.suspend`, `.resume`, `.delete`, `.openConsole`,
+    `.suspendTitle`, `.suspendBody`, `.suspendConfirm`, `.deleteTitle`,
+    `.deleteBody`, `.deleteTypeName`, `.deleteConfirm`, `.cancel`,
+    `.working`, `.staffFailed`, `venue.blocked.*` but `table` and `unknown`,
+    `venue.tier.*`, `venue.edit.*`, `venue.addBranch.*`, and every `create.*`
+    key but `typeCafe`, `typeRestaurant` and `typeBar`.
+- `admin` — the platform-admin console redesign, phase 4 (2026-10-18): a
+  branch's three pages. `hy` is the BranchPublic, BranchRooms and Reviews
+  artboards' copy, with the same deliberate change as phases 2 and 3: the
+  artboard's "{{name}}-ի կարծիքը թաքցվեց" reads "Կարծիքը թաքցվեց (հեղինակ՝
+  {{name}})", and the hidden-by line names who hid it ("Թաքցրել է
+  պլատֆորմը" / "… ռեստորանը") rather than a person, which the server does
+  not send. `ru` and `en` were written from it and are **not** reviewed.
+  - New: `branchPage.*` (the switcher's label, the sub-tabs and the app
+    card's preview — `preview.live` must keep saying the preview follows the
+    typing **before** anything is saved), `rooms.saveBar.*` (the rooms page's
+    sticky bar; `clean` is the artboard's "all changes are saved") and the
+    whole `branchReviews.*` section: the filters, `reports_*` (also read on
+    the Reviews sub-tab), `stars_*` (read instead of the star line), the hide
+    form and its five `reasons.*`, `reasonHelp` (must keep saying the
+    **guest** does not see the reason and the review can be shown again),
+    `toast.*`, the empty states, `summary.*` and `rules.*` (`lowRating` must
+    keep saying a low rating alone is no reason to hide).
+  - `empty.hiddenBody` is new copy: the artboard reuses the "nobody has
+    written yet" line under the Hidden filter, which is untrue there.
+  - `toast.dismissed` must keep saying the review **stays visible**.
+  - Removed with the old platform reviews page: the whole `platform.reviews.*`
+    section (`title`, `hide`, `unhide`, `reason`, `hiddenReasonLine`,
+    `reasonRequired`, `hiddenBadge`, `empty`, `failed`). The venue console's
+    own `reviews.*` are unchanged.
+- `admin` — the platform-admin console redesign, phase 5 (2026-10-18): Home
+  and Settings. `hy` is the Main and Settings artboards' copy, with the same
+  deliberate change as before (no suffix glued onto a name: the feed's
+  "Luna Cafe-ը դարձրեց վճարովի" reads "«{{target}}» մասնաճյուղը դարձրեց
+  վճարովի", a person is "{{target}} աշխատողին"). `ru` and `en` were written
+  from it and are **not** reviewed.
+  - New: the whole `home.*` section — `sub`, `outbox.*` (the alert counts
+    the **last 24 hours** and must never offer to resend: there is no retry,
+    by decision; `outbox.type.*` names the five outbox message types),
+    `kpi.*`, `drill.*`, `chart.*` (`bar_*` / `barToday_*` are read for each
+    bar instead of its height), `notReady.*`, `recent.*` and `activity.*`
+    (one sentence per audited action, read after the actor's name; none may
+    name a guest, and the log has none to name). `activity.role.*` is the
+    role as it reads inside a sentence (ru in the genitive after "в роли").
+  - Settings: `settings.sub`, `settings.sections.*`, `settings.profile.*`
+    (`cap` must keep saying the email is **changed in the server's
+    configuration**, not here) and `settings.password.*` (`cap` and
+    `changed` must keep saying the **other devices** are signed out;
+    `currentWrong` is shown under the field, the session stays).
+  - The server's `VenueStatus.Inactive`: `status.inactive` and
+    `venues.filter.statusInactive` ("switched off" — not suspended, not
+    deleted). `venuePage.branches.today` is the branch table's "Bookings
+    today" column, as the VenueDetail artboard has it.
+- `admin` — the console redesign, review fixes (2026-10-18), provisional and
+  **not** reviewed in `ru`/`en`; `hy` follows the artboards where they have
+  the line.
+  - **Changed, not listed before:** `venues.column.tier` "Tier" → "Plan"
+    (the artboard's word, in all three); `venues.empty.title` / `.body`
+    rewritten to the artboard's ("No venue matches that search", "Try another
+    name, or clear the filters"); `venue.notFound` removed with the old venue
+    page in phase 3 — `errors.notFound.*` says it now.
+  - **Changed now:** `venuePage.bookings.statusUpcoming` reads "Confirmed"
+    (hy "Հաստատված", ru "Подтверждены"): the window looks back, so what is
+    still ahead of it is confirmed, not upcoming. The key kept its name.
+    `menu.category.confirmWithItems` has plural forms (`_one` names one dish;
+    ru keeps its neutral "блюда ({{count}})" for the rest).
+  - **New:** `errors.notFound.pageTitle` / `.pageBody` (an address nothing
+    answers to) and `.branchTitle` / `.branchBody`; `errors.stillFailingError`
+    (after a server error: must **not** promise a retry by itself — only a lost
+    connection is retried alone, `errors.stillFailing`);
+    `venues.tierDialog.checkingTabs`; `venues.add.linkFailed` (must keep
+    saying the owner **was added** with the PIN shown);
+    `home.activity.action.staffCreateNoRole` (no role on record: guess none);
+    `settings.password.changedPlain` (said when the server renewed no session:
+    claims nothing about other devices), `settings.password.tooMany_*` (the
+    wait from `Retry-After`, in minutes) and `.tooManyNoWindow` (no number).
 - Short-notice bookings waiting for the floor (2026-10-18), provisional and
   **not** reviewed. `staff` `approvals.*` — the floor tablet's requests panel:
   the header count, the countdown (`leftLabel`, `answerWithin`), the context

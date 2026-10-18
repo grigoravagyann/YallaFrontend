@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Գլխավոր — Yalla Console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.app{display:flex;flex-wrap:wrap;min-height:100vh}
+.side{flex:1 0 232px;background:var(--side);color:#E9D9C6;display:flex;flex-direction:column;gap:28px;padding:24px 16px}
+.brand{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;font-weight:700;color:#FFF3E4;padding:0 12px;line-height:1}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:12px;height:44px;padding:0 14px;border-radius:10px;color:#D9C5B0;text-decoration:none;font-weight:500;font-size:15px;white-space:nowrap}
+.nav a:hover{background:rgba(255,243,228,.07);color:#FFF3E4}
+.nav a.on{background:#4A2817;color:#FFF3E4;font-weight:600}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 10px 12px;border-radius:10px;background:rgba(255,243,228,.05)}
+.avatar{width:32px;height:32px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.me-n{color:#FFF3E4;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-r{color:#BFA88F;font-size:12px;white-space:nowrap}
+.out{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:#D9C5B0;text-decoration:none}
+.out:hover{background:rgba(255,243,228,.08);color:#FFF3E4}
+.main{flex:999 1 560px;min-width:0;padding:32px 40px 48px;display:flex;flex-direction:column;gap:24px}
+.ph{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;margin:0}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line-2)}
+.h2{font-family:'Noto Serif Armenian',Georgia,serif;font-size:17px;font-weight:700;margin:0;line-height:1.3}
+.cap{font-size:13px;color:var(--muted);margin:2px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:background .15s}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}.btn-sec:hover{background:var(--hover)}
+.btn-sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.p-green{background:var(--green-bg);color:var(--green)}.p-amber{background:var(--amber-bg);color:var(--amber)}.p-red{background:var(--red-bg);color:var(--red)}.p-grey{background:var(--grey-bg);color:var(--grey)}
+.link{color:var(--brand);font-weight:600;font-size:13px;text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}.link:hover{text-decoration:underline}
+.tscroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:10px 16px;border-bottom:1px solid var(--line);white-space:nowrap;background:#FCF9F5}
+.tbl td{padding:10px 16px;border-bottom:1px solid var(--line-2);vertical-align:middle;white-space:nowrap}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover td{background:var(--hover)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.vcell{display:flex;align-items:center;gap:12px;min-width:0}
+.thumb{width:56px;height:42px;border-radius:8px;display:grid;place-items:center;font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:17px;flex:none}
+.thumb-none{background:var(--amber-bg);color:var(--amber);border:1.5px dashed #E2B77A}
+.vname{font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:15px;color:var(--ink);text-decoration:none;line-height:1.3}
+.vname:hover{text-decoration:underline;color:var(--ink)}
+.slug{font-size:12px;color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.side :focus-visible{outline-color:#F3D9B8}
+svg.i{width:18px;height:18px;flex:none}
+/* page */
+.alert{display:flex;flex-direction:column;gap:12px;padding:14px 20px;border-radius:12px;background:var(--red-bg);border:1px solid #F2C9C2;color:var(--red)}
+.alert-ok{background:var(--green-bg);border-color:#BFDECD;color:var(--green)}
+.alert-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.alert-t{font-weight:600;flex:1;min-width:240px}
+.alert-list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.alert-list li{display:flex;flex-wrap:wrap;gap:4px 16px;padding:10px 12px;border-radius:8px;background:rgba(255,255,255,.7);color:var(--ink);font-size:13px}
+.alert-list b{font-weight:600}
+.alert-list span{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.kpi{display:flex;gap:14px;align-items:flex-start;padding:18px 20px;text-decoration:none;color:var(--ink);font:inherit;text-align:left;width:100%;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
+.kpi:hover{border-color:#D4BFA8;box-shadow:0 2px 10px rgba(58,29,12,.06);color:var(--ink)}
+.kpi.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+.kpi-ic{width:40px;height:40px;border-radius:10px;background:#F4ECE2;color:var(--brand);display:grid;place-items:center;flex:none}
+.kpi-ic-amber{background:var(--amber-bg);color:var(--amber)}
+.kpi-b{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.kpi-l{font-size:13px;color:var(--muted);white-space:nowrap}
+.kpi-n{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.kpi-f{font-size:13px;color:var(--muted);white-space:nowrap}
+.kpi-go{color:var(--muted);align-self:center}
+.up{color:var(--green);font-weight:600}
+.drill{padding:4px 0}
+.drill-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line-2)}
+.drill-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0}
+.drill-g a{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line-2);text-decoration:none;color:var(--ink)}
+.drill-g a:hover{background:var(--hover)}
+.drill-g b{font-variant-numeric:tabular-nums}
+.g2{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;align-items:start}
+.chart{display:flex;gap:12px;padding:20px 20px 16px}
+.yaxis{display:flex;flex-direction:column;gap:6px;width:56px;flex:none}
+.yunit{font-size:12px;color:var(--muted);text-align:right;line-height:1.2}
+.yt{display:flex;flex-direction:column;justify-content:space-between;height:184px;font-size:12px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;margin-top:-8px}
+.plotw{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;padding-top:24px}
+.plot{position:relative;height:184px;border-bottom:1px solid var(--line)}
+.grid{position:absolute;left:0;right:0;border-top:1px dashed var(--line-2)}
+.bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:6px;padding:0 4px}
+.bars.dense{gap:3px}
+.col{flex:1;height:100%;display:flex;align-items:flex-end;justify-content:center}
+.bar{position:relative;width:100%;max-width:30px;border:0;padding:0;border-radius:5px 5px 0 0;background:#5A3420;cursor:pointer;transition:background .15s}
+.bars.dense .bar{border-radius:3px 3px 0 0}
+.bar:hover,.bar.on{background:var(--brand)}
+.bar.today{background:#B07A45}
+.bar.today.on,.bar.today:hover{background:#94622F}
+.tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--ink);color:#FFF3E4;font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:2}
+.xlab{display:flex;gap:6px;padding:0 4px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.xlab.dense{gap:3px}
+.xlab span{flex:1;text-align:center;min-width:0;overflow:visible;white-space:nowrap}
+.xlab .t{color:var(--ink);font-weight:700}
+.xmonth{font-size:12px;color:var(--muted);padding:0 4px}
+.range{height:32px;border-radius:8px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:13px;padding:0 8px;color:var(--ink)}
+.ready{display:flex;flex-direction:column}
+.ready a.r{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line-2);text-decoration:none;color:var(--ink)}
+.ready a.r:hover{background:var(--hover);color:var(--ink)}
+.ready .thumb{width:44px;height:33px;font-size:14px}
+.r-t{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.r-n{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ready-f{padding:12px 20px}
+.feed{list-style:none;margin:0;padding:4px 0}
+.feed li{display:flex;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line-2)}
+.feed li:last-child{border-bottom:0}
+.fi{width:32px;height:32px;border-radius:50%;background:#F4ECE2;color:var(--brand);display:grid;place-items:center;flex:none}
+.fi svg{width:16px;height:16px}
+.ft{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ft p{margin:0;font-size:13px;line-height:1.45}
+.ft b{font-weight:600}
+.ft span{font-size:12px;color:var(--muted)}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.g2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:560px){.kpis{grid-template-columns:minmax(0,1fr)}.main{padding:24px 16px 40px}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+
+<aside class="side" aria-label="Հիմնական նավիգացիա">
+<div class="brand">Yalla</div>
+<nav class="nav">
+<a href="Main.dc.html" class="on" aria-current="page"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>Գլխավոր</a>
+<a href="Venues.dc.html"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 7 4.4-4.4A2 2 0 0 1 7.8 2h8.4a2 2 0 0 1 1.4.6L22 7"></path><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"></path><path d="M2 7h20v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-2 1 2 2 0 0 1-2-2z"></path></svg>Վայրեր</a>
+<a href="Settings.dc.html"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>Կարգավորումներ</a>
+</nav>
+<div class="side-foot">
+<div class="me"><span class="avatar" aria-hidden="true">GA</span><span class="me-t"><span class="me-n">Grigor Avagyan</span><span class="me-r">Պլատֆորմի ադմին</span></span><a class="out" href="SignIn.dc.html" aria-label="Դուրս գալ"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg></a></div>
+</div>
+</aside>
+
+<main class="main" id="main">
+<div class="ph">
+<div><h1 class="h1">Գլխավոր</h1><p class="sub">Պլատֆորմի վիճակը այս պահին · թարմացված 14:32</p></div>
+</div>
+
+<sc-if value="{{ showAlert }}" hint-placeholder-val="{{ true }}">
+<div class="{{ alertClass }}" role="status">
+<div class="alert-row">
+<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.7 18-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+<span class="alert-t">{{ alertText }}</span>
+<sc-if value="{{ notRetried }}" hint-placeholder-val="{{ true }}">
+<button type="button" class="btn btn-sec btn-sm" onClick="{{ toggleDetails }}" aria-expanded="{{ detailsOpen }}">{{ detailsLabel }}</button>
+<button type="button" class="btn btn-pri btn-sm" onClick="{{ retry }}">Կրկին ուղարկել</button>
+</sc-if>
+<sc-if value="{{ retried }}" hint-placeholder-val="{{ false }}">
+<button type="button" class="btn btn-sec btn-sm" onClick="{{ dismiss }}">Փակել</button>
+</sc-if>
+</div>
+<sc-if value="{{ showDetails }}" hint-placeholder-val="{{ false }}">
+<ul class="alert-list">
+<li><b>Telegram հաստատման կոդ</b><span>+374 91 ••• 412</span><span>13:05</span><span>Telegram-ը չպատասխանեց 3 փորձից հետո</span></li>
+<li><b>Ամրագրման հիշեցում</b><span>Cascade Cafe · Աննա Պ.</span><span>11:40</span><span>Հյուրը արգելափակել է բոտը</span></li>
+</ul>
+</sc-if>
+</div>
+</sc-if>
+
+<div class="kpis">
+<a class="card kpi" href="Venues.dc.html">
+<span class="kpi-ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 7 4.4-4.4A2 2 0 0 1 7.8 2h8.4a2 2 0 0 1 1.4.6L22 7"></path><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><path d="M2 7h20v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-2 1 2 2 0 0 1-2-2z"></path></svg></span>
+<span class="kpi-b"><span class="kpi-l">Վայրեր</span><span class="kpi-n">8</span><span class="kpi-f">5 վճարովի · 3 անվճար</span></span>
+<svg class="i kpi-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+</a>
+<a class="card kpi" href="#chart-h">
+<span class="kpi-ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg></span>
+<span class="kpi-b"><span class="kpi-l">Ամրագրումներ այս շաբաթ</span><span class="kpi-n">312</span><span class="kpi-f"><span class="up">↑ 12 %</span> նախորդ շաբաթից</span></span>
+<svg class="i kpi-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+</a>
+<button type="button" class="{{ kpiPendingCls }}" onClick="{{ togglePending }}" aria-expanded="{{ pendingExpanded }}" aria-controls="drill">
+<span class="kpi-ic kpi-ic-amber"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
+<span class="kpi-b"><span class="kpi-l">Հաստատման սպասող</span><span class="kpi-n">7</span><span class="kpi-f">3 վայրում · ցույց տալ</span></span>
+</button>
+<button type="button" class="{{ kpiTabsCls }}" onClick="{{ toggleTabs }}" aria-expanded="{{ tabsExpanded }}" aria-controls="drill">
+<span class="kpi-ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"></path><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 17.5v-11"></path></svg></span>
+<span class="kpi-b"><span class="kpi-l">Բաց հաշիվներ հիմա</span><span class="kpi-n">41</span><span class="kpi-f">4 վայրում · ցույց տալ</span></span>
+</button>
+</div>
+
+<sc-if value="{{ drillOpen }}" hint-placeholder-val="{{ false }}">
+<section class="card drill" id="drill" aria-labelledby="drill-h">
+<div class="drill-h"><div><h2 class="h2" id="drill-h">{{ drillTitle }}</h2><p class="cap">{{ drillCap }}</p></div><button type="button" class="btn btn-sec btn-sm" onClick="{{ closeDrill }}">Փակել</button></div>
+<div class="drill-g">
+<sc-for list="{{ drillRows }}" as="d" hint-placeholder-count="3"><a href="VenueDetail.dc.html"><span>{{ d.name }}</span><b>{{ d.n }}</b></a></sc-for>
+</div>
+</section>
+</sc-if>
+
+<div class="g2">
+<section class="card" aria-labelledby="chart-h">
+<div class="card-h">
+<div><h2 class="h2" id="chart-h">Ամրագրումներ օրական</h2><p class="cap">{{ chartCap }}</p></div>
+<label class="sr" for="range-main">Ժամանակահատված</label>
+<select id="range-main" class="range" value="{{ range }}" onChange="{{ onRange }}"><option value="14">Վերջին 14 օր</option><option value="30">Վերջին 30 օր</option></select>
+</div>
+<div class="chart">
+<div class="yaxis" aria-hidden="true"><span class="yunit">ամրագրում</span><div class="yt"><span>60</span><span>40</span><span>20</span><span>0</span></div></div>
+<div class="plotw">
+<div class="plot">
+<div class="grid" style="top: 0%"></div><div class="grid" style="top: 33.33%"></div><div class="grid" style="top: 66.66%"></div>
+<div class="{{ barsCls }}">
+<sc-for list="{{ bars }}" as="b" hint-placeholder-count="14">
+<div class="col"><button type="button" class="{{ b.cls }}" style="{{ b.style }}" aria-label="{{ b.aria }}" onMouseEnter="{{ b.pick }}" onFocus="{{ b.pick }}" onClick="{{ b.pick }}"><sc-if value="{{ b.tip }}" hint-placeholder-val="{{ false }}"><span class="tip">{{ b.tipText }}</span></sc-if></button></div>
+</sc-for>
+</div>
+</div>
+<div class="{{ xlabCls }}" aria-hidden="true"><sc-for list="{{ bars }}" as="b" hint-placeholder-count="14"><span class="{{ b.xcls }}">{{ b.x }}</span></sc-for></div>
+<div class="xmonth" aria-hidden="true">{{ monthLine }}</div>
+</div>
+</div>
+</section>
+
+<section class="card ready" aria-labelledby="ready-h">
+<div class="card-h"><div><h2 class="h2" id="ready-h">Դեռ պատրաստ չեն</h2><p class="cap">Հյուրերը դրանք կտեսնեն թերի</p></div><span class="pill p-amber">4</span></div>
+<a class="r" href="VenueDetail.dc.html"><span class="thumb thumb-none" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m2 2 20 20"></path><path d="M10.4 10.4a2 2 0 1 1-2.8-2.8"></path><path d="M13.5 13.5 6 21"></path><path d="M3.6 3.6A2 2 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.6 0 1-.2 1.4-.6"></path><path d="M21 15V5a2 2 0 0 0-2-2H9"></path></svg></span><span class="r-t"><span class="r-n">Sunset Lounge</span><span><span class="pill p-amber">Լուսանկար չկա</span></span></span></a>
+<a class="r" href="VenueDetail.dc.html"><span class="thumb" style="background: #E7D3BF; color: #6B3A1C" aria-hidden="true">R</span><span class="r-t"><span class="r-n">Riverside Restaurant</span><span><span class="pill p-amber">3 ուտեստ անավարտ</span></span></span></a>
+<a class="r" href="VenueDetail.dc.html"><span class="thumb" style="background: #DCE3D2; color: #3D5A2E" aria-hidden="true">G</span><span class="r-t"><span class="r-n">Garden Bistro</span><span><span class="pill p-amber">Աշխատաժամեր չկան</span></span></span></a>
+<a class="r" href="VenueDetail.dc.html"><span class="thumb" style="background: #E5D9CC; color: #5A3B26" aria-hidden="true">M</span><span class="r-t"><span class="r-n">Mountain View</span><span><span class="pill p-amber">Ճաշացանկ չկա</span></span></span></a>
+<div class="ready-f"><a class="link" href="Venues.dc.html">Բոլոր վայրերը<svg class="i" style="width: 16px; height: 16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+</section>
+</div>
+
+<div class="g2">
+<section class="card" aria-labelledby="recent-h">
+<div class="card-h"><h2 class="h2" id="recent-h">Վերջերս ավելացված</h2><a class="link" href="Venues.dc.html">Բոլոր վայրերը<svg class="i" style="width: 16px; height: 16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></a></div>
+<div class="tscroll">
+<table class="tbl">
+<thead><tr><th scope="col">Վայր</th><th scope="col">Կատեգորիա</th><th scope="col">Փաթեթ</th><th scope="col">Կարգավիճակ</th><th scope="col">Ավելացվել է</th></tr></thead>
+<tbody>
+<tr><td><div class="vcell"><span class="thumb" style="background: #E7D3BF; color: #6B3A1C" aria-hidden="true">R</span><div><a class="vname" href="VenueDetail.dc.html">Riverside Restaurant</a><div class="slug">riverside-restaurant</div></div></div></td><td>Ռեստորան</td><td>Վճարովի</td><td><span class="pill p-green"><span class="dot"></span>Ակտիվ</span></td><td>Հոկտ 16</td></tr>
+<tr><td><div class="vcell"><span class="thumb" style="background: #E5D9CC; color: #5A3B26" aria-hidden="true">M</span><div><a class="vname" href="VenueDetail.dc.html">Mountain View</a><div class="slug">mountain-view</div></div></div></td><td>Ռեստորան</td><td>Անվճար</td><td><span class="pill p-green"><span class="dot"></span>Ակտիվ</span></td><td>Հոկտ 14</td></tr>
+<tr><td><div class="vcell"><span class="thumb thumb-none" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m2 2 20 20"></path><path d="M10.4 10.4a2 2 0 1 1-2.8-2.8"></path><path d="M13.5 13.5 6 21"></path><path d="M3.6 3.6A2 2 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.6 0 1-.2 1.4-.6"></path><path d="M21 15V5a2 2 0 0 0-2-2H9"></path></svg></span><div><a class="vname" href="VenueDetail.dc.html">Sunset Lounge</a><div class="slug">sunset-lounge</div></div></div></td><td>Բար</td><td>Անվճար</td><td><span class="pill p-green"><span class="dot"></span>Ակտիվ</span></td><td>Հոկտ 11</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="card" aria-labelledby="feed-h">
+<div class="card-h"><div><h2 class="h2" id="feed-h">Վերջին գործողություններ</h2><p class="cap">Ձեր և վայրերի թիմերի վերջին փոփոխությունները</p></div></div>
+<ul class="feed">
+<li><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"></path></svg></span><span class="ft"><p><b>Grigor Avagyan</b> Luna Cafe-ը դարձրեց վճարովի</p><span>Այսօր, 12:10</span></span></li>
+<li><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M10 15V9M14 15V9"></path></svg></span><span class="ft"><p><b>Grigor Avagyan</b> կասեցրեց Garden Bistro-ն</p><span>Երեկ, 18:40</span></span></li>
+<li><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 21.7a.5.5 0 0 0 .9 0l6.5-19a.5.5 0 0 0-.6-.6l-19 6.5a.5.5 0 0 0 0 .9l7.9 3.2a2 2 0 0 1 1.1 1.1z"></path><path d="m21.9 2.1-11 11"></path></svg></span><span class="ft"><p><b>Aram Hakobyan</b> · Cascade Cafe ավելացրեց Mariam Avetisyan-ին որպես մասնաճյուղի մենեջեր</p><span>Երեկ, 11:02</span></span></li>
+<li><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg></span><span class="ft"><p><b>Grigor Avagyan</b> ավելացրեց Riverside Restaurant-ը</p><span>Հոկտ 16, 15:30</span></span></li>
+<li><span class="fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M20 21a8 8 0 0 0-16 0"></path></svg></span><span class="ft"><p><b>Grigor Avagyan</b> Mountain View-ի սեփականատիրոջը տվեց մուտքի հղում</p><span>Հոկտ 14, 10:15</span></span></li>
+</ul>
+</section>
+</div>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"outboxFailures":{"editor":"boolean","default":true,"section":"Վիճակ"},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { hover: null, details: false, retried: false, dismissed: false, range: '14', drill: null };
+  }
+  renderVals() {
+    const s = this.state;
+    const v30 = [31, 29, 34, 33, 30, 38, 36, 32, 35, 37, 34, 39, 41, 40, 37, 36, 36, 38, 41, 37, 40, 44, 43, 35, 40, 44, 42, 47, 52, 52];
+    const n = s.range === '30' ? 30 : 14;
+    const vals = v30.slice(30 - n);
+    const today = n - 1;
+    const hover = s.hover == null || s.hover > today ? today : s.hover;
+    const dateOf = (i) => { const d = new Date(2026, 9, 18 - (today - i)); return { day: d.getDate(), mon: d.getMonth() === 9 ? 'Հոկտ' : 'Սեպտ', full: d.getMonth() === 9 ? 'Հոկտեմբերի' : 'Սեպտեմբերի' }; };
+    const dense = n === 30;
+    const bars = vals.map((v, i) => {
+      const dt = dateOf(i);
+      return {
+        x: !dense || i % 5 === 4 || i === today ? String(dt.day) : '',
+        cls: 'bar' + (i === today ? ' today' : '') + (hover === i ? ' on' : ''),
+        xcls: i === today ? 't' : '',
+        style: 'height: ' + (v / 60 * 100).toFixed(1) + '%',
+        aria: dt.full + ' ' + dt.day + (i === today ? ' (այսօր)' : '') + ' · ' + v + ' ամրագրում',
+        tip: hover === i,
+        tipText: (i === today ? 'Այսօր' : dt.mon + ' ' + dt.day) + ' · ' + v + ' ամրագրում',
+        pick: () => this.setState({ hover: i })
+      };
+    });
+    const total = vals.reduce((a, b) => a + b, 0);
+    const failures = (this.props.outboxFailures ?? true) && !s.dismissed;
+    const pending = [{ name: 'Cascade Cafe', n: 3 }, { name: 'Luna Cafe', n: 2 }, { name: 'Riverside Restaurant', n: 2 }];
+    const tabs = [{ name: 'Cascade Cafe', n: 15 }, { name: 'Luna Cafe', n: 11 }, { name: 'Riverside Restaurant', n: 9 }, { name: 'Yalla Demo Cafe', n: 6 }];
+    const drill = s.drill;
+    return {
+      bars: bars,
+      barsCls: 'bars' + (dense ? ' dense' : ''),
+      xlabCls: 'xlab' + (dense ? ' dense' : ''),
+      range: s.range,
+      onRange: (e) => this.setState({ range: e.target.value, hover: null }),
+      chartCap: 'Վերջին ' + n + ' օր · ընդհանուր ' + total + ' · օրական միջինը ' + Math.round(total / n),
+      monthLine: dense ? 'Սեպտեմբեր – Հոկտեմբեր' : 'Հոկտեմբեր',
+      showAlert: failures,
+      retried: s.retried,
+      alertClass: s.retried ? 'alert alert-ok' : 'alert',
+      alertText: s.retried ? 'Երկու հաղորդագրությունն էլ նորից հերթում են · արդյունքը կերևա մի քանի րոպեից' : 'Վերջին 24 ժամում 2 հաղորդագրություն չի հասել հյուրերին',
+      notRetried: !s.retried,
+      detailsOpen: s.details ? 'true' : 'false',
+      detailsLabel: s.details ? 'Թաքցնել' : 'Մանրամասներ',
+      showDetails: s.details && !s.retried,
+      toggleDetails: () => this.setState({ details: !s.details }),
+      retry: () => this.setState({ retried: true, details: false }),
+      dismiss: () => this.setState({ dismissed: true }),
+      kpiPendingCls: 'card kpi' + (drill === 'pending' ? ' on' : ''),
+      kpiTabsCls: 'card kpi' + (drill === 'tabs' ? ' on' : ''),
+      pendingExpanded: drill === 'pending' ? 'true' : 'false',
+      tabsExpanded: drill === 'tabs' ? 'true' : 'false',
+      togglePending: () => this.setState({ drill: drill === 'pending' ? null : 'pending' }),
+      toggleTabs: () => this.setState({ drill: drill === 'tabs' ? null : 'tabs' }),
+      closeDrill: () => this.setState({ drill: null }),
+      drillOpen: !!drill,
+      drillTitle: drill === 'tabs' ? 'Բաց հաշիվներ ըստ վայրի' : 'Հաստատման սպասող ամրագրումներ ըստ վայրի',
+      drillCap: drill === 'tabs' ? 'Սեղաններ, որտեղ հիմա ուտում են Yalla-ով' : 'Ռեստորանը դրանք հաստատում է իր վահանակից',
+      drillRows: drill === 'tabs' ? tabs : pending
+    };
+  }
+}
+</script>
+</body>
+</html>

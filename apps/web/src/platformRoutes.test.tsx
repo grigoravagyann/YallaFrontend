@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { createConsoleMockGateway, type ConsoleUser, type UserRole } from '@yalla/api';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AppRoutes as AppRoutesComponent } from './App';
 import { createConsoleHarness, initConsoleTestI18n } from './console/venue/reports/testHarness';
@@ -79,8 +79,11 @@ function renderAt(role: keyof typeof USERS, path: string) {
 describe('the platform branch routes', () => {
   it('give a platform admin the branch reviews', async () => {
     renderAt('platformAdmin', `${BASE}/reviews`);
-    expect(await screen.findByRole('heading', { name: /^reviews$/i })).toBeTruthy();
-    expect(await screen.findByText(/hidden by the platform/i)).toBeTruthy();
+    // The branch's page (Reviews artboard): its name is the title, Reviews the current sub-tab.
+    const tab = await screen.findByRole('link', { name: /^reviews/i });
+    expect(tab.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('group', { name: /^filter$/i })).toBeTruthy();
+    expect((await screen.findAllByText(/hidden by the platform/i)).length).toBeGreaterThan(0);
   });
 
   it('give a platform admin the branch public page, with the pin editable', async () => {
@@ -103,11 +106,36 @@ describe('the platform branch routes', () => {
       for (const page of ['public', 'floorplan', 'reviews']) {
         renderAt(role, `${BASE}/${page}`);
         expect(
-          await screen.findByRole('heading', { name: /you don't have access to this/i }),
+          await screen.findByRole('heading', { name: /this page isn't for you/i }),
         ).toBeTruthy();
-        expect(screen.queryByRole('heading', { name: /^reviews$/i })).toBeNull();
+        expect(screen.queryByRole('navigation', { name: /^branch sections$/i })).toBeNull();
         cleanup();
       }
+    },
+  );
+});
+
+describe('the platform shell routes', () => {
+  it('give a platform admin a Settings page with the console language', async () => {
+    renderAt('platformAdmin', '/platform/settings');
+    expect(await screen.findByRole('heading', { level: 1, name: /^settings$/i })).toBeTruthy();
+    // My account opens first (Settings artboard); the language is the second section.
+    fireEvent.click(screen.getByRole('button', { name: /^language$/i }));
+    expect(screen.getByRole('radiogroup', { name: /console language/i })).toBeTruthy();
+  });
+
+  it('keep an unknown platform address inside the shell, as not found', async () => {
+    renderAt('platformAdmin', '/platform/nothing-here');
+    expect(await screen.findByRole('heading', { name: /this page was not found/i })).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: /main navigation/i })).toBeTruthy();
+  });
+
+  it.each(['waiter', 'kitchen', 'owner', 'manager'] as const)(
+    'give a %s no platform Settings page',
+    async (role) => {
+      renderAt(role, '/platform/settings');
+      expect(await screen.findByRole('heading', { name: /this page isn't for you/i })).toBeTruthy();
+      expect(screen.queryByRole('radiogroup', { name: /console language/i })).toBeNull();
     },
   );
 });
