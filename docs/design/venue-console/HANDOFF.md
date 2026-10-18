@@ -78,15 +78,15 @@ Hooks live in `packages/api/src/react`, the gateway in
 1. **Overview numbers**: today's bookings by status, people in the room now, open tabs with unpaid total, today's revenue vs the same weekday last week, booked people per hour for today. One `GET /api/branches/{id}/overview` is enough.
 2. **Special opening days** (holidays, closures, different hours on one date) overriding the weekly hours. Needs a model, `GET/PUT …/opening-hours/exceptions`, and the public availability must honour it.
 3. **Review replies**: one public reply per review by owner, GM or manager, editable. `PUT …/reviews/{id}/reply`, shown in the diner app too.
-4. **Today's shift per staff member**: there is no shift model. Either add a minimal one (date, from, to per staff member) or leave the shift line out until it exists. Ask the user.
+4. **Today's shift per staff member**: there is no shift model; build the minimal one described in section 6.
 5. **Account**: change own name and password while signed in. The reset-by-link flow exists; a signed-in change does not.
-6. **Booking row actions from the console**: `no-show`, `release` and `seat-reservation` are counter-session endpoints today. Decide whether the console may call them with a console token, or whether the row menu only offers approve, reject and cancel.
+6. **Booking row actions from the console**: `no-show`, `release` and `seat-reservation` are counter-session endpoints today; open them to the console token as decided in section 6.
 
-## 6. Decisions for the implementer, ask the user before building
+## 6. Decided by the user on 2026-10-19 (do not ask again)
 
-- **Approvals live on Overview in the design**, on the Policy screen in the code. The design is the intended place; confirm, then move the panel.
-- **Shift line** (gap 4): build a minimal model or drop the line.
-- **Console calling counter endpoints** (gap 6).
+- **Approvals move to Overview.** The awaiting-approval panel leaves the Policy screen and sits at the top of Overview with the live countdown, as designed.
+- **Build the shift model.** A minimal one: per staff member, a date with a from and to time (overnight allowed). Add it to the staff endpoints and a small editor on the Staff screen (a "Հերթափոխ" action in the row menu is enough). The shift line and the "այսօր հերթափոխում՝ N հոգի" count read from it.
+- **The console may act on bookings.** Allow the console token (owner, general manager, branch manager within their branch) to call no-show, release and seat-reservation, so the Overview row menu works as designed. One policy change in the backend, with a test proving a waiter token is still refused.
 
 ## 7. Suggested order
 
@@ -94,7 +94,7 @@ Hooks live in `packages/api/src/react`, the gateway in
 2. Overview with the overview endpoint and approvals moved in.
 3. Menu (reorder via `DisplayOrder`), Rooms (4:3), Hours with special days.
 4. Policy, Public, Reviews with replies.
-5. Staff with the shift decision, Reports with per-section CSV.
+5. Staff with the shift model, Reports with per-section CSV.
 
 Ship each phase as a PR pair when backend changes are involved. Working rules
 (red-first tests, i18n parity hy/ru/en, temp git index, merge when CI is
