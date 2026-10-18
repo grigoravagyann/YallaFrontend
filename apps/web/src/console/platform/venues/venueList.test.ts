@@ -33,6 +33,14 @@ const VENUES = [
   venue('Bravo', { rating: null, tableCount: 30, status: 'suspended' }),
   venue('Charlie', { rating: 4.9, tableCount: 12, status: 'deleted' }),
   venue('Delta', { branchCount: 2, paidBranchCount: 1, district: 'Arabkir' }),
+  venue('Echo', {
+    branchCount: 2,
+    status: 'inactive',
+    branchTiers: [
+      { id: 'e1', name: 'Kentron', subscriptionTier: 'free' },
+      { id: 'e2', name: 'Nor Nork', subscriptionTier: 'free' },
+    ],
+  }),
 ];
 
 const names = (list: readonly ConsoleVenue[]) => list.map((v) => v.name);
@@ -40,14 +48,24 @@ const filters = (change: Partial<VenueListFilters>) => ({ ...DEFAULT_FILTERS, ..
 
 describe('filtering the venues list', () => {
   it('hides the deleted ones by default and shows only them under Deleted', () => {
-    expect(names(filterVenues(VENUES, DEFAULT_FILTERS, 'en'))).toEqual(['Alpha', 'Bravo', 'Delta']);
+    expect(names(filterVenues(VENUES, DEFAULT_FILTERS, 'en'))).toEqual([
+      'Alpha',
+      'Bravo',
+      'Delta',
+      'Echo',
+    ]);
     expect(names(filterVenues(VENUES, filters({ status: 'deleted' }), 'en'))).toEqual(['Charlie']);
-    expect(filterVenues(VENUES, filters({ status: 'all' }), 'en')).toHaveLength(4);
+    expect(names(filterVenues(VENUES, filters({ status: 'inactive' }), 'en'))).toEqual(['Echo']);
+    expect(filterVenues(VENUES, filters({ status: 'all' }), 'en')).toHaveLength(5);
   });
 
   it('filters by the tier summary', () => {
     expect(names(filterVenues(VENUES, filters({ tier: 'mixed' }), 'en'))).toEqual(['Delta']);
     expect(names(filterVenues(VENUES, filters({ tier: 'paid' }), 'en'))).toEqual([]);
+  });
+
+  it("searches every branch's name, not only the first one's", () => {
+    expect(names(filterVenues(VENUES, filters({ query: 'nor nork' }), 'en'))).toEqual(['Echo']);
   });
 
   it('searches the district too, ignoring case', () => {
@@ -62,14 +80,17 @@ describe('filtering the venues list', () => {
 });
 
 describe('sorting the venues list', () => {
+  // The four with ratings and tables to sort by.
+  const SORTED = VENUES.slice(0, 4);
+
   it('puts a venue with no rating after every rated one, whichever way', () => {
-    expect(names(sortVenues(VENUES, 'rating', -1, 'en'))).toEqual([
+    expect(names(sortVenues(SORTED, 'rating', -1, 'en'))).toEqual([
       'Charlie',
       'Alpha',
       'Bravo',
       'Delta',
     ]);
-    expect(names(sortVenues(VENUES, 'rating', 1, 'en'))).toEqual([
+    expect(names(sortVenues(SORTED, 'rating', 1, 'en'))).toEqual([
       'Alpha',
       'Charlie',
       'Bravo',
@@ -78,8 +99,8 @@ describe('sorting the venues list', () => {
   });
 
   it('sorts tables by number and names alphabetically', () => {
-    expect(names(sortVenues(VENUES, 'tables', -1, 'en'))[0]).toBe('Bravo');
-    expect(names(sortVenues(VENUES, 'name', -1, 'en'))[0]).toBe('Delta');
+    expect(names(sortVenues(SORTED, 'tables', -1, 'en'))[0]).toBe('Bravo');
+    expect(names(sortVenues(SORTED, 'name', -1, 'en'))[0]).toBe('Delta');
   });
 
   it('turns the same column round, and starts a number column at the top', () => {

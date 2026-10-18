@@ -75,9 +75,15 @@ export interface MockReviewStore {
   deleteByDiner(dinerUserId: string): void;
   /** One report per diner per review; a repeat is ignored. */
   report(report: StoredReport): void;
+  /** The reports nobody has set aside: what `reportCount` and the reported filter read. */
   reports(reviewId: string): readonly StoredReport[];
-  /** The platform set a review's reports aside: they are gone, the review stays as it was. */
+  /**
+   * The platform set a review's reports aside: they are kept (each is still a
+   * diner's word) but no longer count; the review stays as it was.
+   */
   dismissReports(reviewId: string): void;
+  /** Undo the last dismissal: the reports it set aside count again. */
+  restoreReports(reviewId: string): void;
   setVisibility(input: {
     readonly reviewId: string;
     readonly hidden: boolean;
@@ -103,6 +109,8 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
   const now = options.now ?? (() => new Date());
   const reviews = new Map<string, StoredReview>();
   const reports: StoredReport[] = [];
+  /** The reports set aside, per review, by the dismissal that set them aside. */
+  const dismissed = new Map<string, StoredReport[]>();
   let sequence = 0;
 
   const newestFirst = (a: StoredReview, b: StoredReview) =>
@@ -325,8 +333,21 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
     reports: (reviewId) => reports.filter((r) => r.reviewId === reviewId),
 
     dismissReports(reviewId) {
+      const setAside: StoredReport[] = [];
       for (let i = reports.length - 1; i >= 0; i -= 1) {
-        if (reports[i]!.reviewId === reviewId) reports.splice(i, 1);
+        if (reports[i]!.reviewId === reviewId) setAside.unshift(...reports.splice(i, 1));
+      }
+      // Idempotent, as on the server: a review with no open report changes nothing.
+      if (setAside.length > 0) dismissed.set(reviewId, setAside);
+    },
+
+    restoreReports(reviewId) {
+      const setAside = dismissed.get(reviewId) ?? [];
+      dismissed.delete(reviewId);
+      for (const report of setAside) {
+        if (!reports.some((r) => r.reviewId === reviewId && r.dinerUserId === report.dinerUserId)) {
+          reports.push(report);
+        }
       }
     },
 

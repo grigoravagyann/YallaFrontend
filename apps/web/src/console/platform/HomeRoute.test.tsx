@@ -73,7 +73,8 @@ describe('Home', () => {
     const user = userEvent.setup();
     renderHome();
     const alert = await screen.findByText('2 messages did not reach guests in the last 24 hours');
-    const box = alert.closest('[role="status"]') as HTMLElement;
+    // A real failure: announced at once, not when the reader is idle.
+    const box = alert.closest('[role="alert"]') as HTMLElement;
     expect(box).toBeTruthy();
     expect(within(box).queryByRole('button', { name: /send again/iu })).toBeNull();
 
@@ -144,6 +145,8 @@ describe('Home', () => {
       }),
     );
     expect(screen.queryByRole('region', { name: 'Open tabs by venue' })).toBeNull();
+    // The list it closed was opened from the card: the focus goes back there.
+    expect(document.activeElement).toBe(tabs);
   });
 
   it('draws bookings per day for 14 days, or 30, today last', async () => {
@@ -191,6 +194,29 @@ describe('Home', () => {
     await waitFor(() => expect(within(feed).getAllByRole('listitem').length).toBeGreaterThan(0));
     expect(within(feed).getByText(/switched .* to Paid/u)).toBeTruthy();
     expect(within(feed).getByText(/added Mariam Avetisyan as branch manager/u)).toBeTruthy();
+  });
+
+  it('says who joined without guessing a role the log did not record', async () => {
+    const source = gateway();
+    const withoutRole: ConsoleGateway = {
+      ...source,
+      listPlatformActivity: async () => [
+        {
+          id: 'a-1',
+          atUtc: NOW.toISOString(),
+          action: 'staff.create',
+          actor: { id: 's-1', role: 'owner', name: 'Aram Hakobyan' },
+          target: { type: 'StaffMember', id: 's-2', name: 'Mariam Avetisyan' },
+          venue: { id: 'v-1', name: 'Cascade Cafe' },
+          tierTo: null,
+          staffRole: null,
+        },
+      ],
+    };
+    renderHome(withoutRole);
+    const feed = await screen.findByRole('region', { name: 'Recent activity' });
+    expect(await within(feed).findByText(/added Mariam Avetisyan to the team/u)).toBeTruthy();
+    expect(within(feed).queryByText(/branch manager/u)).toBeNull();
   });
 
   it('says the overview failed rather than showing zeros', async () => {

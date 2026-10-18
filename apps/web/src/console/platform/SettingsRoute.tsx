@@ -1,6 +1,7 @@
 import {
   PLATFORM_NAME_MAX_LENGTH,
   PLATFORM_PASSWORD_MIN_LENGTH,
+  TooManyRequestsError,
   ValidationError,
   type PlatformAdminProfile,
 } from '@yalla/api';
@@ -221,7 +222,7 @@ function Password() {
   const [repeat, setRepeat] = useState('');
   const [tried, setTried] = useState(false);
   const [server, setServer] = useState<Partial<Record<PasswordField, string>>>({});
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
 
   const local: Partial<Record<PasswordField, string>> = {
     ...(current === '' ? { current: t('settings.password.currentRequired') } : {}),
@@ -240,22 +241,37 @@ function Password() {
     if (change.isPending) return;
     setTried(true);
     setServer({});
-    setFailed(false);
+    setFailure(null);
     const invalid = firstInvalid(local);
     if (invalid) {
       focusLater(FIELD_ID[invalid]);
       return;
     }
     try {
-      await change.mutateAsync({ currentPassword: current, newPassword: next });
+      const answer = await change.mutateAsync({ currentPassword: current, newPassword: next });
       setCurrent('');
       setNext('');
       setRepeat('');
       setTried(false);
-      toast.say(t('settings.password.changed'));
+      // "Signed out on your other devices" only when the server renewed this
+      // sign-in and ended the rest; otherwise nothing is claimed.
+      toast.say(
+        answer.sessionRenewed
+          ? t('settings.password.changed')
+          : t('settings.password.changedPlain'),
+      );
     } catch (caught) {
+      if (caught instanceof TooManyRequestsError) {
+        const seconds = caught.retryAfterSeconds;
+        setFailure(
+          seconds === null
+            ? t('settings.password.tooManyNoWindow')
+            : t('settings.password.tooMany', { count: Math.max(1, Math.ceil(seconds / 60)) }),
+        );
+        return;
+      }
       if (!(caught instanceof ValidationError) || caught.violations.length === 0) {
-        setFailed(true);
+        setFailure(t('settings.password.failed'));
         return;
       }
       // A wrong current password is a form error, not a sign-out: the server
@@ -276,7 +292,7 @@ function Password() {
       setServer(found);
       const invalidOnServer = firstInvalid(found);
       if (invalidOnServer) focusLater(FIELD_ID[invalidOnServer]);
-      else setFailed(true);
+      else setFailure(t('settings.password.failed'));
     }
   }
 
@@ -347,9 +363,9 @@ function Password() {
           {field('new', t('settings.password.new'), next, setNext, 'new-password', 'pw-hint')}
           {field('repeat', t('settings.password.repeat'), repeat, setRepeat, 'new-password')}
         </div>
-        {failed ? (
+        {failure ? (
           <p className="yc-alert" role="alert">
-            {t('settings.password.failed')}
+            {failure}
           </p>
         ) : null}
         <div className="yc-sform-foot">

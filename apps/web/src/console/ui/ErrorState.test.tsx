@@ -125,6 +125,26 @@ describe('trying again', () => {
     await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(1));
   });
 
+  it('promises no retry by itself after a server error: only a lost connection comes back alone', async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn(() => Promise.resolve());
+    renderState({ kind: 'error', onRetry });
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    const line = await screen.findByText(/still not working · attempt 1/i);
+    expect(line.textContent).not.toMatch(/by ourselves|connection/i);
+  });
+
+  it('names what was not found: a page, or a branch, as well as a venue', () => {
+    renderState({ kind: 'notFound', subject: 'page' }, '/platform/nothing-here');
+    expect(screen.getByRole('heading', { level: 1, name: 'This page was not found' })).toBeTruthy();
+    expect(screen.queryByText(/deleted.*filter/i)).toBeNull();
+    cleanup();
+    renderState({ kind: 'notFound', subject: 'branch' });
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'This branch was not found' }),
+    ).toBeTruthy();
+  });
+
   it('is not offered where it would do nothing', () => {
     renderState({ kind: 'notFound' });
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();

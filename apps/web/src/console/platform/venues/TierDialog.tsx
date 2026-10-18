@@ -1,6 +1,7 @@
 import {
   BranchNotReadyError,
   ConcurrencyConflictError,
+  openTabsRefusal,
   venueTierSummary,
   type ConsoleBranch,
   type ConsoleVenue,
@@ -41,14 +42,16 @@ interface Refused {
  * branch, and the list's button applies to all of them — the user's decision
  * of 2026-10-18).
  *
- * Going Paid, each branch's readiness is asked the moment the dialog opens, so
- * a branch with an unfinished menu (`branch-not-ready`) is named before
- * anything is pressed and nothing is sent, as the artboard shows for Mountain
- * View. The server is still the authority: a refusal at the switch itself —
- * going Free with tabs open, or a menu that changed in between — lands in the
- * same view, naming the branch and anything that had already moved.
+ * What would refuse is asked the moment the dialog opens — going Paid, each
+ * branch's readiness (`branch-not-ready`); going Free, the tabs open now — so
+ * the branch is named before anything is pressed and nothing is sent, as the
+ * artboard shows for Mountain View. The server is still the authority: a
+ * refusal at the switch itself lands in the same view, naming every branch
+ * that refused and every one that moved.
  *
- * A venue with branches on both plans chooses one for all of them. Given a
+ * A venue with branches on both plans chooses one for all of them. There a
+ * refusal is shown **under the choice**, and only its button is disabled: a
+ * mixed venue whose free branch stops it going Paid can still go Free. Given a
  * `branch`, the same dialog switches that branch alone, with the same check.
  */
 export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: TierDialogProps) {
@@ -60,6 +63,8 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
       })
     : venueTierSummary(venue);
   const branchIds = branch ? [branch.id] : undefined;
+  // A mixed venue picks the plan here, so a refusal must not take the choice away.
+  const isChoice = !branch && summary.kind === 'mixed';
   const [target, setTarget] = useState<SubscriptionTier>(summary.kind === 'paid' ? 'free' : 'paid');
   const [refused, setRefused] = useState<Refused | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -67,6 +72,7 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
   const apply = useSetVenueTier();
   const gotItRef = useRef<HTMLButtonElement>(null);
   const refuseId = useId();
+  const blockedId = useId();
   const commandId = useRef(newCommandId());
 
   const reasonFor = (refusal: VenueTierRefusal): string => {
@@ -97,23 +103,29 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
     changed,
   });
 
-  // The check found an unfinished menu: refused before anything is pressed.
-  const blockers = check.data?.blockers ?? [];
-  const shownRefusal: Refused | null =
-    refused ??
-    (target === 'paid' && blockers.length > 0
+  // The check found what the server would refuse: named before anything is pressed.
+  // A stale answer for the other plan is not this plan's.
+  const blockers = check.data && !check.isPlaceholderData ? check.data.blockers : [];
+  const checked: Refused | null =
+    blockers.length > 0
       ? refusedFrom(
           blockers.map((blocker) => ({
             branch: blocker.branch,
-            error: new BranchNotReadyError({
-              url: '',
-              branchId: blocker.branch.id,
-              incompleteMenuItemCount: blocker.incompleteMenuItemCount,
-            }),
+            error:
+              target === 'paid'
+                ? new BranchNotReadyError({
+                    url: '',
+                    branchId: blocker.branch.id,
+                    incompleteMenuItemCount: blocker.incompleteMenuItemCount,
+                  })
+                : openTabsRefusal(blocker.branch, blocker.openTabCount),
           })),
           [],
         )
-      : null);
+      : null;
+  const shownRefusal: Refused | null = refused ?? (isChoice ? null : checked);
+  // Under the choice instead: this plan's button is off, the other stays.
+  const inlineBlock = isChoice ? checked : null;
 
   // The refusal replaces the buttons the focus was on: give it the one left.
   const refusalShown = shownRefusal !== null;
@@ -122,10 +134,10 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
   }, [refusalShown]);
 
   const busy = apply.isPending;
-  const checking = target === 'paid' && check.isFetching;
+  const checking = check.isFetching;
 
   async function confirm() {
-    if (busy || checking) return;
+    if (busy || checking || inlineBlock) return;
     setFailure(null);
     try {
       const result = await apply.mutateAsync({
@@ -282,9 +294,25 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
         ))}
       </ul>
 
+      {inlineBlock ? (
+        <div className="yc-refuse-inline" id={blockedId}>
+          <div className="yc-refuse">
+            <ReceiptIcon />
+            <ul>
+              {inlineBlock.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+          <p className="yc-help">{inlineBlock.hint}</p>
+        </div>
+      ) : null}
+
       {checking ? (
         <p className="yc-help" role="status">
-          {t('venues.tierDialog.checking')}
+          {target === 'paid'
+            ? t('venues.tierDialog.checking')
+            : t('venues.tierDialog.checkingTabs')}
         </p>
       ) : null}
       {failure ? (
@@ -306,7 +334,8 @@ export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: Ti
         <button
           type="button"
           className={target === 'paid' ? 'yc-btn yc-btn-pri' : 'yc-btn yc-btn-danger'}
-          aria-disabled={checking}
+          aria-disabled={checking || inlineBlock !== null}
+          aria-describedby={inlineBlock ? blockedId : undefined}
           aria-busy={busy}
           onClick={() => void confirm()}
         >

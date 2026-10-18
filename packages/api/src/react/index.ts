@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  type QueryClient,
   useMutation,
   useQueries,
   useQuery,
@@ -636,6 +637,26 @@ export function useManagedVenue(venueId: string | undefined) {
  * a retried command is a second command, and the `commandId` exists so a
  * *deliberate* retry is safe rather than so an automatic one is silent.
  */
+/**
+ * Home's numbers and its activity feed: every change the platform makes, or a
+ * venue makes, shows in one or both. Cheap when nobody has visited Home: an
+ * invalidation of an absent query does nothing.
+ */
+function refreshPlatformViews(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.platformOverview });
+  void queryClient.invalidateQueries({ queryKey: ['console', 'platformActivity'] });
+}
+
+/**
+ * The venues list and the venue pages: a branch's tables, menu, hours,
+ * listing, cover or reviews are in the list's columns and on the venue page.
+ * By prefix, because a branch-scoped change does not know its venue's id.
+ */
+function refreshVenueViews(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+  void queryClient.invalidateQueries({ queryKey: ['console', 'venue'] });
+}
+
 function useVenueCommand<TInput>(run: (input: TInput) => Promise<ConsoleVenueDetail>) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -646,6 +667,7 @@ function useVenueCommand<TInput>(run: (input: TInput) => Promise<ConsoleVenueDet
       // The venue section's own read carries the name and the branch list
       // too, and a renamed venue or a new branch must reach it.
       void queryClient.invalidateQueries({ queryKey: queryKeys.managedVenue(venue.id) });
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -721,8 +743,10 @@ export function useVenueBookingsSummary(venueId: string | undefined, days: Booki
     queryFn: () => gateway.getVenueBookingsSummary({ venueId: venueId!, days }),
     enabled: Boolean(venueId),
     staleTime: staleTime.frequent,
-    // A switch from 30 days to 7 keeps the month on screen until the week arrives.
-    placeholderData: keepPreviousData,
+    // A switch from 30 days to 7 keeps the month on screen until the week
+    // arrives — for the same venue only: another venue's numbers are not these.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === venueId ? previous : undefined,
   });
 }
 
@@ -876,6 +900,7 @@ export function useSetVenueTier() {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -926,6 +951,10 @@ export function useSaveFloorPlan() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.floor(input.branchId) });
       void queryClient.invalidateQueries({ queryKey: ['availability', input.branchId] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(input.branchId) });
+      // The tables are a column of the list and of the venue page, and a room
+      // with none is a "not ready" line on Home.
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -963,6 +992,8 @@ export function useDeleteTable(branchId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.floor(branchId ?? '') });
       void queryClient.invalidateQueries({ queryKey: ['availability', branchId ?? ''] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1004,6 +1035,8 @@ export function useRegenerateTableQr() {
             }
           : plan,
       );
+      // A new code is a feed line (`table.regenerate-qr`).
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1352,6 +1385,9 @@ function useMenuMutation<TInput, TResult>(
       void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
       // Categories, items and their completeness are three checklist lines.
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      // Unfinished dishes are the list's readiness line and Home's "not ready".
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1449,6 +1485,8 @@ export function useSaveOpeningHours(branchId: string | undefined) {
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.openingHours(branchId ?? ''), saved);
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1502,6 +1540,10 @@ export function useSaveBranchListing(branchId: string | undefined) {
     retry: false,
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.branchListing(branchId ?? ''), saved);
+      // Cuisine and district are the list's and the venue page's lines; a
+      // move is a feed line.
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1519,7 +1561,9 @@ export function useSavePublicProfile(branchId: string | undefined) {
       queryClient.setQueryData(queryKeys.publicProfile(branchId ?? ''), saved);
       // The card's picture is also what the public page and the readiness
       // checklist read, through the managed venue.
-      void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+      refreshVenueViews(queryClient);
+      // "No photo" is a not-ready line on Home.
+      refreshPlatformViews(queryClient);
       // The booking switch is a checklist line of its own.
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
     },
@@ -1636,6 +1680,8 @@ export function useCreateStaff(venueId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
       // A new person may be the line the readiness checklist was waiting for.
       void queryClient.invalidateQueries({ queryKey: ['console', 'readiness'] });
+      // "Added Mariam as branch manager" is a feed line.
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1649,6 +1695,7 @@ export function useUpdateStaff(venueId: string | undefined) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
       void queryClient.invalidateQueries({ queryKey: ['console', 'readiness'] });
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1696,8 +1743,9 @@ export function useIssueStaffSignIn(venueId: string | undefined) {
       gateway.issueStaffSignIn({ venueId: venueId!, ...input }),
     gcTime: 0,
     onSuccess: () => {
-      // The list, never the link.
+      // The list, never the link. A sign-in issued is a feed line.
       void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1811,9 +1859,16 @@ function useReviewVisibility<TInput>(
   return useMutation({
     mutationFn: (input: TInput) => run(gateway, input),
     retry: false,
+    // Settles once the moderation lists have refetched: a review that leaves
+    // the filter on screen is gone when the caller moves the focus.
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] });
-      void queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] });
+      // The published reviews are the rating and the count on the list and the venue page.
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+      ]);
     },
   });
 }
@@ -1830,11 +1885,35 @@ export function useDismissReviewReports() {
   return useMutation({
     mutationFn: (reviewId: string) => gateway.dismissReviewReports(reviewId),
     retry: false,
-    onSettled: () =>
-      Promise.all([
+    onSettled: () => {
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
         queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
-      ]),
+      ]);
+    },
+  });
+}
+
+/**
+ * Undo a dismissal: the reports count again. Settles once both moderation
+ * lists have refetched, as the dismissal does.
+ */
+export function useRestoreReviewReports() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reviewId: string) => gateway.restoreReviewReports(reviewId),
+    retry: false,
+    onSettled: () => {
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+      ]);
+    },
   });
 }
 

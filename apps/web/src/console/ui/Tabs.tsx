@@ -70,7 +70,9 @@ export function Tabs<T extends string>({
             id={tabId(idPrefix, tab.id)}
             className={on ? 'yc-tab is-on' : 'yc-tab'}
             aria-selected={on}
-            aria-controls={panelId(idPrefix, tab.id)}
+            // Only the selected tab's panel is on the page: a reference to one
+            // that is not is a broken link for a screen reader.
+            {...(on ? { 'aria-controls': panelId(idPrefix, tab.id) } : {})}
             tabIndex={on ? 0 : -1}
             onClick={() => onSelect(tab.id)}
           >

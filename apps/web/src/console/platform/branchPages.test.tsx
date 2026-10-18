@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { createConsoleMockGateway, type ConsoleGateway, type ConsoleUser } from '@yalla/api';
+import {
+  createConsoleMockGateway,
+  createMockReviewStore,
+  type ConsoleGateway,
+  type ConsoleUser,
+} from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -93,7 +98,7 @@ describe('the branch header', () => {
   it('says a branch that is not in the venue is not found', async () => {
     renderAt('/platform/venues/v-cascade/branches/b-nowhere/public');
     expect(
-      await screen.findByRole('heading', { name: 'This venue was not found' }, { timeout: 5000 }),
+      await screen.findByRole('heading', { name: 'This branch was not found' }, { timeout: 5000 }),
     ).toBeTruthy();
   });
 });
@@ -176,6 +181,28 @@ describe('the reviews page', () => {
     expect(within(screen.getByRole('article')).getByText(/Գրված է այլ վայրի մասին/u)).toBeTruthy();
   });
 
+  it('says where hidden reviews show up when there are none', async () => {
+    const user = userEvent.setup();
+    renderAt('/platform/venues/v-yalla-demo/branches/b-yalla-demo-komitas/reviews');
+    const filters = await screen.findByRole('group', { name: 'Filter' }, { timeout: 5000 });
+    await user.click(within(filters).getByRole('button', { name: /^Hidden/u }));
+    expect(await screen.findByText('No hidden reviews')).toBeTruthy();
+    expect(screen.getByText('Hidden reviews show up here.')).toBeTruthy();
+    expect(screen.queryByText(/Nobody has written/u)).toBeNull();
+  });
+
+  it('keeps the focus on the filter when the review shown again leaves the Hidden list', async () => {
+    const user = userEvent.setup();
+    await openReviews();
+    const filters = screen.getByRole('group', { name: 'Filter' });
+    const hiddenChip = within(filters).getByRole('button', { name: /^Hidden/u });
+    await user.click(hiddenChip);
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(1));
+    await user.click(within(reviewOf('Մարիամ')).getByRole('button', { name: 'Show again' }));
+    await waitFor(() => expect(screen.queryByRole('article')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(hiddenChip));
+  });
+
   it('asks why before hiding, and the toast takes it back', async () => {
     const user = userEvent.setup();
     await openReviews();
@@ -237,23 +264,47 @@ describe('the reviews page', () => {
     ]);
   });
 
-  it('dismisses the reports with an undo that sends nothing', async () => {
+  it('dismisses the reports at once, and the undo brings them back', async () => {
     const user = userEvent.setup();
     const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
     const dismiss = vi.spyOn(gateway, 'dismissReviewReports');
-    const { view } = await openReviews(gateway);
+    const restore = vi.spyOn(gateway, 'restoreReviewReports');
+    await openReviews(gateway);
 
     await user.click(within(reviewOf('Karen')).getByRole('button', { name: 'Dismiss reports' }));
-    expect(within(reviewOf('Karen')).queryByText('2 reports')).toBeNull();
     expect(await screen.findByText(/Reports dismissed/u)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(within(reviewOf('Karen')).getByText('2 reports')).toBeTruthy();
-    expect(dismiss).not.toHaveBeenCalled();
-
-    // Dismissed again and left: the reports go when the page does.
-    await user.click(within(reviewOf('Karen')).getByRole('button', { name: 'Dismiss reports' }));
-    view.unmount();
-    await waitFor(() => expect(dismiss).toHaveBeenCalledTimes(1));
+    expect(dismiss).toHaveBeenCalledTimes(1);
     expect(dismiss.mock.calls[0]?.[0]).toBe('review-seed-12');
+    await waitFor(() => expect(within(reviewOf('Karen')).queryByText('2 reports')).toBeNull());
+    // The Reported chip counts what the server says, once: Anna's are left.
+    expect(
+      within(screen.getByRole('group', { name: 'Filter' })).getByRole('button', {
+        name: /^Reported\s*1/u,
+      }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(within(reviewOf('Karen')).getByText('2 reports')).toBeTruthy());
+    expect(restore).toHaveBeenCalledWith('review-seed-12');
+  });
+
+  it("offers no undo for showing again what the venue hid: the platform's undo would hide it as the platform", async () => {
+    const user = userEvent.setup();
+    const reviews = createMockReviewStore({ seed: true });
+    reviews.setVisibility({
+      reviewId: 'review-seed-13',
+      hidden: true,
+      reason: 'Mentions a staff member by name',
+      by: 'venue',
+      atUtc: new Date().toISOString(),
+    });
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin', reviews });
+    const visibility = vi.spyOn(gateway, 'setReviewVisibility');
+    await openReviews(gateway);
+
+    await user.click(within(reviewOf('Լիլիթ')).getByRole('button', { name: 'Show again' }));
+    expect(await screen.findByText(/review is visible again/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    expect(visibility).toHaveBeenCalledTimes(1);
   });
 });

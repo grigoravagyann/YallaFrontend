@@ -2,9 +2,11 @@
 
 ## Armenian and Russian copy here is PROVISIONAL
 
-The `hy` and `ru` files contain only the handful of strings the placeholder app
-shells need to boot. They were written to get the shells rendering, **not** by a
-native speaker, and they have not been reviewed.
+The `hy` and `ru` bundles now cover every screen of the diner app, the staff
+tablet and both consoles. The platform-admin console's `hy` copy is the approved
+artboards' (`docs/design/console`), so the user has read it; every other `hy`
+string, and all of `ru`, was written by the team, **not** by a native speaker,
+and has not been reviewed. The sections below say which is which.
 
 They exist at all for one structural reason: `hy` is the fallback language. A key
 missing from `hy` has nothing to fall back to and renders as its raw key path in
@@ -393,6 +395,29 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `venues.filter.statusInactive` ("switched off" — not suspended, not
     deleted). `venuePage.branches.today` is the branch table's "Bookings
     today" column, as the VenueDetail artboard has it.
+- `admin` — the console redesign, review fixes (2026-10-18), provisional and
+  **not** reviewed in `ru`/`en`; `hy` follows the artboards where they have
+  the line.
+  - **Changed, not listed before:** `venues.column.tier` "Tier" → "Plan"
+    (the artboard's word, in all three); `venues.empty.title` / `.body`
+    rewritten to the artboard's ("No venue matches that search", "Try another
+    name, or clear the filters"); `venue.notFound` removed with the old venue
+    page in phase 3 — `errors.notFound.*` says it now.
+  - **Changed now:** `venuePage.bookings.statusUpcoming` reads "Confirmed"
+    (hy "Հաստատված", ru "Подтверждены"): the window looks back, so what is
+    still ahead of it is confirmed, not upcoming. The key kept its name.
+    `menu.category.confirmWithItems` has plural forms (`_one` names one dish;
+    ru keeps its neutral "блюда ({{count}})" for the rest).
+  - **New:** `errors.notFound.pageTitle` / `.pageBody` (an address nothing
+    answers to) and `.branchTitle` / `.branchBody`; `errors.stillFailingError`
+    (after a server error: must **not** promise a retry by itself — only a lost
+    connection is retried alone, `errors.stillFailing`);
+    `venues.tierDialog.checkingTabs`; `venues.add.linkFailed` (must keep
+    saying the owner **was added** with the PIN shown);
+    `home.activity.action.staffCreateNoRole` (no role on record: guess none);
+    `settings.password.changedPlain` (said when the server renewed no session:
+    claims nothing about other devices), `settings.password.tooMany_*` (the
+    wait from `Retry-After`, in minutes) and `.tooManyNoWindow` (no number).
 - Short-notice bookings waiting for the floor (2026-10-18), provisional and
   **not** reviewed. `staff` `approvals.*` — the floor tablet's requests panel:
   the header count, the countdown (`leftLabel`, `answerWithin`), the context

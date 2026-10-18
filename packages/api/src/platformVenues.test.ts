@@ -154,12 +154,75 @@ describe('switching every branch of a venue', () => {
     expect(after?.branches.every((branch) => branch.subscriptionTier === 'free')).toBe(true);
   });
 
+  it('refuses going Free before anything is sent while a branch has tabs open, naming it', async () => {
+    const id = await venueId(gateway, 'Cascade Cafe');
+    let sent = 0;
+    const counting: ConsoleGateway = {
+      ...gateway,
+      setBranchTier: (input) => {
+        sent += 1;
+        return gateway.setBranchTier(input);
+      },
+    };
+    const check = await checkVenueTier(counting, { venueId: id, tier: 'free' });
+    expect(check.blockers.length).toBeGreaterThan(0);
+    expect(check.blockers.every((blocker) => blocker.openTabCount > 0)).toBe(true);
+
+    const result = await applyVenueTier(counting, { venueId: id, tier: 'free', commandId: cmd() });
+    expect(sent).toBe(0);
+    expect(result.changed).toEqual([]);
+    expect(result.refused.map((refusal) => refusal.branch.id)).toEqual(
+      check.blockers.map((blocker) => blocker.branch.id),
+    );
+    expect(result.refused[0]?.error).toBeInstanceOf(ConcurrencyConflictError);
+  });
+
   it("reports the server's refusal, naming the branch, when the check could not see it", async () => {
     const id = await venueId(gateway, 'Cascade Cafe');
-    const result = await applyVenueTier(gateway, { venueId: id, tier: 'free', commandId: cmd() });
+    // A venue read that does not report the tabs: the server is the authority.
+    const blind: ConsoleGateway = {
+      ...gateway,
+      getVenue: async (venue) => {
+        const detail = await gateway.getVenue(venue);
+        return (
+          detail && {
+            ...detail,
+            branches: detail.branches.map((branch) => ({ ...branch, openTabCount: null })),
+          }
+        );
+      },
+    };
+    const result = await applyVenueTier(blind, { venueId: id, tier: 'free', commandId: cmd() });
     expect(result.changed).toEqual([]);
     expect(result.refused[0]?.error).toBeInstanceOf(ConcurrencyConflictError);
     expect(result.refused[0]?.branch.name).toBeTruthy();
+  });
+
+  it('keeps going past a refusal, and reports every branch that moved and every one that did not', async () => {
+    const id = await venueId(gateway, 'Mountain View');
+    const detail = await gateway.getVenue(id);
+    const [first, ...rest] = detail!.branches;
+    let calls = 0;
+    const refusingFirst: ConsoleGateway = {
+      ...gateway,
+      getBranchReadiness: () => Promise.reject(new NetworkError({ url: 'x' })),
+      setBranchTier: (input) => {
+        calls += 1;
+        if (input.branchId === first!.id) {
+          return Promise.reject(new NetworkError({ url: `x/${input.branchId}` }));
+        }
+        // The rest move, whatever their menus say: only the order is under test.
+        return gateway.getVenue(id).then((venue) => venue!);
+      },
+    };
+    const result = await applyVenueTier(refusingFirst, {
+      venueId: id,
+      tier: 'paid',
+      commandId: cmd(),
+    });
+    expect(calls).toBe(detail!.branches.length);
+    expect(result.refused.map((refusal) => refusal.branch.id)).toEqual([first!.id]);
+    expect(result.changed.map((branch) => branch.id)).toEqual(rest.map((branch) => branch.id));
   });
 
   it('says honestly what changed when a later branch fails', async () => {

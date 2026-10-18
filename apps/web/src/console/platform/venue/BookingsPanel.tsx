@@ -99,6 +99,7 @@ export function BookingsPanel({ venueId }: { readonly venueId: string }) {
             <span className="yc-kpi-l">{t('venuePage.bookings.completed')}</span>
             <span className="yc-kpi-n">{percent(byStatus.completed, past)}</span>
             <span className="yc-kpi-f">
+              {t('venuePage.bookings.ofPast')} ·{' '}
               {t('venuePage.bookings.count', { count: byStatus.completed })}
             </span>
           </div>
@@ -106,6 +107,7 @@ export function BookingsPanel({ venueId }: { readonly venueId: string }) {
             <span className="yc-kpi-l">{t('venuePage.bookings.noShow')}</span>
             <span className="yc-kpi-n">{percent(byStatus.noShow, past)}</span>
             <span className="yc-kpi-f">
+              {t('venuePage.bookings.ofPast')} ·{' '}
               {t('venuePage.bookings.count', { count: byStatus.noShow })}
             </span>
           </div>

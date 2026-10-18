@@ -297,9 +297,12 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
         {/* Development harness, not a product screen, and not in any sidebar. */}
         {import.meta.env.DEV ? <Route path="/dev/tokens" element={<DevTokensRoute />} /> : null}
 
-        {/* A platform admin's unknown address is refused inside the shell, so
-            the way back is on screen. */}
-        {platform ? <Route path="*" element={<Forbidden />} /> : null}
+        {/* A platform admin's unknown address is "not found" inside the shell,
+            so the way back is on screen: the admin may go everywhere, so a
+            refusal would be the wrong answer. */}
+        {platform ? (
+          <Route path="*" element={<ErrorState kind="notFound" subject="page" />} />
+        ) : null}
       </Route>
 
       {platform ? null : <Route path="*" element={<Forbidden standalone />} />}

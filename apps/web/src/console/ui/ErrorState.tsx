@@ -43,6 +43,12 @@ export interface ErrorStateProps {
   readonly homeTo?: string | undefined;
   /** Outside the console shell: draws its own canvas, full height. */
   readonly standalone?: boolean;
+  /**
+   * What a 404 did not find. `venue`, the default, points at the Deleted
+   * filter; a `branch` link names the branch; a `page` is an address nothing
+   * answers to.
+   */
+  readonly subject?: 'venue' | 'branch' | 'page' | undefined;
 }
 
 interface Look {
@@ -73,7 +79,14 @@ const LOOK: Record<ErrorKind, Look> = {
  * - **Session ended** — signs in and comes back to this very page.
  * - **Server error** — red, with the trace id to quote when there is one.
  */
-export function ErrorState({ kind, onRetry, reference, homeTo, standalone }: ErrorStateProps) {
+export function ErrorState({
+  kind,
+  onRetry,
+  reference,
+  homeTo,
+  standalone,
+  subject = 'venue',
+}: ErrorStateProps) {
   const { t } = useTranslation(['admin', 'common']);
   const location = useLocation();
   const headingId = useId();
@@ -136,9 +149,19 @@ export function ErrorState({ kind, onRetry, reference, homeTo, standalone }: Err
       </span>
       <span className="yc-code">{t(`errors.${kind}.code`)}</span>
       <h1 className="yc-h1" id={headingId}>
-        {t(`errors.${kind}.title`)}
+        {kind === 'notFound' && subject === 'page'
+          ? t('errors.notFound.pageTitle')
+          : kind === 'notFound' && subject === 'branch'
+            ? t('errors.notFound.branchTitle')
+            : t(`errors.${kind}.title`)}
       </h1>
-      <p className="yc-etext">{t(`errors.${kind}.body`)}</p>
+      <p className="yc-etext">
+        {kind === 'notFound' && subject === 'page'
+          ? t('errors.notFound.pageBody')
+          : kind === 'notFound' && subject === 'branch'
+            ? t('errors.notFound.branchBody')
+            : t(`errors.${kind}.body`)}
+      </p>
       <div className="yc-eacts">
         {look.retry && onRetry ? (
           <button
@@ -172,7 +195,10 @@ export function ErrorState({ kind, onRetry, reference, homeTo, standalone }: Err
       </div>
       {look.retry && tries > 0 ? (
         <span className="yc-tries" role="status">
-          {t('errors.stillFailing', { attempt: tries })}
+          {kind === 'offline'
+            ? t('errors.stillFailing', { attempt: tries })
+            : // Only a lost connection is retried by itself; a server error is not.
+              t('errors.stillFailingError', { attempt: tries })}
         </span>
       ) : null}
       {kind === 'error' && reference ? (

@@ -196,11 +196,10 @@ describe('the console mock — undoing a delete', () => {
     );
   });
 
-  it('refuses to restore a venue that is not deleted', async () => {
+  it('answers a venue that is not deleted as it is, as the server does', async () => {
     const luna = await venueNamed(gateway, 'Luna Cafe');
-    expect(
-      await caught(gateway.restoreVenue({ venueId: luna.id, commandId: cmd() })),
-    ).toBeInstanceOf(ConcurrencyConflictError);
+    const answer = await gateway.restoreVenue({ venueId: luna.id, commandId: cmd() });
+    expect(answer.status).toBe(luna.status);
   });
 
   it('is a platform-admin command', async () => {

@@ -22,7 +22,7 @@ function gatewayOver(routes: Record<string, FakeRoute>) {
     auth,
     identity: createMemoryIdentityStore(),
   });
-  return { gateway, backend };
+  return { gateway, backend, auth };
 }
 
 const days = (counts: number[]) =>
@@ -252,16 +252,38 @@ describe('Settings over HTTP', () => {
     expect(backend.requests[1]?.body).toEqual({ fullName: 'Grigor A.' });
   });
 
+  it('adopts the fresh pair a password change answers with, so this tab stays signed in', async () => {
+    const { gateway, auth } = gatewayOver({
+      'POST /api/platform/me/password': {
+        body: {
+          accessToken: 'access-after',
+          refreshToken: 'refresh-after',
+          expiresInSeconds: 900,
+          staffMemberId: 's-1',
+          fullName: 'Grigor Avagyan',
+          role: 5,
+        },
+      },
+    });
+    const answer = await gateway.changePlatformPassword({
+      currentPassword: 'old-password-0000',
+      newPassword: 'new-password-0000',
+    });
+    expect(answer).toEqual({ sessionRenewed: true });
+    expect(auth.peekAccessToken()).toBe('access-after');
+  });
+
   it('changes the password with both fields, and takes a 204', async () => {
     const { gateway, backend } = gatewayOver({
       'POST /api/platform/me/password': { status: 204 },
     });
+    // No pair: nothing renewed, and nothing claimed about other devices.
     await expect(
       gateway.changePlatformPassword({
         currentPassword: 'old-password-0000',
         newPassword: 'new-password-0000',
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ sessionRenewed: false });
     expect(backend.requests[0]?.body).toEqual({
       currentPassword: 'old-password-0000',
       newPassword: 'new-password-0000',

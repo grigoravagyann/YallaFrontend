@@ -2,11 +2,12 @@ import type { ReviewModerationFilter, VenueModeratedReview } from '@yalla/api';
 import {
   useDismissReviewReports,
   usePlatformBranchReviews,
+  useRestoreReviewReports,
   useSetReviewVisibility,
 } from '@yalla/api/react';
 import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation, type Locale } from '@yalla/i18n';
-import { useId, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { EyeOffIcon } from '../ui/icons';
 import { useToast } from '../ui/toast';
 import { usePendingFocus } from './venue/venueFields';
@@ -30,9 +31,11 @@ const FILTERS: readonly ReviewModerationFilter[] = ['all', 'reported', 'hidden']
  * - **Hiding asks why**, in a sentence the restaurant will read: a preset to
  *   start from, the words under the field when missing, and the cursor there.
  * - **Dismiss reports** sets the reports aside and leaves the review up.
- * - **Every one undoes** from its toast. Dismissing has no route to take it
- *   back, so it is sent only once its Undo can no longer be pressed: the toast
- *   ran out, another replaced it, or the console closed.
+ * - **Undo** from the toast takes back exactly what was done: a hide is
+ *   shown again, a dismissal's reports count again (`restore-reports`), and
+ *   showing again what the platform hid hides it again with the same reason.
+ *   Showing again what the *venue* hid has no Undo: hiding it from here would
+ *   make it a platform hide, which the venue could no longer lift.
  */
 export function BranchReviewsRoute() {
   return (
@@ -63,37 +66,56 @@ function ReviewsModeration({
   const hidden = usePlatformBranchReviews(branchId, { filter: 'hidden', pageSize: 1 });
   const visibility = useSetReviewVisibility();
   const dismiss = useDismissReviewReports();
+  const restoreReports = useRestoreReviewReports();
   const [editing, setEditing] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  /** Reports set aside on screen, until the server has them set aside too. */
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
-  const restore = (reviewId: string) =>
-    setDismissed((current) => {
-      const next = new Set(current);
-      next.delete(reviewId);
-      return next;
-    });
 
-  async function commitDismiss(reviewId: string) {
-    try {
-      // Resolves once the lists have the review without its reports.
-      await dismiss.mutateAsync(reviewId);
-    } catch {
-      setFailure(t('branchReviews.failed'));
-    } finally {
-      restore(reviewId);
-    }
+  /**
+   * The review whose action the focus returns to once the list is fresh. A
+   * review that left the filter on screen (shown again under Hidden, hidden
+   * under Reported) has no button left: the filter keeps the focus instead.
+   */
+  const refocus = useRef<{ readonly reviewId: string; readonly since: number } | null>(null);
+  /** When the list on screen was fetched: a change waits for a newer answer than this. */
+  const fetchedAt = useRef(list.dataUpdatedAt);
+  useEffect(() => {
+    fetchedAt.current = list.dataUpdatedAt;
+    const pending = refocus.current;
+    if (!pending || list.isFetching || list.dataUpdatedAt <= pending.since) return;
+    refocus.current = null;
+    const target =
+      document.getElementById(`rv-act-${pending.reviewId}`) ??
+      document.querySelector<HTMLElement>('.yc-rv-chips [aria-pressed="true"]');
+    target?.focus();
+  });
+  const focusAfter = (reviewId: string, since: number) => {
+    refocus.current = { reviewId, since };
+  };
+
+  // A hide or a dismissal can empty the last page: step back to the one that is left.
+  if (list.data && !list.isFetching && list.data.items.length === 0 && page > 1) {
+    setPage(Math.max(1, Math.ceil(list.data.total / PAGE_SIZE)));
   }
 
-  function startDismiss(review: VenueModeratedReview) {
+  async function dismissReports(review: VenueModeratedReview) {
+    if (dismiss.isPending) return;
+    const since = fetchedAt.current;
     setFailure(null);
-    setDismissed((current) => new Set(current).add(review.reviewId));
+    try {
+      // Resolves once the lists have the review without its reports.
+      await dismiss.mutateAsync(review.reviewId);
+    } catch {
+      setFailure(t('branchReviews.failed'));
+      return;
+    }
     // The button goes with the reports; the focus goes to Hide beside it.
-    focusLater(`rv-act-${review.reviewId}`);
+    focusAfter(review.reviewId, since);
     toast.say(t('branchReviews.toast.dismissed'), {
-      undo: () => restore(review.reviewId),
-      // No route takes a dismissal back: sent only once Undo is out of reach.
-      onExpire: () => void commitDismiss(review.reviewId),
+      undo: () =>
+        void restoreReports.mutateAsync(review.reviewId).then(
+          () => focusAfter(review.reviewId, -1),
+          () => setFailure(t('branchReviews.failed')),
+        ),
     });
   }
 
@@ -116,9 +138,10 @@ function ReviewsModeration({
   }
 
   async function hideReview(review: VenueModeratedReview, reason: string) {
+    const since = fetchedAt.current;
     if (!(await setHidden(review, true, reason))) return;
     setEditing(null);
-    focusLater(`rv-act-${review.reviewId}`);
+    focusAfter(review.reviewId, since);
     toast.say(t('branchReviews.toast.hidden', { name: review.authorName }), {
       undo: () =>
         void setHidden(review, false, null).then((done) => {
@@ -129,22 +152,30 @@ function ReviewsModeration({
 
   async function showReview(review: VenueModeratedReview) {
     const reason = review.hiddenReason;
+    const byPlatform = review.hiddenByPlatform;
+    const since = fetchedAt.current;
     if (!(await setHidden(review, false, null))) return;
-    focusLater(`rv-act-${review.reviewId}`);
-    toast.say(t('branchReviews.toast.shown', { name: review.authorName }), {
+    focusAfter(review.reviewId, since);
+    const said = t('branchReviews.toast.shown', { name: review.authorName });
+    // Only the platform's own hide can be put back exactly: from here, any
+    // hide is the platform's, and the venue's would become one it cannot lift.
+    if (!byPlatform) {
+      toast.say(said);
+      return;
+    }
+    toast.say(said, {
       undo: () => void setHidden(review, true, reason ?? t('branchReviews.reasons.other')),
     });
   }
 
-  const isReported = (review: VenueModeratedReview) =>
-    review.reportCount > 0 && !review.hidden && !dismissed.has(review.reviewId);
+  const isReported = (review: VenueModeratedReview) => review.reportCount > 0 && !review.hidden;
   const items = [...(list.data?.items ?? [])];
   // Under "all", the reported reviews still showing come first.
   if (filter === 'all') items.sort((a, b) => Number(isReported(b)) - Number(isReported(a)));
 
   const counts: Record<ReviewModerationFilter, number | undefined> = {
     all: sample.data?.total,
-    reported: reported.data ? Math.max(0, reported.data.total - dismissed.size) : undefined,
+    reported: reported.data?.total,
     hidden: hidden.data?.total,
   };
   const filterLabel = (key: ReviewModerationFilter) =>
@@ -182,7 +213,9 @@ function ReviewsModeration({
         <p>
           {filter === 'reported'
             ? t('branchReviews.empty.reportedBody')
-            : t('branchReviews.empty.allBody')}
+            : filter === 'hidden'
+              ? t('branchReviews.empty.hiddenBody')
+              : t('branchReviews.empty.allBody')}
         </p>
       </div>
     );
@@ -208,7 +241,8 @@ function ReviewsModeration({
             }}
             onHide={(reason) => void hideReview(review, reason)}
             onShow={() => void showReview(review)}
-            onDismiss={() => startDismiss(review)}
+            dismissing={dismiss.isPending}
+            onDismiss={() => void dismissReports(review)}
           />
         ))}
       </div>
@@ -218,7 +252,11 @@ function ReviewsModeration({
   return (
     <div className="yc-rv-layout">
       <div className="yc-panel-body">
-        <div className="yc-chips" role="group" aria-label={t('branchReviews.filter.label')}>
+        <div
+          className="yc-chips yc-rv-chips"
+          role="group"
+          aria-label={t('branchReviews.filter.label')}
+        >
           {FILTERS.map((key) => (
             <button
               key={key}
@@ -284,6 +322,8 @@ interface ReviewCardProps {
   readonly reported: boolean;
   readonly editing: boolean;
   readonly busy: boolean;
+  /** A dismissal in flight: its button waits. */
+  readonly dismissing: boolean;
   readonly timeZoneId: string;
   readonly locale: Locale;
   readonly onStartHide: () => void;
@@ -298,6 +338,7 @@ function ReviewCard({
   reported,
   editing,
   busy,
+  dismissing,
   timeZoneId,
   locale,
   onStartHide,
@@ -365,7 +406,13 @@ function ReviewCard({
         <div className="yc-rv-f">
           <span className="yc-grow" />
           {reported ? (
-            <button type="button" className="yc-btn yc-btn-ghost yc-btn-sm" onClick={onDismiss}>
+            <button
+              type="button"
+              className="yc-btn yc-btn-ghost yc-btn-sm"
+              disabled={dismissing}
+              aria-busy={dismissing}
+              onClick={onDismiss}
+            >
               {t('branchReviews.dismiss')}
             </button>
           ) : null}

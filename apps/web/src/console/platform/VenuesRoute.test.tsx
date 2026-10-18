@@ -6,7 +6,7 @@ import {
   type ConsoleUser,
   type UserRole,
 } from '@yalla/api';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AppRoutes as AppRoutesComponent } from '../../App';
@@ -216,19 +216,106 @@ describe('the tier button', () => {
     await waitFor(() => expect(within(rowOf('Yalla Demo Cafe')).getByText('Paid')).toBeTruthy());
   });
 
-  it("says the server's refusal going Free: Cascade Cafe's tabs are open", async () => {
+  it('says which branches moved and which refused when the server stops part of a switch', async () => {
     const user = userEvent.setup();
-    renderList();
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    // Readiness unreadable: the check lets the switch start, and the server decides.
+    const gateway: ConsoleGateway = {
+      ...mock,
+      getBranchReadiness: () => Promise.reject(new Error('unreadable')),
+    };
+    const id = (await mock.listVenues({ pageSize: 200 })).items.find(
+      (venue) => venue.name === 'Mountain View',
+    )!.id;
+    const branches = (await mock.getVenue(id))!.branches;
+    renderList('/platform/venues', gateway);
+    await loaded();
+
+    await user.click(within(rowOf('Mountain View')).getByRole('button', { name: /plan, press/u }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Make Mountain View paid?' });
+    await user.click(await within(dialog).findByRole('button', { name: 'Make paid' }));
+    const refused = await screen.findByRole('alertdialog', {
+      name: 'Mountain View cannot go paid yet',
+    });
+    expect(
+      within(refused).getByText('Նոր Նորք: 4 dishes are not ready to show a guest'),
+    ).toBeTruthy();
+    const moved = branches.find((branch) => branch.name !== 'Նոր Նորք')!;
+    expect(within(refused).getByText(`Already changed: ${moved.name}.`)).toBeTruthy();
+    // The list says what is true now: one branch paid of two.
+    await user.click(within(refused).getByRole('button', { name: 'Got it' }));
+    await waitFor(() =>
+      expect(within(rowOf('Mountain View')).getByText(/Mixed · 1\/2/u)).toBeTruthy(),
+    );
+  });
+
+  it('refuses Cascade Cafe going Free before anything is sent: its tabs are open', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const setTier = vi.spyOn(gateway, 'setBranchTier');
+    renderList('/platform/venues', gateway);
     await loaded();
 
     await user.click(within(rowOf('Cascade Cafe')).getByRole('button', { name: /plan, press/u }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Make Cascade Cafe free?' });
-    await user.click(within(dialog).getByRole('button', { name: 'Make free' }));
     expect(
       await screen.findByRole('alertdialog', { name: 'Cascade Cafe cannot go free yet' }),
     ).toBeTruthy();
     expect(screen.getByText(/Կենտրոն: Tabs are open/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Make free' })).toBeNull();
+    expect(setTier).not.toHaveBeenCalled();
     expect(within(rowOf('Cascade Cafe')).getByText('Paid')).toBeTruthy();
+  });
+
+  it('keeps Free open for a mixed venue whose free branch stops it going Paid', async () => {
+    const user = userEvent.setup();
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const id = (await mock.listVenues({ pageSize: 200 })).items.find(
+      (venue) => venue.name === 'Yalla Demo Cafe',
+    )!.id;
+    const detail = (await mock.getVenue(id))!;
+    const free = detail.branches.find((branch) => branch.subscriptionTier === 'free')!;
+    const sent: { branchId: string; tier: string }[] = [];
+    const gateway: ConsoleGateway = {
+      ...mock,
+      // The free branch's menu is unfinished; nobody has a tab open.
+      getBranchReadiness: async (branchId) => ({
+        ...(await mock.getBranchReadiness(branchId)),
+        ...(branchId === free.id ? { incompleteMenuItemCount: 3 } : {}),
+      }),
+      getVenue: async (venueId) => {
+        const venue = await mock.getVenue(venueId);
+        return (
+          venue && {
+            ...venue,
+            branches: venue.branches.map((branch) => ({ ...branch, openTabCount: 0 })),
+          }
+        );
+      },
+      setBranchTier: async (input) => {
+        sent.push({ branchId: input.branchId, tier: input.tier });
+        return (await mock.getVenue(id))!;
+      },
+    };
+    renderList('/platform/venues', gateway);
+    await loaded();
+
+    await user.click(
+      within(rowOf('Yalla Demo Cafe')).getByRole('button', { name: /plan, press/u }),
+    );
+    const dialog = await screen.findByRole('alertdialog', { name: "Yalla Demo Cafe's plan" });
+    // Paid is refused where it stands, with the reason, and nothing is sent.
+    expect(
+      await within(dialog).findByText(`${free.name}: 3 dishes are not ready to show a guest`),
+    ).toBeTruthy();
+    const makePaid = within(dialog).getByRole('button', { name: 'Make paid' });
+    await waitFor(() => expect(makePaid.getAttribute('aria-disabled')).toBe('true'));
+    await user.click(makePaid);
+    expect(sent).toEqual([]);
+
+    // Free is still a choice.
+    await user.click(within(dialog).getByRole('radio', { name: 'Free' }));
+    await user.click(await within(dialog).findByRole('button', { name: 'Make free' }));
+    await waitFor(() => expect(sent.map((call) => call.tier)).toEqual(['free']));
   });
 });
 
@@ -283,6 +370,46 @@ describe('the ⋮ menu', () => {
     await waitFor(() => expect(within(rowOf('Sunset Lounge')).getByText('Active')).toBeTruthy());
   });
 
+  it('offers neither Suspend nor Resume for a switched-off venue: reactivating only lifts a suspension', async () => {
+    const user = userEvent.setup();
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const gateway: ConsoleGateway = {
+      ...mock,
+      listVenues: async (query) => {
+        const page = await mock.listVenues(query);
+        return {
+          ...page,
+          items: page.items.map((venue) =>
+            venue.name === 'Sunset Lounge' ? { ...venue, status: 'inactive' as const } : venue,
+          ),
+        };
+      },
+    };
+    renderList('/platform/venues', gateway);
+    await loaded();
+    expect(within(rowOf('Sunset Lounge')).getByText('Switched off')).toBeTruthy();
+    await user.click(
+      within(rowOf('Sunset Lounge')).getByRole('button', { name: 'Actions for Sunset Lounge' }),
+    );
+    const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual(['Make paid', 'Delete']);
+  });
+
+  it('keeps the focus on the item it is on when the list behind the menu refreshes', async () => {
+    const user = userEvent.setup();
+    const harness = renderList();
+    await loaded();
+    await user.click(
+      within(rowOf('Sunset Lounge')).getByRole('button', { name: 'Actions for Sunset Lounge' }),
+    );
+    const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(items[1]);
+    await act(() => harness.queryClient.invalidateQueries({ queryKey: ['console', 'venues'] }));
+    await waitFor(() => expect(harness.queryClient.isFetching()).toBe(0));
+    expect(document.activeElement).toBe(items[1]);
+  });
+
   it('restores a deleted venue from the Deleted filter', async () => {
     const user = userEvent.setup();
     renderList();
@@ -296,8 +423,13 @@ describe('the ⋮ menu', () => {
     expect(items.map((item) => item.textContent)).toEqual(['Restore']);
     await user.click(items[0]!);
     expect(await screen.findByText('Old Town Pub was restored')).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Status'), 'live');
+    // It has left the Deleted view: the focus goes to the search, not to <body>.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Search')));
+    const status = screen.getByLabelText('Status');
+    await user.selectOptions(status, 'live');
     await waitFor(() => expect(names()).toContain('Old Town Pub'));
+    // Showing the row again later does not pull the focus onto it.
+    expect(document.activeElement).toBe(status);
   });
 });
 
@@ -435,6 +567,69 @@ describe('adding a venue', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(await screen.findByText('Ani Garden was added to the list')).toBeTruthy();
     expect(await screen.findByRole('link', { name: 'Ani Garden' })).toBeTruthy();
+  });
+
+  /** The three steps, filled in correctly, up to the owner's details. */
+  async function fillVenue(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
+    await user.type(within(dialog).getByLabelText(/Venue's name/u), 'Ani Garden');
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+    await user.type(within(dialog).getByLabelText(/Branch's name/u), 'Հյուսիս');
+    await user.type(within(dialog).getByLabelText(/Branch's web address/u), 'north');
+    await user.type(within(dialog).getByLabelText(/^Address/u), '12 Abovyan Street');
+    await user.type(within(dialog).getByLabelText(/^Latitude/u), '40.18');
+    await user.type(within(dialog).getByLabelText(/^Longitude/u), '44.51');
+    await user.click(within(dialog).getByRole('button', { name: 'Continue →' }));
+    await user.type(within(dialog).getByLabelText(/^Full name/u), 'Ani Petrosyan');
+    await user.type(within(dialog).getByLabelText(/^Phone/u), '+37491000000');
+    await user.type(within(dialog).getByLabelText(/^Email/u), 'owner@anigarden.am');
+  }
+
+  it('keeps the owner and their PIN when only the sign-in link fails, and can make the link again', async () => {
+    const user = userEvent.setup();
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    let fail = true;
+    const gateway: ConsoleGateway = {
+      ...mock,
+      issueStaffSignIn: (input) =>
+        fail ? Promise.reject(new Error('down')) : mock.issueStaffSignIn(input),
+    };
+    const createStaff = vi.spyOn(gateway, 'createStaff');
+    renderList('/platform/venues', gateway);
+    await loaded();
+    await user.click(screen.getByRole('button', { name: 'Add a venue' }));
+    await fillVenue(user, screen.getByRole('dialog', { name: 'New venue' }));
+    await user.click(screen.getByRole('button', { name: 'Create and get the link' }));
+
+    const once = await screen.findByRole('dialog', { name: 'Ani Garden was created' });
+    // The owner exists, and the PIN the server took is the one shown — once.
+    expect(createStaff).toHaveBeenCalledTimes(1);
+    expect(within(once).getByText(/^\d{4}$/u)).toBeTruthy();
+    expect(within(once).getByRole('alert').textContent).toMatch(/owner was added/iu);
+    expect(within(once).queryByLabelText('Sign-in link')).toBeNull();
+
+    fail = false;
+    await user.click(within(once).getByRole('button', { name: 'Try again' }));
+    expect(
+      ((await within(once).findByLabelText('Sign-in link')) as HTMLInputElement).value,
+    ).toMatch(/reset-password/u);
+    expect(createStaff).toHaveBeenCalledTimes(1);
+  });
+
+  it("warns before the venue page's link leaves a link nobody copied", async () => {
+    const user = userEvent.setup();
+    renderList();
+    await loaded();
+    await user.click(screen.getByRole('button', { name: 'Add a venue' }));
+    await fillVenue(user, screen.getByRole('dialog', { name: 'New venue' }));
+    await user.click(screen.getByRole('button', { name: 'Create and get the link' }));
+    const once = await screen.findByRole('dialog', { name: 'Ani Garden was created' });
+
+    await user.click(within(once).getByRole('link', { name: 'Open the venue page' }));
+    expect(within(once).getByRole('alert').textContent).toMatch(/Copy the link first/u);
+    expect(screen.getByRole('dialog', { name: 'Ani Garden was created' })).toBeTruthy();
+    // The second press goes.
+    await user.click(within(once).getByRole('link', { name: 'Open the venue page' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ani Garden' })).toBeTruthy();
   });
 
   it('creates a venue with no owner, and says where to add one', async () => {

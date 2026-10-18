@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import {
   createConsoleMockGateway,
   MOCK_PLATFORM_PASSWORD,
+  TooManyRequestsError,
   type ConsoleGateway,
   type ConsoleUser,
 } from '@yalla/api';
@@ -115,6 +116,34 @@ describe('Settings', () => {
     expect(current.getAttribute('aria-invalid')).toBe('true');
     expect(document.activeElement).toBe(current);
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy();
+  });
+
+  async function changeWith(gateway: ConsoleGateway) {
+    const user = userEvent.setup();
+    renderSettings(gateway);
+    await user.type(await screen.findByLabelText(/^Current password/u), MOCK_PLATFORM_PASSWORD);
+    await user.type(screen.getByLabelText(/^New password/u), 'a-brand-new-password');
+    await user.type(screen.getByLabelText(/^Repeat the new password/u), 'a-brand-new-password');
+    await user.click(screen.getByRole('button', { name: 'Change the password' }));
+  }
+
+  it('claims nothing about other devices when the server renewed no session', async () => {
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    await changeWith({ ...mock, changePlatformPassword: async () => ({ sessionRenewed: false }) });
+    expect(await screen.findByText('Password changed')).toBeTruthy();
+    expect(screen.queryByText(/signed out on your other devices/u)).toBeNull();
+  });
+
+  it('says how long to wait when there were too many attempts', async () => {
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    await changeWith({
+      ...mock,
+      changePlatformPassword: () =>
+        Promise.reject(new TooManyRequestsError({ url: 'x', retryAfterSeconds: 300 })),
+    });
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Too many attempts. Wait 5 minutes, then try again.',
+    );
   });
 
   it('changes the password, says the other devices were signed out, and clears the form', async () => {

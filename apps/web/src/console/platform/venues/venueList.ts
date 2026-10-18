@@ -65,9 +65,19 @@ function tierMatches(venue: ConsoleVenue, tier: TierFilter): boolean {
   return tier === 'all' || venueTierSummary(venue).kind === tier;
 }
 
-/** The name, the web address and the district, which is what a person remembers a venue by. */
+/**
+ * The name, the web address, every branch's name and the district — what a
+ * person remembers a venue by. The row carries one district (the first
+ * branch's that has one); the server's `search` also matches the others'.
+ */
 function haystack(venue: ConsoleVenue, locale: string): string {
-  return [venue.name, venue.slug, venue.district ?? '', venue.cuisine ?? '']
+  return [
+    venue.name,
+    venue.slug,
+    ...(venue.branchTiers ?? []).map((branch) => branch.name),
+    venue.district ?? '',
+    venue.cuisine ?? '',
+  ]
     .join(' ')
     .toLocaleLowerCase(locale);
 }

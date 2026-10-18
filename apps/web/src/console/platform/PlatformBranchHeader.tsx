@@ -112,6 +112,8 @@ export function BranchPage({ tab, children }: BranchPageProps) {
             ? 'notFound'
             : errorKindFor(describeFailure(error))
         }
+        // The venue answered and the branch is not in it: name the branch.
+        subject={venue ? 'branch' : 'venue'}
       />
     );
   }

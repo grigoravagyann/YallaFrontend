@@ -9,7 +9,7 @@ import {
 import { useRestoreVenue, useStaff } from '@yalla/api/react';
 import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useConsoleVenue, useResumeVenue, useUpdateVenue } from '../../data/queries';
 import { newCommandId } from '../../lib/commandId';
@@ -80,6 +80,14 @@ export function VenueDetailRoute() {
   const update = useUpdateVenue();
   const [shown, setShown] = useState<Shown | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  /**
+   * The venue's state now, for an Undo pressed later: an Undo of a
+   * suspension that the banner's Resume already lifted must not resume twice.
+   */
+  const latestStatus = useRef(query.data?.status);
+  useEffect(() => {
+    latestStatus.current = query.data?.status;
+  });
 
   const tabParam = params.get('tab');
   const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'overview';
@@ -130,6 +138,12 @@ export function VenueDetailRoute() {
       setFailure(t('venue.failed'));
       return false;
     }
+  }
+
+  /** The toast's Undo of a suspension: only while the venue is still suspended. */
+  async function undoSuspend(current: ConsoleVenueDetail) {
+    if (latestStatus.current !== 'suspended') return;
+    await resumeVenue(current);
   }
 
   async function resumeVenue(current: ConsoleVenueDetail) {
@@ -328,7 +342,7 @@ export function VenueDetailRoute() {
             setShown(null);
             focusSoon('[data-resume]');
             toast.say(t('venuePage.toast.suspended', { name: venue.name }), {
-              undo: () => void resumeVenue(venue),
+              undo: () => void undoSuspend(venue),
             });
           }}
         />
@@ -348,16 +362,19 @@ export function VenueDetailRoute() {
               undo: () =>
                 void restore.mutateAsync({ venueId: gone.id, commandId: newCommandId() }).then(
                   () => toast.say(t('venues.toast.undeleted', { name: gone.name })),
-                  () => toast.say(t('venue.failed')),
+                  // A failure is said as one: an alert, not a confirmation.
+                  () => toast.say(t('venue.failed'), { tone: 'error' }),
                 ),
               focusUndo: true,
+              // The page that had the Delete button is gone: the list's search.
+              fallbackFocus: () => document.getElementById('venues-q'),
             });
           }}
           onSuspendedInstead={(current) => {
             setShown(null);
             focusSoon('[data-resume]');
             toast.say(t('venues.toast.suspendedInstead', { name: current.name }), {
-              undo: () => void resumeVenue(venue),
+              undo: () => void undoSuspend(venue),
             });
           }}
         />

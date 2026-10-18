@@ -151,7 +151,11 @@ export interface ConsoleVenue {
   readonly status: VenueStatus;
   readonly branchCount: number;
   readonly tableCount: number;
-  /** The highest tier across the venue's branches. */
+  /**
+   * The server's older rollup: Paid only when **every** branch is; a mixed
+   * venue reads Free. Kept for the callers that read it — the tier is per
+   * branch, so read `paidBranchCount` and `branchTiers` instead.
+   */
   readonly subscriptionTier: SubscriptionTier;
   /**
    * How many of `branchCount` are on Paid. The tier is per branch, so the list

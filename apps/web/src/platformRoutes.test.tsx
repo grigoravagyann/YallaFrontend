@@ -124,9 +124,9 @@ describe('the platform shell routes', () => {
     expect(screen.getByRole('radiogroup', { name: /console language/i })).toBeTruthy();
   });
 
-  it('keep an unknown platform address inside the shell, as a refusal', async () => {
+  it('keep an unknown platform address inside the shell, as not found', async () => {
     renderAt('platformAdmin', '/platform/nothing-here');
-    expect(await screen.findByRole('heading', { name: /this page isn't for you/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /this page was not found/i })).toBeTruthy();
     expect(screen.getByRole('navigation', { name: /main navigation/i })).toBeTruthy();
   });
 

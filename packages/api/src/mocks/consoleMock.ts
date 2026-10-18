@@ -246,6 +246,11 @@ interface VenueRecord {
   slug: string;
   type: VenueType;
   status: VenueStatus;
+  /**
+   * Switched off (`isActive` false), apart from a suspension: the server keeps
+   * the two separately, and lifting a suspension leaves a switched-off venue off.
+   */
+  switchedOff?: boolean;
   createdAtUtc: string;
   suspendedAtUtc: string | null;
   branches: ConsoleBranch[];
@@ -1283,15 +1288,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   }
 
   /** The tier the list column shows: the best one any branch is on. */
+  /** The server's older rollup: Paid only when every branch is; a mixed venue reads Free. */
   function headlineTier(record: VenueRecord): SubscriptionTier {
-    const order: readonly SubscriptionTier[] = ['free', 'paid'];
-    return record.branches.reduce<SubscriptionTier>(
-      (best, branch) =>
-        order.indexOf(branch.subscriptionTier) > order.indexOf(best)
-          ? branch.subscriptionTier
-          : best,
-      'free',
-    );
+    return record.branches.length > 0 &&
+      record.branches.every((branch) => branch.subscriptionTier === 'paid')
+      ? 'paid'
+      : 'free';
   }
 
   function toRow(record: VenueRecord): ConsoleVenue {
@@ -1463,6 +1465,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     const pending = new Map<string, number>();
     for (const booking of bookings.values()) {
       if (booking.status !== 'pendingApproval') continue;
+      // One whose time has passed is not something anybody can approve.
+      const clock =
+        booking.localStartTime.length === 5
+          ? `${booking.localStartTime}:00`
+          : booking.localStartTime;
+      const visit = new Date(`${booking.localDate}T${clock}+04:00`).getTime();
+      if (!(visit > today.getTime())) continue;
       const venueId = venueOfBranch(booking.branchId);
       if (venueId && venues.get(venueId)?.status !== 'deleted') {
         pending.set(venueId, (pending.get(venueId) ?? 0) + 1);
@@ -2256,6 +2265,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       record.name = name.trim();
       record.slug = wanted;
       record.type = type;
+      log('venue.update', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
     },
 
@@ -2279,6 +2289,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         subscriptionTier: 'free',
         openTabCount: 0,
       });
+      log(
+        'branch.create',
+        { type: 'Branch', id: `${record.id}-b${sequence}`, name: command.name.trim() },
+        record,
+      );
       return toDetail(record);
     },
 
@@ -2294,7 +2309,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async resumeVenue({ venueId }) {
       await wait();
       const record = requireVenue(venueId);
-      record.status = 'active';
+      // `Venue.Reactivate`: refused once deleted, and it only lifts a suspension.
+      if (record.status === 'deleted') {
+        throw conflict(`Venue '${record.name}' has been deleted, so it can no longer be changed.`);
+      }
+      if (record.status === 'suspended') {
+        record.status = record.switchedOff ? 'inactive' : 'active';
+      }
       record.suspendedAtUtc = null;
       log('venue.reactivate', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
@@ -2343,6 +2364,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       }
 
       record.status = 'deleted';
+      log('venue.delete', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
     },
 
@@ -2361,15 +2383,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         throw new ForbiddenError({ url: `${URL_TAG}/platform/venues/${venueId}/restore` });
       }
       const record = requireVenue(venueId);
-      // Only a deleted venue comes back; anything else is the conflicting
-      // state the server answers, not a quiet no-op.
-      if (record.status !== 'deleted') {
-        throw conflict(
-          `Venue '${record.name}' has not been deleted, so there is nothing to restore.`,
-        );
-      }
+      // `PlatformService.RestoreVenueAsync`: a venue that is not deleted is
+      // answered as it is (an Undo pressed twice is not an error).
+      if (record.status !== 'deleted') return toDetail(record);
       // A venue suspended before it was deleted comes back suspended.
-      record.status = record.suspendedAtUtc ? 'suspended' : 'active';
+      record.status = record.suspendedAtUtc
+        ? 'suspended'
+        : record.switchedOff
+          ? 'inactive'
+          : 'active';
       log('venue.restore', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
     },
@@ -2477,6 +2499,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         { type: 'StaffMember', id: admin.staffMemberId, name: admin.fullName },
         null,
       );
+      // As the server will: every other session ended, this one renewed.
+      return { sessionRenewed: true };
     },
 
     // --- The floor plan editor ----------------------------------------------
@@ -3228,13 +3252,26 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       if (role !== 'platformAdmin') throw new ForbiddenError({ url });
       const review = reviewStore.find(reviewId);
       if (!review) throw new NotFoundError({ url });
+      const open = reviewStore.reports(reviewId).length;
       reviewStore.dismissReports(reviewId);
       const venueId = venueOfBranch(review.branchId);
-      log(
-        'review.dismiss-reports',
-        { type: 'BranchReview', id: reviewId, name: branchName(review.branchId) },
-        venueId ? (venues.get(venueId) ?? null) : null,
-      );
+      // Idempotent, as on the server: nothing to set aside writes nothing.
+      if (open > 0)
+        log(
+          'review.dismiss-reports',
+          { type: 'BranchReview', id: reviewId, name: branchName(review.branchId) },
+          venueId ? (venues.get(venueId) ?? null) : null,
+        );
+      return toVenueModerated(review);
+    },
+
+    async restoreReviewReports(reviewId) {
+      await wait();
+      const url = `${URL_TAG}/platform/reviews/${reviewId}/restore-reports`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      const review = reviewStore.find(reviewId);
+      if (!review) throw new NotFoundError({ url });
+      reviewStore.restoreReports(reviewId);
       return toVenueModerated(review);
     },
 
@@ -3246,6 +3283,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const reason = visibilityReason(url, command);
       const found = reviewStore.find(reviewId);
       if (!found) throw new NotFoundError({ url });
+      const wasHidden = found.hidden;
       const changed = reviewStore.setVisibility({
         reviewId,
         hidden: command.hidden,
@@ -3254,11 +3292,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         atUtc: now().toISOString(),
       });
       const venueId = venueOfBranch(found.branchId);
-      log(
-        command.hidden ? 'review.hide' : 'review.unhide',
-        { type: 'BranchReview', id: reviewId, name: branchName(found.branchId) },
-        venueId ? (venues.get(venueId) ?? null) : null,
-      );
+      if (wasHidden !== command.hidden) {
+        log(
+          command.hidden ? 'review.hide' : 'review.unhide',
+          { type: 'BranchReview', id: reviewId, name: branchName(found.branchId) },
+          venueId ? (venues.get(venueId) ?? null) : null,
+        );
+      }
       return toModerated(changed);
     },
 

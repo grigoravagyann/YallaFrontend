@@ -158,7 +158,17 @@ export function OnceLinkDialog({
       ) : null}
       <div className="yc-acts">
         {venueHref ? (
-          <Link className="yc-btn yc-btn-sec" to={venueHref}>
+          <Link
+            className="yc-btn yc-btn-sec"
+            to={venueHref}
+            onClick={(event) => {
+              // Leaving is closing: the same one warning as "Done" before a copy.
+              if (link && !copied && !nag) {
+                event.preventDefault();
+                setNag(true);
+              }
+            }}
+          >
             {t('venues.once.openVenue')}
           </Link>
         ) : null}

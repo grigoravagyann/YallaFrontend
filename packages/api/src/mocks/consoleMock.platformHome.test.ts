@@ -166,6 +166,6 @@ describe("the admin's own account", () => {
         currentPassword: 'a-new-password-1234',
         newPassword: 'another-password-5678',
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ sessionRenewed: true });
   });
 });

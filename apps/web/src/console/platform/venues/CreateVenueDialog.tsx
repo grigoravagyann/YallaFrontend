@@ -3,6 +3,7 @@ import {
   ValidationError,
   slugify,
   type ConsoleVenueDetail,
+  type StaffMember,
   type StaffSignInLink,
   type VenueType,
 } from '@yalla/api';
@@ -80,7 +81,20 @@ export type CreatedVenue =
       readonly link: StaffSignInLink;
       readonly pin: string;
     }
-  | { readonly kind: 'ownerFailed'; readonly venue: ConsoleVenueDetail; readonly reason: string };
+  | { readonly kind: 'ownerFailed'; readonly venue: ConsoleVenueDetail; readonly reason: string }
+  /**
+   * The owner was added — with the PIN the server took, which exists nowhere
+   * else — and only their sign-in link failed: shown once all the same, with
+   * a way to make the link again.
+   */
+  | {
+      readonly kind: 'linkFailed';
+      readonly venue: ConsoleVenueDetail;
+      readonly member: StaffMember;
+      readonly email: string;
+      readonly pin: string;
+      readonly reason: string;
+    };
 
 export interface CreateVenueDialogProps {
   /** Every web address already in use, deleted venues' included: the server refuses those too. */
@@ -237,8 +251,16 @@ export function CreateVenueDialog({ takenSlugs, onClose, onCreated }: CreateVenu
 
     // The venue exists from here on: whatever happens to the owner, it is reported, never lost.
     const pin = tabletPin();
+    const reason = (caught: unknown) =>
+      issueFailureText(caught, {
+        offline: t('state.offline'),
+        generic: t('state.error'),
+        badEmail: t('venues.add.error.email'),
+        tooManyRequests: t('staff.signIn.tooManyRequests'),
+      });
+    let member: StaffMember;
     try {
-      const member = await gateway.createStaff({
+      member = await gateway.createStaff({
         venueId: venue.id,
         staff: {
           fullName: owner.name,
@@ -248,6 +270,12 @@ export function CreateVenueDialog({ takenSlugs, onClose, onCreated }: CreateVenu
           branchId: null,
         },
       });
+    } catch (caught) {
+      onCreated({ kind: 'ownerFailed', venue, reason: reason(caught) });
+      return;
+    }
+    // Apart: the owner exists now, and their PIN must not be lost with the link.
+    try {
       const link = await gateway.issueStaffSignIn({
         venueId: venue.id,
         staffMemberId: member.id,
@@ -256,14 +284,12 @@ export function CreateVenueDialog({ takenSlugs, onClose, onCreated }: CreateVenu
       onCreated({ kind: 'withLink', venue, email: link.email || owner.email, link, pin });
     } catch (caught) {
       onCreated({
-        kind: 'ownerFailed',
+        kind: 'linkFailed',
         venue,
-        reason: issueFailureText(caught, {
-          offline: t('state.offline'),
-          generic: t('state.error'),
-          badEmail: t('venues.add.error.email'),
-          tooManyRequests: t('staff.signIn.tooManyRequests'),
-        }),
+        member,
+        email: owner.email,
+        pin,
+        reason: reason(caught),
       });
     }
   }

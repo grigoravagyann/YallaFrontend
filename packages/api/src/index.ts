@@ -463,6 +463,7 @@ export type {
   PlatformActivityQuery,
   PlatformAdminProfile,
   PlatformOverview,
+  PlatformPasswordChanged,
   RecentVenue,
   VenueCount,
   VenueCounter,
@@ -473,6 +474,7 @@ export {
   applyVenueTier,
   checkVenueTier,
   listAllConsoleVenues,
+  openTabsRefusal,
   venueTierSummary,
 } from './platformVenues';
 export type {

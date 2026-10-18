@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { CheckIcon } from './icons';
+import { AlertCircleIcon, CheckIcon } from './icons';
 
 /** How long a toast stays, in ms, per the artboards' `say()`. */
 export const TOAST_MS = 3500;
@@ -30,11 +30,16 @@ export interface ToastOptions {
    */
   readonly focusUndo?: boolean;
   /**
-   * Runs once the Undo can no longer be pressed — the toast ran out, another
-   * replaced it, or the console closed — and never after Undo was pressed.
-   * For an action with no way back on the server, sent only then.
+   * Where the focus goes when the toast that took it leaves and the element it
+   * came from is gone — a deleted row's button. Without it, the focus would be
+   * left on <body>.
    */
-  readonly onExpire?: () => void;
+  readonly fallbackFocus?: () => HTMLElement | null;
+  /**
+   * `error`: a failure. Said in an assertive region (`role="alert"`), with the
+   * alert icon — never with the tick of a confirmation.
+   */
+  readonly tone?: 'error';
 }
 
 export interface ToastApi {
@@ -47,7 +52,8 @@ interface Shown {
   readonly message: string;
   readonly undo: (() => void) | null;
   readonly focusUndo: boolean;
-  readonly onExpire: (() => void) | null;
+  readonly fallbackFocus: (() => HTMLElement | null) | null;
+  readonly error: boolean;
 }
 
 const ToastContext = createContext<ToastApi | null>(null);
@@ -65,22 +71,18 @@ const ToastContext = createContext<ToastApi | null>(null);
  */
 export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const { t } = useTranslation(['admin', 'common']);
-  const [shown, setShownState] = useState<Shown | null>(null);
-  /** The toast on screen, for telling it that it went without its Undo. */
-  const current = useRef<Shown | null>(null);
-  /** Shows `next`; the one it replaces expires unless its Undo was pressed. */
-  const setShown = useCallback((next: Shown | null, undone = false) => {
-    const previous = current.current;
-    current.current = next;
-    setShownState(next);
-    if (!undone) previous?.onExpire?.();
-  }, []);
+  const [shown, setShown] = useState<Shown | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextId = useRef(1);
   const toastRef = useRef<HTMLDivElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
   /** Where the focus was before a toast's Undo took it; where it goes back to. */
-  const returnTo = useRef<{ readonly id: number; readonly element: HTMLElement } | null>(null);
+  const returnTo = useRef<{
+    readonly id: number;
+    /** `null` when nothing had the focus: then only the fallback is left. */
+    readonly element: HTMLElement | null;
+    readonly fallback: (() => HTMLElement | null) | null;
+  } | null>(null);
   const held = useRef({ hover: false, focus: false });
 
   const stop = useCallback(() => {
@@ -91,7 +93,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const dismiss = useCallback(() => {
     stop();
     setShown(null);
-  }, [stop, setShown]);
+  }, [stop]);
 
   const start = useCallback(
     (withUndo: boolean) => {
@@ -104,7 +106,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
         withUndo ? TOAST_UNDO_MS : TOAST_MS,
       );
     },
-    [stop, setShown],
+    [stop],
   );
 
   const say = useCallback(
@@ -116,11 +118,12 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
         message,
         undo: options.undo ?? null,
         focusUndo: Boolean(options.undo && options.focusUndo),
-        onExpire: options.onExpire ?? null,
+        fallbackFocus: options.fallbackFocus ?? null,
+        error: options.tone === 'error',
       });
       start(Boolean(options.undo));
     },
-    [start, setShown],
+    [start],
   );
 
   useEffect(() => {
@@ -131,27 +134,25 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
     if (owed && owed.id !== shown?.id) {
       returnTo.current = null;
       const active = document.activeElement;
-      if (owed.element.isConnected && (!active || active === document.body)) owed.element.focus();
+      if (!active || active === document.body) {
+        // The element it came from may be gone with what was deleted.
+        (owed.element?.isConnected ? owed.element : owed.fallback?.())?.focus();
+      }
     }
     // Take the focus once the toast that asked for it is on screen.
     if (!shown?.focusUndo) return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && !toastRef.current?.contains(active)) {
-      returnTo.current = { id: shown.id, element: active };
+    if (!(active instanceof HTMLElement) || !toastRef.current?.contains(active)) {
+      returnTo.current = {
+        id: shown.id,
+        element: active instanceof HTMLElement && active !== document.body ? active : null,
+        fallback: shown.fallbackFocus,
+      };
     }
     undoRef.current?.focus();
   }, [shown]);
 
-  useEffect(
-    () => () => {
-      stop();
-      // The console closed with an Undo still on screen: it can no longer be pressed.
-      const left = current.current;
-      current.current = null;
-      left?.onExpire?.();
-    },
-    [stop],
-  );
+  useEffect(() => stop, [stop]);
 
   const hold = (key: 'hover' | 'focus', on: boolean) => {
     held.current = { ...held.current, [key]: on };
@@ -166,7 +167,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       <div className="yc yc-toast-region" role="status" aria-live="polite">
-        {shown ? (
+        {shown && !shown.error ? (
           <div
             key={shown.id}
             ref={toastRef}
@@ -189,14 +190,22 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
                 className="yc-tbtn"
                 onClick={() => {
                   const undo = shown.undo;
-                  stop();
-                  setShown(null, true);
+                  dismiss();
                   undo?.();
                 }}
               >
                 {t('toast.undo')}
               </button>
             ) : null}
+          </div>
+        ) : null}
+      </div>
+      {/* Failures, said at once; present before anything is said, like the polite one. */}
+      <div className="yc yc-toast-region" aria-live="assertive">
+        {shown?.error ? (
+          <div key={shown.id} className="yc-toast is-error" role="alert">
+            <AlertCircleIcon />
+            <span>{shown.message}</span>
           </div>
         ) : null}
       </div>

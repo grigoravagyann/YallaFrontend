@@ -6,7 +6,7 @@ import type {
   SubscriptionTier,
 } from './contracts/console';
 import { BranchNotReadyError } from './contracts/errors';
-import { NotFoundError } from './errors';
+import { ConcurrencyConflictError, NotFoundError } from './errors';
 
 /**
  * The platform venues list's tier column, and the one button in it.
@@ -66,10 +66,17 @@ export async function listAllConsoleVenues(
   return all;
 }
 
-/** A branch whose menu stops it going Paid, and how many dishes are left. */
+/**
+ * A branch the server would refuse, found before anything is sent: going
+ * Paid, its menu is unfinished; going Free, it has tabs open — hiding a live
+ * bill from the people who owe it strands real money. One count is non-zero.
+ */
 export interface VenueTierBlocker {
   readonly branch: ConsoleBranch;
+  /** Going Paid: the dishes left. `0` going Free. */
   readonly incompleteMenuItemCount: number;
+  /** Going Free: the tabs open now. `0` going Paid. */
+  readonly openTabCount: number;
 }
 
 export interface VenueTierCheck {
@@ -77,7 +84,7 @@ export interface VenueTierCheck {
   readonly venue: ConsoleVenueDetail;
   /** The branches the switch would change: those not on `tier` already. */
   readonly toChange: readonly ConsoleBranch[];
-  /** Going Paid: the branches whose menu is unfinished. Empty going Free. */
+  /** Going Paid, the branches whose menu is unfinished; going Free, those with tabs open. */
   readonly blockers: readonly VenueTierBlocker[];
 }
 
@@ -94,11 +101,12 @@ async function requireVenue(
  * What switching every branch to `tier` would do, before anything is sent.
  *
  * Going Paid is refused by the server while a branch's menu is unfinished
- * (`branch-not-ready`). Asking each branch's readiness first lets the dialog
- * say so — and name the branch — before the button is pressed, as the
- * artboard does, rather than after a switch that moved half the venue. A
- * readiness that cannot be read is left to the server: the check is a
- * courtesy, the server is the authority.
+ * (`branch-not-ready`); going Free, while the branch has tabs open. Asking
+ * first — each branch's readiness, and the open tabs the venue read reports —
+ * lets the dialog say so, naming the branch, before the button is pressed, as
+ * the artboard does, rather than after a switch that moved half the venue. A
+ * readiness that cannot be read, or tabs nobody reported, are left to the
+ * server: the check is a courtesy, the server is the authority.
  */
 export async function checkVenueTier(
   gateway: Pick<ConsoleGateway, 'getVenue' | 'getBranchReadiness'>,
@@ -117,12 +125,25 @@ export async function checkVenueTier(
   const toChange = venue.branches.filter(
     (branch) => branch.subscriptionTier !== input.tier && (scope === null || scope.has(branch.id)),
   );
-  if (input.tier !== 'paid') return { venue, toChange, blockers: [] };
+  if (input.tier !== 'paid') {
+    const blockers = toChange
+      .filter((branch) => (branch.openTabCount ?? 0) > 0)
+      .map((branch) => ({
+        branch,
+        incompleteMenuItemCount: 0,
+        openTabCount: branch.openTabCount ?? 0,
+      }));
+    return { venue, toChange, blockers };
+  }
 
   const readiness = await Promise.all(
     toChange.map((branch) =>
       gateway.getBranchReadiness(branch.id).then(
-        (answer) => ({ branch, incompleteMenuItemCount: answer.incompleteMenuItemCount }),
+        (answer) => ({
+          branch,
+          incompleteMenuItemCount: answer.incompleteMenuItemCount,
+          openTabCount: 0,
+        }),
         () => null,
       ),
     ),
@@ -131,6 +152,28 @@ export async function checkVenueTier(
     (entry): entry is VenueTierBlocker => entry !== null && entry.incompleteMenuItemCount > 0,
   );
   return { venue, toChange, blockers };
+}
+
+/**
+ * The refusal the check stands in for: the server's own going Free with tabs
+ * open is a 409 `conflicting-state` naming the count, and so is this.
+ */
+export function openTabsRefusal(
+  branch: ConsoleBranch,
+  openTabCount: number,
+): ConcurrencyConflictError {
+  const url = `/api/platform/branches/${branch.id}`;
+  return new ConcurrencyConflictError({
+    url,
+    problem: {
+      type: 'about:blank',
+      title: 'Conflicting state',
+      status: 409,
+      detail: `This branch has ${openTabCount} open tab(s). Moving it to Free would hide those bills from the people who owe them. Wait until they are settled.`,
+      code: 'conflicting-state',
+      traceId: 'console-check',
+    },
+  });
 }
 
 /** One branch the switch could not move, and what the server (or the check) said. */
@@ -143,20 +186,21 @@ export interface VenueTierRefusal {
 export interface VenueTierResult {
   /** The venue after the switch, as the server last answered it. */
   readonly venue: ConsoleVenueDetail;
-  /** The branches that moved. Reported even when a later one refused. */
+  /** The branches that moved. Reported even when another one refused. */
   readonly changed: readonly ConsoleBranch[];
-  /** Empty when every branch moved. */
+  /** Every branch that did not, with why. Empty when every branch moved. */
   readonly refused: readonly VenueTierRefusal[];
 }
 
 /**
  * Switch every branch of a venue to `tier`, one branch at a time.
  *
- * All or nothing where it can be: when the readiness check finds an
- * unfinished menu, nothing is sent and every blocked branch is named. Past the
- * check it is one `PATCH` per branch, stopping at the first refusal and saying
- * honestly which branches had already moved — there is no venue-wide tier
- * route to make it atomic, and pretending otherwise would hide a mixed venue.
+ * All or nothing where it can be: when the check finds an unfinished menu
+ * (going Paid) or open tabs (going Free), nothing is sent and every blocked
+ * branch is named. Past the check it is one `PATCH` per branch, **every
+ * branch tried** whatever another answered, and the result says which moved
+ * and which refused — there is no venue-wide tier route to make it atomic,
+ * and stopping at the first refusal would leave the rest unmentioned.
  *
  * Each branch gets its own command id, derived from the one given, so a
  * deliberate retry of the whole switch repeats each branch's command.
@@ -178,17 +222,21 @@ export async function applyVenueTier(
       changed: [],
       refused: check.blockers.map((blocker) => ({
         branch: blocker.branch,
-        error: new BranchNotReadyError({
-          url: `/api/platform/branches/${blocker.branch.id}`,
-          branchId: blocker.branch.id,
-          incompleteMenuItemCount: blocker.incompleteMenuItemCount,
-        }),
+        error:
+          input.tier === 'paid'
+            ? new BranchNotReadyError({
+                url: `/api/platform/branches/${blocker.branch.id}`,
+                branchId: blocker.branch.id,
+                incompleteMenuItemCount: blocker.incompleteMenuItemCount,
+              })
+            : openTabsRefusal(blocker.branch, blocker.openTabCount),
       })),
     };
   }
 
   let venue = check.venue;
   const changed: ConsoleBranch[] = [];
+  const refused: VenueTierRefusal[] = [];
   for (const branch of check.toChange) {
     try {
       venue = await gateway.setBranchTier({
@@ -198,8 +246,8 @@ export async function applyVenueTier(
       });
       changed.push(branch);
     } catch (error) {
-      return { venue, changed, refused: [{ branch, error }] };
+      refused.push({ branch, error });
     }
   }
-  return { venue, changed, refused: [] };
+  return { venue, changed, refused };
 }

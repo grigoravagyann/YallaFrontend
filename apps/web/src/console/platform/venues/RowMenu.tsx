@@ -79,6 +79,15 @@ export function RowMenu({ label, items, open, onOpenChange, id }: RowMenuProps) 
     if (open) placeBesideButton();
   }, [open, placeBesideButton]);
 
+  // The list passes a new callback on every render; keyed on it, the effect
+  // below would re-run — and take the focus back to the first item — whenever
+  // the list behind the menu refreshed.
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  });
+
+  // Opening, and only opening, puts the focus on the first item.
   useEffect(() => {
     if (!open) return;
     // Without scrolling: the browser would otherwise scroll to an item it has
@@ -86,14 +95,19 @@ export function RowMenu({ label, items, open, onOpenChange, id }: RowMenuProps) 
     menuRef.current
       ?.querySelector<HTMLElement>('[role="menuitem"]')
       ?.focus({ preventScroll: true });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => onOpenChangeRef.current(false);
     const away = (event: PointerEvent) => {
       const target = event.target as Node;
       if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
-      onOpenChange(false);
+      close();
     };
     const scrolled = (event: Event) => {
       if (menuRef.current?.contains(event.target as Node)) return;
-      if (!placeBesideButton()) onOpenChange(false);
+      if (!placeBesideButton()) close();
     };
     document.addEventListener('pointerdown', away);
     window.addEventListener('scroll', scrolled, true);
@@ -103,7 +117,7 @@ export function RowMenu({ label, items, open, onOpenChange, id }: RowMenuProps) 
       window.removeEventListener('scroll', scrolled, true);
       window.removeEventListener('resize', scrolled);
     };
-  }, [open, onOpenChange, placeBesideButton]);
+  }, [open, placeBesideButton]);
 
   function onMenuKey(event: KeyboardEvent<HTMLDivElement>) {
     const all = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];

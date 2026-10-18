@@ -72,3 +72,52 @@ describe('the console redesign', () => {
     expect(found).toEqual([]);
   });
 });
+
+/** Every rule of the console's stylesheet, as selector and declarations, comments left out. */
+function consoleRules(): { readonly selector: string; readonly body: string }[] {
+  const css = withoutComments(readFileSync(join(SRC, 'console', 'ui', 'console.css'), 'utf8'));
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/gu)].map((match) => ({
+    selector: (match[1] ?? '').trim(),
+    body: match[2] ?? '',
+  }));
+}
+
+describe('the console stylesheet keeps its contrast', () => {
+  // The edges `console.test.ts` proves clear 3:1 against every ground.
+  const CONTROL_EDGES = ['control', 'control-hover', 'red', 'focus', 'brand'];
+
+  it("gives every field and select the control's 3:1 edge, never the soft button edge", () => {
+    const offenders = consoleRules()
+      .filter((rule) => /\.yc-(ctl|bsel|range)\b/u.test(rule.selector))
+      .flatMap((rule) =>
+        [...rule.body.matchAll(/border-color:\s*var\(--console-([a-z-]+)\)/gu)]
+          .map((match) => match[1] ?? '')
+          .filter((token) => !CONTROL_EDGES.includes(token))
+          .map((token) => `${rule.selector}: ${token}`),
+      );
+    expect(offenders).toEqual([]);
+  });
+
+  it('draws a placeholder in the muted ink at full strength', () => {
+    const rule = consoleRules().find((candidate) =>
+      /\.yc-ctl::placeholder/u.test(candidate.selector),
+    );
+    expect(rule?.body).toMatch(/color:\s*var\(--console-muted\)/u);
+    expect(rule?.body).toMatch(/opacity:\s*1/u);
+  });
+
+  it("keeps the skip link's light text when it is hovered", () => {
+    const rule = consoleRules().find((candidate) =>
+      /\.yc \.yc-skip:hover/u.test(candidate.selector),
+    );
+    expect(rule?.body).toMatch(/color:\s*var\(--console-brand-foreground\)/u);
+  });
+
+  it("puts the rooms page's new pins in the brand, not the venue console's beige", () => {
+    const legacy = consoleRules().find((candidate) => candidate.selector === '.yc-legacy');
+    expect(legacy?.body).toMatch(/--color-primary-on-floor-plan:\s*var\(--console-brand\)/u);
+    expect(legacy?.body).toMatch(
+      /--color-primary-on-floor-plan-pressed:\s*var\(--console-brand-hover\)/u,
+    );
+  });
+});

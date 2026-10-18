@@ -114,6 +114,21 @@ describe('the venue page', () => {
   });
 });
 
+describe('the tabs', () => {
+  it('point only at a panel that is on the page', async () => {
+    const user = userEvent.setup();
+    renderVenue();
+    await heading('Lumen Coffee');
+    for (const name of [/^Overview/u, /^Staff/u, /^Bookings/u]) {
+      await openTab(user, name);
+      for (const tab of screen.getAllByRole('tab')) {
+        const controls = tab.getAttribute('aria-controls');
+        if (controls) expect(document.getElementById(controls), controls).toBeTruthy();
+      }
+    }
+  });
+});
+
 describe('the branch table', () => {
   it('links each branch to its public page, rooms and reviews', async () => {
     renderVenue();
@@ -184,14 +199,12 @@ describe('the branch table', () => {
     renderVenue('v-cascade');
     await heading('Cascade Cafe');
     await user.click(within(branchRow('Կենտրոն')).getByRole('button', { name: /plan at/u }));
-    await user.click(
-      within(
-        await screen.findByRole('alertdialog', { name: 'Make the Կենտրոն branch free?' }),
-      ).getByRole('button', { name: 'Make free' }),
-    );
-    expect(
-      await screen.findByRole('alertdialog', { name: 'The Կենտրոն branch cannot go free yet' }),
-    ).toBeTruthy();
+    // Refused as the dialog opens, from the tabs the venue read reports: nothing to press.
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'The Կենտրոն branch cannot go free yet',
+    });
+    expect(within(dialog).queryByRole('button', { name: 'Make free' })).toBeNull();
+    expect(within(dialog).getByText(/Tabs are open/u)).toBeTruthy();
   });
 
   it('adds a branch, with errors under the fields first', async () => {
@@ -342,6 +355,28 @@ describe('deleting the venue', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Venues' })).toBeTruthy();
     expect(await screen.findByText('Sunset Lounge was deleted')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+  });
+
+  it('says so, as a failure, when the undo of a delete does not go through', async () => {
+    const user = userEvent.setup();
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const gateway: ConsoleGateway = {
+      ...mock,
+      restoreVenue: () => Promise.reject(new Error('down')),
+    };
+    renderVenue('v-sunset', gateway);
+    await heading('Sunset Lounge');
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete Sunset Lounge?' });
+    await user.type(
+      within(dialog).getByLabelText('Type Sunset Lounge to confirm'),
+      'Sunset Lounge',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/did not go through|failed|try again/iu);
+    expect(screen.getByRole('status').textContent).toBe('');
   });
 });
 
@@ -599,6 +634,11 @@ describe('the bookings tab', () => {
     ).toBeTruthy();
     const byBranch = within(panel).getByRole('table', { name: 'By branch' });
     expect(within(byBranch).getByText('Կոմիտաս')).toBeTruthy();
+    // The window looks back: what is still ahead of it is "confirmed", not "upcoming".
+    expect(within(byBranch).getByRole('columnheader', { name: 'Confirmed' })).toBeTruthy();
+    expect(within(panel).queryByText('Upcoming')).toBeNull();
+    // The shares of who came and who did not are of the bookings already past.
+    expect(within(panel).getAllByText(/of past bookings/u)).toHaveLength(2);
 
     await user.selectOptions(within(panel).getByLabelText('Period'), '7');
     expect(await within(panel).findByText(String(week.total))).toBeTruthy();

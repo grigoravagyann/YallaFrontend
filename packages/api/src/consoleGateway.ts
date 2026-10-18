@@ -31,6 +31,7 @@ import type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/
 import type {
   ChangePlatformPasswordCommand,
   OutboxHealth,
+  PlatformPasswordChanged,
   PlatformActivityEntry,
   PlatformActivityQuery,
   PlatformAdminProfile,
@@ -162,9 +163,11 @@ export interface ConsoleGateway {
    * suspended. What the list's "Undo" after a delete and its "Restore" on a
    * deleted row call. Platform admin only.
    *
-   * `POST /api/platform/venues/{venueId}/restore`.
+   * `POST /api/platform/venues/{venueId}/restore`. A venue that is not deleted
+   * is answered as it is: an Undo pressed twice is not an error.
    *
-   * @throws {ConcurrencyConflictError} the venue is not deleted.
+   * @throws {ConcurrencyConflictError} its web address was taken while it was
+   * deleted (409 `conflicting-state`, naming the venue that has it).
    */
   restoreVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;
 
@@ -211,7 +214,7 @@ export interface ConsoleGateway {
    * missing (`required`) or wrong (`conflict`), `newPassword` missing or
    * shorter than 12 (`min`). A wrong current password is a form error, not a 401.
    */
-  changePlatformPassword(command: ChangePlatformPasswordCommand): Promise<void>;
+  changePlatformPassword(command: ChangePlatformPasswordCommand): Promise<PlatformPasswordChanged>;
 
   /** Platform admin only; an owner cannot change what they are paying for. */
   setBranchTier(input: {
@@ -510,6 +513,18 @@ export interface ConsoleGateway {
    * @throws {ForbiddenError} not a platform admin.
    */
   dismissReviewReports(reviewId: string): Promise<VenueModeratedReview>;
+
+  /**
+   * Undo a dismissal: the reports it set aside count again. What the toast's
+   * Undo after "Dismiss reports" calls. Platform admin only.
+   *
+   * `POST /api/platform/reviews/{reviewId}/restore-reports`, no body — being
+   * added by the backend with the review fixes.
+   *
+   * @throws {NotFoundError} no such review.
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  restoreReviewReports(reviewId: string): Promise<VenueModeratedReview>;
 
   /**
    * The platform's takedown, `PUT /api/platform/reviews/{reviewId}/visibility`.

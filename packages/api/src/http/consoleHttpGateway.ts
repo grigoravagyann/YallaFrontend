@@ -1,6 +1,6 @@
 import { staffRoleToUserRole, type VenueUserIdentity } from '../auth/endpoints';
 import { claimString, decodeJwtPayload } from '../auth/jwt';
-import type { AuthSession } from '../auth/session';
+import type { AuthSession, TokenPair } from '../auth/session';
 import type { ApiClient } from '../client';
 import type { ConsoleGateway } from '../consoleGateway';
 import type {
@@ -191,6 +191,24 @@ const RESERVATIONS = '/api/reservations';
 
 /** Both moderation lists page by 20, the public reviews route's size. */
 const REVIEW_PAGE_SIZE = 20;
+/** A token pair in a JSON answer, as the sign-in route spells it; `null` when there is none. */
+function tokenPairFrom(data: unknown): TokenPair | null {
+  if (data === null || typeof data !== 'object') return null;
+  const answer = data as {
+    accessToken?: unknown;
+    refreshToken?: unknown;
+    expiresInSeconds?: unknown;
+  };
+  if (typeof answer.accessToken !== 'string' || typeof answer.refreshToken !== 'string')
+    return null;
+  return {
+    accessToken: answer.accessToken,
+    refreshToken: answer.refreshToken,
+    // The access token's own expiry wins in the session; this is the fallback.
+    expiresInSeconds: typeof answer.expiresInSeconds === 'number' ? answer.expiresInSeconds : 900,
+  };
+}
+
 /** Home shows the messages given up on in the last day; a few more than that is plenty. */
 const OUTBOX_DEAD_LETTER_LIMIT = 20;
 
@@ -605,9 +623,21 @@ export function createConsoleHttpGateway(
     },
 
     async changePlatformPassword({ currentPassword, newPassword }) {
-      // 204. A wrong current password is a 422 naming `currentPassword`, not a
+      // A wrong current password is a 422 naming `currentPassword`, not a
       // 401: the session stays, and the form shows it under the field.
-      await client.post(`${PLATFORM}/me/password`, { currentPassword, newPassword });
+      const { data } = await client.post<unknown>(`${PLATFORM}/me/password`, {
+        currentPassword,
+        newPassword,
+      });
+      // The server ends every other session (a session generation that every
+      // other access token is checked against) and answers with a fresh pair
+      // for this one, shaped like the sign-in answer. Adopted here, through the
+      // session the console already holds, so this tab stays signed in. A 204
+      // renews nothing, and nothing is claimed.
+      const pair = tokenPairFrom(data);
+      if (!pair) return { sessionRenewed: false };
+      await auth.signIn(pair);
+      return { sessionRenewed: true };
     },
 
     // --- The rooms editor -------------------------------------------------
@@ -1063,6 +1093,14 @@ export function createConsoleHttpGateway(
     async dismissReviewReports(reviewId) {
       const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
         `${PLATFORM}/reviews/${reviewId}/dismiss-reports`,
+      );
+      return venueReviewFromWire(data);
+    },
+
+    async restoreReviewReports(reviewId) {
+      // gateway-schema: awaiting-route — console redesign: Undo after "Dismiss reports"
+      const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+        `${PLATFORM}/reviews/${reviewId}/restore-reports`,
       );
       return venueReviewFromWire(data);
     },

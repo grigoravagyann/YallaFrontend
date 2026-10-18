@@ -187,6 +187,16 @@ export interface ChangePlatformPasswordCommand {
   readonly newPassword: string;
 }
 
+/**
+ * What a password change did to this sign-in. The server ends every other
+ * session; when it answers with a fresh token pair for this one, the console
+ * adopts it and stays signed in (`sessionRenewed`), and only then says the
+ * other devices were signed out.
+ */
+export interface PlatformPasswordChanged {
+  readonly sessionRenewed: boolean;
+}
+
 /** `Auth:MinimumPasswordLength`: every console password's one rule. */
 export const PLATFORM_PASSWORD_MIN_LENGTH = 12;
 

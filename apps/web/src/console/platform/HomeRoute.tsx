@@ -182,7 +182,14 @@ function Home({
         <DrillPanel
           kind={drill}
           counter={drill === 'pending' ? overview.pendingApprovals : overview.openTabs}
-          onClose={() => setDrill(null)}
+          onClose={() => {
+            // Back to the card that opened it: the Close button goes with the list.
+            const opener = document.querySelector<HTMLElement>(
+              '[aria-controls="home-drill"][aria-expanded="true"]',
+            );
+            setDrill(null);
+            opener?.focus();
+          }}
           locale={locale}
         />
       ) : null}
@@ -225,7 +232,8 @@ function OutboxAlert({
   );
 
   return (
-    <div className="yc-oalert" role="status">
+    // A real failure, said at once: "alert", not a polite "status".
+    <div className="yc-oalert" role="alert">
       <div className="yc-oalert-row">
         <WarningIcon />
         <span className="yc-oalert-t">
@@ -834,8 +842,13 @@ function sentence(entry: PlatformActivityEntry, t: Translate): string {
         : t('home.activity.action.tierPaid', { target, venue });
     case 'branch.relocate':
       return t('home.activity.action.branchRelocate', { target, venue });
-    case 'staff.create':
-      return t('home.activity.action.staffCreate', { target, role: roleWord(entry, t) });
+    case 'staff.create': {
+      const role = roleWord(entry, t);
+      // No role on record: say who joined, and guess nothing.
+      return role === null
+        ? t('home.activity.action.staffCreateNoRole', { target })
+        : t('home.activity.action.staffCreate', { target, role });
+    }
     case 'staff.sign-in-issued':
       return t('home.activity.action.signIn', { target });
     case 'review.hide':
@@ -855,17 +868,19 @@ function sentence(entry: PlatformActivityEntry, t: Translate): string {
   }
 }
 
-function roleWord(entry: PlatformActivityEntry, t: Translate): string {
+function roleWord(entry: PlatformActivityEntry, t: Translate): string | null {
   switch (entry.staffRole) {
     case 'owner':
       return t('home.activity.role.owner');
     case 'generalManager':
       return t('home.activity.role.generalManager');
+    case 'manager':
+      return t('home.activity.role.manager');
     case 'waiter':
       return t('home.activity.role.waiter');
     case 'kitchen':
       return t('home.activity.role.kitchen');
     default:
-      return t('home.activity.role.manager');
+      return null;
   }
 }

@@ -73,7 +73,10 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.yc .yc-skip {
+.yc .yc-skip,
+.yc .yc-skip:hover,
+.yc .yc-skip:focus {
+  /* Above `.yc a:hover`, whose brown on this brown fill read at 1.35:1. */
   color: var(--console-brand-foreground);
 }
 
@@ -496,6 +499,12 @@
   border-color: var(--console-control-hover);
 }
 
+/* The muted ink at full strength: browsers fade a placeholder below 3:1 by default. */
+.yc-ctl::placeholder {
+  color: var(--console-muted);
+  opacity: 1;
+}
+
 .yc-ctl[aria-invalid='true'] {
   border-color: var(--console-red);
 }
@@ -719,6 +728,16 @@ textarea.yc-ctl {
 
 .yc-toast :focus-visible {
   outline-color: var(--console-toast-action);
+}
+
+/* A failure: the destructive red, never the confirmation's tick. */
+.yc-toast.is-error {
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.yc-toast.is-error .yc-i {
+  color: var(--console-red-foreground);
 }
 
 .yc-tbtn {
@@ -1628,6 +1647,17 @@ textarea.yc-ctl {
   font-weight: var(--font-weight-semibold);
 }
 
+/* A refusal under a choice: the plan it stops, not the dialog. */
+.yc-refuse-inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.yc-refuse-inline .yc-help {
+  margin: 0;
+}
+
 .yc-refuse ul {
   display: flex;
   flex-direction: column;
@@ -2499,7 +2529,6 @@ textarea.yc-ctl {
 .yc .yc-bsel {
   width: auto;
   min-width: 180px;
-  border-color: var(--console-button-edge);
 }
 
 .yc-subtabs {
@@ -2563,6 +2592,9 @@ textarea.yc-ctl {
   --color-primary: var(--console-brand);
   --color-primary-ink: var(--console-brand);
   --color-primary-pressed: var(--console-brand-hover);
+  /* New pins on a room photo: the venue console's beige reads at 1.84:1 here. */
+  --color-primary-on-floor-plan: var(--console-brand);
+  --color-primary-on-floor-plan-pressed: var(--console-brand-hover);
   --color-primary-foreground: var(--console-brand-foreground);
   --color-green-tint: var(--console-brand-tint);
   --color-accent-tint: var(--console-hover);
@@ -3437,7 +3469,6 @@ textarea.yc-ctl {
 .yc .yc-range {
   width: auto;
   height: var(--console-size-button-small);
-  border-color: var(--console-button-edge);
   border-radius: var(--console-radius-small);
   font-size: var(--console-text-label);
 }
@@ -3809,7 +3840,6 @@ textarea.yc-ctl {
 }
 
 .yc .yc-ctl[readonly] {
-  border-color: var(--console-button-edge);
   background: var(--console-readonly-field);
   color: var(--console-muted);
 }

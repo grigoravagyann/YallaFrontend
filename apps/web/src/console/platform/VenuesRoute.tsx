@@ -1,5 +1,16 @@
-import { ApiError, describeFailure, venueTierSummary, type ConsoleVenue } from '@yalla/api';
-import { isOfflinePaused, useAllConsoleVenues, useRestoreVenue } from '@yalla/api/react';
+import {
+  ApiError,
+  describeFailure,
+  venueTierSummary,
+  type ConsoleVenue,
+  type StaffSignInLink,
+} from '@yalla/api';
+import {
+  isOfflinePaused,
+  useAllConsoleVenues,
+  useIssueStaffSignIn,
+  useRestoreVenue,
+} from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -19,6 +30,7 @@ import {
 import { OnceLinkDialog } from '../ui/OnceLinkDialog';
 import { PageHeader } from '../ui/PageHeader';
 import { useToast } from '../ui/toast';
+import { issueFailureText } from '../venue/staff/signInIssue';
 import { CreateVenueDialog, type CreatedVenue } from './venues/CreateVenueDialog';
 import { DeleteVenueDialog } from './venues/DeleteVenueDialog';
 import { RowMenu, type RowMenuItem } from './venues/RowMenu';
@@ -39,6 +51,12 @@ import {
   type TierFilter,
   type VenueListFilters,
 } from './venues/venueList';
+
+/** Nothing has the focus: the press that had it is gone, or nothing was focused. */
+function focusIsLost(): boolean {
+  const active = document.activeElement;
+  return !active || active === document.body;
+}
 
 /** Every venue in the pilot is in Yerevan. */
 const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
@@ -127,27 +145,39 @@ export function VenuesRoute() {
 
   /** A row whose ⋮ takes the focus once it is on screen again (after an undo). */
   const focusRow = useRef<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const kebabOf = useCallback(
     (venueId: string) => document.querySelector<HTMLElement>(`[data-kebab="${venueId}"]`),
     [],
   );
   const tierButtonOf = (venueId: string) =>
     document.querySelector<HTMLElement>(`[data-tier="${venueId}"]`);
-  useEffect(() => {
-    const id = focusRow.current;
-    if (!id) return;
-    const kebab = kebabOf(id);
-    if (kebab) {
-      focusRow.current = null;
-      kebab.focus();
-    }
-  });
-
   const all = useMemo(() => query.data ?? [], [query.data]);
   const visible = useMemo(
     () => sortVenues(filterVenues(all, filters, locale), sort.key, sort.direction, locale),
     [all, filters, sort, locale],
   );
+  /** The list now, for an Undo pressed later (see `undoSuspend`). */
+  const latest = useRef(all);
+
+  useEffect(() => {
+    latest.current = all;
+    const id = focusRow.current;
+    if (!id || query.isFetching) return;
+    const kebab = kebabOf(id);
+    if (kebab) {
+      focusRow.current = null;
+      kebab.focus();
+      return;
+    }
+    // The row is not in this view (restored from the Deleted filter, say):
+    // the search, rather than <body> — and never later, when a filter brings
+    // the row back and would pull the focus onto it.
+    if (!visible.some((venue) => venue.id === id)) {
+      focusRow.current = null;
+      if (focusIsLost()) searchRef.current?.focus();
+    }
+  });
   const live = all.filter((venue) => venue.status !== 'deleted').length;
   const deleted = all.length - live;
   const filtered = isFiltered(filters);
@@ -174,13 +204,18 @@ export function VenuesRoute() {
       suspend.mutateAsync({ venueId: venue.id, commandId: newCommandId() }),
     );
     if (!done) return;
-    kebabOf(venue.id)?.focus();
+    // Back to its ⋮ only if nothing else took the focus while the request ran.
+    if (focusIsLost()) kebabOf(venue.id)?.focus();
     toast.say(t('venues.toast.suspended', { name: venue.name }), {
       undo: () => void undoSuspend(venue),
     });
   }
 
   async function undoSuspend(venue: ConsoleVenue) {
+    // Resumed meanwhile (from its menu): the Undo has nothing left to undo.
+    if (latest.current.find((candidate) => candidate.id === venue.id)?.status !== 'suspended') {
+      return;
+    }
     if (await run(() => resume.mutateAsync({ venueId: venue.id, commandId: newCommandId() }))) {
       focusRow.current = venue.id;
       toast.say(t('venues.toast.activeAgain', { name: venue.name }));
@@ -189,13 +224,15 @@ export function VenuesRoute() {
 
   async function resumeVenue(venue: ConsoleVenue) {
     if (await run(() => resume.mutateAsync({ venueId: venue.id, commandId: newCommandId() }))) {
-      kebabOf(venue.id)?.focus();
+      if (focusIsLost()) kebabOf(venue.id)?.focus();
       toast.say(t('venues.toast.resumed', { name: venue.name }));
     }
   }
 
   async function restoreVenue(venue: ConsoleVenue, undo: boolean) {
     if (await run(() => restore.mutateAsync({ venueId: venue.id, commandId: newCommandId() }))) {
+      // Once the list has it as it is now: its row may leave this view.
+      await query.refetch();
       focusRow.current = venue.id;
       toast.say(t(undo ? 'venues.toast.undeleted' : 'venues.toast.restored', { name: venue.name }));
     }
@@ -228,28 +265,29 @@ export function VenuesRoute() {
         onSelect: () => setShown({ kind: 'tier', venue, from: 'menu' }),
       });
     }
-    items.push(
-      venue.status === 'active'
-        ? {
-            key: 'suspend',
-            label: t('venues.menu.suspend'),
-            icon: <PauseIcon />,
-            onSelect: () => void suspendVenue(venue),
-          }
-        : {
-            key: 'resume',
-            label: t('venues.menu.resume'),
-            icon: <RestoreIcon />,
-            onSelect: () => void resumeVenue(venue),
-          },
-      {
-        key: 'delete',
-        label: t('venues.menu.delete'),
-        icon: <TrashIcon />,
-        danger: true,
-        onSelect: () => setShown({ kind: 'delete', venue }),
-      },
-    );
+    // Reactivating only lifts a suspension: a switched-off venue gets neither.
+    if (venue.status === 'active') {
+      items.push({
+        key: 'suspend',
+        label: t('venues.menu.suspend'),
+        icon: <PauseIcon />,
+        onSelect: () => void suspendVenue(venue),
+      });
+    } else if (venue.status === 'suspended') {
+      items.push({
+        key: 'resume',
+        label: t('venues.menu.resume'),
+        icon: <RestoreIcon />,
+        onSelect: () => void resumeVenue(venue),
+      });
+    }
+    items.push({
+      key: 'delete',
+      label: t('venues.menu.delete'),
+      icon: <TrashIcon />,
+      danger: true,
+      onSelect: () => setShown({ kind: 'delete', venue }),
+    });
     return items;
   }
 
@@ -442,6 +480,7 @@ export function VenuesRoute() {
             <SearchIcon />
             <input
               id="venues-q"
+              ref={searchRef}
               className="yc-ctl"
               type="search"
               autoComplete="off"
@@ -518,6 +557,8 @@ export function VenuesRoute() {
             toast.say(t('venues.toast.deleted', { name: venue.name }), {
               undo: () => void restoreVenue(venue, true),
               focusUndo: true,
+              // The deleted row's ⋮ is gone with it: the search, not <body>.
+              fallbackFocus: () => searchRef.current,
             });
           }}
           onSuspendedInstead={(venue) => {
@@ -538,7 +579,17 @@ export function VenuesRoute() {
       ) : null}
 
       {shown?.kind === 'once' ? (
-        shown.created.kind === 'withLink' ? (
+        shown.created.kind === 'linkFailed' ? (
+          <OwnerLinkFailedDialog
+            created={shown.created}
+            onDone={() => {
+              const name = shown.created.venue.name;
+              setShown(null);
+              addRef.current?.focus();
+              toast.say(t('venues.toast.listed', { name }));
+            }}
+          />
+        ) : shown.created.kind === 'withLink' ? (
           <OnceLinkDialog
             title={t('venues.once.title', { name: shown.created.venue.name })}
             link={shown.created.link}
@@ -565,6 +616,59 @@ export function VenuesRoute() {
         )
       ) : null}
     </>
+  );
+}
+
+/**
+ * The venue and its owner were made; the owner's sign-in link was not. The
+ * PIN is shown once all the same — it exists nowhere else — with the reason,
+ * and "Try again" makes the link for the owner who is already there.
+ */
+function OwnerLinkFailedDialog({
+  created,
+  onDone,
+}: {
+  readonly created: Extract<CreatedVenue, { kind: 'linkFailed' }>;
+  readonly onDone: () => void;
+}) {
+  const { t } = useTranslation(['admin', 'common']);
+  const issue = useIssueStaffSignIn(created.venue.id);
+  const [link, setLink] = useState<StaffSignInLink | null>(null);
+  const [reason, setReason] = useState(created.reason);
+
+  async function retry() {
+    try {
+      const made = await issue.mutateAsync({
+        staffMemberId: created.member.id,
+        email: created.email,
+      });
+      setLink(made);
+    } catch (caught) {
+      setReason(
+        issueFailureText(caught, {
+          offline: t('state.offline'),
+          generic: t('state.error'),
+          badEmail: t('venues.add.error.email'),
+          tooManyRequests: t('staff.signIn.tooManyRequests'),
+        }),
+      );
+    } finally {
+      // The hook keeps the answer as its own data: the dialog's copy is the only one wanted.
+      issue.reset();
+    }
+  }
+
+  return (
+    <OnceLinkDialog
+      title={t('venues.once.title', { name: created.venue.name })}
+      link={link}
+      pin={created.pin}
+      failure={link ? null : t('venues.add.linkFailed', { reason })}
+      onRetry={link ? null : () => void retry()}
+      venueHref={`/platform/venues/${created.venue.id}`}
+      timeZoneId={CONSOLE_TIME_ZONE}
+      onDone={onDone}
+    />
   );
 }
 

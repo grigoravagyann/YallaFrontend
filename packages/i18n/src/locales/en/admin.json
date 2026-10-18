@@ -268,6 +268,7 @@
       "mixedLead": "{{paid}} of {{total}} branches are paid. Choose one plan for all of them.",
       "choose": "Plan for every branch",
       "checking": "Checking the menu…",
+      "checkingTabs": "Checking the open tabs…",
       "paid1": "Guests will order from their phones, by the table QR or a booking code",
       "paid2": "Table tabs open, with payment in the app",
       "paid3": "Bookings and the public page keep working as before",
@@ -369,7 +370,8 @@
         "generic": "We could not create it. Nothing was saved.",
         "field": "The server refused \"{{field}}\": {{detail}}"
       },
-      "ownerFailed": "The venue was created, but the owner could not be added: {{reason}} Add them from the venue page's Staff tab."
+      "ownerFailed": "The venue was created, but the owner could not be added: {{reason}} Add them from the venue page's Staff tab.",
+      "linkFailed": "The owner was added, with the PIN above. Their sign-in link was not made: {{reason}}"
     },
     "once": {
       "title": "{{name}} was created",
@@ -657,7 +659,8 @@
       "itemCount_one": "{{count}} dish",
       "itemCount_other": "{{count}} dishes",
       "confirmEmpty": "Delete “{{name}}”?",
-      "confirmWithItems": "Delete “{{name}}”? Its {{count}} dishes go with it — they are not moved to another category.",
+      "confirmWithItems_one": "Delete “{{name}}”? Its one dish goes with it — it is not moved to another category.",
+      "confirmWithItems_other": "Delete “{{name}}”? Its {{count}} dishes go with it — they are not moved to another category.",
       "inUse": "One of this category's dishes is already on an order, so nothing was deleted. Mark those dishes sold out instead.",
       "deleteFailed": "Could not delete that category."
     },
@@ -1347,7 +1350,11 @@
       "title": "This venue was not found",
       "body": "The link may be wrong, or the venue was deleted. Deleted venues stay on the Venues page under the “Deleted” filter.",
       "venues": "Venues list",
-      "home": "Home"
+      "home": "Home",
+      "pageTitle": "This page was not found",
+      "pageBody": "The address may be mistyped, or the page has moved. Start again from the Venues list or Home.",
+      "branchTitle": "This branch was not found",
+      "branchBody": "The link may be wrong, or the branch belongs to another venue. Open the venue to see its branches."
     },
     "forbidden": {
       "code": "403",
@@ -1375,7 +1382,8 @@
     },
     "retry": "Try again",
     "checking": "Checking…",
-    "stillFailing": "Still not working · attempt {{attempt}}. We will try again by ourselves when the connection is back."
+    "stillFailing": "Still not working · attempt {{attempt}}. We will try again by ourselves when the connection is back.",
+    "stillFailingError": "Still not working · attempt {{attempt}}. Try again in a little while."
   },
   "settings": {
     "title": "Settings",
@@ -1419,6 +1427,10 @@
       "submit": "Change the password",
       "changing": "Changing…",
       "changed": "Password changed · you were signed out on your other devices",
+      "changedPlain": "Password changed",
+      "tooMany_one": "Too many attempts. Wait {{count}} minute, then try again.",
+      "tooMany_other": "Too many attempts. Wait {{count}} minutes, then try again.",
+      "tooManyNoWindow": "Too many attempts. Wait a little, then try again.",
       "failed": "The password wasn't changed. Try again."
     }
   },
@@ -1623,7 +1635,7 @@
       "sun": "Sun",
       "byStatus": "By status",
       "statusCompleted": "Came",
-      "statusUpcoming": "Upcoming",
+      "statusUpcoming": "Confirmed",
       "statusPending": "Awaiting approval",
       "statusCancelled": "Cancelled",
       "statusNoShow": "No-shows",
@@ -1857,6 +1869,7 @@
         "tierFree": "switched {{target}} to Free · {{venue}}",
         "branchRelocate": "moved {{target}} to a new address · {{venue}}",
         "staffCreate": "added {{target}} as {{role}}",
+        "staffCreateNoRole": "added {{target}} to the team",
         "signIn": "gave {{target}} a sign-in link",
         "reviewHide": "hid a review at {{target}}",
         "reviewUnhide": "showed a review again at {{target}}",
