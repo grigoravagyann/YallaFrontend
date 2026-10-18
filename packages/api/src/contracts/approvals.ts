@@ -44,7 +44,7 @@ export interface ConsoleBooking {
 }
 
 /**
- * `Yalla.Application.Reservations.ApprovalTrigger`: 1 BranchApprovesEveryBooking,
+ * `Yalla.Domain.Enums.ApprovalTrigger`: 1 BranchApprovesEveryBooking,
  * 2 LargeParty, 3 NoShowHistory, 4 ShortNotice. `unknown` for a value a newer
  * server adds.
  *

@@ -259,7 +259,6 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
 
     async listAwaitingApproval(branchId) {
       // The server orders the list, soonest-closing window first; kept as sent.
-      // gateway-schema: awaiting-route — booking approval
       const { data } = await client.get<WireAwaitingApproval[]>(
         `/api/branches/${branchId}/reservations/awaiting`,
       );

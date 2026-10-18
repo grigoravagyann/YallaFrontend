@@ -1,9 +1,6 @@
 import type { AwaitingApproval, PreviousBookingContext } from '../contracts/approvals';
-import {
-  approvalExpiry,
-  approvalTrigger,
-  type WireReservationWithApproval,
-} from './approvalMapping';
+import type { components } from '../generated/schema';
+import { approvalExpiry, approvalTrigger } from './approvalMapping';
 import { reservationStatus } from './dinerMapping';
 
 /**
@@ -16,42 +13,12 @@ import { reservationStatus } from './dinerMapping';
  */
 
 /**
- * One row of `GET /api/branches/{branchId}/reservations/awaiting` —
- * `Yalla.Application.Reservations.AwaitingApproval`: the booking, why and until
- * when it waits, and the table around it. Every context field is absent when
- * there is none, like every null in this API.
+ * One row of `GET /api/branches/{branchId}/reservations/awaiting`: the
+ * booking, why and until when it waits, and the table around it. Every
+ * context field is absent when there is none, like every null in this API.
  */
-export interface WireAwaitingApproval {
-  readonly reservation: WireReservationWithApproval;
-  readonly approvalExpiresAtUtc?: string | null;
-  /** `ApprovalTrigger`, as on the reservation. */
-  readonly trigger?: number | null;
-  /** `AwaitingPreviousBooking`. */
-  readonly previousBooking?: {
-    readonly reservationId?: string;
-    readonly startUtc: string;
-    readonly localStartTime?: string;
-    readonly partySize: number;
-    readonly guestName: string;
-    /** Absent for a platform admin reading the list. */
-    readonly guestPhone?: string | null;
-    /** `ReservationStatus`. */
-    readonly status: number;
-  } | null;
-  /** `AwaitingNextBooking`. */
-  readonly nextBooking?: {
-    readonly reservationId?: string;
-    readonly startUtc: string;
-    readonly localStartTime?: string;
-    readonly partySize: number;
-  } | null;
-  /** `AwaitingCurrentSitting`. */
-  readonly currentSitting?: {
-    readonly seatedAtUtc: string;
-    /** Absent when a diner's scan opened the table, which only guesses. */
-    readonly partySize?: number | null;
-  } | null;
-}
+export type WireAwaitingApproval =
+  components['schemas']['Yalla.Application.Reservations.AwaitingApproval'];
 
 function blank(value: string | null | undefined): string | null {
   return value?.trim() ? value.trim() : null;

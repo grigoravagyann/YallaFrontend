@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { isApprovalExpired } from '../contracts/approvals';
-import type { components } from '../generated/schema';
 import type { WireReservationWithApproval } from './approvalMapping';
 import type { WireAwaitingApproval } from './awaitingApprovalMapping';
 import { awaitingApprovalFromWire } from './awaitingApprovalMapping';
@@ -19,8 +18,6 @@ import { createStaffHttpGateway } from './staffHttpGateway';
  * none of them yet: the fields are ahead of the generated schema, and an older
  * backend must read as "no window, not declined", never as a failure.
  */
-
-type Schemas = components['schemas'];
 
 const BRANCH = '0b5f3c1e-0000-4000-8000-000000000001';
 const EXPIRES = '2026-10-18T14:13:00Z';
@@ -47,9 +44,7 @@ const VIEW: WireReservationWithApproval = {
   guestName: 'Lilit',
   guestPhone: '+37493217788',
   wasReplay: false,
-  // ShortNotice is 4: one past the generated union, as a newer server sends it.
-  awaitingApprovalBecause:
-    4 as unknown as Schemas['Yalla.Application.Reservations.ApprovalTrigger'],
+  awaitingApprovalBecause: 4,
   approvalExpiresAtUtc: EXPIRES,
 };
 
@@ -97,7 +92,9 @@ describe("the diner's booking", () => {
   });
 
   it('keeps a reason a newer server adds, as unknown rather than as one it knows', () => {
-    expect(booking({ ...DECLINED, declinedBecause: 9 }, null).declinedBecause).toBe('unknown');
+    expect(booking({ ...DECLINED, declinedBecause: 9 as unknown as 1 }, null).declinedBecause).toBe(
+      'unknown',
+    );
   });
 
   it('drops a window left on a booking that is no longer waiting', () => {
@@ -199,7 +196,7 @@ describe('a request on the floor tablet', () => {
   });
 
   it("falls back to the reservation's own window and trigger, and to no context", () => {
-    const bare = awaitingApprovalFromWire({ reservation: VIEW });
+    const bare = awaitingApprovalFromWire({ reservation: VIEW } as WireAwaitingApproval);
     expect(bare).toMatchObject({
       approvalExpiresAtUtc: EXPIRES,
       because: 'shortNotice',
