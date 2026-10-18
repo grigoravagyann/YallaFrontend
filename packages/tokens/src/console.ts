@@ -125,6 +125,8 @@ export const consoleColor = {
   stepDone: '#B07A45',
   /** A loading placeholder's block, pulsing on the white card. */
   skeleton: '#EFE6DB',
+  /** A bar for what came to nothing (cancelled bookings): there, but quiet. */
+  barMuted: '#A8A29E',
 
   // --- Toast ------------------------------------------------------------------
   toast: '#2A1A10',
@@ -215,6 +217,8 @@ export const consoleText = {
   /** The sentence on the sign-in photo, and on a phone. */
   claim: 24,
   claimNarrow: 19,
+  /** A number on a venue page card. */
+  kpi: 26,
 } as const;
 
 export const consoleShadow = {

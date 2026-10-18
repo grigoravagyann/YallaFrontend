@@ -424,6 +424,9 @@ export type { ConsoleHttpGatewayOptions, ConsoleIdentityStore } from './http/con
 
 export type {
   AddBranchCommand,
+  BookingStatusCounts,
+  BookingSummaryDays,
+  BranchBookingsSummary,
   ConsoleBranch,
   ConsoleStaffMember,
   ConsoleUser,
@@ -439,11 +442,12 @@ export type {
   UpdateVenueCommand,
   UserRole,
   UserScope,
+  VenueBookingsSummary,
   VenueBranchTier,
   VenueReadinessIssue,
   VenueStatus,
 } from './contracts/console';
-export { SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
+export { BOOKING_SUMMARY_DAYS, SUBSCRIPTION_TIERS, USER_ROLES } from './contracts/console';
 export {
   applyVenueTier,
   checkVenueTier,

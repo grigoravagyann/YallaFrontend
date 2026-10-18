@@ -314,6 +314,38 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `.submitting`, `.cancel`, `create.error.branchRequired` and
     `create.error.generic`. The other `create.*` keys stay for the venue
     page's edit and add-branch forms (phase 3).
+- `admin` — the platform-admin console redesign, phase 3 (2026-10-18): the
+  venue page. `hy` is the VenueDetail artboard's copy, with the same
+  deliberate change as phase 2 (no suffix glued onto a name: "Մուտք՝
+  {{name}}" for the artboard's "{{name}}-ի մուտքը", "«{{name}}» վայրը" for
+  "{{name}}-ը"). `ru` and `en` were written from it and are **not** reviewed.
+  - New: the whole `venuePage.*` section — `crumbs`, `banner.*` (suspended,
+    with or without a date, and deleted), `edit` / `suspend` / `delete`,
+    `tabs.*`, `kpi.*`, `branches.*` (the branch table; `planButton` names the
+    plan and the branch), `readiness.*` (the five lines; `ready` / `notReady`
+    are read before each line by a screen reader), `facts.*`, `staff.*`,
+    `wizard.*` (the four steps), `issue.*`, `once.*`, `bookings.*`,
+    `editDialog.*`, `suspendDialog.*`, `branchDialog.*` and `toast.*`; and
+    under `venues.tierDialog`, the one-branch `branchTitlePaid` /
+    `branchTitleFree` / `branchRefusedPaid` / `branchRefusedFree` /
+    `branchLead`.
+  - `bookings.privacy` must keep saying the totals are all the platform
+    sees: guests' names and phones are the restaurant's alone.
+    `bookings.ofPast` and the two shares ("came", "no-shows") are of the
+    bookings already past, never of those still ahead.
+  - `issue.helpKeepsPassword` must keep saying the password works **until
+    the new link is opened**; `issue.helpChangesAddress` that the new
+    address takes over **from the moment the link is made**.
+  - `wizard.phone` is required although the artboard drew it optional: the
+    server refuses a staff member with no phone.
+  - Removed with the old venue page: `venue.branches`, `.branchTables_*`,
+    `.openTabs_*`, `.noBranches`, `.staff`, `.noStaff`, `.slug`, `.created`,
+    `.suspendedOn`, `.suspend`, `.resume`, `.delete`, `.openConsole`,
+    `.suspendTitle`, `.suspendBody`, `.suspendConfirm`, `.deleteTitle`,
+    `.deleteBody`, `.deleteTypeName`, `.deleteConfirm`, `.cancel`,
+    `.working`, `.staffFailed`, `venue.blocked.*` but `table` and `unknown`,
+    `venue.tier.*`, `venue.edit.*`, `venue.addBranch.*`, and every `create.*`
+    key but `typeCafe`, `typeRestaurant` and `typeBar`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

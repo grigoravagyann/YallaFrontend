@@ -29,6 +29,10 @@ export interface DemoBranchSeed {
   /** False: no opening hours set yet. */
   readonly hours: boolean;
   readonly district: string;
+  /** The street address, as the branch's listing has it. */
+  readonly address: string;
+  /** Bookings in a typical week, for the venue page's Bookings tab. */
+  readonly bookingsPerWeek: number;
 }
 
 export interface DemoVenueSeed {
@@ -58,6 +62,7 @@ const branch = (
     readonly tableCount: number;
     readonly tier: SubscriptionTier;
     readonly district: string;
+    readonly address: string;
   },
 ): DemoBranchSeed => ({
   id,
@@ -66,6 +71,8 @@ const branch = (
   openTabs: 0,
   unfinishedDishes: 0,
   hours: true,
+  // About three bookings a table a week, a busy Yerevan average.
+  bookingsPerWeek: options.tableCount * 3,
   ...options,
 });
 
@@ -82,6 +89,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#E7D3BF', ink: '#6B3A1C' },
     branches: [
       branch('b-cascade-center', 'Կենտրոն', 'center', {
+        address: 'Թամանյան 10, Կենտրոն',
         tableCount: 22,
         tier: 'paid',
         openTabs: 15,
@@ -102,12 +110,14 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#E2D6C8', ink: '#4F3424' },
     branches: [
       branch('b-yalla-demo-center', 'Կենտրոն', 'center', {
+        address: 'Աբովյան 12, Կենտրոն',
         tableCount: 8,
         tier: 'paid',
         openTabs: 6,
         district: 'Կենտրոն',
       }),
       branch('b-yalla-demo-komitas', 'Կոմիտաս', 'komitas', {
+        address: 'Կոմիտաս 32, Արաբկիր',
         tableCount: 6,
         tier: 'free',
         district: 'Արաբկիր',
@@ -127,6 +137,8 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: null,
     branches: [
       branch('b-sunset-north', 'Հյուսիսային պողոտա', 'northern-avenue', {
+        address: 'Հյուսիսային պողոտա 5',
+        bookingsPerWeek: 0,
         tableCount: 12,
         tier: 'free',
         district: 'Հյուսիսային պողոտա',
@@ -145,6 +157,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#DCE3D2', ink: '#3D5A2E' },
     branches: [
       branch('b-garden-arabkir', 'Արաբկիր', 'arabkir', {
+        address: 'Բաղրամյան 44, Արաբկիր',
         tableCount: 10,
         tier: 'free',
         hours: false,
@@ -164,6 +177,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#EAD9C9', ink: '#7A4422' },
     branches: [
       branch('b-luna-arabkir', 'Արաբկիր', 'arabkir', {
+        address: 'Կոմիտաս 8, Արաբկիր',
         tableCount: 14,
         tier: 'paid',
         openTabs: 11,
@@ -186,11 +200,13 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#E5D9CC', ink: '#5A3B26' },
     branches: [
       branch('b-mountain-kanaker', 'Քանաքեռ', 'kanaker', {
+        address: 'Ավան-Առինջ 3, Քանաքեռ',
         tableCount: 12,
         tier: 'free',
         district: 'Քանաքեռ',
       }),
       branch('b-mountain-nornork', 'Նոր Նորք', 'nor-nork', {
+        address: 'Գայի պողոտա 21, Նոր Նորք',
         tableCount: 6,
         tier: 'free',
         unfinishedDishes: 4,
@@ -210,6 +226,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#E0D4C4', ink: '#5B3A20' },
     branches: [
       branch('b-city-bites-center', 'Կենտրոն', 'center', {
+        address: 'Պուշկին 15, Կենտրոն',
         tableCount: 10,
         tier: 'paid',
         district: 'Կենտրոն',
@@ -229,6 +246,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#E7D3BF', ink: '#6B3A1C' },
     branches: [
       branch('b-riverside-hrazdan', 'Հրազդանի կիրճ', 'hrazdan-gorge', {
+        address: 'Հրազդանի կիրճ 1',
         tableCount: 30,
         tier: 'paid',
         openTabs: 9,
@@ -249,6 +267,7 @@ export const demoVenues: readonly DemoVenueSeed[] = [
     cover: { ground: '#E3D7CB', ink: '#5A3B26' },
     branches: [
       branch('b-old-town-center', 'Կենտրոն', 'center', {
+        address: 'Սարյան 9, Կենտրոն',
         tableCount: 9,
         tier: 'free',
         district: 'Կենտրոն',

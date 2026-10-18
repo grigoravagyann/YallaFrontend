@@ -22,11 +22,15 @@ function redesignFiles(): string[] {
       .filter((name) => /\.(css|tsx?)$/u.test(name) && !name.includes('.test.'))
       .map((name) => join(folder, name));
   const venues = join(SRC, 'console', 'platform', 'venues');
+  const venue = join(SRC, 'console', 'platform', 'venue');
   return [
     ...inFolder(ui),
     // The venues list (redesign phase 2): the route and everything in its folder.
     ...inFolder(venues),
     join(SRC, 'console', 'platform', 'VenuesRoute.tsx'),
+    // The venue page (redesign phase 3).
+    ...inFolder(venue),
+    join(SRC, 'console', 'platform', 'VenueDetailRoute.tsx'),
     join(SRC, 'console', 'platform', 'PlatformLayout.tsx'),
     join(SRC, 'console', 'platform', 'SettingsRoute.tsx'),
     join(SRC, 'auth', 'AuthLayout.tsx'),
@@ -48,6 +52,7 @@ describe('the console redesign', () => {
     const files = redesignFiles();
     expect(files.some((file) => file.endsWith('.css'))).toBe(true);
     expect(files.some((file) => file.endsWith('TierDialog.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('AddStaffWizard.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {

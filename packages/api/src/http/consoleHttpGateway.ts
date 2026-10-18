@@ -62,9 +62,11 @@ import {
   readinessFromWire,
   reviewPageFromWire,
   venueDetailFromWire,
+  venueBookingsSummaryFromWire,
   venuePageFromWire,
   venueReviewFromWire,
   type WireManagedVenue,
+  type WireVenueBookingsSummary,
 } from './consoleMapping';
 import {
   createStaffBody,
@@ -533,6 +535,15 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    async getVenueBookingsSummary({ venueId, days }) {
+      // gateway-schema: awaiting-route — console redesign: the venue page's Bookings tab
+      const { data } = await client.get<WireVenueBookingsSummary>(
+        `${PLATFORM}/venues/${venueId}/bookings-summary`,
+        { query: { days } },
+      );
+      return venueBookingsSummaryFromWire(data);
     },
 
     async restoreVenue({ venueId }) {

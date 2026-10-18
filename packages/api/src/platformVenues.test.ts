@@ -203,3 +203,48 @@ describe('switching every branch of a venue', () => {
     for (const sent of sentIds) expect(sent.startsWith('c-1')).toBe(true);
   });
 });
+
+describe('switching one branch, from the venue page', () => {
+  let gateway: ConsoleGateway;
+  beforeEach(() => {
+    n = 0;
+    gateway = createConsoleMockGateway({ latencyMs: 0 });
+  });
+
+  it("checks and moves only the branch it was given: Mountain View's ready one goes Paid", async () => {
+    const id = await venueId(gateway, 'Mountain View');
+    const venue = await gateway.getVenue(id);
+    const ready = venue!.branches.find((branch) => branch.slug === 'kanaker')!;
+
+    const check = await checkVenueTier(gateway, {
+      venueId: id,
+      tier: 'paid',
+      branchIds: [ready.id],
+    });
+    expect(check.toChange.map((branch) => branch.id)).toEqual([ready.id]);
+    expect(check.blockers).toEqual([]);
+
+    const result = await applyVenueTier(gateway, {
+      venueId: id,
+      tier: 'paid',
+      commandId: cmd(),
+      branchIds: [ready.id],
+    });
+    expect(result.changed.map((branch) => branch.id)).toEqual([ready.id]);
+    const after = await gateway.getVenue(id);
+    expect(after?.branches.find((branch) => branch.id === ready.id)?.subscriptionTier).toBe('paid');
+    expect(after?.branches.find((branch) => branch.id !== ready.id)?.subscriptionTier).toBe('free');
+  });
+
+  it('still refuses the unready branch on its own', async () => {
+    const id = await venueId(gateway, 'Mountain View');
+    const venue = await gateway.getVenue(id);
+    const unready = venue!.branches.find((branch) => branch.slug === 'nor-nork')!;
+    const check = await checkVenueTier(gateway, {
+      venueId: id,
+      tier: 'paid',
+      branchIds: [unready.id],
+    });
+    expect(check.blockers.map((blocker) => blocker.incompleteMenuItemCount)).toEqual([4]);
+  });
+});

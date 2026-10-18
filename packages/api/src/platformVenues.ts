@@ -102,10 +102,21 @@ async function requireVenue(
  */
 export async function checkVenueTier(
   gateway: Pick<ConsoleGateway, 'getVenue' | 'getBranchReadiness'>,
-  input: { readonly venueId: string; readonly tier: SubscriptionTier },
+  input: {
+    readonly venueId: string;
+    readonly tier: SubscriptionTier;
+    /**
+     * Only these branches: the venue page's per-branch plan control. Absent,
+     * every branch of the venue — the list's one button.
+     */
+    readonly branchIds?: readonly string[] | undefined;
+  },
 ): Promise<VenueTierCheck> {
   const venue = await requireVenue(gateway, input.venueId);
-  const toChange = venue.branches.filter((branch) => branch.subscriptionTier !== input.tier);
+  const scope = input.branchIds ? new Set(input.branchIds) : null;
+  const toChange = venue.branches.filter(
+    (branch) => branch.subscriptionTier !== input.tier && (scope === null || scope.has(branch.id)),
+  );
   if (input.tier !== 'paid') return { venue, toChange, blockers: [] };
 
   const readiness = await Promise.all(
@@ -152,7 +163,13 @@ export interface VenueTierResult {
  */
 export async function applyVenueTier(
   gateway: Pick<ConsoleGateway, 'getVenue' | 'getBranchReadiness' | 'setBranchTier'>,
-  input: { readonly venueId: string; readonly tier: SubscriptionTier; readonly commandId: string },
+  input: {
+    readonly venueId: string;
+    readonly tier: SubscriptionTier;
+    readonly commandId: string;
+    /** Only these branches; absent, every branch. See {@link checkVenueTier}. */
+    readonly branchIds?: readonly string[] | undefined;
+  },
 ): Promise<VenueTierResult> {
   const check = await checkVenueTier(gateway, input);
   if (check.blockers.length > 0) {

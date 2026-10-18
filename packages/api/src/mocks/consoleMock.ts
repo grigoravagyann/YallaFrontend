@@ -6,6 +6,8 @@ import type {
   ConsoleStaffMember,
   ConsoleUser,
   ConsoleVenue,
+  BookingStatusCounts,
+  BranchBookingsSummary,
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
@@ -16,6 +18,7 @@ import type {
   UserRole,
   VenueBranchTier,
   VenueReadinessIssue,
+  VenueBookingsSummary,
   VenueStatus,
   VenueType,
 } from '../contracts/console';
@@ -338,6 +341,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const demoMenuGaps = new Map<string, number>();
   /** Demo branches with no opening hours yet. */
   const demoNoHours = new Set<string>();
+  /** Bookings in a typical week, per demo branch; the rest are derived from their tables. */
+  const demoBookingRate = new Map<string, number>();
   /**
    * A branch's own web address, where the console was given one. A branch
    * named in Armenian slugifies to nothing, so the name cannot stand in for it.
@@ -1081,6 +1086,13 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       demoMenuGaps.set(seed.id, seed.unfinishedDishes);
       if (!seed.hours) demoNoHours.add(seed.id);
       branchSlugs.set(seed.id, seed.slug);
+      demoBookingRate.set(seed.id, seed.bookingsPerWeek);
+      listings.set(seed.id, {
+        ...listingFor(seed.id),
+        address: seed.address,
+        district: seed.district,
+        cuisine: demo.cuisine,
+      });
     }
     venues.set(demo.id, {
       id: demo.id,
@@ -1195,7 +1207,77 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   }
 
   function toDetail(record: VenueRecord): ConsoleVenueDetail {
-    return { ...toRow(record), branches: record.branches, staff: record.staff };
+    return {
+      ...toRow(record),
+      // The platform read carries each branch's web address and street address.
+      branches: record.branches.map((branch) => ({
+        ...branch,
+        slug: slugOf(branch),
+        address: listingFor(branch.id).address,
+      })),
+      staff: record.staff,
+    };
+  }
+
+  /** A small stable number from a string, so the mock's made-up counts never flicker. */
+  function hashOf(text: string): number {
+    let hash = 7;
+    for (const character of text) hash = (hash * 31 + character.charCodeAt(0)) % 100_003;
+    return hash;
+  }
+
+  /** Monday first: Friday and Saturday are the busy nights. */
+  const WEEKDAY_SHARE = [0.1, 0.11, 0.11, 0.14, 0.2, 0.21, 0.13];
+
+  /**
+   * `PlatformService` venue bookings summary, over a made-up but stable history:
+   * a branch books about three times a table a week (a demo branch says its
+   * own rate), split by what became of the bookings and by weekday. The
+   * counts add up exactly, by status, by branch and by weekday.
+   */
+  function bookingsSummaryFor(record: VenueRecord, days: 7 | 30): VenueBookingsSummary {
+    const split = (total: number): BookingStatusCounts => {
+      const upcoming = Math.floor(total * 0.045);
+      const pending = Math.min(total - upcoming, Math.floor(total * 0.01) + (total > 0 ? 1 : 0));
+      const cancelled = Math.floor(total * 0.085);
+      const noShow = Math.floor(total * 0.04);
+      return {
+        completed: total - upcoming - pending - cancelled - noShow,
+        upcoming,
+        pending,
+        cancelled,
+        noShow,
+      };
+    };
+    const byBranch: BranchBookingsSummary[] = record.branches.map((branch) => {
+      const perWeek =
+        demoBookingRate.get(branch.id) ??
+        Math.round(branch.tableCount * (2 + (hashOf(branch.id) % 20) / 10));
+      const total = Math.round((perWeek * days) / 7);
+      return { branchId: branch.id, name: branch.name, total, ...split(total) };
+    });
+    const total = byBranch.reduce((sum, branch) => sum + branch.total, 0);
+    const add = (key: keyof BookingStatusCounts) =>
+      byBranch.reduce((sum, branch) => sum + branch[key], 0);
+    const byWeekday = WEEKDAY_SHARE.map((share) => Math.floor(total * share));
+    // Whatever rounding left over falls on Saturday, the busiest night.
+    byWeekday[5] = (byWeekday[5] ?? 0) + total - byWeekday.reduce((a, b) => a + b, 0);
+    return {
+      venueId: record.id,
+      days,
+      total,
+      byStatus: {
+        completed: add('completed'),
+        upcoming: add('upcoming'),
+        pending: add('pending'),
+        cancelled: add('cancelled'),
+        noShow: add('noShow'),
+      },
+      byWeekday,
+      averagePartySize:
+        total > 0 ? Math.round((2.4 + (hashOf(record.id) % 12) / 10) * 10) / 10 : null,
+      byBranch,
+    };
   }
 
   function requireVenue(venueId: string): VenueRecord {
@@ -1810,6 +1892,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
       record.status = 'deleted';
       return toDetail(record);
+    },
+
+    async getVenueBookingsSummary({ venueId, days }) {
+      await wait();
+      // PlatformAdminOnly, like every `/api/platform` read.
+      if (role !== 'platformAdmin') {
+        throw new ForbiddenError({ url: `${URL_TAG}/platform/venues/${venueId}/bookings-summary` });
+      }
+      return bookingsSummaryFor(requireVenue(venueId), days);
     },
 
     async restoreVenue({ venueId }) {

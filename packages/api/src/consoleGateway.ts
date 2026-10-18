@@ -48,6 +48,7 @@ import type {
 } from './contracts/reports';
 import type {
   AddBranchCommand,
+  BookingSummaryDays,
   ConsoleUser,
   ConsoleVenue,
   ConsoleVenueDetail,
@@ -57,6 +58,7 @@ import type {
   Page,
   SubscriptionTier,
   UpdateVenueCommand,
+  VenueBookingsSummary,
 } from './contracts/console';
 
 /**
@@ -159,6 +161,19 @@ export interface ConsoleGateway {
    * @throws {ConcurrencyConflictError} the venue is not deleted.
    */
   restoreVenue(input: { venueId: string; commandId: string }): Promise<ConsoleVenueDetail>;
+
+  /**
+   * A venue's bookings over the last 7 or 30 days, aggregates only: counts by
+   * status, by branch and by weekday, and the average party. Platform admin
+   * only; never a guest's name or phone.
+   *
+   * `GET /api/platform/venues/{venueId}/bookings-summary?days=7|30` — being
+   * built with the console redesign.
+   */
+  getVenueBookingsSummary(input: {
+    venueId: string;
+    days: BookingSummaryDays;
+  }): Promise<VenueBookingsSummary>;
 
   /** Platform admin only; an owner cannot change what they are paying for. */
   setBranchTier(input: {

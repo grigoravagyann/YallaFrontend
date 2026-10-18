@@ -230,6 +230,7 @@
   --console-meter-fair: #6E8B3D;
   --console-step-done: #B07A45;
   --console-skeleton: #EFE6DB;
+  --console-bar-muted: #A8A29E;
   --console-toast: #2A1A10;
   --console-toast-foreground: #FFF3E4;
   --console-toast-icon: #9FD9BD;
@@ -275,6 +276,7 @@
   --console-text-auth-brand-narrow: 26px;
   --console-text-claim: 24px;
   --console-text-claim-narrow: 19px;
+  --console-text-kpi: 26px;
   --console-shadow-dialog: 0 24px 60px rgba(42, 26, 16, 0.3);
   --console-shadow-toast: 0 10px 30px rgba(42, 26, 16, 0.25);
   --console-shadow-menu: 0 12px 32px rgba(42, 26, 16, 0.14);

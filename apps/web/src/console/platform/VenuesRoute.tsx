@@ -16,7 +16,6 @@ import { ErrorState, errorKindFor } from '../ui/ErrorState';
 import {
   AlertCircleIcon,
   ChevronsUpDownIcon,
-  ImageOffIcon,
   PauseIcon,
   PlusIcon,
   RestoreIcon,
@@ -30,6 +29,7 @@ import { CreateVenueDialog, type CreatedVenue } from './venues/CreateVenueDialog
 import { DeleteVenueDialog } from './venues/DeleteVenueDialog';
 import { RowMenu, type RowMenuItem } from './venues/RowMenu';
 import { TierDialog } from './venues/TierDialog';
+import { VenueThumb } from './venues/VenueThumb';
 import {
   DEFAULT_FILTERS,
   STATUS_FILTERS,
@@ -546,7 +546,6 @@ export function VenuesRoute() {
         shown.created.kind === 'withLink' ? (
           <OnceLinkDialog
             title={t('venues.once.title', { name: shown.created.venue.name })}
-            email={shown.created.email}
             link={shown.created.link}
             pin={shown.created.pin}
             venueHref={`/platform/venues/${shown.created.venue.id}`}
@@ -656,7 +655,7 @@ function VenueRow({
     <tr className={venue.status === 'active' ? undefined : 'is-dim'}>
       <td>
         <div className="yc-vcell">
-          <Thumb venue={venue} />
+          <VenueThumb venue={venue} />
           <div className="yc-vtext">
             <Link className="yc-vname" to={`/platform/venues/${venue.id}`}>
               {venue.name}
@@ -728,25 +727,6 @@ function VenueRow({
         />
       </td>
     </tr>
-  );
-}
-
-/** The cover, a "no photo yet" tile, or the initial when the source does not say. */
-function Thumb({ venue }: { readonly venue: ConsoleVenue }) {
-  if (typeof venue.coverThumbnailUrl === 'string') {
-    return <img className="yc-thumb" src={venue.coverThumbnailUrl} alt="" loading="lazy" />;
-  }
-  if (venue.coverThumbnailUrl === null) {
-    return (
-      <span className="yc-thumb yc-thumb-none" aria-hidden="true">
-        <ImageOffIcon />
-      </span>
-    );
-  }
-  return (
-    <span className="yc-thumb yc-thumb-letter" aria-hidden="true">
-      {Array.from(venue.name)[0] ?? ''}
-    </span>
   );
 }
 

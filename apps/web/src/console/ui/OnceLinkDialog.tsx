@@ -8,11 +8,23 @@ import { useToast } from './toast';
 
 export interface OnceLinkDialogProps {
   readonly title: string;
-  /** Who the link is for. */
-  readonly email: string;
-  readonly link: StaffSignInLink;
+  /**
+   * The one copy of the sign-in link, or `null` when there is none to show: a
+   * PIN-only hire, or a hire whose link the server refused (`failure`).
+   */
+  readonly link: StaffSignInLink | null;
   /** The tablet PIN made with the person, shown once beside the link. */
   readonly pin?: string | null;
+  /** The sentence under the title; the venue list's by default. */
+  readonly body?: string;
+  /** The line under the PIN. */
+  readonly pinHelp?: string;
+  /** The line under the link, given when it stops working; the owner's by default. */
+  readonly linkHelp?: (when: string) => string;
+  /** Why no link was made, when the person exists but the server refused it. */
+  readonly failure?: string | null;
+  /** Offered with `failure`: closes this and asks for the address again. */
+  readonly onRetry?: (() => void) | null;
   /** "Open the venue page", when there is one to open. */
   readonly venueHref?: string;
   readonly timeZoneId: string;
@@ -20,23 +32,28 @@ export interface OnceLinkDialogProps {
 }
 
 /**
- * A sign-in link shown once, to copy and pass on in a chat (HANDOFF section 3:
- * links are never emailed).
+ * A sign-in link and a PIN shown once, to copy and pass on in a chat
+ * (HANDOFF section 3: links are never emailed).
  *
  * The server keeps the token's hash and no read returns the link, so this is
  * the only copy: it lives in the opener's state, never in a cache, a URL or a
  * log, and is gone when this closes. Hence the dialog cannot be dismissed by
  * Escape or the scrim, and "Done" before a copy warns once — the second "Done"
- * closes, for somebody who means it.
+ * closes, for somebody who means it. A PIN alone has nothing to copy: it is
+ * read out across a counter, so it asks for no copy first.
  *
  * Copy falls back to selecting the link when the clipboard is out of reach,
  * and says to press Ctrl+C.
  */
 export function OnceLinkDialog({
   title,
-  email,
   link,
   pin = null,
+  body,
+  pinHelp,
+  linkHelp,
+  failure = null,
+  onRetry = null,
   venueHref,
   timeZoneId,
   onDone,
@@ -50,11 +67,13 @@ export function OnceLinkDialog({
   const linkId = useId();
   const bodyId = useId();
 
-  const when = `${formatDate(link.expiresAtUtc, timeZoneId, locale)} ${formatTime(
-    link.expiresAtUtc,
-    timeZoneId,
-    locale,
-  )}`;
+  const when = link
+    ? `${formatDate(link.expiresAtUtc, timeZoneId, locale)} ${formatTime(
+        link.expiresAtUtc,
+        timeZoneId,
+        locale,
+      )}`
+    : '';
 
   function selectLink() {
     const input = inputRef.current;
@@ -64,6 +83,7 @@ export function OnceLinkDialog({
   }
 
   async function copy() {
+    if (!link) return;
     try {
       await navigator.clipboard.writeText(link.resetLink);
       setCopied(true);
@@ -75,7 +95,7 @@ export function OnceLinkDialog({
   }
 
   function done() {
-    if (!copied && !nag) {
+    if (link && !copied && !nag) {
       setNag(true);
       return;
     }
@@ -84,41 +104,53 @@ export function OnceLinkDialog({
 
   return (
     <Dialog title={title} describedBy={bodyId} dismissible={false} onClose={() => undefined}>
-      <p id={bodyId}>{t('venues.once.body')}</p>
-      <div className="yc-once">
-        <span className="yc-help yc-strong">{t('venues.once.linkFor', { email })}</span>
-        <div className="yc-linkrow">
-          <label htmlFor={linkId} className="yc-sr">
-            {t('venues.once.link')}
-          </label>
-          <input
-            ref={inputRef}
-            id={linkId}
-            className="yc-ctl yc-mono"
-            readOnly
-            value={link.resetLink}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <button
-            type="button"
-            className="yc-btn yc-btn-pri"
-            data-autofocus=""
-            onClick={() => void copy()}
-          >
-            {copied ? t('venues.once.copied') : t('venues.once.copy')}
-          </button>
+      <p id={bodyId}>{body ?? t('venues.once.body')}</p>
+      {pin ? (
+        <div className="yc-once">
+          <span className="yc-help yc-strong">{t('venues.once.pin')}</span>
+          {/* Spelled out for a screen reader: "7 3 1 5", not "seven thousand…". */}
+          <span className="yc-pin" aria-label={pin.split('').join(' ')}>
+            {pin}
+          </span>
+          <span className="yc-help">{pinHelp ?? t('venues.once.pinHelp')}</span>
         </div>
-        <span className="yc-help">{t('venues.once.help', { when })}</span>
-        {pin ? (
-          <div className="yc-once-pin">
-            <span className="yc-help yc-strong">{t('venues.once.pin')}</span>
-            <span className="yc-pin" aria-label={pin.split('').join(' ')}>
-              {pin}
-            </span>
-            <span className="yc-help">{t('venues.once.pinHelp')}</span>
+      ) : null}
+      {link ? (
+        <div className="yc-once">
+          <span className="yc-help yc-strong">
+            {t('venues.once.linkFor', { email: link.email })}
+          </span>
+          <div className="yc-linkrow">
+            <label htmlFor={linkId} className="yc-sr">
+              {t('venues.once.link')}
+            </label>
+            <input
+              ref={inputRef}
+              id={linkId}
+              className="yc-ctl yc-mono"
+              readOnly
+              value={link.resetLink}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+            <button
+              type="button"
+              className="yc-btn yc-btn-pri"
+              data-autofocus=""
+              onClick={() => void copy()}
+            >
+              {copied ? t('venues.once.copied') : t('venues.once.copy')}
+            </button>
           </div>
-        ) : null}
-      </div>
+          <span className="yc-help">
+            {linkHelp ? linkHelp(when) : t('venues.once.help', { when })}
+          </span>
+        </div>
+      ) : null}
+      {failure ? (
+        <p className="yc-alert yc-alert-warn" role="alert">
+          {failure}
+        </p>
+      ) : null}
       {nag ? (
         <p className="yc-err" role="alert">
           {t('venues.once.nag')}
@@ -130,7 +162,17 @@ export function OnceLinkDialog({
             {t('venues.once.openVenue')}
           </Link>
         ) : null}
-        <button type="button" className="yc-btn yc-btn-pri" onClick={done}>
+        {failure && onRetry ? (
+          <button type="button" className="yc-btn yc-btn-sec" onClick={onRetry}>
+            {t('venuePage.once.retry')}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="yc-btn yc-btn-pri"
+          {...(link ? {} : { 'data-autofocus': '' })}
+          onClick={done}
+        >
           {t('venues.once.done')}
         </button>
       </div>

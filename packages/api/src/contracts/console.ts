@@ -184,6 +184,13 @@ export interface ConsoleBranch {
   readonly id: string;
   readonly venueId: string;
   readonly name: string;
+  /**
+   * The branch half of `yalla.am/{venue}/{branch}`, and its street address.
+   * Optional because older shapes of this row did not carry them; the
+   * platform venue read does.
+   */
+  readonly slug?: string | undefined;
+  readonly address?: string | null | undefined;
   readonly timeZoneId: string;
   readonly tableCount: number;
   readonly subscriptionTier: SubscriptionTier;
@@ -341,4 +348,52 @@ export interface AddBranchCommand {
   readonly latitude: number;
   readonly longitude: number;
   readonly timeZoneId: string;
+}
+
+// ---------------------------------------------------------------------------
+// A venue's bookings, as the platform admin may see them
+// ---------------------------------------------------------------------------
+
+/** The two windows the venue page offers: the last week and the last month. */
+export type BookingSummaryDays = 7 | 30;
+export const BOOKING_SUMMARY_DAYS: readonly BookingSummaryDays[] = [7, 30];
+
+/**
+ * Bookings counted by what became of them.
+ *
+ * - `completed`: the party came (seated, then completed).
+ * - `upcoming`: confirmed and still ahead.
+ * - `pending`: waiting for the venue to approve.
+ * - `cancelled`: by the guest or by the venue.
+ * - `noShow`: confirmed, and nobody came.
+ */
+export interface BookingStatusCounts {
+  readonly completed: number;
+  readonly upcoming: number;
+  readonly pending: number;
+  readonly cancelled: number;
+  readonly noShow: number;
+}
+
+export interface BranchBookingsSummary extends BookingStatusCounts {
+  readonly branchId: string;
+  readonly name: string;
+  readonly total: number;
+}
+
+/**
+ * A venue's bookings over the last 7 or 30 days, **aggregates only**
+ * (HANDOFF section 3): the platform admin never sees a guest's name or phone,
+ * so nothing here can carry one. Counted in the branches' own time zone.
+ */
+export interface VenueBookingsSummary {
+  readonly venueId: string;
+  readonly days: BookingSummaryDays;
+  readonly total: number;
+  readonly byStatus: BookingStatusCounts;
+  /** Seven counts, **Monday first**, by the day the booking is for. */
+  readonly byWeekday: readonly number[];
+  /** Guests per booking; `null` with no bookings in the window. */
+  readonly averagePartySize: number | null;
+  readonly byBranch: readonly BranchBookingsSummary[];
 }

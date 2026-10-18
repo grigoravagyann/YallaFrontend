@@ -2,6 +2,7 @@ import {
   BranchNotReadyError,
   ConcurrencyConflictError,
   venueTierSummary,
+  type ConsoleBranch,
   type ConsoleVenue,
   type SubscriptionTier,
   type VenueTierRefusal,
@@ -15,6 +16,11 @@ import { CheckIcon, CrossIcon, MinusIcon, ReceiptIcon } from '../../ui/icons';
 
 export interface TierDialogProps {
   readonly venue: ConsoleVenue;
+  /**
+   * One branch only: the venue page's per-branch plan control. Absent, every
+   * branch of the venue — the list's button.
+   */
+  readonly branch?: Pick<ConsoleBranch, 'id' | 'name' | 'subscriptionTier'> | undefined;
   readonly onClose: () => void;
   /** Said once every branch has moved. */
   readonly onDone: (message: string) => void;
@@ -42,15 +48,22 @@ interface Refused {
  * going Free with tabs open, or a menu that changed in between — lands in the
  * same view, naming the branch and anything that had already moved.
  *
- * A venue with branches on both plans chooses one for all of them.
+ * A venue with branches on both plans chooses one for all of them. Given a
+ * `branch`, the same dialog switches that branch alone, with the same check.
  */
-export function TierDialog({ venue, onClose, onDone, returnFocusTo }: TierDialogProps) {
+export function TierDialog({ venue, branch, onClose, onDone, returnFocusTo }: TierDialogProps) {
   const { t } = useTranslation(['admin', 'common']);
-  const summary = venueTierSummary(venue);
+  const summary = branch
+    ? venueTierSummary({
+        branchCount: 1,
+        paidBranchCount: branch.subscriptionTier === 'paid' ? 1 : 0,
+      })
+    : venueTierSummary(venue);
+  const branchIds = branch ? [branch.id] : undefined;
   const [target, setTarget] = useState<SubscriptionTier>(summary.kind === 'paid' ? 'free' : 'paid');
   const [refused, setRefused] = useState<Refused | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const check = useVenueTierCheck({ venueId: venue.id, tier: target });
+  const check = useVenueTierCheck({ venueId: venue.id, tier: target, branchIds });
   const apply = useSetVenueTier();
   const gotItRef = useRef<HTMLButtonElement>(null);
   const refuseId = useId();
@@ -78,7 +91,7 @@ export function TierDialog({ venue, onClose, onDone, returnFocusTo }: TierDialog
     hint:
       target === 'free'
         ? t('venues.tierDialog.openTabsHint')
-        : summary.total > 1
+        : summary.total > 1 && !branch
           ? `${t('venues.tierDialog.notReadyHint')} ${t('venues.tierDialog.perBranchHint')}`
           : t('venues.tierDialog.notReadyHint'),
     changed,
@@ -119,12 +132,17 @@ export function TierDialog({ venue, onClose, onDone, returnFocusTo }: TierDialog
         venueId: venue.id,
         tier: target,
         commandId: commandId.current,
+        branchIds,
       });
       if (result.refused.length === 0) {
         onDone(
-          t(target === 'paid' ? 'venues.toast.nowPaid' : 'venues.toast.nowFree', {
-            name: venue.name,
-          }),
+          branch
+            ? t(target === 'paid' ? 'venuePage.toast.branchPaid' : 'venuePage.toast.branchFree', {
+                name: branch.name,
+              })
+            : t(target === 'paid' ? 'venues.toast.nowPaid' : 'venues.toast.nowFree', {
+                name: venue.name,
+              }),
         );
         return;
       }
@@ -143,12 +161,21 @@ export function TierDialog({ venue, onClose, onDone, returnFocusTo }: TierDialog
     return (
       <Dialog
         alert
-        title={t(
-          shownRefusal.tier === 'paid'
-            ? 'venues.tierDialog.titleRefusedPaid'
-            : 'venues.tierDialog.titleRefusedFree',
-          { name: venue.name },
-        )}
+        title={
+          branch
+            ? t(
+                shownRefusal.tier === 'paid'
+                  ? 'venues.tierDialog.branchRefusedPaid'
+                  : 'venues.tierDialog.branchRefusedFree',
+                { name: branch.name },
+              )
+            : t(
+                shownRefusal.tier === 'paid'
+                  ? 'venues.tierDialog.titleRefusedPaid'
+                  : 'venues.tierDialog.titleRefusedFree',
+                { name: venue.name },
+              )
+        }
         describedBy={refuseId}
         onClose={onClose}
         returnFocusTo={returnFocusTo}
@@ -197,8 +224,16 @@ export function TierDialog({ venue, onClose, onDone, returnFocusTo }: TierDialog
           { tone: 'same', icon: <MinusIcon />, text: t('venues.tierDialog.free3') },
         ];
 
-  const title =
-    summary.kind === 'mixed'
+  const title = branch
+    ? t(
+        target === 'paid'
+          ? 'venues.tierDialog.branchTitlePaid'
+          : 'venues.tierDialog.branchTitleFree',
+        {
+          name: branch.name,
+        },
+      )
+    : summary.kind === 'mixed'
       ? t('venues.tierDialog.titleMixed', { name: venue.name })
       : t(target === 'paid' ? 'venues.tierDialog.titlePaid' : 'venues.tierDialog.titleFree', {
           name: venue.name,
@@ -209,9 +244,11 @@ export function TierDialog({ venue, onClose, onDone, returnFocusTo }: TierDialog
       alert
       title={title}
       description={
-        summary.kind === 'mixed'
-          ? t('venues.tierDialog.mixedLead', { paid: summary.paid, total: summary.total })
-          : t('venues.tierDialog.lead')
+        branch
+          ? t('venues.tierDialog.branchLead')
+          : summary.kind === 'mixed'
+            ? t('venues.tierDialog.mixedLead', { paid: summary.paid, total: summary.total })
+            : t('venues.tierDialog.lead')
       }
       onClose={busy ? () => undefined : onClose}
       dismissible={!busy}

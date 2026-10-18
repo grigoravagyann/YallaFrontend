@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   createContext,
   createElement,
@@ -11,6 +17,7 @@ import type { ConsoleGateway } from '../consoleGateway';
 import type { Booking, RescheduleBookingCommand } from '../contracts/booking';
 import type {
   AddBranchCommand,
+  BookingSummaryDays,
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
@@ -241,8 +248,11 @@ export const queryKeys = {
    */
   allConsoleVenues: ['console', 'venues', 'all'] as const,
   /** What a tier switch would do. Never cached: it is asked as the dialog opens. */
-  venueTierCheck: (venueId: string, tier: SubscriptionTier) =>
-    ['console', 'venueTierCheck', venueId, tier] as const,
+  venueTierCheck: (venueId: string, tier: SubscriptionTier, branchIds: readonly string[] | null) =>
+    ['console', 'venueTierCheck', venueId, tier, branchIds] as const,
+  /** Under the venue, so a venue command's invalidation of the venue reaches it too. */
+  venueBookingsSummary: (venueId: string, days: BookingSummaryDays) =>
+    ['console', 'venue', venueId, 'bookingsSummary', days] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
   // Its own key, not `consoleVenue`'s: the two reads answer different shapes
   // for different callers, and `useVenueCommand` writes a `ConsoleVenueDetail`
@@ -684,6 +694,38 @@ export function useAllConsoleVenues() {
   });
 }
 
+/**
+ * A venue's bookings over the last 7 or 30 days, aggregates only — the venue
+ * page's Bookings tab. Platform admin only.
+ */
+export function useVenueBookingsSummary(venueId: string | undefined, days: BookingSummaryDays) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.venueBookingsSummary(venueId ?? '', days),
+    queryFn: () => gateway.getVenueBookingsSummary({ venueId: venueId!, days }),
+    enabled: Boolean(venueId),
+    staleTime: staleTime.frequent,
+    // A switch from 30 days to 7 keeps the month on screen until the week arrives.
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Every branch's readiness at once, for the venue page's checklist. One
+ * query per branch under the same key `useBranchReadiness` uses, so the two
+ * share their answers.
+ */
+export function useBranchesReadiness(branchIds: readonly string[]) {
+  const gateway = useConsoleGateway();
+  return useQueries({
+    queries: branchIds.map((branchId) => ({
+      queryKey: queryKeys.readiness(branchId),
+      queryFn: () => gateway.getBranchReadiness(branchId),
+      staleTime: staleTime.live,
+    })),
+  });
+}
+
 /** Undo a soft delete. Platform admin only; caches like every venue command. */
 export function useRestoreVenue() {
   const gateway = useConsoleGateway();
@@ -699,11 +741,20 @@ export function useRestoreVenue() {
  * is the one answer worse than none.
  */
 export function useVenueTierCheck(
-  input: { readonly venueId: string; readonly tier: SubscriptionTier } | null,
+  input: {
+    readonly venueId: string;
+    readonly tier: SubscriptionTier;
+    /** One branch, from the venue page; absent, every branch (the list's button). */
+    readonly branchIds?: readonly string[] | undefined;
+  } | null,
 ) {
   const gateway = useConsoleGateway();
   return useQuery({
-    queryKey: queryKeys.venueTierCheck(input?.venueId ?? '', input?.tier ?? 'free'),
+    queryKey: queryKeys.venueTierCheck(
+      input?.venueId ?? '',
+      input?.tier ?? 'free',
+      input?.branchIds ?? null,
+    ),
     queryFn: () => checkVenueTier(gateway, input!),
     enabled: input !== null,
     staleTime: 0,
@@ -722,8 +773,12 @@ export function useSetVenueTier() {
   const gateway = useConsoleGateway();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { venueId: string; tier: SubscriptionTier; commandId: string }) =>
-      applyVenueTier(gateway, input),
+    mutationFn: (input: {
+      venueId: string;
+      tier: SubscriptionTier;
+      commandId: string;
+      branchIds?: readonly string[] | undefined;
+    }) => applyVenueTier(gateway, input),
     onSuccess: (result: VenueTierResult) => {
       queryClient.setQueryData(queryKeys.consoleVenue(result.venue.id), result.venue);
       void queryClient.invalidateQueries({ queryKey: queryKeys.managedVenue(result.venue.id) });
