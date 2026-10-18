@@ -51,6 +51,13 @@ function person(participantId: string, displayName: string, status = 'pendingApp
 const HOST = { ...person('p-host', 'Aram', 'approved'), role: 'host', isYou: true } as RosterPerson;
 const ANNA = person('p-anna', 'Anna');
 const GOR = person('p-gor', 'Gor');
+const SONA = person('p-sona', 'Sona');
+/** The server's name for somebody who gave none. */
+const GUEST_3 = person('p-guest-3', 'Guest 3');
+
+/** The single request's answers, called aloud with the person's name. */
+const APPROVE_ANNA = 'tab.joinRequest.approveNamed {"name":"Anna"}';
+const NOT_ANNA = 'tab.joinRequest.rejectNamed {"name":"Anna"}';
 
 function change(participantId: string, status: TabParticipantChange['status']) {
   return {
@@ -98,6 +105,16 @@ describe('JoinRequestBanner', () => {
     renderBanner([HOST, ANNA]);
 
     expect(screen.getByRole('status').textContent).toContain('tab.joinRequest.one {"name":"Anna"}');
+    // Seen as "Approve" and "Not with us"; heard as whose request they answer.
+    expect(screen.getByRole('button', { name: APPROVE_ANNA }).textContent).toBe('people.approve');
+    expect(screen.getByRole('button', { name: NOT_ANNA }).textContent).toBe('people.reject');
+  });
+
+  it('calls the server placeholder "Guest 3" a guest, and the buttons by their own labels', () => {
+    renderBanner([HOST, GUEST_3]);
+
+    expect(screen.getByRole('status').textContent).toContain('tab.joinRequest.oneUnnamed');
+    expect(screen.getByRole('status').textContent).not.toContain('Guest 3');
     expect(screen.getByRole('button', { name: 'people.approve' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'people.reject' })).toBeTruthy();
   });
@@ -125,7 +142,7 @@ describe('JoinRequestBanner', () => {
     gateway.approveJoin.mockResolvedValue(change('p-anna', 'approved'));
     const { container, invalidate } = renderBanner([HOST, ANNA]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'people.approve' }));
+    fireEvent.click(screen.getByRole('button', { name: APPROVE_ANNA }));
 
     await waitFor(() => expect(container.textContent).toBe(''));
     expect(gateway.approveJoin).toHaveBeenCalledWith(
@@ -140,7 +157,7 @@ describe('JoinRequestBanner', () => {
     gateway.rejectJoin.mockResolvedValue(change('p-anna', 'removed'));
     const { container } = renderBanner([HOST, ANNA]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'people.reject' }));
+    fireEvent.click(screen.getByRole('button', { name: NOT_ANNA }));
 
     await waitFor(() => expect(container.textContent).toBe(''));
     expect(useToast.getState().text).toBe('tab.joinRequest.rejected');
@@ -150,7 +167,7 @@ describe('JoinRequestBanner', () => {
     gateway.approveJoin.mockRejectedValue(new Error('offline'));
     renderBanner([HOST, ANNA]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'people.approve' }));
+    fireEvent.click(screen.getByRole('button', { name: APPROVE_ANNA }));
 
     await waitFor(() => expect(useToast.getState().text).toBe('people.failed'));
     expect(screen.getByRole('status').textContent).toContain('Anna');
@@ -183,11 +200,36 @@ describe('JoinRequestBanner', () => {
     expect(useToast.getState().text).toBe('tab.joinRequest.approvedAll {"count":2}');
   });
 
+  it('approves everyone it can when one fails, and says the rest are still waiting', async () => {
+    gateway.approveJoin.mockImplementation(({ participantId }: { participantId: string }) =>
+      participantId === 'p-gor'
+        ? Promise.reject(new Error('offline'))
+        : Promise.resolve(change(participantId, 'approved')),
+    );
+    renderBanner([HOST, ANNA, GOR, SONA]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'tab.joinRequest.approveAll' }));
+
+    // Gor's failure did not stop Sona's approval.
+    await waitFor(() =>
+      expect(useToast.getState().text).toBe(
+        'tab.joinRequest.notAll {"done":"tab.joinRequest.approvedAll {\\"count\\":2}"}',
+      ),
+    );
+    expect(gateway.approveJoin.mock.calls.map(([input]) => input.participantId)).toEqual([
+      'p-anna',
+      'p-gor',
+      'p-sona',
+    ]);
+    // Gor is the one left waiting, on the banner still.
+    expect(screen.getByRole('status').textContent).toContain('tab.joinRequest.one {"name":"Gor"}');
+  });
+
   it('shows somebody again who comes back to ask after the read caught up', async () => {
     gateway.rejectJoin.mockResolvedValue(change('p-anna', 'removed'));
     const { container, show } = renderBanner([HOST, ANNA]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'people.reject' }));
+    fireEvent.click(screen.getByRole('button', { name: NOT_ANNA }));
     await waitFor(() => expect(container.textContent).toBe(''));
 
     show([HOST, person('p-anna', 'Anna', 'removed')]);

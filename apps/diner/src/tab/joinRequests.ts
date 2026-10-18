@@ -1,3 +1,4 @@
+import { hasOwnTabName } from '../components/tabName';
 import { waitingToJoin, type RosterPerson } from './roster';
 
 /**
@@ -81,9 +82,15 @@ export interface JoinCopy {
   readonly params?: Readonly<Record<string, string | number>>;
 }
 
-/** The name somebody gave the tab, or `null` for none — spaces are none. */
+/**
+ * The name somebody gave the tab, or `null` for none.
+ *
+ * Spaces are none, and so is the server's placeholder: it fills an unnamed
+ * joiner in as "Guest 3" (`TabService.NameOrDefault`), in English whatever the
+ * host's phone speaks, and that is a seat number, not a name.
+ */
 function givenName(person: RosterPerson): string | null {
-  return person.displayName?.trim() || null;
+  return hasOwnTabName(person.displayName) ? person.displayName.trim() : null;
 }
 
 /** "Anna wants to join", "A guest wants to join", "3 people want to join". */
@@ -125,6 +132,22 @@ export function joinLine(banner: JoinBanner, copy: JoinLineCopy): string {
   const names = named.join(', ');
   const more = banner.people.length - named.length;
   return more > 0 ? copy.namesMore(names, more) : names;
+}
+
+/**
+ * What Approve and Not with us are called aloud under one person: "Approve
+ * Anna", so a screen reader says whose request the press answers. The visible
+ * label alone for somebody with no name of their own — "Approve Guest 3" would
+ * read out the server's English placeholder.
+ */
+export function answerLabel(answer: JoinAnswer, person: RosterPerson): JoinCopy {
+  const name = givenName(person);
+  if (answer === 'approved') {
+    return name
+      ? { key: 'tab.joinRequest.approveNamed', params: { name } }
+      : { key: 'people.approve' };
+  }
+  return name ? { key: 'tab.joinRequest.rejectNamed', params: { name } } : { key: 'people.reject' };
 }
 
 export type JoinAnswer = 'approved' | 'rejected';

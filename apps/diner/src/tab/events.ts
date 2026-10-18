@@ -56,8 +56,8 @@ export interface ChangeMarker {
 /**
  * Events that change what is on the bill.
  *
- * Anything else — somebody renaming themselves, a permission toggle — advances
- * the sequence and is not worth a refetch or a marker. Being explicit about the
+ * Anything else — a permission toggle — advances the sequence and is not worth
+ * a refetch or a marker, unless it changes who is on the tab (below). Being explicit about the
  * list is what keeps a chatty stream from making the screen flicker.
  */
 const BILL_CHANGING: ReadonlySet<TabEventType> = new Set<TabEventType>([
@@ -74,20 +74,23 @@ const BILL_CHANGING: ReadonlySet<TabEventType> = new Set<TabEventType>([
 ]);
 
 /**
- * Events that change who is on the tab.
+ * Events that change who is on the tab, or what they are called.
  *
  * The roster rides on the same tab read as the bill, so these refetch too: a
  * guest asking to join reaches the host's banner within one poll of the
  * stream instead of the screen's slower one, and an approval or a removal
- * moves the split. None is announced on the bill — the people card says who is
- * here. A rename and a permission toggle stay out: neither changes who is on
- * the tab, and the host who made the change already holds the answer.
+ * moves the split. A rename is here because a joiner names themself from the
+ * waiting screen, and the host's banner should say who is asking rather than
+ * "a guest". None is announced on the bill — the people card says who is
+ * here. A permission toggle stays out: the host who flipped it already holds
+ * the answer.
  */
 const ROSTER_CHANGING: ReadonlySet<TabEventType> = new Set<TabEventType>([
   'participantJoined',
   'participantApproved',
   'participantRejected',
   'participantRemoved',
+  'participantRenamed',
   'hostReassigned',
 ]);
 

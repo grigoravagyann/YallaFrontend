@@ -41,14 +41,22 @@ describe('applying a page of events', () => {
   });
 
   it('advances without a refetch for events that do not touch the bill', () => {
-    // A rename or a permission toggle is not worth a round trip, and a screen
-    // that flickers on every chatty event teaches people to ignore it.
+    // A permission toggle is not worth a round trip — the host who flipped it
+    // holds the answer — and a screen that flickers on every chatty event
+    // teaches people to ignore it.
+    const update = applyTabEvents(4, [event(5, { type: 'participantPermissionsChanged' })]);
+
+    expect(update).toEqual({ kind: 'unchanged', lastSequence: 5 });
+  });
+
+  it('refetches when somebody renames themself, so the host sees who is asking', () => {
+    // A joiner names themself from the waiting screen. Without the refetch the
+    // host's banner kept saying "A guest wants to join" about Anna.
     const update = applyTabEvents(4, [
-      event(5, { type: 'participantRenamed' }),
-      event(6, { type: 'participantPermissionsChanged' }),
+      event(5, { type: 'participantRenamed', actor: 'diner', data: { participantId: 'p-9' } }),
     ]);
 
-    expect(update).toEqual({ kind: 'unchanged', lastSequence: 6 });
+    expect(update).toEqual({ kind: 'refetch', reason: 'changed', lastSequence: 5, markers: [] });
   });
 
   it('refetches when somebody asks to join, so the host sees them within one poll', () => {

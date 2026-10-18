@@ -1,6 +1,7 @@
 import type { TabRosterEntry } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
+  answerLabel,
   joinBanner,
   joinLine,
   joinTitle,
@@ -36,8 +37,10 @@ function person(
 const HOST = person('p-host', 'Aram', { role: 'host', status: 'approved', isYou: true });
 const ANNA = person('p-anna', 'Anna');
 const GOR = person('p-gor', 'Gor');
-// The roster carries an empty name for somebody who gave none.
+// The mock's roster carries an empty name for somebody who gave none.
 const UNNAMED = person('p-guest', '');
+// The server's carries its placeholder (`TabService.NameOrDefault`), in English.
+const GUEST_3 = person('p-guest-3', 'Guest 3');
 const ON_TAB = person('p-nare', 'Nare', { status: 'approved' });
 
 describe('who the banner is about', () => {
@@ -133,6 +136,14 @@ describe('what the banner says', () => {
     });
   });
 
+  it('does not read the server placeholder "Guest 3" as a name', () => {
+    // English on an Armenian phone, and not a name anybody gave: the host is
+    // told a guest wants to join, in their own language.
+    expect(joinTitle({ kind: 'one', person: GUEST_3 })).toEqual({
+      key: 'tab.joinRequest.oneUnnamed',
+    });
+  });
+
   it('counts several people', () => {
     expect(joinTitle({ kind: 'several', people: [ANNA, GOR, UNNAMED] })).toEqual({
       key: 'tab.joinRequest.several',
@@ -157,6 +168,13 @@ describe('what the banner says', () => {
     expect(joinLine({ kind: 'several', people: [UNNAMED, ANNA] }, line)).toBe('Anna +1');
   });
 
+  it('folds the server placeholder "Guest 3" in with the unnamed, never listing it', () => {
+    expect(joinLine({ kind: 'several', people: [GUEST_3, ANNA, GOR] }, line)).toBe('Anna, Gor +1');
+    expect(joinLine({ kind: 'several', people: [GUEST_3, UNNAMED] }, line)).toBe(
+      'They are waiting for your answer',
+    );
+  });
+
   it('says they are waiting when not one of several gave a name', () => {
     expect(joinLine({ kind: 'several', people: [UNNAMED, person('p-y', '')] }, line)).toBe(
       'They are waiting for your answer',
@@ -171,6 +189,7 @@ describe('what the host is told after answering', () => {
       params: { name: 'Anna' },
     });
     expect(joinToast('approved', [UNNAMED])).toEqual({ key: 'tab.joinRequest.approvedUnnamed' });
+    expect(joinToast('approved', [GUEST_3])).toEqual({ key: 'tab.joinRequest.approvedUnnamed' });
   });
 
   it('counts everyone let on at once', () => {
@@ -182,5 +201,24 @@ describe('what the host is told after answering', () => {
 
   it('says plainly when somebody was not let on', () => {
     expect(joinToast('rejected', [ANNA])).toEqual({ key: 'tab.joinRequest.rejected' });
+  });
+});
+
+describe('what the two answers are called aloud', () => {
+  it('names the person, so a screen reader says whose request it answers', () => {
+    expect(answerLabel('approved', ANNA)).toEqual({
+      key: 'tab.joinRequest.approveNamed',
+      params: { name: 'Anna' },
+    });
+    expect(answerLabel('rejected', ANNA)).toEqual({
+      key: 'tab.joinRequest.rejectNamed',
+      params: { name: 'Anna' },
+    });
+  });
+
+  it('keeps the visible label for somebody with no name of their own', () => {
+    // "Approve Guest 3" would read out the server's English placeholder.
+    expect(answerLabel('approved', GUEST_3)).toEqual({ key: 'people.approve' });
+    expect(answerLabel('rejected', UNNAMED)).toEqual({ key: 'people.reject' });
   });
 });

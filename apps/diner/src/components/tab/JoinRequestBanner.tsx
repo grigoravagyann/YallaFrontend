@@ -7,6 +7,7 @@ import { newCommandId } from '../../lib/commandId';
 import { haptics } from '../../lib/haptics';
 import { tabAccessCopy } from '../../tab/access';
 import {
+  answerLabel,
   joinBanner,
   joinLine,
   joinTitle,
@@ -18,20 +19,13 @@ import {
   type JoinCopy,
 } from '../../tab/joinRequests';
 import type { RosterPerson } from '../../tab/roster';
-import {
-  actionIcon,
-  colors,
-  fontWeight,
-  radius,
-  space,
-  typography,
-  type IoniconName,
-} from '../../theme';
+import { actionIcon, colors, fontWeight, radius, space, typography } from '../../theme';
 import { Button } from '../Button';
 import { Card } from '../Card';
 import { Rise, riseDelay } from '../motion/Rise';
 import { useToast } from '../motion/Toast';
 import { PersonAvatar } from '../Participants';
+import { hasOwnTabName } from '../tabName';
 import { Text } from '../Text';
 
 export interface JoinRequestBannerProps {
@@ -95,41 +89,57 @@ export function JoinRequestBanner({ tabId, people }: JoinRequestBannerProps) {
     latest.current = current;
   }, [waitingKey]);
 
-  const say = (copy: JoinCopy, icon?: IoniconName) =>
-    showToast(t(copy.key, { ...copy.params }), icon);
+  const text = (copy: JoinCopy) => t(copy.key, { ...copy.params });
 
   /**
    * One host action per person, one after another: each carries its own
    * command id, so a retry never answers somebody twice, and the server takes
    * them in turn rather than racing them on one tab.
+   *
+   * One that fails is skipped rather than ending the run: "Approve all" lets on
+   * everybody it can, says who, and adds that the rest are still waiting —
+   * which the banner, still showing them, bears out.
    */
   const answer = async (kind: JoinAnswer, who: readonly RosterPerson[]) => {
     const mutation = kind === 'approved' ? approve : reject;
     const done: RosterPerson[] = [];
+    let failure: unknown = null;
+    let failed = 0;
     setWorking(kind === 'approved' ? 'approve' : 'reject');
-    try {
-      for (const person of who) {
+    for (const person of who) {
+      try {
         await mutation.mutateAsync({
           tabId,
           participantId: person.participantId,
           commandId: newCommandId(),
         });
         done.push(person);
+      } catch (caught) {
+        // Nothing is assumed: whoever the server did not answer stays waiting.
+        failure = caught;
+        failed += 1;
       }
-      say(joinToast(kind, done), kind === 'approved' ? undefined : actionIcon.close);
-    } catch (caught) {
-      // Nothing is assumed: whoever the server did not answer stays waiting.
-      say({ key: tabAccessCopy(caught)?.body ?? 'people.failed' }, actionIcon.error);
-    } finally {
-      if (done.length > 0) {
-        setAnswered((previous) =>
-          stillAnswered(
-            new Set([...previous, ...done.map((person) => person.participantId)]),
-            latest.current,
-          ),
-        );
-      }
-      setWorking(null);
+    }
+
+    if (done.length > 0) {
+      setAnswered((previous) =>
+        stillAnswered(
+          new Set([...previous, ...done.map((person) => person.participantId)]),
+          latest.current,
+        ),
+      );
+    }
+    setWorking(null);
+
+    if (done.length === 0) {
+      showToast(text({ key: tabAccessCopy(failure)?.body ?? 'people.failed' }), actionIcon.error);
+    } else if (failed > 0) {
+      showToast(
+        t('tab.joinRequest.notAll', { done: text(joinToast(kind, done)) }),
+        actionIcon.error,
+      );
+    } else {
+      showToast(text(joinToast(kind, done)), kind === 'approved' ? undefined : actionIcon.close);
     }
   };
 
@@ -165,6 +175,7 @@ export function JoinRequestBanner({ tabId, people }: JoinRequestBannerProps) {
           <View style={styles.actions}>
             <Button
               label={t('people.approve')}
+              accessibilityLabel={text(answerLabel('approved', banner.person))}
               busy={working === 'approve'}
               disabled={busy}
               onPress={() => void answer('approved', [banner.person])}
@@ -172,6 +183,7 @@ export function JoinRequestBanner({ tabId, people }: JoinRequestBannerProps) {
             />
             <Button
               label={t('people.reject')}
+              accessibilityLabel={text(answerLabel('rejected', banner.person))}
               variant="secondary"
               busy={working === 'reject'}
               disabled={busy}
@@ -214,7 +226,8 @@ function Faces({ people, guest }: { people: readonly RosterPerson[]; guest: stri
       {shown.map((person, index) => (
         <View key={person.participantId} style={index > 0 ? styles.overlap : null}>
           <PersonAvatar
-            name={person.displayName?.trim() || guest}
+            // "Guest 3" is the server's seat number, not a face's initial.
+            name={hasOwnTabName(person.displayName) ? person.displayName.trim() : guest}
             photo={person.photo}
             size={FACE}
             tone="other"

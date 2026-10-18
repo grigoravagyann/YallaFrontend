@@ -252,7 +252,11 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   is only ever said for two or more. `waitingOne` / `waitingSeveral` address
   the host in the polite plural (`Ձեր`, `вашего`). `rejected` names nobody and
   ru keeps it impersonal ("В счёт не добавили"), so it never needs a gender.
-  The buttons reuse `people.approve` and `people.reject`.
+  hy says `ցանկանում է/են միանալ`, the formal verb the host's push uses. The
+  buttons show `people.approve` and `people.reject`; `approveNamed` and
+  `rejectNamed` are what a screen reader hears for one person, and must keep
+  the visible label in them. `notAll` follows what went through with "the
+  rest are still waiting", the people the banner still shows.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

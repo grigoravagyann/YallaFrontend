@@ -551,7 +551,10 @@
       "approvedUnnamed": "The guest is on the tab",
       "approvedAll_one": "{{count}} person is on the tab",
       "approvedAll_other": "{{count}} people are on the tab",
-      "rejected": "Not added to the tab"
+      "rejected": "Not added to the tab",
+      "approveNamed": "Approve {{name}}",
+      "rejectNamed": "Not with us: {{name}}",
+      "notAll": "{{done}}. The rest are still waiting — try again"
     }
   },
   "pending": {

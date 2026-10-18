@@ -539,10 +539,10 @@
       }
     },
     "joinRequest": {
-      "one": "{{name}}՝ ուզում է միանալ",
-      "oneUnnamed": "Մի հյուր ուզում է միանալ",
-      "several_one": "{{count}} հոգի ուզում է միանալ",
-      "several_other": "{{count}} հոգի ուզում են միանալ",
+      "one": "{{name}}՝ ցանկանում է միանալ",
+      "oneUnnamed": "Մի հյուր ցանկանում է միանալ",
+      "several_one": "{{count}} հոգի ցանկանում է միանալ",
+      "several_other": "{{count}} հոգի ցանկանում են միանալ",
       "waitingOne": "Սպասում է Ձեր պատասխանին",
       "waitingSeveral": "Սպասում են Ձեր պատասխանին",
       "approveAll": "Հաստատել բոլորին",
@@ -551,7 +551,10 @@
       "approvedUnnamed": "Հյուրն այժմ հաշվին է",
       "approvedAll_one": "{{count}} հոգի այժմ հաշվին է",
       "approvedAll_other": "{{count}} հոգի այժմ հաշվին են",
-      "rejected": "Չավելացվեց հաշվին"
+      "rejected": "Չավելացվեց հաշվին",
+      "approveNamed": "Հաստատել՝ {{name}}",
+      "rejectNamed": "Մեզ հետ չէ՝ {{name}}",
+      "notAll": "{{done}}։ Մնացածը դեռ սպասում են՝ փորձեք կրկին"
     }
   },
   "pending": {

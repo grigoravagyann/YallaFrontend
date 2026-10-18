@@ -569,7 +569,10 @@
       "approvedAll_few": "{{count}} человека теперь в счёте",
       "approvedAll_many": "{{count}} человек теперь в счёте",
       "approvedAll_other": "{{count}} человека теперь в счёте",
-      "rejected": "В счёт не добавили"
+      "rejected": "В счёт не добавили",
+      "approveNamed": "Подтвердить: {{name}}",
+      "rejectNamed": "Не с нами: {{name}}",
+      "notAll": "{{done}}. Остальные ещё ждут — попробуйте ещё раз"
     }
   },
   "pending": {
