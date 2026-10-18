@@ -12,7 +12,28 @@
     "public": "Публичная страница",
     "reviews": "Отзывы",
     "home": "Главная",
-    "settings": "Настройки"
+    "settings": "Настройки",
+    "account": "Мой аккаунт",
+    "group": {
+      "today": "Сегодня",
+      "venue": "Заведение",
+      "team": "Команда",
+      "results": "Итоги"
+    },
+    "badge": {
+      "pendingApprovals_one": "{{count}} бронь ждёт решения",
+      "pendingApprovals_few": "{{count}} брони ждут решения",
+      "pendingApprovals_many": "{{count}} броней ждут решения",
+      "pendingApprovals_other": "{{count}} брони ждут решения",
+      "incompleteDishes_one": "{{count}} незаполненное блюдо",
+      "incompleteDishes_few": "{{count}} незаполненных блюда",
+      "incompleteDishes_many": "{{count}} незаполненных блюд",
+      "incompleteDishes_other": "{{count}} незаполненного блюда",
+      "reportedReviews_one": "{{count}} отзыв с жалобой",
+      "reportedReviews_few": "{{count}} отзыва с жалобами",
+      "reportedReviews_many": "{{count}} отзывов с жалобами",
+      "reportedReviews_other": "{{count}} отзыва с жалобами"
+    }
   },
   "publicPage": {
     "intro": "То, что видит любой, у кого есть ваша ссылка: фото, номер телефона и можно ли забронировать.",
@@ -154,7 +175,8 @@
     "closeMenu": "Закрыть меню",
     "signOut": "Выйти",
     "mainNav": "Основная навигация",
-    "skipToContent": "Перейти к содержимому"
+    "skipToContent": "Перейти к содержимому",
+    "brandSub": "панель"
   },
   "role": {
     "platformAdmin": "Администратор платформы",
@@ -428,7 +450,7 @@
   },
   "branchSwitcher": {
     "label": "Филиал",
-    "onlyOne": "{{name}}"
+    "onlyOne": "Филиал «{{name}}»"
   },
   "state": {
     "offline": "Нет связи. Проверьте соединение и попробуйте снова.",
@@ -1988,6 +2010,56 @@
         "password": "сменил(а) свой пароль",
         "other": "внёс(ла) изменение"
       }
+    }
+  },
+  "account": {
+    "title": "Мой аккаунт",
+    "sub": "{{role}} · {{venue}}",
+    "signOutDialog": {
+      "title": "Выйти из панели?",
+      "body": "Несохранённые изменения пропадут. PIN для планшета не меняется.",
+      "stay": "Остаться",
+      "confirm": "Выйти"
+    },
+    "profile": {
+      "emailByTeam": "Почту меняет команда Yalla",
+      "emailByOwner": "Почту меняет владелец — новой ссылкой для входа"
+    },
+    "password": {
+      "title": "Пароль для панели"
+    },
+    "pin": {
+      "title": "PIN для планшета",
+      "cap": "Для входа на экране зала. Он нигде не показывается.",
+      "new": "Новый PIN",
+      "repeat": "Повторите PIN",
+      "format": "PIN — ровно 4 цифры",
+      "mismatch": "PIN-коды не совпадают",
+      "taken": "Этот PIN уже у кого-то на том же планшете. Выберите другой.",
+      "submit": "Сменить PIN",
+      "changing": "Меняем…",
+      "changed": "PIN изменён · используйте его при следующем входе на планшете",
+      "failed": "PIN не изменён. Попробуйте ещё раз."
+    },
+    "sessions": {
+      "title": "Где выполнен вход",
+      "cap": "Yalla не хранит устройства и места — только когда каждый вход начался и когда использовался последний раз",
+      "signOutOthers": "Выйти на других устройствах",
+      "signingOut": "Выходим…",
+      "thisDevice": "Это устройство",
+      "thisBrowser": "Этот браузер",
+      "other": "Другой вход",
+      "activeNow": "Вход: {{signedIn}} · активен сейчас",
+      "lastActive": "Вход: {{signedIn}} · последняя активность: {{lastActive}}",
+      "today": "сегодня, {{time}}",
+      "onDay": "{{date}}, {{time}}",
+      "ended_one": "Вы вышли на {{count}} другом устройстве",
+      "ended_few": "Вы вышли на {{count}} других устройствах",
+      "ended_many": "Вы вышли на {{count}} других устройствах",
+      "ended_other": "Вы вышли на {{count}} других устройствах",
+      "endedNone": "Других входов не было",
+      "loadFailed": "Список входов не загрузился. Попробуйте ещё раз.",
+      "failed": "Не удалось выйти на других устройствах. Попробуйте ещё раз."
     }
   }
 }

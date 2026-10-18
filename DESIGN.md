@@ -74,10 +74,21 @@ edge is 3.13:1.
 On 2026-10-18 the user approved a darker look for the **platform-admin area**
 of the web console, and for the **sign-in and password pages** every console
 user passes through: a cream canvas, a dark-brown sidebar and a brown primary
-button. It replaces the beige fill there and nowhere else; the venue console
-(owner, general manager, branch manager), the staff floor, the diner app and
-the public page keep everything below. The spec is `docs/design/console`
-(`HANDOFF.md`, the artboards, `source/_shell.css`).
+button. It replaces the beige fill there and nowhere else; the staff floor,
+the diner app and the public page keep everything below. The spec is
+`docs/design/console` (`HANDOFF.md`, the artboards, `source/_shell.css`).
+
+**On 2026-10-19 the venue console (owner, general manager, branch manager)
+joined it** (`docs/design/venue-console`). Both consoles are one shell,
+`apps/web/src/console/ui/ConsoleShell.tsx`: the venue console's sidebar is
+the same component with four headed groups, live counts on three links, the
+venue and branch panel under the brand, and the person at the foot opening My
+account. Its extra tokens: `sidebarGroup` (a group heading), `sidebarPanel`,
+`sidebarField` / `sidebarFieldText` (the branch switcher), `navBadge` /
+`navBadgeForeground` (a count), and `sidebarGrouped` (248px) /
+`navItemGrouped` (40px) for the wider, tighter grouped sidebar. Its screens
+keep their own markup until their redesign phases and wear these tokens
+through `.yc-legacy`, as they already did inside the platform's branch pages.
 
 The values are tokens like every other value in the product:
 `packages/tokens/src/console.ts`, emitted as `--console-*` custom properties
@@ -128,6 +139,11 @@ asks 3:1 of it, so `control` is now `#988169` (3.70:1 on white, 3.29:1 on the
 canvas, the same warm hue) and `controlHover` `#85705B`. A secondary button
 keeps the approved soft edge as `buttonEdge`: its label already says what it
 is. `console.test.ts` holds the input edge to 3:1 on every ground it sits on.
+
+**The branch switcher's edge is lighter than the artboard (decided
+2026-10-19)**, for the same reason: the venue artboards drew it `#4E2D1B`,
+1.40:1 on the sidebar, so `sidebarFieldEdge` is `#86664F` (3.30:1 on the
+sidebar, 3.06:1 on its own fill).
 
 ---
 

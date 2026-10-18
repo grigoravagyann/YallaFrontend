@@ -212,6 +212,35 @@ describe('Home and Settings', () => {
   });
 });
 
+describe("the venue console's sidebar (docs/design/venue-console)", () => {
+  it('reads: the group heads, the branch switcher and a count on a link', () => {
+    const side = consoleColor.sidebar;
+    expect(ratio(consoleColor.sidebarGroup, side)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.sidebarFieldText, consoleColor.sidebarField)).toBeGreaterThanOrEqual(
+      AA_BODY,
+    );
+    expect(ratio(consoleColor.sidebarMuted, consoleColor.sidebarField)).toBeGreaterThanOrEqual(
+      AA_BODY,
+    );
+    expect(ratio(consoleColor.navBadgeForeground, consoleColor.navBadge)).toBeGreaterThanOrEqual(
+      AA_BODY,
+    );
+  });
+
+  it("draws the switcher's edge at 3:1 on the sidebar and on its own fill", () => {
+    // WCAG 1.4.11, as for `control`: the artboards' #4E2D1B is 1.40:1.
+    expect(ratio(consoleColor.sidebarFieldEdge, consoleColor.sidebar)).toBeGreaterThanOrEqual(3);
+    expect(ratio(consoleColor.sidebarFieldEdge, consoleColor.sidebarField)).toBeGreaterThanOrEqual(
+      3,
+    );
+  });
+
+  it('shows a badge on the current link as well as on a resting one', () => {
+    expect(ratio(consoleColor.navBadge, consoleColor.sidebar)).toBeGreaterThanOrEqual(3);
+    expect(ratio(consoleColor.navBadge, consoleColor.sidebarActive)).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('the console tokens reach the stylesheet', () => {
   const css = renderTokenCss();
 

@@ -37,6 +37,7 @@ import type {
   PlatformAdminProfile,
   PlatformOverview,
 } from './contracts/platformHome';
+import type { OtherSessionsEnded, VenueSession, VenueStaffProfile } from './contracts/venueAccount';
 import type {
   CreateStaffInput,
   EnrolmentCode,
@@ -215,6 +216,44 @@ export interface ConsoleGateway {
    * shorter than 12 (`min`). A wrong current password is a form error, not a 401.
    */
   changePlatformPassword(command: ChangePlatformPasswordCommand): Promise<PlatformPasswordChanged>;
+
+  // --- My account, for an owner, a general manager or a branch manager ----
+
+  /**
+   * `GET /api/venue/me`: the signed-in venue staff member. Owners, general
+   * managers and branch managers with a password sign-in only.
+   *
+   * @throws {ForbiddenError} the platform admin (who has `/api/platform/me`),
+   * or a tablet session.
+   */
+  getVenueProfile(): Promise<VenueStaffProfile>;
+
+  /**
+   * `PATCH /api/venue/me`: their own name. The email is not theirs to change.
+   *
+   * @throws {ValidationError} `fullName` blank (`required`) or over 200 characters (`max`).
+   */
+  updateVenueProfile(input: { fullName: string }): Promise<VenueStaffProfile>;
+
+  /**
+   * `POST /api/venue/me/password`. Every session of the account ends; the
+   * answer is a fresh pair for this browser, adopted at once so it stays
+   * signed in.
+   *
+   * @throws {ValidationError} one 422 naming each field, as the platform's.
+   * @throws {TooManyRequestsError} 10 wrong current passwords in 15 minutes.
+   */
+  changeVenuePassword(command: ChangePlatformPasswordCommand): Promise<PlatformPasswordChanged>;
+
+  /** `GET /api/venue/me/sessions`: the current sign-in first, then the most recently active. */
+  listVenueSessions(): Promise<readonly VenueSession[]>;
+
+  /**
+   * `POST /api/venue/me/sessions/sign-out-others`. This browser's access token
+   * dies with the others' but its refresh token is kept, so the next request
+   * renews it (the client's `session-revoked` refresh).
+   */
+  signOutOtherVenueSessions(): Promise<OtherSessionsEnded>;
 
   /** Platform admin only; an owner cannot change what they are paying for. */
   setBranchTier(input: {

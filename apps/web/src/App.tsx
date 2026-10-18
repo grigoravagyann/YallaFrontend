@@ -1,14 +1,13 @@
 import type { ConsoleUser } from '@yalla/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { Suspense, lazy, useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { onSignedOut } from './auth/authSession';
 import { Forbidden, LoadingScreen, RequireRole } from './auth/RequireRole';
 import { ResetPasswordRoute } from './auth/ResetPasswordRoute';
 import { forgetSessionQueries } from './auth/sessionQueries';
 import { SignInRoute } from './auth/SignInRoute';
 import { PLATFORM_ROLES, VENUE_ROLES, landingPathFor, useCurrentUser } from './auth/useCurrentUser';
-import { ConsoleLayout } from './console/ConsoleLayout';
 import { PlatformLayout } from './console/platform/PlatformLayout';
 import { HomeRoute } from './console/platform/HomeRoute';
 import { SettingsRoute } from './console/platform/SettingsRoute';
@@ -19,6 +18,7 @@ import { BranchReviewsRoute } from './console/platform/BranchReviewsRoute';
 import { VenueDetailRoute } from './console/platform/VenueDetailRoute';
 import { VenuesRoute } from './console/platform/VenuesRoute';
 import { VenueLayout } from './console/venue/VenueLayout';
+import { AccountScreen } from './console/venue/account/AccountScreen';
 import { MenuEditorScreen } from './console/venue/menu/MenuEditorScreen';
 import { OpeningHoursScreen } from './console/venue/hours/OpeningHoursScreen';
 import { ReservationPolicyScreen } from './console/venue/policy/ReservationPolicyScreen';
@@ -181,8 +181,9 @@ function useSignedOutRedirect() {
 export function AppRoutes({ user }: { user: ConsoleUser }) {
   const { role } = user;
   const home = landingPathFor(role);
-  // The platform admin has the redesigned shell (docs/design/console); the
-  // venue roles keep theirs. A role is one or the other, never both.
+  // Both consoles wear the one shell (`ConsoleShell`): the platform admin's
+  // around every platform route, the venue roles' inside `VenueLayout`, which
+  // needs the venue read for its sidebar. A role is one or the other, never both.
   const platform = PLATFORM_ROLES.includes(role);
 
   return (
@@ -191,7 +192,7 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
       {/* Already signed in: the form has nothing to do. */}
       <Route path="/sign-in" element={<Navigate to={home} replace />} />
 
-      <Route element={platform ? <PlatformLayout user={user} /> : <ConsoleLayout user={user} />}>
+      <Route element={platform ? <PlatformLayout user={user} /> : <Outlet />}>
         {platform ? (
           <>
             <Route
@@ -280,6 +281,8 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
             <Route path="public" element={<PublicPageScreen />} />
             <Route path="reviews" element={<VenueReviewsScreen />} />
             <Route path="staff" element={<StaffScreen />} />
+            {/* My account: opened from the person at the sidebar's foot. */}
+            <Route path="account" element={<AccountScreen />} />
             {/* Lazy: the reports screen is the only thing in the console
                 that needs a charting library, and an owner who opens the rooms
                 editor should not download one. */}

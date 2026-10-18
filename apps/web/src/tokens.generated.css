@@ -213,6 +213,13 @@
   --console-sidebar-focus: #F3D9B8;
   --console-avatar: #C3B59F;
   --console-avatar-foreground: #2B1608;
+  --console-sidebar-group: #A8907A;
+  --console-sidebar-panel: rgba(255, 243, 228, 0.06);
+  --console-sidebar-field: #351B0D;
+  --console-sidebar-field-text: #F3E6D6;
+  --console-sidebar-field-edge: #86664F;
+  --console-nav-badge: #E2B77A;
+  --console-nav-badge-foreground: #2B1608;
   --console-amber: #8A4B08;
   --console-amber-bg: #FDF1DE;
   --console-amber-line: #F1D3A6;
@@ -266,11 +273,13 @@
   --console-card-hover-edge: #D4BFA8;
   --console-readonly-field: #FAF6F0;
   --console-size-sidebar: 232px;
+  --console-size-sidebar-grouped: 248px;
   --console-size-button: 40px;
   --console-size-button-small: 32px;
   --console-size-button-tall: 44px;
   --console-size-pill: 24px;
   --console-size-nav-item: 44px;
+  --console-size-nav-item-grouped: 40px;
   --console-size-avatar: 32px;
   --console-size-icon: 18px;
   --console-size-main-pad-y: 32px;
@@ -296,6 +305,7 @@
   --console-text-caption: 12px;
   --console-text-nav: 15px;
   --console-text-brand: 28px;
+  --console-text-brand-grouped: 22px;
   --console-text-auth-brand: 32px;
   --console-text-auth-brand-narrow: 26px;
   --console-text-claim: 24px;

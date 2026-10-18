@@ -82,6 +82,14 @@ import {
   updateStaffBody,
 } from './staffAdminMapping';
 import {
+  otherSessionsEndedFromWire,
+  venueProfileFromWire,
+  venueSessionsFromWire,
+  type WireOtherSessionsEnded,
+  type WireVenueSessions,
+  type WireVenueStaffProfile,
+} from './venueAccountMapping';
+import {
   fileNameFrom,
   menuReport,
   occupancyReport,
@@ -187,6 +195,8 @@ const CLAIM = {
 const PLATFORM = '/api/platform';
 const BRANCHES = '/api/branches';
 const VENUES = '/api/venues';
+/** My account, for an owner, a general manager or a branch manager (`VenueStaffAccount`). */
+const VENUE_ME = '/api/venue/me';
 const RESERVATIONS = '/api/reservations';
 
 /** Both moderation lists page by 20, the public reviews route's size. */
@@ -638,6 +648,52 @@ export function createConsoleHttpGateway(
       if (!pair) return { sessionRenewed: false };
       await auth.signIn(pair);
       return { sessionRenewed: true };
+    },
+
+    // --- My account (venue console) ----------------------------------------
+
+    async getVenueProfile() {
+      // gateway-schema: awaiting-route — /api/venue/me lands with feat/venue-console-1
+      const { data } = await client.get<WireVenueStaffProfile>(`${VENUE_ME}`);
+      return venueProfileFromWire(data);
+    },
+
+    async updateVenueProfile({ fullName }) {
+      // gateway-schema: awaiting-route — /api/venue/me lands with feat/venue-console-1
+      const { data } = await client.patch<WireVenueStaffProfile>(`${VENUE_ME}`, { fullName });
+      return venueProfileFromWire(data);
+    },
+
+    async changeVenuePassword({ currentPassword, newPassword }) {
+      // As the platform admin's: a wrong current password is a 422 naming
+      // `currentPassword`, and the answer is a fresh pair for this browser,
+      // adopted at once — the change ended every session, this one's too.
+      // gateway-schema: awaiting-route — /api/venue/me lands with feat/venue-console-1
+      const { data } = await client.post<unknown>(`${VENUE_ME}/password`, {
+        currentPassword,
+        newPassword,
+      });
+      const pair = tokenPairFrom(data);
+      if (!pair) return { sessionRenewed: false };
+      await auth.signIn(pair);
+      return { sessionRenewed: true };
+    },
+
+    async listVenueSessions() {
+      // gateway-schema: awaiting-route — /api/venue/me lands with feat/venue-console-1
+      const { data } = await client.get<WireVenueSessions>(`${VENUE_ME}/sessions`);
+      return venueSessionsFromWire(data);
+    },
+
+    async signOutOtherVenueSessions() {
+      // No fresh pair, by design: an access token alone must not mint a new
+      // refresh token. This browser's access token dies with the others', and
+      // the client's `session-revoked` refresh renews it on the next request.
+      // gateway-schema: awaiting-route — /api/venue/me lands with feat/venue-console-1
+      const { data } = await client.post<WireOtherSessionsEnded>(
+        `${VENUE_ME}/sessions/sign-out-others`,
+      );
+      return otherSessionsEndedFromWire(data);
     },
 
     // --- The rooms editor -------------------------------------------------

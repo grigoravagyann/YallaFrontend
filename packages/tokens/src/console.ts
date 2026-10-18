@@ -99,6 +99,29 @@ export const consoleColor = {
   /** Initials in a circle. The brand beige, with the sidebar's brown on it. */
   avatar: '#C3B59F',
   avatarForeground: '#2B1608',
+  /**
+   * The venue console's sidebar (docs/design/venue-console, the `.side` block):
+   * a group heading over its links ("Today", "The venue"…). 5.68:1.
+   */
+  sidebarGroup: '#A8907A',
+  /** The venue and branch panel under the brand: cream at 6%, over the sidebar only. */
+  sidebarPanel: 'rgba(255, 243, 228, 0.06)',
+  /** The branch switcher's fill, and the one-branch line in its place. */
+  sidebarField: '#351B0D',
+  /** Its text. 13.01:1 on the field. */
+  sidebarFieldText: '#F3E6D6',
+  /**
+   * The switcher's edge. 3.30:1 on the sidebar, 3.06:1 on its own fill.
+   *
+   * Lighter than the artboards' #4E2D1B (1.40:1), on purpose and for the
+   * reason `control` is darker than theirs: on a control the edge is what says
+   * "this opens", so it is held to WCAG 1.4.11's 3:1. Same hue, more light.
+   */
+  sidebarFieldEdge: '#86664F',
+  /** A count on a nav link: pending approvals, incomplete dishes, reported reviews. */
+  navBadge: '#E2B77A',
+  /** Its number. 9.25:1 on the badge. */
+  navBadgeForeground: '#2B1608',
 
   // --- State --------------------------------------------------------------------
   /** Not ready yet, needs attention. Never red. */
@@ -197,6 +220,11 @@ export type ConsoleColorToken = keyof typeof consoleColor;
 /** Pixel measurements. Every control height and the sidebar's width. */
 export const consoleSize = {
   sidebar: 232,
+  /**
+   * The venue console's sidebar: wider, for the venue panel and the branch
+   * switcher above four groups of links (docs/design/venue-console).
+   */
+  sidebarGrouped: 248,
   /** Buttons and inputs inside the console. */
   button: 40,
   buttonSmall: 32,
@@ -206,6 +234,8 @@ export const consoleSize = {
   pill: 24,
   /** A nav link's height. */
   navItem: 44,
+  /** In the grouped sidebar, where ten links and four headings share the height. */
+  navItemGrouped: 40,
   avatar: 32,
   icon: 18,
   /** The main column's padding: 32 top, 40 sides on a desktop. */
@@ -254,6 +284,8 @@ export const consoleText = {
   nav: 15,
   /** "Yalla" at the top of the sidebar. */
   brand: 28,
+  /** And at the top of the grouped sidebar, beside its small "console". */
+  brandGrouped: 22,
   /** "Yalla" on the sign-in photo, and on a phone. */
   authBrand: 32,
   authBrandNarrow: 26,

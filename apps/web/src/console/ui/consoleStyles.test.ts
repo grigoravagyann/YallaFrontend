@@ -40,6 +40,9 @@ function redesignFiles(): string[] {
     join(SRC, 'console', 'platform', 'SettingsRoute.tsx'),
     // Home (redesign phase 5).
     join(SRC, 'console', 'platform', 'HomeRoute.tsx'),
+    // The venue console's shell and My account (venue-console redesign phase 1).
+    join(SRC, 'console', 'venue', 'VenueLayout.tsx'),
+    ...inFolder(join(SRC, 'console', 'venue', 'account')),
     join(SRC, 'auth', 'AuthLayout.tsx'),
     join(SRC, 'auth', 'SignInRoute.tsx'),
     join(SRC, 'auth', 'ResetPasswordRoute.tsx'),
@@ -61,6 +64,8 @@ describe('the console redesign', () => {
     expect(files.some((file) => file.endsWith('TierDialog.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('AddStaffWizard.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('BranchReviewsRoute.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('AccountScreen.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('ConsoleShell.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {

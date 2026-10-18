@@ -363,3 +363,107 @@ export function SendIcon(props: IconProps) {
     </Icon>
   );
 }
+
+// --- The venue console's sidebar (docs/design/venue-console) ----------------
+
+/** Overview: the day at a glance. */
+export function OverviewIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect width="7" height="9" x="3" y="3" rx="1" />
+      <rect width="7" height="5" x="14" y="3" rx="1" />
+      <rect width="7" height="9" x="14" y="12" rx="1" />
+      <rect width="7" height="5" x="3" y="16" rx="1" />
+    </Icon>
+  );
+}
+
+/** The menu: a fork and a knife. */
+export function MenuIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+      <path d="M7 2v20" />
+      <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+    </Icon>
+  );
+}
+
+/** Rooms and tables. */
+export function RoomsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M3 9h18M9 21V9" />
+    </Icon>
+  );
+}
+
+/** The reservation policy: a calendar with a tick. */
+export function PolicyIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4" />
+    </Icon>
+  );
+}
+
+/** The public page: the globe drawn with its meridian. */
+export function PublicPageIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
+    </Icon>
+  );
+}
+
+/** Staff: two people. */
+export function StaffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" />
+    </Icon>
+  );
+}
+
+/** Reviews. */
+export function StarIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11.5 2.3a.5.5 0 0 1 1 0l2.3 4.7 5.2.8a.5.5 0 0 1 .3.9l-3.8 3.6.9 5.2a.5.5 0 0 1-.8.6L12 15.6l-4.6 2.5a.5.5 0 0 1-.8-.6l.9-5.2L3.7 8.7a.5.5 0 0 1 .3-.9l5.2-.8z" />
+    </Icon>
+  );
+}
+
+/** Reports: a line going up. */
+export function ReportsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 3v18h18" />
+      <path d="m19 9-5 5-4-4-3 3" />
+    </Icon>
+  );
+}
+
+/** The one branch a branch manager works at. */
+export function MapPinIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </Icon>
+  );
+}
+
+/** A computer: a sign-in from a desktop browser. */
+export function MonitorIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2 3h20v14H2zM8 21h8M12 17v4" />
+    </Icon>
+  );
+}
