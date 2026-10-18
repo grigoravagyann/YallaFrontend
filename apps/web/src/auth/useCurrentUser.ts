@@ -1,4 +1,10 @@
-import { describeFailure, type ConsoleUser, type FailureKind, type UserRole } from '@yalla/api';
+import {
+  ApiError,
+  describeFailure,
+  type ConsoleUser,
+  type FailureKind,
+  type UserRole,
+} from '@yalla/api';
 import { useConsoleGateway } from '@yalla/api/react';
 import { useQuery } from '@tanstack/react-query';
 import { useDevRole } from './session';
@@ -9,6 +15,8 @@ export interface CurrentUserResult {
   readonly isError: boolean;
   /** Why there is no user, when there is none. `unauthorized` means "show sign-in". */
   readonly failure: FailureKind | null;
+  /** The server's trace id for that failure, to quote to the Yalla team. */
+  readonly reference: string | null;
 }
 
 /**
@@ -43,6 +51,7 @@ export function useCurrentUser(): CurrentUserResult {
     isLoading: query.isLoading,
     isError: query.isError,
     failure: query.error ? describeFailure(query.error) : null,
+    reference: query.error instanceof ApiError ? (query.error.requestId ?? null) : null,
   };
 }
 

@@ -10,7 +10,9 @@
     "floor": "Floor",
     "overview": "Overview",
     "public": "Public page",
-    "reviews": "Reviews"
+    "reviews": "Reviews",
+    "home": "Home",
+    "settings": "Settings"
   },
   "publicPage": {
     "intro": "What anybody with your link sees: your picture, your number, and whether they can book.",
@@ -150,7 +152,9 @@
     "devReset": "Reset mock data",
     "openMenu": "Menu",
     "closeMenu": "Close the menu",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "mainNav": "Main navigation",
+    "skipToContent": "Skip to content"
   },
   "role": {
     "platformAdmin": "Platform admin",
@@ -159,11 +163,6 @@
     "manager": "Branch manager",
     "waiter": "Waiter",
     "kitchen": "Kitchen"
-  },
-  "forbidden": {
-    "title": "You don't have access to this",
-    "body": "This page either does not exist or is not part of what your account covers. Nothing was changed.",
-    "back": "Back to where you can go"
   },
   "loading": "Loading…",
   "venues": {
@@ -311,28 +310,70 @@
   },
   "signIn": {
     "title": "Sign in",
-    "body": "Use the email and password for your venue account.",
+    "body": "Sign in with your email and password",
     "email": "Email",
     "password": "Password",
     "submit": "Sign in",
-    "failed": "That email and password do not match an account.",
-    "expired": "Your session ended. Sign in again to continue where you were."
+    "failed": "The email or password is wrong. Check them and try again.",
+    "expired": "Your session ended. Sign in again to continue where you were.",
+    "emailPlaceholder": "name@yalla.am",
+    "submitting": "Signing in…",
+    "locked": "Too many failed attempts. Try again in a few minutes, or reset your password.",
+    "lockedFor_one": "Too many failed attempts. Try again in {{count}} minute, or reset your password.",
+    "lockedFor_other": "Too many failed attempts. Try again in {{count}} minutes, or reset your password.",
+    "emailRequired": "Enter your email",
+    "emailInvalid": "That email does not look right, for example name@yalla.am",
+    "passwordRequired": "Enter your password",
+    "capsLock": "Caps Lock is on",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "forgot": "Forgot your password?",
+    "noAccount": "No account? Staff get their sign-in from the venue's owner or manager, and owners get theirs from Yalla.",
+    "welcomeTitle": "Welcome",
+    "welcomeBody": "Opening the console…",
+    "welcomeGo": "Go to the console",
+    "claim": "A console for restaurants and their teams",
+    "claimSub": "Venues, staff and bookings in one place",
+    "forgotPage": {
+      "title": "Reset your password",
+      "body": "We will send a link that works for 1 hour",
+      "sent": "If there is an account at this address, the link is on its way. Check your inbox.",
+      "submit": "Send the link",
+      "sending": "Sending…",
+      "back": "Back to sign in",
+      "tooMany": "Too many requests. Try again in a few minutes."
+    }
   },
   "resetPassword": {
     "title": "Choose a password",
-    "body": "This is the password you will sign in to the venue console with.",
+    "body": "You will sign in to the console with this password. Nobody else, not even the person who invited you, will see it.",
     "password": "New password",
     "confirm": "Repeat the password",
-    "tooShort": "At least {{min}} characters.",
-    "mismatch": "The two passwords do not match.",
+    "tooShort": "At least {{min}} characters",
     "submit": "Save password",
     "doneTitle": "Password set",
     "doneBody": "Sign in with your email and the password you just chose.",
     "goToSignIn": "Sign in",
     "invalidTitle": "This link is no longer valid",
-    "invalidBody": "Ask the person who sent it for a new one.",
+    "invalidBody": "It has either been used already or has expired. Ask the person who sent it for a new one, or request one from the sign-in page.",
     "signedInTitle": "You are signed in as {{name}}",
-    "signedInBody": "This link is for someone else. Opening it here would use it up. Send it on."
+    "signedInBody": "This link is for someone else. Opening it here would use it up. Send it on.",
+    "match": "The two passwords match",
+    "ruleMet": "Done",
+    "ruleNotMet": "Not yet",
+    "strength": {
+      "empty": "Type at least {{min}} characters",
+      "short": "Too short",
+      "fair": "Acceptable",
+      "good": "Good",
+      "strong": "Strong"
+    },
+    "saving": "Saving…",
+    "linkNote": "The link works only once.",
+    "claim": "Welcome to the team",
+    "claimSub": "Choose a password and the console is ready",
+    "invalidSignIn": "I have a password, sign in",
+    "backToConsole": "Back to the console"
   },
   "rooms": {
     "noBranch": "This account has no branch to set up rooms for.",
@@ -1182,5 +1223,53 @@
   },
   "unsavedChanges": {
     "leave": "You have unsaved changes. Leave without saving them?"
+  },
+  "toast": {
+    "undo": "Undo"
+  },
+  "errors": {
+    "notFound": {
+      "code": "404",
+      "title": "This venue was not found",
+      "body": "The link may be wrong, or the venue was deleted. Deleted venues stay on the Venues page under the “Deleted” filter.",
+      "venues": "Venues list",
+      "home": "Home"
+    },
+    "forbidden": {
+      "code": "403",
+      "title": "This page isn't for you",
+      "body": "This page either does not exist or your account has no access to it. Nothing was changed.",
+      "back": "Back to where you can go"
+    },
+    "offline": {
+      "code": "No connection",
+      "title": "You are offline",
+      "body": "Check the internet connection and try again. Unsaved changes stay on this page."
+    },
+    "signedOut": {
+      "code": "Session ended",
+      "title": "Sign in again",
+      "body": "For security, your session has ended. After you sign in, you will come back to this page.",
+      "signIn": "Sign in"
+    },
+    "error": {
+      "code": "Error",
+      "title": "Something went wrong",
+      "body": "This is on our side, not yours. Nothing was changed: try again in a few seconds.",
+      "home": "Home",
+      "reference": "Error code: {{reference}} · send it to the Yalla team"
+    },
+    "retry": "Try again",
+    "checking": "Checking…",
+    "stillFailing": "Still not working · attempt {{attempt}}. We will try again by ourselves when the connection is back."
+  },
+  "settings": {
+    "title": "Settings",
+    "language": {
+      "title": "Console language",
+      "body": "Applies straight away, and only for you: the guests' app keeps its own language",
+      "default": "Default",
+      "changed": "The console is now in English"
+    }
   }
 }

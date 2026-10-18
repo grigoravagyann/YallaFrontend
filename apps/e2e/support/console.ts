@@ -7,8 +7,10 @@ import { type Page } from '@playwright/test';
  */
 export async function signInConsole(page: Page, email: string, password: string): Promise<void> {
   await page.goto('/sign-in');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  // Exact: the password field has a "Show password" toggle beside it, and a
+  // substring match would find both.
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL((url) => !url.pathname.startsWith('/sign-in'));
 }

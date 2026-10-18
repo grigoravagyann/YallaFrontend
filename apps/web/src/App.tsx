@@ -8,8 +8,10 @@ import { ResetPasswordRoute } from './auth/ResetPasswordRoute';
 import { forgetSessionQueries } from './auth/sessionQueries';
 import { SignInRoute } from './auth/SignInRoute';
 import { PLATFORM_ROLES, VENUE_ROLES, landingPathFor, useCurrentUser } from './auth/useCurrentUser';
-import { QueryFailureNotice } from './components/QueryFailureNotice';
 import { ConsoleLayout } from './console/ConsoleLayout';
+import { PlatformLayout } from './console/platform/PlatformLayout';
+import { SettingsRoute } from './console/platform/SettingsRoute';
+import { ErrorState, errorKindFor } from './console/ui/ErrorState';
 import { BranchFloorPlanRoute } from './console/platform/BranchFloorPlanRoute';
 import { BranchPublicPageRoute } from './console/platform/BranchPublicPageRoute';
 import { BranchReviewsRoute } from './console/platform/BranchReviewsRoute';
@@ -120,22 +122,29 @@ function ConsoleApp() {
 
   if (isLoading) return <LoadingScreen />;
   if (isError && !user) return <StartupFailure />;
-  if (!user) return <Forbidden />;
+  if (!user) return <Forbidden standalone />;
 
   return <AppRoutes user={user} />;
 }
 
-/** The identity could not be read at all — offline, or the server is down. */
+/**
+ * The identity could not be read at all — offline, or the server is down.
+ *
+ * One of the shared error states, on a page of its own: there is no shell to
+ * put it in before anybody is known. "Try again" refetches rather than resets,
+ * so the state stays on screen through the attempt and can say it failed.
+ */
 function StartupFailure() {
   const queryClient = useQueryClient();
-  const { failure } = useCurrentUser();
+  const { failure, reference } = useCurrentUser();
+  const kind = errorKindFor(failure);
   return (
-    <section className="page page-narrow">
-      <QueryFailureNotice
-        error={{ kind: failure }}
-        onRetry={() => void queryClient.resetQueries({ queryKey: ['currentUser'] })}
-      />
-    </section>
+    <ErrorState
+      kind={kind === 'offline' ? 'offline' : 'error'}
+      reference={reference}
+      onRetry={() => queryClient.refetchQueries({ queryKey: ['currentUser'] })}
+      standalone
+    />
   );
 }
 
@@ -172,6 +181,9 @@ function useSignedOutRedirect() {
 export function AppRoutes({ user }: { user: ConsoleUser }) {
   const { role } = user;
   const home = landingPathFor(role);
+  // The platform admin has the redesigned shell (docs/design/console); the
+  // venue roles keep theirs. A role is one or the other, never both.
+  const platform = PLATFORM_ROLES.includes(role);
 
   return (
     <Routes>
@@ -179,10 +191,19 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
       {/* Already signed in: the form has nothing to do. */}
       <Route path="/sign-in" element={<Navigate to={home} replace />} />
 
-      <Route element={<ConsoleLayout user={user} />}>
-        {PLATFORM_ROLES.includes(role) ? (
+      <Route element={platform ? <PlatformLayout user={user} /> : <ConsoleLayout user={user} />}>
+        {platform ? (
           <>
+            {/* Home until the Home screen exists (redesign phase 5). */}
             <Route path="/platform" element={<Navigate to="/platform/venues" replace />} />
+            <Route
+              path="/platform/settings"
+              element={
+                <RequireRole allow={PLATFORM_ROLES}>
+                  <SettingsRoute />
+                </RequireRole>
+              }
+            />
             <Route
               path="/platform/venues"
               element={
@@ -268,9 +289,13 @@ export function AppRoutes({ user }: { user: ConsoleUser }) {
 
         {/* Development harness, not a product screen, and not in any sidebar. */}
         {import.meta.env.DEV ? <Route path="/dev/tokens" element={<DevTokensRoute />} /> : null}
+
+        {/* A platform admin's unknown address is refused inside the shell, so
+            the way back is on screen. */}
+        {platform ? <Route path="*" element={<Forbidden />} /> : null}
       </Route>
 
-      <Route path="*" element={<Forbidden />} />
+      {platform ? null : <Route path="*" element={<Forbidden standalone />} />}
     </Routes>
   );
 }

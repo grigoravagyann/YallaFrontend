@@ -245,6 +245,40 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `panel.orders.awaitingWaiter`. Removed: `connection.notWired`,
   `connection.notWiredHint`, `order.tabWillOpen` — each promised something the
   screen could not do.
+- `admin` — the platform-admin console redesign, phase 1 (2026-10-18): the
+  shell, the shared error states, sign-in and the password page. The `hy`
+  copy is the approved artboards' (`docs/design/console`), so the user has
+  read it; `ru` and `en` were written from it and are **not** reviewed.
+  - New: `nav.home`, `nav.settings`, `shell.mainNav`, `shell.skipToContent`,
+    `toast.undo`, the whole `errors.*` section (404, 403, offline, session
+    ended, server error; `errors.forbidden.*` replaces `forbidden.*`, and its
+    body must keep saying the page **either does not exist or is not yours** —
+    it is also what an unknown address shows, and must never tell the two
+    apart), `settings.title` and `settings.language.*` (`changed` is written
+    in its own language in each bundle: it is said after the switch).
+  - Sign-in: `signIn.emailPlaceholder`, `.submitting`, `.locked` and
+    `.lockedFor_*` (too many attempts; `_*` takes the minutes from the
+    server's Retry-After, and the plain one must never name a number),
+    `.emailRequired`, `.emailInvalid`, `.passwordRequired`, `.capsLock`,
+    `.showPassword` / `.hidePassword` (shared with the password page),
+    `.forgot`, `.noAccount`, `.welcomeTitle` / `.welcomeBody` /
+    `.welcomeGo`, `.claim` / `.claimSub` (the sentence on the photo) and
+    `signIn.forgotPage.*`. `forgotPage.body` says **1 hour** because that is
+    `PasswordResetToken.Lifetime`; `forgotPage.sent` must keep not saying
+    whether the address has an account. Rewritten from the artboards:
+    `signIn.body`, `.submit` (hy "Մուտք"), `.failed`, and hy `.expired`
+    ("Սեսիան", the Errors artboard's word).
+  - The password page: `resetPassword.match`, `.ruleMet` / `.ruleNotMet`
+    (read after each rule by a screen reader), `.strength.*`, `.saving`,
+    `.linkNote`, `.claim` / `.claimSub`, `.invalidSignIn`,
+    `.backToConsole`. `tooShort` lost its full stop (it is a rule line now)
+    and `mismatch` was removed with the error it labelled. `invalidBody` and
+    `linkNote` deliberately name no lifetime: the page spends both an
+    invitation (24 hours) and a forgotten-password link (1 hour), and the
+    token does not say which. Rewritten from the artboards in hy: `body`,
+    `goToSignIn`, `invalidTitle`, `signedInBody`.
+  - Changed in hy to the artboards' words: `role.platformAdmin`
+    ("Պլատֆորմի ադմին") and `shell.signOut` ("Դուրս գալ").
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

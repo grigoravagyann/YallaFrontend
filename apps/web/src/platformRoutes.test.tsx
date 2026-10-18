@@ -103,11 +103,34 @@ describe('the platform branch routes', () => {
       for (const page of ['public', 'floorplan', 'reviews']) {
         renderAt(role, `${BASE}/${page}`);
         expect(
-          await screen.findByRole('heading', { name: /you don't have access to this/i }),
+          await screen.findByRole('heading', { name: /this page isn't for you/i }),
         ).toBeTruthy();
         expect(screen.queryByRole('heading', { name: /^reviews$/i })).toBeNull();
         cleanup();
       }
+    },
+  );
+});
+
+describe('the platform shell routes', () => {
+  it('give a platform admin a Settings page with the console language', async () => {
+    renderAt('platformAdmin', '/platform/settings');
+    expect(await screen.findByRole('heading', { level: 1, name: /^settings$/i })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: /console language/i })).toBeTruthy();
+  });
+
+  it('keep an unknown platform address inside the shell, as a refusal', async () => {
+    renderAt('platformAdmin', '/platform/nothing-here');
+    expect(await screen.findByRole('heading', { name: /this page isn't for you/i })).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: /main navigation/i })).toBeTruthy();
+  });
+
+  it.each(['waiter', 'kitchen', 'owner', 'manager'] as const)(
+    'give a %s no platform Settings page',
+    async (role) => {
+      renderAt(role, '/platform/settings');
+      expect(await screen.findByRole('heading', { name: /this page isn't for you/i })).toBeTruthy();
+      expect(screen.queryByRole('radiogroup', { name: /console language/i })).toBeNull();
     },
   );
 });

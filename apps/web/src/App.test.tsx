@@ -136,7 +136,9 @@ describe('opening a sign-in link', () => {
       expect(screen.getByRole('heading', { name: /you are signed in as/i })).toBeTruthy(),
     );
     expect(screen.queryByRole('heading', { name: /choose a password/i })).toBeNull();
-    expect(screen.queryByText(/you do not have access/i)).toBeNull();
+    // The refusal page's own heading. This line used to look for "you do not
+    // have access", which the page never said, so it could not fail.
+    expect(screen.queryByRole('heading', { name: /this page isn't for you/i })).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(window.location.hash).toBe('');
   });

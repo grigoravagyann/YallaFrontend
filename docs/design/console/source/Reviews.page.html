@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Կարծիքներ — Yalla Console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+/*SHELL*/
+/*UI*/
+/* page */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{height:36px;padding:0 14px;border-radius:999px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip:hover{background:var(--hover)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.chip .n{font-variant-numeric:tabular-nums;opacity:.8}
+.list{display:flex;flex-direction:column;gap:12px}
+.rv{padding:16px 20px;display:flex;flex-direction:column;gap:10px}
+.rv.reported{border-color:#EBC48C;box-shadow:inset 3px 0 0 var(--amber)}
+.rv.hidden{background:#FBF8F4}
+.rv.hidden .txt{color:var(--muted)}
+.rv-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.rv-a{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;background:#EFE5D8;color:var(--brand);flex:none}
+.who{font-weight:600}
+.when{font-size:12px;color:var(--muted)}
+.stars{color:#B07A45;letter-spacing:1px;font-size:14px;white-space:nowrap}
+.stars .off{color:#E2D5C6}
+.txt{margin:0;line-height:1.6;max-width:72ch}
+.why{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:8px;background:var(--grey-bg);color:var(--grey);font-size:13px}
+.why b{font-weight:600}
+.rv-f{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.rv-f .sp{flex:1}
+.hidebox{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:10px;border:1px solid var(--line);background:#FCF9F5}
+.reasons{display:flex;flex-wrap:wrap;gap:8px;border:0;margin:0;padding:0}
+.reasons legend{font-size:13px;font-weight:600;margin-bottom:8px;padding:0}
+.rchip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid #D8C8B6;background:var(--paper);font-size:13px;cursor:pointer}
+.rchip:hover{background:var(--hover)}
+.rchip.on{border-color:var(--brand);background:#F4ECE2;color:var(--brand);font-weight:600}
+.rchip input{position:absolute;opacity:0;width:1px;height:1px}
+.rchip:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.count{font-size:12px;color:var(--muted);text-align:right}
+.sum{padding:20px;display:flex;flex-direction:column;gap:14px}
+.big{display:flex;align-items:baseline;gap:10px}
+.big b{font-family:'Noto Serif Armenian',Georgia,serif;font-size:36px;line-height:1}
+.dist{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.dist li{display:grid;grid-template-columns:28px 1fr 36px;gap:8px;align-items:center;font-size:12px;font-variant-numeric:tabular-nums}
+.track{height:8px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.fill{display:block;height:100%;background:#B07A45;border-radius:999px}
+.rules{padding:16px 20px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.rules ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;color:var(--muted)}
+.empty{padding:48px 24px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
+.empty p{margin:0;color:var(--muted)}
+@media (max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+<!--SIDE-->
+<main class="main" id="main">
+<!--BRANCHHEAD:reviews-->
+
+<div class="layout">
+<div style="display: flex; flex-direction: column; gap: 16px; min-width: 0">
+<div class="filters" role="group" aria-label="Ֆիլտր">
+<sc-for list="{{ filters }}" as="f" hint-placeholder-count="3"><button type="button" class="{{ f.cls }}" aria-pressed="{{ f.pressed }}" onClick="{{ f.pick }}">{{ f.label }} <span class="n">{{ f.n }}</span></button></sc-for>
+</div>
+
+<sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+<div class="list">
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+<article class="{{ r.cls }}" aria-labelledby="{{ r.hid }}">
+<div class="rv-h">
+<div class="rv-a"><span class="av" aria-hidden="true">{{ r.initials }}</span><div><div class="who" id="{{ r.hid }}">{{ r.who }}</div><div class="when">{{ r.when }}</div></div></div>
+<span class="stars" aria-label="{{ r.starsAria }}"><span aria-hidden="true">{{ r.on }}</span><span class="off" aria-hidden="true">{{ r.off }}</span></span>
+<sc-if value="{{ r.isReported }}" hint-placeholder-val="{{ false }}"><span class="pill p-amber">{{ r.reports }}</span></sc-if>
+<sc-if value="{{ r.isHidden }}" hint-placeholder-val="{{ false }}"><span class="pill p-grey">Թաքցված</span></sc-if>
+</div>
+<p class="txt">{{ r.text }}</p>
+<sc-if value="{{ r.isHidden }}" hint-placeholder-val="{{ false }}">
+<div class="why"><svg class="i" style="width: 16px; height: 16px; margin-top: 2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.7 5.1a10.7 10.7 0 0 1 11.2 6.6 1 1 0 0 1 0 .7 10.7 10.7 0 0 1-1.4 2.5"></path><path d="M14.1 14.2a3 3 0 0 1-4.2-4.2"></path><path d="M17.5 17.5a10.7 10.7 0 0 1-15.4-5.2 1 1 0 0 1 0-.7 10.7 10.7 0 0 1 4.4-5.1"></path><path d="m2 2 20 20"></path></svg><span><b>Պատճառ.</b> {{ r.reason }} · {{ r.hiddenBy }}</span></div>
+</sc-if>
+
+<sc-if value="{{ r.editing }}" hint-placeholder-val="{{ false }}">
+<form class="hidebox" onSubmit="{{ r.confirmHide }}" novalidate="" aria-label="Թաքցնել կարծիքը">
+<fieldset class="reasons"><legend>Ինչու՞ եք թաքցնում</legend>
+<sc-for list="{{ reasonChips }}" as="c" hint-placeholder-count="5"><label class="{{ c.cls }}"><input type="radio" name="reason" onChange="{{ c.pick }}">{{ c.label }}</label></sc-for>
+</fieldset>
+<div class="fld"><label for="rv-reason">Պատճառը, որ կտեսնի ռեստորանը<span class="req" aria-hidden="true">*</span></label><textarea id="rv-reason" class="{{ reasonCls }}" maxlength="300" required="" aria-required="true" aria-invalid="{{ reasonInvalid }}" aria-describedby="rv-reason-help rv-reason-err" value="{{ reason }}" onInput="{{ onReason }}"></textarea>
+<div style="display: flex; justify-content: space-between; gap: 12px"><span class="help" id="rv-reason-help">Հյուրը չի տեսնի։ Կարծիքը կմնա պահված և կարելի է վերադարձնել։</span><span class="count">{{ reasonLen }} / 300</span></div>
+<sc-if value="{{ showReasonErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="rv-reason-err">Գրեք, թե ինչու եք թաքցնում կարծիքը</span></sc-if></div>
+<div class="acts"><button type="button" class="btn btn-sec btn-sm" onClick="{{ cancelHide }}">Չեղարկել</button><button type="submit" class="btn btn-pri btn-sm">Թաքցնել կարծիքը</button></div>
+</form>
+</sc-if>
+
+<sc-if value="{{ r.showActions }}" hint-placeholder-val="{{ true }}">
+<div class="rv-f">
+<span class="sp"></span>
+<sc-if value="{{ r.canDismiss }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-ghost btn-sm" onClick="{{ r.dismiss }}">Բողոքները անտեսել</button></sc-if>
+<sc-if value="{{ r.isVisible }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-sec btn-sm" data-hide="{{ r.id }}" onClick="{{ r.startHide }}">Թաքցնել</button></sc-if>
+<sc-if value="{{ r.isHidden }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-sec btn-sm" data-hide="{{ r.id }}" onClick="{{ r.unhide }}">Կրկին ցույց տալ</button></sc-if>
+</div>
+</sc-if>
+</article>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+<div class="card empty"><h2 class="h2">{{ emptyTitle }}</h2><p>{{ emptyText }}</p></div>
+</sc-if>
+</div>
+
+<aside style="display: flex; flex-direction: column; gap: 16px">
+<section class="card sum" aria-labelledby="sum-h">
+<h2 class="h2" id="sum-h">Գնահատական</h2>
+<div class="big"><b>4,7</b><span class="muted">{{ visibleCount }} տեսանելի կարծիքից</span></div>
+<ul class="dist" aria-label="Բաշխում ըստ աստղերի">
+<sc-for list="{{ dist }}" as="d" hint-placeholder-count="5"><li><span>{{ d.k }} ★</span><span class="track" aria-hidden="true"><span class="fill" style="{{ d.style }}"></span></span><span>{{ d.n }}</span></li></sc-for>
+</ul>
+</section>
+<section class="card rules" aria-labelledby="rules-h">
+<h2 class="h2" id="rules-h">Երբ թաքցնել</h2>
+<ul>
+<li>Վիրավորանք, ատելության խոսք կամ սպառնալիք</li>
+<li>Գովազդ կամ հղում այլ կայքի</li>
+<li>Անձնական տվյալներ՝ հեռախոս, ազգանուն</li>
+<li>Գրված է ոչ այս վայրի մասին</li>
+</ul>
+<p class="help" style="margin: 0">Վատ գնահատականը միայնակ պատճառ չէ թաքցնելու համար։</p>
+</section>
+</aside>
+</div>
+</main>
+</div>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><button type="button" class="tbtn" onClick="{{ undo }}">Հետարկել</button></sc-if></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      filter: 'all', editing: null, reason: '', tried: false, toast: null,
+      reviews: [
+        { id: 1, who: 'Աննա Պ.', when: 'Այսօր, 13:20', stars: 1, reports: 3, text: 'Մատուցողը կոպիտ էր, իսկ ձեր մենեջեր Դավիթը (+374 91 •• •• 12) նույնիսկ չպատասխանեց։ Զանգեք նրան ու ասեք, թե ինչ եմ մտածում։', hidden: null },
+        { id: 2, who: 'Karen M.', when: 'Երեկ, 21:05', stars: 5, reports: 2, text: 'Լավագույն սուրճը Կասկադում։ Իսկ ավելի էժան տարբերակի համար այցելեք cheap-coffee-yerevan.am — 20% զեղչ կոդով KAREN։', hidden: null },
+        { id: 3, who: 'Լիլիթ Ս.', when: 'Երեկ, 19:40', stars: 5, reports: 0, text: 'Տեռասից տեսարանը հիասքանչ է, ամրագրումը հավելվածով տևեց մեկ րոպե։ Կվերադառնանք։', hidden: null },
+        { id: 4, who: 'Arthur', when: 'Հոկտ 15', stars: 3, reports: 0, text: 'Ուտելիքը լավն էր, բայց ուրբաթ երեկոյան սպասեցինք 25 րոպե։ Ավելի շատ մատուցող է պետք։', hidden: null },
+        { id: 5, who: 'Մարիամ Ա.', when: 'Հոկտ 12', stars: 2, reports: 1, text: 'Այս կարծիքը Garden Bistro-ի մասին է, սխալմամբ գրեցի այստեղ։', hidden: { reason: 'Գրված է այլ վայրի մասին', by: 'Թաքցրել է Grigor Avagyan-ը, Հոկտ 13' } },
+        { id: 6, who: 'Davit H.', when: 'Հոկտ 9', stars: 4, reports: 0, text: 'Հաճելի մթնոլորտ, լավ երաժշտություն։ Աղանդերի ընտրությունը կարող էր ավելի մեծ լինել։', hidden: null }
+      ]
+    };
+  }
+  componentDidMount() {
+    this._key = (e) => {
+      if (e.key === 'Escape' && this.state.editing) { const id = this.state.editing; this.setState({ editing: null, reason: '', tried: false }); this.focusLater('[data-hide="' + id + '"]'); }
+    };
+    document.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount() { clearTimeout(this._t); document.removeEventListener('keydown', this._key); }
+  //KEYS
+  patch(id, change) { this.setState({ reviews: this.state.reviews.map((r) => (r.id === id ? Object.assign({}, r, change) : r)) }); }
+  renderVals() {
+    const s = this.state;
+    const reported = s.reviews.filter((r) => r.reports > 0 && !r.hidden);
+    const hidden = s.reviews.filter((r) => r.hidden);
+    const list = s.filter === 'reported' ? reported : s.filter === 'hidden' ? hidden : s.reviews.slice().sort((a, b) => (b.reports > 0 && !b.hidden) - (a.reports > 0 && !a.hidden));
+    const presets = ['Վիրավորական բառեր', 'Գովազդ կամ սպամ', 'Անձնական տվյալներ', 'Գրված է այլ վայրի մասին', 'Այլ'];
+    const reasonErr = !s.reason.trim();
+    const visible = s.reviews.filter((r) => !r.hidden);
+    const dist = [5, 4, 3, 2, 1].map((k) => ({ k: k, n: visible.filter((r) => r.stars === k).length }));
+    const max = Math.max.apply(null, dist.map((d) => d.n).concat([1]));
+    const word = (n) => n + ' բողոք';
+    return {
+      filters: [['all', 'Բոլորը', s.reviews.length], ['reported', 'Բողոքարկված', reported.length], ['hidden', 'Թաքցված', hidden.length]].map((f) => ({
+        label: f[1], n: f[2], cls: 'chip' + (s.filter === f[0] ? ' on' : ''), pressed: s.filter === f[0] ? 'true' : 'false',
+        pick: () => this.setState({ filter: f[0], editing: null })
+      })),
+      hasRows: list.length > 0, noRows: list.length === 0,
+      emptyTitle: s.filter === 'reported' ? 'Բողոքարկված կարծիք չկա' : s.filter === 'hidden' ? 'Թաքցված կարծիք չկա' : 'Կարծիքներ դեռ չկան',
+      emptyText: s.filter === 'reported' ? 'Երբ հյուրը կամ ռեստորանը բողոքի, կարծիքը կհայտնվի այստեղ։' : 'Այս մասնաճյուղի մասին դեռ ոչ ոք չի գրել։',
+      rows: list.map((r) => {
+        const isRep = r.reports > 0 && !r.hidden;
+        return {
+          id: r.id, hid: 'rv-' + r.id, who: r.who, when: r.when, text: r.text,
+          initials: r.who.charAt(0),
+          cls: 'card rv' + (isRep ? ' reported' : '') + (r.hidden ? ' hidden' : ''),
+          on: '★★★★★'.slice(0, r.stars), off: '★★★★★'.slice(r.stars),
+          starsAria: r.stars + ' աստղ 5-ից',
+          isReported: isRep, reports: word(r.reports),
+          isHidden: !!r.hidden, isVisible: !r.hidden,
+          reason: r.hidden ? r.hidden.reason : '', hiddenBy: r.hidden ? r.hidden.by : '',
+          editing: s.editing === r.id,
+          showActions: s.editing !== r.id,
+          canDismiss: isRep,
+          dismiss: () => { this.patch(r.id, { reports: 0 }); this.say('Բողոքները անտեսվեցին, կարծիքը մնում է տեսանելի', () => this.patch(r.id, { reports: r.reports })); },
+          startHide: () => { this.setState({ editing: r.id, reason: '', tried: false }); this.focusLater('.reasons input'); },
+          confirmHide: (e) => {
+            e.preventDefault();
+            if (reasonErr) { this.setState({ tried: true }); this.focusLater('#rv-reason'); return; }
+            this.patch(r.id, { hidden: { reason: s.reason.trim(), by: 'Թաքցրել եք դուք, հենց հիմա' } });
+            this.setState({ editing: null, reason: '', tried: false });
+            this.say(r.who + '-ի կարծիքը թաքցվեց', () => this.patch(r.id, { hidden: null }));
+          },
+          unhide: () => { const h = r.hidden; this.patch(r.id, { hidden: null }); this.say(r.who + '-ի կարծիքը կրկին երևում է', () => this.patch(r.id, { hidden: h })); }
+        };
+      }),
+      reasonChips: presets.map((p) => ({ label: p, cls: 'rchip' + (s.reason === p ? ' on' : ''), pick: () => { this.setState({ reason: p === 'Այլ' ? '' : p }); if (p === 'Այլ') this.focusLater('#rv-reason'); } })),
+      reason: s.reason, reasonLen: s.reason.length,
+      onReason: (e) => this.setState({ reason: e.target.value }),
+      showReasonErr: s.tried && reasonErr,
+      reasonInvalid: s.tried && reasonErr ? 'true' : 'false',
+      reasonCls: 'ctl' + (s.tried && reasonErr ? ' bad' : ''),
+      cancelHide: () => { const id = s.editing; this.setState({ editing: null, reason: '', tried: false }); this.focusLater('[data-hide="' + id + '"]'); },
+      visibleCount: visible.length,
+      dist: dist.map((d) => ({ k: d.k, n: d.n, style: 'width: ' + (d.n / max * 100).toFixed(0) + '%' })),
+      hasToast: !!s.toast, toast: s.toast ? s.toast.msg : '', hasUndo: !!(s.toast && s.toast.undo),
+      undo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

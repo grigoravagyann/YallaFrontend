@@ -69,6 +69,65 @@ edge is 3.13:1.
 
 ---
 
+## The platform-admin console: an approved exception
+
+On 2026-10-18 the user approved a darker look for the **platform-admin area**
+of the web console, and for the **sign-in and password pages** every console
+user passes through: a cream canvas, a dark-brown sidebar and a brown primary
+button. It replaces the beige fill there and nowhere else; the venue console
+(owner, general manager, branch manager), the staff floor, the diner app and
+the public page keep everything below. The spec is `docs/design/console`
+(`HANDOFF.md`, the artboards, `source/_shell.css`).
+
+The values are tokens like every other value in the product:
+`packages/tokens/src/console.ts`, emitted as `--console-*` custom properties
+(`consoleColor.brand` → `--console-brand`, `consoleSize.sidebar` →
+`--console-size-sidebar`). The console's stylesheet,
+`apps/web/src/console/ui/console.css`, reads only those, and
+`consoleStyles.test.ts` fails on a colour typed into it or into the redesign's
+components.
+
+**The thesis still holds inside it: chroma means state or the one action.**
+
+| Token                           | Value                             | Role                                                  |
+| ------------------------------- | --------------------------------- | ----------------------------------------------------- |
+| `canvas`                        | `#F7F1E8`                         | The page. Cream, so a white card lifts off it         |
+| `surface`                       | `#FFFFFF`                         | Cards, dialogs, inputs                                |
+| `sidebar` / `sidebarActive`     | `#2B1608` / `#4A2817`             | The 232px sidebar and its current item                |
+| `brand` / `brandForeground`     | `#3A1D0C` / `#FFF3E4`             | The primary button, links, the focus outline. 14.10:1 |
+| `ink` / `muted`                 | `#2A1A10` / `#6B5A4F`             | Text, 14.92:1 and 5.84:1 on the canvas                |
+| `line` / `lineSoft` / `control` | `#E8DDD0` / `#F1E9DF` / `#D8C8B6` | Card edges, dividers inside cards, input edges        |
+| `amber` on `amberBg`            | `#8A4B08` on `#FDF1DE`            | Not ready yet. **Never red**                          |
+| `red` on `redBg`                | `#A8261B` on `#FCEAE7`            | Real failures and destructive buttons only            |
+| `green` on `greenBg`            | `#0F6A4B` on `#E4F2EA`            | Done, active, saved                                   |
+| `grey` on `greyBg`              | `#57534E` on `#EEE8E1`            | Suspended, off                                        |
+
+The rules the artboards were reviewed against, and that the screens keep:
+
+- **Red is only for real failures**: a dead letter in the outbox, a server
+  error, a destructive button. A venue that is not ready is amber. Offline is
+  amber too: a dead connection is a state, not a fault.
+- **Type**: titles in the serif (`--font-family-display`: Noto Serif Armenian
+  merged with Noto Serif) at 28px for a page and 17px for a section; body in
+  the sans at 14px. Nothing in the console is under 12px. This is the one
+  place the serif is back in use — see _The serif is retired from the scale_
+  for the rest of the product.
+- **Sizes**: 40px buttons (32px small, 44px on the sign-in pages), 24px pills,
+  12px card corners, a 232px sidebar, 32/40px around the page.
+- **Cards here are outlined** (`line`), not lifted by a shadow: the cream
+  canvas is warm enough that a hairline reads as calm. Only dialogs and toasts
+  cast a shadow (`consoleShadow`).
+- Every text pair clears AA, and the focus outline 3:1, on every ground it
+  sits on; `packages/tokens/src/console.test.ts` holds each one.
+
+**Open question for the user.** An input's edge, `control` `#D8C8B6`, is
+1.63:1 on white. WCAG 1.4.11 asks 3:1 of a boundary that is the only way to see
+a field, and on a white card it is. The approved value is kept as approved and
+not pinned by a test; darkening it (for example to `#9C8670`) is a one-token
+change once decided.
+
+---
+
 ## Palette
 
 Every value below is in `packages/tokens/src/color.ts`. Nothing outside that
@@ -407,6 +466,14 @@ ink — a number is read, not pressed. Card padding `xl` (24).
 The console carries the beige fill on the active nav item, the primary button
 and selected options. Links, outlined buttons and focused fields use
 `primaryInk`. Everything else on the screen is ink, neutral or a table state.
+
+The platform admin's area is the exception described in _The platform-admin
+console_ above: the dark-brown sidebar with three destinations (Home, Venues,
+Settings), the brown primary button, the cream canvas. Below 800px its sidebar
+becomes a bar across the top — the brand and who is signed in on one line, the
+three destinations on the next — rather than a drawer: three links fit, and a
+phone keeps them one tap away. The sign-in pages put the room photo above the
+card below 960px.
 
 Sparklines, report charts and progress bars draw in `dataFill`, with
 `dataFillActive` on the one current bar, so a card reads as filled-versus-empty

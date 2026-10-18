@@ -1,6 +1,9 @@
 export { color, subtleTextBackgrounds, textBackgrounds, tintedFills } from './color';
 export type { ColorToken } from './color';
 
+export { consoleColor, consoleRadius, consoleShadow, consoleSize, consoleText } from './console';
+export type { ConsoleColorToken } from './console';
+
 export { compositedFill, tableStatusStyle, tableStatusLegendOrder } from './tableState';
 export type { FillPattern, TableStatus, TableStatusStyle } from './tableState';
 

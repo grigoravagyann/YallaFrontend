@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Սխալի էջեր — Yalla Console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.app{display:flex;flex-wrap:wrap;min-height:100vh}
+.side{flex:1 0 232px;background:var(--side);color:#E9D9C6;display:flex;flex-direction:column;gap:28px;padding:24px 16px}
+.brand{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;font-weight:700;color:#FFF3E4;padding:0 12px;line-height:1}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:12px;height:44px;padding:0 14px;border-radius:10px;color:#D9C5B0;text-decoration:none;font-weight:500;font-size:15px;white-space:nowrap}
+.nav a:hover{background:rgba(255,243,228,.07);color:#FFF3E4}
+.nav a.on{background:#4A2817;color:#FFF3E4;font-weight:600}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 10px 12px;border-radius:10px;background:rgba(255,243,228,.05)}
+.avatar{width:32px;height:32px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.me-n{color:#FFF3E4;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-r{color:#BFA88F;font-size:12px;white-space:nowrap}
+.out{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:#D9C5B0;text-decoration:none}
+.out:hover{background:rgba(255,243,228,.08);color:#FFF3E4}
+.main{flex:999 1 560px;min-width:0;padding:32px 40px 48px;display:flex;flex-direction:column;gap:24px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;margin:0}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line-2)}
+.h2{font-family:'Noto Serif Armenian',Georgia,serif;font-size:17px;font-weight:700;margin:0;line-height:1.3}
+.cap{font-size:13px;color:var(--muted);margin:2px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:background .15s}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}.btn-sec:hover{background:var(--hover)}
+.btn-sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.p-green{background:var(--green-bg);color:var(--green)}.p-amber{background:var(--amber-bg);color:var(--amber)}.p-red{background:var(--red-bg);color:var(--red)}.p-grey{background:var(--grey-bg);color:var(--grey)}.p-brand{background:#F4ECE2;color:var(--brand)}
+.tscroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:10px 16px;border-bottom:1px solid var(--line);white-space:nowrap;background:#FCF9F5}
+.tbl td{padding:10px 16px;border-bottom:1px solid var(--line-2);vertical-align:middle;white-space:nowrap}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover td{background:var(--hover)}
+.tbl tfoot td{padding:10px 16px;border-top:1px solid var(--line);font-weight:700;background:#FCF9F5}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.thumb{width:56px;height:42px;border-radius:8px;display:grid;place-items:center;font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:17px;flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.side :focus-visible{outline-color:#F3D9B8}
+svg.i{width:18px;height:18px;flex:none}
+
+.btn-danger{background:var(--red);color:#FFF}.btn-danger:hover{background:#8C1F16;color:#FFF}
+.btn-ghost{background:none;color:var(--brand);border-color:transparent}.btn-ghost:hover{background:#F4ECE2}
+.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld > label,.fld > .lbl{font-size:13px;font-weight:600;color:var(--ink)}
+.ctl{height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 12px;width:100%}
+.ctl:hover{border-color:#C8B39C}
+.ctl.bad,.pre.bad{border-color:var(--red)}
+textarea.ctl{height:auto;min-height:96px;padding:10px 12px;resize:vertical;line-height:1.5}
+.help{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:var(--red);font-weight:600}
+.req{color:var(--red);margin-left:2px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pre{display:flex;align-items:center;height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);overflow:hidden}
+.pre:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.pre span{padding-left:12px;color:var(--muted);white-space:nowrap}
+.pre input{border:0;height:100%;flex:1;min-width:0;padding:0 12px 0 1px;font:inherit;font-size:14px;color:var(--ink);background:none}
+.pre input:focus-visible{outline:none}
+.overlay{position:fixed;inset:0;z-index:30;background:rgba(42,26,16,.45);display:grid;place-items:center;padding:16px;overflow-y:auto}
+.dialog{width:460px;max-width:100%;background:var(--paper);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(42,26,16,.3)}
+.dialog-wide{width:560px}
+.dialog p{margin:0;color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:10px;padding:10px 12px 10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(42,26,16,.25);max-width:calc(100% - 32px)}
+.toast svg{color:#9FD9BD}
+.tbtn{border:0;background:rgba(255,243,228,.1);color:#F3D9B8;font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:32px;padding:0 12px;border-radius:7px;white-space:nowrap}
+.toast :focus-visible{outline-color:#F3D9B8}
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;font-size:14px}
+.banner b{font-weight:600}
+.banner .grow{flex:1;min-width:220px}
+.b-amber{background:var(--amber-bg);color:var(--amber);border:1px solid #F1D3A6}
+.b-red{background:var(--red-bg);color:var(--red);border:1px solid #F2C9C2}
+.b-grey{background:var(--grey-bg);color:var(--grey);border:1px solid #DDD3C8}
+.b-green{background:var(--green-bg);color:var(--green);border:1px solid #BFDECD}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin:0;padding:0;list-style:none}
+.crumbs a{color:var(--muted);text-decoration:none;font-weight:600}
+.crumbs a:hover{color:var(--ink);text-decoration:underline}
+.crumbs li+li::before{content:'/';margin-right:6px;color:#C8B39C}
+.bhead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.subtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.subtabs a{height:44px;padding:0 16px;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:14px;font-weight:600;color:var(--muted);text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+.subtabs a:hover{color:var(--ink)}
+.subtabs a.on{color:var(--brand);border-bottom-color:var(--brand)}
+.subtabs .cnt{font-size:12px;height:20px;min-width:20px;padding:0 6px;border-radius:999px;background:var(--amber-bg);color:var(--amber);display:inline-grid;place-items:center}
+.bsel{height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 12px}
+.savebar{position:sticky;bottom:16px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:var(--ink);color:#FFF3E4;box-shadow:0 10px 30px rgba(42,26,16,.25)}
+.savebar .grow{flex:1;min-width:200px;font-size:14px}
+.savebar .btn-sec{background:transparent;color:#FFF3E4;border-color:rgba(255,243,228,.3)}
+.savebar .btn-sec:hover{background:rgba(255,243,228,.08)}
+.savebar .btn-pri{background:#FFF3E4;color:var(--brand)}
+.savebar :focus-visible{outline-color:#F3D9B8}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,243,228,.35);border-top-color:currentColor;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (max-width:560px){.main{padding:24px 16px 40px}.row2{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+
+/* page */
+.switcher{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border:1px dashed #D2BFA8;border-radius:10px;font-size:12px;color:var(--muted)}
+.switcher button{height:32px;padding:0 12px;border-radius:999px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink)}
+.switcher button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.wrapc{flex:1;display:grid;place-items:center;padding:24px 0}
+.ecard{width:520px;max-width:100%;padding:40px 32px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.eic{width:72px;height:72px;border-radius:20px;display:grid;place-items:center}
+.eic svg{width:32px;height:32px}
+.e-brand{background:#F4ECE2;color:var(--brand)}.e-amber{background:var(--amber-bg);color:var(--amber)}.e-red{background:var(--red-bg);color:var(--red)}
+.code{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.etext{margin:0;color:var(--muted);max-width:44ch}
+.eacts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:6px}
+.ref{font-size:12px;color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+.tries{font-size:12px;color:var(--muted)}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+<aside class="side" aria-label="Հիմնական նավիգացիա">
+<div class="brand">Yalla</div>
+<nav class="nav">
+<a href="Main.dc.html"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>Գլխավոր</a>
+<a href="Venues.dc.html" class="on" aria-current="page"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 7 4.4-4.4A2 2 0 0 1 7.8 2h8.4a2 2 0 0 1 1.4.6L22 7"></path><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"></path><path d="M2 7h20v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-2 1 2 2 0 0 1-2-2z"></path></svg>Վայրեր</a>
+<a href="Settings.dc.html"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>Կարգավորումներ</a>
+</nav>
+<div class="side-foot">
+<div class="me"><span class="avatar" aria-hidden="true">GA</span><span class="me-t"><span class="me-n">Grigor Avagyan</span><span class="me-r">Պլատֆորմի ադմին</span></span><a class="out" href="SignIn.dc.html" aria-label="Դուրս գալ"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg></a></div>
+</div>
+</aside>
+<main class="main" id="main">
+<div class="switcher" role="group" aria-label="Դիզայնի վիճակ"><span>Վիճակ.</span><sc-for list="{{ kinds }}" as="k" hint-placeholder-count="5"><button type="button" aria-pressed="{{ k.on }}" onClick="{{ k.pick }}">{{ k.label }}</button></sc-for></div>
+
+<div class="wrapc">
+<section class="card ecard" role="{{ role }}" aria-labelledby="e-h">
+<span class="{{ icCls }}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ icon }}"></path><path d="{{ icon2 }}"></path></svg></span>
+<span class="code">{{ code }}</span>
+<h1 class="h1" id="e-h">{{ title }}</h1>
+<p class="etext">{{ text }}</p>
+<div class="eacts">
+<sc-if value="{{ hasRetry }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ idle }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-pri" onClick="{{ retry }}">Կրկին փորձել</button></sc-if>
+<sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-pri" aria-busy="true"><span class="spin"></span>Ստուգում ենք…</button></sc-if>
+</sc-if>
+<sc-for list="{{ links }}" as="l" hint-placeholder-count="1"><a class="{{ l.cls }}" href="{{ l.href }}">{{ l.label }}</a></sc-for>
+</div>
+<sc-if value="{{ hasTries }}" hint-placeholder-val="{{ false }}"><span class="tries" role="status">{{ tries }}</span></sc-if>
+<sc-if value="{{ hasRef }}" hint-placeholder-val="{{ false }}"><span class="ref">Սխալի կոդ՝ 7F3A-21C9 · ուղարկեք Yalla-ի թիմին</span></sc-if>
+</section>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kind":{"editor":"enum","options":["notFound","forbidden","offline","signedOut","error"],"default":"notFound","section":"Վիճակ"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { kind: null, busy: false, tries: 0 };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  renderVals() {
+    const s = this.state;
+    const kind = s.kind || this.props.kind || 'notFound';
+    const SEARCH = 'M21 21l-4.3-4.3', SEARCH2 = 'M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z';
+    const LOCK = 'M7 11V7a5 5 0 0 1 10 0v4', LOCK2 = 'M5 11h14v10H5z';
+    const WIFI = 'M2 8.8a15 15 0 0 1 20 0M5 12.9a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0', WIFI2 = 'M2 2l20 20';
+    const OUT = 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5', OUT2 = 'M21 12H9';
+    const WARN = 'M21.7 18l-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3', WARN2 = 'M12 9v4M12 17h.01';
+    const K = {
+      notFound: { code: '404', title: 'Այս վայրը չգտնվեց', text: 'Հնարավոր է՝ հղումը սխալ է կամ վայրը ջնջվել է։ Ջնջված վայրերը մնում են «Վայրեր» էջում՝ «Ջնջված» ֆիլտրով։', ic: 'eic e-brand', i: [SEARCH, SEARCH2], retry: false, role: 'region', links: [['Վայրերի ցանկ', 'Venues.dc.html', 'btn btn-pri'], ['Գլխավոր', 'Main.dc.html', 'btn btn-sec']] },
+      forbidden: { code: '403', title: 'Այս էջը ձեզ համար չէ', text: 'Էջը կամ գոյություն չունի, կամ ձեր հաշիվը դրան հասանելիություն չունի։ Ոչինչ չի փոխվել։', ic: 'eic e-amber', i: [LOCK, LOCK2], retry: false, role: 'region', links: [['Վերադառնալ այնտեղ, ուր կարող եք', 'Main.dc.html', 'btn btn-pri']] },
+      offline: { code: 'Կապ չկա', title: 'Դուք օֆլայն եք', text: 'Ստուգեք ինտերնետ կապը և փորձեք կրկին։ Չպահպանված փոփոխությունները մնում են այս էջում։', ic: 'eic e-amber', i: [WIFI, WIFI2], retry: true, role: 'alert', links: [] },
+      signedOut: { code: 'Սեսիան ավարտվեց', title: 'Մուտք գործեք կրկին', text: 'Անվտանգության համար սեսիան ավարտվել է։ Մուտք գործելուց հետո կվերադառնաք նույն էջին։', ic: 'eic e-brand', i: [OUT, OUT2], retry: false, role: 'alert', links: [['Մուտք', 'SignIn.dc.html', 'btn btn-pri']] },
+      error: { code: 'Սխալ', title: 'Ինչ-որ բան այն չգնաց', text: 'Սա մեր կողմից է, ոչ ձեր։ Ոչինչ չի փոխվել. փորձեք կրկին մի քանի վայրկյանից։', ic: 'eic e-red', i: [WARN, WARN2], retry: true, role: 'alert', links: [['Գլխավոր', 'Main.dc.html', 'btn btn-sec']] }
+    }[kind];
+    const names = [['notFound', 'Չգտնվեց'], ['forbidden', 'Հասանելիություն չկա'], ['offline', 'Օֆլայն'], ['signedOut', 'Սեսիան ավարտվեց'], ['error', 'Սերվերի սխալ']];
+    return {
+      kinds: names.map((n) => ({ label: n[1], on: n[0] === kind ? 'true' : 'false', pick: () => this.setState({ kind: n[0], tries: 0, busy: false }) })),
+      code: K.code, title: K.title, text: K.text, icCls: K.ic, icon: K.i[0], icon2: K.i[1], role: K.role,
+      hasRetry: K.retry, idle: !s.busy, busy: s.busy,
+      retry: () => { this.setState({ busy: true }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ busy: false, tries: s.tries + 1 }), 1200); },
+      hasTries: K.retry && s.tries > 0,
+      tries: 'Դեռ չի ստացվում · փորձ ' + s.tries + '։ Կփորձենք ինքնաբերաբար, երբ կապը վերականգնվի։',
+      hasRef: kind === 'error',
+      links: K.links.map((l) => ({ label: l[0], href: l[1], cls: l[2] }))
+    };
+  }
+}
+</script>
+</body>
+</html>

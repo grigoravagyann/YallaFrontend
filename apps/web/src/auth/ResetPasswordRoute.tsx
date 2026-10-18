@@ -1,13 +1,24 @@
 import { ValidationError, describeFailure } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLayoutEffect, useState, type FormEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  AlertCircleIcon,
+  CheckIcon,
+  CrossIcon,
+  DotIcon,
+  EyeIcon,
+  EyeOffIcon,
+  LinkOffIcon,
+  UserIcon,
+} from '../console/ui/icons';
 import { usingMockData } from '../data/gateway';
+import { AuthLayout } from './AuthLayout';
 import { resetPassword, signOut } from './authSession';
 import { LoadingScreen } from './RequireRole';
 import { forgetSessionQueries } from './sessionQueries';
-import { useCurrentUser } from './useCurrentUser';
+import { landingPathFor, useCurrentUser } from './useCurrentUser';
 
 /**
  * Mirrors `Auth:MinimumPasswordLength` in the backend's `appsettings.json`.
@@ -19,8 +30,27 @@ import { useCurrentUser } from './useCurrentUser';
  */
 const MINIMUM_PASSWORD_LENGTH = 12;
 
+const STRENGTH = ['empty', 'short', 'fair', 'good', 'strong'] as const;
+
 /**
- * Where a sign-in link lands.
+ * The SetPassword artboard's meter, 0 to 4: nothing typed, under the minimum,
+ * then by length and by how many kinds of character (lower, upper, digit,
+ * other) it mixes. Advice only — the server's one rule is the length.
+ */
+export function passwordStrength(password: string): 0 | 1 | 2 | 3 | 4 {
+  const length = password.length;
+  const kinds = [/[a-z]/u, /[A-Z]/u, /\d/u, /[^A-Za-z0-9]/u].filter((kind) =>
+    kind.test(password),
+  ).length;
+  if (length === 0) return 0;
+  if (length < MINIMUM_PASSWORD_LENGTH) return 1;
+  if (length < 16 && kinds < 3) return 2;
+  if (length < 20 && kinds < 4) return 3;
+  return 4;
+}
+
+/**
+ * Where a sign-in link lands (SetPassword artboard).
  *
  * A manager or owner never has a password typed for them. The person who
  * hired them issues a link, hands it over in a chat, and the recipient opens
@@ -43,6 +73,11 @@ const MINIMUM_PASSWORD_LENGTH = 12;
  *   The call carries no session, so it is never mistaken for a sign-out, and
  *   the page says what happened rather than bouncing to a sign-in form the
  *   person has no password for.
+ *
+ * The same page spends a forgotten-password link (an hour) and an invitation
+ * (a day), and nothing in the token says which, so the copy names neither.
+ * The artboard's "who this is for" box is left out for the same reason: the
+ * token is opaque and no endpoint describes it.
  */
 export function ResetPasswordRoute() {
   const { t } = useTranslation(['admin', 'common']);
@@ -55,10 +90,13 @@ export function ResetPasswordRoute() {
   const [phase, setPhase] = useState<'form' | 'done' | 'invalid'>(token ? 'form' : 'invalid');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [shown, setShown] = useState(false);
+  const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
 
   // The token has been read; nothing about it belongs in the address bar or
   // the history entry any longer. A replace, so Back does not bring it back.
@@ -74,18 +112,20 @@ export function ResetPasswordRoute() {
     navigate({ pathname: location.pathname, search: '', hash: '' }, { replace: true });
   }, [navigate, location.pathname, location.search, location.hash]);
 
+  const tooShort = password.length < MINIMUM_PASSWORD_LENGTH;
+  const mismatch = confirm.length === 0 || password !== confirm;
+  const score = passwordStrength(password);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setFailure(null);
-    setPasswordError(null);
-    setConfirmError(null);
+    setServerError(null);
 
-    if (password.length < MINIMUM_PASSWORD_LENGTH) {
-      setPasswordError(t('resetPassword.tooShort', { min: MINIMUM_PASSWORD_LENGTH }));
-      return;
-    }
-    if (password !== confirm) {
-      setConfirmError(t('resetPassword.mismatch'));
+    if (tooShort || mismatch) {
+      setTried(true);
+      // The cursor goes to the first field a refused submit is about.
+      (tooShort ? passwordRef : confirmRef).current?.focus();
       return;
     }
     if (!token) return;
@@ -104,7 +144,8 @@ export function ResetPasswordRoute() {
         setPhase('invalid');
       } else if (error instanceof ValidationError) {
         // The server's own sentence: it names the minimum it actually enforces.
-        setPasswordError(error.message);
+        setServerError(error.message);
+        passwordRef.current?.focus();
       } else {
         setFailure(describeFailure(error) === 'offline' ? t('state.offline') : t('state.error'));
       }
@@ -122,123 +163,187 @@ export function ResetPasswordRoute() {
     await forgetSessionQueries(queryClient);
   }
 
+  const layout = (children: React.ReactNode) => (
+    <AuthLayout claim={t('resetPassword.claim')} claimSub={t('resetPassword.claimSub')}>
+      {children}
+    </AuthLayout>
+  );
+
   if (isLoading) return <LoadingScreen />;
 
   if (user) {
     const name = user.displayName || t(`role.${user.role}`);
-    return (
-      <section className="page page-narrow sign-in">
-        <div className="card">
-          <h1>{t('resetPassword.signedInTitle', { name })}</h1>
-          <p className="muted">{t('resetPassword.signedInBody')}</p>
-          {/* Only against a real backend: the mock has no session to end, and a
-              sign-out that does nothing is worse than none. */}
-          {usingMockData ? null : (
-            <div className="actions">
-              <button type="button" className="button" onClick={() => void leave()}>
-                {t('shell.signOut')}
-              </button>
-            </div>
-          )}
-        </div>
-      </section>
+    return layout(
+      <div className="yc-auth-card yc-auth-card-wide yc-state" role="alert">
+        <span className="yc-state-ic yc-state-ic-warn" aria-hidden="true">
+          <UserIcon />
+        </span>
+        <h1 className="yc-h1">{t('resetPassword.signedInTitle', { name })}</h1>
+        <p className="yc-sub">{t('resetPassword.signedInBody')}</p>
+        <Link className="yc-btn yc-btn-pri" to={landingPathFor(user.role)}>
+          {t('resetPassword.backToConsole')}
+        </Link>
+        {/* Only against a real backend: the mock has no session to end, and a
+            sign-out that does nothing is worse than none. Signing out leaves
+            the form, and the link read before it, for the link's owner. */}
+        {usingMockData ? null : (
+          <button type="button" className="yc-btn yc-btn-sec" onClick={() => void leave()}>
+            {t('shell.signOut')}
+          </button>
+        )}
+      </div>,
     );
   }
 
   if (phase === 'done') {
-    return (
-      <section className="page page-narrow sign-in">
-        <div className="card">
-          <h1>{t('resetPassword.doneTitle')}</h1>
-          <p className="muted">{t('resetPassword.doneBody')}</p>
-          <div className="actions">
-            <Link className="button button-primary" to="/sign-in">
-              {t('resetPassword.goToSignIn')}
-            </Link>
-          </div>
-        </div>
-      </section>
+    return layout(
+      <div className="yc-auth-card yc-auth-card-wide yc-state" role="status">
+        <span className="yc-state-ic" aria-hidden="true">
+          <CheckIcon />
+        </span>
+        <h1 className="yc-h1">{t('resetPassword.doneTitle')}</h1>
+        <p className="yc-sub">{t('resetPassword.doneBody')}</p>
+        <Link className="yc-btn yc-btn-pri" to="/sign-in">
+          {t('resetPassword.goToSignIn')}
+        </Link>
+      </div>,
     );
   }
 
   if (phase === 'invalid') {
-    return (
-      <section className="page page-narrow sign-in">
-        <div className="card">
-          <h1>{t('resetPassword.invalidTitle')}</h1>
-          <p className="muted">{t('resetPassword.invalidBody')}</p>
-          <div className="actions">
-            <Link className="button" to="/sign-in">
-              {t('resetPassword.goToSignIn')}
-            </Link>
-          </div>
-        </div>
-      </section>
+    return layout(
+      <div className="yc-auth-card yc-auth-card-wide yc-state" role="alert">
+        <span className="yc-state-ic yc-state-ic-warn" aria-hidden="true">
+          <LinkOffIcon />
+        </span>
+        <h1 className="yc-h1">{t('resetPassword.invalidTitle')}</h1>
+        <p className="yc-sub">{t('resetPassword.invalidBody')}</p>
+        <Link className="yc-btn yc-btn-sec" to="/sign-in">
+          {t('resetPassword.invalidSignIn')}
+        </Link>
+      </div>,
     );
   }
 
-  return (
-    <section className="page page-narrow sign-in">
-      <div className="card">
-        <h1>{t('resetPassword.title')}</h1>
-        <p className="muted">{t('resetPassword.body')}</p>
+  const rules = [
+    {
+      id: 'length',
+      bad: tooShort,
+      text: t('resetPassword.tooShort', { min: MINIMUM_PASSWORD_LENGTH }),
+    },
+    { id: 'match', bad: mismatch, text: t('resetPassword.match') },
+  ];
+  const passwordInvalid = (tried && tooShort) || serverError !== null;
+  const confirmInvalid = tried && mismatch;
 
-        <form onSubmit={(event) => void submit(event)}>
-          {/*
-            `new-password` on both fields, so a browser offers to generate one
-            and never fills in a password it has saved for somebody else on
-            this machine. The errors sit outside the labels and are linked with
-            `aria-describedby`, as the staff form's are.
-          */}
-          <div className="labelled">
-            <label htmlFor="reset-password">{t('resetPassword.password')}</label>
+  return layout(
+    <>
+      <form
+        className="yc-auth-card yc-auth-card-wide"
+        aria-labelledby="sp-h"
+        noValidate
+        onSubmit={(event) => void submit(event)}
+      >
+        <div>
+          <h1 className="yc-h1" id="sp-h">
+            {t('resetPassword.title')}
+          </h1>
+          <p className="yc-sub">{t('resetPassword.body')}</p>
+        </div>
+
+        {failure ? (
+          <div className="yc-alert yc-alert-warn" role="alert">
+            <AlertCircleIcon />
+            <span>{failure}</span>
+          </div>
+        ) : null}
+
+        {/*
+          `new-password` on both fields, so a browser offers to generate one
+          and never fills in a password it has saved for somebody else on
+          this machine. The rules under the fields are their description.
+        */}
+        <div className="yc-fld">
+          <label htmlFor="sp-new">{t('resetPassword.password')}</label>
+          <div className="yc-pw">
             <input
-              id="reset-password"
-              className="field"
-              type="password"
+              ref={passwordRef}
+              id="sp-new"
+              type={shown ? 'text' : 'password'}
+              className="yc-ctl"
               autoComplete="new-password"
               value={password}
-              required
-              {...(passwordError ? { 'aria-describedby': 'reset-password-error' } : {})}
-              onChange={(event) => setPassword(event.currentTarget.value)}
+              aria-invalid={passwordInvalid}
+              aria-describedby={['sp-rules', 'sp-meter', serverError ? 'sp-new-err' : '']
+                .filter(Boolean)
+                .join(' ')}
+              onChange={(event) => {
+                setPassword(event.currentTarget.value);
+                setServerError(null);
+              }}
             />
-            {passwordError ? (
-              <span id="reset-password-error" className="field-error" role="alert">
-                {passwordError}
-              </span>
-            ) : null}
+            <button
+              type="button"
+              className="yc-eye"
+              aria-label={shown ? t('signIn.hidePassword') : t('signIn.showPassword')}
+              aria-pressed={shown}
+              onClick={() => setShown(!shown)}
+            >
+              {shown ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
           </div>
-          <div className="labelled">
-            <label htmlFor="reset-confirm">{t('resetPassword.confirm')}</label>
+          <div className="yc-meter" aria-hidden="true">
+            {[1, 2, 3, 4].map((bar) => (
+              <i key={bar} className={bar <= score ? `is-${score}` : undefined} />
+            ))}
+          </div>
+          <span className="yc-mlabel" id="sp-meter">
+            {t(`resetPassword.strength.${STRENGTH[score]}`, { min: MINIMUM_PASSWORD_LENGTH })}
+          </span>
+          {serverError ? (
+            <span className="yc-err" id="sp-new-err" role="alert">
+              {serverError}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="yc-fld">
+          <label htmlFor="sp-rep">{t('resetPassword.confirm')}</label>
+          <div className="yc-pw">
             <input
-              id="reset-confirm"
-              className="field"
-              type="password"
+              ref={confirmRef}
+              id="sp-rep"
+              type={shown ? 'text' : 'password'}
+              className="yc-ctl"
               autoComplete="new-password"
               value={confirm}
-              required
-              {...(confirmError ? { 'aria-describedby': 'reset-confirm-error' } : {})}
+              aria-invalid={confirmInvalid}
+              aria-describedby="sp-rules"
               onChange={(event) => setConfirm(event.currentTarget.value)}
             />
-            {confirmError ? (
-              <span id="reset-confirm-error" className="field-error" role="alert">
-                {confirmError}
-              </span>
-            ) : null}
           </div>
+        </div>
 
-          {failure ? (
-            <p className="error" role="alert">
-              {failure}
-            </p>
-          ) : null}
+        <ul className="yc-rules" id="sp-rules" aria-live="polite">
+          {rules.map((rule) => (
+            <li key={rule.id} className={!rule.bad ? 'is-ok' : tried ? 'is-bad' : undefined}>
+              {!rule.bad ? <CheckIcon /> : tried ? <CrossIcon /> : <DotIcon />}
+              {rule.text}
+              <span className="yc-sr">
+                {' '}
+                {rule.bad ? t('resetPassword.ruleNotMet') : t('resetPassword.ruleMet')}
+              </span>
+            </li>
+          ))}
+        </ul>
 
-          <button type="submit" className="button button-primary" disabled={busy}>
-            {t('resetPassword.submit')}
-          </button>
-        </form>
-      </div>
-    </section>
+        <button type="submit" className="yc-btn yc-btn-pri" aria-busy={busy}>
+          {busy ? <span className="yc-spin" aria-hidden="true" /> : null}
+          {busy ? t('resetPassword.saving') : t('resetPassword.submit')}
+        </button>
+      </form>
+      <p className="yc-auth-note">{t('resetPassword.linkNote')}</p>
+    </>,
   );
 }
 

@@ -21,6 +21,9 @@ export default tseslint.config(
       'apps/e2e/blob-report/**',
       // Generated from the backend's OpenAPI document; not ours to lint.
       'packages/api/src/generated/**',
+      // The approved console design, kept exactly as exported: its artboards'
+      // scripts and the scenario checks that run them are the spec, not code.
+      'docs/design/console/**',
     ],
   },
 

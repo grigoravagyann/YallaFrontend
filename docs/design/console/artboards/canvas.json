@@ -1,0 +1,133 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-18T02:30:00Z"
+  },
+  "title": "Yalla Console",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "SignIn.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Մուտք",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Main.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 1300,
+      "title": "Գլխավոր",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Venues.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Վայրեր",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Settings.dc.html": {
+      "x": 4560,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Կարգավորումներ",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "VenueDetail.dc.html": {
+      "x": 6080,
+      "y": 0,
+      "w": 1440,
+      "h": 1100,
+      "title": "Վայրի էջ",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Reviews.dc.html": {
+      "x": 0,
+      "y": 1700,
+      "w": 1440,
+      "h": 1100,
+      "title": "Կարծիքներ",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "BranchPublic.dc.html": {
+      "x": 1520,
+      "y": 1700,
+      "w": 1440,
+      "h": 1700,
+      "title": "Մասնաճյուղի հանրային էջ",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "BranchRooms.dc.html": {
+      "x": 3040,
+      "y": 1700,
+      "w": 1440,
+      "h": 1150,
+      "title": "Սրահներ և սեղաններ",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "SetPassword.dc.html": {
+      "x": 4560,
+      "y": 1700,
+      "w": 1440,
+      "h": 900,
+      "title": "Գաղտնաբառի սահմանում",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    "Errors.dc.html": {
+      "x": 6080,
+      "y": 1700,
+      "w": 1440,
+      "h": 900,
+      "title": "Սխալի էջեր",
+      "expand": "fill",
+      "is_interactive": true
+    }
+  },
+  "order": [
+    "SignIn.dc.html",
+    "Main.dc.html",
+    "Venues.dc.html",
+    "Settings.dc.html",
+    "VenueDetail.dc.html",
+    "Reviews.dc.html",
+    "BranchPublic.dc.html",
+    "BranchRooms.dc.html",
+    "SetPassword.dc.html",
+    "Errors.dc.html"
+  ],
+  "notes": {
+    "flow": {
+      "x": 0,
+      "y": -300,
+      "text": "Yalla Console — պլատֆորմի ադմին",
+      "kind": "title1",
+      "maxW": 7520
+    },
+    "branch": {
+      "x": 0,
+      "y": 1400,
+      "text": "Մասնաճյուղ, մուտք և սխալներ",
+      "kind": "title1",
+      "maxW": 7520
+    }
+  },
+  "designSystems": []
+}

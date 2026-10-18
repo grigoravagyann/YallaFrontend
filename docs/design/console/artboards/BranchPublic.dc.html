@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Հանրային էջ — Yalla Console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--side:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.y *{box-sizing:border-box}
+.app{display:flex;flex-wrap:wrap;min-height:100vh}
+.side{flex:1 0 232px;background:var(--side);color:#E9D9C6;display:flex;flex-direction:column;gap:28px;padding:24px 16px}
+.brand{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;font-weight:700;color:#FFF3E4;padding:0 12px;line-height:1}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:12px;height:44px;padding:0 14px;border-radius:10px;color:#D9C5B0;text-decoration:none;font-weight:500;font-size:15px;white-space:nowrap}
+.nav a:hover{background:rgba(255,243,228,.07);color:#FFF3E4}
+.nav a.on{background:#4A2817;color:#FFF3E4;font-weight:600}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px}
+.me{display:flex;align-items:center;gap:10px;padding:10px 8px 10px 12px;border-radius:10px;background:rgba(255,243,228,.05)}
+.avatar{width:32px;height:32px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.me-t{display:flex;flex-direction:column;min-width:0;flex:1}
+.me-n{color:#FFF3E4;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me-r{color:#BFA88F;font-size:12px;white-space:nowrap}
+.out{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:#D9C5B0;text-decoration:none}
+.out:hover{background:rgba(255,243,228,.08);color:#FFF3E4}
+.main{flex:999 1 560px;min-width:0;padding:32px 40px 48px;display:flex;flex-direction:column;gap:24px}
+.h1{font-family:'Noto Serif Armenian',Georgia,serif;font-size:28px;line-height:1.2;font-weight:700;margin:0}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line-2)}
+.h2{font-family:'Noto Serif Armenian',Georgia,serif;font-size:17px;font-weight:700;margin:0;line-height:1.3}
+.cap{font-size:13px;color:var(--muted);margin:2px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:background .15s}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}.btn-pri:hover{background:#4E2815;color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}.btn-sec:hover{background:var(--hover)}
+.btn-sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.p-green{background:var(--green-bg);color:var(--green)}.p-amber{background:var(--amber-bg);color:var(--amber)}.p-red{background:var(--red-bg);color:var(--red)}.p-grey{background:var(--grey-bg);color:var(--grey)}.p-brand{background:#F4ECE2;color:var(--brand)}
+.tscroll{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;padding:10px 16px;border-bottom:1px solid var(--line);white-space:nowrap;background:#FCF9F5}
+.tbl td{padding:10px 16px;border-bottom:1px solid var(--line-2);vertical-align:middle;white-space:nowrap}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover td{background:var(--hover)}
+.tbl tfoot td{padding:10px 16px;border-top:1px solid var(--line);font-weight:700;background:#FCF9F5}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.thumb{width:56px;height:42px;border-radius:8px;display:grid;place-items:center;font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:17px;flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--muted)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.side :focus-visible{outline-color:#F3D9B8}
+svg.i{width:18px;height:18px;flex:none}
+
+.btn-danger{background:var(--red);color:#FFF}.btn-danger:hover{background:#8C1F16;color:#FFF}
+.btn-ghost{background:none;color:var(--brand);border-color:transparent}.btn-ghost:hover{background:#F4ECE2}
+.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld > label,.fld > .lbl{font-size:13px;font-weight:600;color:var(--ink)}
+.ctl{height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 12px;width:100%}
+.ctl:hover{border-color:#C8B39C}
+.ctl.bad,.pre.bad{border-color:var(--red)}
+textarea.ctl{height:auto;min-height:96px;padding:10px 12px;resize:vertical;line-height:1.5}
+.help{font-size:12px;color:var(--muted)}
+.err{font-size:12px;color:var(--red);font-weight:600}
+.req{color:var(--red);margin-left:2px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pre{display:flex;align-items:center;height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);overflow:hidden}
+.pre:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.pre span{padding-left:12px;color:var(--muted);white-space:nowrap}
+.pre input{border:0;height:100%;flex:1;min-width:0;padding:0 12px 0 1px;font:inherit;font-size:14px;color:var(--ink);background:none}
+.pre input:focus-visible{outline:none}
+.overlay{position:fixed;inset:0;z-index:30;background:rgba(42,26,16,.45);display:grid;place-items:center;padding:16px;overflow-y:auto}
+.dialog{width:460px;max-width:100%;background:var(--paper);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(42,26,16,.3)}
+.dialog-wide{width:560px}
+.dialog p{margin:0;color:var(--muted)}
+.acts{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:10px;padding:10px 12px 10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(42,26,16,.25);max-width:calc(100% - 32px)}
+.toast svg{color:#9FD9BD}
+.tbtn{border:0;background:rgba(255,243,228,.1);color:#F3D9B8;font:inherit;font-size:13px;font-weight:700;cursor:pointer;height:32px;padding:0 12px;border-radius:7px;white-space:nowrap}
+.toast :focus-visible{outline-color:#F3D9B8}
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;font-size:14px}
+.banner b{font-weight:600}
+.banner .grow{flex:1;min-width:220px}
+.b-amber{background:var(--amber-bg);color:var(--amber);border:1px solid #F1D3A6}
+.b-red{background:var(--red-bg);color:var(--red);border:1px solid #F2C9C2}
+.b-grey{background:var(--grey-bg);color:var(--grey);border:1px solid #DDD3C8}
+.b-green{background:var(--green-bg);color:var(--green);border:1px solid #BFDECD}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin:0;padding:0;list-style:none}
+.crumbs a{color:var(--muted);text-decoration:none;font-weight:600}
+.crumbs a:hover{color:var(--ink);text-decoration:underline}
+.crumbs li+li::before{content:'/';margin-right:6px;color:#C8B39C}
+.bhead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.subtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.subtabs a{height:44px;padding:0 16px;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:14px;font-weight:600;color:var(--muted);text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+.subtabs a:hover{color:var(--ink)}
+.subtabs a.on{color:var(--brand);border-bottom-color:var(--brand)}
+.subtabs .cnt{font-size:12px;height:20px;min-width:20px;padding:0 6px;border-radius:999px;background:var(--amber-bg);color:var(--amber);display:inline-grid;place-items:center}
+.bsel{height:40px;border-radius:10px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:14px;color:var(--ink);padding:0 12px}
+.savebar{position:sticky;bottom:16px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:var(--ink);color:#FFF3E4;box-shadow:0 10px 30px rgba(42,26,16,.25)}
+.savebar .grow{flex:1;min-width:200px;font-size:14px}
+.savebar .btn-sec{background:transparent;color:#FFF3E4;border-color:rgba(255,243,228,.3)}
+.savebar .btn-sec:hover{background:rgba(255,243,228,.08)}
+.savebar .btn-pri{background:#FFF3E4;color:var(--brand)}
+.savebar :focus-visible{outline-color:#F3D9B8}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,243,228,.35);border-top-color:currentColor;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (max-width:560px){.main{padding:24px 16px 40px}.row2{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important;animation:none!important}}
+
+/* page */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+.forms{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sec{display:flex;flex-direction:column}
+.sec-b{display:flex;flex-direction:column;gap:18px;padding:20px}
+.sec-f{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:14px 20px;border-top:1px solid var(--line-2);background:#FCF9F5;border-radius:0 0 12px 12px}
+.dirty{font-size:13px;color:var(--amber);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.dirty::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
+.saved{font-size:13px;color:var(--green);font-weight:600}
+.cover{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.cover img{width:200px;max-width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.cover-t{display:flex;flex-direction:column;gap:8px;flex:1;min-width:200px}
+.switch{display:flex;align-items:flex-start;gap:14px;padding:14px;border:1px solid var(--line);border-radius:10px}
+.sw{position:relative;width:44px;height:26px;border-radius:999px;border:0;background:#CDBFAF;cursor:pointer;flex:none;padding:0;transition:background .15s}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#FFF;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .15s}
+.sw[aria-checked="true"]{background:var(--green)}
+.sw[aria-checked="true"]::after{transform:translateX(18px)}
+.sw-t{display:flex;flex-direction:column;gap:2px}
+.sw-t b{font-weight:600}
+.seg{display:flex;flex-wrap:wrap;gap:0;border:1px solid #D8C8B6;border-radius:10px;overflow:hidden;width:max-content;max-width:100%}
+.seg button{height:38px;padding:0 14px;border:0;border-left:1px solid #E8DDD0;background:var(--paper);font:inherit;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap}
+.seg button:first-child{border-left:0}
+.seg button:hover{background:var(--hover)}
+.seg button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink)}
+.amen{display:flex;flex-wrap:wrap;gap:8px;border:0;margin:0;padding:0}
+.amen legend{font-size:13px;font-weight:600;margin-bottom:8px;padding:0}
+.ach{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:999px;border:1px solid #D8C8B6;background:var(--paper);font-size:13px;cursor:pointer;user-select:none}
+.ach:hover{background:var(--hover)}
+.ach.on{border-color:var(--brand);background:#F4ECE2;color:var(--brand);font-weight:600}
+.ach input{accent-color:#3A1D0C;width:16px;height:16px;margin:0}
+.cnt-row{display:flex;justify-content:space-between;gap:12px}
+.count{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.count.over{color:var(--red);font-weight:700}
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.tile{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#F4ECE2}
+.tile img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.tile .pos{position:absolute;top:6px;left:6px;height:22px;min-width:22px;padding:0 6px;border-radius:6px;background:rgba(42,26,16,.75);color:#FFF3E4;font-size:12px;font-weight:700;display:grid;place-items:center}
+.tile-a{display:flex;justify-content:space-between;gap:4px;padding:6px;background:var(--paper)}
+.ib{width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:none;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.ib:hover{background:var(--hover);color:var(--ink)}
+.ib.del:hover{color:var(--red);background:var(--red-bg)}
+.ib[aria-disabled="true"]{opacity:.35;cursor:not-allowed}
+.ib svg{width:16px;height:16px}
+.add-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;aspect-ratio:4/3;border-radius:10px;border:1.5px dashed #D2BFA8;background:#FCF9F5;color:var(--brand);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.add-tile:hover{background:var(--hover)}
+.loading-tile{display:grid;place-items:center;aspect-ratio:4/3;color:var(--muted);font-size:12px;gap:6px}
+.maplink{font-size:13px;font-weight:600}
+.prev{position:sticky;top:24px;display:flex;flex-direction:column;gap:10px}
+.prev-cap{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.phone{border-radius:24px;background:#1E0F06;padding:12px;box-shadow:0 16px 40px rgba(42,26,16,.18)}
+.pcard{border-radius:16px;overflow:hidden;background:#2B1608;color:#FFF3E4}
+.pcard img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover}
+.pc-b{padding:14px;display:flex;flex-direction:column;gap:6px}
+.pc-n{font-family:'Noto Serif Armenian',Georgia,serif;font-size:18px;font-weight:700;line-height:1.25}
+.pc-m{font-size:12px;color:#D9C5B0;display:flex;flex-wrap:wrap;gap:4px 8px}
+.pc-a{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.pc-a span{font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(255,243,228,.1);color:#EAD9C5}
+.pc-about{font-size:12px;color:#D9C5B0;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.pc-btn{margin-top:6px;height:40px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:14px;background:#FFF3E4;color:#3A1D0C}
+.pc-btn.off{background:rgba(255,243,228,.12);color:#BFA88F;font-weight:600;font-size:13px}
+@media (max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}.prev{position:static;max-width:360px}}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+<aside class="side" aria-label="Հիմնական նավիգացիա">
+<div class="brand">Yalla</div>
+<nav class="nav">
+<a href="Main.dc.html"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>Գլխավոր</a>
+<a href="Venues.dc.html" class="on" aria-current="page"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 7 4.4-4.4A2 2 0 0 1 7.8 2h8.4a2 2 0 0 1 1.4.6L22 7"></path><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"></path><path d="M2 7h20v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-2-1 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-4 0 2.7 2.7 0 0 1-2 1 2 2 0 0 1-2-2z"></path></svg>Վայրեր</a>
+<a href="Settings.dc.html"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>Կարգավորումներ</a>
+</nav>
+<div class="side-foot">
+<div class="me"><span class="avatar" aria-hidden="true">GA</span><span class="me-t"><span class="me-n">Grigor Avagyan</span><span class="me-r">Պլատֆորմի ադմին</span></span><a class="out" href="SignIn.dc.html" aria-label="Դուրս գալ"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg></a></div>
+</div>
+</aside>
+<main class="main" id="main">
+<ol class="crumbs"><li><a href="Venues.dc.html">Վայրեր</a></li><li><a href="VenueDetail.dc.html">Cascade Cafe</a></li><li aria-current="page">Կասկադ մասնաճյուղ</li></ol>
+<div class="bhead"><div><h1 class="h1">Կասկադ</h1><p class="sub">Cascade Cafe · Թամանյան 10, Կենտրոն</p></div><div class="fld"><label for="br-switch" class="sr">Մասնաճյուղ</label><select id="br-switch" class="bsel"><option>Կասկադ</option><option>Արաբկիր</option></select></div></div>
+<nav class="subtabs" aria-label="Մասնաճյուղի բաժիններ"><a href="BranchPublic.dc.html" class="on" aria-current="page">Հանրային էջ</a><a href="BranchRooms.dc.html">Սրահներ և սեղաններ</a><a href="Reviews.dc.html">Կարծիքներ<span class="cnt" aria-label="2 բողոք">2</span></a></nav>
+
+<div class="layout">
+<div class="forms">
+
+<form class="card sec" onSubmit="{{ saveA }}" novalidate="" aria-labelledby="a-h">
+<div class="card-h"><div><h2 class="h2" id="a-h">Էջ և ամրագրում</h2><p class="cap">Ինչ է տեսնում ցանկացած մեկը, ով ունի հղումը</p></div></div>
+<div class="sec-b">
+<div class="cover">
+<img src="/_blob/9d36a72c72c119590c1db65e8604f805" alt="Շապիկի լուսանկարը, սրահի ներսը">
+<div class="cover-t"><span class="lbl" style="font-size: 13px; font-weight: 600">Շապիկի լուսանկար</span><span class="help">Քարտի վրա հավելվածում և հանրային էջի վերևում։ Կտրվում է 4:3 շրջանակով, ինչպես ուտեստի նկարը։ JPG կամ PNG, մինչև 8 ՄԲ։</span><div style="display: flex; gap: 8px; flex-wrap: wrap"><button type="button" class="btn btn-sec btn-sm" onClick="{{ replaceCover }}">Փոխել լուսանկարը</button></div></div>
+</div>
+<div class="fld"><label for="pp-phone">Հեռախոս</label><input id="pp-phone" class="{{ phoneCls }}" type="tel" inputmode="tel" autocomplete="off" value="{{ phone }}" onInput="{{ onPhone }}" aria-invalid="{{ phoneInvalid }}" aria-describedby="pp-phone-help pp-phone-err"><span class="help" id="pp-phone-help">Հրապարակվում է էջում։ Միջազգային ձևաչափով՝ +374 11 22 33 44։ Թողեք դատարկ՝ համար չհրապարակելու համար։</span><sc-if value="{{ showPhoneErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pp-phone-err">Համարը պետք է սկսվի +-ով և ունենա 8–15 թիվ</span></sc-if></div>
+<div class="switch"><button type="button" class="sw" role="switch" aria-checked="{{ bookingsOn }}" aria-labelledby="sw-l" aria-describedby="sw-d" onClick="{{ toggleBookings }}"></button><span class="sw-t"><b id="sw-l">Ընդունել ամրագրում հանրային էջից</b><span class="help" id="sw-d">Անջատված է, մինչև միացնեք։ Անջատված վիճակում էջը ցույց է տալիս սրահը, ճաշացանկը և ժամերը, բայց ամրագրում չի առաջարկում։</span></span></div>
+</div>
+<div class="sec-f"><button type="submit" class="btn btn-pri">Պահպանել</button><sc-if value="{{ aDirty }}" hint-placeholder-val="{{ false }}"><span class="dirty">Չպահպանված փոփոխություններ</span></sc-if><sc-if value="{{ aSaved }}" hint-placeholder-val="{{ false }}"><span class="saved" role="status">Պահպանված է</span></sc-if></div>
+</form>
+
+<form class="card sec" onSubmit="{{ saveB }}" novalidate="" aria-labelledby="b-h">
+<div class="card-h"><div><h2 class="h2" id="b-h">Yalla հավելվածում</h2><p class="cap">Ինչ են կարդում հյուրերը քարտի և էջի վրա։ Ունի իր պահպանման կոճակը։</p></div></div>
+<div class="sec-b">
+<div class="fld"><label for="pp-cuisine">Խոհանոց</label><input id="pp-cuisine" class="{{ cuisineCls }}" value="{{ cuisine }}" onInput="{{ onCuisine }}" aria-describedby="pp-cuisine-c"><div class="cnt-row"><span class="help">Մեկ տող, օրինակ՝ «Հայկական և միջերկրածովյան»</span><span class="{{ cuisineCountCls }}" id="pp-cuisine-c">{{ cuisineLen }} / 120</span></div></div>
+<div class="fld"><label for="pp-about">Նկարագրություն</label><textarea id="pp-about" class="{{ aboutCls }}" value="{{ about }}" onInput="{{ onAbout }}" aria-describedby="pp-about-c"></textarea><div class="cnt-row"><span class="help">Կարճ պարբերություն վայրի մասին</span><span class="{{ aboutCountCls }}" id="pp-about-c">{{ aboutLen }} / 2000</span></div></div>
+<div class="fld"><span class="lbl" id="price-l">Գնային մակարդակ</span><div class="seg" role="group" aria-labelledby="price-l"><sc-for list="{{ prices }}" as="p" hint-placeholder-count="5"><button type="button" aria-pressed="{{ p.on }}" onClick="{{ p.pick }}">{{ p.label }}</button></sc-for></div></div>
+<div class="fld"><label for="pp-web">Կայք</label><input id="pp-web" class="{{ webCls }}" type="url" inputmode="url" value="{{ web }}" onInput="{{ onWeb }}" aria-invalid="{{ webInvalid }}" aria-describedby="pp-web-help pp-web-err" placeholder="https://"><span class="help" id="pp-web-help">Լրիվ հասցեն՝ https://-ով։ Թողեք դատարկ, եթե կայք չկա։</span><sc-if value="{{ showWebErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pp-web-err">Կայքը պետք է սկսվի http:// կամ https://-ով</span></sc-if></div>
+<fieldset class="amen"><legend>Հարմարություններ</legend><sc-for list="{{ amenities }}" as="a" hint-placeholder-count="5"><label class="{{ a.cls }}"><sc-if value="{{ a.on }}" hint-placeholder-val="{{ false }}"><input type="checkbox" checked="" onChange="{{ a.toggle }}"></sc-if><sc-if value="{{ a.off }}" hint-placeholder-val="{{ true }}"><input type="checkbox" onChange="{{ a.toggle }}"></sc-if>{{ a.label }}</label></sc-for></fieldset>
+<div class="row2">
+<div class="fld"><label for="pp-addr">Հասցե<span class="req" aria-hidden="true">*</span></label><input id="pp-addr" class="{{ addrCls }}" required="" aria-required="true" value="{{ addr }}" onInput="{{ onAddr }}" aria-invalid="{{ addrInvalid }}" aria-describedby="pp-addr-help pp-addr-err"><span class="help" id="pp-addr-help">Ցույց է տրվում քարտեզի պինի հետ։ Փոխեք միասին։</span><sc-if value="{{ showAddrErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pp-addr-err">Գրեք հասցեն</span></sc-if></div>
+<div class="fld"><label for="pp-dist">Թաղամաս</label><input id="pp-dist" class="ctl" value="{{ dist }}" onInput="{{ onDist }}" maxlength="60" aria-describedby="pp-dist-help"><span class="help" id="pp-dist-help">Այն տարածքը, որով ձեզ ճանաչում են, օրինակ՝ «Կենտրոն»</span></div>
+</div>
+<div class="fld"><span class="lbl">Քարտեզի պին</span>
+<div class="row2">
+<div class="fld"><label for="pp-lat" class="help" style="font-weight: 600">Լայնություն</label><input id="pp-lat" class="{{ latCls }}" inputmode="decimal" value="{{ lat }}" onInput="{{ onLat }}" aria-invalid="{{ pinInvalid }}" aria-describedby="pp-pin-help pp-pin-err"></div>
+<div class="fld"><label for="pp-lng" class="help" style="font-weight: 600">Երկայնություն</label><input id="pp-lng" class="{{ lngCls }}" inputmode="decimal" value="{{ lng }}" onInput="{{ onLng }}" aria-invalid="{{ pinInvalid }}" aria-describedby="pp-pin-help pp-pin-err"></div>
+</div>
+<span class="help" id="pp-pin-help">Որտեղ է հավելվածը ցույց տալիս վայրը և որտեղից է հաշվում հեռավորությունը։ Տասնորդական աստիճաններով, օրինակ՝ 40.1843 և 44.5129։</span>
+<sc-if value="{{ showPinErr }}" hint-placeholder-val="{{ false }}"><span class="err" id="pp-pin-err">{{ pinErr }}</span></sc-if>
+<a class="maplink" href="{{ osm }}" target="_blank" rel="noopener">Ստուգել պինը OpenStreetMap-ում ↗</a>
+</div>
+<div class="fld"><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px"><span class="lbl">Պատկերասրահ</span><span class="count">{{ galCount }} / 12 լուսանկար</span></div><span class="help">Ցույց են տրվում շապիկից հետո, այս հերթականությամբ։ Տեղը փոխելու համար օգտագործեք սլաքները։</span>
+<div class="gal">
+<sc-for list="{{ gallery }}" as="g" hint-placeholder-count="5">
+<div class="tile">
+<sc-if value="{{ g.ready }}" hint-placeholder-val="{{ true }}"><img src="/_blob/9d36a72c72c119590c1db65e8604f805" style="{{ g.style }}" alt="{{ g.alt }}"></sc-if>
+<sc-if value="{{ g.loading }}" hint-placeholder-val="{{ false }}"><div class="loading-tile" role="status"><span class="spin" style="color: var(--brand)"></span>Բեռնվում է…</div></sc-if>
+<span class="pos" aria-hidden="true">{{ g.pos }}</span>
+<div class="tile-a"><button type="button" class="ib" aria-label="{{ g.earlierAria }}" aria-disabled="{{ g.first }}" onClick="{{ g.earlier }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button><button type="button" class="ib" aria-label="{{ g.laterAria }}" aria-disabled="{{ g.last }}" onClick="{{ g.later }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button><button type="button" class="ib del" aria-label="{{ g.removeAria }}" onClick="{{ g.remove }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>
+</div>
+</sc-for>
+<sc-if value="{{ canAdd }}" hint-placeholder-val="{{ true }}"><button type="button" class="add-tile" onClick="{{ addPhoto }}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>Ավելացնել լուսանկար</button></sc-if>
+</div>
+</div>
+</div>
+<div class="sec-f"><button type="submit" class="btn btn-pri">Պահպանել քարտը</button><sc-if value="{{ bDirty }}" hint-placeholder-val="{{ false }}"><span class="dirty">Չպահպանված փոփոխություններ</span></sc-if><sc-if value="{{ bSaved }}" hint-placeholder-val="{{ false }}"><span class="saved" role="status">Քարտը պահպանված է</span></sc-if><sc-if value="{{ bErr }}" hint-placeholder-val="{{ false }}"><span class="err" role="alert">Ստուգեք կարմիրով նշված դաշտերը</span></sc-if></div>
+</form>
+</div>
+
+<aside class="prev" aria-label="Նախադիտում">
+<span class="prev-cap">Այսպես է երևում հավելվածում</span>
+<div class="phone"><div class="pcard">
+<img src="/_blob/9d36a72c72c119590c1db65e8604f805" alt="">
+<div class="pc-b">
+<div class="pc-n">Cascade Cafe · Կասկադ</div>
+<div class="pc-m"><span>★ 4,7</span><span aria-hidden="true">·</span><span>{{ pvDist }}</span><span aria-hidden="true">·</span><span>{{ pvPrice }}</span></div>
+<div class="pc-m">{{ pvCuisine }}</div>
+<p class="pc-about">{{ pvAbout }}</p>
+<div class="pc-a"><sc-for list="{{ pvAmen }}" as="a" hint-placeholder-count="3"><span>{{ a }}</span></sc-for></div>
+<div class="{{ pvBtnCls }}">{{ pvBtn }}</div>
+</div>
+</div></div>
+<span class="help">Թարմանում է գրելու ընթացքում, պահպանելուց առաջ։</span>
+</aside>
+</div>
+</main>
+</div>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><button type="button" class="tbtn" onClick="{{ undo }}">Հետարկել</button></sc-if></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const a = { phone: '+374 10 52 18 40', bookings: true };
+    const b = {
+      cuisine: 'Հայկական և միջերկրածովյան',
+      about: 'Սրճարան Կասկադի աստիճանների մոտ՝ տեռասով և քաղաքի տեսարանով։ Առավոտյան՝ նախաճաշ և սուրճ, երեկոյան՝ գինի և փոքր ուտեստներ։',
+      price: 2, web: 'https://cascade.am', amen: ['outdoor', 'wifi', 'card'],
+      addr: 'Թամանյան 10', dist: 'Կենտրոն', lat: '40.1897', lng: '44.5153',
+      gallery: [{ id: 1, pos: '20% 50%' }, { id: 2, pos: '80% 40%' }, { id: 3, pos: '50% 80%' }, { id: 4, pos: '35% 20%' }, { id: 5, pos: '65% 65%' }]
+    };
+    this.state = { a: a, a0: a, b: b, b0: b, aTried: false, bTried: false, aSaved: false, bSaved: false, toast: null };
+  }
+  componentWillUnmount() { clearTimeout(this._t); clearTimeout(this._u); }
+  focusLater(sel) { setTimeout(() => { const el = sel && document.querySelector(sel); if (el) el.focus(); }, 30); }
+  trapTab(e) {
+    const box = document.querySelector('.dialog');
+    if (!box) return;
+    const f = Array.from(box.querySelectorAll('button, input, select, textarea, a[href]')).filter((el) => !el.disabled);
+    if (!f.length) return;
+    const at = document.activeElement;
+    if (!box.contains(at)) { e.preventDefault(); f[0].focus(); }
+    else if (e.shiftKey && at === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && at === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  }
+  say(msg, undo) {
+    this.setState({ toast: { msg: msg, undo: undo || null } });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ toast: null }), undo ? 7000 : 3500);
+  }
+  setA(c) { this.setState({ a: Object.assign({}, this.state.a, c), aSaved: false }); }
+  setB(c) { this.setState({ b: Object.assign({}, this.state.b, c), bSaved: false }); }
+  renderVals() {
+    const s = this.state;
+    const A = s.a, B = s.b;
+    const phoneErr = !!A.phone.trim() && !/^\+[\d\s]{8,18}$/.test(A.phone.trim());
+    const webErr = !!B.web.trim() && !/^https?:\/\//.test(B.web.trim());
+    const addrErr = !B.addr.trim();
+    const la = B.lat.trim(), ln = B.lng.trim();
+    let pinErr = '';
+    if (!!la !== !!ln) pinErr = 'Գրեք և՛ լայնությունը, և՛ երկայնությունը, կամ թողեք երկուսն էլ դատարկ';
+    else if (la && (isNaN(+la) || isNaN(+ln))) pinErr = 'Գրեք թվերով, օրինակ՝ 40.1843';
+    else if (la && (Math.abs(+la) > 90 || Math.abs(+ln) > 180)) pinErr = 'Լայնությունը −90…90 է, երկայնությունը −180…180։ Ստուգեք, որ տեղերով փոխված չեն';
+    const cuisineOver = B.cuisine.length > 120, aboutOver = B.about.length > 2000;
+    const bBad = webErr || addrErr || !!pinErr || cuisineOver || aboutOver;
+    const amenList = [['outdoor', 'Բացօթյա նստատեղեր'], ['wifi', 'Wi-Fi'], ['parking', 'Կայանատեղի'], ['card', 'Քարտով վճարում'], ['vegan', 'Վեգան ընտրանքներ']];
+    const priceList = [[0, 'Նշված չէ'], [1, '֏ Մատչելի'], [2, '֏֏ Միջին'], [3, '֏֏֏ Թանկ'], [4, '֏֏֏֏ Բարձր դաս']];
+    const bt = s.bTried;
+    const n = B.gallery.length;
+    const move = (i, d) => { const g = B.gallery.slice(); const j = i + d; if (j < 0 || j >= g.length) return; const t = g[i]; g[i] = g[j]; g[j] = t; this.setB({ gallery: g }); this.focusLater('.tile:nth-child(' + (j + 1) + ') .ib:nth-child(' + (d < 0 ? 1 : 2) + ')'); };
+    return {
+      phone: A.phone, onPhone: (e) => this.setA({ phone: e.target.value }),
+      phoneCls: 'ctl' + (s.aTried && phoneErr ? ' bad' : ''), showPhoneErr: s.aTried && phoneErr, phoneInvalid: s.aTried && phoneErr ? 'true' : 'false',
+      bookingsOn: A.bookings ? 'true' : 'false',
+      toggleBookings: () => this.setA({ bookings: !A.bookings }),
+      replaceCover: () => this.say('Ընտրեք նկար. այն կկտրվի 4:3 շրջանակով'),
+      aDirty: JSON.stringify(A) !== JSON.stringify(s.a0), aSaved: s.aSaved,
+      saveA: (e) => { e.preventDefault(); if (phoneErr) { this.setState({ aTried: true }); this.focusLater('#pp-phone'); return; } this.setState({ a0: A, aTried: false, aSaved: true }); this.say('Էջի կարգավորումները պահպանվեցին'); },
+
+      cuisine: B.cuisine, onCuisine: (e) => this.setB({ cuisine: e.target.value }), cuisineLen: B.cuisine.length,
+      cuisineCls: 'ctl' + (cuisineOver ? ' bad' : ''), cuisineCountCls: 'count' + (cuisineOver ? ' over' : ''),
+      about: B.about, onAbout: (e) => this.setB({ about: e.target.value }), aboutLen: B.about.length,
+      aboutCls: 'ctl' + (aboutOver ? ' bad' : ''), aboutCountCls: 'count' + (aboutOver ? ' over' : ''),
+      prices: priceList.map((p) => ({ label: p[1], on: B.price === p[0] ? 'true' : 'false', pick: () => this.setB({ price: p[0] }) })),
+      web: B.web, onWeb: (e) => this.setB({ web: e.target.value }),
+      webCls: 'ctl' + (bt && webErr ? ' bad' : ''), showWebErr: bt && webErr, webInvalid: bt && webErr ? 'true' : 'false',
+      amenities: amenList.map((x) => { const on = B.amen.indexOf(x[0]) >= 0; return { label: x[1], on: on, off: !on, cls: 'ach' + (on ? ' on' : ''), toggle: () => this.setB({ amen: on ? B.amen.filter((k) => k !== x[0]) : B.amen.concat([x[0]]) }) }; }),
+      addr: B.addr, onAddr: (e) => this.setB({ addr: e.target.value }),
+      addrCls: 'ctl' + (bt && addrErr ? ' bad' : ''), showAddrErr: bt && addrErr, addrInvalid: bt && addrErr ? 'true' : 'false',
+      dist: B.dist, onDist: (e) => this.setB({ dist: e.target.value }),
+      lat: B.lat, lng: B.lng, onLat: (e) => this.setB({ lat: e.target.value }), onLng: (e) => this.setB({ lng: e.target.value }),
+      latCls: 'ctl' + (bt && pinErr ? ' bad' : ''), lngCls: 'ctl' + (bt && pinErr ? ' bad' : ''),
+      showPinErr: bt && !!pinErr, pinErr: pinErr, pinInvalid: bt && pinErr ? 'true' : 'false',
+      osm: 'https://www.openstreetmap.org/?mlat=' + encodeURIComponent(la) + '&mlon=' + encodeURIComponent(ln) + '#map=18/' + encodeURIComponent(la) + '/' + encodeURIComponent(ln),
+      galCount: n,
+      canAdd: n < 12,
+      gallery: B.gallery.map((g, i) => ({
+        pos: i + 1, ready: !g.loading, loading: !!g.loading,
+        style: 'object-position: ' + g.pos, alt: 'Պատկերասրահի լուսանկար ' + (i + 1),
+        first: i === 0 ? 'true' : 'false', last: i === n - 1 ? 'true' : 'false',
+        earlierAria: 'Լուսանկար ' + (i + 1) + '՝ տեղափոխել առաջ', laterAria: 'Լուսանկար ' + (i + 1) + '՝ տեղափոխել հետ', removeAria: 'Հեռացնել լուսանկար ' + (i + 1),
+        earlier: () => move(i, -1), later: () => move(i, 1),
+        remove: () => { const prev = B.gallery; this.setB({ gallery: B.gallery.filter((x) => x.id !== g.id) }); this.say('Լուսանկար ' + (i + 1) + '-ը հեռացվեց', () => this.setB({ gallery: prev })); }
+      })),
+      addPhoto: () => {
+        const id = Date.now();
+        this.setB({ gallery: B.gallery.concat([{ id: id, pos: '50% 50%', loading: true }]) });
+        clearTimeout(this._u);
+        this._u = setTimeout(() => this.setB({ gallery: this.state.b.gallery.map((x) => (x.id === id ? { id: id, pos: '45% 35%' } : x)) }), 1200);
+      },
+      bDirty: JSON.stringify(B) !== JSON.stringify(s.b0), bSaved: s.bSaved, bErr: bt && bBad,
+      saveB: (e) => {
+        e.preventDefault();
+        if (bBad) { this.setState({ bTried: true }); this.focusLater(webErr ? '#pp-web' : addrErr ? '#pp-addr' : pinErr ? '#pp-lat' : cuisineOver ? '#pp-cuisine' : '#pp-about'); return; }
+        this.setState({ b0: B, bTried: false, bSaved: true }); this.say('Հավելվածի քարտը պահպանվեց');
+      },
+
+      pvDist: B.dist || 'Թաղամասը նշված չէ',
+      pvPrice: ['Գինը նշված չէ', '֏', '֏֏', '֏֏֏', '֏֏֏֏'][B.price],
+      pvCuisine: B.cuisine || 'Խոհանոցը նշված չէ',
+      pvAbout: B.about,
+      pvAmen: amenList.filter((x) => B.amen.indexOf(x[0]) >= 0).map((x) => x[1]),
+      pvBtnCls: 'pc-btn' + (A.bookings ? '' : ' off'),
+      pvBtn: A.bookings ? 'Ամրագրել սեղան' : 'Ամրագրումը փակ է',
+
+      hasToast: !!s.toast, toast: s.toast ? s.toast.msg : '', hasUndo: !!(s.toast && s.toast.undo),
+      undo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>
