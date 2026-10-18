@@ -628,6 +628,12 @@
       "typeLabel": "Type {{label}} to confirm",
       "regenerateConfirm": "Regenerate it",
       "regenerated": "Table {{label}} has a new QR code. Print it and replace the old sticker."
+    },
+    "saveBar": {
+      "label": "Saving",
+      "clean": "Everything is saved",
+      "discard": "Discard changes",
+      "discarded": "Changes discarded."
     }
   },
   "saving": "Saving…",
@@ -1295,17 +1301,6 @@
     }
   },
   "platform": {
-    "reviews": {
-      "title": "Reviews",
-      "hide": "Hide",
-      "unhide": "Show again",
-      "reason": "Reason for hiding",
-      "hiddenReasonLine": "Reason for hiding: {{reason}}",
-      "reasonRequired": "Give a reason for hiding this review.",
-      "hiddenBadge": "Hidden",
-      "empty": "This branch has no reviews yet.",
-      "failed": "That did not go through. Nothing changed — try again."
-    },
     "venue": {
       "publicPageLink": "Public page",
       "reviewsLink": "Reviews"
@@ -1631,6 +1626,86 @@
       "branchAdded": "Branch {{name}} was added",
       "branchPaid": "{{name}} is now on the Paid plan",
       "branchFree": "{{name}} is now on the Free plan"
+    }
+  },
+  "branchPage": {
+    "switch": "Branch",
+    "tabs": {
+      "label": "Branch sections",
+      "public": "Public page",
+      "rooms": "Rooms and tables",
+      "reviews": "Reviews"
+    },
+    "preview": {
+      "label": "Preview",
+      "caption": "How it looks in the app",
+      "noDistrict": "No district given",
+      "noPrice": "No price given",
+      "noCuisine": "No cuisine given",
+      "book": "Book a table",
+      "closed": "Booking is closed",
+      "live": "Updates as you type, before anything is saved."
+    }
+  },
+  "branchReviews": {
+    "filter": {
+      "label": "Filter",
+      "all": "All",
+      "reported": "Reported",
+      "hidden": "Hidden"
+    },
+    "reports_one": "{{count}} report",
+    "reports_other": "{{count}} reports",
+    "stars_one": "{{count}} star out of 5",
+    "stars_other": "{{count}} stars out of 5",
+    "hiddenBadge": "Hidden",
+    "reasonLabel": "Reason:",
+    "hiddenByPlatform": "hidden by the platform",
+    "hiddenByVenue": "hidden by the restaurant",
+    "hide": "Hide",
+    "show": "Show again",
+    "dismiss": "Dismiss reports",
+    "hideForm": "Hide the review",
+    "why": "Why are you hiding it?",
+    "reasons": {
+      "offensive": "Offensive words",
+      "spam": "Advertising or spam",
+      "personal": "Personal details",
+      "elsewhere": "About another venue",
+      "other": "Other"
+    },
+    "reasonField": "Reason the restaurant will see",
+    "reasonHelp": "The guest won't see it. The review is kept and can be shown again.",
+    "reasonRequired": "Write why you are hiding the review",
+    "cancel": "Cancel",
+    "toast": {
+      "hidden": "{{name}}'s review was hidden",
+      "shown": "{{name}}'s review is visible again",
+      "dismissed": "Reports dismissed; the review stays visible"
+    },
+    "failed": "That did not go through. Nothing changed — try again.",
+    "loadFailed": "The reviews did not load. Try again.",
+    "empty": {
+      "allTitle": "No reviews yet",
+      "allBody": "Nobody has written about this branch yet.",
+      "reportedTitle": "No reported reviews",
+      "reportedBody": "When a guest or the restaurant reports a review, it shows up here.",
+      "hiddenTitle": "No hidden reviews",
+      "hiddenBody": "Hidden reviews show up here."
+    },
+    "summary": {
+      "title": "Rating",
+      "from_one": "from {{count}} visible review",
+      "from_other": "from {{count}} visible reviews",
+      "spread": "Spread by stars"
+    },
+    "rules": {
+      "title": "When to hide",
+      "abuse": "Abuse, hate speech or threats",
+      "advert": "Advertising, or a link to another site",
+      "personal": "Personal details: a phone number, a surname",
+      "elsewhere": "Written about somewhere else",
+      "lowRating": "A low rating alone is no reason to hide a review."
     }
   }
 }

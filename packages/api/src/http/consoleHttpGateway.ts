@@ -988,12 +988,26 @@ export function createConsoleHttpGateway(
 
     // --- Review moderation ------------------------------------------------------
 
-    async listPlatformBranchReviews(branchId, page = 1) {
+    async listPlatformBranchReviews(branchId, query = {}) {
       const { data } = await client.get<Schemas['Yalla.Application.Reviews.ModeratedReviewPage']>(
         `${PLATFORM}/branches/${branchId}/reviews`,
-        { query: { page, pageSize: REVIEW_PAGE_SIZE } },
+        {
+          query: {
+            page: query.page ?? 1,
+            pageSize: query.pageSize ?? REVIEW_PAGE_SIZE,
+            filter: query.filter ?? 'all',
+          },
+        },
       );
-      return reviewPageFromWire(data, moderatedReviewFromWire);
+      return reviewPageFromWire(data, venueReviewFromWire);
+    },
+
+    async dismissReviewReports(reviewId) {
+      // gateway-schema: awaiting-route — console redesign: "Dismiss reports" on the reviews page
+      const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+        `${PLATFORM}/reviews/${reviewId}/dismiss-reports`,
+      );
+      return venueReviewFromWire(data);
     },
 
     async setReviewVisibility(reviewId, command) {

@@ -147,6 +147,37 @@ export const consoleColor = {
   photoShade: 'rgba(20, 9, 4, 0.38)',
   photoText: '#FFF3E4',
   photoTextMuted: '#EAD9C5',
+
+  // --- A branch's pages (BranchPublic, BranchRooms, Reviews artboards) ---------
+  /** The phone drawn around the app card's preview. */
+  phoneFrame: '#1E0F06',
+  /** The diner app's card, in the app's own dark brown. */
+  appCard: '#2B1608',
+  appCardText: '#FFF3E4',
+  /** Its meta lines and description. */
+  appCardMuted: '#D9C5B0',
+  /** An amenity on the card: cream at 10%, over the card only. */
+  appCardChip: 'rgba(255, 243, 228, 0.1)',
+  appCardChipText: '#EAD9C5',
+  /** The booking button when bookings are off. */
+  appCardOff: 'rgba(255, 243, 228, 0.12)',
+  appCardOffText: '#BFA88F',
+  appCardButton: '#FFF3E4',
+  appCardButtonText: '#3A1D0C',
+  /** The rooms page's sticky save bar: ink, like the toast. */
+  savebar: '#2A1A10',
+  savebarText: '#FFF3E4',
+  /** Its outline button's edge and hover, cream over the ink. */
+  savebarEdge: 'rgba(255, 243, 228, 0.3)',
+  savebarHover: 'rgba(255, 243, 228, 0.08)',
+  savebarFocus: '#F3D9B8',
+  /** A review's stars, lit and not. */
+  star: '#B07A45',
+  starOff: '#E2D5C6',
+  /** A reported review's edge, beside its amber stripe. */
+  reportedEdge: '#EBC48C',
+  /** A hidden review's card. */
+  reviewHidden: '#FBF8F4',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;
@@ -228,4 +259,6 @@ export const consoleShadow = {
   menu: '0 12px 32px rgba(42, 26, 16, 0.14)',
   /** Under the sign-in claim, so it reads over the brightest part of the photo. */
   photoText: '0 1px 12px rgba(0, 0, 0, 0.5)',
+  /** Under the phone drawn around the app card's preview. */
+  phone: '0 16px 40px rgba(42, 26, 16, 0.18)',
 } as const;

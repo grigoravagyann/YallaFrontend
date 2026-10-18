@@ -346,6 +346,30 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `.working`, `.staffFailed`, `venue.blocked.*` but `table` and `unknown`,
     `venue.tier.*`, `venue.edit.*`, `venue.addBranch.*`, and every `create.*`
     key but `typeCafe`, `typeRestaurant` and `typeBar`.
+- `admin` — the platform-admin console redesign, phase 4 (2026-10-18): a
+  branch's three pages. `hy` is the BranchPublic, BranchRooms and Reviews
+  artboards' copy, with the same deliberate change as phases 2 and 3: the
+  artboard's "{{name}}-ի կարծիքը թաքցվեց" reads "Կարծիքը թաքցվեց (հեղինակ՝
+  {{name}})", and the hidden-by line names who hid it ("Թաքցրել է
+  պլատֆորմը" / "… ռեստորանը") rather than a person, which the server does
+  not send. `ru` and `en` were written from it and are **not** reviewed.
+  - New: `branchPage.*` (the switcher's label, the sub-tabs and the app
+    card's preview — `preview.live` must keep saying the preview follows the
+    typing **before** anything is saved), `rooms.saveBar.*` (the rooms page's
+    sticky bar; `clean` is the artboard's "all changes are saved") and the
+    whole `branchReviews.*` section: the filters, `reports_*` (also read on
+    the Reviews sub-tab), `stars_*` (read instead of the star line), the hide
+    form and its five `reasons.*`, `reasonHelp` (must keep saying the
+    **guest** does not see the reason and the review can be shown again),
+    `toast.*`, the empty states, `summary.*` and `rules.*` (`lowRating` must
+    keep saying a low rating alone is no reason to hide).
+  - `empty.hiddenBody` is new copy: the artboard reuses the "nobody has
+    written yet" line under the Hidden filter, which is untrue there.
+  - `toast.dismissed` must keep saying the review **stays visible**.
+  - Removed with the old platform reviews page: the whole `platform.reviews.*`
+    section (`title`, `hide`, `unhide`, `reason`, `hiddenReasonLine`,
+    `reasonRequired`, `hiddenBadge`, `empty`, `failed`). The venue console's
+    own `reviews.*` are unchanged.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

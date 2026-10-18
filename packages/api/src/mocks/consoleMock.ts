@@ -60,6 +60,7 @@ import {
   type ModeratedReview,
   type SetReviewVisibilityCommand,
   type VenueModeratedReview,
+  type VenueReviewQuery,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import { invalidRequest, validationFailed, type MockViolation } from './problems';
@@ -1493,6 +1494,47 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     };
   }
 
+  /**
+   * One page of a branch's reviews for moderation, as both moderation routes
+   * answer it: `all` newest written first, `reported` by the newest report,
+   * `hidden` the hidden ones; each with how often it was reported.
+   */
+  function moderationPage(
+    url: string,
+    branchId: string,
+    query: VenueReviewQuery,
+  ): Page<VenueModeratedReview> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? REVIEW_PAGE_SIZE;
+    const filter = query.filter ?? 'all';
+    if (!Number.isInteger(page) || page < 1) {
+      throw invalidRequest(url, 'page', 'The page is 1 or more.');
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1) {
+      throw invalidRequest(url, 'pageSize', 'The page size is 1 or more.');
+    }
+    if (!REVIEW_MODERATION_FILTERS.includes(filter)) {
+      throw invalidRequest(url, 'filter', 'The filter is all, reported or hidden.');
+    }
+    const rows = reviewStore
+      .all(branchId)
+      .map(toVenueModerated)
+      .filter((review) =>
+        filter === 'reported' ? review.reportCount > 0 : filter === 'hidden' ? review.hidden : true,
+      );
+    // The server orders the reported filter by the newest report, then the
+    // newest written, then the id, all descending.
+    if (filter === 'reported') {
+      rows.sort(
+        (a, b) =>
+          (b.lastReportedAtUtc ?? '').localeCompare(a.lastReportedAtUtc ?? '') ||
+          b.createdAtUtc.localeCompare(a.createdAtUtc) ||
+          b.reviewId.localeCompare(a.reviewId),
+      );
+    }
+    return pageOf(rows, page, pageSize);
+  }
+
   function toVenueModerated(review: StoredReview): VenueModeratedReview {
     const reports = reviewStore.reports(review.reviewId);
     return {
@@ -2650,15 +2692,22 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     // --- Review moderation ------------------------------------------------------
 
-    async listPlatformBranchReviews(branchId, page = 1) {
+    async listPlatformBranchReviews(branchId, query = {}) {
       await wait();
       const url = `${URL_TAG}/platform/branches/${branchId}/reviews`;
       if (role !== 'platformAdmin') throw new ForbiddenError({ url });
-      if (!Number.isInteger(page) || page < 1) {
-        throw invalidRequest(url, 'page', 'The page is 1 or more.');
-      }
       if (venueOfBranch(branchId) === null) throw new NotFoundError({ url });
-      return pageOf(reviewStore.all(branchId).map(toModerated), page, REVIEW_PAGE_SIZE);
+      return moderationPage(url, branchId, query);
+    },
+
+    async dismissReviewReports(reviewId) {
+      await wait();
+      const url = `${URL_TAG}/platform/reviews/${reviewId}/dismiss-reports`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      const review = reviewStore.find(reviewId);
+      if (!review) throw new NotFoundError({ url });
+      reviewStore.dismissReports(reviewId);
+      return toVenueModerated(review);
     },
 
     /** The platform's word is final: it can hide anything, and restore what the venue hid. */
@@ -2683,39 +2732,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       await wait();
       const url = `${URL_TAG}/branches/${branchId}/reviews`;
       requireManagerAtBranch(branchId, url);
-      const page = query.page ?? 1;
-      const pageSize = query.pageSize ?? REVIEW_PAGE_SIZE;
-      const filter = query.filter ?? 'all';
-      if (!Number.isInteger(page) || page < 1) {
-        throw invalidRequest(url, 'page', 'The page is 1 or more.');
-      }
-      if (!Number.isInteger(pageSize) || pageSize < 1) {
-        throw invalidRequest(url, 'pageSize', 'The page size is 1 or more.');
-      }
-      if (!REVIEW_MODERATION_FILTERS.includes(filter)) {
-        throw invalidRequest(url, 'filter', 'The filter is all, reported or hidden.');
-      }
-      const rows = reviewStore
-        .all(branchId)
-        .map(toVenueModerated)
-        .filter((review) =>
-          filter === 'reported'
-            ? review.reportCount > 0
-            : filter === 'hidden'
-              ? review.hidden
-              : true,
-        );
-      // The server orders the reported filter by the newest report, then the
-      // newest written, then the id, all descending.
-      if (filter === 'reported') {
-        rows.sort(
-          (a, b) =>
-            (b.lastReportedAtUtc ?? '').localeCompare(a.lastReportedAtUtc ?? '') ||
-            b.createdAtUtc.localeCompare(a.createdAtUtc) ||
-            b.reviewId.localeCompare(a.reviewId),
-        );
-      }
-      return pageOf(rows, page, pageSize);
+      return moderationPage(url, branchId, query);
     },
 
     async setVenueReviewVisibility(branchId, reviewId, command) {

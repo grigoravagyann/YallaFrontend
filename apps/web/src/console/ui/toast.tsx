@@ -29,6 +29,12 @@ export interface ToastOptions {
    * the toast goes while still holding it.
    */
   readonly focusUndo?: boolean;
+  /**
+   * Runs once the Undo can no longer be pressed — the toast ran out, another
+   * replaced it, or the console closed — and never after Undo was pressed.
+   * For an action with no way back on the server, sent only then.
+   */
+  readonly onExpire?: () => void;
 }
 
 export interface ToastApi {
@@ -41,6 +47,7 @@ interface Shown {
   readonly message: string;
   readonly undo: (() => void) | null;
   readonly focusUndo: boolean;
+  readonly onExpire: (() => void) | null;
 }
 
 const ToastContext = createContext<ToastApi | null>(null);
@@ -58,7 +65,16 @@ const ToastContext = createContext<ToastApi | null>(null);
  */
 export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const { t } = useTranslation(['admin', 'common']);
-  const [shown, setShown] = useState<Shown | null>(null);
+  const [shown, setShownState] = useState<Shown | null>(null);
+  /** The toast on screen, for telling it that it went without its Undo. */
+  const current = useRef<Shown | null>(null);
+  /** Shows `next`; the one it replaces expires unless its Undo was pressed. */
+  const setShown = useCallback((next: Shown | null, undone = false) => {
+    const previous = current.current;
+    current.current = next;
+    setShownState(next);
+    if (!undone) previous?.onExpire?.();
+  }, []);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextId = useRef(1);
   const toastRef = useRef<HTMLDivElement>(null);
@@ -75,7 +91,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
   const dismiss = useCallback(() => {
     stop();
     setShown(null);
-  }, [stop]);
+  }, [stop, setShown]);
 
   const start = useCallback(
     (withUndo: boolean) => {
@@ -88,7 +104,7 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
         withUndo ? TOAST_UNDO_MS : TOAST_MS,
       );
     },
-    [stop],
+    [stop, setShown],
   );
 
   const say = useCallback(
@@ -100,10 +116,11 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
         message,
         undo: options.undo ?? null,
         focusUndo: Boolean(options.undo && options.focusUndo),
+        onExpire: options.onExpire ?? null,
       });
       start(Boolean(options.undo));
     },
-    [start],
+    [start, setShown],
   );
 
   useEffect(() => {
@@ -125,7 +142,16 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
     undoRef.current?.focus();
   }, [shown]);
 
-  useEffect(() => stop, [stop]);
+  useEffect(
+    () => () => {
+      stop();
+      // The console closed with an Undo still on screen: it can no longer be pressed.
+      const left = current.current;
+      current.current = null;
+      left?.onExpire?.();
+    },
+    [stop],
+  );
 
   const hold = (key: 'hover' | 'focus', on: boolean) => {
     held.current = { ...held.current, [key]: on };
@@ -163,7 +189,8 @@ export function ToastProvider({ children }: { readonly children: ReactNode }) {
                 className="yc-tbtn"
                 onClick={() => {
                   const undo = shown.undo;
-                  dismiss();
+                  stop();
+                  setShown(null, true);
                   undo?.();
                 }}
               >

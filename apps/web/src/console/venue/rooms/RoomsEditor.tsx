@@ -75,6 +75,13 @@ const EDITS = new Set<RoomsAction['type']>([
 export interface RoomsEditorProps {
   /** From the token's scope, or the platform route — never a parameter the user typed. */
   readonly branchId: string | undefined;
+  /**
+   * `platform`: inside the platform admin's branch page (BranchRooms
+   * artboard), whose header already names the page — so no title of its own —
+   * and which saves from a sticky bar at the foot, with "Discard changes".
+   * `console`, the default, is the venue console's screen as it was.
+   */
+  readonly layout?: 'console' | 'platform';
 }
 
 /**
@@ -92,7 +99,7 @@ export interface RoomsEditorProps {
  * exception — it is its own call, which removes a table that was never used
  * and takes one with history out of service, and the editor says which.
  */
-export function RoomsEditor({ branchId }: RoomsEditorProps) {
+export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) {
   const { t } = useTranslation(['admin', 'common']);
   const query = useEditorFloorPlan(branchId);
   const save = useSaveFloorPlan();
@@ -241,6 +248,16 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
     }
   }
 
+  /** Back to the plan as last loaded or saved: the platform save bar's "Discard changes". */
+  function onDiscard() {
+    if (!query.data || busy) return;
+    dispatch({ type: 'loaded', plan: query.data });
+    save.reset();
+    select(null);
+    setSavedResult(null);
+    setNotice(t('rooms.saveBar.discarded'));
+  }
+
   async function onReload() {
     setReloadFailed(false);
     const fresh = await query.refetch();
@@ -289,7 +306,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   if (!branchId) {
     return (
       <section className="page">
-        <h1>{t('nav.floorplan')}</h1>
+        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
         <p className="muted">{t('rooms.noBranch')}</p>
       </section>
     );
@@ -298,7 +315,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   if (isOfflinePaused(query)) {
     return (
       <section className="page">
-        <h1>{t('nav.floorplan')}</h1>
+        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
         <QueryFailureNotice offline onRetry={() => void query.refetch()} />
       </section>
     );
@@ -307,7 +324,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   if (query.isLoading || (!loaded && query.isFetching)) {
     return (
       <section className="page">
-        <h1>{t('nav.floorplan')}</h1>
+        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
         <p className="muted">{t('loading')}</p>
       </section>
     );
@@ -317,7 +334,7 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
   if (!loaded && (query.isError || !query.data)) {
     return (
       <section className="page">
-        <h1>{t('nav.floorplan')}</h1>
+        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
         <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
       </section>
     );
@@ -334,28 +351,35 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
       (duplicate) => duplicate.toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
     );
 
+  // The server refuses these; the notices below say why.
+  const cannotSave = !dirty || busy || duplicateRooms.length > 0 || duplicates.length > 0;
+  const saveButton = (
+    <button
+      type="button"
+      className={layout === 'platform' ? 'yc-btn yc-btn-pri yc-btn-sm' : 'button button-primary'}
+      disabled={cannotSave}
+      aria-busy={save.isPending}
+      onClick={() => void onSave()}
+    >
+      {save.isPending ? t('rooms.saving') : t('rooms.save')}
+    </button>
+  );
+  const summary = t('rooms.summary', { rooms: state.rooms.length, tables: active.length });
+
   return (
     <section className="page editor rooms-editor">
-      <header className="page-head">
-        <div>
-          <h1>{t('nav.floorplan')}</h1>
-          <p className="muted small">
-            {t('rooms.summary', { rooms: state.rooms.length, tables: active.length })}
-            {dirty ? ` · ${t('rooms.unsaved')}` : ''}
-          </p>
-        </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="button button-primary"
-            // The server refuses these; the notices below say why.
-            disabled={!dirty || busy || duplicateRooms.length > 0 || duplicates.length > 0}
-            onClick={() => void onSave()}
-          >
-            {save.isPending ? t('rooms.saving') : t('rooms.save')}
-          </button>
-        </div>
-      </header>
+      {layout === 'platform' ? null : (
+        <header className="page-head">
+          <div>
+            <h1>{t('nav.floorplan')}</h1>
+            <p className="muted small">
+              {summary}
+              {dirty ? ` · ${t('rooms.unsaved')}` : ''}
+            </p>
+          </div>
+          <div className="actions">{saveButton}</div>
+        </header>
+      )}
 
       <p className="muted">{t('rooms.intro')}</p>
 
@@ -970,6 +994,28 @@ export function RoomsEditor({ branchId }: RoomsEditorProps) {
             </button>
           </div>
         </RoomsDialog>
+      ) : null}
+
+      {layout === 'platform' ? (
+        // Sticky at the foot of the page, so Save is in reach wherever the
+        // person is on a long plan (BranchRooms artboard).
+        <div className="yc-savebar" role="region" aria-label={t('rooms.saveBar.label')}>
+          <span className="yc-grow">
+            {summary} ·{' '}
+            <span aria-live="polite">{dirty ? t('rooms.unsaved') : t('rooms.saveBar.clean')}</span>
+          </span>
+          {dirty ? (
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec yc-btn-sm"
+              disabled={busy}
+              onClick={onDiscard}
+            >
+              {t('rooms.saveBar.discard')}
+            </button>
+          ) : null}
+          {saveButton}
+        </div>
       ) : null}
     </section>
   );

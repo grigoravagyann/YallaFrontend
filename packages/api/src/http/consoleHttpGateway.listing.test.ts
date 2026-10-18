@@ -454,10 +454,10 @@ describe('review moderation over HTTP', () => {
       .fn()
       .mockResolvedValue(json(200, { items: [WIRE_REVIEW], page: 2, pageSize: 20, total: 21 }));
 
-    const page = await gatewayOver(fetchImpl).listPlatformBranchReviews('b-1', 2);
+    const page = await gatewayOver(fetchImpl).listPlatformBranchReviews('b-1', { page: 2 });
 
     expect(sent(fetchImpl)).toBe(
-      `GET ${BASE}/api/platform/branches/b-1/reviews?page=2&pageSize=20`,
+      `GET ${BASE}/api/platform/branches/b-1/reviews?page=2&pageSize=20&filter=all`,
     );
     expect(page).toEqual({
       items: [
@@ -467,6 +467,9 @@ describe('review moderation over HTTP', () => {
           hiddenReason: null,
           hiddenAtUtc: null,
           hiddenByPlatform: false,
+          // How often diners reported it: the platform list says so too.
+          reportCount: 0,
+          lastReportedAtUtc: null,
         },
       ],
       page: 2,

@@ -241,6 +241,25 @@
   --console-photo-shade: rgba(20, 9, 4, 0.38);
   --console-photo-text: #FFF3E4;
   --console-photo-text-muted: #EAD9C5;
+  --console-phone-frame: #1E0F06;
+  --console-app-card: #2B1608;
+  --console-app-card-text: #FFF3E4;
+  --console-app-card-muted: #D9C5B0;
+  --console-app-card-chip: rgba(255, 243, 228, 0.1);
+  --console-app-card-chip-text: #EAD9C5;
+  --console-app-card-off: rgba(255, 243, 228, 0.12);
+  --console-app-card-off-text: #BFA88F;
+  --console-app-card-button: #FFF3E4;
+  --console-app-card-button-text: #3A1D0C;
+  --console-savebar: #2A1A10;
+  --console-savebar-text: #FFF3E4;
+  --console-savebar-edge: rgba(255, 243, 228, 0.3);
+  --console-savebar-hover: rgba(255, 243, 228, 0.08);
+  --console-savebar-focus: #F3D9B8;
+  --console-star: #B07A45;
+  --console-star-off: #E2D5C6;
+  --console-reported-edge: #EBC48C;
+  --console-review-hidden: #FBF8F4;
   --console-size-sidebar: 232px;
   --console-size-button: 40px;
   --console-size-button-small: 32px;
@@ -281,6 +300,7 @@
   --console-shadow-toast: 0 10px 30px rgba(42, 26, 16, 0.25);
   --console-shadow-menu: 0 12px 32px rgba(42, 26, 16, 0.14);
   --console-shadow-photo-text: 0 1px 12px rgba(0, 0, 0, 0.5);
+  --console-shadow-phone: 0 16px 40px rgba(42, 26, 16, 0.18);
 }
 
 [data-surface='staff'] {

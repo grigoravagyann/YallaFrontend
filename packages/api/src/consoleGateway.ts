@@ -450,12 +450,28 @@ export interface ConsoleGateway {
   // --- Review moderation ------------------------------------------------------
 
   /**
-   * A branch's reviews for the platform team, hidden ones included,
-   * `GET /api/platform/branches/{branchId}/reviews`. 20 a page.
+   * A branch's reviews for the platform team, hidden ones included, with how
+   * often diners reported each — `GET /api/platform/branches/{branchId}/reviews
+   * ?filter=all|reported|hidden`. 20 a page by default.
    *
    * @throws {ForbiddenError} not a platform admin.
    */
-  listPlatformBranchReviews(branchId: string, page?: number): Promise<Page<ModeratedReview>>;
+  listPlatformBranchReviews(
+    branchId: string,
+    query?: VenueReviewQuery,
+  ): Promise<Page<VenueModeratedReview>>;
+
+  /**
+   * Set a review's reports aside and leave the review as it is: the platform
+   * read them and found nothing to take down. Audited.
+   *
+   * `POST /api/platform/reviews/{reviewId}/dismiss-reports`, no body — being
+   * built with the console redesign.
+   *
+   * @throws {NotFoundError} no such review.
+   * @throws {ForbiddenError} not a platform admin.
+   */
+  dismissReviewReports(reviewId: string): Promise<VenueModeratedReview>;
 
   /**
    * The platform's takedown, `PUT /api/platform/reviews/{reviewId}/visibility`.

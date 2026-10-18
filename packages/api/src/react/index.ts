@@ -285,8 +285,8 @@ export const queryKeys = {
    * or a tablet is added, and so does every save below that feeds a line.
    */
   readiness: (branchId: string) => ['console', 'readiness', branchId] as const,
-  platformReviews: (branchId: string, page: number) =>
-    ['console', 'platformReviews', branchId, page] as const,
+  platformReviews: (branchId: string, query: VenueReviewQuery) =>
+    ['console', 'platformReviews', branchId, query] as const,
   venueReviews: (branchId: string, query: VenueReviewQuery) =>
     [
       'console',
@@ -1630,11 +1630,14 @@ export function useSaveReservationPolicy(branchId: string | undefined) {
 // --- Review moderation ----------------------------------------------------------
 
 /** A branch's reviews for the platform team. Platform admin only. */
-export function usePlatformBranchReviews(branchId: string | undefined, page = 1) {
+export function usePlatformBranchReviews(
+  branchId: string | undefined,
+  query: VenueReviewQuery = {},
+) {
   const gateway = useConsoleGateway();
   return useQuery({
-    queryKey: queryKeys.platformReviews(branchId ?? '', page),
-    queryFn: () => gateway.listPlatformBranchReviews(branchId!, page),
+    queryKey: queryKeys.platformReviews(branchId ?? '', query),
+    queryFn: () => gateway.listPlatformBranchReviews(branchId!, query),
     enabled: Boolean(branchId),
     staleTime: staleTime.frequent,
     placeholderData: keepPreviousData,
@@ -1670,6 +1673,26 @@ function useReviewVisibility<TInput>(
       void queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] });
       void queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] });
     },
+  });
+}
+
+/**
+ * The platform sets a review's reports aside and leaves the review as it is.
+ * Refreshes both moderation lists, as a hide does, and settles only once they
+ * are refreshed: the reviews page shows the reports gone until the lists say
+ * so themselves, with no moment in between where they come back.
+ */
+export function useDismissReviewReports() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reviewId: string) => gateway.dismissReviewReports(reviewId),
+    retry: false,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+      ]),
   });
 }
 

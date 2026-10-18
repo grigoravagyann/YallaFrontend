@@ -76,6 +76,8 @@ export interface MockReviewStore {
   /** One report per diner per review; a repeat is ignored. */
   report(report: StoredReport): void;
   reports(reviewId: string): readonly StoredReport[];
+  /** The platform set a review's reports aside: they are gone, the review stays as it was. */
+  dismissReports(reviewId: string): void;
   setVisibility(input: {
     readonly reviewId: string;
     readonly hidden: boolean;
@@ -186,6 +188,62 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
       'Personal information.',
     );
 
+    /*
+     * Cascade Cafe's branch, as the Reviews artboard draws it: two reported
+     * reviews that break the rules (a phone number, an advert), the ordinary
+     * ones, and one the platform already hid for being about another venue.
+     */
+    const cascade = 'b-cascade-center';
+    const phone = seed(
+      11,
+      cascade,
+      'Աննա Պետրոսյան',
+      1,
+      'Մատուցողը կոպիտ էր, իսկ մենեջերը (+374 91 •• •• 12) նույնիսկ չպատասխանեց։ Զանգեք նրան։',
+      0,
+    );
+    const advert = seed(
+      12,
+      cascade,
+      'Karen Mkrtchyan',
+      5,
+      'Լավագույն սուրճը Կասկադում։ Ավելի էժան տարբերակի համար այցելեք cheap-coffee-yerevan.am։',
+      1,
+    );
+    seed(
+      13,
+      cascade,
+      'Լիլիթ Սարգսյան',
+      5,
+      'Տեռասից տեսարանը հիասքանչ է, ամրագրումը տևեց մեկ րոպե։',
+      1,
+    );
+    seed(14, cascade, 'Arthur', 3, 'Ուտելիքը լավն էր, բայց ուրբաթ երեկոյան սպասեցինք 25 րոպե։', 3);
+    seed(
+      15,
+      cascade,
+      'Մարիամ Աբրահամյան',
+      2,
+      'Այս կարծիքը Garden Bistro-ի մասին է, սխալմամբ գրեցի այստեղ։',
+      6,
+      'platform',
+      'Գրված է այլ վայրի մասին',
+    );
+    seed(16, cascade, 'Davit Hakobyan', 4, 'Հաճելի մթնոլորտ, լավ երաժշտություն։', 9);
+    const reportBy = (reviewId: string, n: number, reason: StoredReport['reason']) => {
+      for (let i = 0; i < n; i += 1) {
+        reports.push({
+          reviewId,
+          dinerUserId: `diner-report-${reviewId}-${i}`,
+          reason,
+          note: null,
+          createdAtUtc: ago(0),
+        });
+      }
+    };
+    reportBy(phone.reviewId, 3, 'personal-info');
+    reportBy(advert.reviewId, 2, 'spam');
+
     reports.push(
       {
         reviewId: reported.reviewId,
@@ -265,6 +323,12 @@ export function createMockReviewStore(options: MockReviewStoreOptions = {}): Moc
     },
 
     reports: (reviewId) => reports.filter((r) => r.reviewId === reviewId),
+
+    dismissReports(reviewId) {
+      for (let i = reports.length - 1; i >= 0; i -= 1) {
+        if (reports[i]!.reviewId === reviewId) reports.splice(i, 1);
+      }
+    },
 
     setVisibility({ reviewId, hidden, reason, by, atUtc }) {
       const review = reviews.get(reviewId);

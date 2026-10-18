@@ -2484,6 +2484,733 @@ textarea.yc-ctl {
   }
 }
 
+/* --------------------------------------------------------------------------
+ * A branch's pages (BranchPublic, BranchRooms and Reviews artboards): the
+ * shared header — the name, the address, the switcher and the sub-tabs.
+ * -------------------------------------------------------------------------- */
+.yc-bhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.yc .yc-bsel {
+  width: auto;
+  min-width: 180px;
+  border-color: var(--console-button-edge);
+}
+
+.yc-subtabs {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.yc .yc-subtabs a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: var(--console-size-button-tall);
+  margin-bottom: -1px;
+  padding: 0 var(--space-lg);
+  border-bottom: 2px solid transparent;
+  color: var(--console-muted);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.yc .yc-subtabs a:hover {
+  color: var(--console-ink);
+}
+
+.yc .yc-subtabs a.is-on {
+  border-bottom-color: var(--console-brand);
+  color: var(--console-brand);
+}
+
+.yc-tab-cnt.is-amber {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+ * The venue console's forms and rooms editor, worn inside the platform pages.
+ *
+ * The screens are shared with the owner's and manager's console, which keeps
+ * its look: only a `.yc-legacy` wrapper — on the platform pages alone —
+ * points their colours at the console's tokens and squares their controls.
+ * -------------------------------------------------------------------------- */
+.yc-legacy {
+  --color-surface: var(--console-surface);
+  --color-paper: var(--console-canvas);
+  --color-foreground: var(--console-ink);
+  --color-muted-foreground: var(--console-muted);
+  --color-subtle-foreground: var(--console-muted);
+  --color-border: var(--console-button-edge);
+  --color-border-soft: var(--console-line);
+  --color-border-strong: var(--console-button-edge);
+  --color-border-interactive: var(--console-control);
+  --color-primary: var(--console-brand);
+  --color-primary-ink: var(--console-brand);
+  --color-primary-pressed: var(--console-brand-hover);
+  --color-primary-foreground: var(--console-brand-foreground);
+  --color-green-tint: var(--console-brand-tint);
+  --color-accent-tint: var(--console-hover);
+  --color-focus-ring: var(--console-focus);
+  --color-danger: var(--console-red);
+  --color-danger-pressed: var(--console-red-hover);
+  --color-danger-foreground: var(--console-red-foreground);
+  --color-warning: var(--console-amber);
+  --color-warning-ink: var(--console-amber);
+  --color-success: var(--console-green);
+  --radius-card: var(--console-radius-card);
+  --radius-soft: var(--console-radius-small);
+  --shadow-soft: none;
+  min-width: 0;
+}
+
+.yc-legacy .page {
+  max-width: none;
+}
+
+.yc-legacy input[type='checkbox'],
+.yc-legacy input[type='radio'] {
+  accent-color: var(--console-brand);
+}
+
+.yc-legacy .page h2,
+.yc-legacy .card h3,
+.yc-legacy .editor-areas h2 {
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+  line-height: 1.3;
+}
+
+.yc-legacy .card,
+.yc-legacy .editor-panel,
+.yc-legacy .editor-areas {
+  padding: 20px;
+  border-color: var(--console-line);
+}
+
+.yc-legacy .labelled {
+  gap: 6px;
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+}
+
+.yc-legacy .labelled > span:first-child {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-legacy .field {
+  min-height: var(--console-size-button);
+  padding: 0 var(--space-md);
+  border-color: var(--console-control);
+  border-radius: var(--console-radius-control);
+  font-size: var(--console-text-body);
+}
+
+.yc-legacy textarea.field {
+  padding: 10px var(--space-md);
+  line-height: 1.5;
+}
+
+.yc-legacy .field:hover {
+  border-color: var(--console-control-hover);
+}
+
+.yc-legacy .field[aria-invalid='true'] {
+  border-color: var(--console-red);
+}
+
+.yc-legacy .button {
+  min-height: var(--console-size-button);
+  padding: 0 var(--space-lg);
+  border-width: 1px;
+  border-color: var(--console-button-edge);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+  color: var(--console-brand);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: none;
+}
+
+.yc-legacy .button:hover:not(:disabled),
+.yc-legacy .button:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: var(--console-hover);
+}
+
+.yc-legacy .button-small {
+  min-height: var(--console-size-button-small);
+  padding: 0 var(--space-md);
+  border-radius: var(--console-radius-small);
+  font-size: var(--console-text-label);
+}
+
+.yc-legacy .button-primary {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.yc-legacy .button-primary:hover:not(:disabled),
+.yc-legacy .button-primary:active:not(:disabled) {
+  border-color: var(--console-brand-hover);
+  background: var(--console-brand-hover);
+}
+
+.yc-legacy .button-danger {
+  border-color: var(--console-red);
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.yc-legacy .button-danger:hover:not(:disabled),
+.yc-legacy .button-danger:active:not(:disabled) {
+  border-color: var(--console-red-hover);
+  background: var(--console-red-hover);
+}
+
+.yc-legacy .button-ghost {
+  border-color: transparent;
+  background: none;
+}
+
+.yc-legacy .button-ghost:hover:not(:disabled) {
+  background: var(--console-brand-tint);
+}
+
+.yc-legacy .button:disabled {
+  opacity: 0.5;
+}
+
+.yc-legacy .chip {
+  min-height: 36px;
+  border-width: 1px;
+  border-color: var(--console-button-edge);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-legacy .chip:hover {
+  background: var(--console-hover);
+}
+
+/* A room's chip carries its photo count and wraps in a narrow list: a tile, not a pill. */
+.yc-legacy .rooms-list .chip {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--console-radius-control);
+  text-align: start;
+}
+
+.yc-legacy .chip.is-on,
+.yc-legacy .chip[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-legacy .notice {
+  border-color: var(--console-line);
+  border-radius: var(--console-radius-control);
+}
+
+.yc-legacy .notice-error {
+  border-color: var(--console-red-line);
+  background: var(--console-red-bg);
+}
+
+.yc-legacy .notice-warning {
+  border-color: var(--console-amber-line);
+  background: var(--console-amber-bg);
+}
+
+/* The rooms page's save bar: at the foot, in reach wherever the plan scrolls. */
+.yc-savebar {
+  position: sticky;
+  bottom: var(--space-lg);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--console-radius-card);
+  background: var(--console-savebar);
+  color: var(--console-savebar-text);
+  box-shadow: var(--console-shadow-toast);
+}
+
+.yc-savebar .yc-grow {
+  min-width: 200px;
+  font-size: var(--console-text-body);
+}
+
+.yc .yc-savebar .yc-btn-sec {
+  border-color: var(--console-savebar-edge);
+  background: transparent;
+  color: var(--console-savebar-text);
+}
+
+.yc .yc-savebar .yc-btn-sec:hover {
+  background: var(--console-savebar-hover);
+}
+
+.yc .yc-savebar .yc-btn-pri {
+  background: var(--console-savebar-text);
+  color: var(--console-brand);
+}
+
+.yc .yc-savebar .yc-btn-pri:hover {
+  background: var(--console-toast-action);
+  color: var(--console-brand);
+}
+
+.yc .yc-savebar :focus-visible {
+  outline-color: var(--console-savebar-focus);
+}
+
+/* --------------------------------------------------------------------------
+ * The public page: the two forms beside the app card as typed.
+ * -------------------------------------------------------------------------- */
+.yc-pp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: var(--space-xl);
+}
+
+.yc-preview {
+  position: sticky;
+  top: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yc-prev-cap {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.yc-phone {
+  padding: var(--space-md);
+  border-radius: 24px;
+  background: var(--console-phone-frame);
+  box-shadow: var(--console-shadow-phone);
+}
+
+.yc-pcard {
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--console-app-card);
+  color: var(--console-app-card-text);
+}
+
+.yc-pcard img,
+.yc-pcard-nophoto {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.yc-pcard-nophoto {
+  display: grid;
+  place-items: center;
+  background: var(--console-app-card-chip);
+  color: var(--console-app-card-muted);
+}
+
+.yc-pc-b {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+.yc-pc-n {
+  font-family: var(--font-family-display);
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.yc-pc-m,
+.yc-pc-about {
+  margin: 0;
+  color: var(--console-app-card-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-pc-about {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.yc-pc-a {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.yc-pc-a span {
+  padding: 2px var(--space-sm);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-app-card-chip);
+  color: var(--console-app-card-chip-text);
+  font-size: var(--console-text-caption);
+}
+
+.yc-pc-btn {
+  display: grid;
+  place-items: center;
+  height: var(--console-size-button);
+  margin-top: 6px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-app-card-button);
+  color: var(--console-app-card-button-text);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-pc-btn.is-off {
+  background: var(--console-app-card-off);
+  color: var(--console-app-card-off-text);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --------------------------------------------------------------------------
+ * Reviews: the filters, the list, the hide form, and the summary beside it.
+ * -------------------------------------------------------------------------- */
+.yc-rv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.yc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.yc-chip:hover {
+  background: var(--console-hover);
+}
+
+.yc-chip.is-on {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.yc-chip-n {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.yc-rv-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.yc-rv {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-lg) 20px;
+}
+
+.yc-rv.is-reported {
+  border-color: var(--console-reported-edge);
+  box-shadow: inset 3px 0 0 var(--console-amber);
+}
+
+.yc-rv.is-hidden {
+  background: var(--console-review-hidden);
+}
+
+.yc-rv-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.yc-rv-a {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.yc-stars {
+  color: var(--console-star);
+  font-size: var(--console-text-body);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.yc-stars .is-off {
+  color: var(--console-star-off);
+}
+
+.yc-rv-txt {
+  max-width: 72ch;
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.yc-rv.is-hidden .yc-rv-txt {
+  color: var(--console-muted);
+}
+
+.yc-why {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  border-radius: var(--console-radius-small);
+  background: var(--console-grey-bg);
+  color: var(--console-grey);
+  font-size: var(--console-text-label);
+}
+
+.yc-why .yc-i,
+.yc-why svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.yc-why b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-rv-f {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc-hidebox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+}
+
+.yc-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.yc-reasons legend {
+  margin-bottom: var(--space-sm);
+  padding: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-rchip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  font-size: var(--console-text-label);
+  cursor: pointer;
+}
+
+.yc-rchip:hover {
+  background: var(--console-hover);
+}
+
+.yc-rchip.is-on {
+  border-color: var(--console-brand);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The radio is the chip: kept for the keyboard and a screen reader, not drawn. */
+.yc-rchip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.yc-rchip:focus-within {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-cnt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.yc-count {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.yc-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.yc-big {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.yc-big b {
+  font-family: var(--font-family-display);
+  font-size: 36px;
+  line-height: 1;
+}
+
+.yc-dist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-dist li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-dist .yc-track {
+  height: 8px;
+}
+
+.yc-rules-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg) 20px;
+  font-size: var(--console-text-label);
+}
+
+.yc-rules-card ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding-left: 18px;
+  color: var(--console-muted);
+}
+
+.yc-rules-card .yc-help {
+  margin: 0;
+}
+
+.yc-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+@media (max-width: 1100px) {
+  .yc-pp-layout,
+  .yc-rv-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-preview {
+    position: static;
+    max-width: 360px;
+  }
+}
+
+@media (max-width: 560px) {
+  .yc .yc-subtabs a {
+    padding: 0 var(--space-md);
+  }
+
+  .yc-bhead > .yc-fld {
+    flex: 1 1 100%;
+  }
+
+  .yc .yc-bsel {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .yc *,
   .yc *::before,

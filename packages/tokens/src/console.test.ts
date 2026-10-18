@@ -158,6 +158,34 @@ describe('console sizes', () => {
   });
 });
 
+describe('the branch pages', () => {
+  it("the app card's preview reads as the app does: name, lines, chips, both buttons", () => {
+    const card = consoleColor.appCard;
+    expect(ratio(consoleColor.appCardText, card)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.appCardMuted, card)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.appCardChipText, card)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.appCardOffText, card)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(
+      ratio(consoleColor.appCardButtonText, consoleColor.appCardButton),
+    ).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it('the save bar reads, its outline shows, and its cream button keeps a brown label', () => {
+    expect(ratio(consoleColor.savebarText, consoleColor.savebar)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.savebarFocus, consoleColor.savebar)).toBeGreaterThanOrEqual(3);
+    expect(ratio(consoleColor.brand, consoleColor.savebarText)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it("a review's lit stars show on a card, hidden or not", () => {
+    expect(ratio(consoleColor.star, consoleColor.surface)).toBeGreaterThanOrEqual(3);
+    expect(ratio(consoleColor.star, consoleColor.reviewHidden)).toBeGreaterThanOrEqual(3);
+    // The ones it did not get are lighter still: a shape, not a reading.
+    expect(ratio(consoleColor.starOff, consoleColor.surface)).toBeLessThan(
+      ratio(consoleColor.star, consoleColor.surface),
+    );
+  });
+});
+
 describe('the console tokens reach the stylesheet', () => {
   const css = renderTokenCss();
 

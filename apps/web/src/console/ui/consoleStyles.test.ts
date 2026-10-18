@@ -31,6 +31,11 @@ function redesignFiles(): string[] {
     // The venue page (redesign phase 3).
     ...inFolder(venue),
     join(SRC, 'console', 'platform', 'VenueDetailRoute.tsx'),
+    // A branch's pages (redesign phase 4): the header and its three pages.
+    join(SRC, 'console', 'platform', 'PlatformBranchHeader.tsx'),
+    join(SRC, 'console', 'platform', 'BranchPublicPageRoute.tsx'),
+    join(SRC, 'console', 'platform', 'BranchFloorPlanRoute.tsx'),
+    join(SRC, 'console', 'platform', 'BranchReviewsRoute.tsx'),
     join(SRC, 'console', 'platform', 'PlatformLayout.tsx'),
     join(SRC, 'console', 'platform', 'SettingsRoute.tsx'),
     join(SRC, 'auth', 'AuthLayout.tsx'),
@@ -53,6 +58,7 @@ describe('the console redesign', () => {
     expect(files.some((file) => file.endsWith('.css'))).toBe(true);
     expect(files.some((file) => file.endsWith('TierDialog.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('AddStaffWizard.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('BranchReviewsRoute.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {

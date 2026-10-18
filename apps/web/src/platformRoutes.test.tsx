@@ -79,8 +79,11 @@ function renderAt(role: keyof typeof USERS, path: string) {
 describe('the platform branch routes', () => {
   it('give a platform admin the branch reviews', async () => {
     renderAt('platformAdmin', `${BASE}/reviews`);
-    expect(await screen.findByRole('heading', { name: /^reviews$/i })).toBeTruthy();
-    expect(await screen.findByText(/hidden by the platform/i)).toBeTruthy();
+    // The branch's page (Reviews artboard): its name is the title, Reviews the current sub-tab.
+    const tab = await screen.findByRole('link', { name: /^reviews/i });
+    expect(tab.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('group', { name: /^filter$/i })).toBeTruthy();
+    expect((await screen.findAllByText(/hidden by the platform/i)).length).toBeGreaterThan(0);
   });
 
   it('give a platform admin the branch public page, with the pin editable', async () => {
@@ -105,7 +108,7 @@ describe('the platform branch routes', () => {
         expect(
           await screen.findByRole('heading', { name: /this page isn't for you/i }),
         ).toBeTruthy();
-        expect(screen.queryByRole('heading', { name: /^reviews$/i })).toBeNull();
+        expect(screen.queryByRole('navigation', { name: /^branch sections$/i })).toBeNull();
         cleanup();
       }
     },

@@ -136,3 +136,53 @@ describe('a toast with an undo', () => {
     expect(document.activeElement).toBe(opener);
   });
 });
+
+describe('a toast that commits when its undo is gone', () => {
+  // "Dismiss reports" has no route to take it back, so it is sent only once
+  // nobody can press Undo any more: the toast ran out, or was replaced, or
+  // the console closed. Pressing Undo means it is never sent.
+  it('says so when it times out, however long somebody held it', async () => {
+    const onExpire = vi.fn();
+    const user = renderWith(
+      <Trigger message="Dismissed" options={{ undo: () => {}, focusUndo: true, onExpire }} />,
+    );
+    await user.click(screen.getByRole('button', { name: 'say Dismissed' }));
+
+    act(() => vi.advanceTimersByTime(TOAST_UNDO_MS + 1000));
+    expect(onExpire).not.toHaveBeenCalled();
+
+    await user.click(document.body);
+    act(() => vi.advanceTimersByTime(TOAST_UNDO_MS + 100));
+    expect(onExpire).toHaveBeenCalledTimes(1);
+  });
+
+  it('says so when another toast replaces it, or the console closes', async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const user = renderWith(
+      <>
+        <Trigger message="One" options={{ undo: () => {}, onExpire: first }} />
+        <Trigger message="Two" options={{ undo: () => {}, onExpire: second }} />
+      </>,
+    );
+    await user.click(screen.getByRole('button', { name: 'say One' }));
+    await user.click(screen.getByRole('button', { name: 'say Two' }));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+
+    cleanup();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it('never says so once Undo was pressed', async () => {
+    const onExpire = vi.fn();
+    const undo = vi.fn();
+    const user = renderWith(<Trigger message="Dismissed" options={{ undo, onExpire }} />);
+    await user.click(screen.getByRole('button', { name: 'say Dismissed' }));
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    act(() => vi.advanceTimersByTime(TOAST_UNDO_MS * 2));
+    cleanup();
+    expect(undo).toHaveBeenCalledTimes(1);
+    expect(onExpire).not.toHaveBeenCalled();
+  });
+});
