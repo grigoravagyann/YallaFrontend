@@ -24,6 +24,7 @@ export default tseslint.config(
       // The approved console design, kept exactly as exported: its artboards'
       // scripts and the scenario checks that run them are the spec, not code.
       'docs/design/console/**',
+      'docs/design/venue-console/**',
     ],
   },
 
