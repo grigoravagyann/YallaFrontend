@@ -1886,7 +1886,9 @@ export interface paths {
          * Change the signed-in platform admin's password
          * @description `currentPassword` must be right and `newPassword` at least 12 characters - the one rule every console password follows. Everything wrong is reported in one 422: a wrong current password is `context.fields` naming `currentPassword`, not a 401, so the console stays signed in and shows it under the field.
          *
-         *     **Every other sign-in is signed out**: their refresh tokens are revoked, and their access tokens run out within their 15 minutes. The sign-in this request came from keeps its refresh token and carries on. The seed never resets a password changed here. **Audited** as `admin.password-change`, with nothing about either password.
+         *     **Answers a fresh token pair - store it.** The change ends every session the account has, at once: the session generation moves, so every admin-panel access token it holds - the one this request was sent with included - is refused from now on with `401 session-revoked`, every refresh token is revoked and every unused reset link is spent. The body (`accessToken`, `refreshToken`, `expiresInSeconds`, the refresh endpoint's shape) is how the sign-in that made the change carries on.
+         *
+         *     **Wrong current passwords are counted per account**: each is audited as `admin.password-change-failed`, and after 10 inside 15 minutes the route answers `429 too-many-attempts` with `Retry-After` (and `context.retryAfterSeconds`) until the oldest leaves the window - right password or not. A successful change starts the count again. The route is also under the `auth` rate limit. The seed never resets a password changed here. **Audited** as `admin.password-change`, with nothing about either password.
          */
         post: operations["changePlatformAdminPassword"];
         delete?: never;
@@ -1963,6 +1965,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/reviews/{reviewId}/restore-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo the last dismissal of a review's reports
+         * @description The console's undo for `dismiss-reports`: the reports the **most recent** dismissal of this review set aside count again - exactly those, recognised by the dismissal's instant, which every report it dismissed shares. Reports dismissed by an earlier dismissal stay dismissed; reports filed since are untouched. The review itself is not changed.
+         *
+         *     **One dismissal, once**: when the review was already restored after its latest dismissal - or nothing was ever dismissed - it is answered as it is and nothing is written; a second undo never reaches back to an older dismissal. **Audited** as `review.restore-reports`, with how many came back. Answers the review as the moderation list shows it.
+         */
+        post: operations["restorePlatformReviewReports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/reviews/{reviewId}/visibility": {
         parameters: {
             query?: never;
@@ -1996,9 +2020,9 @@ export interface paths {
         };
         /**
          * Venues, with search, filters, sorting and paging
-         * @description Each row is what the console's venue table shows: the branch, active-table and paid-branch counts; `tierMix` (1 Free, 2 Mixed, 3 Paid - billing is per branch, so a venue is Mixed when only some branches pay) and `branches`, every branch with its own tier and `issues`; `status` (1 Active, 2 Suspended, 3 Inactive, 4 Deleted); `averageRating` and `reviewCount` over the published reviews of every branch; `openTabCount`; `readinessIssue` (`code`, `count`, `branchName`), the first thing a guest would find missing - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`; `coverThumbnailUrl`, the first branch's cover thumbnail; `district`, `cuisine` and `createdAtUtc`.
+         * @description Each row is what the console's venue table shows: the branch, active-table and paid-branch counts; `tierMix` (1 Free, 2 Mixed, 3 Paid - billing is per branch, so a venue is Mixed when only some branches pay) and `branches`, every branch with its own tier and `issues`; `status` (1 Active, 2 Suspended, 3 Inactive, 4 Deleted); `averageRating` and `reviewCount` over the published reviews of every branch; `openTabCount`; `readinessIssue` (`code`, `count`, `branchName`), the first thing a guest would find missing at an active branch - setup progress, so suspended venues count and switched-off branches never do - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`; `coverThumbnailUrl`, the first branch's cover thumbnail; `district`, `cuisine` and `createdAtUtc`.
          *
-         *     `search` matches the venue's name and slug and each branch's name and district. `status`: `live` (default: every venue not deleted), `all`, `active`, `suspended`, `inactive` or `deleted`; the older `includeDeleted=true` is `all` when no `status` is sent. `tier`: `free`, `mixed` or `paid`. `sort`: `name` (default), `rating`, `tables` or `created`; `dir`: `asc` (default) or `desc` - a venue with no rating sorts below every rated one. `page` from 1, `pageSize` 1-200 (default 20).
+         *     `search` matches the venue's name and slug and each branch's name and district. `status`: `live` (default: every venue not deleted), `all`, `active`, `suspended`, `inactive` or `deleted`; the older `includeDeleted=true` is `all` when no `status` is sent. `tier`: `free`, `mixed` or `paid`; blank is every tier. `sort`: `name` (default), `rating`, `tables` or `created`; `dir`: `asc` (default) or `desc` - a venue with no rating sorts below every rated one. `page` from 1, `pageSize` 1-200 (default 20).
          */
         get: operations["listVenues"];
         put?: never;
@@ -2106,7 +2130,7 @@ export interface paths {
         put?: never;
         /**
          * Undo a soft delete
-         * @description The venue comes back exactly as it was before it was deleted: switched on or off as it was then, and **still suspended if it was suspended** - deleting never touched the suspension. Nothing under it was removed, so nothing is rebuilt; its branches, tables, staff and history are all where they were, and it accepts changes again. A venue deleted before this was recorded comes back switched on.
+         * @description The venue comes back exactly as it was before it was deleted: switched on or off as it was then, and **still suspended if it was suspended** - deleting never touched the suspension. Nothing under it was removed, so nothing is rebuilt; its branches, tables, staff and history are all where they were, and it accepts changes again. A venue deleted before this was recorded comes back switched off, for somebody to switch on on purpose.
          *
          *     A venue that is not deleted is answered as it is and nothing is written, so an undo that arrives twice is harmless. Refused with **409** when its web address now belongs to another venue - which the unique slug index, covering deleted venues, keeps from happening today. **Audited** as `venue.restore`.
          */
@@ -6883,6 +6907,8 @@ export interface components {
              * @description The branch.
              */
             branchId: string;
+            /** @description The branch's district as the listing form saved it; absent when it has none. */
+            district?: string | null;
             /** @description Whether the branch is switched on. */
             isActive: boolean;
             /**
@@ -17180,12 +17206,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No Content */
-            204: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.RefreshResult"];
+                };
             };
             /** @description The request violated a domain rule or arrived malformed. */
             400: {
@@ -17223,7 +17251,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
                 };
             };
-            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            /** @description Too many wrong current passwords, or the `auth` rate limit; `Retry-After` says how long to wait. */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -17376,6 +17404,82 @@ export interface operations {
         };
     };
     dismissPlatformReviewReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reviews.ModeratedReviewView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such review. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    restorePlatformReviewReports: {
         parameters: {
             query?: never;
             header?: never;

@@ -1098,7 +1098,6 @@ export function createConsoleHttpGateway(
     },
 
     async restoreReviewReports(reviewId) {
-      // gateway-schema: awaiting-route — console redesign: Undo after "Dismiss reports"
       const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
         `${PLATFORM}/reviews/${reviewId}/restore-reports`,
       );
