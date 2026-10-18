@@ -86,6 +86,13 @@ export interface VenueTierCheck {
   readonly toChange: readonly ConsoleBranch[];
   /** Going Paid, the branches whose menu is unfinished; going Free, those with tabs open. */
   readonly blockers: readonly VenueTierBlocker[];
+  /**
+   * Going Free, the branches that could not come back to Paid as they stand —
+   * their menu is unfinished, which the server refuses Paid for. Not a
+   * refusal: Free is still allowed, but the way back is said before the way
+   * out is taken. Always empty going Paid.
+   */
+  readonly cannotReturnToPaid: readonly VenueTierBlocker[];
 }
 
 async function requireVenue(
@@ -125,6 +132,9 @@ export async function checkVenueTier(
   const toChange = venue.branches.filter(
     (branch) => branch.subscriptionTier !== input.tier && (scope === null || scope.has(branch.id)),
   );
+  // Each branch's menu, as Paid judges it: what refuses going Paid, and what
+  // would keep a branch going Free from coming back.
+  const unfinished = await unfinishedMenus(gateway, toChange);
   if (input.tier !== 'paid') {
     const blockers = toChange
       .filter((branch) => (branch.openTabCount ?? 0) > 0)
@@ -133,11 +143,18 @@ export async function checkVenueTier(
         incompleteMenuItemCount: 0,
         openTabCount: branch.openTabCount ?? 0,
       }));
-    return { venue, toChange, blockers };
+    return { venue, toChange, blockers, cannotReturnToPaid: unfinished };
   }
+  return { venue, toChange, blockers: unfinished, cannotReturnToPaid: [] };
+}
 
+/** The branches whose menu is unfinished. One whose readiness cannot be read is left out. */
+async function unfinishedMenus(
+  gateway: Pick<ConsoleGateway, 'getBranchReadiness'>,
+  branches: readonly ConsoleBranch[],
+): Promise<readonly VenueTierBlocker[]> {
   const readiness = await Promise.all(
-    toChange.map((branch) =>
+    branches.map((branch) =>
       gateway.getBranchReadiness(branch.id).then(
         (answer) => ({
           branch,
@@ -148,10 +165,9 @@ export async function checkVenueTier(
       ),
     ),
   );
-  const blockers = readiness.filter(
+  return readiness.filter(
     (entry): entry is VenueTierBlocker => entry !== null && entry.incompleteMenuItemCount > 0,
   );
-  return { venue, toChange, blockers };
 }
 
 /**

@@ -23,6 +23,7 @@ import type {
 import type { Photo } from '../contracts/menuAdmin';
 import type { ExtendHoldOutcome, ReservationState } from '../contracts/push';
 import {
+  BookingOverlapsOwnError,
   BookingsNotAcceptedError,
   CannotReportOwnReviewError,
   InvalidCredentialsError,
@@ -606,14 +607,20 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   }
   if (options.seedNeighbourBookings) seedNeighbours();
 
-  /** The booking's own view of a pending request for its table, or `null`. */
+  /**
+   * The booking's own view of a pending request for its table, or `null` —
+   * and whether it is itself waiting on a guest before's own answer, read off
+   * the question it has open rather than kept beside it to go stale.
+   */
   function withRequest(booking: Booking): Booking {
     const request = [...tableRequests.values()].find(
       (entry) =>
         entry.earlierId === booking.id && entry.status === 'pending' && entry.asksEarlierGuest,
     );
+    const asking = booking.status === 'pendingApproval' ? openRequestOf(booking.id) : null;
     return {
       ...booking,
+      awaitsEarlierGuestAnswer: asking?.asksEarlierGuest ?? false,
       incomingTableRequest: request
         ? {
             requestId: request.id,
@@ -644,48 +651,53 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   }
 
   /**
-   * A requestable table on another day: the later booking waits for the guest
-   * before, for two hours or until their own booking starts, when they can be
-   * asked in the app and nothing else about it needs a human. Otherwise the
-   * floor decides after ringing them, with no clock — it waits as any booking
-   * the floor decides. Today the floor decides instead, by the short-notice
-   * rule: `null` then.
+   * Whether the guest before answers a requestable table themselves, in the
+   * app: they can be reached there and nothing else about the later booking
+   * needs a human. Otherwise the floor rings them and decides.
+   */
+  function answersInApp(
+    timing: TableTiming,
+    input: { readonly partySize: number; readonly slotUtc: string; readonly timeZoneId: string },
+  ): boolean {
+    if (timing.kind !== 'requestable') return false;
+    const floorAnyway = decideApproval(input).status !== 'confirmed';
+    return !floorAnyway && reachableInApp(timing.previousId);
+  }
+
+  /**
+   * A requestable table on another day: the later booking waits for an answer
+   * for two hours, never past its own start or the guest before's — theirs in
+   * the app when {@link answersInApp}, otherwise the floor's after ringing
+   * them (reservations.md §3e). Today the floor decides instead, by the
+   * short-notice rule: `null` then.
    */
   function earlierGuestDecision(
     table: FloorTable,
     timing: TableTiming,
     slotUtc: string,
     timeZoneId: string,
-    partySize: number,
   ): Pick<Booking, 'status' | 'awaitingApprovalBecause' | 'approvalExpiresAtUtc'> | null {
     if (timing.kind !== 'requestable') return null;
     if (isShortNotice({ startUtc: slotUtc, timeZoneId, now: now() })) return null;
-    const floorAnyway = decideApproval({ partySize, slotUtc, timeZoneId }).status !== 'confirmed';
-    if (floorAnyway || !reachableInApp(timing.previousId)) {
-      return {
-        status: 'pendingApproval',
-        awaitingApprovalBecause: 'earlierGuestConsent',
-        approvalExpiresAtUtc: null,
-      };
-    }
     const window = now().getTime() + EARLIER_GUEST_WINDOW_MINUTES * 60_000;
     const before = previousStart(table, timing.previousId);
-    const cap = before ? Date.parse(before) : window;
     return {
       status: 'pendingApproval',
       awaitingApprovalBecause: 'earlierGuestConsent',
-      approvalExpiresAtUtc: new Date(Math.min(window, cap)).toISOString(),
+      approvalExpiresAtUtc: new Date(
+        Math.min(window, Date.parse(slotUtc), before ? Date.parse(before) : window),
+      ).toISOString(),
     };
   }
 
   /**
    * Ask the guest before: the request behind an `earlierGuestConsent` booking.
-   * With a clock it is theirs to answer in the app; without one the floor's,
-   * open until the later booking starts.
+   * Theirs to answer in the app, or the floor's; open until the later booking's
+   * window closes either way.
    */
   function askEarlierGuest(later: Booking, timing: TableTiming): void {
     if (timing.kind !== 'requestable') return;
-    const asksEarlierGuest = Boolean(later.approvalExpiresAtUtc);
+    const asksEarlierGuest = answersInApp(timing, later);
     const neighbour = neighbours.find((entry) => entry.id === timing.previousId);
     const simulated = options.simulateEarlierGuestAnswerAfterMs;
     const id = `tr-${String(tableRequestSequence++).padStart(4, '0')}`;
@@ -715,6 +727,44 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         (request) => request.laterId === laterId && request.status === 'pending',
       ) ?? null
     );
+  }
+
+  /**
+   * One diner, two bookings at once at the same branch — refused, as the
+   * server's 409 `reservation-overlaps-own`: a signed-in diner's sitting — the
+   * full turn from its start — may not overlap one of their own live bookings
+   * there, which end where they are stored to (a promise cuts them). Sittings
+   * that only touch do not overlap. The booking being moved is not counted
+   * against itself. Nobody signed in, nothing to compare with.
+   */
+  function refuseOverlapWithOwn(
+    url: string,
+    branchId: string,
+    slot: Date,
+    turnMinutes: number,
+    movingId?: string,
+  ): void {
+    const accountId = signedInAccountId;
+    if (!accountId) return;
+    const start = slot.getTime();
+    const end = start + turnMinutes * 60_000;
+    const held = [...bookings.values()].find(
+      (entry) =>
+        entry.id !== movingId &&
+        entry.branchId === branchId &&
+        HOLDS_TABLE.has(entry.status) &&
+        bookingOwners.get(entry.id) === accountId &&
+        Date.parse(entry.slotUtc) < end &&
+        start < Date.parse(entry.endUtc),
+    );
+    if (!held) return;
+    throw new BookingOverlapsOwnError({
+      url,
+      existingReservationId: held.id,
+      existingCode: held.code,
+      localStartTime: localDateTime(held.slotUtc, held.timeZoneId).time,
+      tableLabel: held.tableLabel,
+    });
   }
 
   /** The bookings only asking for this one's table: left out of judging its own change. */
@@ -988,8 +1038,11 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         changeOrigins.delete(booking.id);
         const at = booking.approvalExpiresAtUtc;
         // The guest before did not answer in their two hours: the request lapses
-        // with the booking, which says so in its own words.
-        const earlierGuest = booking.awaitingApprovalBecause === 'earlierGuestConsent';
+        // with the booking, which says so in its own words. The floor letting
+        // its own two hours to ring them run out is the venue's "no answer".
+        const earlierGuest =
+          booking.awaitingApprovalBecause === 'earlierGuestConsent' &&
+          (openRequestOf(booking.id)?.asksEarlierGuest ?? false);
         for (const request of tableRequests.values()) {
           if (request.laterId === booking.id && request.status === 'pending') {
             request.status = 'expired';
@@ -2853,6 +2906,8 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // The branch-wide rules first, as the server applies them. Lead time:
       // the slot may have become too soon while they were deciding.
       refuseAtBranch(command.branchId, slot, command.partySize);
+      // Then the diner's own evening, before the table's, as the server's writer does.
+      refuseOverlapWithOwn(url, command.branchId, slot, policy.turnMinutes);
 
       // Judged at the slot being booked, not at now — the same projection the
       // availability answer used. Judging it at now would refuse a Saturday
@@ -2913,13 +2968,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       // A table somebody booked shortly before, another day: the guest before is
       // asked. Every other booking is decided as it always was.
       const decision =
-        earlierGuestDecision(
-          table,
-          timing,
-          command.slotUtc,
-          found.branch.timeZoneId,
-          command.partySize,
-        ) ??
+        earlierGuestDecision(table, timing, command.slotUtc, found.branch.timeZoneId) ??
         decideApproval({
           partySize: command.partySize,
           slotUtc: command.slotUtc,
@@ -3194,6 +3243,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
       const slot = new Date(command.slotUtc);
 
       refuseAtBranch(booking.branchId, slot, command.partySize);
+      refuseOverlapWithOwn(url, booking.branchId, slot, policy.turnMinutes, booking.id);
 
       /*
        * A confirmed booking keeping its table and start, its party not
@@ -3254,13 +3304,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
             awaitingApprovalBecause: null,
             approvalExpiresAtUtc: null,
           }
-        : (earlierGuestDecision(
-            table,
-            timing,
-            command.slotUtc,
-            booking.timeZoneId,
-            command.partySize,
-          ) ??
+        : (earlierGuestDecision(table, timing, command.slotUtc, booking.timeZoneId) ??
           decideApproval({
             partySize: command.partySize,
             slotUtc: command.slotUtc,
@@ -3299,7 +3343,12 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         decision.awaitingApprovalBecause === 'earlierGuestConsent' &&
         timing.kind === 'requestable' &&
         timing.previousId === open.earlierId &&
-        open.asksEarlierGuest === Boolean(decision.approvalExpiresAtUtc);
+        open.asksEarlierGuest ===
+          answersInApp(timing, {
+            partySize: command.partySize,
+            slotUtc: command.slotUtc,
+            timeZoneId: booking.timeZoneId,
+          });
       // A confirmed booking moved into short notice — or onto a table the guest
       // before is asked about — keeps the slot it had until the answer; a
       // change of a change keeps the first one.

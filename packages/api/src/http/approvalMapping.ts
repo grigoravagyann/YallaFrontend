@@ -27,6 +27,12 @@ export interface WireApprovalFields {
   readonly approvalExpiresAtUtc?: string | null;
   /** `DeclineReason`: 1 StaffDeclined, 2 NoAnswer. */
   readonly declinedBecause?: number | null;
+  /**
+   * The booking waits on the guest before's own answer in the app — not on the
+   * venue. Ahead of the generated schema (QA round 2): until `api:generate` is
+   * run against the backend that sends it, it is declared here.
+   */
+  readonly awaitsEarlierGuestAnswer?: boolean | null;
 }
 
 export type WireReservationWithApproval = ReservationView & WireApprovalFields;
@@ -63,6 +69,17 @@ const DECLINE_REASON: Readonly<Record<number, DeclineReason>> = {
 export function declineReason(value: number | null | undefined): DeclineReason | null {
   if (value === null || value === undefined) return null;
   return DECLINE_REASON[value] ?? 'unknown';
+}
+
+/**
+ * Whether a booking waits on the guest before's own answer: only while it
+ * waits (`ReservationStatus` 1), and only when the server says so.
+ */
+export function awaitsEarlierGuestAnswer(view: {
+  readonly status: number;
+  readonly awaitsEarlierGuestAnswer?: boolean | null | undefined;
+}): boolean {
+  return view.status === 1 && view.awaitsEarlierGuestAnswer === true;
 }
 
 /** A blank or absent instant is no window at all. */

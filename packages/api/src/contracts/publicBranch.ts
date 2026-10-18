@@ -267,6 +267,12 @@ export interface ManagedBooking {
    */
   readonly awaitingApprovalBecause?: ApprovalTrigger | null | undefined;
   /**
+   * Waiting for the guest before: they answer it themselves in the app
+   * (true), or the venue rings them (false). Absent when the server does not
+   * say — the page then says what is true of both.
+   */
+  readonly awaitsEarlierGuestAnswer?: boolean | undefined;
+  /**
    * "You will free the table by 21:25": promised when the booking was made,
    * because another follows it. Absent or `null` when nothing was promised.
    */

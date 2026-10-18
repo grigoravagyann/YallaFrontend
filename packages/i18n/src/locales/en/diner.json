@@ -83,6 +83,9 @@
       "why": "It is for soon, so the venue checks the table is free before confirming.",
       "waitingEarlierGuest": "Asking the guest before you · answer within {{time}}",
       "checkingEarlierGuest": "Waiting for the guest before you to answer",
+      "waitingVenueEarlierGuest": "The venue is checking with the guest before you · answer within {{time}}",
+      "checkingVenueEarlierGuest": "Waiting for the venue to check with the guest before you",
+      "venueAsksEarlierGuest": "The venue will ask the guest before you whether they will have left by then.",
       "venueWillConfirm": "The venue will confirm your booking"
     },
     "declined": {
@@ -96,7 +99,8 @@
       "earlierGuestNoAnswer": "The guest before you did not answer in time, so the table could not be promised. Try another time or another table."
     },
     "freeBy": {
-      "promised": "You will free the table by {{time}}"
+      "promised": "You will free the table by {{time}}",
+      "promisedNote": "You said you’ll leave by {{time}} — the table is booked after you."
     },
     "tableRequest": {
       "title": "A request for your table",
@@ -160,7 +164,9 @@
       "cancelFailed": "We could not cancel that. Try again.",
       "cancelledOn": "Cancelled {{date}}",
       "codeCancelled": "This booking is cancelled, so the code no longer works.",
-      "until": "Until {{time}}"
+      "codeDeclined": "This booking was not confirmed, so the code does not work.",
+      "until": "Until {{time}}",
+      "chooseAnotherTime": "Choose another time"
     },
     "signedOut": {
       "title": "Your bookings are kept under your number",
@@ -391,7 +397,9 @@
       "unknownOutcome": "The connection dropped before the venue answered, so we cannot tell yet whether you have the table. Check again — it will not book twice.",
       "phoneNotVerified": "Confirm your phone number before booking. We'll text you a code.",
       "freeByRequired": "A booking now follows on this table: you would free it by {{time}}.",
-      "freeByRequiredNoTime": "A booking now follows on this table. Choose the table again."
+      "freeByRequiredNoTime": "A booking now follows on this table. Choose the table again.",
+      "overlapsOwn": "You already have a booking here at {{time}} (table {{table}}). Choose another time, or change that booking.",
+      "overlapsOwnPlain": "You already have a booking here at {{time}}. Choose another time, or change that booking."
     },
     "checkAgain": "Check again",
     "nameLabel": "Name for the booking",
@@ -844,7 +852,8 @@
       "explain": "We can remind you before your booking, so you can cancel in one tap if plans change.",
       "allow": "Remind me",
       "granted": "We will remind you before your booking.",
-      "declined": "No reminder will arrive for this booking. Your table is still held."
+      "declined": "No reminder will arrive for this booking. Your table is still held.",
+      "declinedPending": "No reminder will arrive for this booking."
     },
     "actions": {
       "working": "One moment…",
@@ -969,6 +978,7 @@
       "reserved": "Reserved",
       "occupied": "Occupied",
       "outOfService": "Out of service",
+      "request": "On request",
       "notForParty": "Not for your party"
     },
     "table": "Table {{label}}",
@@ -978,6 +988,8 @@
       "occupied": "Table {{label}}, occupied",
       "outOfService": "Table {{label}}, out of service",
       "notForParty": "Table {{label}}, free, not for a party of {{count}}",
+      "requestEarlierGuest": "Table {{label}}, booked just before you: the guest before you will be asked",
+      "requestVenue": "Table {{label}}, booked just before you: the venue will check with the guest before you",
       "withReason": "Table {{label}}. {{reason}}"
     },
     "capacity": "{{min}}–{{max}} people",

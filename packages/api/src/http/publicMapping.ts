@@ -473,6 +473,10 @@ export function managedBookingFromWire(
     // waits, and the promise to free the table.
     awaitingApprovalBecause:
       wire.status === 1 ? approvalTrigger(wire.awaitingApprovalBecause) : null,
+    // Whose answer, when the server says; unsaid, the page's sentence is true of both.
+    ...(typeof wire.awaitsEarlierGuestAnswer === 'boolean'
+      ? { awaitsEarlierGuestAnswer: wire.status === 1 && wire.awaitsEarlierGuestAnswer }
+      : {}),
     promisedFreeByUtc: instantOrNull(wire.promisedFreeByUtc),
 
     /*

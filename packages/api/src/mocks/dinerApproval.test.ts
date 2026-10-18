@@ -115,7 +115,8 @@ describe('a booking at short notice', () => {
       approvalExpiresAtUtc: null,
     });
 
-    const party = await book(gateway, at('2026-10-21', '20:00'), { partySize: 8 });
+    // After the first one's sitting: one diner holds one table at a time.
+    const party = await book(gateway, at('2026-10-21', '20:30'), { partySize: 8 });
     expect(party).toMatchObject({
       status: 'pendingApproval',
       awaitingApprovalBecause: 'largeParty',
@@ -169,8 +170,9 @@ describe('the floor, played by the mock', () => {
     const gateway = world(time, { simulateVenueApprovalAfterMs: 20_000 });
     await signedIn(gateway);
 
-    const first = await book(gateway, at('2026-10-20', '21:00'));
-    const second = await book(gateway, at('2026-10-20', '22:00'));
+    // A sitting apart: one diner holds one table at a time.
+    const first = await book(gateway, at('2026-10-20', '20:00'));
+    const second = await book(gateway, at('2026-10-20', '21:30'));
 
     time.advance(20_000);
     expect(await gateway.getBooking(first.id)).toMatchObject({

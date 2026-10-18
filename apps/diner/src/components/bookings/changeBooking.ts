@@ -51,6 +51,50 @@ export function changeBookingRoute(booking: Booking) {
   };
 }
 
+/**
+ * The way forward from a booking the venue or the guest before declined: the
+ * booking screen for a **new** booking at the same place, on the same day and
+ * for the same party — the time is the diner's to choose again, and the table
+ * with it, since that one was not free. `dayOf` is the declined booking's
+ * instant, not a date: a bar's 00:30 belongs to the evening before, and only
+ * the instant and the place's hours say which strip day that is.
+ */
+export function anotherTimeRoute(booking: Pick<Booking, 'branchId' | 'slotUtc' | 'partySize'>) {
+  return {
+    pathname: '/book/[placeId]' as const,
+    params: {
+      placeId: booking.branchId,
+      dayOf: booking.slotUtc,
+      party: String(booking.partySize),
+    },
+  };
+}
+
+/** A new booking started from a declined one: its day and its party, as the route carried them. */
+export interface AnotherTime {
+  /** The declined booking's start, whose strip day the screen opens on; `null` when unreadable. */
+  readonly dayOfUtc: string | null;
+  readonly partySize: number | null;
+}
+
+/**
+ * The another-time params, or `null` when there are none — or when the route
+ * is a change (a `bookingId`), which has its own day and party.
+ */
+export function parseAnotherTimeParams(params: {
+  readonly bookingId?: string | undefined;
+  readonly dayOf?: string | undefined;
+  readonly party?: string | undefined;
+}): AnotherTime | null {
+  if (params.bookingId?.trim() || params.dayOf === undefined) return null;
+  return { dayOfUtc: instantOf(params.dayOf), partySize: positiveParty(params.party) };
+}
+
+function positiveParty(value: string | undefined): number | null {
+  const party = Number(value);
+  return value !== undefined && Number.isInteger(party) && party > 0 ? party : null;
+}
+
 /** The booking being changed and what it holds, as the route carried it. */
 export interface BookingChange {
   readonly bookingId: string;
@@ -85,11 +129,10 @@ function instantOf(value: string | undefined): string | null {
 export function parseChangeParams(params: ChangeParams): BookingChange | null {
   const bookingId = params.bookingId?.trim();
   if (!bookingId) return null;
-  const party = Number(params.party);
   return {
     bookingId,
     slotUtc: instantOf(params.slotUtc),
-    partySize: params.party !== undefined && Number.isInteger(party) && party > 0 ? party : null,
+    partySize: positiveParty(params.party),
     tableId: params.tableId?.trim() || null,
   };
 }

@@ -184,6 +184,7 @@ describe('a request on the floor tablet', () => {
       note: null,
       approvalExpiresAtUtc: EXPIRES,
       because: 'shortNotice',
+      awaitsEarlierGuestAnswer: false,
       // Booking times: nobody promised to be gone by anything, nobody to ask.
       promisedFreeByUtc: null,
       earlierGuestFreeByUtc: null,

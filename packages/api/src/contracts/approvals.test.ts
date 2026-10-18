@@ -75,11 +75,13 @@ describe('isApprovalExpired', () => {
 });
 
 describe('waitsOnEarlierGuestInApp', () => {
-  it("is the guest before's to answer only with a clock: their two hours in the app", () => {
-    expect(waitsOnEarlierGuestInApp('earlierGuestConsent', '2026-10-19T12:00:00Z')).toBe(true);
-    // The floor's question for another day has no clock: the floor decides it.
-    expect(waitsOnEarlierGuestInApp('earlierGuestConsent', null)).toBe(false);
-    expect(waitsOnEarlierGuestInApp('shortNotice', '2026-10-19T12:00:00Z')).toBe(false);
+  it("is the guest before's to answer only when the server says so — a clock alone no longer does", () => {
+    expect(waitsOnEarlierGuestInApp('earlierGuestConsent', true)).toBe(true);
+    // The floor's two hours to ring them and decide: the venue's answer.
+    expect(waitsOnEarlierGuestInApp('earlierGuestConsent', false)).toBe(false);
+    // A server that does not say: the floor's, until a 409 says otherwise.
+    expect(waitsOnEarlierGuestInApp('earlierGuestConsent', undefined)).toBe(false);
+    expect(waitsOnEarlierGuestInApp('shortNotice', true)).toBe(false);
     expect(waitsOnEarlierGuestInApp(null, null)).toBe(false);
   });
 });

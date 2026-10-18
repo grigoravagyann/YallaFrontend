@@ -169,7 +169,7 @@ export function ResetPasswordRoute() {
     </AuthLayout>
   );
 
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen standalone />;
 
   if (user) {
     const name = user.displayName || t(`role.${user.role}`);

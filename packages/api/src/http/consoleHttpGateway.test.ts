@@ -365,6 +365,8 @@ describe('deciding a pending booking over HTTP', () => {
         awaitingApprovalBecause: 'largeParty',
         // A large party waits with no clock, and this server sends none.
         approvalExpiresAtUtc: null,
+        // Nobody's answer but the venue's: a server that does not say reads so.
+        awaitsEarlierGuestAnswer: false,
         note: 'Window seat, please.',
       },
     ]);

@@ -120,6 +120,48 @@ describe('checking a tier change before it is made', () => {
     });
     expect(check.blockers).toEqual([]);
   });
+
+  it('says which branches going Free could not come back to Paid, without stopping them', async () => {
+    const id = await venueId(gateway, 'Yalla Demo Cafe');
+    const detail = (await gateway.getVenue(id))!;
+    const paid = detail.branches.find((branch) => branch.subscriptionTier === 'paid')!;
+    const unfinished: ConsoleGateway = {
+      ...gateway,
+      // Nobody at a tab; the paid branch's menu has two unfinished dishes since.
+      getVenue: async (venueId) => {
+        const venue = await gateway.getVenue(venueId);
+        return (
+          venue && {
+            ...venue,
+            branches: venue.branches.map((branch) => ({ ...branch, openTabCount: 0 })),
+          }
+        );
+      },
+      getBranchReadiness: async (branchId) => ({
+        ...(await gateway.getBranchReadiness(branchId)),
+        incompleteMenuItemCount: branchId === paid.id ? 2 : 0,
+      }),
+    };
+
+    const check = await checkVenueTier(unfinished, { venueId: id, tier: 'free' });
+    expect(check.blockers).toEqual([]);
+    expect(
+      check.cannotReturnToPaid.map((entry) => [entry.branch.id, entry.incompleteMenuItemCount]),
+    ).toEqual([[paid.id, 2]]);
+
+    // Going Paid there is nothing to come back from.
+    expect(
+      (await checkVenueTier(unfinished, { venueId: id, tier: 'paid' })).cannotReturnToPaid,
+    ).toEqual([]);
+    // A readiness that cannot be read warns of nothing.
+    const blind: ConsoleGateway = {
+      ...unfinished,
+      getBranchReadiness: () => Promise.reject(new NetworkError({ url: 'x' })),
+    };
+    expect((await checkVenueTier(blind, { venueId: id, tier: 'free' })).cannotReturnToPaid).toEqual(
+      [],
+    );
+  });
 });
 
 describe('switching every branch of a venue', () => {

@@ -37,6 +37,7 @@ import { PhotoImage } from '../PhotoImage';
 import { Skeleton } from '../Skeleton';
 import { Text } from '../Text';
 import { tableWithRoom } from './bookingText';
+import { PromiseNote } from './PromiseNote';
 import { TableRequestCard } from './TableRequestCard';
 import { VenueAnswerNote } from './VenueAnswer';
 
@@ -218,6 +219,8 @@ export function BookingHeroCard({
         </View>
         {/* While the venue decides: the minutes it has left to answer. */}
         <VenueAnswerNote booking={booking} style={styles.answer} />
+        {/* The guest's own yes to the guest after them, for good. */}
+        <PromiseNote booking={booking} style={styles.answer} />
       </Pressable>
 
       {/* Outside the pressable: its Yes and No are buttons of their own. */}
@@ -324,8 +327,12 @@ export interface BookingRowProps {
 export function BookingRow({ booking, now, onOpen, style }: BookingRowProps) {
   const { t } = useTranslation('diner');
   const facts = useBookingFacts(booking, now);
+  // The row is one control: what it shows of a request is in its name too.
+  const label = booking.incomingTableRequest
+    ? `${facts.label}, ${t('booking.tableRequest.title')}`
+    : facts.label;
   return (
-    <Card onPress={onOpen} accessibilityLabel={facts.label} padded={false} style={style}>
+    <Card onPress={onOpen} accessibilityLabel={label} padded={false} style={style}>
       <View style={styles.row}>
         <PhotoImage source={facts.photo} style={styles.thumb} />
         <View style={styles.rowBody}>

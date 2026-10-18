@@ -10,6 +10,7 @@ import type {
 import {
   BookingBusyError,
   BookingCommandInUseError,
+  BookingOverlapsOwnError,
   BookingRejectedError,
   BranchUnavailableError,
   ExpiredCodeError,
@@ -198,6 +199,12 @@ export interface VenueAnswerState {
    * venue. Absent on a surface that does not carry it — the venue sentence.
    */
   readonly awaitingApprovalBecause?: ApprovalTrigger | null | undefined;
+  /**
+   * Waiting for the guest before: whether they answer it themselves in the
+   * app (true) or the venue rings them (false). Both run on the same two-hour
+   * clock. Absent on a surface that does not say — the sentence true of both.
+   */
+  readonly awaitsEarlierGuestAnswer?: boolean | null | undefined;
 }
 
 /**
@@ -218,19 +225,28 @@ export function venueAnswerCopy(
   if (booking.status === 'pendingApproval') {
     const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now, locale);
     const earlierGuest = booking.awaitingApprovalBecause === 'earlierGuestConsent';
-    // The floor asks the guest before for another day, after ringing them: no
-    // clock, and the venue's answer is the one to wait for.
+    // A wait for the guest before with no clock — one moved where none runs:
+    // the venue's answer is the one to wait for.
     if (!countdown) return earlierGuest ? line('booking.approval.venueWillConfirm') : null;
+    // The venue ringing a guest before who cannot answer in the app is named
+    // as the venue: "the venue is checking with the guest before you".
+    const venueChecks = earlierGuest && booking.awaitsEarlierGuestAnswer === false;
     if (countdown.expired) {
       return line(
-        earlierGuest ? 'booking.approval.checkingEarlierGuest' : 'booking.approval.checking',
+        venueChecks
+          ? 'booking.approval.checkingVenueEarlierGuest'
+          : earlierGuest
+            ? 'booking.approval.checkingEarlierGuest'
+            : 'booking.approval.checking',
       );
     }
     return line(
-      earlierGuest ? 'booking.approval.waitingEarlierGuest' : 'booking.approval.waiting',
-      {
-        time: countdown.label,
-      },
+      venueChecks
+        ? 'booking.approval.waitingVenueEarlierGuest'
+        : earlierGuest
+          ? 'booking.approval.waitingEarlierGuest'
+          : 'booking.approval.waiting',
+      { time: countdown.label },
     );
   }
   return declinedCopy(booking.declinedBecause, 'body');
@@ -495,6 +511,9 @@ export function verificationFailureCopy(error: unknown, locale: Locale): CopyLin
  *   the table sheet's own sentence for it.
  * - `busy` is the one refusal a retry is for: the table was locked by another
  *   booking in flight. Same command id, tap again.
+ * - `overlapsOwn` is the diner's own booking at the same place and time: the
+ *   sentence names it — "You already have a booking at 19:30 (table 2)" — so
+ *   they choose between the two rather than hold both.
  * - `unknown` is the one where it matters most **not** to say "nothing was
  *   booked". A timeout, a dropped connection or a server error may have come
  *   after the booking committed; the honest answer is that we cannot tell, and
@@ -508,6 +527,11 @@ export type BookingFailure =
   | { readonly kind: 'commandInUse'; readonly line: CopyLine }
   | { readonly kind: 'branchUnavailable'; readonly line: CopyLine }
   | { readonly kind: 'phoneNotVerified'; readonly line: CopyLine }
+  | {
+      readonly kind: 'overlapsOwn';
+      readonly line: CopyLine;
+      readonly error: BookingOverlapsOwnError;
+    }
   /**
    * A booking follows on the table and the promise to free it was missing or
    * no longer right: the screen asks again with `requiredFreeByUtc`, and a yes
@@ -560,6 +584,18 @@ export function bookingFailure(
             time: formatTime(error.requiredFreeByUtc, timeZoneId, locale),
           })
         : line('confirm.error.freeByRequiredNoTime'),
+    };
+  }
+  if (error instanceof BookingOverlapsOwnError) {
+    const { localStartTime: time, tableLabel: table } = error;
+    return {
+      kind: 'overlapsOwn',
+      error,
+      line: !time
+        ? line('confirm.error.generic')
+        : table
+          ? line('confirm.error.overlapsOwn', { time, table })
+          : line('confirm.error.overlapsOwnPlain', { time }),
     };
   }
   if (error instanceof BookingBusyError) {

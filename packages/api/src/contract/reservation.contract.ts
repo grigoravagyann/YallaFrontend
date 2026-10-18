@@ -1,5 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { LeadTimeExceededError, TableTakenError } from '../contracts/errors';
+import {
+  BookingOverlapsOwnError,
+  LeadTimeExceededError,
+  TableTakenError,
+} from '../contracts/errors';
 import type { ContractDiner, ContractSubject } from './subject';
 import { randomUuid } from './subject';
 
@@ -17,7 +21,9 @@ import { randomUuid } from './subject';
  * needs longer can pick a different table rather than negotiate at the door.
  *
  * Booked as a diner of this suite's own — registered, number confirmed by code,
- * signed in — because `POST /api/reservations` answers only to one.
+ * signed in — because `POST /api/reservations` answers only to one. One diner
+ * may not hold two overlapping sittings at the branch, so every test that books
+ * at the same evening books as a diner of its own.
  */
 export function describeReservationContract(subject: ContractSubject): void {
   const reason = subject.unsupported('reservations');
@@ -48,14 +54,14 @@ export function describeReservationContract(subject: ContractSubject): void {
      * which is what `clientCommandId` is on the wire: anything else is a 400
      * before any booking rule is asked.
      */
-    function bookingOf(tableId: string, slotUtc: string) {
+    function bookingOf(tableId: string, slotUtc: string, who: ContractDiner = diner) {
       return {
         commandId: randomUuid(),
         branchId: fixtures.branchId,
         tableId,
         slotUtc,
         partySize: 2,
-        guestPhone: diner.phoneE164,
+        guestPhone: who.phoneE164,
         timeZoneId: fixtures.timeZoneId,
         guestName: 'Ani',
         channel: 'app' as const,
@@ -125,11 +131,15 @@ export function describeReservationContract(subject: ContractSubject): void {
        * same race twice.
        */
       const table = await firstBookable();
+      const first = await subject.newDiner();
 
-      await diner.gateway.createBooking(bookingOf(table.tableId, fixtures.tomorrowEveningUtc));
+      await first.gateway.createBooking(
+        bookingOf(table.tableId, fixtures.tomorrowEveningUtc, first),
+      );
+      const rival = await subject.rivalOf(first);
 
-      const second = diner.gateway.createBooking(
-        bookingOf(table.tableId, fixtures.tomorrowEveningUtc),
+      const second = rival.gateway.createBooking(
+        bookingOf(table.tableId, fixtures.tomorrowEveningUtc, rival),
       );
 
       await expect(second).rejects.toBeInstanceOf(TableTakenError);
@@ -146,13 +156,49 @@ export function describeReservationContract(subject: ContractSubject): void {
     it('replays an identical booking rather than making a second one', async () => {
       // What makes a flaky connection unable to create two bookings.
       const table = await firstBookable();
-      const command = bookingOf(table.tableId, fixtures.tomorrowEveningUtc);
+      const fresh = await subject.newDiner();
+      const command = bookingOf(table.tableId, fixtures.tomorrowEveningUtc, fresh);
 
-      const first = await diner.gateway.createBooking(command);
-      const replay = await diner.gateway.createBooking(command);
+      const first = await fresh.gateway.createBooking(command);
+      const replay = await fresh.gateway.createBooking(command);
 
       expect(replay.id, 'a retried booking created a second reservation').toBe(first.id);
       expect(replay.code).toBe(first.code);
+    });
+
+    it('refuses one diner a second sitting overlapping their own, naming the first', async () => {
+      // Bella held table 1 at 19:45 and table 2 at 19:30 the same evening: no more.
+      const bella = await subject.newDiner();
+      const first = await firstBookable();
+      const held = await bella.gateway.createBooking(
+        bookingOf(first.tableId, fixtures.tomorrowEveningUtc, bella),
+      );
+      try {
+        const earlier = new Date(Date.parse(fixtures.tomorrowEveningUtc) - 15 * 60_000);
+        const floor = await bella.gateway.getSlotFloor({
+          branchId: fixtures.branchId,
+          slotUtc: earlier.toISOString(),
+          partySize: 2,
+          timeZoneId: fixtures.timeZoneId,
+        });
+        const other = floor!.tables.find(
+          (entry) => entry.isBookable && entry.tableId !== held.tableId && !entry.mustFreeByUtc,
+        );
+        expect(other, 'no second table is bookable a quarter hour earlier').toBeDefined();
+
+        const refused: unknown = await bella.gateway
+          .createBooking(bookingOf(other!.tableId, earlier.toISOString(), bella))
+          .catch((error: unknown) => error);
+        expect(refused).toBeInstanceOf(BookingOverlapsOwnError);
+        expect(refused).toMatchObject({
+          existingReservationId: held.id,
+          existingCode: held.code,
+          tableLabel: held.tableLabel,
+        });
+        expect((refused as BookingOverlapsOwnError).localStartTime).toMatch(/^\d\d:\d\d$/u);
+      } finally {
+        await bella.gateway.cancelBooking(held.id).catch(() => undefined);
+      }
     });
   });
 }

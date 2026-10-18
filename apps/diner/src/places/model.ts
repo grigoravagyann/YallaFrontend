@@ -118,11 +118,20 @@ export interface TablePhotoMarker {
    * `alreadyBooked`, `tooSmall`. Only known at a slot; absent on the live rooms.
    */
   readonly unavailableReason?: TableUnavailableReason | null;
+  /**
+   * Booked just before the slot, and this party's only by asking: the guest
+   * before answers in the app (`earlierGuest`), or the venue checks with them
+   * tonight (`venue`). Only known at a slot; absent or `null` otherwise.
+   */
+  readonly request?: TableRequestKind | null;
   readonly capacityMin: number;
   readonly capacityMax: number;
   readonly x: number;
   readonly y: number;
 }
+
+/** Whom a table booked just before the slot is asked of. */
+export type TableRequestKind = 'earlierGuest' | 'venue';
 
 /** One photo of a room, and the tables pinned on it. */
 export interface RoomPhoto {

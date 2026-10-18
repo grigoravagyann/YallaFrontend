@@ -1,6 +1,11 @@
 import type { AwaitingApproval, PreviousBookingContext } from '../contracts/approvals';
 import type { components } from '../generated/schema';
-import { approvalExpiry, approvalTrigger } from './approvalMapping';
+import {
+  approvalExpiry,
+  approvalTrigger,
+  awaitsEarlierGuestAnswer,
+  type WireApprovalFields,
+} from './approvalMapping';
 import {
   instantOrNull,
   type WireAwaitingNeighbourTimes,
@@ -68,6 +73,9 @@ export function awaitingApprovalFromWire(wire: WireAwaitingApproval): AwaitingAp
     // The row's own fields first; the reservation's when a server sends only those.
     approvalExpiresAtUtc: approvalExpiry(wire.approvalExpiresAtUtc ?? view.approvalExpiresAtUtc),
     because: approvalTrigger(wire.trigger ?? view.awaitingApprovalBecause),
+    // The server lists only the floor's own; read anyway, so a row that is the
+    // guest before's to answer is never offered a decision.
+    awaitsEarlierGuestAnswer: awaitsEarlierGuestAnswer(view as typeof view & WireApprovalFields),
     // This booking's own promise, from its view; and the time to ask the
     // guest before for, when there is one.
     promisedFreeByUtc: instantOrNull((view as WireReservationTimes).promisedFreeByUtc),

@@ -156,9 +156,10 @@ describe('creating a booking', () => {
       cancelledAtUtc: null,
       cancelledAfterDeadline: false,
       note: null,
-      // Confirmed: nothing waited, no window, nothing declined.
+      // Confirmed: nothing waited, no window, nobody's answer awaited, nothing declined.
       awaitingApprovalBecause: null,
       approvalExpiresAtUtc: null,
+      awaitsEarlierGuestAnswer: false,
       declinedBecause: null,
       manageToken: 'mt-1',
       // Booking times: no promise to free the table, and nobody asking for it.

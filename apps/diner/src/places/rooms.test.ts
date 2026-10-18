@@ -95,6 +95,31 @@ describe('roomsAtSlot', () => {
     const rooms = roomsAtSlot(ROOMS, tables, (tableId) => tableId !== '10');
     expect(rooms[0]!.photos[1]!.tables.find((t) => t.tableId === '10')?.isBookable).toBe(false);
   });
+
+  it('marks a table booked just before the slot that this party can have only by asking', () => {
+    const rooms = roomsAtSlot(
+      ROOMS,
+      tables,
+      () => true,
+      () => null,
+      (tableId) => (tableId === '2' ? 'earlierGuest' : null),
+    );
+    const pins = rooms[0]!.photos[1]!.tables;
+    expect(pins.find((t) => t.tableId === '2')?.request).toBe('earlierGuest');
+    expect(pins.find((t) => t.tableId === '10')?.request ?? null).toBeNull();
+  });
+
+  it('never marks a table this party cannot book as one to ask for', () => {
+    const rooms = roomsAtSlot(
+      ROOMS,
+      tables,
+      () => false,
+      () => null,
+      () => 'venue',
+    );
+    const pins = rooms.flatMap((room) => room.photos.flatMap((p) => p.tables));
+    expect(pins.every((t) => (t.request ?? null) === null)).toBe(true);
+  });
 });
 
 describe('label order', () => {

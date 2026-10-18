@@ -4,6 +4,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { TableStatus } from '../../places/model';
 import { colors, radius, space, tableStatusColor, typography } from '../../theme';
 import { Text } from '../Text';
+import { REQUEST_GLYPH } from './TableMarker';
 
 const STATUSES: readonly TableStatus[] = ['free', 'reserved', 'occupied', 'outOfService'];
 
@@ -15,14 +16,25 @@ export interface TableLegendProps {
    * the party does not fit (QA 20261016T2 B3).
    */
   readonly partyFit?: boolean;
+  /**
+   * A table on the photo is booked just before and can be had by asking: its
+   * own entry, apart from Reserved, with the pin's question mark.
+   */
+  readonly request?: boolean;
   readonly style?: StyleProp<ViewStyle>;
 }
 
 /** ● Free ● Reserved ● Occupied ● Out of service — colour and the word, never one without the other. */
-export function TableLegend({ tone = 'light', partyFit = false, style }: TableLegendProps) {
+export function TableLegend({
+  tone = 'light',
+  partyFit = false,
+  request = false,
+  style,
+}: TableLegendProps) {
   const { t } = useTranslation('diner');
   const color = tone === 'dark' ? colors.onImage : colors.textMuted;
   const words = STATUSES.map((status) => t(`tables.legend.${status}`));
+  if (request) words.push(t('tables.legend.request'));
   if (partyFit) words.push(t('tables.legend.notForParty'));
   return (
     <View
@@ -49,6 +61,18 @@ export function TableLegend({ tone = 'light', partyFit = false, style }: TableLe
           <Text style={[styles.label, { color }]}>{t(`tables.legend.${status}`)}</Text>
         </View>
       ))}
+      {request ? (
+        <View style={styles.item}>
+          <View
+            style={[styles.dot, styles.dotMarked, { backgroundColor: tableStatusColor.reserved }]}
+          >
+            <View style={styles.mark}>
+              <Ionicons name={REQUEST_GLYPH} size={7} color={colors.onImage} />
+            </View>
+          </View>
+          <Text style={[styles.label, { color }]}>{t('tables.legend.request')}</Text>
+        </View>
+      ) : null}
       {partyFit ? (
         <View style={styles.item}>
           <View style={[styles.dot, styles.hollow, { borderColor: tableStatusColor.free }]} />

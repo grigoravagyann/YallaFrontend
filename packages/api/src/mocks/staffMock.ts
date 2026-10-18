@@ -39,6 +39,7 @@ import type {
 } from '../contracts/ordering';
 import {
   APPROVAL_EXPIRED_CODE,
+  EARLIER_GUEST_WINDOW_MINUTES,
   waitsOnEarlierGuestInApp,
   type ApprovalTrigger,
   type AwaitingApproval,
@@ -222,6 +223,11 @@ interface MockAwaiting {
   readonly promisedFreeByUtc?: string | null;
   /** The time the floor asks the guest before to have left by. */
   readonly earlierGuestFreeByUtc?: string | null;
+  /**
+   * The guest before answers it themselves, in the app — never listed here and
+   * never the floor's to decide. Absent: the floor's.
+   */
+  readonly awaitsEarlierGuestAnswer?: boolean;
   status: 'pendingApproval' | 'confirmed' | 'cancelledByVenue';
   declinedBecause: DeclineReason | null;
   reason: string | null;
@@ -482,7 +488,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   /*
    * Booking times, for mock mode only. Tomorrow at table 9, a booking for the
    * table somebody booked shortly before — on the web, so no push reaches
-   * them: the floor rings them and decides, with two hours to do it. And the
+   * them: the floor rings them and decides, with two hours to do it from when
+   * the booking was made (reservations.md §3e), as the guest would have in the
+   * app. And the
    * party at the first occupied table promised, when it booked, to be gone
    * five minutes before the booking after it.
    */
@@ -500,10 +508,13 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         partySize: 2,
         startUtc,
         arrivesAtUtc: iso(madeAt),
-        // The floor's question for another day: no clock — it waits as any
-        // booking the floor decides (reservations.md §3e).
-        approvalExpiresAtUtc: null,
+        // The floor's question for another day: two hours, never past either
+        // booking's start — both are a day away here.
+        approvalExpiresAtUtc: new Date(
+          madeAt.getTime() + EARLIER_GUEST_WINDOW_MINUTES * 60_000,
+        ).toISOString(),
         because: 'earlierGuestConsent',
+        awaitsEarlierGuestAnswer: false,
         note: null,
         previousBooking: {
           startUtc: minutesFrom(start, 26 * 60 - 105),
@@ -945,10 +956,11 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       if (answerWindowClosed(request.approvalExpiresAtUtc, request.startUtc, at)) {
         request.status = 'cancelledByVenue';
         // The guest before let their two hours in the app run out: said as
-        // theirs. Anything the floor left unanswered is the floor's.
+        // theirs. Anything the floor left unanswered — its own two hours to
+        // ring them included — is the venue's "no answer".
         request.declinedBecause = waitsOnEarlierGuestInApp(
           request.because,
-          request.approvalExpiresAtUtc,
+          request.awaitsEarlierGuestAnswer,
         )
           ? 'earlierGuestNoAnswer'
           : 'noAnswer';
@@ -970,6 +982,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       status: request.status,
       awaitingApprovalBecause: pending ? request.because : null,
       approvalExpiresAtUtc: pending ? request.approvalExpiresAtUtc : null,
+      awaitsEarlierGuestAnswer: pending && request.awaitsEarlierGuestAnswer === true,
       note: request.note,
     };
   }
@@ -1000,7 +1013,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     // The guest before answers it in the app: not the floor's to decide.
     if (
       request.status === 'pendingApproval' &&
-      waitsOnEarlierGuestInApp(request.because, request.approvalExpiresAtUtc)
+      waitsOnEarlierGuestInApp(request.because, request.awaitsEarlierGuestAnswer)
     ) {
       throw conflict(
         'reservation-awaiting-earlier-guest',
@@ -1374,7 +1387,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
             request.status === 'pendingApproval' &&
             request.arrivesAtUtc <= iso(at) &&
             // Waiting on the guest before's own answer: theirs, not on this list.
-            !waitsOnEarlierGuestInApp(request.because, request.approvalExpiresAtUtc),
+            !waitsOnEarlierGuestInApp(request.because, request.awaitsEarlierGuestAnswer),
         )
         // The server's order: those with a deadline, soonest deadline first,
         // then those with none, by start.

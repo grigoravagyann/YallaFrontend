@@ -219,6 +219,33 @@ describe('Home', () => {
     expect(within(feed).queryByText(/branch manager/u)).toBeNull();
   });
 
+  it('says a restore of reports in words, and never prints an action code it has no words for', async () => {
+    const source = gateway();
+    const entry = (id: string, action: string) => ({
+      id,
+      atUtc: NOW.toISOString(),
+      action,
+      actor: { id: 'a-1', role: 'platformAdmin' as const, name: 'Grigor Avagyan' },
+      target: { type: 'Branch', id: 'b-1', name: 'Կենտրոն' },
+      venue: { id: 'v-1', name: 'Cascade Cafe' },
+      tierTo: null,
+      staffRole: null,
+    });
+    renderHome({
+      ...source,
+      listPlatformActivity: async () => [
+        entry('a-1', 'review.restore-reports'),
+        entry('a-2', 'menu.bulk-import'),
+      ],
+    });
+    const feed = await screen.findByRole('region', { name: 'Recent activity' });
+    expect(
+      await within(feed).findByText(/put back the reports on a review at Կենտրոն/u),
+    ).toBeTruthy();
+    expect(within(feed).getByText(/made a change$/u)).toBeTruthy();
+    expect(within(feed).queryByText(/menu\.bulk-import/u)).toBeNull();
+  });
+
   it('says the overview failed rather than showing zeros', async () => {
     const failing: ConsoleGateway = {
       ...gateway(),

@@ -147,6 +147,39 @@ describe('a booking waiting for the guest before', () => {
     expect(line?.params['time']).toMatch(/^1 hr,? 59 mins?$/u);
   });
 
+  it('names the venue when it is the floor checking with the guest before, not the app', () => {
+    const waiting = (awaitsEarlierGuestAnswer: boolean | undefined, expiresAtUtc: string) =>
+      venueAnswerCopy(
+        {
+          status: 'pendingApproval',
+          awaitingApprovalBecause: 'earlierGuestConsent',
+          approvalExpiresAtUtc: expiresAtUtc,
+          declinedBecause: null,
+          awaitsEarlierGuestAnswer,
+        },
+        now,
+      );
+
+    expect(waiting(false, '2026-10-19T11:30:00.000Z')).toEqual({
+      key: 'booking.approval.waitingVenueEarlierGuest',
+      params: { time: '90:00' },
+    });
+    expect(waiting(false, '2026-10-19T09:00:00.000Z')?.key).toBe(
+      'booking.approval.checkingVenueEarlierGuest',
+    );
+    // Theirs in the app: the guest before is asked.
+    expect(waiting(true, '2026-10-19T11:30:00.000Z')?.key).toBe(
+      'booking.approval.waitingEarlierGuest',
+    );
+    expect(waiting(true, '2026-10-19T09:00:00.000Z')?.key).toBe(
+      'booking.approval.checkingEarlierGuest',
+    );
+    // A surface that does not say: the sentence true of both.
+    expect(waiting(undefined, '2026-10-19T11:30:00.000Z')?.key).toBe(
+      'booking.approval.waitingEarlierGuest',
+    );
+  });
+
   it('keeps the venue sentence for every other wait', () => {
     expect(
       venueAnswerCopy(

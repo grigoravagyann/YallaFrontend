@@ -121,3 +121,22 @@ describe('the console stylesheet keeps its contrast', () => {
     );
   });
 });
+
+describe("a branch's sub-tabs", () => {
+  /*
+   * Public page / Rooms and tables / Reviews scroll sideways on a narrow
+   * screen. `overflow-x: auto` alone makes the other axis `auto` too, and the
+   * tab underline drawn a pixel past the bar's bottom then overflowed it:
+   * stray vertical scroll arrows on the right of the bar (QA, Reviews page at
+   * 1024×768). The bar scrolls one way only, and nothing is drawn past it.
+   */
+  it('scrolls sideways only, and draws nothing below itself', () => {
+    const rules = consoleRules();
+    const bar = rules.find((rule) => rule.selector === '.yc-subtabs');
+    expect(bar?.body).toMatch(/overflow-x:\s*auto/u);
+    expect(bar?.body).toMatch(/overflow-y:\s*hidden/u);
+    const tabs = rules.filter((rule) => /\.yc-subtabs a$/u.test(rule.selector));
+    expect(tabs.length).toBeGreaterThan(0);
+    for (const rule of tabs) expect(rule.body).not.toMatch(/margin(?:-bottom)?:\s*-/u);
+  });
+});

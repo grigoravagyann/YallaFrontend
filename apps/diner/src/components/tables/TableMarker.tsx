@@ -95,7 +95,8 @@ export interface TableMarkerProps {
  * A numbered circle on the photo: green free, orange reserved, red occupied,
  * grey out of service; hollow with a green ring when free but not for the
  * party being booked. Named "Table 4, free" for a screen reader, so the
- * colour is never the only way to know.
+ * colour is never the only way to know. A table booked just before that this
+ * party can have by asking carries a question mark, and says who is asked.
  *
  * Positioned by the pin's `x`/`y` as percentages of the box the photo is drawn
  * in, so it lands on the same table at any size and scales with the photo when
@@ -141,6 +142,9 @@ export function TableMarker({ table, selected, onPress, partySize }: TableMarker
     table.status === 'free' &&
     (refusal.reason === null || isPartyFitReason(refusal.reason));
   const timeRefused = refused && table.status === 'free' && !unfit;
+  // Booked just before, and this party's only by asking: not "reserved", which
+  // reads as not to be had — the guest before (or the venue) will be asked.
+  const request = refused ? null : (table.request ?? null);
   const label = unfit
     ? t('tables.pin.notForParty', { label: table.label, count: partySize })
     : timeRefused && partySize !== undefined
@@ -151,7 +155,17 @@ export function TableMarker({ table, selected, onPress, partySize }: TableMarker
             reason: t(line.key, line.params),
           });
         })()
-      : t(`tables.pin.${table.status}`, { label: table.label });
+      : request
+        ? t(
+            request === 'earlierGuest'
+              ? 'tables.pin.requestEarlierGuest'
+              : 'tables.pin.requestVenue',
+            {
+              label: table.label,
+            },
+          )
+        : t(`tables.pin.${table.status}`, { label: table.label });
+  const glyph = request ? REQUEST_GLYPH : STATE_GLYPH[table.status];
   const color = tableStatusColor[table.status];
   const ringScale = ring.interpolate({ inputRange: [0, 1], outputRange: [1, RING_SCALE] });
   const ringOpacity = ring.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] });
@@ -200,9 +214,9 @@ export function TableMarker({ table, selected, onPress, partySize }: TableMarker
         </Text>
         {/* Colour is never the only cue: a taken table also carries a mark —
             a cross when someone is sitting there, a clock when it is booked. */}
-        {STATE_GLYPH[table.status] ? (
+        {glyph ? (
           <View pointerEvents="none" style={styles.stateMark}>
-            <Ionicons name={STATE_GLYPH[table.status]!} size={9} color={colors.onImage} />
+            <Ionicons name={glyph} size={9} color={colors.onImage} />
           </View>
         ) : null}
       </Pressable>
@@ -215,6 +229,9 @@ const STATE_GLYPH: Partial<Record<TablePhotoMarker['status'], 'close' | 'time-ou
   occupied: 'close',
   reserved: 'time-outline',
 };
+
+/** The mark of a table to be asked for: a question, not a clock (see `TableLegend`). */
+export const REQUEST_GLYPH = 'help';
 
 /** States whose fill is bright enough to carry the dark number (the grey one is not). */
 const STATE_MARK_ON_FILL: Record<TablePhotoMarker['status'], boolean> = {

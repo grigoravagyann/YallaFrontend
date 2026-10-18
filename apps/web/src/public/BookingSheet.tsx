@@ -169,6 +169,19 @@ export default function BookingSheet({
           return;
         }
 
+        // One table at a time per visitor: said with the booking they already
+        // hold, and nothing about this table changed — the panel stays.
+        if (failure.kind === 'overlapsOwn') {
+          const { localStartTime: time, tableLabel: table } = failure.error;
+          setOutcomeUnknown(false);
+          setErrorText(
+            time
+              ? tp(table ? 'booking.overlapsOwn' : 'booking.overlapsOwnPlain', { time, table })
+              : t(failure.line.key, failure.line.params),
+          );
+          return;
+        }
+
         setOutcomeUnknown(failure.kind === 'unknown');
         setErrorText(t(failure.line.key, failure.line.params));
       }
@@ -185,6 +198,7 @@ export default function BookingSheet({
       onTableTaken,
       onClose,
       t,
+      tp,
     ],
   );
 

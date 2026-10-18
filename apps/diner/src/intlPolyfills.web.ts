@@ -12,7 +12,13 @@
  *
  * Same order and the same locale set as the phone's file; keep the two in step.
  * Metro resolves `./intlPolyfills` to this file in the browser.
+ *
+ * The forced `DateTimeFormat` defaults to UTC, so the browser's own zone is
+ * read first — `deviceTimeZone` is imported before any polyfill — and handed
+ * to it once installed: a time on the diner's own clock stays theirs.
  */
+import { adoptDefaultTimeZone, platformTimeZone } from './deviceTimeZone';
+
 import '@formatjs/intl-getcanonicallocales/polyfill.js';
 import '@formatjs/intl-locale/polyfill.js';
 
@@ -45,3 +51,5 @@ import '@formatjs/intl-relativetimeformat/locale-data/hy.js';
 import '@formatjs/intl-relativetimeformat/locale-data/ru.js';
 import '@formatjs/intl-relativetimeformat/locale-data/en.js';
 import '@formatjs/intl-relativetimeformat/locale-data/en-GB.js';
+
+adoptDefaultTimeZone(platformTimeZone);

@@ -853,6 +853,25 @@ textarea.yc-ctl {
 /* --------------------------------------------------------------------------
  * Sign-in and the password page: the room photo beside the card
  * -------------------------------------------------------------------------- */
+/* Waiting for the session on a full reload: the console's canvas, not the bare ground. */
+.yc-boot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-xl);
+  background: var(--console-canvas);
+  color: var(--console-muted);
+}
+
+.yc-boot-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
 .yc-auth {
   display: flex;
   flex-wrap: wrap;
@@ -1655,6 +1674,17 @@ textarea.yc-ctl {
 }
 
 .yc-refuse-inline .yc-help {
+  margin: 0;
+}
+
+/* A warning with a lead line over its list: the way back to Paid, going Free. */
+.yc-refuse-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.yc-refuse-body p {
   margin: 0;
 }
 
@@ -2531,11 +2561,18 @@ textarea.yc-ctl {
   min-width: 180px;
 }
 
+/*
+ * Sideways only: `overflow-x: auto` alone makes the other axis scroll too, and
+ * an underline drawn past the bar's edge showed vertical scroll arrows. The
+ * bar's line is an inset shadow, so the active tab's underline paints over it
+ * inside the bar rather than a pixel below it.
+ */
 .yc-subtabs {
   display: flex;
   gap: var(--space-xs);
   overflow-x: auto;
-  border-bottom: 1px solid var(--console-line);
+  overflow-y: hidden;
+  box-shadow: inset 0 -1px 0 var(--console-line);
 }
 
 .yc .yc-subtabs a {
@@ -2544,7 +2581,6 @@ textarea.yc-ctl {
   align-items: center;
   gap: var(--space-sm);
   height: var(--console-size-button-tall);
-  margin-bottom: -1px;
   padding: 0 var(--space-lg);
   border-bottom: 2px solid transparent;
   color: var(--console-muted);

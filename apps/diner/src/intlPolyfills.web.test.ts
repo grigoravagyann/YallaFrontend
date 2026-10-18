@@ -16,13 +16,19 @@ const native = {
   RelativeTimeFormat: Intl.RelativeTimeFormat,
 };
 
+// The browser's own zone: Yerevan, as on the QA laptop. Node reads `TZ` afresh.
+const savedTz = process.env['TZ'];
+
 // The whole @formatjs set and its locale data: slow to load on a busy machine.
 beforeAll(async () => {
+  process.env['TZ'] = 'Asia/Yerevan';
   await import('./intlPolyfills.web');
 }, 60_000);
 
 afterAll(() => {
   Object.assign(Intl, native);
+  if (savedTz === undefined) delete process.env['TZ'];
+  else process.env['TZ'] = savedTz;
 });
 
 const MORNING = new Date(Date.UTC(2026, 9, 16, 5, 0)); // 09:00 in Yerevan, a Friday
@@ -53,5 +59,16 @@ describe('Intl on the web build', () => {
     expect(day('hy-AM')).not.toMatch(/Fri/u);
     expect(day('hy-AM')).toMatch(/\p{Script=Armenian}/u);
     expect(day('ru-AM')).toMatch(/\p{Script=Cyrillic}/u);
+  });
+
+  /*
+   * The polyfill's own default zone is UTC: forced in, it made every
+   * device-local time UTC — the notification feed read 13:37 at 17:37 in
+   * Yerevan (QA 2026-10-18). The browser's zone is read before it is replaced.
+   */
+  it('keeps the browser’s own zone as the default, for times on the diner’s clock', () => {
+    expect(new Intl.DateTimeFormat('en-GB').resolvedOptions().timeZone).toBe('Asia/Yerevan');
+    const local = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
+    expect(local.format(MORNING)).toBe('09:00');
   });
 });

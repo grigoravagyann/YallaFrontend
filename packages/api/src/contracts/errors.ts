@@ -211,6 +211,53 @@ export class TableRequestClosedError extends ApiError {
   }
 }
 
+/** The server's code for a sitting that overlaps one of the diner's own. */
+export const BOOKING_OVERLAPS_OWN_CODE = 'reservation-overlaps-own';
+
+/**
+ * The diner already has a booking at this branch whose sitting overlaps the
+ * one asked for — 409 `reservation-overlaps-own`, on a new booking or a change
+ * by a signed-in diner. Not a taken table and not a rule: the answer is "you
+ * already have one at 19:30 (table 2)", so the booking already held is carried.
+ * The one being changed is never counted against itself, and staff-made
+ * bookings are never refused this way.
+ */
+export class BookingOverlapsOwnError extends ApiError {
+  /** The booking already held. `null` when the refusal did not say. */
+  readonly existingReservationId: string | null;
+  /** Its short code, as quoted at the door. */
+  readonly existingCode: string | null;
+  /** "19:30" on the branch's clock, or `null`. */
+  readonly localStartTime: string | null;
+  readonly tableLabel: string | null;
+
+  constructor(options: {
+    url: string;
+    existingReservationId: string | null;
+    existingCode?: string | null | undefined;
+    localStartTime: string | null;
+    tableLabel: string | null;
+    requestId?: string | undefined;
+    problem?: ProblemDetails | undefined;
+  }) {
+    super('You already have a booking at this place at that time.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+      problem: options.problem,
+    });
+    this.name = 'BookingOverlapsOwnError';
+    this.existingReservationId = options.existingReservationId;
+    this.existingCode = options.existingCode ?? null;
+    this.localStartTime = options.localStartTime;
+    this.tableLabel = options.tableLabel;
+  }
+}
+
+export function isBookingOverlapsOwn(error: unknown): error is BookingOverlapsOwnError {
+  return error instanceof BookingOverlapsOwnError;
+}
+
 /** The six digits did not match. Attempts remaining is shown to the user. */
 export class WrongCodeError extends ApiError {
   /**

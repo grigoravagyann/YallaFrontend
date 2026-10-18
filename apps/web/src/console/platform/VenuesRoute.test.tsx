@@ -319,6 +319,46 @@ describe('the tier button', () => {
   });
 });
 
+describe('going Free from the list', () => {
+  it("names the branches that can't come back to Paid, and still goes", async () => {
+    const user = userEvent.setup();
+    const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+    const gateway: ConsoleGateway = {
+      ...mock,
+      getVenue: async (venueId) => {
+        const venue = await mock.getVenue(venueId);
+        return (
+          venue && {
+            ...venue,
+            branches: venue.branches.map((branch) => ({ ...branch, openTabCount: 0 })),
+          }
+        );
+      },
+      // Cascade Cafe's only branch, paid, with three dishes unfinished since.
+      getBranchReadiness: async (branchId) => ({
+        ...(await mock.getBranchReadiness(branchId)),
+        incompleteMenuItemCount: branchId === 'b-cascade-center' ? 3 : 0,
+      }),
+    };
+    const setTier = vi.spyOn(gateway, 'setBranchTier');
+    renderList('/platform/venues', gateway);
+    await loaded();
+
+    await user.click(within(rowOf('Cascade Cafe')).getByRole('button', { name: /plan, press/u }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Make Cascade Cafe free?' });
+    const warning = await within(dialog).findByRole('note');
+    expect(warning.textContent).toContain(
+      "These branches can't go back to Paid until their menu is finished",
+    );
+    expect(
+      within(warning).getByText('Կենտրոն: 3 dishes are not ready to show a guest'),
+    ).toBeTruthy();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Make free' }));
+    await waitFor(() => expect(setTier).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe('the ⋮ menu', () => {
   it('opens on the first item, moves on the arrow keys, and closes on Escape', async () => {
     const user = userEvent.setup();

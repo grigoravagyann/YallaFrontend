@@ -1,9 +1,11 @@
 import type { Booking } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
+  anotherTimeRoute,
   canChangeBooking,
   changeBookingRoute,
   isUnchanged,
+  parseAnotherTimeParams,
   parseChangeParams,
 } from './changeBooking';
 
@@ -140,5 +142,42 @@ describe('isUnchanged', () => {
     expect(isUnchanged(original, { ...same, slotUtc: null })).toBe(false);
     const blind = parseChangeParams({ bookingId: 'r-1' })!;
     expect(isUnchanged(blind, same)).toBe(false);
+  });
+});
+
+describe('anotherTimeRoute', () => {
+  it('opens a new booking at the same place, on the declined booking’s day and party', () => {
+    expect(anotherTimeRoute(BOOKING)).toEqual({
+      pathname: '/book/[placeId]',
+      params: { placeId: 'b-lumen-north', dayOf: '2026-10-18T15:30:00Z', party: '4' },
+    });
+  });
+
+  it('carries no booking, time or table: it is a new booking, not a change', () => {
+    const { params } = anotherTimeRoute(BOOKING);
+    expect(params).not.toHaveProperty('bookingId');
+    expect(params).not.toHaveProperty('slotUtc');
+    expect(params).not.toHaveProperty('tableId');
+    expect(parseChangeParams(params)).toBeNull();
+  });
+});
+
+describe('parseAnotherTimeParams', () => {
+  it('reads the day’s instant and the party back', () => {
+    expect(parseAnotherTimeParams({ dayOf: '2026-10-18T15:30:00Z', party: '4' })).toEqual({
+      dayOfUtc: '2026-10-18T15:30:00.000Z',
+      partySize: 4,
+    });
+  });
+
+  it('leaves unknown what does not read as itself, and is nothing in change mode', () => {
+    expect(parseAnotherTimeParams({ dayOf: '2026-10-18', party: 'four' })).toEqual({
+      dayOfUtc: null,
+      partySize: null,
+    });
+    expect(parseAnotherTimeParams({})).toBeNull();
+    expect(
+      parseAnotherTimeParams({ bookingId: 'r-1', dayOf: '2026-10-18T15:30:00Z', party: '4' }),
+    ).toBeNull();
   });
 });

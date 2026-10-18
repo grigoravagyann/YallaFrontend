@@ -57,6 +57,27 @@ const branchRow = (name: string) =>
     .closest('tr')!;
 const staffRow = (name: string) => screen.getByText(name).closest('tr')!;
 
+/** Yalla Demo Cafe with nobody at a tab, and its paid branch's menu unfinished since. */
+function unfinishedPaidBranch(): ConsoleGateway {
+  const mock = createConsoleMockGateway({ latencyMs: 0, role: 'platformAdmin' });
+  return {
+    ...mock,
+    getVenue: async (venueId) => {
+      const venue = await mock.getVenue(venueId);
+      return (
+        venue && {
+          ...venue,
+          branches: venue.branches.map((branch) => ({ ...branch, openTabCount: 0 })),
+        }
+      );
+    },
+    getBranchReadiness: async (branchId) => ({
+      ...(await mock.getBranchReadiness(branchId)),
+      incompleteMenuItemCount: branchId === 'b-yalla-demo-center' ? 2 : 0,
+    }),
+  };
+}
+
 async function openTab(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
   await user.click(screen.getByRole('tab', { name }));
 }
@@ -207,6 +228,30 @@ describe('the branch table', () => {
     expect(within(dialog).getByText(/Tabs are open/u)).toBeTruthy();
   });
 
+  it("warns, going Free, that an unready branch can't come back to Paid — and still goes", async () => {
+    const user = userEvent.setup();
+    const gateway = unfinishedPaidBranch();
+    const setTier = vi.spyOn(gateway, 'setBranchTier');
+    renderVenue('v-yalla-demo', gateway);
+    await heading('Yalla Demo Cafe');
+
+    await user.click(within(branchRow('Կենտրոն')).getByRole('button', { name: /plan at/u }));
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'Make the Կենտրոն branch free?',
+    });
+    const warning = await within(dialog).findByRole('note');
+    expect(warning.textContent).toContain("It can't go back to Paid until its menu is finished");
+    expect(within(warning).getByText('2 dishes are not ready to show a guest')).toBeTruthy();
+
+    // The warning is not a refusal: the same confirm goes through.
+    await user.click(within(dialog).getByRole('button', { name: 'Make free' }));
+    await waitFor(() => expect(setTier).toHaveBeenCalledTimes(1));
+    expect(setTier.mock.calls[0]![0]).toMatchObject({
+      branchId: 'b-yalla-demo-center',
+      tier: 'free',
+    });
+  });
+
   it('adds a branch, with errors under the fields first', async () => {
     const user = userEvent.setup();
     renderVenue();
@@ -246,10 +291,20 @@ describe('the overview', () => {
   it('shows the bookings of the last 30 days and how many wait for approval', async () => {
     renderVenue('v-cascade');
     await heading('Cascade Cafe');
-    const kpi = screen.getByText('Bookings in 30 days').closest('.yc-kpi')!;
+    // The past 30 days by start, said as such: not the next 30.
+    const kpi = screen.getByText('Bookings, last 30 days').closest('.yc-kpi')!;
     await waitFor(() =>
       expect(within(kpi as HTMLElement).getByText(/waiting for approval/u)).toBeTruthy(),
     );
+  });
+
+  it('describes the Paid plan without a payment in the app — guests pay the waiter', async () => {
+    renderVenue('v-cascade');
+    await heading('Cascade Cafe');
+    expect(
+      screen.getByText('Ordering by phone, table tabs, asking for the bill in the app'),
+    ).toBeTruthy();
+    expect(screen.queryByText(/paying in the app|payment in the app/u)).toBeNull();
   });
 });
 

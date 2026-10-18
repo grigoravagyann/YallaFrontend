@@ -419,33 +419,48 @@ describe("the server's review rules (reservations.md §3e)", () => {
     });
   });
 
-  it('leaves the floor to decide, with no clock, when the guest before booked on the web', async () => {
+  it('gives the floor two hours to ring the guest before when they booked on the web', async () => {
     const time = clock();
-    const gateway = world(time, { seedNeighbourBookings: true });
-    await signedIn(gateway);
-    const floor = await floorAt(gateway, '21:30');
+    // Two worlds alike, one booking each: one diner may not hold two tables at once.
+    const gateways = [
+      world(time, { seedNeighbourBookings: true }),
+      world(time, { seedNeighbourBookings: true }),
+    ];
+    for (const gateway of gateways) await signedIn(gateway);
+    const floor = await floorAt(gateways[0]!, '21:30');
     const requestable = floor.tables.filter((entry) => entry.isBookable && entry.isRequestable);
     expect(requestable.length).toBeGreaterThanOrEqual(2);
 
     const made = await Promise.all(
-      requestable
-        .slice(0, 2)
-        .map((table) => gateway.createBooking(command(table.tableId, at(TOMORROW, '21:30')))),
+      gateways.map((gateway, index) =>
+        gateway.createBooking(command(requestable[index]!.tableId, at(TOMORROW, '21:30'))),
+      ),
     );
     for (const booking of made) {
       expect(booking).toMatchObject({
         status: 'pendingApproval',
         awaitingApprovalBecause: 'earlierGuestConsent',
+        // The same two hours whoever answers (reservations.md §3e).
+        approvalExpiresAtUtc: '2026-10-19T10:00:00.000Z',
       });
     }
-    // One guest before booked in the app (two hours to answer), one on the web (the floor's, no clock).
-    expect(made.map((booking) => booking.approvalExpiresAtUtc === null).sort()).toEqual([
-      false,
-      true,
-    ]);
-    const floors = made.find((booking) => booking.approvalExpiresAtUtc === null)!;
+    // One guest before booked in the app (theirs to answer), one on the web (the floor's).
+    expect(made.map((booking) => booking.awaitsEarlierGuestAnswer).sort()).toEqual([false, true]);
+    const floorsAt = made.findIndex((booking) => booking.awaitsEarlierGuestAnswer === false);
+    const floors = made[floorsAt]!;
+    const theirs = made[1 - floorsAt]!;
+
     time.advance(121 * MINUTE);
-    expect(await gateway.getBooking(floors.id)).toMatchObject({ status: 'pendingApproval' });
+    // Nobody answered: the floor's lapse is the venue's "no answer", theirs is theirs.
+    expect(await gateways[floorsAt]!.getBooking(floors.id)).toMatchObject({
+      status: 'cancelledByVenue',
+      declinedBecause: 'noAnswer',
+      awaitsEarlierGuestAnswer: false,
+    });
+    expect(await gateways[1 - floorsAt]!.getBooking(theirs.id)).toMatchObject({
+      status: 'cancelledByVenue',
+      declinedBecause: 'earlierGuestNoAnswer',
+    });
   });
 });
 

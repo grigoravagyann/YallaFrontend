@@ -56,6 +56,17 @@ export interface ContractSubject {
    * another one fails for a reason that has nothing to do with it.
    */
   readonly newDiner: () => Promise<ContractDiner>;
+  /**
+   * Another diner, in the same world as `diner` — to race them for a table.
+   *
+   * One diner may not hold two overlapping sittings at a branch (409
+   * `reservation-overlaps-own`, checked before the table is), so a lost race is
+   * two people. Against a live backend that is simply another new diner. The
+   * mock keeps a world per gateway, so its rival signs up on `diner`'s own
+   * gateway, which is theirs from then on: call this only once `diner` has
+   * nothing left to do.
+   */
+  readonly rivalOf: (diner: ContractDiner) => Promise<ContractDiner>;
   /** GET a photo variant the way a phone would, and say what came back. */
   readonly fetchPhoto: (url: string) => Promise<PhotoProbe>;
   /**

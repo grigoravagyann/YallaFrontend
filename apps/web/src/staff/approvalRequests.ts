@@ -3,6 +3,7 @@ import {
   type AwaitingApproval,
   type ReservationStatusCode,
 } from '@yalla/api';
+import { branchDayKey } from '@yalla/format';
 import type { TFunction } from 'i18next';
 
 /**
@@ -20,17 +21,44 @@ export function requestTable(request: AwaitingApproval, t: TFunction): string {
     : t('table.title', { label: request.tableLabel });
 }
 
-/** "19:45 · 2 guests · Lilit Manukyan". */
+/**
+ * "19:45 · 2 guests · Lilit Manukyan" — and "Tue 20 Oct · 19:45 · 2 guests ·
+ * Carmen QA" for a booking that is not for the branch's today: a bare 19:45
+ * reads as tonight, and the floor would hold tonight's table for it.
+ */
 export function requestLine(
   request: AwaitingApproval,
   t: TFunction,
   time: (iso: string) => string,
+  days?: BranchToday,
 ): string {
+  const date = otherDay(request.startUtc, days);
   return t('approvals.line', {
-    time: time(request.startUtc),
+    time: date ? `${date} · ${time(request.startUtc)}` : time(request.startUtc),
     count: request.partySize,
     name: request.guestName,
   });
+}
+
+/**
+ * "Approved: table 3 at 19:45. The guest has been told." — the floor's notice
+ * once an answer lands, dated like the card when the booking is not today.
+ */
+export function decidedNotice(
+  request: AwaitingApproval,
+  approved: boolean,
+  t: TFunction,
+  time: (iso: string) => string,
+  days?: BranchToday,
+): string {
+  const date = otherDay(request.startUtc, days);
+  const params = { label: request.tableLabel, time: time(request.startUtc) };
+  return date
+    ? t(approved ? 'approvals.approvedNoticeOn' : 'approvals.declinedNoticeOn', {
+        ...params,
+        date,
+      })
+    : t(approved ? 'approvals.approvedNotice' : 'approvals.declinedNotice', params);
 }
 
 /** One line of what the table is doing around the request. */
@@ -71,6 +99,30 @@ export interface BranchDays {
   readonly dayKey: (iso: string) => string;
   /** "Mon 19 Oct", on the branch's calendar. */
   readonly date: (iso: string) => string;
+}
+
+/** {@link BranchDays}, and which of them is the branch's today. */
+export interface BranchToday extends BranchDays {
+  /** `YYYY-MM-DD`: the branch's today. */
+  readonly today: string;
+}
+
+/** The branch's days in its own time zone, today read at `now`. */
+export function branchToday(
+  timeZoneId: string,
+  date: (iso: string) => string,
+  now: Date,
+): BranchToday {
+  return {
+    dayKey: (iso) => branchDayKey(iso, timeZoneId),
+    date,
+    today: branchDayKey(now, timeZoneId),
+  };
+}
+
+/** "Tue 20 Oct" for an instant on another of the branch's days; `null` for today, or unknown days. */
+function otherDay(iso: string, days: BranchToday | undefined): string | null {
+  return days && days.dayKey(iso) !== days.today ? days.date(iso) : null;
 }
 
 /**
@@ -188,19 +240,25 @@ export function newArrivals(
   return current.filter((request) => !seen.has(request.id)).map((request) => request.id);
 }
 
-/** "New booking request: table 7 at 19:45, 2 guests." — for the live region. */
+/**
+ * "New booking request: table 7 at 19:45, 2 guests." — for the live region;
+ * "… table 7 on Tue 20 Oct at 19:45 …" for a booking not for today.
+ */
 export function arrivalAnnouncement(
   arrived: readonly AwaitingApproval[],
   t: TFunction,
   time: (iso: string) => string,
+  days?: BranchToday,
 ): string {
   return arrived
-    .map((request) =>
-      t('approvals.arrived', {
+    .map((request) => {
+      const date = otherDay(request.startUtc, days);
+      const params = {
         label: request.tableLabel,
         time: time(request.startUtc),
         count: request.partySize,
-      }),
-    )
+      };
+      return date ? t('approvals.arrivedOn', { ...params, date }) : t('approvals.arrived', params);
+    })
     .join(' ');
 }

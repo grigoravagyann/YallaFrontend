@@ -42,6 +42,7 @@ import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
 import { APPROVAL_PANEL_ID, ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
+import { branchToday, decidedNotice } from './approvalRequests';
 import { primeChime } from './chime';
 import { ConflictList } from './ConflictList';
 import { useCommandQueue } from './commands/useCommandQueue';
@@ -836,10 +837,14 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
                 onDecided={({ approved, request }) =>
                   setNotice({
                     kind: 'info',
-                    text: t(approved ? 'approvals.approvedNotice' : 'approvals.declinedNotice', {
-                      label: request.tableLabel,
-                      time: format.time(request.startUtc),
-                    }),
+                    // Dated like the card when the booking is not for today.
+                    text: decidedNotice(
+                      request,
+                      approved,
+                      t,
+                      format.time,
+                      branchToday(timeZoneId, (iso) => format.dayAndTime(iso).date, new Date()),
+                    ),
                   })
                 }
                 onRefused={({ request, text }) =>

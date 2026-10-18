@@ -37,6 +37,7 @@ import { SlidingChoice, type SlidingOption } from '../../src/components/motion/S
 import { useToast } from '../../src/components/motion/Toast';
 import {
   isUnchanged,
+  parseAnotherTimeParams,
   parseChangeParams,
   type BookingChange,
 } from '../../src/components/bookings/changeBooking';
@@ -142,7 +143,10 @@ type BookingParams = {
    */
   bookingId?: string;
   slotUtc?: string;
+  /** With a new booking: its party, from a declined one (see `anotherTimeRoute`). */
   party?: string;
+  /** A new booking after a declined one: the instant whose day to open on. */
+  dayOf?: string;
 };
 
 function positiveInt(value: string | undefined): number | null {
@@ -348,12 +352,24 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
   );
 
   // A change opens on what the booking holds; a new booking on the defaults.
-  const [dateKey, setDateKey] = useState<string | null>(changeDate);
+  // After a declined booking, its day and party: the time is chosen again.
+  const anotherTime = useMemo(
+    () => (change ? null : parseAnotherTimeParams({ dayOf: params.dayOf, party: params.party })),
+    [change, params.dayOf, params.party],
+  );
+  const [dateKey, setDateKey] = useState<string | null>(() => {
+    if (changeDate) return changeDate;
+    if (!anotherTime?.dayOfUtc) return null;
+    // Only a day still on the strip; a day gone by opens on the first.
+    const key = stripDateFor(place, anotherTime.dayOfUtc, branchDayKey(now, place.timeZoneId));
+    return days.some((day) => day.dateKey === key) ? key : null;
+  });
   // The time the diner tapped, as an instant; `null` until they tap one.
   const [pickedMs, setPickedMs] = useState<number | null>(null);
   // Never shrunk: a party bigger than the list is shown as chosen as it is.
   const [partySize, setPartySize] = useState(() => {
     if (change?.partySize) return change.partySize;
+    if (anotherTime?.partySize) return anotherTime.partySize;
     const min = chosenTable?.capacityMin ?? PARTY_SIZES[0];
     return Math.min(Math.max(min, PARTY_SIZES[0]), chosenTable?.capacityMax ?? PARTY_MAX);
   });
@@ -518,8 +534,21 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
       shownPlan,
       (tableId) => verdicts.get(tableId)?.isBookable ?? false,
       (tableId) => verdicts.get(tableId)?.unavailableReason ?? null,
+      (tableId) => {
+        const verdict = verdicts.get(tableId);
+        if (!verdict?.isRequestable) return null;
+        return verdict.requiresEarlierGuestConsent ? 'earlierGuest' : 'venue';
+      },
     ).filter((room) => room.photos.some((photo) => photo.tables.length > 0));
   }, [rooms, shownPlan, shownTables]);
+  // The legend explains the question-mark pin only when one is on the photos.
+  const anyRequest = useMemo(
+    () =>
+      slotRooms.some((room) =>
+        room.photos.some((photo) => photo.tables.some((table) => Boolean(table.request))),
+      ),
+    [slotRooms],
+  );
   const chosenAtSlot = useMemo(
     () => slotTables?.find((table) => table.tableId === chosenTable?.tableId) ?? null,
     [slotTables, chosenTable?.tableId],
@@ -1242,7 +1271,7 @@ function BookingForm({ place, rooms, params, change, title, onBack }: BookingFor
                   clearErrors();
                 }}
               />
-              <TableLegend partyFit style={styles.legend} />
+              <TableLegend partyFit request={anyRequest} style={styles.legend} />
             </View>
           ) : (
             // No photo to draw it over: the conflict still has to be said.
@@ -1592,6 +1621,8 @@ function DayStrip({ days, selectedKey, timeZoneId, label, onSelect }: DayStripPr
               accessibilityRole="button"
               accessibilityLabel={full.format(day.date)}
               accessibilityState={{ selected }}
+              // The web build reads only the aria prop: the chosen day, said.
+              aria-selected={selected}
               onPress={() => {
                 if (selected) return;
                 haptics.select();

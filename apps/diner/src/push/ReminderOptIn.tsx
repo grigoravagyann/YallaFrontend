@@ -76,10 +76,16 @@ async function register(gateway: YallaGateway, locale: string): Promise<'granted
 
 export function ReminderOptIn({
   startUtc,
+  pending = false,
   style,
 }: {
   /** The booking's start, to tell whether any reminder is coming at all. */
   readonly startUtc: string;
+  /**
+   * A request the venue (or the guest before) has still to answer: no table
+   * is held yet, so the "no reminder" sentence does not say one is.
+   */
+  readonly pending?: boolean;
   readonly style?: StyleProp<ViewStyle>;
 }) {
   const { t } = useTranslation('diner');
@@ -147,7 +153,11 @@ export function ReminderOptIn({
     return (
       <View style={[styles.note, style]}>
         <Text style={styles.noteText}>
-          {state === 'granted' ? t('push.optIn.granted') : t('push.optIn.declined')}
+          {state === 'granted'
+            ? t('push.optIn.granted')
+            : pending
+              ? t('push.optIn.declinedPending')
+              : t('push.optIn.declined')}
         </Text>
       </View>
     );

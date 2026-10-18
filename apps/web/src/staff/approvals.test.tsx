@@ -11,6 +11,7 @@ import {
   type StaffSessionSnapshot,
 } from '@yalla/api';
 import { GatewayProvider, queryKeys } from '@yalla/api/react';
+import { formatDayAndTime } from '@yalla/format';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -19,7 +20,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
 import type * as CurrentUserModule from '../auth/useCurrentUser';
-import { contextLines, newArrivals, requestLine, requestTable } from './approvalRequests';
+import {
+  arrivalAnnouncement,
+  contextLines,
+  decidedNotice,
+  newArrivals,
+  requestLine,
+  requestTable,
+} from './approvalRequests';
 
 /**
  * Short-notice bookings on the floor tablet.
@@ -178,6 +186,35 @@ describe('the words on a request', () => {
     expect(requestLine(request, t, time)).toBe('19:45 · 2 guests · Lilit');
   });
 
+  it("dates a booking that is not for the branch's today, everywhere it is said", () => {
+    const days = (today: string) => ({
+      today,
+      dayKey: (iso: string) => iso.slice(0, 10),
+      date: () => 'Sun 18 Oct',
+    });
+    // Today: the time alone, as ever.
+    expect(requestLine(request, t, time, days('2026-10-18'))).toBe('19:45 · 2 guests · Lilit');
+    expect(decidedNotice(request, true, t, time, days('2026-10-18'))).toBe(
+      'Approved: table 7 at 19:45. The guest has been told.',
+    );
+    // Another day: its date first, so 19:45 is not read as tonight.
+    expect(requestLine(request, t, time, days('2026-10-16'))).toBe(
+      'Sun 18 Oct · 19:45 · 2 guests · Lilit',
+    );
+    expect(decidedNotice(request, true, t, time, days('2026-10-16'))).toBe(
+      'Approved: table 7 on Sun 18 Oct at 19:45. The guest has been told.',
+    );
+    expect(decidedNotice(request, false, t, time, days('2026-10-16'))).toBe(
+      'Declined: table 7 on Sun 18 Oct at 19:45. The guest has been told.',
+    );
+    expect(arrivalAnnouncement([request], t, time, days('2026-10-16'))).toBe(
+      'New booking request: table 7 on Sun 18 Oct at 19:45, 2 guests.',
+    );
+    expect(arrivalAnnouncement([request], t, time, days('2026-10-18'))).toBe(
+      'New booking request: table 7 at 19:45, 2 guests.',
+    );
+  });
+
   it('reads the table around it in the order a waiter reasons about it', () => {
     expect(contextLines(request, t, time)).toEqual([
       {
@@ -269,6 +306,35 @@ describe('the floor tablet', () => {
     expect(request.compareDocumentPosition(party) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('dates the card and the notice of a request for another day', async () => {
+    const user = userEvent.setup();
+    signIn();
+    const base = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now });
+    const twoDaysOn = (iso: string) => new Date(Date.parse(iso) + 2 * 86_400_000).toISOString();
+    const later: StaffGateway = {
+      ...base,
+      listAwaitingApproval: async (branchId) =>
+        (await base.listAwaitingApproval(branchId)).map((request) =>
+          request.tableLabel === '7'
+            ? { ...request, startUtc: twoDaysOn(request.startUtc) }
+            : request,
+        ),
+    };
+    renderFloor(later);
+
+    const request = await card('7');
+    const start = (await later.listAwaitingApproval(BRANCH)).find(
+      (entry) => entry.tableLabel === '7',
+    )!.startUtc;
+    const day = formatDayAndTime(start, 'Asia/Yerevan', 'en').date;
+    expect(within(request).getByText(new RegExp(`^${day} · \\d\\d:\\d\\d · `, 'u'))).toBeTruthy();
+
+    await user.click(within(request).getByRole('button', { name: 'Approve' }));
+    expect(
+      await screen.findByText(new RegExp(`^Approved: table 7 on ${day} at \\d\\d:\\d\\d\\.`, 'u')),
+    ).toBeTruthy();
+  });
+
   it('takes the waiter to the requests from the header count', async () => {
     const user = userEvent.setup();
     signIn();
@@ -296,7 +362,8 @@ describe('the floor tablet', () => {
 
     await waitFor(() => expect(approve).toHaveBeenCalledWith({ reservationId: 'res-await-1' }));
     expect(
-      await screen.findByText(/^Approved: table 7 at .*The guest has been told\.$/u),
+      // Dated when the mock's request, 105 minutes out, falls after midnight.
+      await screen.findByText(/^Approved: table 7 (?:on .+ )?at .*The guest has been told\.$/u),
     ).toBeTruthy();
     await waitFor(() =>
       expect(
@@ -406,6 +473,7 @@ describe('the floor tablet', () => {
                 ...request,
                 because: 'earlierGuestConsent' as const,
                 approvalExpiresAtUtc: new Date(Date.now() + 90 * 60_000).toISOString(),
+                awaitsEarlierGuestAnswer: true,
               }
             : request,
         ),
@@ -420,6 +488,34 @@ describe('the floor tablet', () => {
     ).toBeTruthy();
     expect(within(request).queryByRole('button', { name: 'Approve' })).toBeNull();
     expect(within(request).queryByRole('button', { name: 'Decline' })).toBeNull();
+  });
+
+  it("counts down the floor's own two hours to ring the guest before, and offers the decision", async () => {
+    signIn();
+    const base = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now });
+    const floors: StaffGateway = {
+      ...base,
+      listAwaitingApproval: async (branchId) =>
+        (await base.listAwaitingApproval(branchId)).map((request) =>
+          request.tableLabel === '7'
+            ? {
+                ...request,
+                because: 'earlierGuestConsent' as const,
+                // The guest before booked on the web: the floor rings them, within two hours.
+                approvalExpiresAtUtc: new Date(Date.now() + 100 * 60_000).toISOString(),
+                awaitsEarlierGuestAnswer: false,
+              }
+            : request,
+        ),
+    };
+    renderFloor(floors);
+
+    const request = await card('7');
+    const timer = within(request).getByRole('timer');
+    expect(timer.textContent).toMatch(/^1 hr [34]\d mins?$/u);
+    expect(within(request).getByRole('button', { name: 'Approve' })).toBeTruthy();
+    expect(within(request).getByRole('button', { name: 'Decline' })).toBeTruthy();
+    expect(within(request).queryByText(/answering this in the app/u)).toBeNull();
   });
 
   it('wakes the chime on every tap, not only the first', async () => {
@@ -459,7 +555,7 @@ describe('the floor tablet', () => {
         reason: 'Table 7 is staying late',
       }),
     );
-    expect(await screen.findByText(/^Declined: table 7 at /u)).toBeTruthy();
+    expect(await screen.findByText(/^Declined: table 7 (?:on .+ )?at /u)).toBeTruthy();
   });
 
   it('declines without a reason when none is typed', async () => {
@@ -554,7 +650,9 @@ describe('the floor tablet', () => {
 
     const arrived = await card('4');
     await waitFor(() =>
-      expect(status.textContent).toMatch(/^New booking request: table 4 at .*, 3 guests\.$/u),
+      expect(status.textContent).toMatch(
+        /^New booking request: table 4 (?:on .+ )?at .*, 3 guests\.$/u,
+      ),
     );
     expect(arrived.className).toContain('is-fresh');
     expect((await card('7')).className).not.toContain('is-fresh');

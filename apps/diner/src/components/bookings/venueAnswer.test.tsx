@@ -140,6 +140,59 @@ describe('the note on a booking', () => {
   });
 });
 
+/*
+ * Waiting on the guest before: in the app, they answer themselves; for a guest
+ * the floor has to ring, the venue checks with them. Both now run the same
+ * two-hour clock, so the clock no longer says whose answer it is — the
+ * server's `awaitsEarlierGuestAnswer` does (QA round 2).
+ */
+describe('a booking waiting on the guest before', () => {
+  const asking: Booking = {
+    ...BOOKING,
+    awaitingApprovalBecause: 'earlierGuestConsent',
+    approvalExpiresAtUtc: new Date(Date.now() + 30 * 60_000).toISOString(),
+  };
+
+  it('says the guest before is asked when they answer in the app', () => {
+    render(<VenueAnswerNote booking={{ ...asking, awaitsEarlierGuestAnswer: true }} />);
+    expect(screen.getByText(/^booking\.approval\.waitingEarlierGuest /u)).toBeTruthy();
+  });
+
+  it('says the venue is checking with them when the floor decides, clock and all', () => {
+    render(<VenueAnswerNote booking={{ ...asking, awaitsEarlierGuestAnswer: false }} />);
+    expect(screen.getByText(/^booking\.approval\.waitingVenueEarlierGuest /u)).toBeTruthy();
+    expect(screen.queryByText(/^booking\.approval\.waitingEarlierGuest /u)).toBeNull();
+  });
+
+  it('keeps the neutral sentence when the server does not say whose answer it is', () => {
+    render(<VenueAnswerNote booking={asking} />);
+    expect(screen.getByText(/^booking\.approval\.waitingEarlierGuest /u)).toBeTruthy();
+  });
+
+  it('says the same once the clock here runs out', () => {
+    const late = { ...asking, approvalExpiresAtUtc: new Date(Date.now() - 1000).toISOString() };
+    render(<VenueAnswerNote booking={{ ...late, awaitsEarlierGuestAnswer: true }} />);
+    expect(screen.getByText('booking.approval.checkingEarlierGuest')).toBeTruthy();
+    cleanup();
+    render(<VenueAnswerNote booking={{ ...late, awaitsEarlierGuestAnswer: false }} />);
+    expect(screen.getByText('booking.approval.checkingVenueEarlierGuest')).toBeTruthy();
+  });
+
+  it('on the success screen, says who will be asked', async () => {
+    gateway.getBooking.mockResolvedValue({ ...asking, awaitsEarlierGuestAnswer: true });
+    render(withQueries(<SuccessScreen />));
+    expect(await screen.findByText('table.requestable.earlierGuest')).toBeTruthy();
+    cleanup();
+
+    gateway.getBooking.mockResolvedValue({ ...asking, awaitsEarlierGuestAnswer: false });
+    render(withQueries(<SuccessScreen />));
+    expect(await screen.findByText('booking.approval.venueAsksEarlierGuest')).toBeTruthy();
+    expect(screen.queryByText('table.requestable.earlierGuest')).toBeNull();
+    // And the floor's countdown under it names the venue.
+    expect(screen.getByText(/^booking\.approval\.waitingVenueEarlierGuest /u)).toBeTruthy();
+  });
+});
+
 describe('the success screen', () => {
   it('says the request is in, why the venue checks first, and how long it has', async () => {
     gateway.getBooking.mockResolvedValue(BOOKING);
