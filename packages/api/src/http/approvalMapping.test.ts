@@ -45,6 +45,7 @@ const VIEW: WireReservationWithApproval = {
   guestName: 'Lilit',
   guestPhone: '+37493217788',
   wasReplay: false,
+  awaitsEarlierGuestAnswer: false,
   awaitingApprovalBecause: 4,
   approvalExpiresAtUtc: EXPIRES,
 };

@@ -41,6 +41,7 @@ const VIEW: ReservationViewWire = {
   guestName: 'Ani',
   guestPhone: '+37477123456',
   wasReplay: false,
+  awaitsEarlierGuestAnswer: false,
   manageToken: 'mt-1',
 };
 

@@ -48,6 +48,7 @@ const VIEW: Schemas['Yalla.Application.Reservations.ReservationView'] = {
   guestName: 'Lilit',
   guestPhone: '+37493217788',
   wasReplay: false,
+  awaitsEarlierGuestAnswer: false,
 };
 
 describe('the enums', () => {

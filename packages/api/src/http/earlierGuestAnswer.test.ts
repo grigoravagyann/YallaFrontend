@@ -40,6 +40,7 @@ const VIEW: ReservationView = {
   guestName: 'Carmen QA',
   guestPhone: '+37493217788',
   wasReplay: false,
+  awaitsEarlierGuestAnswer: false,
 };
 
 function waiting(extra: Record<string, unknown>): ReservationView {
