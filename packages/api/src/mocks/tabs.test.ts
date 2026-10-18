@@ -168,6 +168,72 @@ describe('mock gateway — the tab and its people', () => {
   });
 });
 
+describe('mock gateway — somebody asking to join is on the stream', () => {
+  // The host's banner refetches off `participantJoined`, as it does against the
+  // server (TabService writes it when a scan lands pending). Without it in the
+  // mock, the banner could only ever appear on the screen's slower poll.
+  const STATUS_PENDING_APPROVAL = 1;
+
+  beforeEach(() => {
+    id = 0;
+  });
+
+  it('writes the simulated joiner once, in the shape the server writes it', async () => {
+    let clock = new Date('2026-09-04T12:00:00Z');
+    const gateway = createMockGateway({ now: () => clock, latencyMs: 0 });
+    const opened = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId: cmd() });
+    const from = opened.tab.maxSequence;
+
+    clock = new Date('2026-09-04T12:00:30Z');
+    const tab = await gateway.getDinerTab(opened.tab.tabId);
+    const joiner = tab?.participants.find((p) => p.status === 'pendingApproval');
+    expect(joiner).toBeDefined();
+    // A second read is the same arrival, not another one.
+    await gateway.getDinerTab(opened.tab.tabId);
+
+    const page = await gateway.getTabEvents({ tabId: opened.tab.tabId, afterSequence: from });
+    const joined = page.events.filter((event) => event.type === 'participantJoined');
+    expect(joined).toHaveLength(1);
+    expect(joined[0]?.actor).toBe('diner');
+    expect(joined[0]?.data).toMatchObject({
+      participantId: joiner?.participantId,
+      displayName: joiner?.displayName,
+      status: STATUS_PENDING_APPROVAL,
+      canOrder: expect.any(Boolean),
+      canSeeTableTotal: expect.any(Boolean),
+      canPay: expect.any(Boolean),
+    });
+    // Still one contiguous sequence: a hole would make every phone refetch.
+    expect(page.events.map((event) => event.sequence)).toEqual(
+      page.events.map((_, index) => from + index + 1),
+    );
+  });
+
+  it('writes this phone too, when it scans a table somebody else hosts', async () => {
+    const gateway = createMockGateway({ simulateJoiners: false, latencyMs: 0 });
+    const joined = await gateway.scanTableCode({
+      tableCode: HOSTED_BY_SOMEONE_ELSE,
+      commandId: cmd(),
+    });
+    expect(joined.kind).toBe('joinPending');
+
+    const page = await gateway.getTabEvents({ tabId: joined.tab.tabId, afterSequence: 0 });
+    expect(
+      page.events
+        .filter((event) => event.type === 'participantJoined')
+        .map((event) => event.data?.['participantId']),
+    ).toEqual([joined.tab.me.participantId]);
+  });
+
+  it('does not write the phone that opens the tab: nobody is asked about the host', async () => {
+    const gateway = createMockGateway({ simulateJoiners: false, latencyMs: 0 });
+    const opened = await gateway.scanTableCode({ tableCode: FREE_TABLE, commandId: cmd() });
+
+    const page = await gateway.getTabEvents({ tabId: opened.tab.tabId, afterSequence: 0 });
+    expect(page.events.some((event) => event.type === 'participantJoined')).toBe(false);
+  });
+});
+
 describe('mock gateway — host controls', () => {
   let gateway: YallaGateway;
   let tabId: string;

@@ -73,6 +73,24 @@ const BILL_CHANGING: ReadonlySet<TabEventType> = new Set<TabEventType>([
   'tabAbandoned',
 ]);
 
+/**
+ * Events that change who is on the tab.
+ *
+ * The roster rides on the same tab read as the bill, so these refetch too: a
+ * guest asking to join reaches the host's banner within one poll of the
+ * stream instead of the screen's slower one, and an approval or a removal
+ * moves the split. None is announced on the bill — the people card says who is
+ * here. A rename and a permission toggle stay out: neither changes who is on
+ * the tab, and the host who made the change already holds the answer.
+ */
+const ROSTER_CHANGING: ReadonlySet<TabEventType> = new Set<TabEventType>([
+  'participantJoined',
+  'participantApproved',
+  'participantRejected',
+  'participantRemoved',
+  'hostReassigned',
+]);
+
 /** Events worth announcing on screen. A payment is not a surprise; a void is. */
 const ANNOUNCED: ReadonlySet<TabEventType> = new Set<TabEventType>([
   'orderPlaced',
@@ -132,7 +150,9 @@ export function applyTabEvents(
   }
 
   const nextSequence = ordered[ordered.length - 1]?.sequence ?? lastSequence;
-  const changed = ordered.some((event) => BILL_CHANGING.has(event.type));
+  const changed = ordered.some(
+    (event) => BILL_CHANGING.has(event.type) || ROSTER_CHANGING.has(event.type),
+  );
 
   if (!changed) return { kind: 'unchanged', lastSequence: nextSequence };
 

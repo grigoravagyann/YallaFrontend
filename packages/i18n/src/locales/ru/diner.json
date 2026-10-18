@@ -551,6 +551,25 @@
         "breakdown": "{{amount}} + {{tip}} чаевых",
         "body": "Оплатите у стола, когда официант подойдёт."
       }
+    },
+    "joinRequest": {
+      "one": "{{name}} хочет присоединиться",
+      "oneUnnamed": "Гость хочет присоединиться",
+      "several_one": "{{count}} человек хочет присоединиться",
+      "several_few": "{{count}} человека хотят присоединиться",
+      "several_many": "{{count}} человек хотят присоединиться",
+      "several_other": "{{count}} человека хотят присоединиться",
+      "waitingOne": "Ждёт вашего ответа",
+      "waitingSeveral": "Ждут вашего ответа",
+      "approveAll": "Подтвердить всех",
+      "seeWho": "Посмотреть список",
+      "approved": "{{name}} теперь в счёте",
+      "approvedUnnamed": "Гость теперь в счёте",
+      "approvedAll_one": "{{count}} человек теперь в счёте",
+      "approvedAll_few": "{{count}} человека теперь в счёте",
+      "approvedAll_many": "{{count}} человек теперь в счёте",
+      "approvedAll_other": "{{count}} человека теперь в счёте",
+      "rejected": "В счёт не добавили"
     }
   },
   "pending": {

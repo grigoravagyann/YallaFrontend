@@ -537,6 +537,21 @@
         "breakdown": "{{amount}} + {{tip}} tip",
         "body": "Pay at the table when they come over."
       }
+    },
+    "joinRequest": {
+      "one": "{{name}} wants to join",
+      "oneUnnamed": "A guest wants to join",
+      "several_one": "{{count}} person wants to join",
+      "several_other": "{{count}} people want to join",
+      "waitingOne": "Waiting for your answer",
+      "waitingSeveral": "Waiting for your answer",
+      "approveAll": "Approve all",
+      "seeWho": "See who",
+      "approved": "{{name}} is on the tab",
+      "approvedUnnamed": "The guest is on the tab",
+      "approvedAll_one": "{{count}} person is on the tab",
+      "approvedAll_other": "{{count}} people are on the tab",
+      "rejected": "Not added to the tab"
     }
   },
   "pending": {

@@ -245,6 +245,14 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `panel.orders.awaitingWaiter`. Removed: `connection.notWired`,
   `connection.notWiredHint`, `order.tabWillOpen` — each promised something the
   screen could not do.
+- `diner` — the host's join banner (2026-10-18), provisional and **not**
+  reviewed: `tab.joinRequest.*`, the card at the top of the host's bill when
+  somebody scanned the table and waits to be let on. `one` keeps the name
+  first and joins with `՝` in hy rather than gluing `-ն` onto it; `several_*`
+  is only ever said for two or more. `waitingOne` / `waitingSeveral` address
+  the host in the polite plural (`Ձեր`, `вашего`). `rejected` names nobody and
+  ru keeps it impersonal ("В счёт не добавили"), so it never needs a gender.
+  The buttons reuse `people.approve` and `people.reject`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

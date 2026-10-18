@@ -51,6 +51,35 @@ describe('applying a page of events', () => {
     expect(update).toEqual({ kind: 'unchanged', lastSequence: 6 });
   });
 
+  it('refetches when somebody asks to join, so the host sees them within one poll', () => {
+    // The host's banner and the people card read the roster off the tab read.
+    // Waiting out the screen's own poll is how a guest stood at the table with
+    // nobody on the tab knowing they were there.
+    const update = applyTabEvents(4, [
+      event(5, {
+        type: 'participantJoined',
+        actor: 'diner',
+        data: { participantId: 'p-9', displayName: 'Anna', status: 1 },
+      }),
+    ]);
+
+    expect(update).toEqual({ kind: 'refetch', reason: 'changed', lastSequence: 5, markers: [] });
+  });
+
+  it('refetches for every change to who is on the tab, and announces none of them', () => {
+    // Who is on the tab moves the split as well as the roster. The people card
+    // says it, never a marker on the bill.
+    for (const type of [
+      'participantApproved',
+      'participantRejected',
+      'participantRemoved',
+      'hostReassigned',
+    ] as const) {
+      const update = applyTabEvents(4, [event(5, { type, actor: 'diner' })]);
+      expect(update).toEqual({ kind: 'refetch', reason: 'changed', lastSequence: 5, markers: [] });
+    }
+  });
+
   it('ignores an event type it does not recognise but keeps its place', () => {
     // The backend's own note on the enum says clients must do this: new types
     // will be added, and a build already on somebody's phone must not break on

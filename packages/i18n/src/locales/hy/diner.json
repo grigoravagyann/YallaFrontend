@@ -537,6 +537,21 @@
         "breakdown": "{{amount}} + {{tip}} թեյավճար",
         "body": "Վճարեք սեղանի մոտ, երբ մատուցողը մոտենա։"
       }
+    },
+    "joinRequest": {
+      "one": "{{name}}՝ ուզում է միանալ",
+      "oneUnnamed": "Մի հյուր ուզում է միանալ",
+      "several_one": "{{count}} հոգի ուզում է միանալ",
+      "several_other": "{{count}} հոգի ուզում են միանալ",
+      "waitingOne": "Սպասում է Ձեր պատասխանին",
+      "waitingSeveral": "Սպասում են Ձեր պատասխանին",
+      "approveAll": "Հաստատել բոլորին",
+      "seeWho": "Տեսնել ցանկը",
+      "approved": "{{name}}՝ այժմ հաշվին է",
+      "approvedUnnamed": "Հյուրն այժմ հաշվին է",
+      "approvedAll_one": "{{count}} հոգի այժմ հաշվին է",
+      "approvedAll_other": "{{count}} հոգի այժմ հաշվին են",
+      "rejected": "Չավելացվեց հաշվին"
     }
   },
   "pending": {

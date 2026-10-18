@@ -525,6 +525,20 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
   const world = createTabWorld({
     now,
     simulateJoiners: options.simulateJoiners ?? true,
+    // As `TabService` writes it: the participant event's members, the status
+    // as its wire number. The host's phone refetches the roster off it.
+    onJoinRequested: (tab, participantId) => {
+      const person = tab.participants.find((entry) => entry.id === participantId);
+      if (!person) return;
+      orders.record(tab, 'participantJoined', 'diner', {
+        participantId: person.id,
+        displayName: person.displayName,
+        status: 1, // ParticipantStatus.PendingApproval
+        canOrder: person.permissions.canOrder,
+        canSeeTableTotal: person.permissions.canSeeTableTotal,
+        canPay: person.permissions.canPay,
+      });
+    },
     allTableIds: () => [...floors.values()].flatMap((floor) => floor.tables.map((t) => t.id)),
     locate: (tableId): TableLocation | null => {
       for (const venue of mockVenues) {
