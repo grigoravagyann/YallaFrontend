@@ -116,6 +116,13 @@ export interface TabWorldOptions {
    * exercised from one device. Off in tests that do not want the surprise.
    */
   readonly simulateJoiners?: boolean;
+  /**
+   * Somebody landed on a tab waiting for the host — the simulated guest, or
+   * this phone scanning a table someone else hosts. The gateway writes it to
+   * the tab's stream as `participantJoined`, as `TabService` does, so the
+   * host's tab refetches off the stream rather than its slower poll.
+   */
+  readonly onJoinRequested?: (tab: TableTab, participantId: string) => void;
 }
 
 /**
@@ -229,9 +236,9 @@ export function createTabWorld(options: TabWorldOptions) {
     if (now().getTime() - record.openedAt < GUEST_ARRIVES_AFTER_MS) return;
 
     record.simulatedGuestArrived = true;
-    record.participants.push(
-      participant('p-sona', 'Sona', 'guest', 'pending', record.defaultPermissions),
-    );
+    const guest = participant('p-sona', 'Sona', 'guest', 'pending', record.defaultPermissions);
+    record.participants.push(guest);
+    options.onJoinRequested?.(project(record), guest.id);
   }
 
   function project(record: TabRecord): TableTab {
@@ -399,6 +406,9 @@ export function createTabWorld(options: TabWorldOptions) {
     } else {
       record.participants.push(you);
     }
+    // Only a joiner the host has to answer. Whoever opens the tab, and a
+    // booker on their own booking's tab, are on it without anybody's tap.
+    if (you.status === 'pending') options.onJoinRequested?.(project(record), you.id);
 
     return {
       kind: isFirst ? 'tabOpened' : asBooker ? 'alreadyOn' : 'joinPending',

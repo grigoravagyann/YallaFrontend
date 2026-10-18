@@ -24,6 +24,22 @@ describe('invalidateForPush', () => {
     ]);
   });
 
+  it('reads the tab a push is about again, so the host finds the joiner already there', () => {
+    // `['dinerTab', id]` is `orderKeys.dinerTab(id)`: the tab read that carries
+    // the roster the join banner is drawn from.
+    expect(queryKeysForPush({ kind: 'tabJoinRequested', tabId: 't1' })).toContainEqual([
+      'dinerTab',
+      't1',
+    ]);
+    expect(queryKeysForPush({ kind: 'order-ready', tabId: 't1' })).toContainEqual([
+      'dinerTab',
+      't1',
+    ]);
+    expect(queryKeysForPush({ kind: 'something-new', orderId: 'o1' })).not.toContainEqual(
+      expect.arrayContaining(['dinerTab']),
+    );
+  });
+
   it('refreshes the booking, the list and its live state for a push about a booking', () => {
     const keys = queryKeysForPush({ kind: 'reservation-reminder', reservationId: 'r1' });
 

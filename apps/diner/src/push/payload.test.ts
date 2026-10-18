@@ -106,6 +106,16 @@ describe('routing a tapped notification', () => {
     }
   });
 
+  it("sends the host's join request to the tab, where the banner lets them in", () => {
+    // TabJoinRequestedHandler. The tab screen shows whoever is waiting at the
+    // top of the bill, with Approve beside them; the push only routes there.
+    const target = parsePushTarget({ kind: 'tabJoinRequested', tabId: TAB });
+    expect(target).toEqual({ kind: 'tab', tabId: TAB });
+    expect(routeFor(target)).toEqual({ pathname: '/tab/[tabId]', params: { tabId: TAB } });
+
+    expect(parsePushTarget({ kind: 'tabJoinRequested' })).toEqual({ kind: 'unknown' });
+  });
+
   it('routes nowhere for a type this build does not know', () => {
     // The same rule as the tab event stream. A server one version ahead must
     // not be able to crash a phone, and it must not send it to the home tab

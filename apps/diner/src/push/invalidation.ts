@@ -10,8 +10,9 @@ import type { PushData } from './payload';
  * itself. The feed always moves — every push has a feed row behind it (K12).
  *
  * The keys are written out rather than imported: `['dinerOrders']` is
- * `dinerOrderKeys.all` and `['notifications']` is `notificationKeys.all`, and
- * both of those modules reach the gateway, which this one is tested without.
+ * `dinerOrderKeys.all`, `['notifications']` is `notificationKeys.all` and
+ * `['dinerTab', id]` is `orderKeys.dinerTab(id)`, and those modules reach the
+ * gateway, which this one is tested without.
  */
 
 function id(data: PushData | null | undefined, key: string): string | null {
@@ -29,6 +30,11 @@ export function queryKeysForPush(data: PushData | null | undefined): QueryKey[] 
     id(data, 'tabId') !== null ||
     id(data, 'orderId') !== null;
   if (aboutOrders) keys.push(['dinerOrders']);
+
+  // The tab itself, roster and bill: a host told somebody is waiting finds
+  // them on the tab screen already, rather than one poll later.
+  const tabId = id(data, 'tabId');
+  if (tabId !== null) keys.push(['dinerTab', tabId]);
 
   const reservationId = id(data, 'reservationId');
   if (reservationId !== null || kind?.startsWith('reservation-')) {
