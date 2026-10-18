@@ -6,8 +6,11 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { colors, radius, type IoniconName } from '../../theme';
 
 export interface SuccessMarkProps {
-  /** `success` is the green check; `pending` the blue clock. */
-  readonly tone?: 'success' | 'pending';
+  /**
+   * `success` is the green check; `pending` the blue clock; `declined` the red
+   * cross, for a request the venue could not take.
+   */
+  readonly tone?: 'success' | 'pending' | 'declined';
   readonly icon?: IoniconName;
   readonly size?: number;
   readonly style?: StyleProp<ViewStyle>;
@@ -40,9 +43,19 @@ export function SuccessMark({ tone = 'success', icon, size = 88, style }: Succes
   }, [draw, pop, reduced]);
 
   const fill: readonly [string, string] =
-    tone === 'success' ? [colors.success, colors.successStrong] : [colors.info, colors.infoStrong];
-  const glyph = icon ?? (tone === 'success' ? 'checkmark' : 'time-outline');
-  const glyphColor = tone === 'success' ? colors.onSuccessStrong : colors.onInfoStrong;
+    tone === 'success'
+      ? [colors.success, colors.successStrong]
+      : tone === 'declined'
+        ? [colors.error, colors.errorStrong]
+        : [colors.info, colors.infoStrong];
+  const glyph =
+    icon ?? (tone === 'success' ? 'checkmark' : tone === 'declined' ? 'close' : 'time-outline');
+  const glyphColor =
+    tone === 'success'
+      ? colors.onSuccessStrong
+      : tone === 'declined'
+        ? colors.onErrorStrong
+        : colors.onInfoStrong;
   const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
   const glyphScale = draw.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
 
@@ -53,7 +66,11 @@ export function SuccessMark({ tone = 'success', icon, size = 88, style }: Succes
       style={[
         styles.circle,
         { width: size, height: size, opacity: pop, transform: [{ scale }] },
-        tone === 'success' ? styles.glowSuccess : styles.glowPending,
+        tone === 'success'
+          ? styles.glowSuccess
+          : tone === 'declined'
+            ? styles.glowDeclined
+            : styles.glowPending,
         style,
       ]}
     >
@@ -76,6 +93,13 @@ const styles = StyleSheet.create({
   glowSuccess: {
     shadowColor: colors.success,
     shadowOpacity: 0.45,
+    shadowRadius: 34,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  glowDeclined: {
+    shadowColor: colors.error,
+    shadowOpacity: 0.35,
     shadowRadius: 34,
     shadowOffset: { width: 0, height: 0 },
     elevation: 8,

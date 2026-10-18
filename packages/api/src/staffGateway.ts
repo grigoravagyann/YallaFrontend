@@ -1,3 +1,8 @@
+import type {
+  AwaitingApproval,
+  ConsoleBooking,
+  DecideReservationCommand,
+} from './contracts/approvals';
 import type { Menu } from './contracts/menu';
 import type { StaffFloor, TableActionCommand, TableActionResult } from './contracts/service';
 import type {
@@ -82,6 +87,38 @@ export interface StaffGateway {
    * who phoned to cancel.
    */
   releaseReservation(command: ReleaseReservationCommand): Promise<ReservationReleaseResult>;
+
+  // --- Bookings waiting for the floor ------------------------------------
+
+  /**
+   * The branch's bookings waiting for somebody on the floor to say yes or no,
+   * soonest-closing window first, each with the table around it: who booked
+   * it before (and their number, to ring), who after, and who is sitting
+   * there now.
+   *
+   * `GET /api/branches/{branchId}/reservations/awaiting` — waiter or above, at
+   * this branch only. Polled while the floor is open: a short-notice booking
+   * has fifteen minutes, and nobody is going to refresh.
+   */
+  listAwaitingApproval(branchId: string): Promise<readonly AwaitingApproval[]>;
+
+  /**
+   * `POST /api/reservations/{id}/approve`. Confirmed, and the diner is told.
+   *
+   * Waiter or above, confined to the booking's branch.
+   *
+   * @throws {ConcurrencyConflictError} 409 — the booking is not pending any
+   * more (somebody decided first), or `reservation-approval-expired`: the
+   * answer window or the start passed before the tap landed. Tell the two apart
+   * with `isApprovalExpired`.
+   */
+  approveReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
+
+  /**
+   * `POST /api/reservations/{id}/reject`, with the optional reason recorded on
+   * the booking and never shown to the diner. Same guards as approve.
+   */
+  rejectReservation(command: DecideReservationCommand): Promise<ConsoleBooking>;
 
   // --- The tab ------------------------------------------------------------
 

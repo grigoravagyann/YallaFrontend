@@ -363,6 +363,8 @@ describe('deciding a pending booking over HTTP', () => {
         localStartTime: '19:30:00',
         status: 'pendingApproval',
         awaitingApprovalBecause: 'largeParty',
+        // A large party waits with no clock, and this server sends none.
+        approvalExpiresAtUtc: null,
         note: 'Window seat, please.',
       },
     ]);

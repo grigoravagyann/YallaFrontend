@@ -1,4 +1,14 @@
-import { freeCancellationCopy, type Booking, type PublicBranch } from '@yalla/api';
+import {
+  approvalCountdown,
+  awaitsVenueAnswer,
+  declinedCopy,
+  freeCancellationCopy,
+  venueAnswerCopy,
+  type Booking,
+  type PublicBranch,
+  type VenueAnswerState,
+} from '@yalla/api';
+import { useManagedBooking, useNow } from '@yalla/api/react';
 import { formatDate, formatDuration, formatTime } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useState } from 'react';
@@ -26,6 +36,12 @@ import { bookingIcs, downloadIcs, icsDescription } from './calendarFile';
  *    only way out of a booking made here is not turning up, and a page that
  *    makes no-showing easier than cancelling is worse for the venue than no
  *    page at all.
+ *
+ * A booking for tonight is a request first: the venue's floor has fifteen
+ * minutes to answer. With no push channel, this page is where the answer
+ * arrives — it counts the minutes down and reads the booking again through its
+ * manage link until the venue has said yes or no, then says which. Declined,
+ * the three offers above go: there is nothing to remember or manage.
  */
 export interface BookingDoneProps {
   readonly booking: Booking;
@@ -41,7 +57,30 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
   /* Resolved here rather than at import: see `gateways.ts`. */
   const installUrl = appUrl();
 
-  const pending = booking.status === 'pendingApproval';
+  /*
+   * The booking as it now stands, while the venue decides: read through the
+   * manage link, which polls itself until the answer is in. Only for a request
+   * with a clock — every other booking already says all there is.
+   */
+  const waitsWithClock = awaitsVenueAnswer(booking);
+  const live = useManagedBooking(waitsWithClock ? (booking.manageToken ?? undefined) : undefined, {
+    venueSlug: branch.venue.slug,
+    branchSlug: branch.slug,
+  }).data;
+  const answerState: VenueAnswerState = live
+    ? {
+        status: live.status,
+        approvalExpiresAtUtc: live.approvalExpiresAtUtc,
+        declinedBecause: live.declinedBecause,
+      }
+    : booking;
+  const now = useNow(awaitsVenueAnswer(answerState) ? 1000 : 30_000);
+  const answer = venueAnswerCopy(answerState, now);
+  const countdown = approvalCountdown(answerState.approvalExpiresAtUtc, now);
+  const declinedTitle = declinedCopy(answerState.declinedBecause, 'title');
+  const declinedBody = declinedCopy(answerState.declinedBecause, 'body');
+
+  const pending = answerState.status === 'pendingApproval';
   // The booking view names the branch, not the venue; this page knows the venue.
   const venueName = booking.venueName ?? branch.venue.name;
   const when = `${formatDate(booking.slotUtc, booking.timeZoneId, locale)} · ${formatTime(
@@ -105,12 +144,53 @@ export function BookingDone({ booking, branch }: BookingDoneProps) {
     }
   };
 
+  if (declinedTitle) {
+    return (
+      <div className="pub-done">
+        {/* The answer arriving is announced: it replaces the waiting title. */}
+        <h3 className="display" aria-live="polite">
+          {td(declinedTitle.key, declinedTitle.params)}
+        </h3>
+        {declinedBody ? (
+          <p className="pub-notice pub-notice-alert">{td(declinedBody.key, declinedBody.params)}</p>
+        ) : null}
+        <dl className="pub-summary">
+          <div>
+            <dt>{td('confirm.venue')}</dt>
+            <dd>{`${venueName} · ${booking.branchName}`}</dd>
+          </div>
+          <div>
+            <dt>{td('confirm.when')}</dt>
+            <dd>{when}</dd>
+          </div>
+        </dl>
+      </div>
+    );
+  }
+
   return (
     <div className="pub-done">
-      <h3 className="display">
+      <h3 className="display" aria-live="polite">
         {pending ? td('success.pendingTitle') : td('success.confirmedTitle')}
       </h3>
-      {pending ? <p className="pub-notice">{td('success.pendingBody')}</p> : null}
+      {pending ? (
+        <p className="pub-notice">
+          {answerState.approvalExpiresAtUtc
+            ? td('booking.approval.why')
+            : td('success.pendingBody')}
+        </p>
+      ) : null}
+      {/* While the venue decides: the minutes it has left to answer. A timer,
+          so a screen reader reads it when asked rather than every second. */}
+      {pending && answer ? (
+        <p
+          className={`pub-answer${countdown?.urgent ? ' is-urgent' : ''}`}
+          role="timer"
+          aria-label={td(answer.key, answer.params)}
+        >
+          {td(answer.key, answer.params)}
+        </p>
+      ) : null}
 
       {/*
         Large and legible: staff ask for this at the door and it gets read

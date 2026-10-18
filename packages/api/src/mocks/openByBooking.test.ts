@@ -29,7 +29,12 @@ let gateway: YallaGateway;
 
 beforeEach(() => {
   clock = new Date('2026-09-04T14:30:00Z');
-  gateway = createMockGateway({ now: () => clock, simulateJoiners: false });
+  // A same-day booking waits for the floor now; these are about one it confirmed.
+  gateway = createMockGateway({
+    now: () => clock,
+    simulateJoiners: false,
+    floorApprovesAtOnce: true,
+  });
 });
 
 async function book(partySize = 2): Promise<Booking> {

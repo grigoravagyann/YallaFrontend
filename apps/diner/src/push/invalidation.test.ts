@@ -33,6 +33,18 @@ describe('invalidateForPush', () => {
     expect(keys).not.toContainEqual(['dinerOrders']);
   });
 
+  it('refreshes the booking a short-notice request ran out on, so it says why at once', () => {
+    const keys = queryKeysForPush({
+      kind: 'reservation-decided',
+      reservationId: 'r1',
+      approved: 'false',
+      expired: 'true',
+    });
+    expect(keys).toContainEqual(['booking', 'r1']);
+    expect(keys).toContainEqual(['bookings']);
+    expect(keys).toContainEqual(['notifications']);
+  });
+
   it('always refreshes the notifications feed and its badge, even for an empty payload', () => {
     expect(queryKeysForPush(undefined)).toEqual([['notifications']]);
     expect(queryKeysForPush({ kind: '', orderId: '' })).toEqual([['notifications']]);

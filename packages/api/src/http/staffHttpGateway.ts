@@ -1,4 +1,5 @@
 import type { ApiClient } from '../client';
+import type { ConsoleBooking } from '../contracts/approvals';
 import {
   LineAlreadyPaidError,
   MenuItemUnavailableError,
@@ -41,6 +42,9 @@ import type {
   ReservationReleaseResult,
   StaffGateway,
 } from '../staffGateway';
+import type { WireReservationWithApproval } from './approvalMapping';
+import { awaitingApprovalFromWire, type WireAwaitingApproval } from './awaitingApprovalMapping';
+import { consoleBookingFromWire } from './consoleMapping';
 import { floorFromState } from './mapping';
 import {
   adjustment,
@@ -249,6 +253,38 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         tableFreed: data.tableFreed,
         wasReplay: data.wasReplay,
       };
+    },
+
+    // --- Bookings waiting for the floor ------------------------------------
+
+    async listAwaitingApproval(branchId) {
+      // The server orders the list, soonest-closing window first; kept as sent.
+      // gateway-schema: awaiting-route — booking approval
+      const { data } = await client.get<WireAwaitingApproval[]>(
+        `/api/branches/${branchId}/reservations/awaiting`,
+      );
+      return (data ?? []).map(awaitingApprovalFromWire);
+    },
+
+    async approveReservation({ reservationId }): Promise<ConsoleBooking> {
+      // The empty decision body, as the console sends it: the route binds a
+      // JSON document. The 409s — decided already, or too late — pass through
+      // as the client's own `ConcurrencyConflictError`, code intact.
+      const { data } = await client.post<WireReservationWithApproval>(
+        `/api/reservations/${reservationId}/approve`,
+        {} satisfies Schemas['Yalla.Api.Endpoints.DecideReservationRequest'],
+      );
+      return consoleBookingFromWire(data);
+    },
+
+    async rejectReservation({ reservationId, reason }): Promise<ConsoleBooking> {
+      const { data } = await client.post<WireReservationWithApproval>(
+        `/api/reservations/${reservationId}/reject`,
+        {
+          reason: reason ?? null,
+        } satisfies Schemas['Yalla.Api.Endpoints.DecideReservationRequest'],
+      );
+      return consoleBookingFromWire(data);
     },
 
     // --- The tab ------------------------------------------------------------

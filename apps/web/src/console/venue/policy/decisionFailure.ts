@@ -1,9 +1,15 @@
-import { ApiError, describeFailure } from '@yalla/api';
+import { ApiError, describeFailure, isApprovalExpired } from '@yalla/api';
 
 /** The console's own sentences, for the failures the server's are not written for. */
 export interface DecisionFailureCopy {
   readonly offline: string;
   readonly generic: string;
+  /**
+   * The answer came too late: the window closed, and the guest has already
+   * been told sorry. Said in the screen's words rather than the server's,
+   * because what to do next — nothing, it is handled — is the screen's to say.
+   */
+  readonly tooLate?: string | undefined;
 }
 
 /**
@@ -19,6 +25,7 @@ export interface DecisionFailureCopy {
  * sentence, and the generic copy is the honest one.
  */
 export function decisionFailureText(error: unknown, copy: DecisionFailureCopy): string {
+  if (copy.tooLate && isApprovalExpired(error)) return copy.tooLate;
   const kind = describeFailure(error);
   if (kind === 'offline') return copy.offline;
   const spoken =

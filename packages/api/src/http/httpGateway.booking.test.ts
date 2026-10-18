@@ -155,6 +155,10 @@ describe('creating a booking', () => {
       cancelledAtUtc: null,
       cancelledAfterDeadline: false,
       note: null,
+      // Confirmed: nothing waited, no window, nothing declined.
+      awaitingApprovalBecause: null,
+      approvalExpiresAtUtc: null,
+      declinedBecause: null,
       manageToken: 'mt-1',
     });
   });

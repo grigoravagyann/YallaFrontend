@@ -1,3 +1,4 @@
+import type { DeclineReason } from './approvals';
 import type { VenueType } from './booking';
 import type { WeeklyHours } from './branchSettings';
 
@@ -247,6 +248,19 @@ export interface ManagedBooking {
    */
   readonly endsAtUtc: string | null;
   readonly freeCancellationUntilUtc: string;
+
+  /**
+   * When the venue's answer window closes, for a short-notice request still
+   * waiting. The page counts down to it and re-reads until the venue answers.
+   * `null` otherwise — and from a server that does not send it yet.
+   */
+  readonly approvalExpiresAtUtc: string | null;
+  /**
+   * Why the venue declined it, when it did: a person said no, or nobody
+   * answered in time. `null` for every other booking, a cancelled one
+   * included. The manage page says sorry for the second.
+   */
+  readonly declinedBecause: DeclineReason | null;
 
   /**
    * False once the booking is over or already cancelled.

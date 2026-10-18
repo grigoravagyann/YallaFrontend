@@ -1932,6 +1932,196 @@ fieldset.editor-body:disabled {
   font-variant-numeric: var(--font-feature-tabular);
 }
 
+/* --- Bookings waiting for the floor's answer ------------------------------ */
+
+/* The count in the header. Warning-edged like every "not yet", heavier than
+   the connection chips because a clock is running on each of these. */
+.status-approval {
+  border-color: var(--color-warning);
+  border-width: 2px;
+  color: var(--color-warning-ink);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+/* Quiet when nobody is waiting; edged like a "not yet" when somebody is. */
+.approvals-block {
+  flex-shrink: 0;
+}
+
+.approvals-block.has-requests {
+  border-width: 2px;
+  border-color: var(--color-warning);
+}
+
+.approvals-block:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.approvals-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.approvals-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning);
+  color: var(--color-foreground);
+  font-size: var(--font-size-md);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.approval-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--color-warning);
+  border-left-width: 8px;
+  border-radius: var(--radius-soft);
+  background: var(--color-paper);
+}
+
+/* The last two minutes: the rule and the clock go red, in words as well as
+   hue — the countdown itself is the words. */
+.approval-card.is-urgent {
+  border-color: var(--color-danger);
+  border-width: 2px;
+  border-left-width: 10px;
+}
+
+.approval-card.is-closed {
+  border-color: var(--color-border-strong);
+  border-left-color: var(--color-border-strong);
+}
+
+/* Just arrived. A tint that stays put under reduced motion, and a pulse for
+   everybody else; the chime and the screen reader carry the same news. */
+.approval-card.is-fresh,
+.status-approval.is-fresh {
+  background: var(--color-green-tint);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .approval-card.is-fresh,
+  .status-approval.is-fresh {
+    animation: approval-arrive 1.2s ease-in-out 3;
+  }
+}
+
+@keyframes approval-arrive {
+  50% {
+    box-shadow: 0 0 0 6px var(--color-warning);
+  }
+}
+
+.approval-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.approval-countdown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.approval-countdown-label {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+/* The clock is the second thing read, after the table. */
+.approval-countdown-value {
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.is-urgent .approval-countdown-value {
+  color: var(--color-danger);
+}
+
+.approval-line {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  font-weight: var(--font-weight-medium);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.approval-because {
+  margin: 0;
+}
+
+.approval-context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: var(--space-sm) 0 0;
+  border-top: 1px dashed var(--color-border-strong);
+  list-style: none;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-md);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+/* A tablet can dial. Sized as a control, not as a word in a sentence. */
+.approval-call {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-regular);
+  padding: 0 var(--space-md);
+  border: 2px solid var(--color-primary-ink);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary-ink);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+}
+
+/* Side by side when they fit, one under the other in a narrow column — never
+   a button whose label breaks over three lines. */
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.approval-actions > * {
+  flex: 1 1 8rem;
+  white-space: nowrap;
+}
+
+.approval-decline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.approval-reason {
+  min-height: calc(var(--touch-regular) * 1.6);
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-soft);
+  resize: vertical;
+}
+
+.approval-decline-confirm {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
 /* --- Needs resolving ------------------------------------------------------ */
 
 .unresolved {
@@ -3734,6 +3924,16 @@ fieldset.editor-body:disabled {
 
 .approvals-what .badge {
   align-self: flex-start;
+}
+
+/* The time left to answer a short-notice booking, red in its last two minutes. */
+.approvals-countdown {
+  font-weight: var(--font-weight-bold);
+  font-feature-settings: var(--font-feature-tabular);
+}
+
+.approvals-countdown.is-urgent {
+  color: var(--color-danger);
 }
 
 /* The diner's note on a booking waiting for approval (K9): plain text, wraps. */

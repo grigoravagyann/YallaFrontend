@@ -41,13 +41,27 @@ function text(value: unknown): string | null {
 }
 
 /**
+ * A decline the venue never made: nobody answered a short-notice request in
+ * time. The server writes it as a `booking-declined` row flagged `expired`
+ * (a string or a boolean, as params arrive), and it is an apology, not a no.
+ */
+function expired(notification: Pick<DinerNotification, 'kind' | 'params'>): boolean {
+  const flag = notification.params['expired'];
+  return notification.kind === 'booking-declined' && (flag === true || flag === 'true');
+}
+
+/**
  * The title and body keys for a row. A kind this build has no copy for — a
  * newer server — gets the generic pair rather than being dropped or guessed.
  */
 export function notificationCopy(
   notification: Pick<DinerNotification, 'kind' | 'branchName' | 'params'>,
 ): NotificationCopy {
-  const key = isKnownNotificationKind(notification.kind) ? COPY_KEY[notification.kind] : 'unknown';
+  const key = expired(notification)
+    ? 'bookingExpired'
+    : isKnownNotificationKind(notification.kind)
+      ? COPY_KEY[notification.kind]
+      : 'unknown';
   const place =
     text(notification.branchName) ??
     text(notification.params['branchName']) ??

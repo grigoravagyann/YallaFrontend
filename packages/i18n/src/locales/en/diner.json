@@ -76,6 +76,17 @@
       "placeholder": "For example, a high chair or a birthday",
       "hint": "The venue sees this if your booking waits for their approval.",
       "tooLong": "Keep the note to {{max}} characters."
+    },
+    "approval": {
+      "waiting": "Waiting for the venue · answer within {{time}}",
+      "checking": "Waiting for the venue's answer",
+      "why": "It is for soon, so the venue checks the table is free before confirming."
+    },
+    "declined": {
+      "noAnswerTitle": "Sorry, not confirmed in time",
+      "noAnswer": "Sorry, the venue could not confirm in time. Try another time or another place.",
+      "byVenueTitle": "The venue could not take it",
+      "byVenue": "The venue could not take this booking at that time. Try another time or another place."
     }
   },
   "floorPlan": {
@@ -102,6 +113,7 @@
       "seated": "Seated",
       "cancelledByDiner": "Cancelled",
       "cancelledByVenue": "Cancelled by the venue",
+      "declined": "Not confirmed",
       "unknown": "Changed"
     },
     "empty": {
@@ -190,7 +202,7 @@
     "noBookingAfter": "No booking after yours",
     "shortWindow": "That is shorter than a usual sitting here. Other tables may have no limit.",
     "freeCancellation": "Free cancellation until {{time}}",
-    "needsApproval": "A party this size needs the venue to confirm. You will hear back shortly.",
+    "needsApproval": "The venue confirms this booking first. You will hear back shortly.",
     "reserve": "Reserve table {{label}}",
     "unavailable": {
       "occupied": "Someone is sitting here right now.",
@@ -1112,6 +1124,10 @@
       "bookingDeclined": {
         "title": "Booking declined",
         "body": "{{place}} could not take your booking."
+      },
+      "bookingExpired": {
+        "title": "Sorry, not confirmed in time",
+        "body": "Sorry, {{place}} could not confirm in time. Try another time or another place."
       },
       "bookingCancelledByVenue": {
         "title": "Booking cancelled by the venue",

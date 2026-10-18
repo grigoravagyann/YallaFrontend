@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
-import { ForbiddenError, createConsoleMockGateway, type ConsoleGateway } from '@yalla/api';
+import {
+  ConcurrencyConflictError,
+  ForbiddenError,
+  createConsoleMockGateway,
+  type ConsoleGateway,
+} from '@yalla/api';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
@@ -151,5 +156,82 @@ describe('the awaiting-approval panel', () => {
     expect(alert.textContent).toContain(detail);
     // Still listed: nothing was decided.
     expect(within(panel).getByText(first!.code)).toBeTruthy();
+  });
+});
+
+describe('a booking at short notice', () => {
+  it('says why it waits and how long is left to answer, and the others have no clock', async () => {
+    renderPolicy();
+    const panel = await waitForPanel();
+    const pending = await createConsoleMockGateway({
+      latencyMs: 0,
+      role: 'owner',
+    }).listPendingReservations('b-lumen-north');
+    const tonight = pending.find((booking) => booking.awaitingApprovalBecause === 'shortNotice')!;
+    const later = pending.find((booking) => booking.approvalExpiresAtUtc === null)!;
+
+    const row = within(panel).getByText(tonight.code).closest('li')!;
+    expect(within(row).getByText('Short notice')).toBeTruthy();
+    const timer = within(row).getByRole('timer');
+    // Asked for a minute ago: about fourteen left.
+    expect(timer.textContent).toMatch(/^1[34]:\d\d left to answer$/u);
+
+    const plain = within(panel).getByText(later.code).closest('li')!;
+    expect(within(plain).queryByRole('timer')).toBeNull();
+  });
+
+  it('stops offering a decision once the time is up', async () => {
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const closed: ConsoleGateway = {
+      ...base,
+      listPendingReservations: async (branchId) =>
+        (await base.listPendingReservations(branchId)).map((booking) =>
+          booking.approvalExpiresAtUtc
+            ? { ...booking, approvalExpiresAtUtc: new Date(Date.now() - 1000).toISOString() }
+            : booking,
+        ),
+    };
+    renderPolicy({ gateway: closed });
+    const panel = await waitForPanel();
+    const tonight = (await closed.listPendingReservations('b-lumen-north')).find(
+      (booking) => booking.awaitingApprovalBecause === 'shortNotice',
+    )!;
+
+    const row = within(panel).getByText(tonight.code).closest('li')!;
+    expect(within(row).getByText(/^Time is up\./u)).toBeTruthy();
+    expect(
+      (within(row).getByRole('button', { name: /^approve$/i }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it('says it was too late when the window closed before the decision landed', async () => {
+    const user = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const late: ConsoleGateway = {
+      ...base,
+      approveReservation: () =>
+        Promise.reject(
+          new ConcurrencyConflictError({
+            url: 'mock://approve',
+            problem: {
+              type: 'about:blank',
+              title: 'Conflict',
+              status: 409,
+              detail: 'The answer window for LUSN2 closed.',
+              code: 'reservation-approval-expired',
+              traceId: 'mock',
+            },
+          }),
+        ),
+    };
+    renderPolicy({ gateway: late });
+    const panel = await waitForPanel();
+    const [first] = await base.listPendingReservations('b-lumen-north');
+    const row = within(panel).getByText(first!.code).closest('li')!;
+
+    await user.click(within(row).getByRole('button', { name: /^approve$/i }));
+
+    const alert = await within(row).findByRole('alert');
+    expect(alert.textContent).toMatch(/^Too late: the time to answer ran out/u);
   });
 });

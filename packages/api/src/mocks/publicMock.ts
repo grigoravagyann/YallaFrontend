@@ -189,6 +189,9 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
       slotUtc: booking.slotUtc,
       endsAtUtc: booking.endUtc,
       freeCancellationUntilUtc: booking.freeCancellationUntilUtc,
+      approvalExpiresAtUtc:
+        booking.status === 'pendingApproval' ? (booking.approvalExpiresAtUtc ?? null) : null,
+      declinedBecause: booking.declinedBecause ?? null,
       // Lateness is not a reason to refuse. Only a booking that is already over
       // or already cancelled has nothing left to cancel.
       canCancel: booking.status === 'confirmed' || booking.status === 'pendingApproval',

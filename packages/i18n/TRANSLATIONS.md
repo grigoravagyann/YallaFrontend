@@ -245,6 +245,20 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `panel.orders.awaitingWaiter`. Removed: `connection.notWired`,
   `connection.notWiredHint`, `order.tabWillOpen` — each promised something the
   screen could not do.
+- Short-notice bookings waiting for the floor (2026-10-18), provisional and
+  **not** reviewed. `staff` `approvals.*` — the floor tablet's requests panel:
+  the header count, the countdown (`leftLabel`, `answerWithin`), the context
+  lines (`before_*`, `sittingNow*`, `next_*`, written so the time stands alone:
+  hy "սկսած {{time}}", never a suffix glued onto it), Call, Approve / Decline
+  and the optional reason, the notices, `tooLate` and the screen-reader line
+  `arrived_*`. `admin` `approvals.because.shortNotice`, `leftToAnswer`,
+  `timeUp`, `tooLate`, and `approvals.body` reworded to say short-notice
+  bookings land here too. `diner` `booking.approval.*` (`waiting` must keep the
+  time as a countdown, "answer within 12:41"), `booking.declined.*` — the
+  `noAnswer` pair must **apologise** (the venue failed to answer, not the diner),
+  the `byVenue` pair must not blame the diner — `bookings.status.declined`
+  ("Not confirmed", never "cancelled": it was never confirmed) and
+  `notifications.kind.bookingExpired.*`, the feed's apology for the same.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

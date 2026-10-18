@@ -18,6 +18,18 @@ export interface StaffHeaderProps {
   readonly onRefresh: () => void;
   /** What the refresh button refreshes. The floor, unless the screen says otherwise. */
   readonly refreshLabel?: string | undefined;
+  /**
+   * Bookings waiting for the floor's yes or no, and the way to them. Left out
+   * on a screen that does not decide them — the kitchen's.
+   */
+  readonly awaiting?:
+    | {
+        readonly count: number;
+        /** One has just arrived: the chip pulses with its card. */
+        readonly fresh: boolean;
+        readonly onOpen: () => void;
+      }
+    | undefined;
 }
 
 /**
@@ -50,6 +62,7 @@ export function StaffHeader({
   onOpenConflicts,
   onRefresh,
   refreshLabel,
+  awaiting,
 }: StaffHeaderProps) {
   const { t } = useTranslation(['staff', 'common']);
 
@@ -92,6 +105,18 @@ export function StaffHeader({
                 ? t('queue.pending', { count: pending })
                 : t('queue.synced')}
         </span>
+
+        {/* A booking waiting for an answer has a clock on it, so it is counted
+            up here where a glance lands, beside the other decisions. */}
+        {awaiting && awaiting.count > 0 ? (
+          <button
+            type="button"
+            className={`status-chip status-approval${awaiting.fresh ? ' is-fresh' : ''}`}
+            onClick={awaiting.onOpen}
+          >
+            {t('approvals.headerCount', { count: awaiting.count })}
+          </button>
+        ) : null}
 
         {/* Shown until it is zero. A conflict that stops being visible is a
             decision nobody made. */}

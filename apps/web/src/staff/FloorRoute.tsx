@@ -23,6 +23,7 @@ import {
   isOfflinePaused,
   queryKeys,
   useAbandonTab,
+  useAwaitingApproval,
   useBeginClosing,
   useCompLine,
   useOpenTabForStaff,
@@ -40,6 +41,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
+import { APPROVAL_PANEL_ID, ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
+import { primeChime } from './chime';
 import { ConflictList } from './ConflictList';
 import { useCommandQueue } from './commands/useCommandQueue';
 import type { NewCommand, QueuedCommand } from './commands/types';
@@ -379,6 +382,17 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
 
   const ordersQuery = useOrderQueue(active ? branchId : undefined);
   const requestsQuery = useServiceRequests(active ? branchId : undefined);
+  /** Bookings waiting for somebody here to say yes or no. Polled, chimed. */
+  const awaitingQuery = useAwaitingApproval(branchId, active);
+  const awaiting = useRequestArrivals(awaitingQuery.data, timeZoneId);
+
+  // Browsers allow sound only after a gesture. The first tap anywhere on the
+  // floor wakes the chime, so the next request is heard and not only seen.
+  useEffect(() => {
+    const wake = () => primeChime();
+    document.addEventListener('pointerdown', wake, { once: true });
+    return () => document.removeEventListener('pointerdown', wake);
+  }, []);
 
   const voidLine = useVoidLine();
   const compLine = useCompLine();
@@ -678,6 +692,15 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
         online={queue.online}
         onOpenConflicts={() => setOverlay('conflicts')}
         onRefresh={() => void floorQuery.refetch()}
+        awaiting={{
+          count: awaitingQuery.data?.length ?? 0,
+          fresh: awaiting.fresh.size > 0,
+          onOpen: () => {
+            const panel = document.getElementById(APPROVAL_PANEL_ID);
+            panel?.scrollIntoView?.({ block: 'start' });
+            panel?.focus({ preventScroll: true });
+          },
+        }}
       />
 
       {notice ? (
@@ -796,6 +819,37 @@ export function FloorRoute({ identity, paused }: FloorRouteProps) {
           onAcknowledge={acknowledge}
           loading={ordersQuery.isLoading && !isOfflinePaused(ordersQuery)}
           failed={ordersQuery.isError || (isOfflinePaused(ordersQuery) && !ordersQuery.data)}
+          lead={
+            branchId ? (
+              <ApprovalPanel
+                branchId={branchId}
+                requests={awaitingQuery.data ?? []}
+                timeZoneId={timeZoneId}
+                loading={awaitingQuery.isLoading && !isOfflinePaused(awaitingQuery)}
+                failed={
+                  awaitingQuery.isError || (isOfflinePaused(awaitingQuery) && !awaitingQuery.data)
+                }
+                online={queue.online}
+                fresh={awaiting.fresh}
+                announcement={awaiting.announcement}
+                onDecided={({ approved, request }) =>
+                  setNotice({
+                    kind: 'info',
+                    text: t(approved ? 'approvals.approvedNotice' : 'approvals.declinedNotice', {
+                      label: request.tableLabel,
+                      time: format.time(request.startUtc),
+                    }),
+                  })
+                }
+                onRefused={({ request, text }) =>
+                  setNotice({
+                    kind: 'warning',
+                    text: `${t('table.title', { label: request.tableLabel })} · ${text}`,
+                  })
+                }
+              />
+            ) : null
+          }
         />
       </div>
 

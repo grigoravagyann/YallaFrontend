@@ -33,6 +33,20 @@ describe('notificationCopy', () => {
     ).toBe('Dolmama');
   });
 
+  it('apologises for a booking declined because nobody answered in time', () => {
+    for (const expired of [true, 'true']) {
+      expect(
+        notificationCopy(row({ kind: 'booking-declined', params: { expired } })).titleKey,
+      ).toBe('notifications.kind.bookingExpired.title');
+    }
+    expect(
+      notificationCopy(row({ kind: 'booking-declined', params: { expired: false } })).titleKey,
+    ).toBe('notifications.kind.bookingDeclined.title');
+    expect(notificationCopy(row({ kind: 'booking-declined' })).bodyKey).toBe(
+      'notifications.kind.bookingDeclined.body',
+    );
+  });
+
   it('gives a kind this build does not know the generic copy, rather than dropping it', () => {
     expect(notificationCopy(row({ kind: 'table-ready-soon' })).titleKey).toBe(
       'notifications.kind.unknown.title',
@@ -43,12 +57,14 @@ describe('notificationCopy', () => {
     'booking-reminder',
     'booking-confirmed',
     'booking-declined',
+    'booking-declined:expired',
     'booking-cancelled-by-venue',
     'order-ready',
     'review-hidden',
     'a-kind-from-a-newer-server',
-  ])('has a title and a body in every language for %s', (kind) => {
-    const copy = notificationCopy(row({ kind }));
+  ])('has a title and a body in every language for %s', (variant) => {
+    const [kind, flag] = variant.split(':') as [string, string | undefined];
+    const copy = notificationCopy(row({ kind, params: flag ? { [flag]: true } : {} }));
     for (const bundle of [
       dinerResources.en.diner,
       dinerResources.hy.diner,

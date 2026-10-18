@@ -1,4 +1,10 @@
-import { freeCancellationCopy } from '@yalla/api';
+import {
+  approvalCountdown,
+  awaitsVenueAnswer,
+  declinedCopy,
+  freeCancellationCopy,
+  venueAnswerCopy,
+} from '@yalla/api';
 import {
   isOfflinePaused,
   useCancelManagedBooking,
@@ -25,6 +31,11 @@ import { FailedPage, LoadingPage } from './PageStates';
  * So: no session, no phone number re-entry, no account. The token in the URL is
  * the credential, it grants sight of and power over **this one booking**, and
  * the page it opens has one button on it.
+ *
+ * A booking for tonight may still be waiting for the venue's floor, which has
+ * fifteen minutes to answer: the page counts them down and reads the booking
+ * again until it is answered (`useManagedBooking` polls while it waits). A
+ * booking the venue declined says so, and why, rather than "cancelled".
  */
 export function ManageBookingRoute() {
   const { venueSlug, branchSlug, token } = useParams<{
@@ -43,8 +54,10 @@ export function ManageBookingRoute() {
   const cancel = useCancelManagedBooking(token, slugs);
   const [confirming, setConfirming] = useState(false);
   // Subscribed to rather than read during render, so the deadline actually
-  // passes on a page somebody left open — and so the render stays pure.
-  const now = useNow(30_000);
+  // passes on a page somebody left open — and so the render stays pure. Each
+  // second while the venue's answer is counted down.
+  const awaiting = bookingQuery.data ? awaitsVenueAnswer(bookingQuery.data) : false;
+  const now = useNow(awaiting ? 1000 : 30_000);
   // What the booking is, in the tab bar: the manage page, the cancelled page
   // and the dead link each name themselves rather than leaving "Yalla".
   const booked = bookingQuery.data;
@@ -99,6 +112,22 @@ export function ManageBookingRoute() {
     locale,
   );
   const past = new Date(booking.freeCancellationUntilUtc).getTime() < now.getTime();
+  const answer = venueAnswerCopy(booking, now);
+  const countdown = approvalCountdown(booking.approvalExpiresAtUtc, now);
+
+  const declinedTitle = declinedCopy(booking.declinedBecause, 'title');
+  if (booking.status === 'cancelled' && declinedTitle) {
+    const declinedBody = declinedCopy(booking.declinedBecause, 'body');
+    return (
+      <main className="pub-state">
+        <h1 className="display">{td(declinedTitle.key, declinedTitle.params)}</h1>
+        {declinedBody ? <p>{td(declinedBody.key, declinedBody.params)}</p> : null}
+        <Link className="pub-button" to={`/${booking.venueSlug}/${booking.branchSlug}`}>
+          {t('manage.seeVenue')}
+        </Link>
+      </main>
+    );
+  }
 
   if (booking.status === 'cancelled') {
     return (
@@ -150,6 +179,21 @@ export function ManageBookingRoute() {
             </dd>
           </div>
         </dl>
+
+        {booking.status === 'pendingApproval' ? (
+          <p className="pub-notice">
+            {booking.approvalExpiresAtUtc ? td('booking.approval.why') : td('success.pendingBody')}
+          </p>
+        ) : null}
+        {answer ? (
+          <p
+            className={`pub-answer${countdown?.urgent ? ' is-urgent' : ''}`}
+            role="timer"
+            aria-label={td(answer.key, answer.params)}
+          >
+            {td(answer.key, answer.params)}
+          </p>
+        ) : null}
 
         <p className="pub-muted">{td(cancellation.key, cancellation.params)}</p>
       </section>

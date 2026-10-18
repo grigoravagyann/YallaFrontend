@@ -19,7 +19,8 @@ const SLOT = new Date('2026-09-04T18:00:00Z').toISOString();
 let gateway: YallaGateway;
 
 beforeEach(() => {
-  gateway = createMockGateway({ now: () => NOW });
+  // SLOT is later today: short notice, which these tests are not about.
+  gateway = createMockGateway({ now: () => NOW, floorApprovesAtOnce: true });
 });
 
 async function verifiedPhone(): Promise<string> {
@@ -443,7 +444,7 @@ describe('bookings list and cancellation', () => {
     // Past the free-cancellation deadline: still allowed, because a late
     // cancellation is far better for the venue than a no-show.
     let clock = new Date(NOW);
-    const g = createMockGateway({ now: () => clock });
+    const g = createMockGateway({ now: () => clock, floorApprovesAtOnce: true });
     const challenge = await g.requestPhoneCode('+37411223344');
     const { phoneE164 } = await g.verifyPhoneCode({
       challengeId: challenge.challengeId,
