@@ -225,6 +225,10 @@ describe('the token in the link', () => {
     expect(screen.getByText(/ask the person who sent it/i)).toBeTruthy();
     expect(screen.queryByLabelText(/^new password$/i)).toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
+    // Somebody who already has a password is not stranded on a dead link.
+    expect(
+      screen.getByRole('link', { name: 'I have a password, sign in' }).getAttribute('href'),
+    ).toBe('/sign-in');
   });
 });
 
@@ -239,8 +243,19 @@ describe('the console shell', () => {
   });
 });
 
+/** The ids an element's `aria-describedby` names. */
+const describedBy = (element: HTMLElement) =>
+  (element.getAttribute('aria-describedby') ?? '').split(/\s+/u).filter(Boolean);
+
+/** The rule line under the fields that says `text`, and whether it reads as met. */
+function rule(text: RegExp) {
+  const item = screen.getAllByRole('listitem').find((li) => text.test(li.textContent ?? ''));
+  expect(item, `a rule matching ${text}`).toBeTruthy();
+  return { item: item!, met: /done/i.test(item!.textContent ?? '') };
+}
+
 describe('the password', () => {
-  it('is refused under the minimum before anything is sent', async () => {
+  it('is refused under the minimum before anything is sent, on the field it is about', async () => {
     const fetchImpl = vi.fn();
     vi.stubGlobal('fetch', fetchImpl);
     renderAt('/reset-password#token=tok-short');
@@ -248,12 +263,16 @@ describe('the password', () => {
 
     await fillAndSubmit('too short');
 
-    const error = await screen.findByRole('alert');
-    expect(error.textContent).toMatch(/at least 12 characters/i);
-    // Under the field it is about, and announced as its description.
-    expect(screen.getByLabelText(/^new password$/i).getAttribute('aria-describedby')).toBe(
-      error.id,
-    );
+    const field = screen.getByLabelText(/^new password$/i);
+    // The cursor goes back to it, it reads as invalid, and the rules under the
+    // fields are its description — the one about length says it is not met.
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    expect(field.getAttribute('aria-invalid')).toBe('true');
+    const rules = screen.getByRole('list');
+    expect(describedBy(field)).toContain(rules.id);
+    const length = rule(/at least 12 characters/i);
+    expect(length.met).toBe(false);
+    expect(length.item.textContent).toMatch(/not yet/i);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -265,12 +284,49 @@ describe('the password', () => {
 
     await fillAndSubmit(PASSWORD, `${PASSWORD}!`);
 
-    const error = await screen.findByRole('alert');
-    expect(error.textContent).toMatch(/do not match/i);
-    expect(screen.getByLabelText(/^repeat the password$/i).getAttribute('aria-describedby')).toBe(
-      error.id,
-    );
+    const repeat = screen.getByLabelText(/^repeat the password$/i);
+    await waitFor(() => expect(document.activeElement).toBe(repeat));
+    expect(repeat.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText(/^new password$/i).getAttribute('aria-invalid')).toBe('false');
+    expect(describedBy(repeat)).toContain(screen.getByRole('list').id);
+    expect(rule(/the two passwords match/i).met).toBe(false);
+    expect(rule(/at least 12 characters/i).met).toBe(true);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('says how strong it is as it is typed', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    renderAt('/reset-password#token=tok-meter');
+    await waitForForm();
+    const field = screen.getByLabelText(/^new password$/i);
+    const strength = () => {
+      const id = describedBy(field).find((ref) => ref !== screen.getByRole('list').id);
+      return document.getElementById(id!)?.textContent;
+    };
+
+    expect(strength()).toBe('Type at least 12 characters');
+    const user = userEvent.setup();
+    await user.type(field, 'short');
+    expect(strength()).toBe('Too short');
+    await user.clear(field);
+    await user.type(field, 'abcdefghijkl');
+    expect(strength()).toBe('Acceptable');
+    await user.clear(field);
+    await user.type(field, 'Abcdefgh1234');
+    expect(strength()).toBe('Good');
+    await user.clear(field);
+    await user.type(field, PASSWORD);
+    expect(strength()).toBe('Strong');
+  });
+
+  it('can be shown while it is typed, both fields together', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    renderAt('/reset-password#token=tok-eye');
+    await waitForForm();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Show password' }));
+    expect((screen.getByLabelText(/^new password$/i) as HTMLInputElement).type).toBe('text');
+    expect((screen.getByLabelText(/^repeat the password$/i) as HTMLInputElement).type).toBe('text');
   });
 
   it("shows the server's own minimum when the server disagrees", async () => {
@@ -291,9 +347,9 @@ describe('the password', () => {
 
     const error = await screen.findByRole('alert');
     expect(error.textContent).toBe('A password is at least 20 characters.');
-    expect(screen.getByLabelText(/^new password$/i).getAttribute('aria-describedby')).toBe(
-      error.id,
-    );
+    const field = screen.getByLabelText(/^new password$/i);
+    expect(describedBy(field)).toContain(error.id);
+    expect(field.getAttribute('aria-invalid')).toBe('true');
     // Still a form: the link is fine, only the password was not.
     expect(screen.getByRole('button', { name: /save password/i })).toBeTruthy();
   });
@@ -345,6 +401,10 @@ describe('somebody who is already signed in', () => {
     );
     expect(screen.getByText(/opening it here would use it up/i)).toBeTruthy();
     expect(screen.queryByLabelText(/^new password$/i)).toBeNull();
+    // The way back is to their own console, not into the link.
+    expect(screen.getByRole('link', { name: 'Back to the console' }).getAttribute('href')).toBe(
+      '/venue',
+    );
     // And the address bar was still cleaned: the notice is not a reason to
     // leave the token where the next person can see it.
     await waitFor(() => expect(window.location.hash).toBe(''));

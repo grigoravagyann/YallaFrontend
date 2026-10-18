@@ -26,3 +26,7 @@ apps/web/src/tokens.generated.css
 # Superdesign drafts: excluded locally via .git/info/exclude, so CI never sees
 # them, but prettier does not read that file and fails format:check without this.
 .superdesign/
+
+# The approved console design (artboards, checks, handoff), kept byte for byte as
+# exported so it can be diffed against the live design.
+docs/design/console/

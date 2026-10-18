@@ -6,6 +6,7 @@ import { describeDinerJourneyContract } from './dinerJourney.contract';
 import { resolveLiveSubject } from './liveSubject';
 import { describeMenuContract, describeReportContract } from './menuReports.contract';
 import { describePlacesContract } from './places.contract';
+import { describePlatformHomeContract } from './platformHome.contract';
 import { describeReservationContract } from './reservation.contract';
 import { describeRescheduleContract } from './reschedule.contract';
 import type { ContractSubject } from './subject';
@@ -63,6 +64,7 @@ function describeEveryContract(subject: ContractSubject): void {
   describePlacesContract(subject);
   describeConsoleListingContract(subject);
   describeDinerJourneyContract(subject);
+  describePlatformHomeContract(subject);
   // The diner design gaps. Last, because the tab suite takes cash at the
   // counter, and every suite before it reads the staff tabs as seeded.
   describeDaySlotsContract(subject);

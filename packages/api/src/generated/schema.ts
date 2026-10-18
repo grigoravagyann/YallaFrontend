@@ -904,6 +904,8 @@ export interface paths {
          * @description The onboarding checklist, answered by the server: floor plan drawn, tables labelled, at least one menu category, how many menu items are still incomplete, hours set, reservation policy reviewed, staff enrolled, at least one tablet.
          *
          *     The console used to render this from a client-side guess, which meant the console and the server had two different ideas of ready - and only the server's decides whether the branch may be switched to `Paid`. `incompleteMenuItemCount` is the line that gate enforces, and `incompleteMenuItemIds` says which items to finish.
+         *
+         *     `blockers` says what is left in sentences; `issues` says the same lines, one for one and in the same order, as stable codes - `no-tables`, `tables-unlabelled`, `no-menu`, `menu-empty`, `incomplete-dishes` (with `count`), `no-hours`, `policy-not-reviewed`, `no-staff`, `no-device`.
          */
         get: operations["getBranchReadiness"];
         put?: never;
@@ -1781,6 +1783,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The activity feed: the newest audit rows, newest first
+         * @description Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`).
+         *
+         *     `limit` 1-100 (default 20). `venueId` narrows it to one venue.
+         */
+        get: operations["listPlatformActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/branches/{branchId}": {
         parameters: {
             query?: never;
@@ -1825,6 +1849,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/platform/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in platform admin's own account
+         * @description `fullName` is theirs to change. `email` is the sign-in address and is fixed: it is `PlatformAdmin:Email` in configuration, and nothing here changes it.
+         */
+        get: operations["getPlatformAdminProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the signed-in platform admin's name
+         * @description `fullName`, 1-200 characters after trimming. The configured `PlatformAdmin:FullName` only names the account when the seed first creates it; the seed never overwrites a name changed here. **Audited** as `admin.rename`; a name that does not change writes nothing.
+         */
+        patch: operations["updatePlatformAdminProfile"];
+        trace?: never;
+    };
+    "/api/platform/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the signed-in platform admin's password
+         * @description `currentPassword` must be right and `newPassword` at least 12 characters - the one rule every console password follows. Everything wrong is reported in one 422: a wrong current password is `context.fields` naming `currentPassword`, not a 401, so the console stays signed in and shows it under the field.
+         *
+         *     **Answers a fresh token pair - store it.** The change ends every session the account has, at once: the session generation moves, so every admin-panel access token it holds - the one this request was sent with included - is refused from now on with `401 session-revoked`, every refresh token is revoked and every unused reset link is spent. The body (`accessToken`, `refreshToken`, `expiresInSeconds`, the refresh endpoint's shape) is how the sign-in that made the change carries on.
+         *
+         *     **Wrong current passwords are counted per account**: each is audited as `admin.password-change-failed`, and after 10 inside 15 minutes the route answers `429 too-many-attempts` with `Retry-After` (and `context.retryAfterSeconds`) until the oldest leaves the window - right password or not. A successful change starts the count again. The route is also under the `auth` rate limit. The seed never resets a password changed here. **Audited** as `admin.password-change`, with nothing about either password.
+         */
+        post: operations["changePlatformAdminPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/platform/outbox": {
         parameters: {
             query?: never;
@@ -1843,6 +1915,72 @@ export interface paths {
         get: operations["getOutboxHealth"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Home: the platform's numbers in one read
+         * @description **Aggregates only** - no guest's name, phone or booking code at any depth.
+         *
+         *     `venues`: venues not deleted, split by `tierMix` (`paid` every branch paid, `mixed` some, `free` none) and by state, with `deleted` counted apart and the branch totals. `bookings`: bookings by the day of the visit, on each branch's own calendar, cancelled ones left out - `perDay` is thirty entries, oldest first and today last (the 14-day chart is the last fourteen), `last7Days` against `previous7Days` with `changePercent` (absent when the previous week had none). `pendingApprovals`: booking requests still waiting for a venue whose visit is ahead; `openTabs`: tabs open or closing now - each a total and the venues it comes from, most first. `notReady`: branches diners can reach that a guest would find unfinished - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours`, `no-photo` (the first twenty, newest venues first, and the `total`). `recentVenues`: the five newest venues not deleted. `outbox`: the counts `GET /api/platform/outbox` serves, with `deadLetteredLastDay` - the messages given up on in the last 24 hours, what Home's alert counts.
+         */
+        get: operations["getPlatformOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/reviews/{reviewId}/dismiss-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Leave a reported review up, and set its reports aside
+         * @description The platform looked and found nothing wrong: the review stays exactly as it is - shown or hidden - and stops counting as reported, for the platform's list and the venue's. The reports are kept, marked dismissed; `reportCount` counts only the ones nobody has dismissed, so a diner reporting it afterwards brings it back to the reported filter.
+         *
+         *     **Idempotent**: a review with no open report is answered as it is and nothing is written. **Audited** as `review.dismiss-reports`, with how many were dismissed. Answers the review as the moderation list shows it.
+         */
+        post: operations["dismissPlatformReviewReports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/reviews/{reviewId}/restore-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo the last dismissal of a review's reports
+         * @description The console's undo for `dismiss-reports`: the reports the **most recent** dismissal of this review set aside count again - exactly those, recognised by the dismissal's instant, which every report it dismissed shares. Reports dismissed by an earlier dismissal stay dismissed; reports filed since are untouched. The review itself is not changed.
+         *
+         *     **One dismissal, once**: when the review was already restored after its latest dismissal - or nothing was ever dismissed - it is answered as it is and nothing is written; a second undo never reaches back to an older dismissal. **Audited** as `review.restore-reports`, with how many came back. Answers the review as the moderation list shows it.
+         */
+        post: operations["restorePlatformReviewReports"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1881,8 +2019,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Venues, with search and paging
-         * @description Each row carries its branch count, table count, paid-branch count and the tier rollup - Paid only when every branch is paid, because billing is per branch.
+         * Venues, with search, filters, sorting and paging
+         * @description Each row is what the console's venue table shows: the branch, active-table and paid-branch counts; `tierMix` (1 Free, 2 Mixed, 3 Paid - billing is per branch, so a venue is Mixed when only some branches pay) and `branches`, every branch with its own tier and `issues`; `status` (1 Active, 2 Suspended, 3 Inactive, 4 Deleted); `averageRating` and `reviewCount` over the published reviews of every branch; `openTabCount`; `readinessIssue` (`code`, `count`, `branchName`), the first thing a guest would find missing at an active branch - setup progress, so suspended venues count and switched-off branches never do - `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`; `coverThumbnailUrl`, the first branch's cover thumbnail; `district`, `cuisine` and `createdAtUtc`.
+         *
+         *     `search` matches the venue's name and slug and each branch's name and district. `status`: `live` (default: every venue not deleted), `all`, `active`, `suspended`, `inactive` or `deleted`; the older `includeDeleted=true` is `all` when no `status` is sent. `tier`: `free`, `mixed` or `paid`; blank is every tier. `sort`: `name` (default), `rating`, `tables` or `created`; `dir`: `asc` (default) or `desc` - a venue with no rating sorts below every rated one. `page` from 1, `pageSize` 1-200 (default 20).
          */
         get: operations["listVenues"];
         put?: never;
@@ -1914,13 +2054,35 @@ export interface paths {
         post?: never;
         /**
          * Soft-delete a venue
-         * @description **Soft delete only.** Reservations, tabs and payments hang off the venue and are never removed. Refused while any tab is open or any confirmed booking is still in the future - the response names which.
+         * @description **Soft delete only.** Reservations, tabs and payments hang off the venue and are never removed. Refused while any tab is open or any confirmed booking is still in the future - the response names which. `POST .../restore` undoes it.
          */
         delete: operations["deleteVenue"];
         options?: never;
         head?: never;
         /** Name, type, slug, active flag */
         patch: operations["updateVenue"];
+        trace?: never;
+    };
+    "/api/platform/venues/{venueId}/bookings-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One venue's bookings as counts, for the last 7 or 30 days
+         * @description **Aggregates only**: the restaurant sees its guests; the platform sees numbers.
+         *
+         *     `days` is `7` or `30` (default 30). The window is each branch's own today and the days before it, by the branch's local date of the visit, in **every** status: `byStatus` splits the `total` into `completed` (seated or completed), `upcoming` (confirmed, not yet seated), `pendingApproval`, `cancelled` (either side, rejections included) and `noShow`. `byWeekday` is all seven days by the weekday of the visit, `dayOfWeek` 0 Sunday to 6 Saturday. `averagePartySize` is over the bookings not cancelled, to one decimal, and absent with none. `byBranch` is every branch of the venue, by name, with the same split flat and `todayCount` - its bookings for today, cancelled ones left out.
+         */
+        get: operations["getVenueBookingsSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/platform/venues/{venueId}/branches": {
@@ -1951,6 +2113,28 @@ export interface paths {
         put?: never;
         /** Undo a suspension */
         post: operations["reactivateVenue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/platform/venues/{venueId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo a soft delete
+         * @description The venue comes back exactly as it was before it was deleted: switched on or off as it was then, and **still suspended if it was suspended** - deleting never touched the suspension. Nothing under it was removed, so nothing is rebuilt; its branches, tables, staff and history are all where they were, and it accepts changes again. A venue deleted before this was recorded comes back switched off, for somebody to switch on on purpose.
+         *
+         *     A venue that is not deleted is answered as it is and nothing is written, so an undo that arrives twice is harmless. Refused with **409** when its web address now belongs to another venue - which the unique slug index, covering deleted venues, keeps from happening today. **Audited** as `venue.restore`.
+         */
+        post: operations["restoreVenue"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3284,6 +3468,13 @@ export interface components {
             /** @description Optional free text, recorded on the booking. */
             reason?: string | null;
         };
+        /** @description Body of `POST /api/platform/me/password`. */
+        "Yalla.Api.Endpoints.ChangePlatformAdminPasswordRequest": {
+            /** @description The password the admin signs in with now. */
+            currentPassword?: string | null;
+            /** @description At least 12 characters. Length is the only rule. */
+            newPassword?: string | null;
+        };
         /** @description Polls a Telegram phone verification. */
         "Yalla.Api.Endpoints.ClaimTelegramVerificationRequest": {
             /** @description Language to store against the account. Falls back to `Accept-Language`, then Armenian. */
@@ -3882,6 +4073,11 @@ export interface components {
             email?: string | null;
             /** @description A new sign-in name, under the same rules as registration. Lowercased on the way in. */
             username?: string | null;
+        };
+        /** @description Body of `PATCH /api/platform/me`. */
+        "Yalla.Api.Endpoints.UpdatePlatformAdminProfileRequest": {
+            /** @description The name the console shows and the activity feed records. 1-200 characters. */
+            fullName?: string | null;
         };
         /** @description Body of the sign-in issue. */
         "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
@@ -5060,6 +5256,12 @@ export interface components {
              *     its tabs enabled before it has finished enrolling tablets.
              */
             isReadyForDiners: boolean;
+            /**
+             * @description The same unsatisfied lines as Blockers, one for one and in the same order, as
+             *     stable codes a client can switch on - Yalla.Application.BranchSettings.ReadinessIssueCodes - with the count behind
+             *     the ones that have one. The platform console's venue list and Home show the first of these.
+             */
+            issues: components["schemas"]["Yalla.Application.BranchSettings.ReadinessIssue"][];
             /** @description The branch has at least one menu category. */
             menuCategoriesPresent: boolean;
             /**
@@ -5319,6 +5521,17 @@ export interface components {
             coverPhoto?: components["schemas"]["Yalla.Application.Media.PhotoView"] | null;
             /** @description The published contact number in E.164, or null when there is none. */
             phoneE164?: string | null;
+        };
+        /** @description One thing a branch still lacks, as a code and, where it has one, the count behind it. */
+        "Yalla.Application.BranchSettings.ReadinessIssue": {
+            /** @description One of Yalla.Application.BranchSettings.ReadinessIssueCodes. */
+            code: string;
+            /**
+             * Format: int32
+             * @description How many, when the line counts something - the unfinished dishes for
+             *     `incomplete-dishes`. Absent for a line that is simply missing.
+             */
+            count?: number | null;
         };
         /** @description The whole plan - rooms, their photos and every table's pin - replaced in one atomic call. */
         "Yalla.Application.BranchSettings.ReplaceFloorPlanCommand": {
@@ -6033,6 +6246,12 @@ export interface components {
              * @description Given up on. These need a person.
              */
             deadLettered: number;
+            /**
+             * Format: int32
+             * @description Given up on in the last twenty-four hours: the messages that recently failed to reach somebody, which
+             *     is what the console's Home alert counts. DeadLettered is every one ever.
+             */
+            deadLetteredLastDay: number;
             /** @description The dead-lettered messages themselves, newest first. */
             deadLetters: components["schemas"]["Yalla.Application.Messaging.DeadLetterView"][];
             /**
@@ -6492,27 +6711,220 @@ export interface components {
              */
             totalAmd: number;
         };
-        "Yalla.Application.Platform.BranchSummary": {
-            address: string;
-            /** Format: uuid */
-            branchId: string;
-            isActive: boolean;
-            /** Format: double */
-            latitude: number;
-            /** Format: double */
-            longitude: number;
+        /** @description Who acted. */
+        "Yalla.Application.Platform.ActivityActor": {
+            /** @description Their name when they acted; absent for a row from before names were kept. */
+            displayName?: string | null;
+            /** @description Their role when they acted: 5 is the platform admin, the rest a venue's own staff. */
+            role?: components["schemas"]["Yalla.Domain.Enums.StaffRole"] | null;
+            /**
+             * Format: uuid
+             * @description Their staff row.
+             */
+            staffMemberId: string;
+        };
+        /** @description One audit row as the console's activity feed shows it. */
+        "Yalla.Application.Platform.ActivityEntry": {
+            /**
+             * @description The stable slug - `venue.create`, `venue.update`, `venue.suspend`,
+             *     `venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,
+             *     `branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,
+             *     `venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`, `table.regenerate-qr`,
+             *     `admin.rename`, `admin.password-change`.
+             */
+            action: string;
+            /** @description Who did it, as they were called then. */
+            actor: components["schemas"]["Yalla.Application.Platform.ActivityActor"];
+            /**
+             * Format: date-time
+             * @description When it happened.
+             */
+            atUtc: string;
+            /** @description The row's JSON as written - its shape is per action (docs/platform-admin.md). */
+            detail?: unknown;
+            /**
+             * Format: uuid
+             * @description The row.
+             */
+            id: string;
+            /** @description What it was done to, as it was called then. */
+            target: components["schemas"]["Yalla.Application.Platform.ActivityTarget"];
+            /** @description The venue it concerns, by its current name; absent for the admin's own account. */
+            venue?: components["schemas"]["Yalla.Application.Platform.ActivityVenue"] | null;
+        };
+        /** @description The newest audit rows, newest first. */
+        "Yalla.Application.Platform.ActivityFeed": {
+            items: components["schemas"]["Yalla.Application.Platform.ActivityEntry"][];
+        };
+        /** @description What was acted on. */
+        "Yalla.Application.Platform.ActivityTarget": {
+            /**
+             * @description Its name then - a table's label, a person's name; for a review, the branch it is about, because the
+             *     reviewer is a diner and is not named in the log.
+             */
+            displayName?: string | null;
+            /**
+             * Format: uuid
+             * @description Its id.
+             */
+            id: string;
+            /** @description `Venue`, `Branch`, `StaffMember`, `BranchReview`, `DiningTable`. */
+            type: string;
+        };
+        /** @description The venue an entry concerns. */
+        "Yalla.Application.Platform.ActivityVenue": {
             name: string;
+            /** Format: uuid */
+            venueId: string;
+        };
+        /** @description Bookings by outcome. See Yalla.Application.Platform.BookingBucket for which statuses each counts. */
+        "Yalla.Application.Platform.BookingStatusCounts": {
+            /**
+             * Format: int32
+             * @description Cancelled by either side, rejections included.
+             */
+            cancelled: number;
+            /**
+             * Format: int32
+             * @description Seated or completed: they came.
+             */
+            completed: number;
+            /**
+             * Format: int32
+             * @description Nobody came.
+             */
+            noShow: number;
+            /**
+             * Format: int32
+             * @description Still waiting for the venue to approve.
+             */
+            pendingApproval: number;
+            /**
+             * Format: int32
+             * @description Confirmed and not seated - still ahead, or late and not yet marked.
+             */
+            upcoming: number;
+        };
+        /** @description One branch's share of the window, and its bookings today. */
+        "Yalla.Application.Platform.BranchBookingCounts": {
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /**
+             * Format: int32
+             * @description Cancelled by either side.
+             */
+            cancelled: number;
+            /**
+             * Format: int32
+             * @description Seated or completed.
+             */
+            completed: number;
+            /** @description Its name. */
+            name: string;
+            /**
+             * Format: int32
+             * @description Nobody came.
+             */
+            noShow: number;
+            /**
+             * Format: int32
+             * @description Waiting for approval.
+             */
+            pendingApproval: number;
+            /**
+             * Format: int32
+             * @description Bookings for the branch's today, cancelled ones left out - the venue page's branch table.
+             */
+            todayCount: number;
+            /**
+             * Format: int32
+             * @description Its bookings in the window.
+             */
+            total: number;
+            /**
+             * Format: int32
+             * @description Confirmed and not seated.
+             */
+            upcoming: number;
+        };
+        /** @description One branch as the platform's venue page shows it. */
+        "Yalla.Application.Platform.BranchSummary": {
+            /** @description Street address. */
+            address: string;
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /** @description As the listing form saved it. */
+            district?: string | null;
+            /** @description Whether the branch is switched on. */
+            isActive: boolean;
+            /**
+             * Format: double
+             * @description The map pin.
+             */
+            latitude: number;
+            /**
+             * Format: double
+             * @description The map pin.
+             */
+            longitude: number;
+            /** @description Its name. */
+            name: string;
+            /**
+             * Format: int32
+             * @description Tabs open or closing at the branch right now.
+             */
+            openTabCount: number;
+            /** @description URL segment, unique within the venue. */
             slug: string;
             /**
              * @description What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations
              *     is four paying customers. The venue-level view is a rollup.
              */
             subscriptionTier: components["schemas"]["Yalla.Domain.Enums.SubscriptionTier"];
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description Active tables. A table kept only for its history is not counted.
+             */
             tableCount: number;
+            /** @description IANA zone; every local time at the branch is in it. */
             timeZoneId: string;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Its venue.
+             */
             venueId: string;
+        };
+        /** @description One branch's tier and what it still lacks, as the venue list shows it. */
+        "Yalla.Application.Platform.BranchTierView": {
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /** @description The branch's district as the listing form saved it; absent when it has none. */
+            district?: string | null;
+            /** @description Whether the branch is switched on. */
+            isActive: boolean;
+            /**
+             * @description What a guest would find missing at the branch, in checklist order: `no-tables`, `no-menu`,
+             *     `incomplete-dishes` (with `count`), `no-hours`, then `no-photo`. Empty when there
+             *     is nothing to do. Always empty for a deleted venue, which is not worked out. The full checklist is
+             *     `GET /api/branches/{id}/readiness`.
+             */
+            issues: components["schemas"]["Yalla.Application.BranchSettings.ReadinessIssue"][];
+            /** @description Its name. */
+            name: string;
+            /**
+             * @description What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations
+             *     is four paying customers. The venue-level view is a rollup.
+             */
+            subscriptionTier: components["schemas"]["Yalla.Domain.Enums.SubscriptionTier"];
         };
         /** @description Add a branch. The tier is per branch - a chain with four locations pays four times. */
         "Yalla.Application.Platform.CreateBranchCommand": {
@@ -6539,6 +6951,179 @@ export interface components {
             /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
             type: components["schemas"]["Yalla.Domain.Enums.VenueType"];
         };
+        /** @description One day's count. */
+        "Yalla.Application.Platform.DailyCount": {
+            /**
+             * Format: int32
+             * @description Bookings for that day.
+             */
+            count: number;
+            /**
+             * Format: date
+             * @description The day, in Yalla.Application.Platform.OverviewBookings.LabelTimeZoneId.
+             */
+            date: string;
+        };
+        /** @description A branch that is not ready, and why. */
+        "Yalla.Application.Platform.NotReadyBranch": {
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /** @description The branch's name. */
+            branchName: string;
+            /**
+             * @description What a guest would find missing (M:Yalla.Application.Platform.PlatformRollups.GuestFacingIssues(System.Collections.Generic.IEnumerable{Yalla.Application.BranchSettings.ReadinessIssue},System.Boolean)): `no-tables`,
+             *     `no-menu`, `incomplete-dishes`, `no-hours`, `no-photo`. The card shows the first.
+             */
+            issues: components["schemas"]["Yalla.Application.BranchSettings.ReadinessIssue"][];
+            /**
+             * Format: uuid
+             * @description Its venue.
+             */
+            venueId: string;
+            /** @description The venue's name. */
+            venueName: string;
+        };
+        /**
+         * @description Bookings by the day of the visit. A booking counts on the branch's own local date; cancelled ones
+         *     are left out (a request the venue rejected is a cancellation). Venues that are deleted are left out.
+         */
+        "Yalla.Application.Platform.OverviewBookings": {
+            /**
+             * Format: double
+             * @description Last7Days against Previous7Days, in percent to one decimal;
+             *                 absent when the previous week had none.
+             */
+            changePercent?: number | null;
+            /**
+             * @description The zone the Yalla.Application.Platform.DailyCount.Date labels are written in: the one most branches share. Each
+             *     branch is counted on its own calendar, aligned so the last entry is every branch's today.
+             */
+            labelTimeZoneId: string;
+            /**
+             * Format: int32
+             * @description Today and the six days before it.
+             */
+            last7Days: number;
+            /** @description Thirty entries, oldest first, the last one today. The 14-day chart is the last fourteen. */
+            perDay: components["schemas"]["Yalla.Application.Platform.DailyCount"][];
+            /**
+             * Format: int32
+             * @description The seven days before those.
+             */
+            previous7Days: number;
+        };
+        /** @description The branches still not ready for diners. */
+        "Yalla.Application.Platform.OverviewNotReady": {
+            /** @description The first twenty, by venue name then branch name. */
+            branches: components["schemas"]["Yalla.Application.Platform.NotReadyBranch"][];
+            /**
+             * Format: int32
+             * @description How many branches.
+             */
+            total: number;
+        };
+        /** @description The outbox's counts. */
+        "Yalla.Application.Platform.OverviewOutbox": {
+            /**
+             * Format: int32
+             * @description Given up on, ever.
+             */
+            deadLettered: number;
+            /**
+             * Format: int32
+             * @description Given up on in the last 24 hours - what Home's alert counts.
+             */
+            deadLetteredLastDay: number;
+            /**
+             * Format: int32
+             * @description Pending and due now.
+             */
+            due: number;
+            /**
+             * Format: int32
+             * @description Pending with at least one failed attempt.
+             */
+            failed: number;
+            /**
+             * Format: int32
+             * @description Written, not yet sent, not dead.
+             */
+            pending: number;
+            /**
+             * Format: int32
+             * @description Sent in the last 24 hours.
+             */
+            sentLastDay: number;
+        };
+        /** @description A total and the venues it is made of. */
+        "Yalla.Application.Platform.OverviewVenueCounter": {
+            /**
+             * Format: int32
+             * @description The sum over every venue.
+             */
+            total: number;
+            /** @description Each venue with any, the most first, then by name. */
+            venues: components["schemas"]["Yalla.Application.Platform.VenueCount"][];
+        };
+        /**
+         * @description Venue counts. Everything but Deleted counts venues that are not deleted; the tier
+         *     split is per venue, from its branches' tiers (Yalla.Application.Platform.TierMix).
+         */
+        "Yalla.Application.Platform.OverviewVenueCounts": {
+            /**
+             * Format: int32
+             * @description Active (see Yalla.Application.Platform.VenueStatus).
+             */
+            active: number;
+            /**
+             * Format: int32
+             * @description Branches of the venues in Total.
+             */
+            branches: number;
+            /**
+             * Format: int32
+             * @description Soft-deleted - outside every other number here.
+             */
+            deleted: number;
+            /**
+             * Format: int32
+             * @description No branch paid, or no branch.
+             */
+            free: number;
+            /**
+             * Format: int32
+             * @description Switched off.
+             */
+            inactive: number;
+            /**
+             * Format: int32
+             * @description Some branches paid.
+             */
+            mixed: number;
+            /**
+             * Format: int32
+             * @description Every branch paid.
+             */
+            paid: number;
+            /**
+             * Format: int32
+             * @description How many of those are paid.
+             */
+            paidBranches: number;
+            /**
+             * Format: int32
+             * @description Suspended.
+             */
+            suspended: number;
+            /**
+             * Format: int32
+             * @description Venues not deleted: Paid + Mixed + Free.
+             */
+            total: number;
+        };
         "Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]": {
             items: components["schemas"]["Yalla.Application.Platform.VenueSummary"][];
             /** Format: int32 */
@@ -6548,6 +7133,73 @@ export interface components {
             /** Format: int32 */
             totalCount: number;
         };
+        /** @description The signed-in platform admin's own account. */
+        "Yalla.Application.Platform.PlatformAdminProfile": {
+            /**
+             * @description The sign-in address. Fixed: it is `PlatformAdmin:Email` in configuration, and the seed finds the
+             *     account by it, so there is no endpoint that changes it.
+             */
+            email: string;
+            /** @description The name the console shows and the audit log records. Theirs to change. */
+            fullName: string;
+            /**
+             * Format: uuid
+             * @description Their staff row.
+             */
+            staffMemberId: string;
+        };
+        /**
+         * @description Everything the platform console's Home shows, in one read. <b>Aggregates only</b>: no guest's name,
+         *     phone or booking code is in it, at any depth.
+         */
+        "Yalla.Application.Platform.PlatformOverview": {
+            /** @description Bookings per day for the last 30 days and the week-on-week change. */
+            bookings: components["schemas"]["Yalla.Application.Platform.OverviewBookings"];
+            /**
+             * Format: date-time
+             * @description When this was worked out.
+             */
+            generatedAtUtc: string;
+            /** @description Branches diners can reach that a guest would find unfinished. */
+            notReady: components["schemas"]["Yalla.Application.Platform.OverviewNotReady"];
+            /** @description Tabs open or closing right now, per venue. */
+            openTabs: components["schemas"]["Yalla.Application.Platform.OverviewVenueCounter"];
+            /** @description The message outbox's counts - the same numbers `GET /api/platform/outbox` serves. */
+            outbox: components["schemas"]["Yalla.Application.Platform.OverviewOutbox"];
+            /** @description Booking requests still waiting for a venue to approve them, per venue. */
+            pendingApprovals: components["schemas"]["Yalla.Application.Platform.OverviewVenueCounter"];
+            /** @description The five newest venues that are not deleted, newest first. */
+            recentVenues: components["schemas"]["Yalla.Application.Platform.RecentVenue"][];
+            /** @description How many venues there are, by tier and by state. */
+            venues: components["schemas"]["Yalla.Application.Platform.OverviewVenueCounts"];
+        };
+        /** @description A recently added venue, as Home's table shows it. */
+        "Yalla.Application.Platform.RecentVenue": {
+            /** Format: int32 */
+            branchCount: number;
+            /** Format: date-time */
+            createdAtUtc: string;
+            name: string;
+            /** Format: int32 */
+            paidBranchCount: number;
+            slug: string;
+            /** @description A venue's state, as one value. Derived from the venue's flags; never stored. */
+            status: components["schemas"]["Yalla.Application.Platform.VenueStatus"];
+            /** @description How a venue's branches are spread over the tiers. Derived; never stored. */
+            tierMix: components["schemas"]["Yalla.Application.Platform.TierMix"];
+            /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
+            type: components["schemas"]["Yalla.Domain.Enums.VenueType"];
+            /** Format: uuid */
+            venueId: string;
+        };
+        /**
+         * Format: int32
+         * @description How a venue's branches are spread over the tiers. Derived; never stored.
+         *
+         *     Values: 1 Free, 2 Mixed, 3 Paid.
+         * @enum {integer}
+         */
+        "Yalla.Application.Platform.TierMix": 1 | 2 | 3;
         /** @description Patch a branch. Every field optional; only the ones supplied change. Coordinates and address travel together. */
         "Yalla.Application.Platform.UpdateBranchCommand": {
             address?: string | null;
@@ -6567,23 +7219,109 @@ export interface components {
             slug?: string | null;
             type?: components["schemas"]["Yalla.Domain.Enums.VenueType"] | null;
         };
+        /**
+         * @description One venue's bookings over the last 7 or 30 days, as counts, for the venue page. <b>Aggregates
+         *     only</b>: no guest's name, phone or code.
+         */
+        "Yalla.Application.Platform.VenueBookingsSummary": {
+            /**
+             * Format: double
+             * @description The average party of the bookings not cancelled, to one decimal; absent with none.
+             */
+            averagePartySize?: number | null;
+            /** @description Every branch of the venue, by name, each listed even with none. */
+            byBranch: components["schemas"]["Yalla.Application.Platform.BranchBookingCounts"][];
+            /** @description The total, split by outcome. */
+            byStatus: components["schemas"]["Yalla.Application.Platform.BookingStatusCounts"];
+            /**
+             * @description All seven days, Sunday (0) to Saturday (6) as System.DayOfWeek numbers, by the weekday
+             *     of the visit at the branch.
+             */
+            byWeekday: components["schemas"]["Yalla.Application.Platform.WeekdayCount"][];
+            /**
+             * Format: int32
+             * @description 7 or 30.
+             */
+            days: number;
+            /**
+             * Format: int32
+             * @description Every booking in the window.
+             */
+            total: number;
+            /**
+             * Format: uuid
+             * @description The venue.
+             */
+            venueId: string;
+        };
+        /** @description One venue's count. */
+        "Yalla.Application.Platform.VenueCount": {
+            /** Format: int32 */
+            count: number;
+            name: string;
+            /** Format: uuid */
+            venueId: string;
+        };
         "Yalla.Application.Platform.VenueDetail": {
             branches: components["schemas"]["Yalla.Application.Platform.BranchSummary"][];
             /** @description One venue as the platform sees it, with the per-branch tier rolled up. */
             venue: components["schemas"]["Yalla.Application.Platform.VenueSummary"];
         };
+        /** @description The one issue the venue table shows, and the branch it is at. */
+        "Yalla.Application.Platform.VenueReadinessIssue": {
+            /** @description The branch it is at. */
+            branchName: string;
+            /** @description `no-tables`, `no-menu`, `incomplete-dishes`, `no-hours` or `no-photo`. */
+            code: string;
+            /**
+             * Format: int32
+             * @description How many, for `incomplete-dishes`; absent otherwise.
+             */
+            count?: number | null;
+        };
+        /**
+         * Format: int32
+         * @description A venue's state, as one value. Derived from the venue's flags; never stored.
+         *
+         *     Values: 1 Active, 2 Suspended, 3 Inactive, 4 Deleted.
+         * @enum {integer}
+         */
+        "Yalla.Application.Platform.VenueStatus": 1 | 2 | 3 | 4;
         /** @description One venue as the platform sees it, with the per-branch tier rolled up. */
         "Yalla.Application.Platform.VenueSummary": {
+            /**
+             * Format: double
+             * @description The average of the published reviews across every branch, to one decimal; absent with none. The
+             *     same rule the public pages use, over the whole venue.
+             */
+            averageRating?: number | null;
             /**
              * Format: int32
              * @description How many branches it has.
              */
             branchCount: number;
+            /** @description Every branch with its own tier, active ones first, then by name. */
+            branches: components["schemas"]["Yalla.Application.Platform.BranchTierView"][];
+            /**
+             * @description The thumbnail of the first branch's cover photo, in the order of Branches:
+             *     root-relative (`/api/photos/{id}/thumbnail`) for an uploaded photo, absolute for a migrated
+             *     one. Absent when no branch has a cover.
+             */
+            coverThumbnailUrl?: string | null;
+            /**
+             * Format: date-time
+             * @description When the venue was created.
+             */
+            createdAtUtc: string;
+            /** @description The first branch's cuisine, as the listing form saved it. */
+            cuisine?: string | null;
             /**
              * Format: date-time
              * @description When it was deleted, if it was. Never cleared.
              */
             deletedAtUtc?: string | null;
+            /** @description The first branch's district, as the listing form saved it. */
+            district?: string | null;
             /** @description Whether the venue is switched on at all. */
             isActive: boolean;
             /** @description Soft-deleted. Never a hard delete; the venue refuses every change. */
@@ -6594,11 +7332,38 @@ export interface components {
             name: string;
             /**
              * Format: int32
+             * @description How many branches have at least one such issue.
+             */
+            notReadyBranchCount: number;
+            /**
+             * Format: int32
+             * @description Tabs open or closing right now, across every branch.
+             */
+            openTabCount: number;
+            /**
+             * Format: int32
              * @description How many of those branches are on the paid tier.
              */
             paidBranchCount: number;
+            /**
+             * @description The first thing a guest would find missing at the first branch that has one, in the order of
+             *     Branches - with that branch's name - or absent when nothing is. Codes:
+             *     `no-tables`, `no-menu`, `incomplete-dishes` (with `count`), `no-hours`,
+             *     `no-photo`. Never set for a deleted venue.
+             */
+            readinessIssue?: components["schemas"]["Yalla.Application.Platform.VenueReadinessIssue"] | null;
+            /**
+             * Format: int32
+             * @description Published reviews across every branch.
+             */
+            reviewCount: number;
             /** @description Unique URL segment for the brand. */
             slug: string;
+            /**
+             * @description The four booleans above as one value: 4 Deleted, else 2 Suspended, else 3 Inactive (switched off),
+             *     else 1 Active.
+             */
+            status: components["schemas"]["Yalla.Application.Platform.VenueStatus"];
             /**
              * @description What a <b>branch</b> pays for. Stored per branch, never per venue: a chain with four locations
              *     is four paying customers. The venue-level view is a rollup.
@@ -6611,9 +7376,15 @@ export interface components {
             suspendedAtUtc?: string | null;
             /**
              * Format: int32
-             * @description How many tables across all of them.
+             * @description How many <b>active</b> tables across all of them. A table kept only for its history is not one the
+             *     room has, the same rule the readiness checklist counts by.
              */
             tableCount: number;
+            /**
+             * @description 1 Free (no branch paid, or no branch at all), 2 Mixed (some), 3 Paid (every one) - what the list's
+             *     tier column shows, with PaidBranchCount of BranchCount.
+             */
+            tierMix: components["schemas"]["Yalla.Application.Platform.TierMix"];
             /** @description What kind of place a venue is. Drives the shipped reservation-policy defaults. */
             type: components["schemas"]["Yalla.Domain.Enums.VenueType"];
             /**
@@ -6621,6 +7392,16 @@ export interface components {
              * @description The venue.
              */
             venueId: string;
+        };
+        /** @description One weekday's count. */
+        "Yalla.Application.Platform.WeekdayCount": {
+            /**
+             * Format: int32
+             * @description Bookings whose visit fell on that weekday.
+             */
+            count: number;
+            /** @description 0 Sunday … 6 Saturday, as System.DayOfWeek. */
+            dayOfWeek: components["schemas"]["System.DayOfWeek"];
         };
         /** @description One booking as its manage link shows it, to somebody holding nothing but the link. */
         "Yalla.Application.Public.PublicBookingView": {
@@ -7996,7 +8777,7 @@ export interface components {
             hiddenReason?: string | null;
             /**
              * Format: date-time
-             * @description The newest report, or absent when there is none.
+             * @description The newest of those reports, or absent when there is none.
              */
             lastReportedAtUtc?: string | null;
             /**
@@ -8006,7 +8787,9 @@ export interface components {
             rating: number;
             /**
              * Format: int32
-             * @description How many diners reported it.
+             * @description How many diners reported it and nobody has dismissed. A platform admin dismissing the reports
+             *     (`POST /api/platform/reviews/{id}/dismiss-reports`) brings this to zero for both tiers; a report
+             *     filed after that counts again.
              */
             reportCount: number;
             /**
@@ -16030,6 +16813,74 @@ export interface operations {
             };
         };
     };
+    listPlatformActivity: {
+        parameters: {
+            query?: {
+                limit?: number;
+                venueId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Platform.ActivityFeed"];
+                };
+            };
+            /** @description `limit` out of range; `context.field` names it. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Platform admin only. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     updateBranch: {
         parameters: {
             query?: never;
@@ -16199,6 +17050,227 @@ export interface operations {
             };
         };
     };
+    getPlatformAdminProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Platform.PlatformAdminProfile"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Platform admin only. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updatePlatformAdminProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.UpdatePlatformAdminProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Platform.PlatformAdminProfile"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Platform admin only. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `fullName` missing, blank or over 200 characters. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    changePlatformAdminPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.ChangePlatformAdminPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.RefreshResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Platform admin only. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `currentPassword` missing or wrong, or `newPassword` missing or too short - every one at once. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many wrong current passwords, or the `auth` rate limit; `Retry-After` says how long to wait. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     getOutboxHealth: {
         parameters: {
             query?: {
@@ -16239,6 +17311,223 @@ export interface operations {
             };
             /** @description Platform admin only. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPlatformOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Platform.PlatformOverview"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Platform admin only. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    dismissPlatformReviewReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reviews.ModeratedReviewView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such review. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    restorePlatformReviewReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Reviews.ModeratedReviewView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such review. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16358,10 +17647,14 @@ export interface operations {
     listVenues: {
         parameters: {
             query?: {
+                dir?: string;
                 includeDeleted?: boolean;
                 page?: number;
                 pageSize?: number;
                 search?: string;
+                sort?: string;
+                status?: string;
+                tier?: string;
             };
             header?: never;
             path?: never;
@@ -16378,7 +17671,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Platform.PagedResult`1[[Yalla.Application.Platform.VenueSummary, Yalla.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]"];
                 };
             };
-            /** @description The request violated a domain rule or arrived malformed. */
+            /** @description `status`, `tier`, `sort` or `dir` is not a value it takes; `context.field` names it. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -16762,6 +18055,84 @@ export interface operations {
             };
         };
     };
+    getVenueBookingsSummary: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path: {
+                venueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Platform.VenueBookingsSummary"];
+                };
+            };
+            /** @description `days` is not 7 or 30; `context.field` names it. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
     addBranch: {
         parameters: {
             query?: never;
@@ -16900,6 +18271,91 @@ export interface operations {
             };
             /** @description No such venue. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    restoreVenue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                venueId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Platform.VenueDetail"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such venue. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The venue's web address is now another venue's. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

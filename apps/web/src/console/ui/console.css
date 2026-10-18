@@ -1,0 +1,3895 @@
+/*
+ * The platform-admin console (docs/design/console), and the sign-in pages every
+ * console user passes through.
+ *
+ * Every colour, size and radius is a `--console-*` token from
+ * `@yalla/tokens` (`console.ts`); `consoleStyles.test.ts` fails on a colour
+ * typed here. Class names carry a `yc-` prefix so nothing here can restyle the
+ * venue console's screens, which keep `index.css`.
+ *
+ * `.yc` is the scope: the shell, the sign-in pages, a standalone error page, a
+ * dialog and the toast region each carry it, because a dialog is portalled out
+ * of the shell and still has to read as part of it.
+ */
+
+.yc {
+  font-family: var(--font-family);
+  font-size: var(--console-text-body);
+  line-height: 1.5;
+  color: var(--console-ink);
+}
+
+.yc a {
+  color: var(--console-brand);
+}
+
+.yc a:hover {
+  color: var(--console-link-hover);
+}
+
+.yc :focus-visible {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.yc-muted {
+  color: var(--console-muted);
+}
+
+.yc-i {
+  width: var(--console-size-icon);
+  height: var(--console-size-icon);
+  flex: none;
+}
+
+/* --------------------------------------------------------------------------
+ * The shell: a 232px dark-brown sidebar and the page beside it
+ * -------------------------------------------------------------------------- */
+.yc-app {
+  display: flex;
+  min-height: 100vh;
+  background: var(--console-canvas);
+}
+
+.yc-skip {
+  position: absolute;
+  left: var(--space-lg);
+  top: -100px;
+  z-index: 60;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--console-radius-small);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc .yc-skip,
+.yc .yc-skip:hover,
+.yc .yc-skip:focus {
+  /* Above `.yc a:hover`, whose brown on this brown fill read at 1.35:1. */
+  color: var(--console-brand-foreground);
+}
+
+.yc-skip:focus {
+  top: var(--space-lg);
+}
+
+.yc-side {
+  flex: 0 0 var(--console-size-sidebar);
+  width: var(--console-size-sidebar);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--console-sidebar);
+  color: var(--console-sidebar-text);
+}
+
+.yc-side :focus-visible {
+  outline-color: var(--console-sidebar-focus);
+}
+
+.yc-brand {
+  padding: 0 var(--space-md);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-brand);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: var(--console-sidebar-text-strong);
+}
+
+.yc-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.yc .yc-nav a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  height: var(--console-size-nav-item);
+  padding: 0 14px;
+  border-radius: var(--console-radius-control);
+  color: var(--console-sidebar-text);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.yc .yc-nav a:hover {
+  background: var(--console-sidebar-hover);
+  color: var(--console-sidebar-text-strong);
+}
+
+.yc .yc-nav a[aria-current='page'] {
+  background: var(--console-sidebar-active);
+  color: var(--console-sidebar-text-strong);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-side-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* The mock's role switcher, in development only: legible on the dark ground. */
+.yc-side .dev-role {
+  color: var(--console-sidebar-text);
+}
+
+.yc-side .dev-role select {
+  color: var(--console-ink);
+}
+
+.yc-me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--space-sm) 10px var(--space-md);
+  border-radius: var(--console-radius-control);
+  background: var(--console-sidebar-raised);
+}
+
+.yc-avatar {
+  width: var(--console-size-avatar);
+  height: var(--console-size-avatar);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--console-avatar);
+  color: var(--console-avatar-foreground);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-me-t {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.yc-me-n {
+  overflow: hidden;
+  color: var(--console-sidebar-text-strong);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.yc-me-r {
+  overflow: hidden;
+  color: var(--console-sidebar-muted);
+  font-size: var(--console-text-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.yc-out {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--console-radius-small);
+  background: none;
+  color: var(--console-sidebar-text);
+  cursor: pointer;
+}
+
+.yc-out:hover {
+  background: var(--console-sidebar-hover);
+  color: var(--console-sidebar-text-strong);
+}
+
+.yc-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  padding: var(--console-size-main-pad-y) var(--console-size-main-pad-x) var(--space-xxxl);
+}
+
+.yc-main:focus {
+  outline: none;
+}
+
+/*
+ * On a phone the sidebar becomes a bar across the top: the brand and who is
+ * signed in on one line, the three destinations on the next. Three links fit
+ * in a row, and a bar costs a phone far less height than a stacked column.
+ */
+@media (max-width: 799px) {
+  .yc-app {
+    flex-direction: column;
+  }
+
+  .yc-side {
+    flex: none;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  .yc-brand {
+    padding: 0;
+  }
+
+  .yc-side-foot {
+    margin: 0 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .yc-me {
+    padding: 0;
+    background: none;
+  }
+
+  .yc-me-t {
+    max-width: 140px;
+  }
+
+  .yc-nav {
+    order: 3;
+    flex: 1 0 100%;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .yc .yc-nav a {
+    height: 40px;
+    padding: 0 10px;
+    gap: var(--space-sm);
+    font-size: var(--console-text-body);
+  }
+
+  /* The mock's role switcher is a desktop tool; on a phone it would push the
+     three destinations below the fold. */
+  .yc-side .dev-role {
+    display: none;
+  }
+
+  .yc-main {
+    padding: var(--console-size-narrow-pad-y) var(--console-size-narrow-pad-x) var(--space-xxl);
+  }
+}
+
+/* The words carry the nav on a narrow phone; the icons only repeat them. */
+@media (max-width: 479px) {
+  .yc-nav .yc-i {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Page header, cards, type
+ * -------------------------------------------------------------------------- */
+.yc-ph {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.yc-h1 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-title);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.yc-sub {
+  margin: var(--space-xs) 0 0;
+  color: var(--console-muted);
+  text-wrap: pretty;
+}
+
+.yc-h2 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+}
+
+.yc-cap {
+  margin: 2px 0 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-card {
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-card);
+  background: var(--console-surface);
+}
+
+.yc-card-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-lg) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+/* --------------------------------------------------------------------------
+ * Buttons
+ * -------------------------------------------------------------------------- */
+.yc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  height: var(--console-size-button);
+  padding: 0 var(--space-lg);
+  border: 1px solid transparent;
+  border-radius: var(--console-radius-control);
+  font: inherit;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc .yc-btn-pri,
+.yc-btn-pri {
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.yc .yc-btn-pri:hover,
+.yc-btn-pri:hover {
+  background: var(--console-brand-hover);
+  color: var(--console-brand-foreground);
+}
+
+.yc .yc-btn-sec,
+.yc-btn-sec {
+  /* A button's label says what it is; its edge keeps the approved soft weight. */
+  border-color: var(--console-button-edge);
+  background: var(--console-surface);
+  color: var(--console-brand);
+}
+
+.yc .yc-btn-sec:hover,
+.yc-btn-sec:hover {
+  background: var(--console-hover);
+  color: var(--console-brand);
+}
+
+.yc .yc-btn-ghost,
+.yc-btn-ghost {
+  background: none;
+  color: var(--console-brand);
+}
+
+.yc-btn-ghost:hover {
+  background: var(--console-brand-tint);
+}
+
+.yc .yc-btn-danger,
+.yc-btn-danger {
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.yc .yc-btn-danger:hover,
+.yc-btn-danger:hover {
+  background: var(--console-red-hover);
+  color: var(--console-red-foreground);
+}
+
+.yc-btn-sm {
+  height: var(--console-size-button-small);
+  padding: 0 var(--space-md);
+  border-radius: var(--console-radius-small);
+  font-size: var(--console-text-label);
+}
+
+.yc-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A request in flight: the same button, so the focus stays where it was. */
+.yc .yc-btn-pri[aria-busy='true'],
+.yc-btn-pri[aria-busy='true'] {
+  background: var(--console-brand-busy);
+  cursor: progress;
+}
+
+.yc-spin {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--console-spin-track);
+  border-top-color: currentcolor;
+  border-radius: 50%;
+  animation: yc-spin 0.8s linear infinite;
+}
+
+@keyframes yc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Fields
+ * -------------------------------------------------------------------------- */
+.yc-fld {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.yc-fld > label,
+.yc-lbl {
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-ctl {
+  width: 100%;
+  /* The venue console's global \`select\` is 48px tall for touch; here a select is a 40px control. */
+  min-height: 0;
+  height: var(--console-size-button);
+  padding: 0 var(--space-md);
+  border: 1px solid var(--console-control);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-body);
+}
+
+.yc-ctl:hover {
+  border-color: var(--console-control-hover);
+}
+
+/* The muted ink at full strength: browsers fade a placeholder below 3:1 by default. */
+.yc-ctl::placeholder {
+  color: var(--console-muted);
+  opacity: 1;
+}
+
+.yc-ctl[aria-invalid='true'] {
+  border-color: var(--console-red);
+}
+
+textarea.yc-ctl {
+  height: auto;
+  min-height: 96px;
+  padding: 10px var(--space-md);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.yc-help {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-err {
+  color: var(--console-red);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-caps {
+  color: var(--console-amber);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pw {
+  position: relative;
+}
+
+.yc-pw .yc-ctl {
+  padding-right: 48px;
+}
+
+.yc-eye {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--console-radius-small);
+  background: none;
+  color: var(--console-muted);
+  cursor: pointer;
+}
+
+.yc-eye:hover {
+  background: var(--console-brand-tint);
+  color: var(--console-ink);
+}
+
+.yc-lnk {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--console-brand);
+  font: inherit;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.yc-lnk:hover {
+  text-decoration: underline;
+}
+
+.yc-lnk-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yc-lnk-back .yc-i {
+  width: 16px;
+  height: 16px;
+}
+
+/* --------------------------------------------------------------------------
+ * Pills and alerts
+ * -------------------------------------------------------------------------- */
+.yc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--console-size-pill);
+  padding: 0 10px;
+  border-radius: var(--console-radius-pill);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.yc-pill-green {
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.yc-pill-amber {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-pill-red {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.yc-pill-grey {
+  background: var(--console-grey-bg);
+  color: var(--console-grey);
+}
+
+.yc-pill-brand {
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-red-bg);
+  color: var(--console-red);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-alert-warn {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-alert-ok {
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+/* --------------------------------------------------------------------------
+ * Dialog
+ * -------------------------------------------------------------------------- */
+.yc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  /* One column no wider than the screen: an auto column took the dialog's
+     460px and ran it off a 390px phone, past its own max-width. */
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: var(--space-lg);
+  overflow-y: auto;
+  background: var(--console-scrim);
+}
+
+.yc-dialog {
+  width: var(--console-size-dialog);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--space-xl);
+  border-radius: var(--console-radius-dialog);
+  background: var(--console-surface);
+  box-shadow: var(--console-shadow-dialog);
+}
+
+.yc-dialog-wide {
+  width: var(--console-size-dialog-wide);
+}
+
+.yc-dialog p {
+  margin: 0;
+  color: var(--console-muted);
+}
+
+.yc-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+/* --------------------------------------------------------------------------
+ * Toast: one at a time, bottom centre
+ * -------------------------------------------------------------------------- */
+.yc-toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-xl);
+  z-index: 40;
+  /* As wide as the sentence, up to the screen: shrink-to-fit from \`left: 50%\`
+     alone squeezed a toast into half a phone's width. */
+  width: max-content;
+  max-width: calc(100% - var(--space-xxl));
+  transform: translateX(-50%);
+}
+
+.yc-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px var(--space-md) 10px var(--space-lg);
+  border-radius: var(--console-radius-control);
+  background: var(--console-toast);
+  color: var(--console-toast-foreground);
+  box-shadow: var(--console-shadow-toast);
+}
+
+.yc-toast .yc-i {
+  color: var(--console-toast-icon);
+}
+
+.yc-toast :focus-visible {
+  outline-color: var(--console-toast-action);
+}
+
+/* A failure: the destructive red, never the confirmation's tick. */
+.yc-toast.is-error {
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.yc-toast.is-error .yc-i {
+  color: var(--console-red-foreground);
+}
+
+.yc-tbtn {
+  height: var(--console-size-button-small);
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: 7px;
+  background: var(--console-toast-action-fill);
+  color: var(--console-toast-action);
+  font: inherit;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+ * The shared error states
+ * -------------------------------------------------------------------------- */
+.yc-error-wrap {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: var(--space-xl) 0;
+}
+
+/* Outside the shell: a refusal for a role with no console, or the startup failure. */
+.yc-error-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--console-canvas);
+}
+
+.yc-ecard {
+  width: var(--console-size-error-card);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px var(--space-xxl);
+  text-align: center;
+}
+
+.yc-eic {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--console-radius-tile);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-eic svg {
+  width: 32px;
+  height: 32px;
+}
+
+.yc-eic-amber {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-eic-red {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.yc-code {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.yc-etext {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--console-muted);
+}
+
+.yc-eacts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: 6px;
+}
+
+.yc-ref {
+  color: var(--console-muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--console-text-caption);
+}
+
+.yc-tries {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+@media (max-width: 560px) {
+  .yc-ecard {
+    padding: var(--space-xxl) var(--space-xl);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Sign-in and the password page: the room photo beside the card
+ * -------------------------------------------------------------------------- */
+.yc-auth {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 100vh;
+  background: var(--console-canvas);
+}
+
+.yc-auth-room {
+  position: relative;
+  flex: 1 1 520px;
+  min-width: 0;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-xxl);
+  padding: 40px var(--space-xxxl);
+  overflow: hidden;
+  background: var(--console-photo-ground);
+}
+
+.yc-auth-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 55%;
+}
+
+.yc-auth-shade {
+  position: absolute;
+  inset: 0;
+  background: var(--console-photo-shade);
+}
+
+.yc-auth-brand,
+.yc-auth-claim {
+  position: relative;
+}
+
+.yc-auth-brand {
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-auth-brand);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: var(--console-photo-text);
+}
+
+.yc-auth-claim {
+  max-width: 440px;
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-claim);
+  line-height: 1.35;
+  color: var(--console-photo-text);
+  text-shadow: var(--console-shadow-photo-text);
+  text-wrap: balance;
+}
+
+.yc-auth-claim small {
+  display: block;
+  margin-top: var(--space-sm);
+  font-family: var(--font-family);
+  font-size: var(--console-text-nav);
+  color: var(--console-photo-text-muted);
+}
+
+.yc-auth-side {
+  flex: 1 1 440px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 40px var(--space-xl);
+}
+
+.yc-auth-card {
+  width: var(--console-size-auth-card);
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: var(--space-xxl);
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-auth-card);
+  background: var(--console-surface);
+}
+
+.yc-auth-card-wide {
+  width: var(--console-size-auth-card-wide);
+}
+
+.yc-auth-card .yc-sub {
+  margin-top: 6px;
+}
+
+/* Taller inputs and buttons than inside the console: this is a page with one job. */
+.yc-auth-card .yc-ctl {
+  height: var(--console-size-button-tall);
+  padding: 0 14px;
+  font-size: var(--console-text-nav);
+}
+
+.yc-auth-card .yc-pw .yc-ctl {
+  padding-right: 48px;
+}
+
+.yc-auth-card .yc-btn {
+  width: 100%;
+  height: var(--console-size-button-tall);
+  font-size: var(--console-text-nav);
+}
+
+.yc-auth-card .yc-btn + .yc-btn {
+  margin-top: calc(-1 * var(--space-sm));
+}
+
+.yc-auth-card .yc-alert {
+  font-size: var(--console-text-label);
+}
+
+.yc-row-end {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.yc-row-center {
+  display: flex;
+  justify-content: center;
+}
+
+.yc-auth-note {
+  max-width: var(--console-size-auth-card);
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.yc-lang {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc .yc-lang select {
+  min-height: 0;
+  height: 36px;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--console-control);
+  border-radius: var(--console-radius-small);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-label);
+}
+
+/* The welcome, done, invalid-link and someone-else cards. */
+.yc-state {
+  align-items: center;
+  gap: var(--space-md);
+  text-align: center;
+}
+
+.yc-state .yc-sub {
+  margin: 0;
+}
+
+.yc-state-ic {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.yc-state-ic svg {
+  width: 26px;
+  height: 26px;
+}
+
+.yc-state-ic-warn {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+/* The password meter: four bars, coloured by how strong it is. */
+.yc-meter {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-xs);
+}
+
+.yc-meter i {
+  height: 4px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-line);
+}
+
+.yc-meter i.is-1 {
+  background: var(--console-red);
+}
+
+.yc-meter i.is-2 {
+  background: var(--console-amber);
+}
+
+.yc-meter i.is-3 {
+  background: var(--console-meter-fair);
+}
+
+.yc-meter i.is-4 {
+  background: var(--console-green);
+}
+
+.yc-mlabel {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--console-text-label);
+}
+
+.yc-rules li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--console-muted);
+}
+
+.yc-rules li.is-ok {
+  color: var(--console-green);
+}
+
+.yc-rules li.is-bad {
+  color: var(--console-red);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-rules svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+@media (max-width: 959px) {
+  .yc-auth-room {
+    flex-basis: 100%;
+    min-height: 168px;
+    gap: var(--space-lg);
+    padding: var(--space-xl) 20px;
+  }
+
+  .yc-auth-claim {
+    font-size: var(--console-text-claim-narrow);
+  }
+
+  .yc-auth-claim small {
+    display: none;
+  }
+
+  .yc-auth-side {
+    justify-content: flex-start;
+    padding: var(--space-xl) var(--space-lg) var(--space-xxl);
+  }
+}
+
+@media (max-width: 560px) {
+  .yc-auth-card {
+    padding: var(--space-xl);
+  }
+
+  .yc-auth-brand {
+    font-size: var(--console-text-auth-brand-narrow);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Settings: the language choice
+ * -------------------------------------------------------------------------- */
+.yc-radios {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 20px;
+  border: 0;
+}
+
+.yc-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  cursor: pointer;
+}
+
+.yc-radio:hover {
+  background: var(--console-hover);
+}
+
+.yc-radio.is-on {
+  border-color: var(--console-brand);
+  background: var(--console-surface-muted);
+}
+
+.yc-radio input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--console-brand);
+}
+
+.yc-radio-hint {
+  margin-left: auto;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  max-width: 720px;
+}
+
+/* --------------------------------------------------------------------------
+ * The venues list (Venues artboard)
+ * -------------------------------------------------------------------------- */
+.yc-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.yc-tools .yc-fld > label {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-tools .yc-ctl {
+  width: auto;
+}
+
+.yc-fld-grow {
+  flex: 1 1 280px;
+}
+
+.yc .yc-fld-grow .yc-ctl {
+  width: 100%;
+}
+
+.yc-search {
+  position: relative;
+}
+
+.yc-search .yc-i {
+  position: absolute;
+  top: 11px;
+  left: var(--space-md);
+  color: var(--console-muted);
+  pointer-events: none;
+}
+
+.yc-search .yc-ctl {
+  padding-left: 38px;
+}
+
+.yc-tscroll {
+  /* Positioned, so the screen-reader-only text in its cells is clipped by it
+     too: otherwise those absolutely placed spans widen the whole page on a phone. */
+  position: relative;
+  overflow-x: auto;
+}
+
+.yc-tbl {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.yc-tbl th {
+  padding: 10px var(--space-lg);
+  border-bottom: 1px solid var(--console-line);
+  background: var(--console-surface-muted);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.yc-tbl td {
+  padding: 10px var(--space-lg);
+  border-bottom: 1px solid var(--console-line-soft);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.yc-tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.yc-tbl tbody tr:hover td {
+  background: var(--console-hover);
+}
+
+.yc-tbl .yc-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-tbl tr.is-dim td {
+  color: var(--console-muted);
+}
+
+.yc .yc-tbl tr.is-dim .yc-vname {
+  color: var(--console-muted);
+}
+
+.yc-sortb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--console-muted);
+  font: inherit;
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-sortb:hover,
+.yc-sortb.is-on {
+  color: var(--console-ink);
+}
+
+.yc-ar {
+  display: inline-block;
+  width: 10px;
+  font-size: var(--console-text-caption);
+}
+
+.yc-vcell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 240px;
+  max-width: 340px;
+}
+
+.yc-thumb {
+  width: 56px;
+  height: 42px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--console-radius-small);
+  object-fit: cover;
+}
+
+.yc-thumb-none {
+  border: 1.5px dashed var(--console-amber-line);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-thumb-letter {
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-vtext {
+  min-width: 0;
+  /* A long readiness line wraps under the name rather than widening the table. */
+  white-space: normal;
+}
+
+/* Free text (the cuisine line) wraps in a column of its own width. */
+.yc-tbl td.yc-wrap {
+  min-width: 120px;
+  max-width: 200px;
+  white-space: normal;
+}
+
+.yc .yc-vname {
+  color: var(--console-ink);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+  text-decoration: none;
+}
+
+.yc .yc-vname:hover {
+  color: var(--console-ink);
+  text-decoration: underline;
+}
+
+.yc-slug {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-issue {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin-top: 2px;
+  color: var(--console-amber);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-issue .yc-i {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+
+.yc-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--console-button-edge);
+  border-radius: var(--console-radius-small);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-tier:hover {
+  border-color: var(--console-button-edge-hover);
+  background: var(--console-hover);
+}
+
+.yc-tier.is-paid {
+  color: var(--console-brand);
+}
+
+.yc-tier.is-free {
+  color: var(--console-grey);
+}
+
+.yc-tier .yc-i {
+  width: 14px;
+  height: 14px;
+  color: var(--console-muted);
+}
+
+.yc-tier-text {
+  color: var(--console-muted);
+}
+
+.yc-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.yc-tbl .yc-mcell {
+  width: 48px;
+  text-align: right;
+}
+
+.yc-kebab {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--console-radius-small);
+  background: none;
+  color: var(--console-muted);
+  cursor: pointer;
+}
+
+.yc-kebab:hover,
+.yc-kebab.is-open {
+  background: var(--console-brand-tint);
+  color: var(--console-ink);
+}
+
+.yc-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+  box-shadow: var(--console-shadow-menu);
+}
+
+.yc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-body);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-menu-item:hover,
+.yc-menu-item:focus-visible {
+  background: var(--console-hover);
+}
+
+.yc-menu-item .yc-i {
+  width: 16px;
+  height: 16px;
+  color: var(--console-muted);
+}
+
+.yc-menu-item.is-danger,
+.yc-menu-item.is-danger .yc-i {
+  color: var(--console-red);
+}
+
+.yc-menu-sep {
+  height: 1px;
+  margin: 6px var(--space-xs);
+  background: var(--console-line-soft);
+}
+
+.yc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px var(--space-xl);
+  text-align: center;
+}
+
+.yc-empty p {
+  margin: 0;
+  color: var(--console-muted);
+}
+
+.yc-empty-ic {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-empty-ic .yc-i {
+  width: 24px;
+  height: 24px;
+}
+
+.yc-foot {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--console-line-soft);
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+/* Loading: the table's shape, pulsing; still under reduced motion. */
+.yc-sk {
+  display: block;
+  border-radius: 6px;
+  background: var(--console-skeleton);
+  animation: yc-pulse 1.4s ease-in-out infinite;
+}
+
+.yc-sk-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yc-sk-thumb {
+  width: 56px;
+  height: 42px;
+  border-radius: var(--console-radius-small);
+}
+
+.yc-sk-name {
+  width: 140px;
+  height: 14px;
+}
+
+.yc-sk-slug {
+  width: 90px;
+  height: 10px;
+}
+
+.yc-sk-cell {
+  width: 64px;
+  height: 12px;
+}
+
+@keyframes yc-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * The venues list's dialogs: plan, delete, create, the link shown once
+ * -------------------------------------------------------------------------- */
+.yc-consq {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+  list-style: none;
+}
+
+.yc-consq li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.yc-consq .yc-i {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.yc-consq .is-on {
+  color: var(--console-green);
+}
+
+.yc-consq .is-off {
+  color: var(--console-red);
+}
+
+.yc-consq .is-same {
+  color: var(--console-muted);
+}
+
+.yc-refuse {
+  display: flex;
+  gap: 10px;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* A refusal under a choice: the plan it stops, not the dialog. */
+.yc-refuse-inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.yc-refuse-inline .yc-help {
+  margin: 0;
+}
+
+.yc-refuse ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.yc-choice legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-choice .yc-radio {
+  flex: 1 1 140px;
+  height: 44px;
+}
+
+.yc-bbox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-red-bg);
+}
+
+.yc-bbox h3 {
+  margin: 0;
+  color: var(--console-red);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-blist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-blist li {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--console-red-line);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-red);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.yc-form b {
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-stepn {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-steps {
+  display: flex;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-steps li {
+  flex: 1;
+  padding-top: var(--space-sm);
+  border-top: 3px solid var(--console-line);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-steps li.is-on {
+  border-top-color: var(--console-brand);
+  color: var(--console-brand);
+}
+
+.yc-steps li.is-done {
+  border-top-color: var(--console-step-done);
+  color: var(--console-ink);
+}
+
+.yc-row2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.yc-req {
+  margin-left: 2px;
+  color: var(--console-red);
+}
+
+.yc-optional {
+  margin-left: 6px;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pre {
+  display: flex;
+  align-items: center;
+  height: var(--console-size-button);
+  overflow: hidden;
+  border: 1px solid var(--console-control);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+}
+
+.yc-pre:hover {
+  border-color: var(--console-control-hover);
+}
+
+.yc-pre.is-bad {
+  border-color: var(--console-red);
+}
+
+.yc-pre:focus-within {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-pre span {
+  padding-left: var(--space-md);
+  color: var(--console-muted);
+  white-space: nowrap;
+}
+
+.yc-pre input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-md) 0 1px;
+  border: 0;
+  background: none;
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-body);
+}
+
+.yc .yc-pre input:focus-visible {
+  outline: none;
+}
+
+.yc-dlg-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.yc-legend {
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-dialog .yc-legend {
+  font-size: var(--console-text-caption);
+}
+
+.yc-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-xs) var(--space-lg);
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-summary dt {
+  color: var(--console-muted);
+}
+
+.yc-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+}
+
+.yc-once {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+}
+
+.yc-strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-linkrow {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.yc-linkrow .yc-ctl {
+  flex: 1;
+  min-width: 0;
+}
+
+.yc-mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--console-text-caption);
+}
+
+.yc .yc-ctl.yc-mono {
+  font-size: var(--console-text-caption);
+}
+
+.yc-once-pin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--console-line);
+}
+
+.yc-pin {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: var(--console-text-title);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.3em;
+}
+
+@media (max-width: 560px) {
+  .yc-row2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-tools .yc-fld {
+    flex: 1 1 140px;
+  }
+
+  .yc .yc-tools .yc-ctl {
+    width: 100%;
+  }
+
+  .yc-linkrow {
+    flex-direction: column;
+  }
+
+  /* In a column, \`flex: 1\` would size the field's height from nothing. */
+  .yc-linkrow .yc-ctl {
+    flex: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * The venue page (VenueDetail artboard)
+ * -------------------------------------------------------------------------- */
+.yc-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  list-style: none;
+}
+
+.yc .yc-crumbs a {
+  color: var(--console-muted);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.yc .yc-crumbs a:hover {
+  color: var(--console-ink);
+  text-decoration: underline;
+}
+
+.yc-crumbs li + li::before {
+  content: '/';
+  margin-right: 6px;
+  color: var(--console-control-hover);
+}
+
+.yc-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--console-radius-card);
+  font-size: var(--console-text-body);
+}
+
+.yc-banner b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-banner-grey {
+  border: 1px solid var(--console-grey-line);
+  background: var(--console-grey-bg);
+  color: var(--console-grey);
+}
+
+.yc-grow {
+  flex: 1;
+  min-width: 220px;
+}
+
+.yc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.yc-thumb.yc-thumb-lg {
+  width: 72px;
+  height: 54px;
+  border-radius: var(--console-radius-control);
+  font-size: 22px;
+}
+
+.yc-head-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yc-head-m {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-head-a {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* Delete in a header: red words on white, the fill saved for the confirm. */
+.yc .yc-btn-dl,
+.yc-btn-dl {
+  border-color: var(--console-red-line);
+  background: var(--console-surface);
+  color: var(--console-red);
+}
+
+.yc .yc-btn-dl:hover,
+.yc-btn-dl:hover {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.yc-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.yc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: var(--console-size-nav-item);
+  margin-bottom: -1px;
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--console-muted);
+  font: inherit;
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-tab:hover {
+  color: var(--console-ink);
+}
+
+.yc-tab.is-on {
+  border-bottom-color: var(--console-brand);
+  color: var(--console-brand);
+}
+
+.yc-tab-cnt {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-grey-bg);
+  color: var(--console-grey);
+  font-size: var(--console-text-caption);
+}
+
+.yc-panel:focus {
+  outline: none;
+}
+
+.yc-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.yc-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+
+.yc-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-lg) 20px;
+}
+
+.yc-kpi-l,
+.yc-kpi-f {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-kpi-n {
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-kpi);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.15;
+}
+
+.yc-g2 {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.yc-pn {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-pe {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-pill-under {
+  margin-top: var(--space-xs);
+}
+
+.yc-blinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  font-size: var(--console-text-label);
+}
+
+.yc .yc-blinks a {
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.yc .yc-blinks a:hover {
+  text-decoration: underline;
+}
+
+.yc-empty-line {
+  margin: 0;
+  padding: var(--space-lg) 20px;
+  color: var(--console-muted);
+}
+
+.yc-check {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.yc-check li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px 20px;
+}
+
+.yc-check b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-ck {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.yc-ck .yc-i {
+  width: 14px;
+  height: 14px;
+}
+
+.yc-check li.is-todo .yc-ck {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-ck-v {
+  margin-left: auto;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  text-align: right;
+}
+
+.yc-check li.is-todo .yc-ck-v {
+  color: var(--console-amber);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 20px;
+  margin: 0;
+  padding: var(--space-lg) 20px;
+}
+
+.yc-facts dt {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-facts dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.yc-facts dd span {
+  display: block;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-regular);
+}
+
+.yc-tools-split {
+  justify-content: space-between;
+}
+
+.yc-check-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: var(--console-size-button);
+  font-size: var(--console-text-label);
+  cursor: pointer;
+}
+
+.yc-check-line input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--console-brand);
+}
+
+.yc-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.yc-av {
+  width: var(--console-size-avatar);
+  height: var(--console-size-avatar);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.yc-roles legend {
+  margin-bottom: var(--space-sm);
+  padding: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-roles legend .yc-help {
+  font-weight: var(--font-weight-regular);
+}
+
+.yc-rc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px var(--space-md);
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  cursor: pointer;
+}
+
+.yc-rc:hover {
+  background: var(--console-hover);
+}
+
+.yc-rc.is-on {
+  border-color: var(--console-brand);
+  background: var(--console-surface-muted);
+  box-shadow: 0 0 0 1px var(--console-brand);
+}
+
+/* The radio itself is the card: invisible, still focusable and announced. */
+.yc-rc input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.yc-rc:focus-within {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-rc b {
+  font-size: var(--console-text-body);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-rc span {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc .yc-pin-input {
+  max-width: 160px;
+  font-size: 20px;
+  letter-spacing: 0.3em;
+}
+
+.yc-self-start {
+  align-self: flex-start;
+}
+
+.yc-warn {
+  color: var(--console-amber);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-note {
+  flex: 1 1 360px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--console-radius-control);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-size: var(--console-text-label);
+}
+
+.yc-wk {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 160px;
+  padding: 20px 20px 0;
+}
+
+.yc-wk-c {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.yc-wk-v {
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-wk-b {
+  width: 100%;
+  max-width: 44px;
+  border-radius: 6px 6px 0 0;
+  background: var(--console-brand-busy);
+}
+
+.yc-wk-b.is-peak {
+  background: var(--console-step-done);
+}
+
+.yc-wk-x {
+  display: flex;
+  gap: 10px;
+  padding: var(--space-sm) 20px var(--space-lg);
+  border-top: 1px solid var(--console-line);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-wk-x span {
+  flex: 1;
+  text-align: center;
+}
+
+.yc-split {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-lg) 20px;
+}
+
+.yc-bar-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: var(--console-text-label);
+}
+
+.yc-bar-row dt,
+.yc-bar-row dd {
+  margin: 0;
+}
+
+.yc-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-line-soft);
+}
+
+.yc-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--console-radius-pill);
+}
+
+.yc-fill.is-ok {
+  background: var(--console-green);
+}
+
+.yc-fill.is-up {
+  background: var(--console-step-done);
+}
+
+.yc-fill.is-pending {
+  background: var(--console-amber);
+}
+
+.yc-fill.is-cancel {
+  background: var(--console-bar-muted);
+}
+
+.yc-fill.is-noshow {
+  background: var(--console-red);
+}
+
+@media (max-width: 1100px) {
+  .yc-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .yc-g2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .yc-kpis,
+  .yc-roles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-bar-row {
+    grid-template-columns: 96px minmax(0, 1fr) 80px;
+  }
+
+  /* Three tabs fit a phone's width with a little less air between them. */
+  .yc-tab {
+    padding: 0 var(--space-md);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * A branch's pages (BranchPublic, BranchRooms and Reviews artboards): the
+ * shared header — the name, the address, the switcher and the sub-tabs.
+ * -------------------------------------------------------------------------- */
+.yc-bhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.yc .yc-bsel {
+  width: auto;
+  min-width: 180px;
+}
+
+.yc-subtabs {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.yc .yc-subtabs a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: var(--console-size-button-tall);
+  margin-bottom: -1px;
+  padding: 0 var(--space-lg);
+  border-bottom: 2px solid transparent;
+  color: var(--console-muted);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.yc .yc-subtabs a:hover {
+  color: var(--console-ink);
+}
+
+.yc .yc-subtabs a.is-on {
+  border-bottom-color: var(--console-brand);
+  color: var(--console-brand);
+}
+
+.yc-tab-cnt.is-amber {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+ * The venue console's forms and rooms editor, worn inside the platform pages.
+ *
+ * The screens are shared with the owner's and manager's console, which keeps
+ * its look: only a `.yc-legacy` wrapper — on the platform pages alone —
+ * points their colours at the console's tokens and squares their controls.
+ * -------------------------------------------------------------------------- */
+.yc-legacy {
+  --color-surface: var(--console-surface);
+  --color-paper: var(--console-canvas);
+  --color-foreground: var(--console-ink);
+  --color-muted-foreground: var(--console-muted);
+  --color-subtle-foreground: var(--console-muted);
+  --color-border: var(--console-button-edge);
+  --color-border-soft: var(--console-line);
+  --color-border-strong: var(--console-button-edge);
+  --color-border-interactive: var(--console-control);
+  --color-primary: var(--console-brand);
+  --color-primary-ink: var(--console-brand);
+  --color-primary-pressed: var(--console-brand-hover);
+  /* New pins on a room photo: the venue console's beige reads at 1.84:1 here. */
+  --color-primary-on-floor-plan: var(--console-brand);
+  --color-primary-on-floor-plan-pressed: var(--console-brand-hover);
+  --color-primary-foreground: var(--console-brand-foreground);
+  --color-green-tint: var(--console-brand-tint);
+  --color-accent-tint: var(--console-hover);
+  --color-focus-ring: var(--console-focus);
+  --color-danger: var(--console-red);
+  --color-danger-pressed: var(--console-red-hover);
+  --color-danger-foreground: var(--console-red-foreground);
+  --color-warning: var(--console-amber);
+  --color-warning-ink: var(--console-amber);
+  --color-success: var(--console-green);
+  --radius-card: var(--console-radius-card);
+  --radius-soft: var(--console-radius-small);
+  --shadow-soft: none;
+  min-width: 0;
+}
+
+.yc-legacy .page {
+  max-width: none;
+}
+
+.yc-legacy input[type='checkbox'],
+.yc-legacy input[type='radio'] {
+  accent-color: var(--console-brand);
+}
+
+.yc-legacy .page h2,
+.yc-legacy .card h3,
+.yc-legacy .editor-areas h2 {
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-section);
+  line-height: 1.3;
+}
+
+.yc-legacy .card,
+.yc-legacy .editor-panel,
+.yc-legacy .editor-areas {
+  padding: 20px;
+  border-color: var(--console-line);
+}
+
+.yc-legacy .labelled {
+  gap: 6px;
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+}
+
+.yc-legacy .labelled > span:first-child {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-legacy .field {
+  min-height: var(--console-size-button);
+  padding: 0 var(--space-md);
+  border-color: var(--console-control);
+  border-radius: var(--console-radius-control);
+  font-size: var(--console-text-body);
+}
+
+.yc-legacy textarea.field {
+  padding: 10px var(--space-md);
+  line-height: 1.5;
+}
+
+.yc-legacy .field:hover {
+  border-color: var(--console-control-hover);
+}
+
+.yc-legacy .field[aria-invalid='true'] {
+  border-color: var(--console-red);
+}
+
+.yc-legacy .button {
+  min-height: var(--console-size-button);
+  padding: 0 var(--space-lg);
+  border-width: 1px;
+  border-color: var(--console-button-edge);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface);
+  color: var(--console-brand);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: none;
+}
+
+.yc-legacy .button:hover:not(:disabled),
+.yc-legacy .button:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: var(--console-hover);
+}
+
+.yc-legacy .button-small {
+  min-height: var(--console-size-button-small);
+  padding: 0 var(--space-md);
+  border-radius: var(--console-radius-small);
+  font-size: var(--console-text-label);
+}
+
+.yc-legacy .button-primary {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.yc-legacy .button-primary:hover:not(:disabled),
+.yc-legacy .button-primary:active:not(:disabled) {
+  border-color: var(--console-brand-hover);
+  background: var(--console-brand-hover);
+}
+
+.yc-legacy .button-danger {
+  border-color: var(--console-red);
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.yc-legacy .button-danger:hover:not(:disabled),
+.yc-legacy .button-danger:active:not(:disabled) {
+  border-color: var(--console-red-hover);
+  background: var(--console-red-hover);
+}
+
+.yc-legacy .button-ghost {
+  border-color: transparent;
+  background: none;
+}
+
+.yc-legacy .button-ghost:hover:not(:disabled) {
+  background: var(--console-brand-tint);
+}
+
+.yc-legacy .button:disabled {
+  opacity: 0.5;
+}
+
+.yc-legacy .chip {
+  min-height: 36px;
+  border-width: 1px;
+  border-color: var(--console-button-edge);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-legacy .chip:hover {
+  background: var(--console-hover);
+}
+
+/* A room's chip carries its photo count and wraps in a narrow list: a tile, not a pill. */
+.yc-legacy .rooms-list .chip {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--console-radius-control);
+  text-align: start;
+}
+
+.yc-legacy .chip.is-on,
+.yc-legacy .chip[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-legacy .notice {
+  border-color: var(--console-line);
+  border-radius: var(--console-radius-control);
+}
+
+.yc-legacy .notice-error {
+  border-color: var(--console-red-line);
+  background: var(--console-red-bg);
+}
+
+.yc-legacy .notice-warning {
+  border-color: var(--console-amber-line);
+  background: var(--console-amber-bg);
+}
+
+/* The rooms page's save bar: at the foot, in reach wherever the plan scrolls. */
+.yc-savebar {
+  position: sticky;
+  bottom: var(--space-lg);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--console-radius-card);
+  background: var(--console-savebar);
+  color: var(--console-savebar-text);
+  box-shadow: var(--console-shadow-toast);
+}
+
+.yc-savebar .yc-grow {
+  min-width: 200px;
+  font-size: var(--console-text-body);
+}
+
+.yc .yc-savebar .yc-btn-sec {
+  border-color: var(--console-savebar-edge);
+  background: transparent;
+  color: var(--console-savebar-text);
+}
+
+.yc .yc-savebar .yc-btn-sec:hover {
+  background: var(--console-savebar-hover);
+}
+
+.yc .yc-savebar .yc-btn-pri {
+  background: var(--console-savebar-text);
+  color: var(--console-brand);
+}
+
+.yc .yc-savebar .yc-btn-pri:hover {
+  background: var(--console-toast-action);
+  color: var(--console-brand);
+}
+
+.yc .yc-savebar :focus-visible {
+  outline-color: var(--console-savebar-focus);
+}
+
+/* --------------------------------------------------------------------------
+ * The public page: the two forms beside the app card as typed.
+ * -------------------------------------------------------------------------- */
+.yc-pp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: var(--space-xl);
+}
+
+.yc-preview {
+  position: sticky;
+  top: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.yc-prev-cap {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.yc-phone {
+  padding: var(--space-md);
+  border-radius: 24px;
+  background: var(--console-phone-frame);
+  box-shadow: var(--console-shadow-phone);
+}
+
+.yc-pcard {
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--console-app-card);
+  color: var(--console-app-card-text);
+}
+
+.yc-pcard img,
+.yc-pcard-nophoto {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.yc-pcard-nophoto {
+  display: grid;
+  place-items: center;
+  background: var(--console-app-card-chip);
+  color: var(--console-app-card-muted);
+}
+
+.yc-pc-b {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+}
+
+.yc-pc-n {
+  font-family: var(--font-family-display);
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.yc-pc-m,
+.yc-pc-about {
+  margin: 0;
+  color: var(--console-app-card-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-pc-about {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.yc-pc-a {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.yc-pc-a span {
+  padding: 2px var(--space-sm);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-app-card-chip);
+  color: var(--console-app-card-chip-text);
+  font-size: var(--console-text-caption);
+}
+
+.yc-pc-btn {
+  display: grid;
+  place-items: center;
+  height: var(--console-size-button);
+  margin-top: 6px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-app-card-button);
+  color: var(--console-app-card-button-text);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-pc-btn.is-off {
+  background: var(--console-app-card-off);
+  color: var(--console-app-card-off-text);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --------------------------------------------------------------------------
+ * Reviews: the filters, the list, the hide form, and the summary beside it.
+ * -------------------------------------------------------------------------- */
+.yc-rv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.yc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.yc-chip:hover {
+  background: var(--console-hover);
+}
+
+.yc-chip.is-on {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.yc-chip-n {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.yc-rv-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.yc-rv {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-lg) 20px;
+}
+
+.yc-rv.is-reported {
+  border-color: var(--console-reported-edge);
+  box-shadow: inset 3px 0 0 var(--console-amber);
+}
+
+.yc-rv.is-hidden {
+  background: var(--console-review-hidden);
+}
+
+.yc-rv-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+}
+
+.yc-rv-a {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.yc-stars {
+  color: var(--console-star);
+  font-size: var(--console-text-body);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.yc-stars .is-off {
+  color: var(--console-star-off);
+}
+
+.yc-rv-txt {
+  max-width: 72ch;
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.yc-rv.is-hidden .yc-rv-txt {
+  color: var(--console-muted);
+}
+
+.yc-why {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: 10px var(--space-md);
+  border-radius: var(--console-radius-small);
+  background: var(--console-grey-bg);
+  color: var(--console-grey);
+  font-size: var(--console-text-label);
+}
+
+.yc-why .yc-i,
+.yc-why svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.yc-why b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-rv-f {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc-hidebox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 14px;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+}
+
+.yc-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.yc-reasons legend {
+  margin-bottom: var(--space-sm);
+  padding: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-rchip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 var(--space-md);
+  border: 1px solid var(--console-button-edge);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-surface);
+  font-size: var(--console-text-label);
+  cursor: pointer;
+}
+
+.yc-rchip:hover {
+  background: var(--console-hover);
+}
+
+.yc-rchip.is-on {
+  border-color: var(--console-brand);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The radio is the chip: kept for the keyboard and a screen reader, not drawn. */
+.yc-rchip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.yc-rchip:focus-within {
+  outline: 2px solid var(--console-focus);
+  outline-offset: 2px;
+}
+
+.yc-cnt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.yc-count {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.yc-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.yc-big {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.yc-big b {
+  font-family: var(--font-family-display);
+  font-size: 36px;
+  line-height: 1;
+}
+
+.yc-dist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-dist li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-dist .yc-track {
+  height: 8px;
+}
+
+.yc-rules-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg) 20px;
+  font-size: var(--console-text-label);
+}
+
+.yc-rules-card ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+  padding-left: 18px;
+  color: var(--console-muted);
+}
+
+.yc-rules-card .yc-help {
+  margin: 0;
+}
+
+.yc-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+@media (max-width: 1100px) {
+  .yc-pp-layout,
+  .yc-rv-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-preview {
+    position: static;
+    max-width: 360px;
+  }
+}
+
+@media (max-width: 560px) {
+  .yc .yc-subtabs a {
+    padding: 0 var(--space-md);
+  }
+
+  .yc-bhead > .yc-fld {
+    flex: 1 1 100%;
+  }
+
+  .yc .yc-bsel {
+    width: 100%;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Home (Main artboard): the outbox alert, four cards, the drill-down, the
+ * bookings chart, not-ready branches, the newest venues and the feed.
+ * -------------------------------------------------------------------------- */
+.yc-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.yc .yc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.yc .yc-link:hover {
+  text-decoration: underline;
+}
+
+.yc-link .yc-i {
+  width: 16px;
+  height: 16px;
+}
+
+/* Red: a guest did not get a message. Details only — there is no retry. */
+.yc-oalert {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 14px 20px;
+  border: 1px solid var(--console-red-line);
+  border-radius: var(--console-radius-card);
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.yc-oalert-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.yc-oalert-t {
+  flex: 1;
+  min-width: 240px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-oalert-note {
+  margin: 0;
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+}
+
+.yc-oalert-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-oalert-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-lg);
+  padding: 10px var(--space-md);
+  border-radius: var(--console-radius-small);
+  background: var(--console-alert-item);
+  color: var(--console-ink);
+  font-size: var(--console-text-label);
+}
+
+.yc-oalert-list b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-oalert-list span {
+  color: var(--console-muted);
+}
+
+.yc-hkpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+
+.yc .yc-hkpi {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 18px 20px;
+  color: var(--console-ink);
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.yc .yc-hkpi:hover {
+  border-color: var(--console-card-hover-edge);
+  box-shadow: var(--console-shadow-card-hover);
+  color: var(--console-ink);
+}
+
+.yc .yc-hkpi.is-static {
+  cursor: default;
+}
+
+.yc .yc-hkpi.is-static:hover {
+  border-color: var(--console-line);
+  box-shadow: none;
+}
+
+.yc .yc-hkpi.is-on {
+  border-color: var(--console-brand);
+  box-shadow: 0 0 0 1px var(--console-brand);
+}
+
+.yc-hkpi-ic {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-hkpi-ic.is-amber {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.yc-hkpi-b {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.yc-hkpi-l,
+.yc-hkpi-f {
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-hkpi-n {
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.15;
+}
+
+.yc-hkpi-go {
+  align-self: center;
+  color: var(--console-muted);
+}
+
+.yc-up {
+  color: var(--console-green);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-down {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-drill {
+  padding: var(--space-xs) 0;
+}
+
+.yc-drill-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-drill-g {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc .yc-drill-g a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+  color: var(--console-ink);
+  text-decoration: none;
+}
+
+.yc .yc-drill-g a:hover {
+  background: var(--console-hover);
+}
+
+.yc-drill-g b {
+  font-variant-numeric: tabular-nums;
+}
+
+.yc .yc-range {
+  width: auto;
+  height: var(--console-size-button-small);
+  border-radius: var(--console-radius-small);
+  font-size: var(--console-text-label);
+}
+
+.yc-chart {
+  display: flex;
+  gap: var(--space-md);
+  padding: 20px 20px var(--space-lg);
+}
+
+.yc-yaxis {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  width: 56px;
+}
+
+.yc-yunit {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  line-height: 1.2;
+  text-align: end;
+}
+
+.yc-yt {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 184px;
+  margin-top: -8px;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.yc-plotw {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding-top: var(--space-xl);
+}
+
+.yc-plot {
+  position: relative;
+  height: 184px;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.yc-grid {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px dashed var(--console-line-soft);
+}
+
+.yc-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0 var(--space-xs);
+}
+
+.yc-bars.is-dense {
+  gap: 3px;
+}
+
+.yc-col {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+}
+
+.yc-bar {
+  position: relative;
+  width: 100%;
+  max-width: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px 5px 0 0;
+  background: var(--console-chart-bar);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.yc-bars.is-dense .yc-bar {
+  border-radius: 3px 3px 0 0;
+}
+
+.yc-bar:hover,
+.yc-bar.is-on {
+  background: var(--console-brand);
+}
+
+.yc-bar.is-today {
+  background: var(--console-step-done);
+}
+
+.yc-bar.is-today:hover,
+.yc-bar.is-today.is-on {
+  background: var(--console-chart-bar-today-hover);
+}
+
+.yc-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 2;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--console-toast);
+  color: var(--console-toast-foreground);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.yc-tip.is-end {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.yc-tip.is-start {
+  left: 0;
+  transform: none;
+}
+
+.yc-xlab {
+  display: flex;
+  gap: 6px;
+  padding: 0 var(--space-xs);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-xlab.is-dense {
+  gap: 3px;
+}
+
+.yc-xlab span {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.yc-xlab .is-today {
+  color: var(--console-ink);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-xmonth {
+  padding: 0 var(--space-xs);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-ready {
+  display: flex;
+  flex-direction: column;
+}
+
+.yc-ready-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc .yc-ready-r {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+  color: var(--console-ink);
+  text-decoration: none;
+}
+
+.yc .yc-ready-r:hover {
+  background: var(--console-hover);
+  color: var(--console-ink);
+}
+
+.yc-ready-r .yc-thumb {
+  width: 44px;
+  height: 33px;
+  font-size: var(--console-text-body);
+}
+
+.yc-ready-t {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.yc-ready-n {
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yc-ready-f {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-md) 20px;
+  font-size: var(--console-text-label);
+}
+
+.yc-feed {
+  margin: 0;
+  padding: var(--space-xs) 0;
+  list-style: none;
+}
+
+.yc-feed li {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-feed li:last-child {
+  border-bottom: 0;
+}
+
+.yc-fi {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-fi-i {
+  width: 16px;
+  height: 16px;
+}
+
+.yc-ft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.yc-ft p {
+  margin: 0;
+  font-size: var(--console-text-label);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.yc-ft b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-ft > span {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+/* --------------------------------------------------------------------------
+ * Settings (Settings artboard): the section list beside the cards.
+ * -------------------------------------------------------------------------- */
+.yc .yc-settings {
+  max-width: none;
+}
+
+.yc-cols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-xl);
+}
+
+.yc-subnav {
+  display: flex;
+  flex: 0 0 240px;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+}
+
+.yc-subnav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--console-size-button-tall);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--console-radius-control);
+  background: none;
+  color: var(--console-ink);
+  font: inherit;
+  font-weight: var(--font-weight-medium);
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yc-subnav button:hover {
+  background: var(--console-hover);
+}
+
+.yc-subnav button.is-on {
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-subnav .yc-i {
+  color: var(--console-muted);
+}
+
+.yc-subnav button.is-on .yc-i {
+  color: var(--console-brand);
+}
+
+.yc-scontent {
+  display: flex;
+  flex: 999 1 520px;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.yc-sform {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-width: 560px;
+  padding: 20px;
+}
+
+.yc-sform-note {
+  margin: 20px;
+}
+
+.yc-sform-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.yc-small {
+  font-size: var(--console-text-label);
+}
+
+.yc .yc-ctl[readonly] {
+  background: var(--console-readonly-field);
+  color: var(--console-muted);
+}
+
+.yc-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--console-green);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-saved .yc-i {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 1100px) {
+  .yc-hkpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .yc-subnav {
+    flex: 1 1 100%;
+    flex-flow: row wrap;
+  }
+}
+
+@media (max-width: 560px) {
+  .yc-hkpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-chart {
+    padding: var(--space-lg) var(--space-md) var(--space-md);
+  }
+
+  .yc-yaxis {
+    width: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yc *,
+  .yc *::before,
+  .yc *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

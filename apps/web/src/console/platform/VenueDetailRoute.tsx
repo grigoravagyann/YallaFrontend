@@ -1,628 +1,410 @@
 import {
   ApiError,
-  BranchNotReadyError,
-  VenueDeletionBlockedError,
-  canIssueSignIn,
-  isAdminRole,
-  type StaffMember,
-  type SubscriptionTier,
+  NotFoundError,
+  describeFailure,
+  venueTierSummary,
+  type ConsoleBranch,
+  type ConsoleVenueDetail,
 } from '@yalla/api';
-import { useCreateStaff, useIssueStaffSignIn, useStaff } from '@yalla/api/react';
+import { useRestoreVenue, useStaff } from '@yalla/api/react';
 import { formatDate } from '@yalla/format';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { Fragment, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { useCurrentUser } from '../../auth/useCurrentUser';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useConsoleVenue, useResumeVenue, useUpdateVenue } from '../../data/queries';
 import { newCommandId } from '../../lib/commandId';
-import { PinDialog } from '../venue/staff/PinDialog';
-import { SignInLinkDialog } from '../venue/staff/SignInLinkDialog';
-import { SignInPrompt } from '../venue/staff/SignInPrompt';
-import { StaffForm } from '../venue/staff/StaffForm';
-import { issueFailureText } from '../venue/staff/signInIssue';
-import { asStaffRefusal, type StaffRefusal } from '../venue/staff/staffRefusal';
-import type { ShownCredentials, SignInPromptState } from '../venue/staff/StaffScreen';
-import { AddBranchForm } from './AddBranchForm';
-import { EditVenueForm } from './EditVenueForm';
-import {
-  useConsoleVenue,
-  useDeleteVenue,
-  useResumeVenue,
-  useSetBranchTier,
-  useSuspendVenue,
-} from '../../data/queries';
+import { ErrorState, errorKindFor } from '../ui/ErrorState';
+import { PauseIcon, RestoreIcon, TrashIcon } from '../ui/icons';
+import { Tabs, panelId, tabId } from '../ui/Tabs';
+import { useToast } from '../ui/toast';
+import { AddBranchDialog } from './venue/AddBranchDialog';
+import { BookingsPanel } from './venue/BookingsPanel';
+import { EditVenueDialog } from './venue/EditVenueDialog';
+import { OverviewPanel } from './venue/OverviewPanel';
+import { StaffPanel } from './venue/StaffPanel';
+import { SuspendVenueDialog } from './venue/SuspendVenueDialog';
+import { useVenueTypeLabel } from './venue/venueFields';
+import { DeleteVenueDialog } from './venues/DeleteVenueDialog';
+import { TierDialog } from './venues/TierDialog';
+import { VenueThumb } from './venues/VenueThumb';
 
-/** Yerevan, because that is where every venue in the pilot is. */
+/** Every venue in the pilot is in Yerevan. */
 const CONSOLE_TIME_ZONE = 'Asia/Yerevan';
 
+type Tab = 'overview' | 'staff' | 'bookings';
+const TABS: readonly Tab[] = ['overview', 'staff', 'bookings'];
+const TAB_PREFIX = 'venue';
+
+type Shown =
+  | { readonly kind: 'edit' }
+  | { readonly kind: 'suspend' }
+  | { readonly kind: 'delete' }
+  | { readonly kind: 'branch' }
+  | { readonly kind: 'tier'; readonly branch: ConsoleBranch };
+
+/** Focus what a selector names once the render that brings it back has happened. */
+function focusSoon(selector: string) {
+  setTimeout(() => document.querySelector<HTMLElement>(selector)?.focus(), 0);
+}
+
 /**
- * One venue: its branches, its staff, its tier, and the two destructive
- * actions.
+ * One venue, for the platform admin (VenueDetail artboard; HANDOFF section 8
+ * step 3).
  *
- * The `venueId` in the URL is not a scope claim. A platform admin's token
- * covers every venue, which is why this route only exists in their router; the
- * server checks anyway and a 403 renders the plain refusal page.
+ * - **Header**: the venue's picture, name, state, plan, type and web address,
+ *   with Edit, Suspend and Delete. A suspended venue carries a banner with
+ *   Resume; a deleted one a banner with Restore and nothing else to change.
+ * - **Tabs** on a roving tabindex, the selected one in the address
+ *   (`?tab=staff`) so a link can open it: Overview (numbers, the branches with
+ *   each one's own plan, readiness, details), Staff (the wizard and sign-ins,
+ *   shown once), Bookings (totals only).
+ * - **Suspend and delete undo** from their toast; a delete goes back to the
+ *   list, where the undo still stands.
  *
- * **This is the venue bootstrap path.** A new venue has nobody in it, so there
- * is no owner yet to add a co-owner, and the only actor strictly above an
- * owner is the platform admin — so the first owner is made here, and here is
- * the only place an owner's sign-in can be issued or repaired. A hire from this card that did
- * not also issue a sign-in produced an owner nobody could ever sign in as.
+ * The `venueId` in the URL is not a scope claim: a platform admin's token
+ * covers every venue, which is why this route exists only in their router; the
+ * server checks anyway.
  */
 export function VenueDetailRoute() {
   const { t } = useTranslation(['admin', 'common']);
   const { locale } = useLocale();
   const { venueId } = useParams<{ venueId: string }>();
-  const { user } = useCurrentUser();
-
-  const { data: venue, isLoading } = useConsoleVenue(venueId);
-  /*
-   * Staff come from a venue-scoped endpoint this screen used not to call, so
-   * the card rendered "not available from the backend yet" over a backend that
-   * has served `/api/venues/{id}/staff` all along. A platform admin has no
-   * venue of their own, so this page is the only place they can give a new
-   * venue its first owner.
-   */
+  const navigate = useNavigate();
+  const toast = useToast();
+  const typeLabel = useVenueTypeLabel();
+  const [params, setParams] = useSearchParams();
+  const query = useConsoleVenue(venueId);
   const staff = useStaff(venueId);
-  const createStaff = useCreateStaff(venueId ?? '');
-  const issueSignIn = useIssueStaffSignIn(venueId ?? '');
-  const suspend = useSuspendVenue();
   const resume = useResumeVenue();
-  const remove = useDeleteVenue();
-  const setTier = useSetBranchTier();
-
-  const [confirming, setConfirming] = useState<'suspend' | 'delete' | null>(null);
-  /**
-   * The tier refusal, on the row it belongs to. Both of the server's answers
-   * are actionable in the next minute — "3 dishes still need a photo", "table 7
-   * has an open tab" — so they are shown where the button was, not in a
-   * venue-wide banner.
-   */
-  const [tierFailure, setTierFailure] = useState<{ branchId: string; text: string } | null>(null);
-  const [typed, setTyped] = useState('');
+  const restore = useRestoreVenue();
+  const update = useUpdateVenue();
+  const [shown, setShown] = useState<Shown | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  const [blocked, setBlocked] = useState<{
-    readonly openTables: readonly string[];
-    readonly futureBookings: readonly string[];
-  } | null>(null);
-  const [hiring, setHiring] = useState(false);
-  /** One panel at a time per card: the venue's fields, or a new branch. */
-  const [editingVenue, setEditingVenue] = useState(false);
-  const [addingBranch, setAddingBranch] = useState(false);
-  const [refusal, setRefusal] = useState<StaffRefusal | null>(null);
-  /** The one moment a PIN or a link is on screen; same rule as the venue's staff screen. */
-  const [shown, setShown] = useState<ShownCredentials | null>(null);
-  const [prompt, setPrompt] = useState<SignInPromptState | null>(null);
+  /**
+   * The venue's state now, for an Undo pressed later: an Undo of a
+   * suspension that the banner's Resume already lifted must not resume twice.
+   */
+  const latestStatus = useRef(query.data?.status);
+  useEffect(() => {
+    latestStatus.current = query.data?.status;
+  });
 
-  const failureText = (error: unknown) =>
-    issueFailureText(error, {
-      offline: t('state.offline'),
-      generic: t('state.error'),
-      badEmail: t('staff.signIn.emailRequired'),
-      tooManyRequests: t('staff.signIn.tooManyRequests'),
-    });
+  const tabParam = params.get('tab');
+  const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'overview';
+  const selectTab = (next: Tab) =>
+    setParams(
+      (current) => {
+        const copy = new URLSearchParams(current);
+        if (next === 'overview') copy.delete('tab');
+        else copy.set('tab', next);
+        return copy;
+      },
+      { replace: true },
+    );
 
-  async function sendSignIn(member: StaffMember, email: string) {
+  if (query.isLoading) {
+    return (
+      <p className="yc-empty-line" role="status">
+        {t('loading')}
+      </p>
+    );
+  }
+  const venue = query.data;
+  if (!venue) {
+    const error = query.error;
+    // The mock answers null and the server 404s: either way, not here.
+    const kind =
+      !error || error instanceof NotFoundError ? 'notFound' : errorKindFor(describeFailure(error));
+    return (
+      <ErrorState
+        kind={kind}
+        reference={error instanceof ApiError ? error.requestId : null}
+        onRetry={() => query.refetch()}
+      />
+    );
+  }
+
+  const deleted = venue.status === 'deleted';
+  const suspended = venue.status === 'suspended';
+  const summary = venueTierSummary(venue);
+  const activeStaff = (staff.data ?? []).filter((member) => member.isActive).length;
+
+  async function run(action: () => Promise<unknown>): Promise<boolean> {
+    setFailure(null);
     try {
-      const link = await issueSignIn.mutateAsync({ staffMemberId: member.id, email });
-      setPrompt(null);
-      setShown({
-        kind: 'signIn',
-        name: member.fullName,
-        pin: null,
-        link,
-        failure: null,
-        retry: null,
-      });
-    } catch (error) {
-      setPrompt((current) => (current ? { ...current, failure: failureText(error) } : null));
-    } finally {
-      // The hook keeps the result as its own `data` — a second copy of the
-      // link. The dialog's state is the only one wanted.
-      issueSignIn.reset();
+      await action();
+      return true;
+    } catch {
+      setFailure(t('venue.failed'));
+      return false;
     }
   }
 
-  // From the dialog to the row: the address is corrected there, and the
-  // reason it was refused goes with it, since the dialog's alert unmounts
-  // with the dialog.
-  const retryFrom = (
-    retry: { staffMemberId: string; email: string } | null,
-    failure: string | null,
-  ) =>
-    retry
-      ? () => {
-          setShown(null);
-          setPrompt({ staffMemberId: retry.staffMemberId, email: retry.email, failure });
-        }
-      : null;
+  /** The toast's Undo of a suspension: only while the venue is still suspended. */
+  async function undoSuspend(current: ConsoleVenueDetail) {
+    if (latestStatus.current !== 'suspended') return;
+    await resumeVenue(current);
+  }
 
-  if (isLoading) return <p className="muted">{t('loading')}</p>;
-  if (!venue) return <p className="error">{t('venue.notFound')}</p>;
-
-  // A platform admin belongs to no venue, so no row is ever theirs; the guard
-  // is still the shared one so the rank rule cannot drift from the server's.
-  const actor = { id: user?.id ?? 'platform', role: 'platformAdmin' as const };
-
-  const close = () => {
-    setConfirming(null);
-    setTyped('');
-    setFailure(null);
-    setBlocked(null);
-  };
-
-  const run = async (action: () => Promise<unknown>) => {
-    setFailure(null);
-    setBlocked(null);
-    try {
-      await action();
-      close();
-    } catch (error) {
-      // The whole point of the typed error: "cannot delete" is useless, and
-      // "table 7 at Northern Avenue still has an open tab" is actionable in the
-      // next thirty seconds.
-      if (error instanceof VenueDeletionBlockedError) {
-        setBlocked({ openTables: error.openTables, futureBookings: error.futureBookings });
-        return;
-      }
-      setFailure(t('venue.failed'));
+  async function resumeVenue(current: ConsoleVenueDetail) {
+    if (await run(() => resume.mutateAsync({ venueId: current.id, commandId: newCommandId() }))) {
+      focusSoon('[data-suspend]');
+      toast.say(t('venuePage.toast.activeAgain', { name: current.name }));
     }
-  };
+  }
 
-  const busy = suspend.isPending || resume.isPending || remove.isPending;
-
-  /**
-   * Tabs and ordering are what a branch pays for. The gateway, the mock and
-   * the contract could always change this; the page only displayed it, so the
-   * one way to switch a venue on was a hand call to the API.
-   */
-  const switchTier = async (branchId: string, tier: SubscriptionTier) => {
-    setTierFailure(null);
-    try {
-      await setTier.mutateAsync({ branchId, tier, commandId: newCommandId() });
-    } catch (error) {
-      if (error instanceof BranchNotReadyError) {
-        setTierFailure({
-          branchId,
-          text: t('venue.tier.notReady', { count: error.incompleteMenuItemCount }),
-        });
-        return;
-      }
-      // The open-tabs refusal is a plain 409 whose sentence names the tables;
-      // the server's words beat any paraphrase here.
-      if (error instanceof ApiError && error.status === 409) {
-        setTierFailure({ branchId, text: error.message });
-        return;
-      }
-      setTierFailure({ branchId, text: t('venue.failed') });
+  async function restoreVenue(current: ConsoleVenueDetail) {
+    if (await run(() => restore.mutateAsync({ venueId: current.id, commandId: newCommandId() }))) {
+      toast.say(t('venues.toast.restored', { name: current.name }));
     }
-  };
-  // A typed confirmation, because the two destructive actions here are the ones
-  // a tired person clicks past. Case-insensitive: the point is deliberation,
-  // not transcription.
-  const nameMatches = typed.trim().toLocaleLowerCase() === venue.name.toLocaleLowerCase();
+  }
 
   return (
-    <section className="page">
-      <p className="crumbs">
-        <Link to="/platform/venues">{t('venues.title')}</Link>
-      </p>
+    <>
+      <nav aria-label={t('venuePage.crumbs')}>
+        <ol className="yc-crumbs">
+          <li>
+            <Link to="/platform/venues">{t('venues.title')}</Link>
+          </li>
+          <li aria-current="page">{venue.name}</li>
+        </ol>
+      </nav>
 
-      <header className="page-head">
-        <div>
-          <h1>{venue.name}</h1>
-          <p className="muted">
-            {t('venue.slug')}: {venue.slug}
-            {/* The platform view carries no creation date; omit the clause
-                rather than render "Created Invalid Date". */}
-            {venue.createdAtUtc
-              ? ` · ${t('venue.created', {
-                  date: formatDate(venue.createdAtUtc, CONSOLE_TIME_ZONE, locale),
-                })}`
-              : ''}
-          </p>
-          {venue.suspendedAtUtc ? (
-            <p className="warn">
-              {t('venue.suspendedOn', {
-                date: formatDate(venue.suspendedAtUtc, CONSOLE_TIME_ZONE, locale),
-              })}
-            </p>
-          ) : null}
-        </div>
-        <div className="actions">
-          <span className={`pill pill-${venue.status}`}>{t(`status.${venue.status}`)}</span>
-          {editingVenue || venue.status === 'deleted' ? null : (
-            <button
-              type="button"
-              className="button button-small"
-              onClick={() => setEditingVenue(true)}
-            >
-              {t('venue.edit.open')}
-            </button>
-          )}
-        </div>
-      </header>
-
-      {editingVenue ? <EditVenueForm venue={venue} onDone={() => setEditingVenue(false)} /> : null}
-
-      <div className="card">
-        <header className="card-header">
-          <h2>{t('venue.branches')}</h2>
-          {addingBranch || venue.status === 'deleted' ? null : (
-            <button type="button" className="button" onClick={() => setAddingBranch(true)}>
-              {t('venue.addBranch.open')}
-            </button>
-          )}
-        </header>
-        {addingBranch ? (
-          <AddBranchForm venue={venue} onDone={() => setAddingBranch(false)} />
-        ) : null}
-        {venue.branches.length === 0 ? (
-          <p className="muted">{t('venue.noBranches')}</p>
-        ) : (
-          <ul className="rows">
-            {venue.branches.map((branch) => (
-              <li key={branch.id} className="row">
-                <div>
-                  <div className="row-title">{branch.name}</div>
-                  <div className="muted small">
-                    {t('venue.branchTables', { count: branch.tableCount })}
-                    {/* `null` means nobody asked; only a real count is shown,
-                        because "no open tabs" is a claim about the floor. */}
-                    {branch.openTabCount !== null && branch.openTabCount > 0
-                      ? ` · ${t('venue.openTabs', { count: branch.openTabCount })}`
-                      : ''}
-                  </div>
-                </div>
-                <div className="actions">
-                  {/* A platform admin holds no branch claim, so these pages take
-                      the branch from here rather than from a venue section. */}
-                  <Link
-                    className="button button-small button-ghost"
-                    to={`/platform/venues/${venue.id}/branches/${branch.id}/public`}
-                  >
-                    {t('platform.venue.publicPageLink')}
-                  </Link>
-                  <Link
-                    className="button button-small button-ghost"
-                    to={`/platform/venues/${venue.id}/branches/${branch.id}/floorplan`}
-                  >
-                    {t('nav.floorplan')}
-                  </Link>
-                  <Link
-                    className="button button-small button-ghost"
-                    to={`/platform/venues/${venue.id}/branches/${branch.id}/reviews`}
-                  >
-                    {t('platform.venue.reviewsLink')}
-                  </Link>
-                  {tierFailure?.branchId === branch.id ? (
-                    <span className="error small">{tierFailure.text}</span>
-                  ) : null}
-                  <span className={`pill pill-${branch.subscriptionTier}`}>
-                    {t(`tier.${branch.subscriptionTier}`)}
-                  </span>
-                  <button
-                    type="button"
-                    className="button button-small button-ghost"
-                    disabled={setTier.isPending || venue.status === 'deleted'}
-                    onClick={() =>
-                      void switchTier(
-                        branch.id,
-                        branch.subscriptionTier === 'paid' ? 'free' : 'paid',
-                      )
-                    }
-                  >
-                    {branch.subscriptionTier === 'paid'
-                      ? t('venue.tier.toFree')
-                      : t('venue.tier.toPaid')}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="card">
-        <header className="card-header">
-          <h2>{t('venue.staff')}</h2>
-          <button type="button" className="button" onClick={() => setHiring(true)}>
-            {t('staff.add')}
-          </button>
-        </header>
-
-        {hiring ? (
-          <StaffForm
-            actorRole="platformAdmin"
-            // A platform admin belongs to no branch, so they may place the new
-            // person anywhere in the venue — including across all of it.
-            fixedBranchId={null}
-            branches={venue.branches}
-            editing={null}
-            refusal={refusal}
-            // The issue call counts too: the form stays in "Saving…" until
-            // the dialog is ready, as on the venue staff screen.
-            isSaving={createStaff.isPending || issueSignIn.isPending}
-            onCancel={() => {
-              setHiring(false);
-              setRefusal(null);
-            }}
-            onCreate={async (input, signIn) => {
-              setRefusal(null);
-              try {
-                // No email on the create call: the server refuses one without
-                // a password, and the address goes on the issue call after the
-                // owner exists.
-                const created = await createStaff.mutateAsync(input);
-                // The single moment the PIN is on a screen, same as the venue
-                // staff screen: it came from the form and goes no further.
-                if (!signIn) {
-                  setShown({ kind: 'pin', name: created.fullName, pin: input.pin });
-                  setHiring(false);
-                  return;
-                }
-                // Always the dialog: the owner exists now, and their PIN has to
-                // be shown whether or not the link followed. The form closes
-                // only once the dialog is set, in the same render.
-                try {
-                  const link = await issueSignIn.mutateAsync({
-                    staffMemberId: created.id,
-                    email: signIn.email,
-                  });
-                  setShown({
-                    kind: 'signIn',
-                    name: created.fullName,
-                    pin: input.pin,
-                    link,
-                    failure: null,
-                    retry: null,
-                  });
-                } catch (error) {
-                  setShown({
-                    kind: 'signIn',
-                    name: created.fullName,
-                    pin: input.pin,
-                    link: null,
-                    failure: failureText(error),
-                    retry: { staffMemberId: created.id, email: signIn.email },
-                  });
-                } finally {
-                  issueSignIn.reset();
-                  setHiring(false);
-                }
-              } catch (error) {
-                const refused = asStaffRefusal(error);
-                if (refused) setRefusal(refused);
-                else throw error;
-              }
-            }}
-            onUpdate={async () => {
-              // Editing happens on the venue's own staff screen; this card only
-              // hires, because the first owner is the thing a platform admin
-              // cannot do anywhere else.
-            }}
-          />
-        ) : null}
-
-        {/* Dropped from state entirely on close, same as the venue staff
-            screen. There is nowhere else either credential lives. */}
-        {shown?.kind === 'pin' ? (
-          <PinDialog name={shown.name} pin={shown.pin} onClose={() => setShown(null)} />
-        ) : shown ? (
-          <SignInLinkDialog
-            name={shown.name}
-            pin={shown.pin}
-            link={shown.link}
-            failure={shown.failure}
-            timeZoneId={CONSOLE_TIME_ZONE}
-            locale={locale}
-            onRetry={retryFrom(shown.retry, shown.failure)}
-            onClose={() => setShown(null)}
-          />
-        ) : null}
-
-        {staff.isLoading ? (
-          <p className="muted">{t('loading')}</p>
-        ) : staff.isError ? (
-          <p className="error">{t('venue.staffFailed')}</p>
-        ) : (staff.data?.length ?? 0) === 0 ? (
-          <p className="muted">{t('venue.noStaff')}</p>
-        ) : (
-          <ul className="rows">
-            {staff.data?.map((member) => {
-              const signsIn = isAdminRole(member.role);
-              // The same gate as the venue staff screen: strictly below the
-              // actor, an admin-panel role, and active — the server refuses
-              // the rest and a refused action is not offered.
-              const canIssue = canIssueSignIn(actor, member);
-              return (
-                <Fragment key={member.id}>
-                  <li className={member.isActive ? 'row' : 'row is-inactive'}>
-                    <div>
-                      <div className="row-title">{member.fullName}</div>
-                      {signsIn && member.email ? (
-                        <div className="muted small">{member.email}</div>
-                      ) : null}
-                    </div>
-                    <div className="actions">
-                      {member.isActive ? null : (
-                        <span className="badge">{t('staff.status.inactive')}</span>
-                      )}
-                      {/* Not on a deactivated row, as on the venue staff screen:
-                          no action is offered there, and the badge returns
-                          with the action on reactivation. */}
-                      {member.isActive && signsIn && !member.email ? (
-                        <span className="badge badge-warn">{t('staff.status.noSignIn')}</span>
-                      ) : null}
-                      {member.isActive && signsIn && member.email && !member.hasPasswordSignIn ? (
-                        <span className="badge">{t('staff.status.awaitingPassword')}</span>
-                      ) : null}
-                      <span className="muted small">{t(`role.${member.role}`)}</span>
-                      {canIssue ? (
-                        <button
-                          type="button"
-                          className="button button-small button-ghost"
-                          onClick={() =>
-                            setPrompt({
-                              staffMemberId: member.id,
-                              email: member.email ?? '',
-                              failure: null,
-                            })
-                          }
-                        >
-                          {member.email
-                            ? t('staff.action.sendNewLink')
-                            : t('staff.action.issueSignIn')}
-                        </button>
-                      ) : null}
-                    </div>
-                  </li>
-                  {prompt?.staffMemberId === member.id ? (
-                    <li className="row sign-in-prompt-row">
-                      <SignInPrompt
-                        key={prompt.email}
-                        member={member}
-                        initialEmail={prompt.email}
-                        failure={prompt.failure}
-                        isPending={issueSignIn.isPending}
-                        onSend={(email) => void sendSignIn(member, email)}
-                        onCancel={() => setPrompt(null)}
-                      />
-                    </li>
-                  ) : null}
-                </Fragment>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="actions">
-          {venue.status === 'suspended' ? (
-            <button
-              type="button"
-              className="button"
-              disabled={busy}
-              onClick={() =>
-                void run(() => resume.mutateAsync({ venueId: venue.id, commandId: newCommandId() }))
-              }
-            >
-              {t('venue.resume')}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="button"
-              disabled={busy || venue.status === 'deleted'}
-              onClick={() => setConfirming('suspend')}
-            >
-              {t('venue.suspend')}
-            </button>
-          )}
-
+      {suspended ? (
+        <div className="yc-banner yc-banner-grey" role="status">
+          <PauseIcon />
+          <span className="yc-grow">
+            <b>
+              {venue.suspendedAtUtc
+                ? t('venuePage.banner.suspendedSince', {
+                    date: formatDate(venue.suspendedAtUtc, CONSOLE_TIME_ZONE, locale),
+                  })
+                : t('venuePage.banner.suspended')}
+            </b>{' '}
+            {t('venuePage.banner.suspendedBody')}
+          </span>
           <button
             type="button"
-            className="button button-danger"
-            disabled={busy || venue.status === 'deleted'}
-            onClick={() => setConfirming('delete')}
+            className="yc-btn yc-btn-pri yc-btn-sm"
+            data-resume=""
+            aria-busy={resume.isPending}
+            onClick={() => void resumeVenue(venue)}
           >
-            {t('venue.delete')}
+            {t('venuePage.banner.resume')}
           </button>
         </div>
+      ) : null}
+      {deleted ? (
+        <div className="yc-banner yc-banner-grey" role="status">
+          <TrashIcon />
+          <span className="yc-grow">
+            <b>{t('venuePage.banner.deleted')}</b> {t('venuePage.banner.deletedBody')}
+          </span>
+          <button
+            type="button"
+            className="yc-btn yc-btn-pri yc-btn-sm"
+            aria-busy={restore.isPending}
+            onClick={() => void restoreVenue(venue)}
+          >
+            <RestoreIcon />
+            {t('venuePage.banner.restore')}
+          </button>
+        </div>
+      ) : null}
 
-        {failure ? <p className="error">{failure}</p> : null}
-
-        {blocked ? (
-          <section className="blocked" aria-labelledby="venue-blocked-title">
-            <h3 id="venue-blocked-title">{t('venue.blocked.title')}</h3>
-            {blocked.openTables.length === 0 && blocked.futureBookings.length === 0 ? (
-              <p>{t('venue.blocked.unknown')}</p>
-            ) : (
-              <>
-                <p>{t('venue.blocked.body')}</p>
-                {blocked.openTables.length > 0 ? (
-                  <>
-                    <h4>{t('venue.blocked.tablesTitle')}</h4>
-                    <ul>
-                      {blocked.openTables.map((table) => (
-                        <li key={`table-${table}`}>{t('venue.blocked.table', { table })}</li>
-                      ))}
-                    </ul>
-                  </>
-                ) : null}
-                {blocked.futureBookings.length > 0 ? (
-                  <>
-                    <h4>{t('venue.blocked.bookingsTitle')}</h4>
-                    <ul>
-                      {blocked.futureBookings.map((code) => (
-                        <li key={`booking-${code}`}>{t('venue.blocked.booking', { code })}</li>
-                      ))}
-                    </ul>
-                  </>
-                ) : null}
-              </>
-            )}
-            <p className="muted">{t('venue.blocked.suspendHint')}</p>
-          </section>
-        ) : null}
-
-        {confirming === 'suspend' ? (
-          <div className="confirm">
-            <h3>{t('venue.suspendTitle', { name: venue.name })}</h3>
-            <p className="muted">{t('venue.suspendBody')}</p>
-            <div className="actions">
+      <div className="yc-head">
+        <VenueThumb venue={venue} large />
+        <div className="yc-head-t">
+          <h1 className="yc-h1">{venue.name}</h1>
+          <div className="yc-head-m">
+            <span
+              className={
+                venue.status === 'active'
+                  ? 'yc-pill yc-pill-green'
+                  : deleted
+                    ? 'yc-pill yc-pill-red'
+                    : 'yc-pill yc-pill-grey'
+              }
+            >
+              <span className="yc-dot" aria-hidden="true" />
+              {t(`status.${venue.status}`)}
+            </span>
+            {summary.kind !== 'none' ? (
+              <span className="yc-pill yc-pill-brand">
+                {summary.kind === 'mixed'
+                  ? t('venues.tierSummary.mixed', { paid: summary.paid, total: summary.total })
+                  : summary.kind === 'paid'
+                    ? t('tier.paid')
+                    : t('tier.free')}
+              </span>
+            ) : null}
+            <span>{[typeLabel(venue.type), venue.cuisine].filter(Boolean).join(' · ')}</span>
+            <span aria-hidden="true">·</span>
+            <span>yalla.am/{venue.slug}</span>
+          </div>
+        </div>
+        {deleted ? null : (
+          <div className="yc-head-a">
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec"
+              data-edit=""
+              onClick={() => setShown({ kind: 'edit' })}
+            >
+              {t('venuePage.edit')}
+            </button>
+            {venue.status === 'active' ? (
               <button
                 type="button"
-                className="button button-primary"
-                disabled={busy}
-                onClick={() =>
-                  void run(() =>
-                    suspend.mutateAsync({ venueId: venue.id, commandId: newCommandId() }),
-                  )
-                }
+                className="yc-btn yc-btn-sec"
+                data-suspend=""
+                onClick={() => setShown({ kind: 'suspend' })}
               >
-                {busy ? t('venue.working') : t('venue.suspendConfirm')}
+                {t('venuePage.suspend')}
               </button>
-              <button type="button" className="button" disabled={busy} onClick={close}>
-                {t('venue.cancel')}
-              </button>
-            </div>
+            ) : null}
+            <button
+              type="button"
+              className="yc-btn yc-btn-dl"
+              data-delete=""
+              onClick={() => setShown({ kind: 'delete' })}
+            >
+              {t('venuePage.delete')}
+            </button>
           </div>
-        ) : null}
-
-        {confirming === 'delete' ? (
-          <div className="confirm confirm-danger">
-            <h3>{t('venue.deleteTitle', { name: venue.name })}</h3>
-            <p className="muted">{t('venue.deleteBody')}</p>
-            <label className="labelled">
-              <span>{t('venue.deleteTypeName', { name: venue.name })}</span>
-              <input
-                className="field"
-                value={typed}
-                onChange={(event) => setTyped(event.target.value)}
-                autoComplete="off"
-              />
-            </label>
-            <div className="actions">
-              <button
-                type="button"
-                className="button button-danger"
-                disabled={busy || !nameMatches}
-                onClick={() =>
-                  void run(() =>
-                    remove.mutateAsync({ venueId: venue.id, commandId: newCommandId() }),
-                  )
-                }
-              >
-                {busy ? t('venue.working') : t('venue.deleteConfirm')}
-              </button>
-              <button type="button" className="button" disabled={busy} onClick={close}>
-                {t('venue.cancel')}
-              </button>
-            </div>
-          </div>
-        ) : null}
+        )}
       </div>
-    </section>
+
+      {failure ? (
+        <p className="yc-alert" role="alert">
+          {failure}
+        </p>
+      ) : null}
+
+      <Tabs
+        label={t('venuePage.tabs.label')}
+        idPrefix={TAB_PREFIX}
+        selected={tab}
+        onSelect={selectTab}
+        tabs={[
+          { id: 'overview', label: t('venuePage.tabs.overview') },
+          {
+            id: 'staff',
+            label: t('venuePage.tabs.staff'),
+            ...(staff.data ? { badge: activeStaff } : {}),
+          },
+          { id: 'bookings', label: t('venuePage.tabs.bookings') },
+        ]}
+      />
+
+      <div
+        className="yc-panel"
+        role="tabpanel"
+        id={panelId(TAB_PREFIX, tab)}
+        aria-labelledby={tabId(TAB_PREFIX, tab)}
+      >
+        {tab === 'overview' ? (
+          <OverviewPanel
+            venue={venue}
+            onBranchPlan={deleted ? null : (branch) => setShown({ kind: 'tier', branch })}
+            onAddBranch={deleted ? null : () => setShown({ kind: 'branch' })}
+          />
+        ) : tab === 'staff' ? (
+          <StaffPanel venue={venue} canChange={!deleted} />
+        ) : (
+          <BookingsPanel venueId={venue.id} />
+        )}
+      </div>
+
+      {shown?.kind === 'edit' ? (
+        <EditVenueDialog
+          venue={venue}
+          onClose={() => setShown(null)}
+          onSaved={(previous) => {
+            setShown(null);
+            toast.say(t('venuePage.toast.saved'), {
+              undo: () =>
+                void run(() =>
+                  update.mutateAsync({ venueId: venue.id, commandId: newCommandId(), ...previous }),
+                ).then((done) => {
+                  if (done) toast.say(t('venuePage.toast.undone'));
+                }),
+            });
+          }}
+        />
+      ) : null}
+
+      {shown?.kind === 'suspend' ? (
+        <SuspendVenueDialog
+          venue={venue}
+          onClose={() => setShown(null)}
+          onSuspended={() => {
+            setShown(null);
+            focusSoon('[data-resume]');
+            toast.say(t('venuePage.toast.suspended', { name: venue.name }), {
+              undo: () => void undoSuspend(venue),
+            });
+          }}
+        />
+      ) : null}
+
+      {shown?.kind === 'delete' ? (
+        <DeleteVenueDialog
+          venue={venue}
+          onClose={() => setShown(null)}
+          returnFocusTo={() => document.querySelector<HTMLElement>('[data-delete]')}
+          onDeleted={(gone) => {
+            setShown(null);
+            // Back to the list: the venue is hidden there now, and the undo
+            // brings it back where the person is.
+            navigate('/platform/venues');
+            toast.say(t('venues.toast.deleted', { name: gone.name }), {
+              undo: () =>
+                void restore.mutateAsync({ venueId: gone.id, commandId: newCommandId() }).then(
+                  () => toast.say(t('venues.toast.undeleted', { name: gone.name })),
+                  // A failure is said as one: an alert, not a confirmation.
+                  () => toast.say(t('venue.failed'), { tone: 'error' }),
+                ),
+              focusUndo: true,
+              // The page that had the Delete button is gone: the list's search.
+              fallbackFocus: () => document.getElementById('venues-q'),
+            });
+          }}
+          onSuspendedInstead={(current) => {
+            setShown(null);
+            focusSoon('[data-resume]');
+            toast.say(t('venues.toast.suspendedInstead', { name: current.name }), {
+              undo: () => void undoSuspend(venue),
+            });
+          }}
+        />
+      ) : null}
+
+      {shown?.kind === 'branch' ? (
+        <AddBranchDialog
+          venue={venue}
+          onClose={() => setShown(null)}
+          onAdded={(name) => {
+            setShown(null);
+            toast.say(t('venuePage.toast.branchAdded', { name }));
+          }}
+        />
+      ) : null}
+
+      {shown?.kind === 'tier' ? (
+        <TierDialog
+          venue={venue}
+          branch={shown.branch}
+          onClose={() => setShown(null)}
+          onDone={(message) => {
+            setShown(null);
+            toast.say(message);
+          }}
+          returnFocusTo={() =>
+            document.querySelector<HTMLElement>(`[data-branch-tier="${shown.branch.id}"]`)
+          }
+        />
+      ) : null}
+    </>
   );
 }

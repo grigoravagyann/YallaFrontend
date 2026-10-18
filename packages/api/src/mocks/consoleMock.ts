@@ -10,6 +10,8 @@ import type {
   ConsoleStaffMember,
   ConsoleUser,
   ConsoleVenue,
+  BookingStatusCounts,
+  BranchBookingsSummary,
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
@@ -18,6 +20,9 @@ import type {
   Page,
   SubscriptionTier,
   UserRole,
+  VenueBranchTier,
+  VenueReadinessIssue,
+  VenueBookingsSummary,
   VenueStatus,
   VenueType,
 } from '../contracts/console';
@@ -59,6 +64,7 @@ import {
   type ModeratedReview,
   type SetReviewVisibilityCommand,
   type VenueModeratedReview,
+  type VenueReviewQuery,
 } from '../contracts/reviews';
 import { createMockReviewStore, type MockReviewStore, type StoredReview } from './reviewStore';
 import { invalidRequest, validationFailed, type MockViolation } from './problems';
@@ -71,6 +77,16 @@ import {
   type VenueListing,
 } from '../contracts/listing';
 import type { StaffRole } from '../contracts/console';
+import {
+  PLATFORM_NAME_MAX_LENGTH,
+  PLATFORM_PASSWORD_MIN_LENGTH,
+  type NotReadyBranch,
+  type OutboxHealth,
+  type PlatformActivityEntry,
+  type PlatformOverview,
+  type VenueCount,
+  type VenueTierMix,
+} from '../contracts/platformHome';
 import type { PhotoUpload } from '../consoleGateway';
 import type {
   AdminMenuCategory,
@@ -104,6 +120,7 @@ import { createMockReports } from './reports';
 import { mockRegistry, mockTokenHash, type MockRegistry } from './mockRegistry';
 import { fixtureStaffFor } from './staffFixture';
 import { mockVenues } from './venues';
+import { demoCoverThumbnail, demoVenues } from './consoleDemoVenues';
 
 const URL_TAG = 'mock://yalla/console';
 // ---------------------------------------------------------------------------
@@ -229,10 +246,28 @@ interface VenueRecord {
   slug: string;
   type: VenueType;
   status: VenueStatus;
+  /**
+   * Switched off (`isActive` false), apart from a suspension: the server keeps
+   * the two separately, and lifting a suspension leaves a switched-off venue off.
+   */
+  switchedOff?: boolean;
   createdAtUtc: string;
   suspendedAtUtc: string | null;
   branches: ConsoleBranch[];
   staff: ConsoleStaffMember[];
+  /**
+   * What the venues list shows beside the name for a demo venue
+   * (`consoleDemoVenues.ts`): rating, cuisine, district and the cover. Absent
+   * for the shared fixture and for created venues, whose list columns are
+   * read from the mock's own reviews, listing and public profile instead.
+   */
+  demo?: {
+    readonly rating: number | null;
+    readonly reviewCount: number;
+    readonly cuisine: string;
+    readonly district: string;
+    readonly coverThumbnailUrl: string | null;
+  };
 }
 
 export interface ConsoleMockOptions {
@@ -257,6 +292,16 @@ export interface ConsoleMockOptions {
    */
   readonly registry?: MockRegistry | undefined;
 }
+
+/**
+ * The mock platform admin's password, for Settings' "Change password": mock
+ * mode signs nobody in, so this is only what the current-password field is
+ * checked against. Changing it there changes it for the session.
+ */
+export const MOCK_PLATFORM_PASSWORD = 'yalla-mock-admin-0000';
+
+/** Monday first: Friday and Saturday are the busy nights. */
+const WEEKDAY_SHARE = [0.1, 0.11, 0.11, 0.14, 0.2, 0.21, 0.13];
 
 /** Both tiers across the fixture so the list column is not one repeated value. */
 function tierFor(index: number): SubscriptionTier {
@@ -293,6 +338,17 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
   const venues = new Map<string, VenueRecord>();
   let sequence = 0;
+
+  /** `/api/platform/me`: the one platform admin. The email is fixed by configuration. */
+  const admin = {
+    staffMemberId: 'u-platform',
+    fullName: 'Yalla team',
+    email: 'admin@yalla.am',
+    password: MOCK_PLATFORM_PASSWORD,
+  };
+  /** The activity feed, newest first: a short seeded history, then what is done here. */
+  const activity: PlatformActivityEntry[] = [];
+  let activitySeeded = false;
   /** The venues the fixture ships with; only these come with a staff roster. */
   const FIXTURE_VENUE_IDS = new Set(mockVenues.map((venue) => venue.id));
 
@@ -318,34 +374,66 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   let mockSequence = 0;
   const nextId = (prefix: string) => `${prefix}-${(mockSequence += 1)}`;
 
+  /**
+   * The demo branches' menus, by how many dishes are unfinished
+   * (`consoleDemoVenues.ts`). Every other dish there is complete, so the
+   * count the Paid refusal quotes is exactly the seeded one: Mountain View's
+   * four, and none at Sunset Lounge, which may go Paid.
+   */
+  const demoMenuGaps = new Map<string, number>();
+  /** Demo branches with no opening hours yet. */
+  const demoNoHours = new Set<string>();
+  /** Bookings in a typical week, per demo branch; the rest are derived from their tables. */
+  const demoBookingRate = new Map<string, number>();
+  /**
+   * A branch's own web address, where the console was given one. A branch
+   * named in Armenian slugifies to nothing, so the name cannot stand in for it.
+   */
+  const branchSlugs = new Map<string, string>();
+  const slugOf = (branch: ConsoleBranch) => branchSlugs.get(branch.id) ?? slugify(branch.name);
+
   /** A branch's menu, seeded from the shared fixture on first read. */
   function menuFor(branchId: string): MockCategory[] {
     const existing = menus.get(branchId);
     if (existing) return existing;
 
+    const gaps = demoMenuGaps.get(branchId);
+    let dish = 0;
     const seeded: MockCategory[] = mockBranchMenu(branchId, 'cafe').categories.map(
       (category, categoryIndex) => ({
         id: category.id,
         name: category.name,
         displayOrder: categoryIndex,
-        items: category.items.map((item, itemIndex) => ({
-          id: item.id,
-          categoryId: category.id,
-          name: item.name,
-          description: item.description,
-          priceDram: item.priceDram,
-          ingredients: item.ingredients,
-          allergens: item.allergens,
-          portionSize: item.portionSize,
-          spiceLevel: item.spiceLevel,
-          prepMinutes: item.prepMinutes,
-          // Two seeded items have no photo and one has no allergens, so the
-          // completeness filter and its count are reachable on first load —
-          // which is the state every real venue is in on day one.
-          photoId: itemIndex === 0 && categoryIndex === 0 ? null : item.photo.photoId,
-          isAvailable: item.isAvailable,
-          displayOrder: itemIndex,
-        })),
+        items: category.items.map((item, itemIndex) => {
+          const unfinished = gaps === undefined ? null : dish++ < gaps;
+          return {
+            id: item.id,
+            categoryId: category.id,
+            name: item.name,
+            // A demo menu is finished in every detail but the photo, so its
+            // unfinished count is the seeded one and nothing else.
+            description: item.description || (unfinished === null ? '' : item.name),
+            priceDram: item.priceDram,
+            ingredients: item.ingredients || (unfinished === null ? '' : item.name),
+            allergens: item.allergens || (unfinished === null ? '' : 'None'),
+            portionSize: item.portionSize || (unfinished === null ? '' : '1 portion'),
+            spiceLevel: item.spiceLevel,
+            prepMinutes: item.prepMinutes > 0 || unfinished === null ? item.prepMinutes : 10,
+            // Two seeded items have no photo and one has no allergens, so the
+            // completeness filter and its count are reachable on first load —
+            // which is the state every real venue is in on day one.
+            photoId:
+              unfinished === null
+                ? itemIndex === 0 && categoryIndex === 0
+                  ? null
+                  : item.photo.photoId
+                : unfinished
+                  ? null
+                  : item.photo.photoId,
+            isAvailable: item.isAvailable,
+            displayOrder: itemIndex,
+          };
+        }),
       }),
     );
 
@@ -436,8 +524,9 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     const seeded: WeeklyHours = WEEK_ORDER.map((day) => ({
       day,
-      blocks:
-        day === 0
+      blocks: demoNoHours.has(branchId)
+        ? []
+        : day === 0
           ? // Sunday shut, so the "closed" row is on screen from the first load
             // rather than being a state somebody has to construct.
             []
@@ -554,6 +643,15 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     return [...staffByVenue.values()].some((people) =>
       people.some((member) => member.id !== exceptId && member.email === address),
     );
+  }
+
+  /** A branch's name, for a feed line about something at it. */
+  function branchName(branchId: string): string | null {
+    for (const record of venues.values()) {
+      const branch = record.branches.find((candidate) => candidate.id === branchId);
+      if (branch) return branch.name;
+    }
+    return null;
   }
 
   function venueOfBranch(branchId: string): string | null {
@@ -1099,19 +1197,114 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     });
   });
 
-  /** The tier the list column shows: the best one any branch is on. */
-  function headlineTier(record: VenueRecord): SubscriptionTier {
-    const order: readonly SubscriptionTier[] = ['free', 'paid'];
-    return record.branches.reduce<SubscriptionTier>(
-      (best, branch) =>
-        order.indexOf(branch.subscriptionTier) > order.indexOf(best)
-          ? branch.subscriptionTier
-          : best,
-      'free',
+  // The Venues artboard's world, after the shared fixture: see
+  // `consoleDemoVenues.ts` for what each one is there to show.
+  for (const demo of demoVenues) {
+    for (const seed of demo.branches) {
+      demoMenuGaps.set(seed.id, seed.unfinishedDishes);
+      if (!seed.hours) demoNoHours.add(seed.id);
+      branchSlugs.set(seed.id, seed.slug);
+      demoBookingRate.set(seed.id, seed.bookingsPerWeek);
+      listings.set(seed.id, {
+        ...listingFor(seed.id),
+        address: seed.address,
+        district: seed.district,
+        cuisine: demo.cuisine,
+      });
+    }
+    venues.set(demo.id, {
+      id: demo.id,
+      name: demo.name,
+      slug: demo.slug,
+      type: demo.type,
+      status: demo.status,
+      createdAtUtc: '2026-07-01T09:00:00Z',
+      suspendedAtUtc: demo.status === 'suspended' ? '2026-10-02T09:00:00Z' : null,
+      branches: demo.branches.map((seed) => ({
+        id: seed.id,
+        venueId: demo.id,
+        name: seed.name,
+        timeZoneId: 'Asia/Yerevan',
+        tableCount: seed.tableCount,
+        subscriptionTier: seed.tier,
+        openTabCount: seed.openTabs,
+      })),
+      staff: [],
+      demo: {
+        rating: demo.rating,
+        reviewCount: demo.reviewCount,
+        cuisine: demo.cuisine,
+        district: demo.branches[0]?.district ?? '',
+        coverThumbnailUrl: demo.cover ? demoCoverThumbnail(demo.name, demo.cover) : null,
+      },
+    });
+  }
+
+  /**
+   * The list's readiness line: the first branch with an unmet line, and its
+   * first one, in the order a venue is onboarded (tables, menu, hours, cover).
+   * Staff, tablets and the policy are on the venue's own checklist, not here.
+   */
+  function readinessIssueOf(record: VenueRecord): VenueReadinessIssue | null {
+    const named = record.branches.length > 1;
+    for (const branch of record.branches) {
+      const first = branchIssuesOf(record, branch)[0];
+      if (first) return { ...first, branchName: named ? branch.name : null };
+    }
+    return null;
+  }
+
+  /**
+   * What a guest would find unfinished at one branch, in the server's order
+   * (`PlatformRollups.GuestFacingIssues`): tables, the menu, unfinished
+   * dishes, the hours, the cover photo.
+   */
+  function branchIssuesOf(record: VenueRecord, branch: ConsoleBranch): VenueReadinessIssue[] {
+    const issues: VenueReadinessIssue[] = [];
+    const issue = (kind: VenueReadinessIssue['kind'], count: number | null = null) =>
+      issues.push({ kind, count, branchName: null });
+    if (branch.tableCount === 0) issue('noTables');
+    const items = menuFor(branch.id).flatMap((category) => category.items);
+    if (items.length === 0) issue('noMenu');
+    const unfinished = items.filter(isIncompleteItem).length;
+    if (unfinished > 0) issue('incompleteDishes', unfinished);
+    if (!hoursFor(branch.id).some((day) => day.blocks.length > 0)) issue('noHours');
+    const covered = record.demo
+      ? record.demo.coverThumbnailUrl !== null
+      : profileFor(branch.id).coverPhoto !== null;
+    if (!covered) issue('noPhoto');
+    return issues;
+  }
+
+  /** Published reviews across the venue's branches, as the list's rating column reads them. */
+  function ratingOf(record: VenueRecord): { rating: number | null; reviewCount: number } {
+    if (record.demo) return { rating: record.demo.rating, reviewCount: record.demo.reviewCount };
+    const ratings = record.branches.flatMap((branch) =>
+      reviewStore.visible(branch.id).map((review) => review.rating),
     );
+    if (ratings.length === 0) return { rating: null, reviewCount: 0 };
+    const average = ratings.reduce((sum, value) => sum + value, 0) / ratings.length;
+    return { rating: Math.round(average * 10) / 10, reviewCount: ratings.length };
+  }
+
+  /** The tier the list column shows: the best one any branch is on. */
+  /** The server's older rollup: Paid only when every branch is; a mixed venue reads Free. */
+  function headlineTier(record: VenueRecord): SubscriptionTier {
+    return record.branches.length > 0 &&
+      record.branches.every((branch) => branch.subscriptionTier === 'paid')
+      ? 'paid'
+      : 'free';
   }
 
   function toRow(record: VenueRecord): ConsoleVenue {
+    const first = record.branches[0];
+    const listing = first ? listingFor(first.id) : null;
+    const cover = first ? profileFor(first.id).coverPhoto : null;
+    const branchTiers: VenueBranchTier[] = record.branches.map((branch) => ({
+      id: branch.id,
+      name: branch.name,
+      subscriptionTier: branch.subscriptionTier,
+    }));
     return {
       id: record.id,
       name: record.name,
@@ -1121,13 +1314,382 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       branchCount: record.branches.length,
       tableCount: record.branches.reduce((sum, branch) => sum + branch.tableCount, 0),
       subscriptionTier: headlineTier(record),
+      paidBranchCount: record.branches.filter((branch) => branch.subscriptionTier === 'paid')
+        .length,
       createdAtUtc: record.createdAtUtc,
       suspendedAtUtc: record.suspendedAtUtc,
+      // The list's newer columns, which the mock always reports.
+      ...ratingOf(record),
+      openTabCount: record.branches.reduce((sum, branch) => sum + (branch.openTabCount ?? 0), 0),
+      readinessIssue: readinessIssueOf(record),
+      coverThumbnailUrl: record.demo
+        ? record.demo.coverThumbnailUrl
+        : (cover?.thumbnailUrl ?? null),
+      branchTiers,
+      cuisine: record.demo ? record.demo.cuisine : (listing?.cuisine ?? null),
+      district: record.demo ? record.demo.district : (listing?.district ?? null),
     };
   }
 
   function toDetail(record: VenueRecord): ConsoleVenueDetail {
-    return { ...toRow(record), branches: record.branches, staff: record.staff };
+    return {
+      ...toRow(record),
+      // The platform read carries each branch's web address and street address.
+      branches: record.branches.map((branch) => ({
+        ...branch,
+        slug: slugOf(branch),
+        address: listingFor(branch.id).address,
+      })),
+      staff: record.staff,
+    };
+  }
+
+  /** A small stable number from a string, so the mock's made-up counts never flicker. */
+  function hashOf(text: string): number {
+    let hash = 7;
+    for (const character of text) hash = (hash * 31 + character.charCodeAt(0)) % 100_003;
+    return hash;
+  }
+
+  /**
+   * `PlatformService` venue bookings summary, over a made-up but stable history:
+   * a branch books about three times a table a week (a demo branch says its
+   * own rate), split by what became of the bookings and by weekday. The
+   * counts add up exactly, by status, by branch and by weekday.
+   */
+  function bookingsSummaryFor(record: VenueRecord, days: 7 | 30): VenueBookingsSummary {
+    const split = (total: number): BookingStatusCounts => {
+      const upcoming = Math.floor(total * 0.045);
+      const pending = Math.min(total - upcoming, Math.floor(total * 0.01) + (total > 0 ? 1 : 0));
+      const cancelled = Math.floor(total * 0.085);
+      const noShow = Math.floor(total * 0.04);
+      return {
+        completed: total - upcoming - pending - cancelled - noShow,
+        upcoming,
+        pending,
+        cancelled,
+        noShow,
+      };
+    };
+    const byBranch: BranchBookingsSummary[] = record.branches.map((branch) => {
+      const perWeek =
+        demoBookingRate.get(branch.id) ??
+        Math.round(branch.tableCount * (2 + (hashOf(branch.id) % 20) / 10));
+      const total = Math.round((perWeek * days) / 7);
+      const todayCount = Math.round(perWeek * (WEEKDAY_SHARE[mondayFirst(now())] ?? 0));
+      return { branchId: branch.id, name: branch.name, total, todayCount, ...split(total) };
+    });
+    const total = byBranch.reduce((sum, branch) => sum + branch.total, 0);
+    const add = (key: keyof BookingStatusCounts) =>
+      byBranch.reduce((sum, branch) => sum + branch[key], 0);
+    const byWeekday = WEEKDAY_SHARE.map((share) => Math.floor(total * share));
+    // Whatever rounding left over falls on Saturday, the busiest night.
+    byWeekday[5] = (byWeekday[5] ?? 0) + total - byWeekday.reduce((a, b) => a + b, 0);
+    return {
+      venueId: record.id,
+      days,
+      total,
+      byStatus: {
+        completed: add('completed'),
+        upcoming: add('upcoming'),
+        pending: add('pending'),
+        cancelled: add('cancelled'),
+        noShow: add('noShow'),
+      },
+      byWeekday,
+      averagePartySize:
+        total > 0 ? Math.round((2.4 + (hashOf(record.id) % 12) / 10) * 10) / 10 : null,
+      byBranch,
+    };
+  }
+
+  /** 0 Monday … 6 Sunday, in Yerevan. */
+  function mondayFirst(date: Date): number {
+    const day = new Date(date.getTime() + 4 * 60 * 60 * 1000).getUTCDay();
+    return (day + 6) % 7;
+  }
+
+  /** `YYYY-MM-DD` in Yerevan, where every mock branch is. */
+  function yerevanDate(date: Date): string {
+    return new Date(date.getTime() + 4 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  }
+
+  function tierMixOf(record: VenueRecord): VenueTierMix {
+    const paid = record.branches.filter((branch) => branch.subscriptionTier === 'paid').length;
+    if (paid === 0) return 'free';
+    return paid === record.branches.length ? 'paid' : 'mixed';
+  }
+
+  /** `PlatformOverviewQuery`, over the mock's world: Home in one read. */
+  function overviewOf(): PlatformOverview {
+    seedBookings();
+    const live = [...venues.values()].filter((record) => record.status !== 'deleted');
+    const mix = live.map(tierMixOf);
+    const count = (wanted: VenueTierMix) => mix.filter((value) => value === wanted).length;
+
+    // Thirty days, oldest first, today last: each branch books at its weekly
+    // rate, shared out by weekday, with a stable wobble so no two weeks match.
+    const today = now();
+    const perDay = Array.from({ length: 30 }, (_, index) => {
+      const day = new Date(today.getTime() - (29 - index) * 24 * 60 * 60 * 1000);
+      const date = yerevanDate(day);
+      const share = WEEKDAY_SHARE[mondayFirst(day)] ?? 0;
+      const total = live.reduce(
+        (sum, record) =>
+          sum +
+          record.branches.reduce((branchSum, branch) => {
+            const perWeek =
+              demoBookingRate.get(branch.id) ??
+              Math.round(branch.tableCount * (2 + (hashOf(branch.id) % 20) / 10));
+            const wobble = 0.85 + (hashOf(branch.id + date) % 30) / 100;
+            return branchSum + Math.round(perWeek * share * wobble);
+          }, 0),
+        0,
+      );
+      return { date, count: total };
+    });
+    const sum = (from: number, to: number) =>
+      perDay.slice(from, to).reduce((total, day) => total + day.count, 0);
+    const last7Days = sum(23, 30);
+    const previous7Days = sum(16, 23);
+
+    const byVenue = (counts: Map<string, number>): VenueCount[] =>
+      [...counts.entries()]
+        .filter(([, value]) => value > 0)
+        .map(([venueId, value]) => ({
+          venueId,
+          name: venues.get(venueId)?.name ?? venueId,
+          count: value,
+        }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    const pending = new Map<string, number>();
+    for (const booking of bookings.values()) {
+      if (booking.status !== 'pendingApproval') continue;
+      // One whose time has passed is not something anybody can approve.
+      const clock =
+        booking.localStartTime.length === 5
+          ? `${booking.localStartTime}:00`
+          : booking.localStartTime;
+      const visit = new Date(`${booking.localDate}T${clock}+04:00`).getTime();
+      if (!(visit > today.getTime())) continue;
+      const venueId = venueOfBranch(booking.branchId);
+      if (venueId && venues.get(venueId)?.status !== 'deleted') {
+        pending.set(venueId, (pending.get(venueId) ?? 0) + 1);
+      }
+    }
+    const tabs = new Map<string, number>();
+    for (const record of live) {
+      tabs.set(
+        record.id,
+        record.branches.reduce((total, branch) => total + (branch.openTabCount ?? 0), 0),
+      );
+    }
+    const counter = (counts: Map<string, number>) => {
+      const list = byVenue(counts);
+      return { total: list.reduce((total, venue) => total + venue.count, 0), venues: list };
+    };
+
+    // Branches a diner can reach, the newest venues first.
+    const newest = [...live].sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc));
+    const notReady: NotReadyBranch[] = newest
+      .filter((record) => record.status === 'active')
+      .flatMap((record) =>
+        record.branches.flatMap((branch) => {
+          const issues = branchIssuesOf(record, branch);
+          return issues.length === 0
+            ? []
+            : [
+                {
+                  venueId: record.id,
+                  venueName: record.name,
+                  branchId: branch.id,
+                  branchName: branch.name,
+                  issues,
+                },
+              ];
+        }),
+      );
+
+    return {
+      generatedAtUtc: today.toISOString(),
+      venues: {
+        total: live.length,
+        paid: count('paid'),
+        mixed: count('mixed'),
+        free: count('free'),
+        active: live.filter((record) => record.status === 'active').length,
+        suspended: live.filter((record) => record.status === 'suspended').length,
+        inactive: live.filter((record) => record.status === 'inactive').length,
+        deleted: venues.size - live.length,
+        branches: live.reduce((total, record) => total + record.branches.length, 0),
+        paidBranches: live.reduce(
+          (total, record) =>
+            total + record.branches.filter((branch) => branch.subscriptionTier === 'paid').length,
+          0,
+        ),
+      },
+      bookings: {
+        last7Days,
+        previous7Days,
+        changePercent:
+          previous7Days > 0
+            ? Math.round(((last7Days - previous7Days) / previous7Days) * 1000) / 10
+            : null,
+        labelTimeZoneId: 'Asia/Yerevan',
+        perDay,
+      },
+      pendingApprovals: counter(pending),
+      openTabs: counter(tabs),
+      notReady: { total: notReady.length, branches: notReady.slice(0, 20) },
+      recentVenues: newest.slice(0, 5).map((record) => ({
+        id: record.id,
+        name: record.name,
+        slug: record.slug,
+        type: record.type,
+        status: record.status,
+        tierMix: tierMixOf(record),
+        branchCount: record.branches.length,
+        paidBranchCount: record.branches.filter((branch) => branch.subscriptionTier === 'paid')
+          .length,
+        createdAtUtc: record.createdAtUtc,
+      })),
+      outbox: outboxOf(),
+    };
+  }
+
+  /**
+   * Two messages given up on in the last day, as the Main artboard shows: the
+   * alert has something to say in mock mode. There is no retry, by decision.
+   */
+  function outboxOf(): OutboxHealth {
+    const at = (minutesAgo: number) =>
+      new Date(now().getTime() - minutesAgo * 60 * 1000).toISOString();
+    return {
+      pending: 0,
+      due: 0,
+      failed: 0,
+      deadLettered: 2,
+      sentLastDay: 118,
+      deadLetteredLastDay: 2,
+      deadLetters: [
+        {
+          id: 'dead-letter-1',
+          type: 'reservation.reminder',
+          lastError: 'Telegram did not answer after 3 attempts.',
+          attemptCount: 3,
+          scheduledForUtc: at(95),
+          deadLetteredAtUtc: at(87),
+        },
+        {
+          id: 'dead-letter-2',
+          type: 'reservation.decided',
+          lastError: 'Forbidden: bot was blocked by the user.',
+          attemptCount: 1,
+          scheduledForUtc: at(172),
+          deadLetteredAtUtc: at(172),
+        },
+      ],
+    };
+  }
+
+  /** Writes one feed line, as the server's audit log does in the change's transaction. */
+  function log(
+    action: string,
+    target: { type: string; id: string; name: string | null },
+    venue: VenueRecord | null,
+    extra: Partial<Pick<PlatformActivityEntry, 'tierTo' | 'staffRole'>> = {},
+  ): void {
+    seedActivity();
+    activity.unshift({
+      id: `activity-${activity.length + 1}`,
+      atUtc: now().toISOString(),
+      action,
+      actor: { id: admin.staffMemberId, role: 'platformAdmin', name: admin.fullName },
+      target,
+      venue: venue ? { id: venue.id, name: venue.name } : null,
+      tierTo: extra.tierTo ?? null,
+      staffRole: extra.staffRole ?? null,
+    });
+  }
+
+  /** A short history before anything is done in this session: a feed is never empty on Home. */
+  function seedActivity(): void {
+    if (activitySeeded) return;
+    activitySeeded = true;
+    const at = (hoursAgo: number) =>
+      new Date(now().getTime() - hoursAgo * 60 * 60 * 1000).toISOString();
+    const list = [...venues.values()].filter((record) => record.status !== 'deleted');
+    const byAge = [...list].sort((a, b) => b.createdAtUtc.localeCompare(a.createdAtUtc));
+    const seeded: PlatformActivityEntry[] = [];
+    const entry = (
+      hoursAgo: number,
+      action: string,
+      record: VenueRecord,
+      target: { type: string; id: string; name: string | null },
+      actor: PlatformActivityEntry['actor'] = {
+        id: admin.staffMemberId,
+        role: 'platformAdmin',
+        name: admin.fullName,
+      },
+      extra: Partial<Pick<PlatformActivityEntry, 'tierTo' | 'staffRole'>> = {},
+    ) =>
+      seeded.push({
+        id: `activity-seed-${seeded.length + 1}`,
+        atUtc: at(hoursAgo),
+        action,
+        actor,
+        target,
+        venue: { id: record.id, name: record.name },
+        tierTo: extra.tierTo ?? null,
+        staffRole: extra.staffRole ?? null,
+      });
+
+    const paid = list.find((record) =>
+      record.branches.some((branch) => branch.subscriptionTier === 'paid'),
+    );
+    const paidBranch = paid?.branches.find((branch) => branch.subscriptionTier === 'paid');
+    if (paid && paidBranch) {
+      entry(
+        2.4,
+        'branch.tier-change',
+        paid,
+        { type: 'Branch', id: paidBranch.id, name: paidBranch.name },
+        undefined,
+        { tierTo: 'paid' },
+      );
+    }
+    const suspended = list.find((record) => record.status === 'suspended');
+    if (suspended) {
+      entry(20, 'venue.suspend', suspended, {
+        type: 'Venue',
+        id: suspended.id,
+        name: suspended.name,
+      });
+    }
+    const first = list[0];
+    if (first) {
+      entry(
+        27,
+        'staff.create',
+        first,
+        { type: 'StaffMember', id: `${first.id}-new-manager`, name: 'Mariam Avetisyan' },
+        { id: `${first.id}-owner`, role: 'owner', name: 'Aram Sargsyan' },
+        { staffRole: 'manager' },
+      );
+    }
+    byAge.slice(0, 2).forEach((record, index) => {
+      entry(50 + index * 48, 'venue.create', record, {
+        type: 'Venue',
+        id: record.id,
+        name: record.name,
+      });
+    });
+    seeded.sort((a, b) => b.atUtc.localeCompare(a.atUtc));
+    activity.push(...seeded);
+  }
+
+  function requirePlatformAdmin(url: string): void {
+    if (role !== 'platformAdmin') throw new ForbiddenError({ url });
   }
 
   function requireVenue(venueId: string): VenueRecord {
@@ -1157,8 +1719,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     switch (role) {
       case 'platformAdmin':
         return {
-          id: 'u-platform',
-          displayName: 'Yalla team',
+          id: admin.staffMemberId,
+          displayName: admin.fullName,
           role,
           scope: { venueId: null, branchIds: [] },
         };
@@ -1343,6 +1905,52 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     };
   }
 
+  /**
+   * One page of a branch's reviews for moderation, as both moderation routes
+   * answer it: `all` newest written first, `reported` by the newest report,
+   * `hidden` the hidden ones; each with how often it was reported.
+   */
+  function moderationPage(
+    url: string,
+    branchId: string,
+    query: VenueReviewQuery,
+  ): Page<VenueModeratedReview> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? REVIEW_PAGE_SIZE;
+    const filter = query.filter ?? 'all';
+    if (!Number.isInteger(page) || page < 1) {
+      throw invalidRequest(url, 'page', 'The page is 1 or more.');
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1) {
+      throw invalidRequest(url, 'pageSize', 'The page size is 1 or more.');
+    }
+    if (!REVIEW_MODERATION_FILTERS.includes(filter)) {
+      throw invalidRequest(url, 'filter', 'The filter is all, reported or hidden.');
+    }
+    const rows = reviewStore
+      .all(branchId)
+      .map(toVenueModerated)
+      .filter((review) =>
+        // A hidden review is not "reported": the platform already acted on it.
+        filter === 'reported'
+          ? review.reportCount > 0 && !review.hidden
+          : filter === 'hidden'
+            ? review.hidden
+            : true,
+      );
+    // The server orders the reported filter by the newest report, then the
+    // newest written, then the id, all descending.
+    if (filter === 'reported') {
+      rows.sort(
+        (a, b) =>
+          (b.lastReportedAtUtc ?? '').localeCompare(a.lastReportedAtUtc ?? '') ||
+          b.createdAtUtc.localeCompare(a.createdAtUtc) ||
+          b.reviewId.localeCompare(a.reviewId),
+      );
+    }
+    return pageOf(rows, page, pageSize);
+  }
+
   function toVenueModerated(review: StoredReview): VenueModeratedReview {
     const reports = reviewStore.reports(review.reviewId);
     return {
@@ -1402,7 +2010,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     const toManaged = (branch: ConsoleBranch): ManagedBranch => ({
       ...branch,
-      slug: slugify(branch.name),
+      slug: slugOf(branch),
       // The fixture has no inactive branch; the field is on the wire so the
       // screens are exercised against the real shape.
       isActive: true,
@@ -1615,6 +2223,8 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       sequence += 1;
       const venueId = `v-new-${sequence}`;
       const branchId = `${venueId}-b1`;
+      const branchSlug = command.firstBranch.slug.trim().toLocaleLowerCase();
+      if (branchSlug) branchSlugs.set(branchId, branchSlug);
 
       const record: VenueRecord = {
         id: venueId,
@@ -1641,6 +2251,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       };
 
       venues.set(venueId, record);
+      log('venue.create', { type: 'Venue', id: venueId, name: record.name }, record);
       return toDetail(record);
     },
 
@@ -1654,6 +2265,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       record.name = name.trim();
       record.slug = wanted;
       record.type = type;
+      log('venue.update', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
     },
 
@@ -1663,10 +2275,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       // The record keeps no branch slug; the managed view derives one from the
       // name, so the same derivation is the collision the server would refuse.
       const wanted = command.slug.trim().toLocaleLowerCase();
-      if (record.branches.some((branch) => slugify(branch.name) === wanted)) {
+      if (record.branches.some((branch) => slugOf(branch) === wanted)) {
         throw new SlugTakenError({ url: URL_TAG, slug: wanted });
       }
       sequence += 1;
+      branchSlugs.set(`${record.id}-b${sequence}`, wanted);
       record.branches.push({
         id: `${record.id}-b${sequence}`,
         venueId: record.id,
@@ -1676,6 +2289,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         subscriptionTier: 'free',
         openTabCount: 0,
       });
+      log(
+        'branch.create',
+        { type: 'Branch', id: `${record.id}-b${sequence}`, name: command.name.trim() },
+        record,
+      );
       return toDetail(record);
     },
 
@@ -1684,14 +2302,22 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const record = requireVenue(venueId);
       record.status = 'suspended';
       record.suspendedAtUtc = now().toISOString();
+      log('venue.suspend', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
     },
 
     async resumeVenue({ venueId }) {
       await wait();
       const record = requireVenue(venueId);
-      record.status = 'active';
+      // `Venue.Reactivate`: refused once deleted, and it only lifts a suspension.
+      if (record.status === 'deleted') {
+        throw conflict(`Venue '${record.name}' has been deleted, so it can no longer be changed.`);
+      }
+      if (record.status === 'suspended') {
+        record.status = record.switchedOff ? 'inactive' : 'active';
+      }
       record.suspendedAtUtc = null;
+      log('venue.reactivate', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
     },
 
@@ -1738,7 +2364,143 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       }
 
       record.status = 'deleted';
+      log('venue.delete', { type: 'Venue', id: record.id, name: record.name }, record);
       return toDetail(record);
+    },
+
+    async getVenueBookingsSummary({ venueId, days }) {
+      await wait();
+      // PlatformAdminOnly, like every `/api/platform` read.
+      if (role !== 'platformAdmin') {
+        throw new ForbiddenError({ url: `${URL_TAG}/platform/venues/${venueId}/bookings-summary` });
+      }
+      return bookingsSummaryFor(requireVenue(venueId), days);
+    },
+
+    async restoreVenue({ venueId }) {
+      await wait();
+      if (role !== 'platformAdmin') {
+        throw new ForbiddenError({ url: `${URL_TAG}/platform/venues/${venueId}/restore` });
+      }
+      const record = requireVenue(venueId);
+      // `PlatformService.RestoreVenueAsync`: a venue that is not deleted is
+      // answered as it is (an Undo pressed twice is not an error).
+      if (record.status !== 'deleted') return toDetail(record);
+      // A venue suspended before it was deleted comes back suspended.
+      record.status = record.suspendedAtUtc
+        ? 'suspended'
+        : record.switchedOff
+          ? 'inactive'
+          : 'active';
+      log('venue.restore', { type: 'Venue', id: record.id, name: record.name }, record);
+      return toDetail(record);
+    },
+
+    // --- Home and Settings ----------------------------------------------------
+
+    async getPlatformOverview() {
+      await wait();
+      requirePlatformAdmin(`${URL_TAG}/platform/overview`);
+      return overviewOf();
+    },
+
+    async getOutboxHealth() {
+      await wait();
+      requirePlatformAdmin(`${URL_TAG}/platform/outbox`);
+      return outboxOf();
+    },
+
+    async listPlatformActivity(query = {}) {
+      await wait();
+      const url = `${URL_TAG}/platform/activity`;
+      requirePlatformAdmin(url);
+      const limit = query.limit ?? 20;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+        throw invalidRequest(url, 'limit', 'The limit is from 1 to 100.');
+      }
+      seedActivity();
+      return activity
+        .filter((entry) => !query.venueId || entry.venue?.id === query.venueId)
+        .slice(0, limit);
+    },
+
+    async getPlatformProfile() {
+      await wait();
+      requirePlatformAdmin(`${URL_TAG}/platform/me`);
+      return { staffMemberId: admin.staffMemberId, fullName: admin.fullName, email: admin.email };
+    },
+
+    async updatePlatformProfile({ fullName }) {
+      await wait();
+      const url = `${URL_TAG}/platform/me`;
+      requirePlatformAdmin(url);
+      const name = fullName.trim();
+      if (name.length === 0) {
+        throw validationFailed(url, [
+          { field: 'fullName', message: 'The name is required.', bound: 'required' },
+        ]);
+      }
+      if (name.length > PLATFORM_NAME_MAX_LENGTH) {
+        throw validationFailed(url, [
+          {
+            field: 'fullName',
+            message: `The name is at most ${PLATFORM_NAME_MAX_LENGTH} characters.`,
+            bound: 'max',
+            max: PLATFORM_NAME_MAX_LENGTH,
+          },
+        ]);
+      }
+      // An unchanged name writes nothing, as on the server.
+      if (name !== admin.fullName) {
+        const before = admin.fullName;
+        admin.fullName = name;
+        log('admin.rename', { type: 'StaffMember', id: admin.staffMemberId, name: before }, null);
+      }
+      return { staffMemberId: admin.staffMemberId, fullName: admin.fullName, email: admin.email };
+    },
+
+    async changePlatformPassword({ currentPassword, newPassword }) {
+      await wait();
+      const url = `${URL_TAG}/platform/me/password`;
+      requirePlatformAdmin(url);
+      // One 422 naming every field, in the server's order.
+      const violations: MockViolation[] = [];
+      if (!currentPassword) {
+        violations.push({
+          field: 'currentPassword',
+          message: 'The current password is required.',
+          bound: 'required',
+        });
+      } else if (currentPassword !== admin.password) {
+        violations.push({
+          field: 'currentPassword',
+          message: 'The current password is wrong.',
+          bound: 'conflict',
+        });
+      }
+      if (!newPassword) {
+        violations.push({
+          field: 'newPassword',
+          message: 'The new password is required.',
+          bound: 'required',
+        });
+      } else if (newPassword.length < PLATFORM_PASSWORD_MIN_LENGTH) {
+        violations.push({
+          field: 'newPassword',
+          message: `Password must be at least ${PLATFORM_PASSWORD_MIN_LENGTH} characters.`,
+          bound: 'min',
+          min: PLATFORM_PASSWORD_MIN_LENGTH,
+        });
+      }
+      if (violations.length > 0) throw validationFailed(url, violations);
+      admin.password = newPassword;
+      log(
+        'admin.password-change',
+        { type: 'StaffMember', id: admin.staffMemberId, name: admin.fullName },
+        null,
+      );
+      // As the server will: every other session ended, this one renewed.
+      return { sessionRenewed: true };
     },
 
     // --- The floor plan editor ----------------------------------------------
@@ -1941,6 +2703,11 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
         }
 
         record.branches[index] = { ...branch, subscriptionTier: tier };
+        if (branch.subscriptionTier !== tier) {
+          log('branch.tier-change', { type: 'Branch', id: branch.id, name: branch.name }, record, {
+            tierTo: tier,
+          });
+        }
         return toDetail(record);
       }
       throw new OutOfScopeError({ url: URL_TAG });
@@ -2471,15 +3238,41 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
 
     // --- Review moderation ------------------------------------------------------
 
-    async listPlatformBranchReviews(branchId, page = 1) {
+    async listPlatformBranchReviews(branchId, query = {}) {
       await wait();
       const url = `${URL_TAG}/platform/branches/${branchId}/reviews`;
       if (role !== 'platformAdmin') throw new ForbiddenError({ url });
-      if (!Number.isInteger(page) || page < 1) {
-        throw invalidRequest(url, 'page', 'The page is 1 or more.');
-      }
       if (venueOfBranch(branchId) === null) throw new NotFoundError({ url });
-      return pageOf(reviewStore.all(branchId).map(toModerated), page, REVIEW_PAGE_SIZE);
+      return moderationPage(url, branchId, query);
+    },
+
+    async dismissReviewReports(reviewId) {
+      await wait();
+      const url = `${URL_TAG}/platform/reviews/${reviewId}/dismiss-reports`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      const review = reviewStore.find(reviewId);
+      if (!review) throw new NotFoundError({ url });
+      const open = reviewStore.reports(reviewId).length;
+      reviewStore.dismissReports(reviewId);
+      const venueId = venueOfBranch(review.branchId);
+      // Idempotent, as on the server: nothing to set aside writes nothing.
+      if (open > 0)
+        log(
+          'review.dismiss-reports',
+          { type: 'BranchReview', id: reviewId, name: branchName(review.branchId) },
+          venueId ? (venues.get(venueId) ?? null) : null,
+        );
+      return toVenueModerated(review);
+    },
+
+    async restoreReviewReports(reviewId) {
+      await wait();
+      const url = `${URL_TAG}/platform/reviews/${reviewId}/restore-reports`;
+      if (role !== 'platformAdmin') throw new ForbiddenError({ url });
+      const review = reviewStore.find(reviewId);
+      if (!review) throw new NotFoundError({ url });
+      reviewStore.restoreReports(reviewId);
+      return toVenueModerated(review);
     },
 
     /** The platform's word is final: it can hide anything, and restore what the venue hid. */
@@ -2488,55 +3281,32 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const url = `${URL_TAG}/platform/reviews/${reviewId}/visibility`;
       if (role !== 'platformAdmin') throw new ForbiddenError({ url });
       const reason = visibilityReason(url, command);
-      if (!reviewStore.find(reviewId)) throw new NotFoundError({ url });
-      return toModerated(
-        reviewStore.setVisibility({
-          reviewId,
-          hidden: command.hidden,
-          reason,
-          by: 'platform',
-          atUtc: now().toISOString(),
-        }),
-      );
+      const found = reviewStore.find(reviewId);
+      if (!found) throw new NotFoundError({ url });
+      const wasHidden = found.hidden;
+      const changed = reviewStore.setVisibility({
+        reviewId,
+        hidden: command.hidden,
+        reason,
+        by: 'platform',
+        atUtc: now().toISOString(),
+      });
+      const venueId = venueOfBranch(found.branchId);
+      if (wasHidden !== command.hidden) {
+        log(
+          command.hidden ? 'review.hide' : 'review.unhide',
+          { type: 'BranchReview', id: reviewId, name: branchName(found.branchId) },
+          venueId ? (venues.get(venueId) ?? null) : null,
+        );
+      }
+      return toModerated(changed);
     },
 
     async listVenueBranchReviews(branchId, query = {}) {
       await wait();
       const url = `${URL_TAG}/branches/${branchId}/reviews`;
       requireManagerAtBranch(branchId, url);
-      const page = query.page ?? 1;
-      const pageSize = query.pageSize ?? REVIEW_PAGE_SIZE;
-      const filter = query.filter ?? 'all';
-      if (!Number.isInteger(page) || page < 1) {
-        throw invalidRequest(url, 'page', 'The page is 1 or more.');
-      }
-      if (!Number.isInteger(pageSize) || pageSize < 1) {
-        throw invalidRequest(url, 'pageSize', 'The page size is 1 or more.');
-      }
-      if (!REVIEW_MODERATION_FILTERS.includes(filter)) {
-        throw invalidRequest(url, 'filter', 'The filter is all, reported or hidden.');
-      }
-      const rows = reviewStore
-        .all(branchId)
-        .map(toVenueModerated)
-        .filter((review) =>
-          filter === 'reported'
-            ? review.reportCount > 0
-            : filter === 'hidden'
-              ? review.hidden
-              : true,
-        );
-      // The server orders the reported filter by the newest report, then the
-      // newest written, then the id, all descending.
-      if (filter === 'reported') {
-        rows.sort(
-          (a, b) =>
-            (b.lastReportedAtUtc ?? '').localeCompare(a.lastReportedAtUtc ?? '') ||
-            b.createdAtUtc.localeCompare(a.createdAtUtc) ||
-            b.reviewId.localeCompare(a.reviewId),
-        );
-      }
-      return pageOf(rows, page, pageSize);
+      return moderationPage(url, branchId, query);
     },
 
     async setVenueReviewVisibility(branchId, reviewId, command) {

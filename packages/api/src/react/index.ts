@@ -1,4 +1,11 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  type QueryClient,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   createContext,
   createElement,
@@ -11,6 +18,7 @@ import type { ConsoleGateway } from '../consoleGateway';
 import type { Booking, RescheduleBookingCommand } from '../contracts/booking';
 import type {
   AddBranchCommand,
+  BookingSummaryDays,
   ConsoleVenueDetail,
   CreateVenueCommand,
   ListVenuesQuery,
@@ -40,8 +48,18 @@ import {
 } from '../contracts/approvals';
 import type { ManagedBooking } from '../contracts/publicBranch';
 import type { ReportQuery, ReportSection } from '../contracts/reports';
+import type {
+  ChangePlatformPasswordCommand,
+  PlatformActivityQuery,
+} from '../contracts/platformHome';
 import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
 import { ReportRangeTooLongError } from '../contracts/errors';
+import {
+  applyVenueTier,
+  checkVenueTier,
+  listAllConsoleVenues,
+  type VenueTierResult,
+} from '../platformVenues';
 import type { PublicGateway } from '../publicGateway';
 import type { ReleaseReservationCommand } from '../staffGateway';
 import type { YallaGateway } from '../gateway';
@@ -233,6 +251,18 @@ export const queryKeys = {
   booking: (bookingId: string) => ['booking', bookingId] as const,
   reservationState: (reservationId: string) => ['reservationState', reservationId] as const,
   consoleVenues: (query: ListVenuesQuery) => ['console', 'venues', query] as const,
+  /**
+   * The whole platform, deleted venues included: the redesigned list filters
+   * and sorts in place. Under `['console', 'venues']`, so every venue command's
+   * invalidation reaches it.
+   */
+  allConsoleVenues: ['console', 'venues', 'all'] as const,
+  /** What a tier switch would do. Never cached: it is asked as the dialog opens. */
+  venueTierCheck: (venueId: string, tier: SubscriptionTier, branchIds: readonly string[] | null) =>
+    ['console', 'venueTierCheck', venueId, tier, branchIds] as const,
+  /** Under the venue, so a venue command's invalidation of the venue reaches it too. */
+  venueBookingsSummary: (venueId: string, days: BookingSummaryDays) =>
+    ['console', 'venue', venueId, 'bookingsSummary', days] as const,
   consoleVenue: (venueId: string) => ['console', 'venue', venueId] as const,
   // Its own key, not `consoleVenue`'s: the two reads answer different shapes
   // for different callers, and `useVenueCommand` writes a `ConsoleVenueDetail`
@@ -267,8 +297,8 @@ export const queryKeys = {
    * or a tablet is added, and so does every save below that feeds a line.
    */
   readiness: (branchId: string) => ['console', 'readiness', branchId] as const,
-  platformReviews: (branchId: string, page: number) =>
-    ['console', 'platformReviews', branchId, page] as const,
+  platformReviews: (branchId: string, query: VenueReviewQuery) =>
+    ['console', 'platformReviews', branchId, query] as const,
   venueReviews: (branchId: string, query: VenueReviewQuery) =>
     [
       'console',
@@ -280,6 +310,11 @@ export const queryKeys = {
     ] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
   devices: (branchId: string) => ['console', 'devices', branchId] as const,
+  platformOverview: ['console', 'platformOverview'] as const,
+  outboxHealth: ['console', 'outboxHealth'] as const,
+  platformActivity: (query: PlatformActivityQuery) =>
+    ['console', 'platformActivity', query.limit ?? null, query.venueId ?? null] as const,
+  platformProfile: ['console', 'platformProfile'] as const,
   /*
    * One key per section, and the section name is in it.
    *
@@ -602,6 +637,26 @@ export function useManagedVenue(venueId: string | undefined) {
  * a retried command is a second command, and the `commandId` exists so a
  * *deliberate* retry is safe rather than so an automatic one is silent.
  */
+/**
+ * Home's numbers and its activity feed: every change the platform makes, or a
+ * venue makes, shows in one or both. Cheap when nobody has visited Home: an
+ * invalidation of an absent query does nothing.
+ */
+function refreshPlatformViews(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.platformOverview });
+  void queryClient.invalidateQueries({ queryKey: ['console', 'platformActivity'] });
+}
+
+/**
+ * The venues list and the venue pages: a branch's tables, menu, hours,
+ * listing, cover or reviews are in the list's columns and on the venue page.
+ * By prefix, because a branch-scoped change does not know its venue's id.
+ */
+function refreshVenueViews(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+  void queryClient.invalidateQueries({ queryKey: ['console', 'venue'] });
+}
+
 function useVenueCommand<TInput>(run: (input: TInput) => Promise<ConsoleVenueDetail>) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -612,6 +667,7 @@ function useVenueCommand<TInput>(run: (input: TInput) => Promise<ConsoleVenueDet
       // The venue section's own read carries the name and the branch list
       // too, and a renamed venue or a new branch must reach it.
       void queryClient.invalidateQueries({ queryKey: queryKeys.managedVenue(venue.id) });
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -662,6 +718,193 @@ export function useSetBranchTier() {
   );
 }
 
+/**
+ * Every venue on the platform, deleted ones included — the redesigned venues
+ * list, which searches, filters and sorts in place and counts what it hides.
+ * See `listAllConsoleVenues`.
+ */
+export function useAllConsoleVenues() {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.allConsoleVenues,
+    queryFn: () => listAllConsoleVenues(gateway),
+    staleTime: staleTime.reference,
+  });
+}
+
+/**
+ * A venue's bookings over the last 7 or 30 days, aggregates only — the venue
+ * page's Bookings tab. Platform admin only.
+ */
+export function useVenueBookingsSummary(venueId: string | undefined, days: BookingSummaryDays) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.venueBookingsSummary(venueId ?? '', days),
+    queryFn: () => gateway.getVenueBookingsSummary({ venueId: venueId!, days }),
+    enabled: Boolean(venueId),
+    staleTime: staleTime.frequent,
+    // A switch from 30 days to 7 keeps the month on screen until the week
+    // arrives — for the same venue only: another venue's numbers are not these.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === venueId ? previous : undefined,
+  });
+}
+
+/**
+ * Every branch's readiness at once, for the venue page's checklist. One
+ * query per branch under the same key `useBranchReadiness` uses, so the two
+ * share their answers.
+ */
+export function useBranchesReadiness(branchIds: readonly string[]) {
+  const gateway = useConsoleGateway();
+  return useQueries({
+    queries: branchIds.map((branchId) => ({
+      queryKey: queryKeys.readiness(branchId),
+      queryFn: () => gateway.getBranchReadiness(branchId),
+      staleTime: staleTime.live,
+    })),
+  });
+}
+
+// --- Home and Settings (platform admin) ------------------------------------------
+
+/**
+ * Home in one read. Refreshed whenever the screen comes back into view: it is
+ * "the platform as it stands", and a minute-old answer says so on its face.
+ */
+export function usePlatformOverview() {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.platformOverview,
+    queryFn: () => gateway.getPlatformOverview(),
+    staleTime: staleTime.frequent,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** The messages given up on, read only when Home's "Details" is opened. */
+export function useOutboxHealth(enabled: boolean) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.outboxHealth,
+    queryFn: () => gateway.getOutboxHealth(),
+    enabled,
+    staleTime: staleTime.frequent,
+  });
+}
+
+/** The newest audit rows, newest first. */
+export function usePlatformActivity(query: PlatformActivityQuery = {}) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.platformActivity(query),
+    queryFn: () => gateway.listPlatformActivity(query),
+    staleTime: staleTime.frequent,
+  });
+}
+
+/** The signed-in platform admin's own name and email. */
+export function usePlatformProfile(enabled = true) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.platformProfile,
+    queryFn: () => gateway.getPlatformProfile(),
+    enabled,
+    staleTime: staleTime.reference,
+  });
+}
+
+/** Renames the admin: the profile is replaced in the cache, and the feed refreshed. */
+export function useUpdatePlatformProfile() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { fullName: string }) => gateway.updatePlatformProfile(input),
+    retry: false,
+    onSuccess: (profile) => {
+      queryClient.setQueryData(queryKeys.platformProfile, profile);
+      void queryClient.invalidateQueries({ queryKey: ['console', 'platformActivity'] });
+    },
+  });
+}
+
+/** Changes the admin's password. Never retried: a second try would say the first one's "wrong". */
+export function useChangePlatformPassword() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: ChangePlatformPasswordCommand) => gateway.changePlatformPassword(command),
+    retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console', 'platformActivity'] });
+    },
+  });
+}
+
+/** Undo a soft delete. Platform admin only; caches like every venue command. */
+export function useRestoreVenue() {
+  const gateway = useConsoleGateway();
+  return useVenueCommand((input: { venueId: string; commandId: string }) =>
+    gateway.restoreVenue(input),
+  );
+}
+
+/**
+ * What switching every branch of a venue to `tier` would do, asked as the
+ * tier dialog opens (`checkVenueTier`): the branches it would move, and going
+ * Paid, the ones whose menu refuses. Read fresh every time — a stale "ready"
+ * is the one answer worse than none.
+ */
+export function useVenueTierCheck(
+  input: {
+    readonly venueId: string;
+    readonly tier: SubscriptionTier;
+    /** One branch, from the venue page; absent, every branch (the list's button). */
+    readonly branchIds?: readonly string[] | undefined;
+  } | null,
+) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.venueTierCheck(
+      input?.venueId ?? '',
+      input?.tier ?? 'free',
+      input?.branchIds ?? null,
+    ),
+    queryFn: () => checkVenueTier(gateway, input!),
+    enabled: input !== null,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+/**
+ * Switch every branch of a venue to one tier (`applyVenueTier`). Resolves
+ * with what moved and what refused — a refusal is an answer, not a failure —
+ * and refreshes the list and the venue whatever happened, since a switch that
+ * stopped halfway still changed something.
+ */
+export function useSetVenueTier() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      venueId: string;
+      tier: SubscriptionTier;
+      commandId: string;
+      branchIds?: readonly string[] | undefined;
+    }) => applyVenueTier(gateway, input),
+    onSuccess: (result: VenueTierResult) => {
+      queryClient.setQueryData(queryKeys.consoleVenue(result.venue.id), result.venue);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.managedVenue(result.venue.id) });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+      refreshPlatformViews(queryClient);
+    },
+  });
+}
+
 // --- The floor plan editor -----------------------------------------------------
 
 /**
@@ -708,6 +951,10 @@ export function useSaveFloorPlan() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.floor(input.branchId) });
       void queryClient.invalidateQueries({ queryKey: ['availability', input.branchId] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(input.branchId) });
+      // The tables are a column of the list and of the venue page, and a room
+      // with none is a "not ready" line on Home.
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -745,6 +992,8 @@ export function useDeleteTable(branchId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.floor(branchId ?? '') });
       void queryClient.invalidateQueries({ queryKey: ['availability', branchId ?? ''] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -786,6 +1035,8 @@ export function useRegenerateTableQr() {
             }
           : plan,
       );
+      // A new code is a feed line (`table.regenerate-qr`).
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1134,6 +1385,9 @@ function useMenuMutation<TInput, TResult>(
       void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
       // Categories, items and their completeness are three checklist lines.
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      // Unfinished dishes are the list's readiness line and Home's "not ready".
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1231,6 +1485,8 @@ export function useSaveOpeningHours(branchId: string | undefined) {
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.openingHours(branchId ?? ''), saved);
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1284,6 +1540,10 @@ export function useSaveBranchListing(branchId: string | undefined) {
     retry: false,
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.branchListing(branchId ?? ''), saved);
+      // Cuisine and district are the list's and the venue page's lines; a
+      // move is a feed line.
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1301,7 +1561,9 @@ export function useSavePublicProfile(branchId: string | undefined) {
       queryClient.setQueryData(queryKeys.publicProfile(branchId ?? ''), saved);
       // The card's picture is also what the public page and the readiness
       // checklist read, through the managed venue.
-      void queryClient.invalidateQueries({ queryKey: ['console', 'venues'] });
+      refreshVenueViews(queryClient);
+      // "No photo" is a not-ready line on Home.
+      refreshPlatformViews(queryClient);
       // The booking switch is a checklist line of its own.
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
     },
@@ -1418,6 +1680,8 @@ export function useCreateStaff(venueId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
       // A new person may be the line the readiness checklist was waiting for.
       void queryClient.invalidateQueries({ queryKey: ['console', 'readiness'] });
+      // "Added Mariam as branch manager" is a feed line.
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1431,6 +1695,7 @@ export function useUpdateStaff(venueId: string | undefined) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
       void queryClient.invalidateQueries({ queryKey: ['console', 'readiness'] });
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1478,8 +1743,9 @@ export function useIssueStaffSignIn(venueId: string | undefined) {
       gateway.issueStaffSignIn({ venueId: venueId!, ...input }),
     gcTime: 0,
     onSuccess: () => {
-      // The list, never the link.
+      // The list, never the link. A sign-in issued is a feed line.
       void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
+      refreshPlatformViews(queryClient);
     },
   });
 }
@@ -1554,11 +1820,14 @@ export function useSaveReservationPolicy(branchId: string | undefined) {
 // --- Review moderation ----------------------------------------------------------
 
 /** A branch's reviews for the platform team. Platform admin only. */
-export function usePlatformBranchReviews(branchId: string | undefined, page = 1) {
+export function usePlatformBranchReviews(
+  branchId: string | undefined,
+  query: VenueReviewQuery = {},
+) {
   const gateway = useConsoleGateway();
   return useQuery({
-    queryKey: queryKeys.platformReviews(branchId ?? '', page),
-    queryFn: () => gateway.listPlatformBranchReviews(branchId!, page),
+    queryKey: queryKeys.platformReviews(branchId ?? '', query),
+    queryFn: () => gateway.listPlatformBranchReviews(branchId!, query),
     enabled: Boolean(branchId),
     staleTime: staleTime.frequent,
     placeholderData: keepPreviousData,
@@ -1590,9 +1859,60 @@ function useReviewVisibility<TInput>(
   return useMutation({
     mutationFn: (input: TInput) => run(gateway, input),
     retry: false,
+    // Settles once the moderation lists have refetched: a review that leaves
+    // the filter on screen is gone when the caller moves the focus.
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] });
-      void queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] });
+      // The published reviews are the rating and the count on the list and the venue page.
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+      ]);
+    },
+  });
+}
+
+/**
+ * The platform sets a review's reports aside and leaves the review as it is.
+ * Refreshes both moderation lists, as a hide does, and settles only once they
+ * are refreshed: the reviews page shows the reports gone until the lists say
+ * so themselves, with no moment in between where they come back.
+ */
+export function useDismissReviewReports() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reviewId: string) => gateway.dismissReviewReports(reviewId),
+    retry: false,
+    onSettled: () => {
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+      ]);
+    },
+  });
+}
+
+/**
+ * Undo a dismissal: the reports count again. Settles once both moderation
+ * lists have refetched, as the dismissal does.
+ */
+export function useRestoreReviewReports() {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reviewId: string) => gateway.restoreReviewReports(reviewId),
+    retry: false,
+    onSettled: () => {
+      refreshVenueViews(queryClient);
+      refreshPlatformViews(queryClient);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+      ]);
     },
   });
 }

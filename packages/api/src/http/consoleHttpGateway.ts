@@ -1,6 +1,6 @@
 import { staffRoleToUserRole, type VenueUserIdentity } from '../auth/endpoints';
 import { claimString, decodeJwtPayload } from '../auth/jwt';
-import type { AuthSession } from '../auth/session';
+import type { AuthSession, TokenPair } from '../auth/session';
 import type { ApiClient } from '../client';
 import type { ConsoleGateway } from '../consoleGateway';
 import type {
@@ -33,7 +33,7 @@ import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../cont
 import type { BranchPublicProfile } from '../contracts/publicProfile';
 import type { VenueListing } from '../contracts/listing';
 import { photoRejection } from './photoErrors';
-import { absolutePhoto } from './photoUrl';
+import { absolutePhoto, absolutePhotoUrl } from './photoUrl';
 import type { PhotoUpload } from '../consoleGateway';
 import { REPORT_MAX_DAYS } from '../contracts/reports';
 import type { ReportExport, ReportQuery } from '../contracts/reports';
@@ -62,10 +62,17 @@ import {
   readinessFromWire,
   reviewPageFromWire,
   venueDetailFromWire,
+  venueBookingsSummaryFromWire,
   venuePageFromWire,
   venueReviewFromWire,
   type WireManagedVenue,
 } from './consoleMapping';
+import {
+  activityFromWire,
+  outboxHealthFromWire,
+  overviewFromWire,
+  profileFromWire,
+} from './platformHomeMapping';
 import {
   createStaffBody,
   enrolmentCode,
@@ -184,6 +191,26 @@ const RESERVATIONS = '/api/reservations';
 
 /** Both moderation lists page by 20, the public reviews route's size. */
 const REVIEW_PAGE_SIZE = 20;
+/** A token pair in a JSON answer, as the sign-in route spells it; `null` when there is none. */
+function tokenPairFrom(data: unknown): TokenPair | null {
+  if (data === null || typeof data !== 'object') return null;
+  const answer = data as {
+    accessToken?: unknown;
+    refreshToken?: unknown;
+    expiresInSeconds?: unknown;
+  };
+  if (typeof answer.accessToken !== 'string' || typeof answer.refreshToken !== 'string')
+    return null;
+  return {
+    accessToken: answer.accessToken,
+    refreshToken: answer.refreshToken,
+    // The access token's own expiry wins in the session; this is the fallback.
+    expiresInSeconds: typeof answer.expiresInSeconds === 'number' ? answer.expiresInSeconds : 900,
+  };
+}
+
+/** Home shows the messages given up on in the last day; a few more than that is plenty. */
+const OUTBOX_DEAD_LETTER_LIMIT = 20;
 
 /** `Yalla.Domain.Enums.StaffRole.PlatformAdmin` on the wire. */
 const PLATFORM_ADMIN_ROLE_CODE = 5;
@@ -301,10 +328,13 @@ export function createConsoleHttpGateway(
     throw error;
   }
 
+  /** A photo link the server gives relative to itself, made absolute against the API. */
+  const photoLink = (url: string) => absolutePhotoUrl(client.baseUrl, url);
+
   async function venueDetail(path: string, context: { slug?: string } = {}) {
     try {
       const { data } = await client.get<WireDetail>(path);
-      return venueDetailFromWire(data);
+      return venueDetailFromWire(data, photoLink);
     } catch (error) {
       return translate(error, context);
     }
@@ -364,7 +394,7 @@ export function createConsoleHttpGateway(
       method === 'post'
         ? await client.post<WireDetail>(path)
         : await client.delete<WireDetail>(path);
-    return venueDetailFromWire(data);
+    return venueDetailFromWire(data, photoLink);
   }
 
   // Photo links resolved against the API's origin, at the boundary — see
@@ -425,7 +455,7 @@ export function createConsoleHttpGateway(
           ...(query.includeDeleted ? { includeDeleted: true } : {}),
         },
       });
-      return venuePageFromWire(data);
+      return venuePageFromWire(data, (url) => absolutePhotoUrl(client.baseUrl, url));
     },
 
     getVenue: (venueId) => venueDetail(`${PLATFORM}/venues/${venueId}`),
@@ -461,7 +491,7 @@ export function createConsoleHttpGateway(
             subscriptionTier: FREE_TIER,
           },
         });
-        return venueDetailFromWire(data);
+        return venueDetailFromWire(data, photoLink);
       } catch (error) {
         return translate(error, { slug: command.slug });
       }
@@ -476,7 +506,7 @@ export function createConsoleHttpGateway(
           slug: command.slug,
           type: venueTypeCode(command.type),
         });
-        return venueDetailFromWire(data);
+        return venueDetailFromWire(data, photoLink);
       } catch (error) {
         // The other 409 here is "the venue is deleted", and the screen offers
         // no edit on a deleted venue, so the one that reaches it is the slug.
@@ -533,6 +563,81 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    async getVenueBookingsSummary({ venueId, days }) {
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.VenueBookingsSummary']>(
+        `${PLATFORM}/venues/${venueId}/bookings-summary`,
+        { query: { days } },
+      );
+      return venueBookingsSummaryFromWire(data);
+    },
+
+    async restoreVenue({ venueId }) {
+      const { data } = await client.post<WireDetail>(`${PLATFORM}/venues/${venueId}/restore`);
+      return venueDetailFromWire(data, photoLink);
+    },
+
+    // --- Home and Settings --------------------------------------------------
+
+    async getPlatformOverview() {
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.PlatformOverview']>(
+        `${PLATFORM}/overview`,
+      );
+      return overviewFromWire(data);
+    },
+
+    async getOutboxHealth() {
+      const { data } = await client.get<Schemas['Yalla.Application.Messaging.OutboxHealthView']>(
+        `${PLATFORM}/outbox`,
+        { query: { deadLetterLimit: OUTBOX_DEAD_LETTER_LIMIT } },
+      );
+      return outboxHealthFromWire(data);
+    },
+
+    async listPlatformActivity(query = {}) {
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.ActivityFeed']>(
+        `${PLATFORM}/activity`,
+        {
+          query: {
+            ...(query.limit !== undefined ? { limit: query.limit } : {}),
+            ...(query.venueId ? { venueId: query.venueId } : {}),
+          },
+        },
+      );
+      return activityFromWire(data);
+    },
+
+    async getPlatformProfile() {
+      const { data } = await client.get<Schemas['Yalla.Application.Platform.PlatformAdminProfile']>(
+        `${PLATFORM}/me`,
+      );
+      return profileFromWire(data);
+    },
+
+    async updatePlatformProfile({ fullName }) {
+      const { data } = await client.patch<
+        Schemas['Yalla.Application.Platform.PlatformAdminProfile']
+      >(`${PLATFORM}/me`, { fullName });
+      return profileFromWire(data);
+    },
+
+    async changePlatformPassword({ currentPassword, newPassword }) {
+      // A wrong current password is a 422 naming `currentPassword`, not a
+      // 401: the session stays, and the form shows it under the field.
+      const { data } = await client.post<unknown>(`${PLATFORM}/me/password`, {
+        currentPassword,
+        newPassword,
+      });
+      // The server ends every other session (a session generation that every
+      // other access token is checked against) and answers with a fresh pair
+      // for this one, shaped like the sign-in answer. Adopted here, through the
+      // session the console already holds, so this tab stays signed in. A 204
+      // renews nothing, and nothing is claimed.
+      const pair = tokenPairFrom(data);
+      if (!pair) return { sessionRenewed: false };
+      await auth.signIn(pair);
+      return { sessionRenewed: true };
     },
 
     // --- The rooms editor -------------------------------------------------
@@ -971,12 +1076,32 @@ export function createConsoleHttpGateway(
 
     // --- Review moderation ------------------------------------------------------
 
-    async listPlatformBranchReviews(branchId, page = 1) {
+    async listPlatformBranchReviews(branchId, query = {}) {
       const { data } = await client.get<Schemas['Yalla.Application.Reviews.ModeratedReviewPage']>(
         `${PLATFORM}/branches/${branchId}/reviews`,
-        { query: { page, pageSize: REVIEW_PAGE_SIZE } },
+        {
+          query: {
+            page: query.page ?? 1,
+            pageSize: query.pageSize ?? REVIEW_PAGE_SIZE,
+            filter: query.filter ?? 'all',
+          },
+        },
       );
-      return reviewPageFromWire(data, moderatedReviewFromWire);
+      return reviewPageFromWire(data, venueReviewFromWire);
+    },
+
+    async dismissReviewReports(reviewId) {
+      const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+        `${PLATFORM}/reviews/${reviewId}/dismiss-reports`,
+      );
+      return venueReviewFromWire(data);
+    },
+
+    async restoreReviewReports(reviewId) {
+      const { data } = await client.post<Schemas['Yalla.Application.Reviews.ModeratedReviewView']>(
+        `${PLATFORM}/reviews/${reviewId}/restore-reports`,
+      );
+      return venueReviewFromWire(data);
     },
 
     async setReviewVisibility(reviewId, command) {

@@ -46,7 +46,16 @@ test('The branch manager hides a reported review with a reason, and the public l
   await row.getByRole('button', { name: 'Hide', exact: true }).click();
   await row.getByLabel('Reason').fill('Advertising, reported by a diner');
   await row.getByRole('button', { name: 'Hide', exact: true }).click();
-  await expect(row.getByRole('button', { name: 'Show again' })).toBeVisible();
+  // Hidden, it is no longer "reported" (the server lists only visible reviews
+  // with open reports there): it leaves this list…
+  await expect(row).toHaveCount(0);
+  // …and is under Hidden, with the reason the venue gave and the way back.
+  await page.getByRole('button', { name: 'Hidden', exact: true }).click();
+  const hiddenRow = page.getByRole('listitem').filter({ hasText: text });
+  await expect(
+    hiddenRow.getByText('Reason: Advertising, reported by a diner', { exact: true }),
+  ).toBeVisible();
+  await expect(hiddenRow.getByRole('button', { name: 'Show again' })).toBeVisible();
 
   await expect
     .poll(async () =>

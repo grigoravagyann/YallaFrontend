@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 const FOCUSABLE = [
   'a[href]',
@@ -30,12 +30,19 @@ export interface DialogFocusOptions {
    * credential that proves it has to reach the next dialog.
    */
   readonly escapeEnabled?: boolean;
+  /**
+   * Where the focus goes on close when it should not go back to the opener —
+   * the opener was a menu item that is gone now, say. Falls back to the
+   * opener when this returns nothing.
+   */
+  readonly returnFocusTo?: () => HTMLElement | null;
 }
 
 /**
  * The focus rules of a modal dialog, which no dialog here had before.
  *
- * - On open, focus moves to the first control inside.
+ * - On open, focus moves to the control marked `data-autofocus`, or else the
+ *   first control inside.
  * - Tab and Shift+Tab cycle inside the dialog rather than walking out into a
  *   page the scrim says is unavailable.
  * - Escape runs `onEscape`.
@@ -45,13 +52,22 @@ export interface DialogFocusOptions {
  */
 export function useDialogFocus(
   containerRef: RefObject<HTMLElement | null>,
-  { onEscape, escapeEnabled = true }: DialogFocusOptions,
+  { onEscape, escapeEnabled = true, returnFocusTo }: DialogFocusOptions,
 ) {
+  // Read at close, not at open: the element to return to may not exist yet.
+  const returnRef = useRef(returnFocusTo);
+  useEffect(() => {
+    returnRef.current = returnFocusTo;
+  }, [returnFocusTo]);
+
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    focusablesIn(containerRef.current)[0]?.focus();
+    const container = containerRef.current;
+    const marked = container?.querySelector<HTMLElement>('[data-autofocus]');
+    (marked ?? focusablesIn(container)[0])?.focus();
     return () => {
-      if (previous?.isConnected) previous.focus();
+      const target = returnRef.current?.() ?? previous;
+      if (target?.isConnected) target.focus();
     };
   }, [containerRef]);
 

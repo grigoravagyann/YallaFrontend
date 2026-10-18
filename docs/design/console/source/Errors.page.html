@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Սխալի էջեր — Yalla Console</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+/*SHELL*/
+/*UI*/
+/* page */
+.switcher{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border:1px dashed #D2BFA8;border-radius:10px;font-size:12px;color:var(--muted)}
+.switcher button{height:32px;padding:0 12px;border-radius:999px;border:1px solid #D8C8B6;background:var(--paper);font:inherit;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink)}
+.switcher button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.wrapc{flex:1;display:grid;place-items:center;padding:24px 0}
+.ecard{width:520px;max-width:100%;padding:40px 32px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.eic{width:72px;height:72px;border-radius:20px;display:grid;place-items:center}
+.eic svg{width:32px;height:32px}
+.e-brand{background:#F4ECE2;color:var(--brand)}.e-amber{background:var(--amber-bg);color:var(--amber)}.e-red{background:var(--red-bg);color:var(--red)}
+.code{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.etext{margin:0;color:var(--muted);max-width:44ch}
+.eacts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:6px}
+.ref{font-size:12px;color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+.tries{font-size:12px;color:var(--muted)}
+</style>
+</helmet>
+<div class="y">
+<div class="app">
+<!--SIDE-->
+<main class="main" id="main">
+<div class="switcher" role="group" aria-label="Դիզայնի վիճակ"><span>Վիճակ.</span><sc-for list="{{ kinds }}" as="k" hint-placeholder-count="5"><button type="button" aria-pressed="{{ k.on }}" onClick="{{ k.pick }}">{{ k.label }}</button></sc-for></div>
+
+<div class="wrapc">
+<section class="card ecard" role="{{ role }}" aria-labelledby="e-h">
+<span class="{{ icCls }}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ icon }}"></path><path d="{{ icon2 }}"></path></svg></span>
+<span class="code">{{ code }}</span>
+<h1 class="h1" id="e-h">{{ title }}</h1>
+<p class="etext">{{ text }}</p>
+<div class="eacts">
+<sc-if value="{{ hasRetry }}" hint-placeholder-val="{{ false }}">
+<sc-if value="{{ idle }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-pri" onClick="{{ retry }}">Կրկին փորձել</button></sc-if>
+<sc-if value="{{ busy }}" hint-placeholder-val="{{ false }}"><button type="button" class="btn btn-pri" aria-busy="true"><span class="spin"></span>Ստուգում ենք…</button></sc-if>
+</sc-if>
+<sc-for list="{{ links }}" as="l" hint-placeholder-count="1"><a class="{{ l.cls }}" href="{{ l.href }}">{{ l.label }}</a></sc-for>
+</div>
+<sc-if value="{{ hasTries }}" hint-placeholder-val="{{ false }}"><span class="tries" role="status">{{ tries }}</span></sc-if>
+<sc-if value="{{ hasRef }}" hint-placeholder-val="{{ false }}"><span class="ref">Սխալի կոդ՝ 7F3A-21C9 · ուղարկեք Yalla-ի թիմին</span></sc-if>
+</section>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kind":{"editor":"enum","options":["notFound","forbidden","offline","signedOut","error"],"default":"notFound","section":"Վիճակ"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { kind: null, busy: false, tries: 0 };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  renderVals() {
+    const s = this.state;
+    const kind = s.kind || this.props.kind || 'notFound';
+    const SEARCH = 'M21 21l-4.3-4.3', SEARCH2 = 'M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z';
+    const LOCK = 'M7 11V7a5 5 0 0 1 10 0v4', LOCK2 = 'M5 11h14v10H5z';
+    const WIFI = 'M2 8.8a15 15 0 0 1 20 0M5 12.9a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0', WIFI2 = 'M2 2l20 20';
+    const OUT = 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5', OUT2 = 'M21 12H9';
+    const WARN = 'M21.7 18l-8-14a2 2 0 0 0-3.5 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3', WARN2 = 'M12 9v4M12 17h.01';
+    const K = {
+      notFound: { code: '404', title: 'Այս վայրը չգտնվեց', text: 'Հնարավոր է՝ հղումը սխալ է կամ վայրը ջնջվել է։ Ջնջված վայրերը մնում են «Վայրեր» էջում՝ «Ջնջված» ֆիլտրով։', ic: 'eic e-brand', i: [SEARCH, SEARCH2], retry: false, role: 'region', links: [['Վայրերի ցանկ', 'Venues.dc.html', 'btn btn-pri'], ['Գլխավոր', 'Main.dc.html', 'btn btn-sec']] },
+      forbidden: { code: '403', title: 'Այս էջը ձեզ համար չէ', text: 'Էջը կամ գոյություն չունի, կամ ձեր հաշիվը դրան հասանելիություն չունի։ Ոչինչ չի փոխվել։', ic: 'eic e-amber', i: [LOCK, LOCK2], retry: false, role: 'region', links: [['Վերադառնալ այնտեղ, ուր կարող եք', 'Main.dc.html', 'btn btn-pri']] },
+      offline: { code: 'Կապ չկա', title: 'Դուք օֆլայն եք', text: 'Ստուգեք ինտերնետ կապը և փորձեք կրկին։ Չպահպանված փոփոխությունները մնում են այս էջում։', ic: 'eic e-amber', i: [WIFI, WIFI2], retry: true, role: 'alert', links: [] },
+      signedOut: { code: 'Սեսիան ավարտվեց', title: 'Մուտք գործեք կրկին', text: 'Անվտանգության համար սեսիան ավարտվել է։ Մուտք գործելուց հետո կվերադառնաք նույն էջին։', ic: 'eic e-brand', i: [OUT, OUT2], retry: false, role: 'alert', links: [['Մուտք', 'SignIn.dc.html', 'btn btn-pri']] },
+      error: { code: 'Սխալ', title: 'Ինչ-որ բան այն չգնաց', text: 'Սա մեր կողմից է, ոչ ձեր։ Ոչինչ չի փոխվել. փորձեք կրկին մի քանի վայրկյանից։', ic: 'eic e-red', i: [WARN, WARN2], retry: true, role: 'alert', links: [['Գլխավոր', 'Main.dc.html', 'btn btn-sec']] }
+    }[kind];
+    const names = [['notFound', 'Չգտնվեց'], ['forbidden', 'Հասանելիություն չկա'], ['offline', 'Օֆլայն'], ['signedOut', 'Սեսիան ավարտվեց'], ['error', 'Սերվերի սխալ']];
+    return {
+      kinds: names.map((n) => ({ label: n[1], on: n[0] === kind ? 'true' : 'false', pick: () => this.setState({ kind: n[0], tries: 0, busy: false }) })),
+      code: K.code, title: K.title, text: K.text, icCls: K.ic, icon: K.i[0], icon2: K.i[1], role: K.role,
+      hasRetry: K.retry, idle: !s.busy, busy: s.busy,
+      retry: () => { this.setState({ busy: true }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ busy: false, tries: s.tries + 1 }), 1200); },
+      hasTries: K.retry && s.tries > 0,
+      tries: 'Դեռ չի ստացվում · փորձ ' + s.tries + '։ Կփորձենք ինքնաբերաբար, երբ կապը վերականգնվի։',
+      hasRef: kind === 'error',
+      links: K.links.map((l) => ({ label: l[0], href: l[1], cls: l[2] }))
+    };
+  }
+}
+</script>
+</body>
+</html>

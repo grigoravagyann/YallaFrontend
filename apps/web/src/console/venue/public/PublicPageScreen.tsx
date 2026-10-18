@@ -1,12 +1,18 @@
 import { ValidationError, type BranchPublicProfile, type Photo } from '@yalla/api';
 import { usePublicProfile, useSavePublicProfile } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
-import { ListingSection } from './ListingSection';
+import { ListingSection, type ListingDraft } from './ListingSection';
+
+/** What the app card shows from the public-page form, as typed. */
+export interface PublicPageDraft {
+  readonly acceptsWebBookings: boolean;
+  readonly cover: Photo | null;
+}
 
 /**
  * What this branch says to strangers on the internet: the number, whether the
@@ -37,10 +43,15 @@ export function PublicPageScreen() {
 export function PublicPageEditor({
   branchId,
   canRelocate,
+  onDraft,
+  onListingDraft,
 }: {
   readonly branchId: string;
   /** Owner or platform admin: may move the map pin and change the address (K5). */
   readonly canRelocate: boolean;
+  /** Told what the card would show from each form, for a live preview beside them. */
+  readonly onDraft?: ((draft: PublicPageDraft) => void) | undefined;
+  readonly onListingDraft?: ((draft: ListingDraft) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const query = usePublicProfile(branchId);
@@ -61,6 +72,8 @@ export function PublicPageEditor({
       branchId={branchId}
       initial={query.data}
       canRelocate={canRelocate}
+      onDraft={onDraft}
+      onListingDraft={onListingDraft}
     />
   );
 }
@@ -69,10 +82,14 @@ function PublicPageForm({
   branchId,
   initial,
   canRelocate,
+  onDraft,
+  onListingDraft,
 }: {
   readonly branchId: string;
   readonly initial: BranchPublicProfile;
   readonly canRelocate: boolean;
+  readonly onDraft?: ((draft: PublicPageDraft) => void) | undefined;
+  readonly onListingDraft?: ((draft: ListingDraft) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const save = useSavePublicProfile(branchId);
@@ -82,6 +99,10 @@ function PublicPageForm({
   const [acceptsWebBookings, setAcceptsWebBookings] = useState(initial.acceptsWebBookings);
   const [cover, setCover] = useState<Photo | null>(initial.coverPhoto);
   const [phoneRefusal, setPhoneRefusal] = useState<string | null>(null);
+
+  useEffect(() => {
+    onDraft?.({ acceptsWebBookings, cover });
+  }, [onDraft, acceptsWebBookings, cover]);
   const [outcome, setOutcome] = useState<'saved' | 'failed' | null>(null);
 
   const dirty =
@@ -181,7 +202,7 @@ function PublicPageForm({
 
       {/* The diner app's listing sits next to the cover it describes. Tables
           are pinned on room photos in the rooms editor, not on the cover. */}
-      <ListingSection branchId={branchId} canRelocate={canRelocate} />
+      <ListingSection branchId={branchId} canRelocate={canRelocate} onDraft={onListingDraft} />
     </section>
   );
 }

@@ -13,7 +13,7 @@ import {
 import { useBranchListing, useSaveBranchListing } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
@@ -37,13 +37,25 @@ import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
  * area for diners ("Kentron") rather than moving anyone's pin, so whoever may
  * edit the cuisine may edit it.
  */
+/** What the app card shows from this form, as typed: for a live preview beside it. */
+export interface ListingDraft {
+  readonly cuisine: string;
+  readonly about: string;
+  readonly priceLevel: number | null;
+  readonly amenities: readonly string[];
+  readonly district: string;
+}
+
 export function ListingSection({
   branchId,
   canRelocate,
+  onDraft,
 }: {
   readonly branchId: string;
   /** Owner or platform admin. Anyone else gets the pin and the address read-only. */
   readonly canRelocate: boolean;
+  /** Told what the card would show, on every change, before anything is saved. */
+  readonly onDraft?: ((draft: ListingDraft) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const query = useBranchListing(branchId);
@@ -60,6 +72,7 @@ export function ListingSection({
       branchId={branchId}
       initial={query.data}
       canRelocate={canRelocate}
+      onDraft={onDraft}
     />
   );
 }
@@ -148,10 +161,12 @@ function ListingForm({
   branchId,
   initial,
   canRelocate,
+  onDraft,
 }: {
   readonly branchId: string;
   readonly initial: VenueListing;
   readonly canRelocate: boolean;
+  readonly onDraft?: ((draft: ListingDraft) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const save = useSaveBranchListing(branchId);
@@ -167,6 +182,11 @@ function ListingForm({
   const [address, setAddress] = useState(initial.address ?? '');
   const [district, setDistrict] = useState(initial.district ?? '');
   const [gallery, setGallery] = useState<readonly Photo[]>(initial.gallery);
+
+  // The preview beside the form, when there is one, follows the typing.
+  useEffect(() => {
+    onDraft?.({ cuisine, about, priceLevel, amenities, district });
+  }, [onDraft, cuisine, about, priceLevel, amenities, district]);
   // A fresh picker after each upload, so the drop zone is empty for the next photo.
   const [pickerKey, setPickerKey] = useState(0);
 

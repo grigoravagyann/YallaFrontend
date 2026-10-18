@@ -35,9 +35,11 @@ export const SUBSCRIPTION_TIERS: readonly SubscriptionTier[] = ['free', 'paid'];
 /**
  * `suspended` is reversible and mostly about billing; `deleted` is a soft
  * delete the platform team can still see. Neither ever removes a row, because
- * a venue's history is what its reports are made of.
+ * a venue's history is what its reports are made of. `inactive` is a venue
+ * switched off (`isActive` false) without being suspended — the server's
+ * `VenueStatus.Inactive`.
  */
-export type VenueStatus = 'active' | 'suspended' | 'deleted';
+export type VenueStatus = 'active' | 'suspended' | 'inactive' | 'deleted';
 
 // ---------------------------------------------------------------------------
 // Roles and scope
@@ -107,7 +109,39 @@ export interface ConsoleUser {
 // Venues
 // ---------------------------------------------------------------------------
 
-/** A row in the platform venues list. */
+/**
+ * Why a venue is not ready for diners yet, as the venues list shows it: one
+ * line under the name, amber, never red.
+ *
+ * The first unmet line of the first branch that has one, in the order a
+ * venue is onboarded: tables, then the menu, then the hours, then the cover
+ * photo. `branchName` names that branch when the venue has more than one;
+ * `count` is the number of unfinished dishes, and `null` for every other kind.
+ * `other` is a reason this client does not know yet: still "not ready", never
+ * a blank.
+ */
+export interface VenueReadinessIssue {
+  readonly kind: 'noTables' | 'noMenu' | 'incompleteDishes' | 'noHours' | 'noPhoto' | 'other';
+  readonly count: number | null;
+  readonly branchName: string | null;
+}
+
+/** One branch's tier, as the venues list carries it. */
+export interface VenueBranchTier {
+  readonly id: string;
+  readonly name: string;
+  readonly subscriptionTier: SubscriptionTier;
+}
+
+/**
+ * A row in the platform venues list.
+ *
+ * The fields marked optional are the list's newer columns (rating, open tabs,
+ * readiness, cover, each branch's tier, cuisine, district). **Absent means the
+ * source did not report it**, which is what today's backend answers; `null`
+ * means it reported "none" (no reviews yet, no cover yet). The screen hides a
+ * column nobody reports rather than filling it with dashes that read as zeros.
+ */
 export interface ConsoleVenue {
   readonly id: string;
   readonly name: string;
@@ -117,20 +151,49 @@ export interface ConsoleVenue {
   readonly status: VenueStatus;
   readonly branchCount: number;
   readonly tableCount: number;
-  /** The highest tier across the venue's branches, for the list column. */
+  /**
+   * The server's older rollup: Paid only when **every** branch is; a mixed
+   * venue reads Free. Kept for the callers that read it — the tier is per
+   * branch, so read `paidBranchCount` and `branchTiers` instead.
+   */
   readonly subscriptionTier: SubscriptionTier;
   /**
-   * `null` when the source does not report it. The platform list endpoint does
-   * not, so the screen omits the line rather than inventing a date.
+   * How many of `branchCount` are on Paid. The tier is per branch, so the list
+   * says "Paid", "Free" or "Mixed · 1/2" from this pair.
    */
+  readonly paidBranchCount: number;
+  /** `null` when the source does not report it: the screen omits the line rather than invent a date. */
   readonly createdAtUtc: string | null;
   readonly suspendedAtUtc: string | null;
+
+  /** The average of the published reviews, 1–5; `null` with none yet. */
+  readonly rating?: number | null | undefined;
+  readonly reviewCount?: number | undefined;
+  /** Tabs open right now across every branch. */
+  readonly openTabCount?: number | undefined;
+  /** `null` when every branch is ready for diners. */
+  readonly readinessIssue?: VenueReadinessIssue | null | undefined;
+  /** Absolute URL of the first branch's cover thumbnail; `null` with no cover yet. */
+  readonly coverThumbnailUrl?: string | null | undefined;
+  /** Every branch with its tier, in the server's order. */
+  readonly branchTiers?: readonly VenueBranchTier[] | undefined;
+  /** The first branch's cuisine line from its app listing. */
+  readonly cuisine?: string | null | undefined;
+  /** The first branch's district, for the line under the name. */
+  readonly district?: string | null | undefined;
 }
 
 export interface ConsoleBranch {
   readonly id: string;
   readonly venueId: string;
   readonly name: string;
+  /**
+   * The branch half of `yalla.am/{venue}/{branch}`, and its street address.
+   * Optional because older shapes of this row did not carry them; the
+   * platform venue read does.
+   */
+  readonly slug?: string | undefined;
+  readonly address?: string | null | undefined;
   readonly timeZoneId: string;
   readonly tableCount: number;
   readonly subscriptionTier: SubscriptionTier;
@@ -141,6 +204,8 @@ export interface ConsoleBranch {
    * conflates them tells a manager the floor is clear when nobody looked.
    */
   readonly openTabCount: number | null;
+  /** The listing's district, when the source reports it. */
+  readonly district?: string | null | undefined;
 }
 
 export type StaffRole = Extract<
@@ -288,4 +353,54 @@ export interface AddBranchCommand {
   readonly latitude: number;
   readonly longitude: number;
   readonly timeZoneId: string;
+}
+
+// ---------------------------------------------------------------------------
+// A venue's bookings, as the platform admin may see them
+// ---------------------------------------------------------------------------
+
+/** The two windows the venue page offers: the last week and the last month. */
+export type BookingSummaryDays = 7 | 30;
+export const BOOKING_SUMMARY_DAYS: readonly BookingSummaryDays[] = [7, 30];
+
+/**
+ * Bookings counted by what became of them.
+ *
+ * - `completed`: the party came (seated, then completed).
+ * - `upcoming`: confirmed and still ahead.
+ * - `pending`: waiting for the venue to approve.
+ * - `cancelled`: by the guest or by the venue.
+ * - `noShow`: confirmed, and nobody came.
+ */
+export interface BookingStatusCounts {
+  readonly completed: number;
+  readonly upcoming: number;
+  readonly pending: number;
+  readonly cancelled: number;
+  readonly noShow: number;
+}
+
+export interface BranchBookingsSummary extends BookingStatusCounts {
+  readonly branchId: string;
+  readonly name: string;
+  readonly total: number;
+  /** Its bookings for its own today, cancelled ones left out: the venue page's "Bookings today". */
+  readonly todayCount: number;
+}
+
+/**
+ * A venue's bookings over the last 7 or 30 days, **aggregates only**
+ * (HANDOFF section 3): the platform admin never sees a guest's name or phone,
+ * so nothing here can carry one. Counted in the branches' own time zone.
+ */
+export interface VenueBookingsSummary {
+  readonly venueId: string;
+  readonly days: BookingSummaryDays;
+  readonly total: number;
+  readonly byStatus: BookingStatusCounts;
+  /** Seven counts, **Monday first**, by the day the booking is for. */
+  readonly byWeekday: readonly number[];
+  /** Guests per booking; `null` with no bookings in the window. */
+  readonly averagePartySize: number | null;
+  readonly byBranch: readonly BranchBookingsSummary[];
 }

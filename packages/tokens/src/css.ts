@@ -1,5 +1,6 @@
 import { blob, paperGrain } from './ambient';
 import { color } from './color';
+import { consoleColor, consoleRadius, consoleShadow, consoleSize, consoleText } from './console';
 import { elevation } from './elevation';
 import { duration, easing, scale } from './motion';
 import { icon, radius, space, touchTarget } from './space';
@@ -31,6 +32,28 @@ function block(lines: readonly string[], selector = ':root'): string {
 
 function colorVars(): string[] {
   return Object.entries(color).map(([name, value]) => `--color-${kebab(name)}: ${value};`);
+}
+
+/**
+ * The platform-admin console's tokens (`console.ts`), under their own prefix so
+ * they can never be mistaken for the product palette they sit beside.
+ */
+function consoleVars(): string[] {
+  return [
+    ...Object.entries(consoleColor).map(([name, value]) => `--console-${kebab(name)}: ${value};`),
+    ...Object.entries(consoleSize).map(
+      ([name, value]) => `--console-size-${kebab(name)}: ${value}px;`,
+    ),
+    ...Object.entries(consoleRadius).map(
+      ([name, value]) => `--console-radius-${kebab(name)}: ${value}px;`,
+    ),
+    ...Object.entries(consoleText).map(
+      ([name, value]) => `--console-text-${kebab(name)}: ${value}px;`,
+    ),
+    ...Object.entries(consoleShadow).map(
+      ([name, value]) => `--console-shadow-${kebab(name)}: ${value};`,
+    ),
+  ];
 }
 
 function stateVars(): string[] {
@@ -139,6 +162,9 @@ export function renderTokenCss(): string {
     '',
     '/* Console scale by default; the floor screen opts into the staff scale. */',
     ...scaleVars('console'),
+    '',
+    '/* The platform-admin console (docs/design/console). */',
+    ...consoleVars(),
   ]);
 
   const staff = block(scaleVars('staff'), "[data-surface='staff']");
