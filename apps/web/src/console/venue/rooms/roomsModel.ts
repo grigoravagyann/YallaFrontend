@@ -76,6 +76,17 @@ export type RoomsAction =
   | { type: 'discardTable'; id: string }
   | { type: 'deleted'; result: TableDeletionResult }
   | { type: 'restoreTable'; id: string }
+  /**
+   * A table deleted on the server, back as a new one with its label, seats,
+   * room and pin: the delete's undo. It is saved with the rooms, and gets a
+   * new code then.
+   */
+  | {
+      type: 'reAddTable';
+      table: NewTableInput;
+      roomId: string | null;
+      pin: EditorTablePin | null;
+    }
   | { type: 'qrReplaced'; id: string; qrToken: string }
   | { type: 'versionMoved'; plan: EditorFloorPlan }
   | { type: 'versionAfterDelete'; version: string };
@@ -363,6 +374,32 @@ export function reducer(state: RoomsState, action: RoomsAction): RoomsState {
       return Number(action.version) === Number(state.version) + 1
         ? { ...state, version: action.version }
         : state;
+
+    case 'reAddTable': {
+      // Its room must still be here; its pin, on a photo the room still has.
+      const roomId = state.rooms.some((room) => room.id === action.roomId) ? action.roomId : null;
+      const pinRoom = action.pin ? roomOfPhoto(state.rooms, action.pin.photoId) : null;
+      const pin = action.pin && pinRoom && pinRoom.id === roomId ? clampPin(action.pin) : null;
+      return {
+        ...state,
+        sequence: state.sequence + 1,
+        tables: [
+          ...state.tables,
+          {
+            id: `new-table-${state.sequence + 1}`,
+            label: action.table.label.trim(),
+            seats: action.table.seats,
+            roomId,
+            isBookable: action.table.isBookable,
+            isActive: true,
+            isDeletable: true,
+            status: null,
+            qrToken: '',
+            pin,
+          },
+        ],
+      };
+    }
 
     case 'restoreTable':
       return {

@@ -142,6 +142,7 @@ describe('the overview over HTTP', () => {
       closesAt: '00:00:00',
       closesNextDay: false,
       opensAt: null,
+      specialDay: null,
     });
     expect(overview.serviceDate).toBe('2026-10-18');
     expect(overview.graceMinutes).toBe(15);
@@ -230,6 +231,7 @@ describe('the overview over HTTP', () => {
       closesAt: null,
       closesNextDay: false,
       opensAt: '12:00:00',
+      specialDay: null,
     });
     expect(overview.revenue.changePercent).toBeNull();
     expect(overview.load.hours).toEqual([]);
@@ -376,5 +378,24 @@ describe('the row menu over HTTP', () => {
     const error = await gateway.actOnBooking({ ...command, kind: 'noShow' }).catch((e) => e);
     expect(error).toBeInstanceOf(ConcurrencyConflictError);
     expect((error as ConcurrencyConflictError).code).toBe('conflicting-state');
+  });
+});
+
+describe('the overview on a special day', () => {
+  it('carries the special day the service date is (VC3 wire §1)', async () => {
+    const { gateway } = gatewayOver({
+      'GET /api/branches/b-1/overview': {
+        body: {
+          ...OVERVIEW,
+          hours: {
+            isOpen: false,
+            closesNextDay: false,
+            specialDay: { date: '2026-10-18', note: 'Ամանոր', closed: true, blocks: [] },
+          },
+        },
+      },
+    });
+    const overview = await gateway.getBranchOverview('b-1');
+    expect(overview.hours.specialDay).toEqual({ date: '2026-10-18', note: 'Ամանոր', blocks: [] });
   });
 });

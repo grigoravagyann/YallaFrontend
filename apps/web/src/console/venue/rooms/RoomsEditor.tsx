@@ -30,7 +30,20 @@ import {
   type ReactNode,
 } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
-import { useDialogFocus } from '../../../components/useDialogFocus';
+import { Dialog } from '../../ui/Dialog';
+import {
+  AlertCircleIcon,
+  ArrowLeftIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  PlusIcon,
+  TrashIcon,
+  WarningIcon,
+} from '../../ui/icons';
+import { PageHeader } from '../../ui/PageHeader';
+import { RowMenu } from '../../ui/RowMenu';
+import { useToast } from '../../ui/toast';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { PhotoStage } from './PhotoStage';
@@ -45,7 +58,6 @@ import {
   isServerId,
   nextLabel,
   reducer,
-  roomOfPhoto,
   toSaveCommand,
   type DraftRoom,
   type DraftTable,
@@ -55,7 +67,7 @@ import {
 /**
  * The actions that are the person's own edits, as against the server's
  * answers (`loaded`, `deleted`, `qrReplaced`, `versionMoved`). An edit makes
- * "Rooms saved." and a refused save's reasons stale.
+ * a save's warnings and a refused save's reasons stale.
  */
 const EDITS = new Set<RoomsAction['type']>([
   'addRoom',
@@ -70,68 +82,80 @@ const EDITS = new Set<RoomsAction['type']>([
   'placeTable',
   'discardTable',
   'restoreTable',
+  'reAddTable',
 ]);
+
+/** A table added by a click on the photo: the artboard's four seats, bookable. */
+const NEW_TABLE_SEATS = 4;
 
 export interface RoomsEditorProps {
   /** From the token's scope, or the platform route — never a parameter the user typed. */
   readonly branchId: string | undefined;
+  /** For the header's "Cascade · 3 rooms · 12 tables". */
+  readonly branchName?: string | null;
   /**
    * `platform`: inside the platform admin's branch page (BranchRooms
-   * artboard), whose header already names the page — so no title of its own —
-   * and which saves from a sticky bar at the foot, with "Discard changes".
-   * `console`, the default, is the venue console's screen as it was.
+   * artboard), whose header already names the page — so no title of its own.
+   * `console`, the default, is the venue console's screen (Rooms artboard).
+   * Both save from the sticky bar at the foot.
    */
   readonly layout?: 'console' | 'platform';
 }
 
+type Dialogs =
+  | { readonly kind: 'removeRoom'; readonly room: DraftRoom }
+  | { readonly kind: 'renameRoom'; readonly room: DraftRoom }
+  | {
+      readonly kind: 'removePhoto';
+      readonly roomId: string;
+      readonly photoId: string;
+      readonly position: number;
+      readonly labels: readonly string[];
+    }
+  | { readonly kind: 'deleteTable'; readonly table: DraftTable }
+  | { readonly kind: 'seated'; readonly table: DraftTable }
+  | { readonly kind: 'regenerate'; readonly table: DraftTable }
+  | { readonly kind: 'addPhoto'; readonly roomId: string };
+
 /**
- * The rooms editor: rooms, their photos, and a pin for every table.
+ * Rooms and tables (Rooms artboard): rooms on the left with the tables on no
+ * photo and the ones out of service, the room's photo in the middle with a
+ * pin for every table on it, the selected table on the right.
  *
  * A diner picks a room, swipes its photos and taps a table to book it, so
  * this is where a venue says what its rooms look like and where each table
- * stands in them. Add a room, add its photos, then click a photo where a
- * table stands to add it there; drag a pin, or nudge it with the arrow keys,
- * to move it.
+ * stands in them. A click on the photo adds a table there — the next free
+ * number, four seats, bookable — and puts the focus on its number; a pin is
+ * dragged, or nudged with the arrow keys (Shift for steps of five).
  *
- * It saves **explicitly**, against the `version` it loaded (K6): rooms, photos
- * and pins land together or not at all, and a plan somebody else saved in the
- * meantime is refused and offered, never overwritten. Deleting a table is the
- * exception — it is its own call, which removes a table that was never used
- * and takes one with history out of service, and the editor says which.
+ * It saves **explicitly**, from the bar at the foot, against the `version` it
+ * loaded (K6): rooms, photos and pins land together or not at all, and a plan
+ * somebody else saved in the meantime is refused and offered, never
+ * overwritten. Deleting a table is the exception — its own call, which
+ * removes a table that was never used and takes one with history out of
+ * service, says which, and offers an undo that puts it back as an unsaved
+ * change.
  */
-export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) {
+export function RoomsEditor({ branchId, branchName = null, layout = 'console' }: RoomsEditorProps) {
   const { t } = useTranslation(['admin', 'common']);
+  const toast = useToast();
   const query = useEditorFloorPlan(branchId);
   const save = useSaveFloorPlan();
   const remove = useDeleteTable(branchId);
   const regenerate = useRegenerateTableQr();
+  const newRoomId = useId();
 
   const [state, apply] = useReducer(reducer, undefined, initialState);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [photoByRoom, setPhotoByRoom] = useState<Record<string, string>>({});
   const [tableId, setTableId] = useState<string | null>(null);
   const [focusTableId, setFocusTableId] = useState<string | null>(null);
-  const [draftPin, setDraftPin] = useState<EditorTablePin | null>(null);
   const [newRoomName, setNewRoomName] = useState('');
-  const [pickerKey, setPickerKey] = useState(0);
-  const [removingRoom, setRemovingRoom] = useState<DraftRoom | null>(null);
-  const [deleting, setDeleting] = useState<DraftTable | null>(null);
-  const [regenerating, setRegenerating] = useState<DraftTable | null>(null);
-  const [confirmText, setConfirmText] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
-  const [savedResult, setSavedResult] = useState<{
-    deactivated: readonly string[];
-    removed: readonly string[];
-    warnings: readonly string[];
-  } | null>(null);
+  const [dialog, setDialog] = useState<Dialogs | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [savedResult, setSavedResult] = useState<readonly string[] | null>(null);
   const [reloadFailed, setReloadFailed] = useState(false);
-  const [focusListTableId, setFocusListTableId] = useState<string | null>(null);
-  const [removingPhoto, setRemovingPhoto] = useState<{
-    readonly roomId: string;
-    readonly photoId: string;
-    readonly position: number;
-    readonly labels: readonly string[];
-  } | null>(null);
+
   /**
    * Where focus goes once the control that had it is gone: a photo removed,
    * a table deleted. The first of these ids on the page wins.
@@ -190,46 +214,93 @@ export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) 
   const active = state.tables.filter((table) => table.isActive);
   const selected = active.find((table) => table.id === tableId) ?? null;
   const placing = selected && !selected.pin ? selected : null;
-  const unpinned = bookableUnpinned(state);
+  const unpinnedBookable = bookableUnpinned(state);
   const duplicates = duplicateLabels(state);
   const duplicateRooms = duplicateRoomNames(state);
 
-  const select = useCallback((id: string | null) => {
-    setTableId(id);
-    setDraftPin(null);
-  }, []);
+  const select = useCallback((id: string | null) => setTableId(id), []);
 
   function showPhoto(nextRoomId: string, nextPhotoId: string) {
     setPhotoByRoom((current) => ({ ...current, [nextRoomId]: nextPhotoId }));
-    // A table half-added on the photo going off screen would be pinned on it unseen.
-    setDraftPin(null);
+  }
+
+  /** "Place": to the table's room and its first photo, with the table selected to drop. */
+  function startPlacing(table: DraftTable) {
+    const target = state.rooms.find((candidate) => candidate.id === table.roomId) ?? room;
+    if (target) {
+      setRoomId(target.id);
+      const first = target.photos[0];
+      if (first) showPhoto(target.id, first.photoId);
+    }
+    select(table.id);
+    focusAfter.current = ['stage-title'];
   }
 
   function removePhoto(fromRoomId: string, removedPhotoId: string, position: number) {
     dispatch({ type: 'removePhoto', roomId: fromRoomId, photoId: removedPhotoId });
-    setDraftPin(null);
     // The photo that slides into its place, else the one before it, else the heading.
     focusAfter.current = [
       `room-photo-${position + 1}`,
       `room-photo-${position - 1}`,
-      'room-photos-title',
+      'stage-title',
     ];
   }
 
-  function onClickPhoto(pin: EditorTablePin) {
-    setNotice(null);
+  /** A click on the photo: the table being placed goes there, or a new one. */
+  function addAt(pin: EditorTablePin) {
     if (placing) {
       dispatch({ type: 'placeTable', id: placing.id, pin });
+      setFocusTableId(placing.id);
       return;
     }
-    setTableId(null);
-    setDraftPin(pin);
+    const id = `new-table-${state.sequence + 1}`;
+    dispatch({
+      type: 'addTable',
+      table: { label: nextLabel(state), seats: NEW_TABLE_SEATS, isBookable: true },
+      pin,
+    });
+    select(id);
+    // Its number is the next thing to type.
+    focusAfter.current = ['rm-t-label'];
+  }
+
+  function addRoom(event: FormEvent) {
+    event.preventDefault();
+    const name = newRoomName.trim();
+    if (!name) {
+      document.getElementById(newRoomId)?.focus();
+      return;
+    }
+    if (state.rooms.some((candidate) => sameName(candidate.name, name))) {
+      toast.say(t('rooms.list.duplicate'), { tone: 'error' });
+      return;
+    }
+    dispatch({ type: 'addRoom', name });
+    setNewRoomName('');
+    // The new room is the last one; show it.
+    setRoomId(`new-room-${state.sequence + 1}`);
+    select(null);
   }
 
   async function onSave() {
-    if (!branchId) return;
+    if (!branchId || busy) return;
+    if (duplicates.length > 0) {
+      toast.say(t('rooms.warning.duplicates', { labels: duplicates.join(', ') }), {
+        tone: 'error',
+      });
+      return;
+    }
+    if (duplicateRooms.length > 0) {
+      toast.say(t('rooms.warning.duplicateRooms', { names: duplicateRooms.join(', ') }), {
+        tone: 'error',
+      });
+      return;
+    }
+    if (!dirty) {
+      toast.say(t('rooms.noChanges'));
+      return;
+    }
     setSavedResult(null);
-    setNotice(null);
     const command = toSaveCommand(state);
     const keepRoom = room?.name ?? null;
     try {
@@ -238,24 +309,30 @@ export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) 
       // New rooms and tables have server ids now: keep the room on screen by name.
       setRoomId(result.plan.areas.find((area) => area.name === keepRoom)?.id ?? null);
       select(null);
-      setSavedResult({
-        deactivated: result.deactivatedTables,
-        removed: result.removedTables,
-        warnings: result.warnings,
-      });
+      const lines = [
+        ...(result.deactivatedTables.length > 0
+          ? [t('rooms.result.deactivated', { labels: result.deactivatedTables.join(', ') })]
+          : []),
+        ...(result.removedTables.length > 0
+          ? [t('rooms.result.removed', { labels: result.removedTables.join(', ') })]
+          : []),
+        ...savedWarnings(t, result.warnings),
+      ];
+      setSavedResult(lines.length > 0 ? lines : null);
+      toast.say(t('rooms.saved'));
     } catch {
       // Rendered below from the mutation's own error.
     }
   }
 
-  /** Back to the plan as last loaded or saved: the platform save bar's "Discard changes". */
+  /** Back to the plan as last loaded or saved. */
   function onDiscard() {
     if (!query.data || busy) return;
     dispatch({ type: 'loaded', plan: query.data });
     save.reset();
     select(null);
     setSavedResult(null);
-    setNotice(t('rooms.saveBar.discarded'));
+    toast.say(t('rooms.saveBar.discarded'));
   }
 
   async function onReload() {
@@ -272,10 +349,10 @@ export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) 
     save.reset();
     select(null);
     setSavedResult(null);
+    toast.say(t('rooms.conflict.reloaded'));
   }
 
   async function onConfirmDelete(table: DraftTable) {
-    setNotice(null);
     try {
       const result = await remove.mutateAsync(table.id);
       dispatch({ type: 'deleted', result });
@@ -290,108 +367,109 @@ export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) 
           if (fresh.isSuccess) dispatch({ type: 'versionMoved', plan: fresh.data });
         });
       }
-      setNotice(
+      setDialog(null);
+      // Its panel and its pin went with it.
+      focusAfter.current = ['stage-title', 'rooms-list-title'];
+      toast.say(
         result.deleted
           ? t('rooms.delete.removed', { label: result.label })
           : t('rooms.delete.deactivated', { label: result.label }),
+        {
+          fallbackFocus: () => document.getElementById('stage-title'),
+          // Back as an unsaved change: kept tables come back into service,
+          // removed ones as new tables with the same number, room and pin.
+          undo: () => {
+            if (result.deleted) {
+              dispatch({
+                type: 'reAddTable',
+                table: { label: table.label, seats: table.seats, isBookable: table.isBookable },
+                roomId: table.roomId,
+                pin: table.pin,
+              });
+            } else {
+              dispatch({ type: 'restoreTable', id: table.id });
+            }
+            toast.say(t('rooms.delete.undone', { label: table.label }));
+          },
+        },
       );
-      setDeleting(null);
-      // Its panel and its pin went with it.
-      focusAfter.current = ['stage-title', 'room-title', 'rooms-list-title'];
     } catch {
       // Shown in the dialog from the mutation's own error.
     }
   }
 
-  if (!branchId) {
+  if (!branchId || isOfflinePaused(query) || query.isLoading || !loaded) {
+    const failed =
+      !loaded && !query.isLoading && !query.isFetching && (query.isError || !query.data);
     return (
-      <section className="page">
-        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
-        <p className="muted">{t('rooms.noBranch')}</p>
-      </section>
-    );
-  }
-
-  if (isOfflinePaused(query)) {
-    return (
-      <section className="page">
-        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
-        <QueryFailureNotice offline onRetry={() => void query.refetch()} />
-      </section>
-    );
-  }
-
-  if (query.isLoading || (!loaded && query.isFetching)) {
-    return (
-      <section className="page">
-        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
-        <p className="muted">{t('loading')}</p>
-      </section>
-    );
-  }
-
-  // Once loaded, the draft is the screen: a failed read later must not hide it.
-  if (!loaded && (query.isError || !query.data)) {
-    return (
-      <section className="page">
-        {layout === 'platform' ? null : <h1>{t('nav.floorplan')}</h1>}
-        <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
-      </section>
+      <div className="yc-page">
+        {layout === 'platform' ? null : <PageHeader title={t('nav.floorplan')} />}
+        {!branchId ? (
+          <p className="yc-card yc-empty-line">{t('rooms.noBranch')}</p>
+        ) : isOfflinePaused(query) ? (
+          <div className="yc-card yc-ov-pad">
+            <QueryFailureNotice offline onRetry={() => void query.refetch()} />
+          </div>
+        ) : failed ? (
+          // Once loaded, the draft is the screen: a failed read later must not hide it.
+          <div className="yc-card yc-ov-pad">
+            <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
+          </div>
+        ) : (
+          <p className="yc-card yc-empty-line" role="status">
+            {t('loading')}
+          </p>
+        )}
+      </div>
     );
   }
 
   const conflict = save.error instanceof FloorPlanChangedError ? save.error : null;
-  const roomTables = room ? active.filter((table) => table.roomId === room.id) : [];
   const onPhoto = photo ? active.filter((table) => table.pin?.photoId === photo.photoId) : [];
-  const roomUnpinned = roomTables.filter((table) => !table.pin);
-  const noRoom = active.filter((table) => table.roomId === null);
+  const unpinned = active.filter((table) => !table.pin);
   const inactive = state.tables.filter((table) => !table.isActive);
-  const roomNameTaken = (name: string) =>
-    duplicateRooms.some(
-      (duplicate) => duplicate.toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
-    );
-
-  // The server refuses these; the notices below say why.
-  const cannotSave = !dirty || busy || duplicateRooms.length > 0 || duplicates.length > 0;
-  const saveButton = (
-    <button
-      type="button"
-      className={layout === 'platform' ? 'yc-btn yc-btn-pri yc-btn-sm' : 'button button-primary'}
-      disabled={cannotSave}
-      aria-busy={save.isPending}
-      onClick={() => void onSave()}
-    >
-      {save.isPending ? t('rooms.saving') : t('rooms.save')}
-    </button>
-  );
+  const roomName = (id: string | null) =>
+    state.rooms.find((candidate) => candidate.id === id)?.name.trim() || t('rooms.table.noRoom');
   const summary = t('rooms.summary', { rooms: state.rooms.length, tables: active.length });
 
   return (
-    <section className="page editor rooms-editor">
-      {layout === 'platform' ? null : (
-        <header className="page-head">
-          <div>
-            <h1>{t('nav.floorplan')}</h1>
-            <p className="muted small">
-              {summary}
-              {dirty ? ` · ${t('rooms.unsaved')}` : ''}
-            </p>
-          </div>
-          <div className="actions">{saveButton}</div>
-        </header>
+    <div
+      className="yc-page yc-rooms-page"
+      onKeyDown={(event) => {
+        // Placing a table: Escape stops, without a dialog to close.
+        if (event.key === 'Escape' && placing && !dialog) {
+          select(null);
+        }
+      }}
+    >
+      {layout === 'platform' ? (
+        <p className="yc-sub yc-rm-intro">{t('rooms.intro')}</p>
+      ) : (
+        <PageHeader
+          title={t('nav.floorplan')}
+          sub={t('rooms.intro')}
+          actions={
+            <span className="yc-muted yc-rm-sum">
+              {branchName ? `${branchName} · ${summary}` : summary}
+            </span>
+          }
+        />
       )}
 
-      <p className="muted">{t('rooms.intro')}</p>
-
       {conflict ? (
-        <div className="notice notice-error" role="alert">
-          <p>
-            <strong>{t('rooms.conflict.title')}</strong> {t('rooms.conflict.body')}
-          </p>
-          <button type="button" className="button button-small" onClick={() => void onReload()}>
+        <div className="yc-banner yc-banner-red" role="alert">
+          <WarningIcon />
+          <span className="yc-grow">
+            <b>{t('rooms.conflict.title')}</b> {t('rooms.conflict.body')}
+            {reloadFailed ? <> {t('rooms.conflict.reloadFailed')}</> : null}
+          </span>
+          <button
+            type="button"
+            className="yc-btn yc-btn-sec yc-btn-sm"
+            onClick={() => void onReload()}
+          >
             {t('rooms.conflict.reload')}
           </button>
-          {reloadFailed ? <p className="error">{t('rooms.conflict.reloadFailed')}</p> : null}
         </div>
       ) : save.isError ? (
         <SaveRefusal
@@ -401,280 +479,307 @@ export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) 
         />
       ) : null}
 
-      {duplicates.length > 0 ? (
-        <div className="notice notice-error" role="alert">
-          <p>{t('rooms.warning.duplicates', { labels: duplicates.join(', ') })}</p>
-        </div>
-      ) : null}
-
-      {duplicateRooms.length > 0 ? (
-        <div className="notice notice-error" role="alert">
-          <p>{t('rooms.warning.duplicateRooms', { names: duplicateRooms.join(', ') })}</p>
-        </div>
-      ) : null}
-
-      {unpinned.length > 0 ? (
-        <div className="notice notice-warning" role="status" data-testid="unpinned-warning">
-          <p>
+      {unpinnedBookable.length > 0 ? (
+        <div className="yc-banner yc-banner-amber" role="status" data-testid="unpinned-warning">
+          <AlertCircleIcon />
+          <span className="yc-grow">
             {t('rooms.warning.unpinned', {
-              count: unpinned.length,
-              labels: unpinned.map((table) => table.label).join(', '),
+              count: unpinnedBookable.length,
+              labels: unpinnedBookable.map((table) => table.label).join(', '),
             })}
-          </p>
-        </div>
-      ) : null}
-
-      {savedResult ? (
-        <div className="notice notice-offline" role="status">
-          <p>
-            {t('rooms.saved')}
-            {savedResult.deactivated.length > 0
-              ? ` ${t('rooms.result.deactivated', { labels: savedResult.deactivated.join(', ') })}`
-              : ''}
-            {savedResult.removed.length > 0
-              ? ` ${t('rooms.result.removed', { labels: savedResult.removed.join(', ') })}`
-              : ''}
-          </p>
-          {savedWarnings(t, savedResult.warnings).length > 0 ? (
-            <ul className="small">
-              {savedWarnings(t, savedResult.warnings).map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      {notice ? (
-        <div className="notice notice-offline" role="status">
-          <p>{notice}</p>
-        </div>
-      ) : null}
-
-      <fieldset className="editor-body rooms-body" disabled={busy} aria-busy={busy}>
-        <aside className="editor-areas rooms-list" aria-labelledby="rooms-list-title">
-          <h2 id="rooms-list-title" tabIndex={-1}>
-            {t('rooms.list.title')}
-          </h2>
-          {state.rooms.length === 0 ? (
-            <p className="muted small">{t('rooms.list.empty')}</p>
-          ) : (
-            <ol className="rooms-list-items">
-              {state.rooms.map((candidate, index) => (
-                <li key={candidate.id} className={candidate === room ? 'is-current' : undefined}>
-                  <button
-                    type="button"
-                    className={`chip${candidate === room ? ' is-on' : ''}`}
-                    aria-pressed={candidate === room}
-                    onClick={() => {
-                      setRoomId(candidate.id);
-                      select(null);
-                    }}
-                  >
-                    {candidate.name.trim() || t('rooms.list.unnamed')} ·{' '}
-                    {t('rooms.list.photoCount', { count: candidate.photos.length })}
-                  </button>
-                  <span className="rooms-list-actions">
-                    <button
-                      type="button"
-                      className="button button-small"
-                      disabled={index === 0}
-                      aria-label={`${t('rooms.list.moveUp')} (${candidate.name})`}
-                      onClick={() => dispatch({ type: 'moveRoom', id: candidate.id, delta: -1 })}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="button button-small"
-                      disabled={index === state.rooms.length - 1}
-                      aria-label={`${t('rooms.list.moveDown')} (${candidate.name})`}
-                      onClick={() => dispatch({ type: 'moveRoom', id: candidate.id, delta: 1 })}
-                    >
-                      ↓
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-          <form
-            className="rooms-add"
-            onSubmit={(event: FormEvent) => {
-              event.preventDefault();
-              const name = newRoomName.trim();
-              if (!name) return;
-              dispatch({ type: 'addRoom', name });
-              setNewRoomName('');
-              // The new room is the last one; show it.
-              setRoomId(`new-room-${state.sequence + 1}`);
-              select(null);
-            }}
+          </span>
+          <button
+            type="button"
+            className="yc-btn yc-btn-sec yc-btn-sm"
+            onClick={() => startPlacing(unpinnedBookable[0]!)}
           >
-            <label className="labelled">
-              {t('rooms.list.newName')}
-              <input
-                className="field"
-                value={newRoomName}
-                placeholder={t('rooms.list.newPlaceholder')}
-                onChange={(event) => setNewRoomName(event.target.value)}
-              />
-            </label>
-            <button type="submit" className="button button-small" disabled={!newRoomName.trim()}>
-              {t('rooms.list.add')}
-            </button>
-          </form>
-        </aside>
+            {t('rooms.warning.place', { label: unpinnedBookable[0]!.label })}
+          </button>
+        </div>
+      ) : null}
+      {duplicates.length > 0 ? (
+        <div className="yc-banner yc-banner-amber" role="status">
+          <AlertCircleIcon />
+          <span className="yc-grow">
+            {t('rooms.warning.duplicates', { labels: duplicates.join(', ') })}
+          </span>
+        </div>
+      ) : null}
+      {duplicateRooms.length > 0 ? (
+        <div className="yc-banner yc-banner-amber" role="status">
+          <AlertCircleIcon />
+          <span className="yc-grow">
+            {t('rooms.warning.duplicateRooms', { names: duplicateRooms.join(', ') })}
+          </span>
+        </div>
+      ) : null}
+      {savedResult ? (
+        <div className="yc-banner yc-banner-amber" role="status" data-testid="save-result">
+          <AlertCircleIcon />
+          <ul className="yc-grow yc-rm-lines">
+            {savedResult.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
-        {room ? (
-          <div className="rooms-room">
-            <section className="editor-panel" aria-labelledby="room-title">
-              <h2 id="room-title" tabIndex={-1}>
-                {room.name.trim() || t('rooms.list.unnamed')}
+      <fieldset className="yc-rm" disabled={busy} aria-busy={busy}>
+        <legend className="yc-sr">{t('nav.floorplan')}</legend>
+        <div className="yc-rm-col">
+          <section className="yc-card" aria-labelledby="rooms-list-title">
+            <div className="yc-card-h yc-card-h-tight">
+              <h2 className="yc-h2" id="rooms-list-title" tabIndex={-1}>
+                {t('rooms.list.title')}
               </h2>
-              <div className="rooms-room-head">
-                <label className="labelled">
-                  {t('rooms.room.name')}
-                  <input
-                    className="field"
-                    value={room.name}
-                    aria-invalid={roomNameTaken(room.name) || room.name.trim() === ''}
-                    onChange={(event) =>
-                      dispatch({ type: 'renameRoom', id: room.id, name: event.target.value })
-                    }
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="button button-small button-danger"
-                  onClick={() => setRemovingRoom(room)}
-                >
-                  {t('rooms.room.remove')}
-                </button>
-              </div>
-              {room.name.trim() === '' ? (
-                <p className="error small">{t('rooms.room.noName')}</p>
-              ) : null}
-              {roomNameTaken(room.name) ? (
-                <p className="error small">{t('rooms.room.duplicateName')}</p>
-              ) : null}
-
-              <h3 id="room-photos-title" tabIndex={-1}>
-                {t('rooms.photos.title')}
-              </h3>
-              <p className="small muted">
-                {t('rooms.photos.summary', { used: room.photos.length, max: MAX_ROOM_PHOTOS })}
-              </p>
-              {room.photos.length === 0 ? (
-                <p className="muted small">{t('rooms.photos.empty')}</p>
-              ) : (
-                <ol className="gallery-grid rooms-photos">
-                  {room.photos.map((candidate, index) => (
-                    <li
-                      key={candidate.photoId}
-                      className={`gallery-tile${candidate === photo ? ' is-current' : ''}`}
-                    >
+            </div>
+            {state.rooms.length === 0 ? (
+              <p className="yc-empty-p">{t('rooms.list.empty')}</p>
+            ) : (
+              <ul className="yc-rooms">
+                {state.rooms.map((candidate, index) => {
+                  const current = candidate === room;
+                  const name = candidate.name.trim() || t('rooms.list.unnamed');
+                  const tables = active.filter((table) => table.roomId === candidate.id).length;
+                  return (
+                    <li key={candidate.id} className={current ? 'is-on' : undefined}>
                       <button
                         type="button"
-                        id={`room-photo-${index + 1}`}
-                        className="rooms-photo-thumb"
-                        aria-pressed={candidate === photo}
-                        aria-label={t('rooms.photos.show', { position: index + 1 })}
-                        onClick={() => showPhoto(room.id, candidate.photoId)}
+                        className="yc-rpick"
+                        aria-current={current}
+                        onClick={() => {
+                          setRoomId(candidate.id);
+                          select(null);
+                        }}
                       >
-                        <img src={candidate.cardUrl} alt="" />
+                        <b>{name}</b>
+                        <span>
+                          {t('rooms.list.meta', {
+                            photos: t('rooms.list.photoCount', { count: candidate.photos.length }),
+                            tables: t('rooms.list.tableCount', { count: tables }),
+                          })}
+                        </span>
                       </button>
-                      <div className="gallery-tile-actions">
+                      <span className="yc-ordc">
                         <button
                           type="button"
-                          className="button button-small"
-                          disabled={index === 0}
-                          aria-label={`${t('rooms.photos.moveEarlier')} (${index + 1})`}
+                          className="yc-mini"
+                          aria-label={t('rooms.list.moveUpAria', { name })}
+                          aria-disabled={index === 0}
                           onClick={() =>
-                            dispatch({
-                              type: 'movePhoto',
-                              roomId: room.id,
-                              photoId: candidate.photoId,
-                              delta: -1,
-                            })
+                            index > 0 && dispatch({ type: 'moveRoom', id: candidate.id, delta: -1 })
                           }
                         >
-                          ←
+                          <ChevronUpIcon />
                         </button>
                         <button
                           type="button"
-                          className="button button-small"
-                          disabled={index === room.photos.length - 1}
-                          aria-label={`${t('rooms.photos.moveLater')} (${index + 1})`}
+                          className="yc-mini"
+                          aria-label={t('rooms.list.moveDownAria', { name })}
+                          aria-disabled={index === state.rooms.length - 1}
                           onClick={() =>
-                            dispatch({
-                              type: 'movePhoto',
-                              roomId: room.id,
-                              photoId: candidate.photoId,
-                              delta: 1,
-                            })
+                            index < state.rooms.length - 1 &&
+                            dispatch({ type: 'moveRoom', id: candidate.id, delta: 1 })
                           }
                         >
-                          →
+                          <ChevronDownIcon />
                         </button>
-                        <button
-                          type="button"
-                          className="button button-small button-danger"
-                          aria-label={`${t('rooms.photos.remove')} (${index + 1})`}
-                          onClick={() => {
-                            const pinned = active.filter(
-                              (table) => table.pin?.photoId === candidate.photoId,
-                            );
-                            // Its tables come off it, bookable or not: asked
-                            // first, by name, when there are any.
-                            if (pinned.length > 0) {
-                              setRemovingPhoto({
-                                roomId: room.id,
-                                photoId: candidate.photoId,
-                                position: index + 1,
-                                labels: pinned.map((table) => table.label),
-                              });
-                              return;
-                            }
-                            removePhoto(room.id, candidate.photoId, index + 1);
-                          }}
-                        >
-                          {t('rooms.photos.remove')}
-                        </button>
-                      </div>
+                      </span>
+                      <RowMenu
+                        id={`room-${candidate.id}`}
+                        label={t('rooms.room.menu', { name })}
+                        open={menuFor === `room-${candidate.id}`}
+                        onOpenChange={(open) => setMenuFor(open ? `room-${candidate.id}` : null)}
+                        items={[
+                          {
+                            key: 'rename',
+                            label: t('rooms.room.rename'),
+                            icon: <ChevronRightIcon />,
+                            onSelect: () => setDialog({ kind: 'renameRoom', room: candidate }),
+                          },
+                          {
+                            key: 'remove',
+                            label: t('rooms.room.remove'),
+                            icon: <TrashIcon />,
+                            danger: true,
+                            onSelect: () => setDialog({ kind: 'removeRoom', room: candidate }),
+                          },
+                        ]}
+                      />
                     </li>
-                  ))}
-                </ol>
-              )}
-              {room.photos.length < MAX_ROOM_PHOTOS ? (
-                <div>
-                  <p className="small">{t('rooms.photos.add')}</p>
-                  <PhotoPicker
-                    key={pickerKey}
-                    branchId={branchId}
-                    photo={null}
-                    onChange={(uploaded) => {
-                      dispatch({ type: 'addPhoto', roomId: room.id, photo: uploaded });
-                      showPhoto(room.id, uploaded.photoId);
-                      setPickerKey((key) => key + 1);
-                    }}
-                  />
-                </div>
-              ) : (
-                <p className="muted small">{t('rooms.photos.full', { max: MAX_ROOM_PHOTOS })}</p>
-              )}
-            </section>
+                  );
+                })}
+              </ul>
+            )}
+            <form className="yc-addroom" noValidate onSubmit={addRoom}>
+              <label htmlFor={newRoomId} className="yc-sr">
+                {t('rooms.list.newName')}
+              </label>
+              <input
+                id={newRoomId}
+                className="yc-ctl"
+                placeholder={t('rooms.list.newPlaceholder')}
+                value={newRoomName}
+                onChange={(event) => setNewRoomName(event.target.value)}
+              />
+              <button type="submit" className="yc-btn yc-btn-sec yc-btn-sm">
+                {t('rooms.list.add')}
+              </button>
+            </form>
+          </section>
 
-            {photo ? (
-              <section className="editor-panel" aria-labelledby="stage-title">
-                <h2 id="stage-title" tabIndex={-1}>
-                  {t('rooms.stage.title', { position: photoIndex + 1, name: room.name })}
+          <section className="yc-card" aria-labelledby="rm-unp-h">
+            <div className="yc-card-h yc-card-h-tight">
+              <h2 className="yc-h2 yc-h2-sm" id="rm-unp-h">
+                {t('rooms.unpinned.title')}
+              </h2>
+            </div>
+            {unpinned.length === 0 ? (
+              <p className="yc-empty-p">{t('rooms.unpinned.none')}</p>
+            ) : (
+              <ul className="yc-tlist">
+                {unpinned.map((table) => (
+                  <li key={table.id} className={table.id === selected?.id ? 'is-on' : undefined}>
+                    <span className="yc-ttag">{table.label}</span>
+                    <span className="yc-grow yc-tl-where">{roomName(table.roomId)}</span>
+                    <button
+                      type="button"
+                      id={`place-${table.id}`}
+                      className="yc-btn yc-btn-sec yc-btn-sm"
+                      aria-label={t('rooms.unpinned.placeAria', { label: table.label })}
+                      onClick={() => startPlacing(table)}
+                    >
+                      {t('rooms.unpinned.place')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="yc-card" aria-labelledby="rm-off-h">
+            <div className="yc-card-h yc-card-h-tight">
+              <div>
+                <h2 className="yc-h2 yc-h2-sm" id="rm-off-h">
+                  {t('rooms.inactive.title')}
                 </h2>
-                <p className="muted small" role="status">
-                  {placing
-                    ? t('rooms.stage.placing', { label: placing.label })
-                    : t('rooms.stage.hint')}
-                </p>
+                <p className="yc-cap">{t('rooms.inactive.cap')}</p>
+              </div>
+            </div>
+            {inactive.length === 0 ? (
+              <p className="yc-empty-p">{t('rooms.inactive.none')}</p>
+            ) : (
+              <ul className="yc-tlist">
+                {inactive.map((table) => (
+                  <li key={table.id}>
+                    <span className="yc-ttag">{table.label}</span>
+                    <span className="yc-grow yc-tl-where">
+                      {t('rooms.inactive.seats', { count: table.seats })}
+                    </span>
+                    <button
+                      type="button"
+                      className="yc-lnk"
+                      aria-label={t('rooms.inactive.restoreAria', { label: table.label })}
+                      onClick={() => {
+                        dispatch({ type: 'restoreTable', id: table.id });
+                        // Unlike the delete, this waits for Save: said, so it is not missed.
+                        toast.say(t('rooms.inactive.restored', { label: table.label }));
+                      }}
+                    >
+                      {t('rooms.inactive.restore')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <div className="yc-rm-col">
+          <section className="yc-card yc-stagecard" aria-labelledby="stage-title">
+            <div className="yc-card-h yc-card-h-tight">
+              <h2 className="yc-h2 yc-h2-sm" id="stage-title" tabIndex={-1}>
+                {room
+                  ? photo
+                    ? t('rooms.stage.title', { name: room.name, position: photoIndex + 1 })
+                    : room.name.trim() || t('rooms.list.unnamed')
+                  : t('rooms.list.title')}
+              </h2>
+              {room && photo ? (
+                <span className="yc-rm-stage-acts">
+                  <button
+                    type="button"
+                    className="yc-btn yc-btn-ghost yc-btn-sm"
+                    onClick={() => addAt(freeSpot(state, photo.photoId))}
+                  >
+                    {placing
+                      ? t('rooms.stage.placeInMiddle', { label: placing.label })
+                      : t('rooms.stage.addInMiddle')}
+                  </button>
+                  <RowMenu
+                    id="room-photo"
+                    label={t('rooms.photos.menu', { position: photoIndex + 1 })}
+                    open={menuFor === 'room-photo'}
+                    onOpenChange={(open) => setMenuFor(open ? 'room-photo' : null)}
+                    items={[
+                      {
+                        key: 'earlier',
+                        label: t('rooms.photos.moveEarlier'),
+                        icon: <ArrowLeftIcon />,
+                        disabled: photoIndex === 0,
+                        onSelect: () =>
+                          dispatch({
+                            type: 'movePhoto',
+                            roomId: room.id,
+                            photoId: photo.photoId,
+                            delta: -1,
+                          }),
+                      },
+                      {
+                        key: 'later',
+                        label: t('rooms.photos.moveLater'),
+                        icon: <ChevronRightIcon />,
+                        disabled: photoIndex === room.photos.length - 1,
+                        onSelect: () =>
+                          dispatch({
+                            type: 'movePhoto',
+                            roomId: room.id,
+                            photoId: photo.photoId,
+                            delta: 1,
+                          }),
+                      },
+                      {
+                        key: 'remove',
+                        label: t('rooms.photos.remove'),
+                        icon: <TrashIcon />,
+                        danger: true,
+                        onSelect: () => {
+                          const pinned = active.filter(
+                            (table) => table.pin?.photoId === photo.photoId,
+                          );
+                          // Its tables come off it, bookable or not: asked
+                          // first, by name, when there are any.
+                          if (pinned.length > 0) {
+                            setDialog({
+                              kind: 'removePhoto',
+                              roomId: room.id,
+                              photoId: photo.photoId,
+                              position: photoIndex + 1,
+                              labels: pinned.map((table) => table.label),
+                            });
+                            return;
+                          }
+                          removePhoto(room.id, photo.photoId, photoIndex + 1);
+                        },
+                      },
+                    ]}
+                  />
+                </span>
+              ) : null}
+            </div>
+
+            {room && photo ? (
+              <>
                 <PhotoStage
                   photo={photo}
                   label={t('rooms.stage.label', { position: photoIndex + 1, name: room.name })}
@@ -683,474 +788,532 @@ export function RoomsEditor({ branchId, layout = 'console' }: RoomsEditorProps) 
                   placing={placing}
                   focusTableId={focusTableId}
                   onFocused={() => setFocusTableId(null)}
-                  onClickAt={onClickPhoto}
+                  onClickAt={addAt}
                   onSelect={select}
                   onMove={(id, pin) => dispatch({ type: 'placeTable', id, pin })}
                   onUnpin={(id) => {
                     dispatch({ type: 'placeTable', id, pin: null });
-                    // The pin had focus and is gone; the table is in the list below now.
-                    setFocusListTableId(id);
+                    // The pin had focus and is gone; the table is in the list on the left now.
+                    focusAfter.current = [`place-${id}`];
+                    setTableId(null);
                   }}
                   readOnly={busy}
                 />
-                <Legend />
-                <div className="actions">
-                  {placing ? (
-                    <button
-                      type="button"
-                      className="button button-small"
-                      onClick={() => {
-                        dispatch({
-                          type: 'placeTable',
-                          id: placing.id,
-                          pin: freeSpot(state, photo.photoId),
-                        });
-                        setFocusTableId(placing.id);
-                      }}
-                    >
-                      {t('rooms.stage.placeInMiddle', { label: placing.label })}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="button button-small"
-                      onClick={() => {
-                        setTableId(null);
-                        // Beside any pin already in the middle, never on top of it.
-                        setDraftPin(freeSpot(state, photo.photoId));
-                      }}
-                    >
-                      {t('rooms.stage.addInMiddle')}
-                    </button>
-                  )}
+                <div className="yc-hintbar">
+                  <span role="status">
+                    {placing
+                      ? t('rooms.stage.placing', { label: placing.label })
+                      : t('rooms.stage.hint')}
+                  </span>
+                  <ul className="yc-pinkey" aria-label={t('rooms.legend')}>
+                    <li>
+                      <i className="yc-leg-book" aria-hidden="true" />
+                      {t('rooms.pin.bookable')}
+                    </li>
+                    <li>
+                      <i className="yc-leg-walk" aria-hidden="true" />
+                      {t('rooms.pin.walkInOnly')}
+                    </li>
+                    <li>
+                      <i className="yc-leg-new" aria-hidden="true" />
+                      {t('rooms.pin.unsaved')}
+                    </li>
+                  </ul>
                 </div>
-                {draftPin ? (
-                  <NewTableForm
-                    key={`${draftPin.photoId}:${draftPin.x}:${draftPin.y}`}
-                    suggestedLabel={nextLabel(state)}
-                    onCancel={() => setDraftPin(null)}
-                    onAdd={(input) => {
-                      setDraftPin(null);
-                      // The reducer adds nothing for a photo no room holds any more.
-                      if (!roomOfPhoto(state.rooms, draftPin.photoId)) return;
-                      dispatch({ type: 'addTable', table: input, pin: draftPin });
-                      setFocusTableId(`new-table-${state.sequence + 1}`);
-                      setTableId(`new-table-${state.sequence + 1}`);
-                    }}
-                  />
+              </>
+            ) : room ? (
+              <div className="yc-empty">
+                <p>{t('rooms.photos.empty')}</p>
+              </div>
+            ) : (
+              <div className="yc-empty">
+                <p>{t('rooms.list.empty')}</p>
+              </div>
+            )}
+
+            {room ? (
+              <div className="yc-strip" role="group" aria-label={t('rooms.photos.strip')}>
+                {room.photos.map((candidate, index) => (
+                  <button
+                    key={candidate.photoId}
+                    type="button"
+                    id={`room-photo-${index + 1}`}
+                    className={candidate === photo ? 'yc-thumbb is-on' : 'yc-thumbb'}
+                    aria-pressed={candidate === photo}
+                    aria-label={t('rooms.photos.show', { position: index + 1 })}
+                    onClick={() => showPhoto(room.id, candidate.photoId)}
+                  >
+                    <img src={candidate.cardUrl} alt="" />
+                    <span className="yc-tn">{index + 1}</span>
+                  </button>
+                ))}
+                {room.photos.length < MAX_ROOM_PHOTOS ? (
+                  <button
+                    type="button"
+                    className="yc-addph"
+                    onClick={() => setDialog({ kind: 'addPhoto', roomId: room.id })}
+                  >
+                    <PlusIcon />
+                    {t('rooms.photos.addShort')}
+                  </button>
                 ) : null}
-              </section>
+                <span className="yc-help yc-strip-n">
+                  {t('rooms.photos.summary', { used: room.photos.length, max: MAX_ROOM_PHOTOS })}
+                </span>
+              </div>
             ) : null}
+          </section>
+        </div>
 
-            {roomUnpinned.length > 0 ? (
-              <UnpinnedList
-                title={t('rooms.unpinned.title')}
-                tables={roomUnpinned}
-                selectedId={selected?.id ?? null}
-                onSelect={select}
-                focusTableId={focusListTableId}
-                onFocused={() => setFocusListTableId(null)}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="editor-side">
+        <div className="yc-rm-col">
           {selected ? (
             <TablePanel
               key={selected.id}
               table={selected}
-              roomName={state.rooms.find((r) => r.id === selected.roomId)?.name ?? null}
-              duplicate={duplicates.some(
-                (label) => label.toLocaleLowerCase() === selected.label.trim().toLocaleLowerCase(),
-              )}
+              roomName={roomName(selected.roomId)}
+              duplicate={duplicates.some((label) => sameName(label, selected.label))}
               onChange={(patch) => dispatch({ type: 'updateTable', id: selected.id, patch })}
               onUnpin={() => {
                 dispatch({ type: 'placeTable', id: selected.id, pin: null });
-                // The button went with the pin; the table is in the list below now.
-                setFocusListTableId(selected.id);
+                toast.say(t('rooms.table.unpinned', { label: selected.label }));
+                // The link went with the pin; the table is on the left now.
+                focusAfter.current = [`place-${selected.id}`];
+                setTableId(null);
               }}
               onDelete={() => {
                 if (!isServerId(selected.id)) {
                   dispatch({ type: 'discardTable', id: selected.id });
                   select(null);
+                  focusAfter.current = ['stage-title'];
                   return;
                 }
                 remove.reset();
-                setDeleting(selected);
+                setDialog(
+                  selected.status === 'occupied'
+                    ? { kind: 'seated', table: selected }
+                    : { kind: 'deleteTable', table: selected },
+                );
               }}
               onRegenerateQr={() => {
                 regenerate.reset();
-                setRegenerating(selected);
-                setConfirmText('');
+                setDialog({ kind: 'regenerate', table: selected });
               }}
             />
           ) : (
-            <aside className="editor-panel">
-              <h2>{t('rooms.table.panelTitle')}</h2>
-              <p className="muted small">{t('rooms.table.none')}</p>
-            </aside>
+            <section className="yc-card yc-rm-panel" aria-labelledby="rm-tp-h">
+              <h2 className="yc-h2 yc-h2-sm" id="rm-tp-h">
+                {t('rooms.table.panelTitle')}
+              </h2>
+              <p className="yc-muted yc-rm-none">{t('rooms.table.none')}</p>
+            </section>
           )}
-
-          {noRoom.length > 0 ? (
-            <UnpinnedList
-              title={t('rooms.unpinned.noRoom')}
-              tables={noRoom}
-              selectedId={selected?.id ?? null}
-              onSelect={select}
-            />
-          ) : null}
-
-          {inactive.length > 0 ? (
-            <aside className="editor-panel" aria-labelledby="inactive-title">
-              <h2 id="inactive-title">{t('rooms.inactive.title')}</h2>
-              <p className="muted small">{t('rooms.inactive.body')}</p>
-              <ul className="rooms-table-list">
-                {inactive.map((table) => (
-                  <li key={table.id}>
-                    <span>{t('rooms.table.title', { label: table.label })}</span>
-                    <button
-                      type="button"
-                      className="button button-small"
-                      onClick={() => {
-                        dispatch({ type: 'restoreTable', id: table.id });
-                        // Unlike the delete, this waits for Save: said, so it is not missed.
-                        setNotice(t('rooms.inactive.restored', { label: table.label }));
-                      }}
-                      aria-label={`${t('rooms.inactive.restore')} (${table.label})`}
-                    >
-                      {t('rooms.inactive.restore')}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </aside>
-          ) : null}
         </div>
       </fieldset>
 
-      {removingRoom ? (
-        <RoomsDialog
-          title={t('rooms.room.removeTitle', { name: removingRoom.name })}
-          onCancel={() => setRemovingRoom(null)}
+      <div className="yc-savebar" role="region" aria-label={t('rooms.saveBar.label')}>
+        <span className="yc-grow" aria-live="polite">
+          {duplicates.length > 0
+            ? t('rooms.saveBar.duplicates')
+            : dirty
+              ? t('rooms.saveBar.dirty', { summary })
+              : t('rooms.saveBar.clean')}
+        </span>
+        {dirty ? (
+          <button
+            type="button"
+            className="yc-btn yc-btn-sec yc-btn-sm"
+            disabled={busy}
+            onClick={onDiscard}
+          >
+            {t('rooms.saveBar.discard')}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="yc-btn yc-btn-pri yc-btn-sm"
+          aria-busy={busy}
+          onClick={() => void onSave()}
         >
-          <p>
-            {removingRoom.photos.length > 0
-              ? t('rooms.room.removePhotos', { count: removingRoom.photos.length })
-              : t('rooms.room.removeNoPhotos')}{' '}
-            {(() => {
-              const count = active.filter((table) => table.roomId === removingRoom.id).length;
-              return count > 0
-                ? t('rooms.room.removeTables', { count })
-                : t('rooms.room.removeNoTables');
-            })()}
-          </p>
-          <div className="actions">
-            <button type="button" className="button" onClick={() => setRemovingRoom(null)}>
+          {busy ? <span className="yc-spin" aria-hidden="true" /> : null}
+          {busy ? t('rooms.saving') : t('rooms.save')}
+        </button>
+      </div>
+
+      {dialog?.kind === 'renameRoom' ? (
+        <RenameRoomDialog
+          room={dialog.room}
+          taken={(name) =>
+            state.rooms.some(
+              (candidate) => candidate.id !== dialog.room.id && sameName(candidate.name, name),
+            )
+          }
+          onCancel={() => setDialog(null)}
+          onRename={(name) => {
+            dispatch({ type: 'renameRoom', id: dialog.room.id, name });
+            setDialog(null);
+            toast.say(t('rooms.room.renamed', { name }));
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'removeRoom' ? (
+        <Dialog
+          alert
+          title={t('rooms.room.removeTitle', { name: dialog.room.name })}
+          description={`${
+            dialog.room.photos.length > 0
+              ? t('rooms.room.removePhotos', { count: dialog.room.photos.length })
+              : t('rooms.room.removeNoPhotos')
+          } ${(() => {
+            const count = active.filter((table) => table.roomId === dialog.room.id).length;
+            return count > 0
+              ? t('rooms.room.removeTables', { count })
+              : t('rooms.room.removeNoTables');
+          })()}`}
+          onClose={() => setDialog(null)}
+          returnFocusTo={() =>
+            document.querySelector<HTMLElement>(`[data-kebab="room-${dialog.room.id}"]`)
+          }
+        >
+          <div className="yc-acts">
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec"
+              data-autofocus=""
+              onClick={() => setDialog(null)}
+            >
               {t('common:action.cancel')}
             </button>
             <button
               type="button"
-              className="button button-danger"
+              className="yc-btn yc-btn-danger"
               onClick={() => {
-                dispatch({ type: 'removeRoom', id: removingRoom.id });
-                setRemovingRoom(null);
+                dispatch({ type: 'removeRoom', id: dialog.room.id });
+                setDialog(null);
                 setRoomId(null);
                 select(null);
                 // The opener went with the room.
-                focusAfter.current = ['room-title', 'rooms-list-title'];
+                focusAfter.current = ['stage-title', 'rooms-list-title'];
               }}
             >
               {t('rooms.room.removeConfirm')}
             </button>
           </div>
-        </RoomsDialog>
+        </Dialog>
       ) : null}
 
-      {removingPhoto ? (
-        <RoomsDialog
-          title={t('rooms.photos.removeTitle', { position: removingPhoto.position })}
-          onCancel={() => setRemovingPhoto(null)}
+      {dialog?.kind === 'removePhoto' ? (
+        <Dialog
+          alert
+          title={t('rooms.photos.removeTitle', { position: dialog.position })}
+          description={t('rooms.photos.removeBody', {
+            count: dialog.labels.length,
+            labels: dialog.labels.join(', '),
+          })}
+          onClose={() => setDialog(null)}
+          returnFocusTo={() => document.querySelector<HTMLElement>('[data-kebab="room-photo"]')}
         >
-          <p>
-            {t('rooms.photos.removeBody', {
-              count: removingPhoto.labels.length,
-              labels: removingPhoto.labels.join(', '),
-            })}
-          </p>
-          <div className="actions">
-            <button type="button" className="button" onClick={() => setRemovingPhoto(null)}>
+          <div className="yc-acts">
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec"
+              data-autofocus=""
+              onClick={() => setDialog(null)}
+            >
               {t('common:action.cancel')}
             </button>
             <button
               type="button"
-              className="button button-danger"
+              className="yc-btn yc-btn-danger"
               onClick={() => {
-                const { roomId: fromRoomId, photoId: removedPhotoId, position } = removingPhoto;
-                setRemovingPhoto(null);
+                const { roomId: fromRoomId, photoId: removedPhotoId, position } = dialog;
+                setDialog(null);
                 removePhoto(fromRoomId, removedPhotoId, position);
               }}
             >
               {t('rooms.photos.removeConfirm')}
             </button>
           </div>
-        </RoomsDialog>
+        </Dialog>
       ) : null}
 
-      {deleting ? (
-        <RoomsDialog
-          title={t('rooms.delete.title', { label: deleting.label })}
-          onCancel={() => setDeleting(null)}
-          escapeEnabled={!remove.isPending}
+      {dialog?.kind === 'seated' ? (
+        <Dialog
+          alert
+          title={t('rooms.delete.seatedTitle', { label: dialog.table.label })}
+          description={t('rooms.delete.seated', { label: dialog.table.label })}
+          onClose={() => setDialog(null)}
         >
-          {/* Said before it happens: a table with history is kept for its
-              records and taken out of service, and the person should know
-              which of the two this click does. */}
-          <p>
-            {deleting.isDeletable ? t('rooms.delete.removeBody') : t('rooms.delete.deactivateBody')}
-          </p>
+          <div className="yc-acts">
+            <button
+              type="button"
+              className="yc-btn yc-btn-pri"
+              data-autofocus=""
+              onClick={() => setDialog(null)}
+            >
+              {t('rooms.delete.understood')}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
+
+      {dialog?.kind === 'deleteTable' ? (
+        <Dialog
+          alert
+          title={t('rooms.delete.title', { label: dialog.table.label })}
+          description={
+            // Said before it happens: a table with history is kept for its
+            // records and taken out of service, and the person should know
+            // which of the two this click does.
+            dialog.table.isDeletable
+              ? t('rooms.delete.removeBody')
+              : t('rooms.delete.deactivateBody')
+          }
+          onClose={() => setDialog(null)}
+          dismissible={!remove.isPending}
+        >
           {remove.isError ? (
             remove.error instanceof ConcurrencyConflictError &&
             remove.error.code === 'conflicting-state' ? (
-              <p className="error" role="alert">
-                {t('rooms.delete.seated', { label: deleting.label })}
+              <p className="yc-alert" role="alert">
+                {t('rooms.delete.seated', { label: dialog.table.label })}
               </p>
             ) : remove.error instanceof ApiError &&
               remove.error.status === 409 &&
               remove.error.problem?.detail ? (
               // Any other refusal (upcoming bookings on the table, say) names
               // the tables and bookings itself: its own sentence is the answer.
-              <p className="error" role="alert">
+              <p className="yc-alert" role="alert">
                 {remove.error.problem.detail}
               </p>
             ) : (
               <QueryFailureNotice
                 error={remove.error}
-                onRetry={() => void onConfirmDelete(deleting)}
+                onRetry={() => void onConfirmDelete(dialog.table)}
               />
             )
           ) : null}
-          <div className="actions">
+          <div className="yc-acts">
             <button
               type="button"
-              className="button"
+              className="yc-btn yc-btn-sec"
+              data-autofocus=""
               disabled={remove.isPending}
-              onClick={() => setDeleting(null)}
+              onClick={() => setDialog(null)}
             >
               {t('common:action.cancel')}
             </button>
             <button
               type="button"
-              className="button button-danger"
-              disabled={remove.isPending}
-              onClick={() => void onConfirmDelete(deleting)}
+              className="yc-btn yc-btn-danger"
+              aria-busy={remove.isPending}
+              onClick={() => !remove.isPending && void onConfirmDelete(dialog.table)}
             >
-              {t('rooms.delete.confirm')}
+              {dialog.table.isDeletable
+                ? t('rooms.delete.confirm')
+                : t('rooms.delete.confirmDeactivate')}
             </button>
           </div>
-        </RoomsDialog>
+        </Dialog>
       ) : null}
 
-      {regenerating ? (
-        <RoomsDialog
-          title={t('rooms.qr.regenerate')}
-          onCancel={() => setRegenerating(null)}
-          escapeEnabled={!regenerate.isPending}
+      {dialog?.kind === 'regenerate' ? (
+        <RegenerateDialog
+          table={dialog.table}
+          busy={regenerate.isPending}
+          error={regenerate.isError ? regenerate.error : null}
+          onCancel={() => setDialog(null)}
+          onConfirm={() => {
+            const table = dialog.table;
+            void regenerate
+              .mutateAsync({ tableId: table.id })
+              .then(({ qrToken }) => {
+                dispatch({ type: 'qrReplaced', id: table.id, qrToken });
+                setDialog(null);
+                toast.say(t('rooms.qr.regenerated', { label: table.label }));
+              })
+              .catch(() => undefined);
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'addPhoto' ? (
+        <Dialog
+          title={t('rooms.photos.addTitle')}
+          description={t('rooms.photos.addBody')}
+          onClose={() => setDialog(null)}
+          wide
         >
-          {/* Typed confirmation, because the consequence is physical: the
-              sticker already on that table stops working the moment this
-              lands, and somebody has to go and replace it. */}
-          <p>{t('rooms.qr.regenerateWarning', { label: regenerating.label })}</p>
-          <label className="labelled">
-            {t('rooms.qr.typeLabel', { label: regenerating.label })}
-            <input
-              className="field"
-              value={confirmText}
-              onChange={(event) => setConfirmText(event.target.value)}
-            />
-          </label>
-          {regenerate.isError ? <QueryFailureNotice error={regenerate.error} /> : null}
-          <div className="actions">
-            <button
-              type="button"
-              className="button button-danger"
-              disabled={confirmText.trim() !== regenerating.label.trim() || regenerate.isPending}
-              onClick={() => {
-                const table = regenerating;
-                void regenerate
-                  .mutateAsync({ tableId: table.id })
-                  .then(({ qrToken }) => {
-                    dispatch({ type: 'qrReplaced', id: table.id, qrToken });
-                    setNotice(t('rooms.qr.regenerated', { label: table.label }));
-                    setRegenerating(null);
-                  })
-                  .catch(() => undefined);
-              }}
-            >
-              {t('rooms.qr.regenerateConfirm')}
-            </button>
-            <button type="button" className="button" onClick={() => setRegenerating(null)}>
+          <PhotoPicker
+            branchId={branchId}
+            photo={null}
+            onChange={(uploaded) => {
+              const target = dialog.roomId;
+              dispatch({ type: 'addPhoto', roomId: target, photo: uploaded });
+              showPhoto(target, uploaded.photoId);
+              setDialog(null);
+            }}
+          />
+          <div className="yc-acts">
+            <button type="button" className="yc-btn yc-btn-sec" onClick={() => setDialog(null)}>
               {t('common:action.cancel')}
             </button>
           </div>
-        </RoomsDialog>
+        </Dialog>
       ) : null}
-
-      {layout === 'platform' ? (
-        // Sticky at the foot of the page, so Save is in reach wherever the
-        // person is on a long plan (BranchRooms artboard).
-        <div className="yc-savebar" role="region" aria-label={t('rooms.saveBar.label')}>
-          <span className="yc-grow">
-            {summary} ·{' '}
-            <span aria-live="polite">{dirty ? t('rooms.unsaved') : t('rooms.saveBar.clean')}</span>
-          </span>
-          {dirty ? (
-            <button
-              type="button"
-              className="yc-btn yc-btn-sec yc-btn-sm"
-              disabled={busy}
-              onClick={onDiscard}
-            >
-              {t('rooms.saveBar.discard')}
-            </button>
-          ) : null}
-          {saveButton}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-/**
- * A confirmation over the editor, as a modal: focus moves in and stays in,
- * Escape cancels, and focus goes back to the control that opened it.
- */
-function RoomsDialog({
-  title,
-  onCancel,
-  escapeEnabled = true,
-  children,
-}: {
-  readonly title: string;
-  readonly onCancel: () => void;
-  readonly escapeEnabled?: boolean;
-  readonly children: ReactNode;
-}) {
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(dialogRef, { onEscape: onCancel, escapeEnabled });
-  return (
-    <div className="editor-dialog" role="presentation">
-      <div
-        ref={dialogRef}
-        className="card confirm-danger"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <h2 id={titleId}>{title}</h2>
-        {children}
-      </div>
     </div>
   );
 }
 
-/** The live palette the pins are drawn in, in words as well as colour. */
-function Legend() {
+/** Two names the same to a reader: case and the spaces round them do not count. */
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+}
+
+/** A room's new name: not blank, and not another room's. */
+function RenameRoomDialog({
+  room,
+  taken,
+  onCancel,
+  onRename,
+}: {
+  readonly room: DraftRoom;
+  readonly taken: (name: string) => boolean;
+  readonly onCancel: () => void;
+  readonly onRename: (name: string) => void;
+}) {
   const { t } = useTranslation(['admin', 'common']);
-  const states = ['free', 'walk-in', 'held', 'occupied', 'outOfService', 'new'] as const;
+  const fieldId = useId();
+  const [name, setName] = useState(room.name);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = name.trim();
+    const refusal = !trimmed
+      ? t('rooms.room.noName')
+      : taken(trimmed)
+        ? t('rooms.room.duplicateName')
+        : null;
+    if (refusal) {
+      setProblem(refusal);
+      document.getElementById(fieldId)?.focus();
+      return;
+    }
+    onRename(trimmed);
+  }
+
   return (
-    <ul className="rooms-legend" aria-label={t('rooms.legend')}>
-      {states.map((state) => (
-        <li key={state}>
-          <span className={`rooms-legend-dot is-${state}`} aria-hidden="true" />
-          {state === 'new'
-            ? t('rooms.pin.unsaved')
-            : state === 'walk-in'
-              ? t('rooms.pin.walkInOnly')
-              : t(`common:tableStatus.${state}`)}
-        </li>
-      ))}
-    </ul>
+    <Dialog
+      title={t('rooms.room.renameTitle', { name: room.name })}
+      onClose={onCancel}
+      returnFocusTo={() => document.querySelector<HTMLElement>(`[data-kebab="room-${room.id}"]`)}
+    >
+      <form className="yc-dialog-form" noValidate onSubmit={submit}>
+        <div className="yc-fld">
+          <label htmlFor={fieldId}>{t('rooms.room.name')}</label>
+          <input
+            id={fieldId}
+            className="yc-ctl"
+            value={name}
+            maxLength={80}
+            data-autofocus=""
+            aria-invalid={problem !== null}
+            {...(problem ? { 'aria-describedby': `${fieldId}-err` } : {})}
+            onChange={(event) => {
+              setName(event.target.value);
+              setProblem(null);
+            }}
+          />
+          {problem ? (
+            <span className="yc-err" id={`${fieldId}-err`}>
+              {problem}
+            </span>
+          ) : null}
+        </div>
+        <div className="yc-acts">
+          <button type="button" className="yc-btn yc-btn-sec" onClick={onCancel}>
+            {t('common:action.cancel')}
+          </button>
+          <button type="submit" className="yc-btn yc-btn-pri">
+            {t('common:action.save')}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 
-function NewTableForm({
-  suggestedLabel,
-  onAdd,
+/**
+ * Typed confirmation, because the consequence is physical: the sticker
+ * already on that table stops working the moment this lands, and somebody
+ * has to go and replace it.
+ */
+function RegenerateDialog({
+  table,
+  busy,
+  error,
   onCancel,
+  onConfirm,
 }: {
-  readonly suggestedLabel: string;
-  readonly onAdd: (input: { label: string; seats: number; isBookable: boolean }) => void;
+  readonly table: DraftTable;
+  readonly busy: boolean;
+  readonly error: unknown;
   readonly onCancel: () => void;
+  readonly onConfirm: () => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
-  const [label, setLabel] = useState(suggestedLabel);
-  const labelRef = useRef<HTMLInputElement>(null);
-  // The form opens where the photo was clicked; typing the label is the next
-  // thing. Again after the click has finished: a pointer press on the photo
-  // moves focus to the page once its own handler has run.
-  useEffect(() => {
-    labelRef.current?.focus();
-    const later = window.setTimeout(() => labelRef.current?.focus(), 0);
-    return () => window.clearTimeout(later);
-  }, []);
-  // Text while typing, so the field can be cleared; read as a number on submit.
-  const [seats, setSeats] = useState('2');
-  const seatCount = Number.parseInt(seats, 10);
-  const valid = label.trim() !== '' && Number.isInteger(seatCount) && seatCount >= 1;
-  const [isBookable, setIsBookable] = useState(true);
-
+  const fieldId = useId();
+  const [typed, setTyped] = useState('');
+  const matches = typed.trim() === table.label.trim();
   return (
-    <form
-      className="rooms-new-table"
-      aria-label={t('rooms.newTable.title')}
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!valid) return;
-        onAdd({ label: label.trim(), seats: seatCount, isBookable });
-      }}
+    <Dialog
+      alert
+      title={t('rooms.qr.regenerateTitle', { label: table.label })}
+      description={t('rooms.qr.regenerateWarning', { label: table.label })}
+      onClose={onCancel}
+      dismissible={!busy}
+      returnFocusTo={() => document.getElementById('rm-regen')}
     >
-      <h3>{t('rooms.newTable.title')}</h3>
-      <div className="editor-fields">
-        <label className="labelled">
-          {t('rooms.field.label')}
+      <form
+        className="yc-dialog-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!matches) {
+            document.getElementById(fieldId)?.focus();
+            return;
+          }
+          if (!busy) onConfirm();
+        }}
+      >
+        <div className="yc-fld">
+          <label htmlFor={fieldId}>{t('rooms.qr.typeLabel', { label: table.label })}</label>
           <input
-            className="field"
-            ref={labelRef}
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
+            id={fieldId}
+            className="yc-ctl"
+            autoComplete="off"
+            data-autofocus=""
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
           />
-        </label>
-        <label className="labelled">
-          {t('rooms.field.seats')}
-          <input
-            className="field"
-            type="number"
-            min={1}
-            max={99}
-            value={seats}
-            onChange={(event) => setSeats(event.target.value)}
-          />
-        </label>
-      </div>
-      <label className="labelled inline">
-        <input
-          type="checkbox"
-          checked={isBookable}
-          onChange={(event) => setIsBookable(event.target.checked)}
-        />
-        {t('rooms.field.bookable')}
-      </label>
-      <div className="actions">
-        <button type="submit" className="button button-primary" disabled={!valid}>
-          {t('rooms.newTable.add')}
-        </button>
-        <button type="button" className="button" onClick={onCancel}>
-          {t('common:action.cancel')}
-        </button>
-      </div>
-    </form>
+        </div>
+        {error ? <QueryFailureNotice error={error} /> : null}
+        <div className="yc-acts">
+          <button type="button" className="yc-btn yc-btn-sec" disabled={busy} onClick={onCancel}>
+            {t('common:action.cancel')}
+          </button>
+          <button
+            type="submit"
+            className="yc-btn yc-btn-danger"
+            aria-disabled={!matches || busy}
+            aria-busy={busy}
+          >
+            {t('rooms.qr.regenerateConfirm')}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 
@@ -1164,7 +1327,7 @@ function TablePanel({
   onRegenerateQr,
 }: {
   readonly table: DraftTable;
-  readonly roomName: string | null;
+  readonly roomName: string;
   readonly duplicate: boolean;
   readonly onChange: (patch: { label?: string; seats?: number; isBookable?: boolean }) => void;
   readonly onUnpin: () => void;
@@ -1172,30 +1335,53 @@ function TablePanel({
   readonly onRegenerateQr: () => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  const noLabel = table.label.trim() === '';
+  const labelError = noLabel
+    ? t('rooms.table.noLabel')
+    : duplicate
+      ? t('rooms.table.duplicateLabel')
+      : null;
+  const where = [
+    roomName,
+    table.pin ? null : t('rooms.table.notOnPhoto'),
+    table.status && table.status !== 'free' ? t(`common:tableStatus.${table.status}`) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
-    <aside className="editor-panel" aria-labelledby="table-title">
-      <h2 id="table-title">{t('rooms.table.title', { label: table.label })}</h2>
-      <p className="muted small">
-        {roomName ? t('rooms.table.inRoom', { name: roomName }) : t('rooms.table.noRoom')}
-        {table.status ? ` · ${t(`common:tableStatus.${table.status}`)}` : ''}
-      </p>
-      <div className="editor-fields">
-        <label className="labelled">
-          {t('rooms.field.label')}
+    <section className="yc-card yc-rm-panel" aria-labelledby="rm-tp-h">
+      <div>
+        <h2 className="yc-h2 yc-h2-sm" id="rm-tp-h">
+          {t('rooms.table.title', { label: table.label })}
+        </h2>
+        <p className="yc-cap">{where}</p>
+      </div>
+      <div className="yc-row2">
+        <div className="yc-fld">
+          <label htmlFor="rm-t-label">
+            {t('rooms.field.label')}
+            <span className="yc-req" aria-hidden="true">
+              *
+            </span>
+          </label>
           <input
-            className="field"
+            id="rm-t-label"
+            className="yc-ctl"
             value={table.label}
-            aria-invalid={duplicate || table.label.trim() === ''}
+            aria-invalid={labelError !== null}
+            {...(labelError ? { 'aria-describedby': 'rm-t-label-err' } : {})}
             onChange={(event) => onChange({ label: event.target.value })}
           />
-        </label>
-        <label className="labelled">
-          {t('rooms.field.seats')}
+        </div>
+        <div className="yc-fld">
+          <label htmlFor="rm-t-seats">{t('rooms.field.seats')}</label>
           <input
-            className="field"
+            id="rm-t-seats"
+            className="yc-ctl"
             type="number"
             min={1}
             max={99}
+            inputMode="numeric"
             value={table.seats}
             onChange={(event) => {
               // A cleared field is someone about to type; only a real count is kept.
@@ -1203,11 +1389,14 @@ function TablePanel({
               if (Number.isInteger(value) && value >= 1) onChange({ seats: value });
             }}
           />
-        </label>
+        </div>
       </div>
-      {duplicate ? <p className="error small">{t('rooms.table.duplicateLabel')}</p> : null}
-      {table.label.trim() === '' ? <p className="error small">{t('rooms.table.noLabel')}</p> : null}
-      <label className="labelled inline">
+      {labelError ? (
+        <span className="yc-err" id="rm-t-label-err">
+          {labelError}
+        </span>
+      ) : null}
+      <label className="yc-chk">
         <input
           type="checkbox"
           checked={table.isBookable}
@@ -1215,69 +1404,22 @@ function TablePanel({
         />
         {t('rooms.field.bookable')}
       </label>
+      <div className="yc-sep" />
+      <TableQr label={table.label} qrToken={table.qrToken} />
+      {table.qrToken ? (
+        <button type="button" id="rm-regen" className="yc-lnk yc-lnk-l" onClick={onRegenerateQr}>
+          {t('rooms.qr.regenerate')}
+        </button>
+      ) : null}
+      <div className="yc-sep" />
       {table.pin ? (
-        <button type="button" className="button button-small" onClick={onUnpin}>
+        <button type="button" className="yc-lnk yc-lnk-l" onClick={onUnpin}>
           {t('rooms.table.unpin')}
         </button>
-      ) : (
-        <p className="muted small">{t('rooms.table.notPinned')}</p>
-      )}
-      <button type="button" className="button button-small button-danger" onClick={onDelete}>
+      ) : null}
+      <button type="button" className="yc-lnk yc-lnk-l yc-lnk-red" onClick={onDelete}>
         {t('rooms.table.delete')}
       </button>
-      <TableQr label={table.label} qrToken={table.qrToken} onRegenerate={onRegenerateQr} />
-    </aside>
-  );
-}
-
-function UnpinnedList({
-  title,
-  tables,
-  selectedId,
-  onSelect,
-  focusTableId = null,
-  onFocused,
-}: {
-  readonly title: string;
-  readonly tables: readonly DraftTable[];
-  readonly selectedId: string | null;
-  readonly onSelect: (id: string) => void;
-  /** The table whose button should take focus once drawn: its pin just went. */
-  readonly focusTableId?: string | null;
-  readonly onFocused?: () => void;
-}) {
-  const { t } = useTranslation(['admin', 'common']);
-  const listRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    if (!focusTableId) return;
-    const button = Array.from(
-      listRef.current?.querySelectorAll<HTMLButtonElement>('button[data-table-id]') ?? [],
-    ).find((candidate) => candidate.dataset['tableId'] === focusTableId);
-    if (!button) return;
-    button.focus();
-    onFocused?.();
-  });
-
-  return (
-    <section ref={listRef} className="editor-panel" aria-label={title}>
-      <h2>{title}</h2>
-      <p className="muted small">{t('rooms.unpinned.hint')}</p>
-      <ul className="rooms-table-list">
-        {tables.map((table) => (
-          <li key={table.id}>
-            <button
-              type="button"
-              data-table-id={table.id}
-              className={`chip${table.id === selectedId ? ' is-on' : ''}`}
-              aria-pressed={table.id === selectedId}
-              onClick={() => onSelect(table.id)}
-            >
-              {t('rooms.table.title', { label: table.label })}
-            </button>
-          </li>
-        ))}
-      </ul>
     </section>
   );
 }
@@ -1286,7 +1428,7 @@ function UnpinnedList({
  * What a save warned about, in the person's language where the warning is one
  * the editor knows, and in the server's own sentence otherwise.
  *
- * The bookable-but-unpinned warning is left out: the notice above the editor
+ * The bookable-but-unpinned warning is left out: the banner above the editor
  * says the same thing from the same draft, live.
  */
 function savedWarnings(t: TFunction, warnings: readonly string[]): string[] {
@@ -1311,7 +1453,7 @@ const UNPINNED_BY_MOVE =
   /^Table\(s\) (.+) were taken off photos this plan moved to another room\.$/u;
 
 /**
- * A refused save, in the person's language.
+ * A refused save, in the person's language, as a red banner.
  *
  * The server names photo and pin problems by their place in the payload —
  * `areas[1].photoIds[3]`, `tables[4].photoId` — so they are read back against
@@ -1328,61 +1470,59 @@ function SaveRefusal({
 }) {
   const { t } = useTranslation(['admin', 'common']);
 
+  const banner = (children: ReactNode) => (
+    <div className="yc-banner yc-banner-red" role="alert">
+      {children}
+    </div>
+  );
+
   if (isFloorPlanInvalid(error)) {
-    return (
-      <div className="notice notice-error" role="alert">
-        <p>
+    return banner(
+      <div className="yc-grow">
+        <p className="yc-rm-p">
           {error.duplicateLabels.length > 0
             ? t('rooms.warning.duplicates', { labels: error.duplicateLabels.join(', ') })
             : t('rooms.error.invalid')}
         </p>
         {/* The server's own sentences name the tables and rooms involved. */}
-        <ul className="small">
+        <ul className="yc-rm-lines">
           {error.errors.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
-      </div>
+      </div>,
     );
   }
 
   if (error instanceof ValidationError && error.violations.length > 0) {
     const lines = [...new Set(error.violations.map((v) => violationLine(t, v, sent)))];
-    return (
-      <div className="notice notice-error" role="alert">
-        <ul>
-          {lines.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      </div>
+    return banner(
+      <ul className="yc-grow yc-rm-lines">
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>,
     );
   }
 
   // A refusal the server explains itself, naming tables and bookings: a
   // table left out of the plan that still has upcoming bookings, say.
   if (error instanceof ApiError && error.status === 409 && error.problem?.detail) {
-    return (
-      <div className="notice notice-error" role="alert">
-        <p>{error.problem.detail}</p>
-      </div>
-    );
+    return banner(<span className="yc-grow">{error.problem.detail}</span>);
   }
 
   if (error instanceof NotFoundError) {
-    return (
-      <div className="notice notice-error" role="alert">
-        <p>{t('rooms.error.photoNotFound')}</p>
-      </div>
-    );
+    return banner(<span className="yc-grow">{t('rooms.error.photoNotFound')}</span>);
   }
 
   return (
-    <QueryFailureNotice
-      error={error}
-      offline={describeFailure(error) === 'offline'}
-      onRetry={onRetry}
-    />
+    <div className="yc-card yc-ov-pad">
+      <QueryFailureNotice
+        error={error}
+        offline={describeFailure(error) === 'offline'}
+        onRetry={onRetry}
+      />
+    </div>
   );
 }
 

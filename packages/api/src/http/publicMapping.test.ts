@@ -84,6 +84,36 @@ describe('the open state on the public branch page', () => {
     expect(branch.openState.closesAtUtc).toBe('2026-10-16T21:00:00.000Z');
   });
 
+  it("reads the special days, and names a special day's opening (VC3 wire §1)", () => {
+    // Friday 16 October is a special day opening at 18:00; at 12:00 the server says shut.
+    const branch = publicBranchFromWire(
+      {
+        ...PAGE,
+        specialDays: [
+          {
+            date: '2026-10-16',
+            note: 'Private party',
+            closed: false,
+            blocks: [{ opensAt: '18:00:00', closesAt: '23:00:00', closesNextDay: false }],
+          },
+        ],
+      } as Page,
+      BASE,
+      () => new Date('2026-10-16T08:00:00Z'),
+    );
+    expect(branch.specialDays).toEqual([
+      {
+        date: '2026-10-16',
+        note: 'Private party',
+        blocks: [{ opensAt: '18:00', closesAt: '23:00' }],
+      },
+    ]);
+    expect(branch.openState.isOpen).toBe(false);
+    expect(branch.openState.opensAtUtc).toBe('2026-10-16T14:00:00.000Z');
+    // A server that does not send them yet: none.
+    expect(publicBranchFromWire(PAGE, BASE, now).specialDays).toEqual([]);
+  });
+
   it("keeps the server's verdict when the hours disagree with this clock", () => {
     // The hours say open at Friday 12:00; the server says shut (a holiday).
     const branch = publicBranchFromWire(PAGE, BASE, () => new Date('2026-10-16T08:00:00Z'));

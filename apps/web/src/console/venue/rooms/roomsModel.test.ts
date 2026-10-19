@@ -347,3 +347,44 @@ describe('the version a delete answers with', () => {
     expect(reducer(state, { type: 'versionAfterDelete', version: '7' }).version).toBe('4');
   });
 });
+
+describe("a deleted table's undo", () => {
+  const loaded = () => reducer(initialState(), { type: 'loaded', plan: PLAN });
+
+  it('puts it back as a new table, in its room and on its pin, waiting for Save', () => {
+    const next = reducer(loaded(), {
+      type: 'reAddTable',
+      table: { label: '5', seats: 6, isBookable: false },
+      roomId: 'hall',
+      pin: { photoId: 'p2', x: 0.3, y: 0.7 },
+    });
+    const back = next.tables.find((table) => table.label === '5')!;
+    expect(back).toMatchObject({
+      seats: 6,
+      roomId: 'hall',
+      isBookable: false,
+      isActive: true,
+      status: null,
+      qrToken: '',
+      pin: { photoId: 'p2', x: 0.3, y: 0.7 },
+    });
+    expect(isDirty(next)).toBe(true);
+    expect(toSaveCommand(next).tables.find((table) => table.label === '5')).toMatchObject({
+      floorAreaName: 'Hall',
+    });
+  });
+
+  it('drops a pin on a photo its room no longer has, and a room that is gone', () => {
+    const roomless = reducer(loaded(), { type: 'removeRoom', id: 'terrace' });
+    const next = reducer(roomless, {
+      type: 'reAddTable',
+      table: { label: '7', seats: 2, isBookable: true },
+      roomId: 'terrace',
+      pin: { photoId: 'p3', x: 0.5, y: 0.5 },
+    });
+    expect(next.tables.find((table) => table.label === '7')).toMatchObject({
+      roomId: null,
+      pin: null,
+    });
+  });
+});

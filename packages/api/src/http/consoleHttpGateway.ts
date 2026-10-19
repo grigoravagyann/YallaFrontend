@@ -122,8 +122,13 @@ import {
   policyCommand,
   policyFieldFromMessage,
   reservationPolicy,
+  specialDaysFromWire,
+  specialDaysSavedFromWire,
+  specialDaysToWire,
   spiceCode,
   weeklyHours,
+  type WireSpecialDay,
+  type WireSpecialDaysResult,
 } from './venueSettingsMapping';
 import { venueTypeCode } from './venueTypeMapping';
 
@@ -917,8 +922,9 @@ export function createConsoleHttpGateway(
           allergens: item.allergens,
           portionSize: item.portionSize,
           spiceLevel: spiceCode(item.spiceLevel),
-          prepMinutes: item.prepMinutes,
-          photoId: item.photoId,
+          // A draft without them: absent, never an empty id or a zero.
+          ...(item.prepMinutes !== null ? { prepMinutes: item.prepMinutes } : {}),
+          ...(item.photoId ? { photoId: item.photoId } : {}),
           displayOrder: item.displayOrder,
         } satisfies Schemas['Yalla.Application.Menus.CreateMenuItemCommand'],
       );
@@ -952,6 +958,26 @@ export function createConsoleHttpGateway(
         } satisfies Schemas['Yalla.Api.Endpoints.VenueAdminEndpoints.SetAvailabilityRequest'],
       );
       return absoluteItem(adminItem(data));
+    },
+
+    async reorderMenuCategories({ branchId, categoryIds }) {
+      // VC3 wire §2, not in the generated schema yet: the checker reads `order`
+      // as the `{categoryId}` of the PATCH route, so it cannot carry the
+      // awaiting-route marker. Regenerate the schema when the backend ships.
+      const { data } = await client.put<WireCategory[]>(
+        `${BRANCHES}/${branchId}/menu/categories/order`,
+        { categoryIds },
+      );
+      return adminMenu(data ?? []).map(absoluteCategory);
+    },
+
+    async reorderMenuItems({ branchId, categoryId, itemIds }) {
+      // gateway-schema: awaiting-route — menu reorder (VC3 wire §2); regenerate the schema
+      const { data } = await client.put<WireCategory>(
+        `${BRANCHES}/${branchId}/menu/categories/${categoryId}/items/order`,
+        { itemIds },
+      );
+      return absoluteCategory(adminCategory(data));
     },
 
     async deleteMenuItem({ branchId, itemId }): Promise<MenuItemDeletion> {
@@ -1054,6 +1080,24 @@ export function createConsoleHttpGateway(
         }
         throw error;
       }
+    },
+
+    async getSpecialDays(branchId: string) {
+      // gateway-schema: awaiting-route — special days (VC3 wire §1); regenerate the schema
+      const { data } = await client.get<WireSpecialDay[]>(
+        `${BRANCHES}/${branchId}/opening-hours/exceptions`,
+      );
+      return specialDaysFromWire(data ?? []);
+    },
+
+    async replaceSpecialDays({ branchId, days }) {
+      // A 422 `validation-failed` is the client's ValidationError already.
+      // gateway-schema: awaiting-route — special days (VC3 wire §1); regenerate the schema
+      const { data } = await client.put<WireSpecialDaysResult>(
+        `${BRANCHES}/${branchId}/opening-hours/exceptions`,
+        specialDaysToWire(days),
+      );
+      return specialDaysSavedFromWire(data ?? {});
     },
 
     // --- The reservation policy ---------------------------------------------------

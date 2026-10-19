@@ -36,8 +36,12 @@ import type {
   VoidLineCommand,
 } from '../contracts/ordering';
 import type { Menu } from '../contracts/menu';
-import type { CreateMenuItemInput, UpdateMenuItemInput } from '../contracts/menuAdmin';
-import type { ReservationPolicy, WeeklyHours } from '../contracts/branchSettings';
+import type {
+  AdminMenuCategory,
+  CreateMenuItemInput,
+  UpdateMenuItemInput,
+} from '../contracts/menuAdmin';
+import type { ReservationPolicy, SpecialDay, WeeklyHours } from '../contracts/branchSettings';
 import type { BranchPublicProfileInput } from '../contracts/publicProfile';
 import type { VenueListingInput } from '../contracts/listing';
 import {
@@ -288,6 +292,7 @@ export const queryKeys = {
   publicMenu: (branchId: string) => ['public', 'menu', branchId] as const,
   managedBooking: (token: string) => ['public', 'booking', token] as const,
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
+  specialDays: (branchId: string) => ['console', 'specialDays', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
   publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
   branchListing: (branchId: string) => ['console', 'listing', branchId] as const,
@@ -1550,6 +1555,48 @@ export function useSetMenuItemAvailability(branchId: string | undefined) {
   );
 }
 
+/**
+ * The whole order of the branch's categories, in one call (VC3 wire §2). The
+ * answer is the whole menu, cached at once so the list does not jump back
+ * before the read that follows.
+ */
+export function useReorderMenuCategories(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (categoryIds: readonly string[]) =>
+      gateway.reorderMenuCategories({ branchId: branchId!, categoryIds }),
+    retry: false,
+    onSuccess: (menu) => {
+      queryClient.setQueryData(queryKeys.adminMenu(branchId ?? ''), menu);
+    },
+    // A refusal is a stale menu: read it again, whichever way it went.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+    },
+  });
+}
+
+/** The whole order of one category's dishes, in one call; its answer replaces that category. */
+export function useReorderMenuItems(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { categoryId: string; itemIds: readonly string[] }) =>
+      gateway.reorderMenuItems({ branchId: branchId!, ...input }),
+    retry: false,
+    onSuccess: (category) => {
+      queryClient.setQueryData<readonly AdminMenuCategory[]>(
+        queryKeys.adminMenu(branchId ?? ''),
+        (menu) => menu?.map((candidate) => (candidate.id === category.id ? category : candidate)),
+      );
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminMenu(branchId ?? '') });
+    },
+  });
+}
+
 export function useDeleteMenuItem(branchId: string | undefined) {
   const gateway = useConsoleGateway();
   return useMenuMutation(branchId, (input: { itemId: string }) =>
@@ -1599,8 +1646,40 @@ export function useSaveOpeningHours(branchId: string | undefined) {
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.openingHours(branchId ?? ''), saved);
       void queryClient.invalidateQueries({ queryKey: queryKeys.readiness(branchId ?? '') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.branchOverview(branchId ?? '') });
       refreshVenueViews(queryClient);
       refreshPlatformViews(queryClient);
+    },
+  });
+}
+
+/** The branch's special days from its today on: holidays, closures, different hours. */
+export function useSpecialDays(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.specialDays(branchId ?? ''),
+    queryFn: () => gateway.getSpecialDays(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * The whole list, replaced. The answer is the list as saved, and it becomes
+ * the cached one at once, so the next add or remove starts from it.
+ */
+export function useSaveSpecialDays(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (days: readonly SpecialDay[]) =>
+      gateway.replaceSpecialDays({ branchId: branchId!, days }),
+    retry: false,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.specialDays(branchId ?? ''), saved.days);
+      // Overview's hours pill and its service day follow a special day.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.branchOverview(branchId ?? '') });
     },
   });
 }

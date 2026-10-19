@@ -346,7 +346,7 @@ export type { ResolvePublicGatewayOptions } from './resolvePublicGateway';
 export { createPublicMockGateway, manageTokenFor } from './mocks/publicMock';
 export type { PublicMockOptions } from './mocks/publicMock';
 export { createPublicHttpGateway } from './http/publicHttpGateway';
-export { openStateFrom } from './contracts/openState';
+export { coversSitting, openStateFrom } from './contracts/openState';
 export type {
   ManagedBooking,
   OpenState,
@@ -579,6 +579,8 @@ export {
   itemToDraft,
   menuItemGaps,
   parseAllergens,
+  NO_ALLERGENS,
+  listsNoAllergens,
   reorder,
   splitList,
   storedItemGaps,
@@ -598,10 +600,14 @@ export type {
 
 export {
   POLICY_BOUNDS,
+  SPECIAL_DAY_HORIZON_DAYS,
+  SPECIAL_DAY_NOTE_MAX,
   WEEK_ORDER,
   blockMinutes,
+  blocksOnDate,
   closesNextDay,
   defaultPolicyFor,
+  specialDayOn,
   toClock,
   toMinutes,
 } from './contracts/branchSettings';
@@ -611,6 +617,8 @@ export type {
   HoursDay,
   PolicyChangeResult,
   ReservationPolicy,
+  SpecialDay,
+  SpecialDaysSaved,
   WeekdayIndex,
   WeeklyHours,
 } from './contracts/branchSettings';

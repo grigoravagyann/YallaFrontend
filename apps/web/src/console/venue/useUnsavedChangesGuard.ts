@@ -17,8 +17,9 @@ import { useEffect } from 'react';
  *   by asking before the router sees the click. The app runs on a
  *   `BrowserRouter` (see `bootstrap.tsx`), which has no `useBlocker`, so the
  *   click is stopped on its way down instead;
- * - anything else that would throw the screen away, such as the branch
- *   switcher, by calling {@link confirmLeave} first.
+ * - anything else that would throw the screen away by calling
+ *   {@link confirmLeave} first — or, for the branch switcher, by asking
+ *   {@link hasUnsavedChanges} and putting its own dialog up.
  *
  * A navigation guard rather than persistence, deliberately. Nothing here
  * touches web storage: a half-edited week kept across a reload is a week
@@ -49,6 +50,15 @@ export function confirmLeave(): boolean {
   const message = guards.values().next().value;
   if (message === undefined) return true;
   return window.confirm(message);
+}
+
+/**
+ * Whether any screen holds unsaved work right now — for a way out that asks
+ * in the console's own dialog rather than the browser's (the branch switcher,
+ * venue Hours artboard).
+ */
+export function hasUnsavedChanges(): boolean {
+  return guards.size > 0;
 }
 
 /** The screens with unsaved work right now, each with the question in the reader's language. */

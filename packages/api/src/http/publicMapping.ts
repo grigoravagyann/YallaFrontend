@@ -1,5 +1,11 @@
 import { instantFromZonedClock, type TimeZone } from '@yalla/format';
-import type { HoursBlock, HoursDay, WeekdayIndex, WeeklyHours } from '../contracts/branchSettings';
+import type {
+  HoursBlock,
+  HoursDay,
+  SpecialDay,
+  WeekdayIndex,
+  WeeklyHours,
+} from '../contracts/branchSettings';
 import type {
   ManagedBooking,
   OpenState,
@@ -22,6 +28,7 @@ import {
 } from './approvalMapping';
 import { instantOrNull, type WirePublicBookingTimes } from './bookingTimesWire';
 import { absolutePhotoUrl } from './photoUrl';
+import { specialDaysFromWire, type WireSpecialDay } from './venueSettingsMapping';
 import { venueTypeFromCode } from './venueTypeMapping';
 
 type Schemas = components['schemas'];
@@ -123,6 +130,7 @@ function weeklyHoursFromWire(hours: WirePublicBranch['openingHours']): WeeklyHou
 function openStateFromWire(
   wire: WirePublicBranch,
   weeklyHours: WeeklyHours,
+  specialDays: readonly SpecialDay[],
   now: () => Date,
 ): OpenState {
   const isOpen = wire.isOpenNow ?? false;
@@ -131,7 +139,7 @@ function openStateFromWire(
     return { isOpen, closesAtUtc: null, opensAtUtc: null };
   }
 
-  const fromHours = openStateFrom(weeklyHours, now(), timeZoneId);
+  const fromHours = openStateFrom(weeklyHours, now(), timeZoneId, specialDays);
   if (fromHours.isOpen !== isOpen) return { isOpen, closesAtUtc: null, opensAtUtc: null };
   return fromHours;
 }
@@ -198,6 +206,10 @@ export function publicBranchFromWire(
   now: () => Date = () => new Date(),
 ): PublicBranch {
   const weeklyHours = weeklyHoursFromWire(wire.openingHours);
+  // Not in the generated schema yet (VC3 wire §1): read by name until it is regenerated.
+  const specialDays = specialDaysFromWire(
+    (wire as { readonly specialDays?: readonly WireSpecialDay[] }).specialDays,
+  );
   return {
     venue: venueHeaderFromWire(wire, baseUrl),
 
@@ -232,8 +244,9 @@ export function publicBranchFromWire(
     phoneE164: wire.phoneE164 ?? null,
 
     timeZoneId: wire.timeZoneId ?? '',
-    openState: openStateFromWire(wire, weeklyHours, now),
+    openState: openStateFromWire(wire, weeklyHours, specialDays, now),
     weeklyHours,
+    specialDays,
 
     freeTables: wire.freeTableCount ?? 0,
     totalTables: wire.tableCount ?? 0,

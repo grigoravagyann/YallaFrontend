@@ -876,6 +876,22 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* Holidays and closures, under the folded week. */
+.pub-special-days {
+  margin-top: var(--space-sm);
+}
+
+.pub-special-days caption {
+  padding: var(--space-xs) 0;
+  color: var(--color-foreground);
+  font-weight: var(--font-weight-medium);
+  text-align: start;
+}
+
+.pub-special-note {
+  color: var(--color-foreground);
+}
+
 /* --------------------------------------------------------------------------
  * The branch chooser
  * -------------------------------------------------------------------------- */

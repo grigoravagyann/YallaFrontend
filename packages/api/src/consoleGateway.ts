@@ -30,6 +30,8 @@ import type {
 import type {
   PolicyChangeResult,
   ReservationPolicy,
+  SpecialDay,
+  SpecialDaysSaved,
   WeeklyHours,
 } from './contracts/branchSettings';
 import type { BranchPublicProfile, BranchPublicProfileInput } from './contracts/publicProfile';
@@ -403,6 +405,33 @@ export interface ConsoleGateway {
    */
   deleteMenuItem(input: { branchId: string; itemId: string }): Promise<MenuItemDeletion>;
 
+  /**
+   * `PUT …/menu/categories/order`: **every** category of the branch, each
+   * once, first to last; the answer is the whole menu with display orders
+   * 0..n-1. One transaction under the branch lock, so two consoles reordering
+   * at once get one whole order, never a mix (VC3 wire §2).
+   *
+   * @throws {ValidationError} 422 on `categoryIds` (`conflict`): the list
+   * misses one, repeats one or names another branch's — a stale menu, so
+   * reload and retry.
+   */
+  reorderMenuCategories(input: {
+    branchId: string;
+    categoryIds: readonly string[];
+  }): Promise<readonly AdminMenuCategory[]>;
+
+  /**
+   * `PUT …/menu/categories/{id}/items/order`: every item of that category,
+   * each once, first to last; the answer is that category in its new order.
+   *
+   * @throws {ValidationError} 422 on `itemIds` (`conflict`), as above.
+   */
+  reorderMenuItems(input: {
+    branchId: string;
+    categoryId: string;
+    itemIds: readonly string[];
+  }): Promise<AdminMenuCategory>;
+
   // --- Photos ------------------------------------------------------------------
 
   /**
@@ -442,6 +471,29 @@ export interface ConsoleGateway {
    * names the days.
    */
   replaceOpeningHours(input: { branchId: string; week: WeeklyHours }): Promise<WeeklyHours>;
+
+  /**
+   * `GET …/opening-hours/exceptions`: the special days — holidays, closures,
+   * different hours on one date — from the branch's own today on, earliest
+   * first. Each replaces that date's weekly blocks entirely.
+   */
+  getSpecialDays(branchId: string): Promise<readonly SpecialDay[]>;
+
+  /**
+   * `PUT …/opening-hours/exceptions`: the **whole** list from the branch's
+   * today on, atomically; days before today are history and are kept. The
+   * console adds or removes one day at a time by sending the list with that
+   * change, and takes the answer as the new list.
+   *
+   * @throws {ValidationError} 422 `validation-failed`, naming `[i].date`
+   * (`min` a past date, `max` past the horizon, `conflict` a date twice),
+   * `[i].note` (`max` 60), `[i].blocks` (`max` 4) or a block that overlaps
+   * another or has no length. Nothing is saved.
+   */
+  replaceSpecialDays(input: {
+    branchId: string;
+    days: readonly SpecialDay[];
+  }): Promise<SpecialDaysSaved>;
 
   // --- The public page ------------------------------------------------------------
 

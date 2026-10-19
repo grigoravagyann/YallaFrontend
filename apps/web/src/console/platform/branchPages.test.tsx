@@ -144,7 +144,7 @@ describe('the rooms page', () => {
 
     await user.type(screen.getByLabelText(/new room/iu), 'Rooftop');
     await user.click(screen.getByRole('button', { name: 'Add the room' }));
-    expect(within(bar).getByText('Unsaved changes')).toBeTruthy();
+    expect(within(bar).getByText(/^Unsaved changes/u)).toBeTruthy();
 
     await user.click(within(bar).getByRole('button', { name: 'Discard changes' }));
     expect(within(bar).getByText('Everything is saved')).toBeTruthy();

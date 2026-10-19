@@ -166,6 +166,41 @@ describe('openStateFor', () => {
     expect(state.todayLabel).toBe('');
   });
 
+  it('follows a special day over the week, and says its note (VC3)', () => {
+    // Saturday 12 September 2026 is a special day: 18:00–03:00, "Wine night".
+    const special = [
+      { date: '2026-09-12', note: 'Wine night', blocks: [{ open: '18:00', close: '03:00' }] },
+      { date: '2026-09-13', note: 'Closed for a wedding', blocks: [] },
+    ];
+    // 12:00 in Yerevan: the week says open, the special day says not yet.
+    const noon = openStateFor(
+      hours,
+      new Date('2026-09-12T08:00:00Z'),
+      'Asia/Yerevan',
+      'en',
+      special,
+    );
+    expect(noon.isOpen).toBe(false);
+    expect(noon.opensAt).toBe('18:00');
+    expect(noon.todayLabel).toBe('18:00 – 03:00');
+    expect(noon.todayNote).toBe('Wine night');
+    // 02:00 on the 13th: still the 12th's special night, though the 13th is shut.
+    expect(
+      openStateFor(hours, new Date('2026-09-12T22:00:00Z'), 'Asia/Yerevan', 'en', special).isOpen,
+    ).toBe(true);
+    // Noon on the 13th: closed all day, and why.
+    const closed = openStateFor(
+      hours,
+      new Date('2026-09-13T08:00:00Z'),
+      'Asia/Yerevan',
+      'en',
+      special,
+    );
+    expect(closed.isOpen).toBe(false);
+    expect(closed.todayLabel).toBe('');
+    expect(closed.todayNote).toBe('Closed for a wedding');
+  });
+
   it('formats a clock reading in the locale, without a zone', () => {
     // en-GB, like every other time in the app: 24-hour.
     expect(formatClock('20:30', 'en')).toBe('20:30');

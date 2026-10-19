@@ -47,6 +47,13 @@ export interface AdminMenuItem {
   readonly photo: Photo;
   readonly isAvailable: boolean;
   readonly displayOrder: number;
+  /**
+   * What still keeps it from diners, as the server derives it
+   * (`MenuItemView.missingFields`, VC3 wire §2), in the drawer's order. Absent
+   * from a server that predates it; {@link storedItemGaps} derives the same
+   * list from the same rule then.
+   */
+  readonly missingFields?: readonly MenuItemField[] | undefined;
 }
 
 export interface AdminMenuCategory {
@@ -59,10 +66,11 @@ export interface AdminMenuCategory {
 /**
  * A new item.
  *
- * Every descriptive field is required, and the client does not soften that: the
- * server refuses without them, and a form that let somebody submit anyway would
- * turn a rule into a failed request they have to interpret. What the client
- * does instead is make them fast — presets, chips, and duplicate.
+ * Only a name and a price are insisted on: the server keeps a half-entered
+ * dish as a draft, hidden from diners until every descriptive field is in
+ * (`menuItemGaps`), so an owner entering eighty dishes can come back to the
+ * photos tomorrow. Blank text fields are sent blank; a missing photo or prep
+ * time is not sent at all.
  */
 export interface CreateMenuItemInput {
   readonly categoryId: string;
@@ -73,9 +81,13 @@ export interface CreateMenuItemInput {
   readonly allergens: string;
   readonly portionSize: string;
   readonly spiceLevel: SpiceLevel;
-  readonly prepMinutes: number;
-  /** An uploaded photo. There is no way to create an item without one. */
-  readonly photoId: string;
+  /** Null while not known yet: a draft saved before the kitchen has said. */
+  readonly prepMinutes: number | null;
+  /**
+   * An uploaded photo, or null for a draft saved without one: the server
+   * keeps it, hidden from diners until it is finished (`docs/menu-completeness.md`).
+   */
+  readonly photoId: string | null;
   readonly displayOrder: number;
 }
 
@@ -145,6 +157,11 @@ export interface MenuItemDraft {
   readonly allergens: readonly string[];
   /** Free text, for an allergen the preset list does not name. */
   readonly allergensOther: string;
+  /**
+   * "No allergens", answered. Distinct from nothing ticked, which is a question
+   * not yet answered and keeps the dish hidden; stored as {@link NO_ALLERGENS}.
+   */
+  readonly noAllergens: boolean;
   readonly portionSize: string;
   readonly spiceLevel: SpiceLevel;
   readonly prepMinutes: number | null;
@@ -184,7 +201,7 @@ export function menuItemGaps(draft: MenuItemDraft): readonly MenuItemField[] {
  * the count on the category list and the form's refusal cannot drift apart.
  */
 export function storedItemGaps(item: AdminMenuItem): readonly MenuItemField[] {
-  return menuItemGaps(itemToDraft(item));
+  return item.missingFields ?? menuItemGaps(itemToDraft(item));
 }
 
 export function isComplete(item: AdminMenuItem): boolean {
@@ -222,9 +239,34 @@ export const ALLERGEN_PRESETS = [
 
 export type AllergenPreset = (typeof ALLERGEN_PRESETS)[number];
 
-/** The stored string for a draft's chips: presets first, then the free text. */
-export function allergenText(draft: Pick<MenuItemDraft, 'allergens' | 'allergensOther'>): string {
-  return [...draft.allergens, ...splitList(draft.allergensOther)].join(', ');
+/**
+ * The stored answer "this dish has no allergens".
+ *
+ * The server keeps one string and counts a blank one as missing, so "none"
+ * has to be written down to be an answer at all — the dish drawer's
+ * "No allergens" box. A word like the presets' ids, so a reader that shows the
+ * string raw shows something sensible, and {@link listsNoAllergens} lets the
+ * diner app say it in the reader's language instead.
+ */
+export const NO_ALLERGENS = 'none';
+
+/** Is this stored allergen string the answer "none"? */
+export function listsNoAllergens(stored: string): boolean {
+  return stored.trim().toLowerCase() === NO_ALLERGENS;
+}
+
+/**
+ * The stored string for a draft's chips: presets first, then the free text —
+ * or {@link NO_ALLERGENS} when the answer is "none". A ticked allergen wins
+ * over the box: the two are never stored together.
+ */
+export function allergenText(
+  draft: Pick<MenuItemDraft, 'allergens' | 'allergensOther'> &
+    Partial<Pick<MenuItemDraft, 'noAllergens'>>,
+): string {
+  const listed = [...draft.allergens, ...splitList(draft.allergensOther)];
+  if (listed.length === 0 && draft.noAllergens) return NO_ALLERGENS;
+  return listed.join(', ');
 }
 
 /**
@@ -238,7 +280,9 @@ export function allergenText(draft: Pick<MenuItemDraft, 'allergens' | 'allergens
 export function parseAllergens(stored: string): {
   presets: readonly AllergenPreset[];
   other: string;
+  none: boolean;
 } {
+  if (listsNoAllergens(stored)) return { presets: [], other: '', none: true };
   const presets: AllergenPreset[] = [];
   const other: string[] = [];
 
@@ -250,7 +294,7 @@ export function parseAllergens(stored: string): {
     else if (!match) other.push(part);
   }
 
-  return { presets, other: other.join(', ') };
+  return { presets, other: other.join(', '), none: false };
 }
 
 /** Comma-separated free text into trimmed, non-empty parts. Used for both lists. */
@@ -272,6 +316,7 @@ export const EMPTY_DRAFT: MenuItemDraft = {
   ingredients: [],
   allergens: [],
   allergensOther: '',
+  noAllergens: false,
   portionSize: '',
   spiceLevel: 'notSpicy',
   prepMinutes: null,
@@ -287,6 +332,7 @@ export function itemToDraft(item: AdminMenuItem): MenuItemDraft {
     ingredients: splitList(item.ingredients),
     allergens: allergens.presets,
     allergensOther: allergens.other,
+    noAllergens: allergens.none,
     portionSize: item.portionSize,
     spiceLevel: item.spiceLevel,
     prepMinutes: item.prepMinutes,

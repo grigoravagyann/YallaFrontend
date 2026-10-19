@@ -2313,6 +2313,7 @@ export function createMockGateway(options: MockGatewayOptions = {}): MockGateway
         websiteUrl: null,
         phoneE164: fixture.phoneE164,
         amenities: [],
+        specialDays: [],
         openingHours: fixture.weeklyHours.flatMap((entry) =>
           entry.blocks.map((block) => ({
             day: entry.day,

@@ -129,10 +129,15 @@ function dayLine(overview: BranchOverview, locale: Locale): string {
   return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
 }
 
-/** "Open until 00:00", green; "Closed · opens at 12:00", grey. The server's verdict, not the browser's. */
+/**
+ * "Open until 00:00", green; "Closed · opens at 12:00", grey. The server's
+ * verdict, not the browser's — special days included, with the day's note
+ * after it ("Closed today · New Year").
+ */
 function HoursPill({ hours }: { readonly hours: OverviewHours }) {
   const { t } = useTranslation(['admin', 'common']);
   const clock = (time: string) => time.slice(0, 5);
+  const note = hours.specialDay?.note ? ` · ${hours.specialDay.note}` : '';
   if (hours.isOpen) {
     // Midnight is "until 00:00" on its own; a later close says it is tomorrow.
     const closes = hours.closesAt ? clock(hours.closesAt) : null;
@@ -143,6 +148,7 @@ function HoursPill({ hours }: { readonly hours: OverviewHours }) {
         {closes
           ? t(nextDay ? 'overview.hours.openNextDay' : 'overview.hours.open', { time: closes })
           : t('overview.hours.openNow')}
+        {note}
       </span>
     );
   }
@@ -152,6 +158,7 @@ function HoursPill({ hours }: { readonly hours: OverviewHours }) {
       {hours.opensAt
         ? t('overview.hours.closedOpensAt', { time: clock(hours.opensAt) })
         : t('overview.hours.closedToday')}
+      {note}
     </span>
   );
 }

@@ -164,6 +164,9 @@ describe('placeFromDetail', () => {
     phoneE164: null,
     amenities: ['wifi'],
     openingHours: [{ day: 1, opensAt: '09:00', closesAt: '23:00', closesNextDay: false }],
+    specialDays: [
+      { date: '2026-12-31', note: 'Ամանոր', blocks: [{ opensAt: '18:00', closesAt: '03:00' }] },
+    ],
     gallery: [],
     tableCount: 1,
     acceptsWebBookings: false,
@@ -188,6 +191,9 @@ describe('placeFromDetail', () => {
     const place = placeFromDetail(detail, CONTEXT);
 
     expect(place.hours).toEqual([{ day: 1, open: '09:00', close: '23:00' }]);
+    expect(place.specialDays).toEqual([
+      { date: '2026-12-31', note: 'Ամանոր', blocks: [{ open: '18:00', close: '03:00' }] },
+    ]);
     expect(place.openState.isOpen).toBe(true);
     expect(place.photos).toEqual(['https://api/p/f']);
     expect(place.website).toBe('https://lumen.am');

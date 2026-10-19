@@ -69,7 +69,8 @@
       "4": "Thursday",
       "5": "Friday",
       "6": "Saturday"
-    }
+    },
+    "special": "Special days"
   },
   "findUs": {
     "openMap": "Open in maps",

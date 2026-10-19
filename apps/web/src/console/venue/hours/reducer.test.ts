@@ -247,3 +247,33 @@ describe('the unsaved-changes guard', () => {
     expect(isDirty(saved)).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The break (Hours artboard: "+ Break")
+// ---------------------------------------------------------------------------
+
+describe('a break in the day', () => {
+  it('cuts two hours out of the middle of the one span: 09:00–23:00 becomes 09:00–15:00, 17:00–23:00', () => {
+    const next = hoursReducer(open(MON, '09:00', '23:00'), { type: 'splitDay', day: MON });
+    expect(dayIn(next.draft, MON).blocks).toEqual([
+      { opensAt: '09:00', closesAt: '15:00' },
+      { opensAt: '17:00', closesAt: '23:00' },
+    ]);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+
+  it('finds the middle of a span that crosses midnight', () => {
+    const next = hoursReducer(open(SAT, '18:00', '04:00'), { type: 'splitDay', day: SAT });
+    expect(dayIn(next.draft, SAT).blocks).toEqual([
+      { opensAt: '18:00', closesAt: '22:00' },
+      { opensAt: '00:00', closesAt: '04:00' },
+    ]);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+
+  it('adds a second span after a short one, never one that clashes', () => {
+    const next = hoursReducer(open(TUE, '12:00', '14:00'), { type: 'splitDay', day: TUE });
+    expect(dayIn(next.draft, TUE).blocks).toHaveLength(2);
+    expect(hoursProblems(next.draft)).toEqual([]);
+  });
+});

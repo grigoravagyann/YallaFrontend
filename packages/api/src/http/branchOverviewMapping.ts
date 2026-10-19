@@ -1,3 +1,5 @@
+import type { SpecialDay } from '../contracts/branchSettings';
+import { specialDayFromWire, type WireSpecialDay } from './venueSettingsMapping';
 import type {
   BranchOverview,
   OverviewBooking,
@@ -65,6 +67,8 @@ export function branchOverviewFromWire(wire: WireBranchOverview): BranchOverview
       closesAt: wire.hours.closesAt ?? null,
       closesNextDay: wire.hours.closesNextDay,
       opensAt: wire.hours.opensAt ?? null,
+      // Not in the generated schema yet (VC3 wire §1): read by name until it is regenerated.
+      specialDay: specialDayOf(wire.hours),
     },
     bookings: { ...wire.bookings },
     inRoom: { ...wire.inRoom },
@@ -89,4 +93,10 @@ export function branchOverviewFromWire(wire: WireBranchOverview): BranchOverview
     todayBookingsTruncated: wire.todayBookingsTruncated,
     graceMinutes: wire.graceMinutes,
   };
+}
+
+/** `hours.specialDay`, present when the service date is a special day. */
+function specialDayOf(hours: object): SpecialDay | null {
+  const special = (hours as { readonly specialDay?: WireSpecialDay | null }).specialDay;
+  return special ? specialDayFromWire(special) : null;
 }

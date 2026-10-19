@@ -1,3 +1,4 @@
+import type { SpecialDay } from './branchSettings';
 import type { VenueType } from './booking';
 import type { Photo } from './menuAdmin';
 
@@ -118,6 +119,12 @@ export interface BranchDetail {
   /** Keys: `outdoorSeating`, `wifi`, `parking`, `cardPayment`, `vegan`. */
   readonly amenities: readonly string[];
   readonly openingHours: readonly BranchOpeningBlock[];
+  /**
+   * The special days from the branch's today through the next sixty days,
+   * earliest first: each replaces its date's weekly hours. Empty from a server
+   * that does not send them yet.
+   */
+  readonly specialDays: readonly SpecialDay[];
   /** Ordered, beyond the cover. */
   readonly gallery: readonly Photo[];
   readonly tableCount: number;

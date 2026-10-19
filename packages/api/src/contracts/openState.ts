@@ -1,13 +1,18 @@
 import { branchDayKey, instantFromZonedClock, type TimeZone } from '@yalla/format';
-import { closesNextDay, toMinutes, type WeekdayIndex, type WeeklyHours } from './branchSettings';
+import {
+  blocksOnDate,
+  closesNextDay,
+  toMinutes,
+  type SpecialDay,
+  type WeeklyHours,
+} from './branchSettings';
 import type { OpenState } from './publicBranch';
 
 /**
  * "Open until 23:00", derived from a week of opening hours.
  *
  * The open/closed VERDICT belongs to the backend: the honest version of that
- * question needs the venue's holiday closures and its actual clock, neither of
- * which a browser has, and a client that decided it would let a phone with a
+ * question needs the venue's actual clock, which a browser does not have, and a client that decided it would let a phone with a
  * wrong date tell a visitor a shut venue is open. Two callers use this anyway,
  * each within that rule:
  *
@@ -34,11 +39,6 @@ function dateKeyOffsetBy(dateKey: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
-function weekdayOf(dateKey: string): WeekdayIndex {
-  const [year, month, day] = dateKey.split('-').map(Number) as [number, number, number];
-  return new Date(Date.UTC(year, month - 1, day)).getUTCDay() as WeekdayIndex;
-}
-
 function instantOn(dateKey: string, clock: string, timeZone: TimeZone): Date {
   const [year, month, day] = dateKey.split('-').map(Number) as [number, number, number];
   const minutes = toMinutes(clock);
@@ -62,16 +62,13 @@ export function coversSitting(
   startUtc: Date,
   endUtc: Date,
   timeZone: TimeZone,
+  specialDays: readonly SpecialDay[] = [],
 ): boolean {
   const dateKey = branchDayKey(startUtc, timeZone);
-  const byDay = new Map<WeekdayIndex, WeeklyHours[number]>();
-  for (const entry of weeklyHours) byDay.set(entry.day, entry);
 
   for (const offset of [-1, 0]) {
     const key = dateKeyOffsetBy(dateKey, offset);
-    const entry = byDay.get(weekdayOf(key));
-    if (!entry) continue;
-    for (const block of entry.blocks) {
+    for (const block of blocksOnDate(key, weeklyHours, specialDays)) {
       const opens = instantOn(key, block.opensAt, timeZone);
       const closes = instantOn(
         closesNextDay(block) ? dateKeyOffsetBy(key, 1) : key,
@@ -91,20 +88,21 @@ export function coversSitting(
  *
  * Walks yesterday, today and tomorrow. Yesterday because of the 01:00 closer;
  * tomorrow because "opens 09:00" on a Sunday night has to be able to name
- * Monday morning.
+ * Monday morning. Each date's blocks are its special day's when it is one
+ * ({@link blocksOnDate}), as the server reads them.
  */
-export function openStateFrom(weeklyHours: WeeklyHours, now: Date, timeZone: TimeZone): OpenState {
+export function openStateFrom(
+  weeklyHours: WeeklyHours,
+  now: Date,
+  timeZone: TimeZone,
+  specialDays: readonly SpecialDay[] = [],
+): OpenState {
   const dateKey = branchDayKey(now, timeZone);
-  const byDay = new Map<WeekdayIndex, WeeklyHours[number]>();
-  for (const entry of weeklyHours) byDay.set(entry.day, entry);
 
   const candidates: { start: Date; end: Date }[] = [];
   for (const offset of [-1, 0, 1, 2]) {
     const key = dateKeyOffsetBy(dateKey, offset);
-    const entry = byDay.get(weekdayOf(key));
-    if (!entry) continue;
-
-    for (const block of entry.blocks) {
+    for (const block of blocksOnDate(key, weeklyHours, specialDays)) {
       const start = instantOn(key, block.opensAt, timeZone);
       const endKey = closesNextDay(block) ? dateKeyOffsetBy(key, 1) : key;
       const end = instantOn(endKey, block.closesAt, timeZone);

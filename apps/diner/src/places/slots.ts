@@ -114,12 +114,12 @@ export function clockOf(instant: Date, timeZoneId: string): ClockTime {
  * and never a closing time itself. A day the place is shut yields nothing.
  */
 export function timeSlots(
-  place: Pick<Place, 'hours' | 'timeZoneId'>,
+  place: Pick<Place, 'hours' | 'timeZoneId' | 'specialDays'>,
   dateKey: string,
   now: Date,
   leadMinutes: number = LEAD_MINUTES,
 ): readonly TimeSlot[] {
-  const blocks = hoursBlocksOn(place.hours, dateKey);
+  const blocks = hoursBlocksOn(place.hours, dateKey, place.specialDays);
   if (blocks.length === 0) return [];
 
   const earliest = now.getTime() + Math.max(0, leadMinutes) * MINUTE_MS;
@@ -153,7 +153,7 @@ const ALWAYS = new Date(0);
  * still on its own day.
  */
 export function stripDateFor(
-  place: Pick<Place, 'hours' | 'timeZoneId'>,
+  place: Pick<Place, 'hours' | 'timeZoneId' | 'specialDays'>,
   slotUtc: string,
   today: string,
 ): string {

@@ -2,6 +2,8 @@ import type {
   HoursBlock,
   PolicyChangeResult,
   ReservationPolicy,
+  SpecialDay,
+  SpecialDaysSaved,
   WeekdayIndex,
   WeeklyHours,
 } from '../contracts/branchSettings';
@@ -10,6 +12,7 @@ import type {
   AdminMenuCategory,
   AdminMenuItem,
   MenuItemDeletion,
+  MenuItemField,
   Photo,
 } from '../contracts/menuAdmin';
 import type { SpiceLevel } from '../contracts/ordering';
@@ -113,6 +116,31 @@ export function adminItem(view: WireItem): AdminMenuItem {
     photo: view.photo ? photo(view.photo) : NO_PHOTO,
     isAvailable: view.isAvailable,
     displayOrder: view.displayOrder,
+    ...missingFieldsOf(view),
+  };
+}
+
+/** The server's names (VC3 wire §2) to the client's fields. */
+const MISSING_FIELD: Readonly<Record<string, MenuItemField>> = {
+  photo: 'photoId',
+  description: 'description',
+  ingredients: 'ingredients',
+  allergens: 'allergens',
+  portionSize: 'portionSize',
+  prepMinutes: 'prepMinutes',
+};
+
+/**
+ * `missingFields`, read by name until the schema is regenerated; absent from
+ * a server that predates it, when the client derives the same list.
+ */
+function missingFieldsOf(view: WireItem): { missingFields?: readonly MenuItemField[] } {
+  const wire = (view as { readonly missingFields?: readonly string[] }).missingFields;
+  if (!wire) return {};
+  return {
+    missingFields: wire
+      .map((name) => MISSING_FIELD[name])
+      .filter((field): field is MenuItemField => field !== undefined),
   };
 }
 
@@ -202,6 +230,76 @@ export function hoursBlocks(
       closesAt: toWireTime(block.closesAt),
     })),
   );
+}
+
+// --- Special days ----------------------------------------------------------------
+
+/**
+ * `SpecialOpeningDayView`, hand-written until `generated/schema.ts` is
+ * regenerated against the backend that serves `…/opening-hours/exceptions`.
+ * `note` is absent when there is none (WhenWritingNull), and `closed` says
+ * what an empty `blocks` already says.
+ */
+export interface WireSpecialDay {
+  readonly date: string;
+  readonly note?: string | null;
+  readonly closed?: boolean;
+  readonly blocks?: readonly {
+    readonly opensAt: string;
+    readonly closesAt: string;
+    readonly closesNextDay?: boolean;
+  }[];
+}
+
+/** `SpecialOpeningDaysChangeResult`. */
+export interface WireSpecialDaysResult {
+  readonly days?: readonly WireSpecialDay[];
+  readonly affectedExistingReservations?: number;
+  readonly affectedReservationIds?: readonly string[];
+}
+
+/** `SpecialOpeningDayInput`: what the PUT takes for one date. */
+export interface WireSpecialDayInput {
+  readonly date: string;
+  readonly note: string | null;
+  readonly blocks: readonly { readonly opensAt: string; readonly closesAt: string }[];
+}
+
+export function specialDayFromWire(view: WireSpecialDay): SpecialDay {
+  const note = view.note?.trim();
+  return {
+    date: view.date.slice(0, 10),
+    note: note ? note : null,
+    blocks: [...(view.blocks ?? [])]
+      .map((block) => ({
+        opensAt: toClientTime(block.opensAt),
+        closesAt: toClientTime(block.closesAt),
+      }))
+      .sort((a, b) => a.opensAt.localeCompare(b.opensAt)),
+  };
+}
+
+export function specialDaysFromWire(views: readonly WireSpecialDay[] | undefined): SpecialDay[] {
+  return (views ?? []).map(specialDayFromWire).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function specialDaysToWire(days: readonly SpecialDay[]): WireSpecialDayInput[] {
+  return days.map((day) => ({
+    date: day.date,
+    note: day.note?.trim() ? day.note.trim() : null,
+    blocks: day.blocks.map((block) => ({
+      opensAt: toWireTime(block.opensAt),
+      closesAt: toWireTime(block.closesAt),
+    })),
+  }));
+}
+
+export function specialDaysSavedFromWire(wire: WireSpecialDaysResult): SpecialDaysSaved {
+  return {
+    days: specialDaysFromWire(wire.days),
+    affectedExistingReservations: wire.affectedExistingReservations ?? 0,
+    affectedReservationIds: wire.affectedReservationIds ?? [],
+  };
 }
 
 // --- The reservation policy --------------------------------------------------------

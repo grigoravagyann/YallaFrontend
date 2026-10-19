@@ -1,3 +1,4 @@
+import type { SpecialDay } from './branchSettings';
 import type { ReservationStatusCode } from './push';
 import type { TableStatus } from './service';
 
@@ -58,6 +59,11 @@ export interface OverviewHours {
   readonly closesNextDay: boolean;
   /** While closed: the next opening later today, `HH:mm:ss`; `null` when there is none. */
   readonly opensAt: string | null;
+  /**
+   * The service date's special day, when it is one — a holiday's hours or a
+   * closure, which replace the week's for the date. `null` on an ordinary day.
+   */
+  readonly specialDay: SpecialDay | null;
 }
 
 /** Today's bookings by status. Cancelled ones are counted apart and not in `total`. */

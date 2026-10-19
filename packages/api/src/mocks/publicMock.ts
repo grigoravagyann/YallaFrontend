@@ -241,6 +241,8 @@ export function createPublicMockGateway(options: PublicMockOptions): PublicGatew
         timeZoneId: branch.timeZoneId,
         openState: openStateFrom(fixture.weeklyHours, now(), branch.timeZoneId),
         weeklyHours: fixture.weeklyHours,
+        // The public fixtures keep to their week; the console mock owns special days.
+        specialDays: [],
         freeTables: counts.free,
         totalTables: counts.total,
         asOfUtc: now().toISOString(),
