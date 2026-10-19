@@ -4,8 +4,6 @@
     "panelLabel": "Actions for table {{label}}",
     "seats_one": "{{count}} seat",
     "seats_other": "{{count}} seats",
-    "seatsHint_one": "This table seats {{count}}.",
-    "seatsHint_other": "This table seats {{count}}.",
     "seatedFor": "Seated",
     "minutes_one": "{{count}} min",
     "minutes_other": "{{count}} min",
@@ -25,7 +23,7 @@
       "seatConfirm_other": "Seat {{count}} guests",
       "holdLate": "Hold for a late party",
       "hold": "Hold it",
-      "seatHeld": "Seat the held party",
+      "seatHeld": "They came · seat them",
       "releaseHold": "Release the hold",
       "takeOrder": "Take an order",
       "openTab": "View the tab",
@@ -34,38 +32,74 @@
       "free": "Free the table",
       "freeConfirm": "Free it",
       "outOfService": "Out of service",
-      "returnToService": "Return to service"
+      "returnToService": "Return to service",
+      "seatBooking": "Seat the booking · {{time}}",
+      "cash": "Take cash · {{amount}}"
     },
     "warn": {
       "upcoming": "This table is booked at {{time}}. You can seat it anyway.",
-      "balance": "{{amount}} is still owed on this table."
+      "bookedAt": "Booked at {{time}}.",
+      "freeBy": "You can seat it, but the table must be free by {{time}}.",
+      "long": "Seated longer than planned.",
+      "longNext": "The next booking is at {{time}}. Ask whether to bring the bill.",
+      "longPromised": "They said they would leave by {{time}}."
     },
     "free": {
-      "note": "The tab stays open and moves to \"needs resolving\" if anything is owed."
+      "note": "The tab stays open and moves to \"needs resolving\" if anything is owed.",
+      "title": "Free table {{label}}?",
+      "owed": "{{amount}} is still unpaid. The tab stays open and moves to “Needs resolving”."
     },
     "late": {
       "title": "Nobody has arrived",
-      "body": "Reserved {{time}} · nobody has arrived · held until {{until}}",
+      "body": "Reserved {{time}} · nobody has arrived · {{late}}",
       "noBookingId": "This tablet does not know which booking that is. Refresh the floor."
     },
     "release": {
-      "noShow": "Release — marked no-show",
-      "cancelled": "Release — they let us know",
-      "difference": "“No-show” goes on the diner's record. “They let us know” does not.",
-      "needsOnline": "Releasing a booking needs a connection."
+      "difference": "“They didn't come” goes on the diner's record. “They let us know they won't come” does not.",
+      "needsOnline": "Releasing a booking needs a connection.",
+      "ask": "Release the booking",
+      "why": "Why is it being released?",
+      "noShowTitle": "They didn't come",
+      "noShowNote": "Goes on the diner's record",
+      "cancelledTitle": "They let us know they won't come",
+      "cancelledNote": "Not held against the diner",
+      "confirm": "Release"
     },
     "affected": {
       "title": "Bookings on this table",
       "body": "The table is out of service. These people need a phone call — nothing is cancelled automatically.",
       "code": "code {{code}}",
-      "release": "Release — our doing"
+      "release": "Release — our doing",
+      "count_one": "This table has {{count}} booking.",
+      "count_other": "This table has {{count}} bookings."
     },
     "noTab": "No tab is open on this table yet.",
     "noTabWhy": "Orders go on a tab. A guest opens one by scanning the code on the table, or you can start one here for a party that will not scan.",
     "startTabNeedsOnline": "Starting a tab needs a connection.",
     "nextBookingTomorrow": "Tomorrow {{time}}",
     "nextBookingOn": "{{date}}, {{time}}",
-    "mustFreeBy": "must free by {{time}}"
+    "mustFreeBy": "must free by {{time}}",
+    "subRoom": "{{seats}} · {{room}}",
+    "close": "Close and go back to the floor",
+    "fact": {
+      "seats": "Seats",
+      "room": "Room",
+      "bill": "Open bill",
+      "booked": "Booked for"
+    },
+    "overSeats_one": "More than {{count}} seat",
+    "overSeats_other": "More than {{count}} seats",
+    "cashNeedsOnline": "Taking cash needs a connection.",
+    "billAsked_one": "Asked for the bill in the app {{count}} min ago.",
+    "billAsked_other": "Asked for the bill in the app {{count}} min ago.",
+    "held": {
+      "title": "Nobody has arrived.",
+      "body": "Reserved {{time}} · {{late}}. The table is kept until you seat them or release the booking.",
+      "kept": "Held for a party on its way. Seat them when they arrive, or release the hold."
+    },
+    "lateFor_one": "{{count}} min late",
+    "lateFor_other": "{{count}} min late",
+    "lateForHours": "{{hours}} h {{minutes}} min late"
   },
   "queue": {
     "conflicts_one": "{{count}} needs a decision",
@@ -99,7 +133,8 @@
       "seatedLong_one": "Seated {{count}} min · long",
       "seatedLong_other": "Seated {{count}} min · long",
       "party_one": "{{count}} guest",
-      "party_other": "{{count}} guests"
+      "party_other": "{{count}} guests",
+      "late": "Late · booked {{time}}"
     }
   },
   "kitchen": {
@@ -115,7 +150,19 @@
     "releaseFailed": "Could not release that booking.",
     "tabStarted": "Tab started on table {{label}}. You can take the order now.",
     "tabNotSeated": "Nobody is seated at table {{label}} yet. Seat the party first, then start the tab.",
-    "startTabFailed": "The tab did not open. Try again."
+    "startTabFailed": "The tab did not open. Try again.",
+    "acted": {
+      "seated_one": "Table {{label}} · {{count}} guest seated",
+      "seated_other": "Table {{label}} · {{count}} guests seated",
+      "seatedBooking": "Table {{label}} · the booking is seated",
+      "held": "Table {{label}} is held for the late party",
+      "holdReleased": "Table {{label}} is no longer held",
+      "outOfService": "Table {{label}} is out of service",
+      "returned": "Table {{label}} is back in service",
+      "freed": "Table {{label}} is free",
+      "queued": "{{text}} · sent when the connection returns"
+    },
+    "releaseNotDue": "Table {{label}} · not due until {{time}}. Nothing was released."
   },
   "unresolved": {
     "title": "Needs resolving",
@@ -449,13 +496,37 @@
     "entered_other": "{{count}} digits entered",
     "wrong": "That PIN was not recognised.",
     "locked": "Too many wrong PINs. This PIN is locked.",
-    "askManager": "A manager can clear it from the console.",
+    "askManager": "A manager can unlock it in the console: Staff → Unlock PIN.",
     "attemptsLeft_one": "{{count}} attempt left.",
     "attemptsLeft_other": "{{count}} attempts left.",
     "offline": "No connection. Signing in needs the server.",
     "failed": "Could not sign in.",
     "working": "Signing in…",
-    "submit": "Sign in"
+    "onShift": "On shift now",
+    "someoneElseMore_one": "{{count}} more, or by ID",
+    "someoneElseMore_other": "{{count}} more, or by ID",
+    "byId": "by ID",
+    "byStaffId": "By staff ID",
+    "until": "until {{time}}",
+    "from": "from {{time}}",
+    "meta": "{{role}} · {{when}}",
+    "role": {
+      "platformAdmin": "Admin",
+      "owner": "Owner",
+      "generalManager": "General manager",
+      "manager": "Manager",
+      "waiter": "Waiter",
+      "kitchen": "Kitchen"
+    },
+    "promptSub": "{{role}} · 4 digits",
+    "promptSubTyping": "Type your staff ID first",
+    "deviceLine": "{{device}} · {{connection}}",
+    "connected": "connected",
+    "noConnection": "no connection",
+    "foot": "Your PIN is personal and never shown. Forgot it? A manager can set a new one from the console.",
+    "otherKey": "Other",
+    "otherKeyName": "Choose another staff member",
+    "keypad": "PIN keypad"
   },
   "session": {
     "switchPerson": "{{name}} · tap to sign out and hand the tablet over"

@@ -47,7 +47,11 @@ import {
   NotFoundError,
   ValidationError,
 } from '../errors';
-import { StaffPermissionError, StaffPinTakenError } from '../contracts/errors';
+import {
+  ReservationNotStartedError,
+  StaffPermissionError,
+  StaffPinTakenError,
+} from '../contracts/errors';
 import { assignableRoles, branchBindingFor, isAdminRole, outranks } from '../contracts/staff';
 
 /** `PinTakenException.Sentence`, word for word. */
@@ -1574,6 +1578,14 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       }
       if (command.kind === 'seat' && (someoneElseSits || sitting !== undefined)) {
         throw tableRefusal('table-state-conflict', `Table ${row.tableLabel} is occupied.`);
+      }
+      // FT2 wire: no no-show before the booking's start; nothing changes.
+      if (command.kind === 'noShow' && Date.parse(row.startUtc) > now().getTime()) {
+        throw new ReservationNotStartedError({
+          url: `${URL_TAG}/reservations/${row.id}/no-show`,
+          reservationId: row.id,
+          startUtc: row.startUtc,
+        });
       }
     }
 

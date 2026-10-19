@@ -116,11 +116,7 @@ export function createStaffAuth(client: ApiClient) {
           skipAuth: true,
           headers: bearer(deviceToken),
         });
-        return data.map((entry) => ({
-          staffMemberId: entry.staffMemberId,
-          fullName: entry.fullName,
-          role: staffRoleToUserRole(entry.role),
-        }));
+        return data.map(rosterEntry);
       } catch (error) {
         throw asDeviceFailure(error);
       }
@@ -238,4 +234,30 @@ function asDeviceFailure(error: unknown): unknown {
 function lockedUntil(error: ApiError): string | null {
   const value = error.problem?.context?.['lockedUntilUtc'];
   return typeof value === 'string' ? value : null;
+}
+
+/**
+ * One roster row. The shift's five fields arrive together or not at all (the
+ * server omits nulls); a row with only some of them is treated as having
+ * none rather than drawn with a gap. A server from before shifts sends no
+ * `onShiftNow`, which reads as nobody on shift — the flat list it always was.
+ */
+function rosterEntry(entry: StaffRosterEntryWire): StaffRosterEntry {
+  const { startsAt, endsAt, startsAtUtc, endsAtUtc } = entry;
+  return {
+    staffMemberId: entry.staffMemberId,
+    fullName: entry.fullName,
+    role: staffRoleToUserRole(entry.role),
+    onShiftNow: entry.onShiftNow ?? false,
+    shift:
+      startsAt && endsAt && startsAtUtc && endsAtUtc
+        ? {
+            startsAt: startsAt.slice(0, 5),
+            endsAt: endsAt.slice(0, 5),
+            endsNextDay: entry.endsNextDay ?? false,
+            startsAtUtc,
+            endsAtUtc,
+          }
+        : null,
+  };
 }

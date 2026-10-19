@@ -1,6 +1,7 @@
 import {
   TableNotSeatedError,
   isPaymentExceedsRemaining,
+  ReservationNotStartedError,
   newCommandId,
   tableDetail,
   type AdjustmentKind,
@@ -40,6 +41,7 @@ import {
 } from '@yalla/api/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from '@yalla/i18n';
+import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryFailureNotice } from '../components/QueryFailureNotice';
 import { ApprovalPanel, useRequestArrivals } from './ApprovalPanel';
@@ -108,6 +110,8 @@ interface Selection {
 interface Notice {
   readonly kind: 'race' | 'warning' | 'info';
   readonly text: string;
+  /** What a table action was sent to do — not yet what the server did. */
+  readonly acted?: boolean;
 }
 
 /** The minute an instant falls in, so a poll every few seconds re-renders once a minute. */
@@ -135,6 +139,8 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const [selection, setSelection] = useState<Selection | null>(null);
   const [overlay, setOverlay] = useState<'none' | 'conflicts' | 'order' | 'tab'>('none');
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
+  /** The tab overlay was opened from the table panel's "Take cash": keypad first. */
+  const [cashFirst, setCashFirst] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [unresolved, setUnresolved] = useState<readonly UnresolvedTab[]>([]);
   /**
@@ -370,6 +376,17 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     };
   }, [notice]);
 
+  // A refusal lands in the conflicts chip. A "seated" toast still up beside it
+  // would claim what the server just refused, so it goes.
+  const conflictCount = queue.state.conflicts.length;
+  const seenConflicts = useRef(conflictCount);
+  useEffect(() => {
+    if (conflictCount > seenConflicts.current) {
+      setNotice((current) => (current?.acted ? null : current));
+    }
+    seenConflicts.current = conflictCount;
+  }, [conflictCount]);
+
   // --- Panels ---------------------------------------------------------------
 
   const overlayFloor = queue.overlay(floor);
@@ -380,6 +397,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     (table) => table.id === selection?.tableId,
   );
   const selectedDetail = tableDetail(floor, selection?.tableId);
+  const panelOpen = Boolean(selection && selectedTable);
 
   /**
    * The tab the overlays are looking at.
@@ -447,6 +465,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const settleUnresolved = useCallback((tabId: string) => {
     setUnresolvedTabId(tabId);
     setActiveTableId(UNRESOLVED_KEY);
+    setCashFirst(false);
     setOverlay('tab');
   }, []);
 
@@ -508,8 +527,25 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       queue.enqueue(command);
       queue.sync();
       setSelection(null);
+
+      const label = table?.label ?? '';
+      const done = actedNotice(
+        t,
+        kind,
+        label,
+        input?.partySize ?? detail?.nextReservationPartySize,
+      );
+      if (done) {
+        setNotice({
+          kind: 'info',
+          // Offline it is on the tablet, not on the server: said, so nobody
+          // expects the kitchen or the other tablet to know yet.
+          text: queue.online ? done : t('notice.acted.queued', { text: done }),
+          acted: true,
+        });
+      }
     },
-    [branchId, floor, plan, queue, selection, selectedTabId],
+    [branchId, floor, plan, queue, selection, selectedTabId, t],
   );
 
   const release = useCallback(
@@ -537,11 +573,32 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
               return next;
             });
           },
-          onError: () => setNotice({ kind: 'info', text: t('notice.releaseFailed') }),
+          onError: (error) => {
+            // Refused, so nothing changed: the panel's "let go" was optimistic
+            // and goes with it, and the floor shows the table as it is.
+            setSelection(null);
+            if (error instanceof ReservationNotStartedError) {
+              // Only a booking whose time has come can be a no-show; the hold
+              // stays. Said with the time it is due (FT2 wire).
+              const label =
+                floor?.plan.tables.find(
+                  (table) => tableDetail(floor, table.id)?.nextReservationId === reservationId,
+                )?.label ?? '';
+              setNotice({
+                kind: 'warning',
+                text: t('notice.releaseNotDue', {
+                  label,
+                  time: error.startUtc ? format.time(error.startUtc) : '—',
+                }),
+              });
+              return;
+            }
+            setNotice({ kind: 'info', text: t('notice.releaseFailed') });
+          },
         },
       );
     },
-    [releaseReservation, t],
+    [floor, format, releaseReservation, t],
   );
 
   /**
@@ -711,31 +768,38 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
    * (the server drops the superseded one from its list; a copy this device
    * kept after "On my way" is dropped here the same way).
    */
-  const activeBillRequests = useMemo((): readonly ServiceRequest[] => {
-    if (!activeTabId) return [];
-    const byId = new Map<string, ServiceRequest>();
-    for (const request of [
-      ...(requestsQuery.data ?? []).filter(
-        (candidate) => candidate.tabId === activeTabId && candidate.reason === 'bill',
-      ),
-      ...[...acknowledgedBills.values()].filter((candidate) => candidate.tabId === activeTabId),
-    ]) {
-      if (request.bill !== null && !settledBillIds.has(request.id) && !byId.has(request.id)) {
-        byId.set(request.id, request);
+  const billRequestsFor = useCallback(
+    (tabId: string | null): readonly ServiceRequest[] => {
+      if (!tabId) return [];
+      const byId = new Map<string, ServiceRequest>();
+      for (const request of [
+        ...(requestsQuery.data ?? []).filter(
+          (candidate) => candidate.tabId === tabId && candidate.reason === 'bill',
+        ),
+        ...[...acknowledgedBills.values()].filter((candidate) => candidate.tabId === tabId),
+      ]) {
+        if (request.bill !== null && !settledBillIds.has(request.id) && !byId.has(request.id)) {
+          byId.set(request.id, request);
+        }
       }
-    }
-    const newestFirst = [...byId.values()].sort((a, b) =>
-      b.requestedAtUtc.localeCompare(a.requestedAtUtc),
-    );
-    const seen = new Set<string>();
-    return newestFirst.filter((request) => {
-      const who = request.requestedByParticipantId;
-      if (who === null) return true;
-      if (seen.has(who)) return false;
-      seen.add(who);
-      return true;
-    });
-  }, [activeTabId, acknowledgedBills, requestsQuery.data, settledBillIds]);
+      const newestFirst = [...byId.values()].sort((a, b) =>
+        b.requestedAtUtc.localeCompare(a.requestedAtUtc),
+      );
+      const seen = new Set<string>();
+      return newestFirst.filter((request) => {
+        const who = request.requestedByParticipantId;
+        if (who === null) return true;
+        if (seen.has(who)) return false;
+        seen.add(who);
+        return true;
+      });
+    },
+    [acknowledgedBills, requestsQuery.data, settledBillIds],
+  );
+  const activeBillRequests = useMemo(
+    () => billRequestsFor(activeTabId),
+    [activeTabId, billRequestsFor],
+  );
 
   /** "9 tables occupied · 34 guests", from the floor read. */
   const occupiedTables = plan?.tables.filter((table) => table.state === 'occupied') ?? [];
@@ -816,7 +880,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
       {/* Hidden, not unmounted, while the kitchen shows: a half-typed decline,
           an answer in flight and its notice all live in here, and a trip to
           the kitchen must not cost any of them. */}
-      <div className="ft-body" hidden={view === 'kitchen'}>
+      <div className="ft-body" hidden={view === 'kitchen'} data-panel={panelOpen || undefined}>
         <section className="ft-floor" aria-label={t('floor.tables')}>
           {!branchId ? (
             <p className="floor-note">{t('floor.noBranch')}</p>
@@ -842,44 +906,6 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
                   });
                 }}
               />
-
-              {selection && selectedTable ? (
-                <TableActionPanel
-                  table={selectedTable}
-                  detail={selectedDetail}
-                  timeZoneId={timeZoneId}
-                  projectedStatus={queue.projected(selection.tableId)}
-                  tab={selectedTabQuery.data ?? null}
-                  pending={pendingTableIds.has(selection.tableId)}
-                  online={queue.online}
-                  affectedReservations={affected.get(selection.tableId) ?? []}
-                  releasing={releaseReservation.isPending}
-                  onAct={act}
-                  onRelease={release}
-                  onOpenTab={() => {
-                    setActiveTableId(selection.tableId);
-                    setOverlay('tab');
-                    setSelection(null);
-                  }}
-                  onStartTab={() => startTab(selection.tableId)}
-                  startingTab={openTabForStaff.isPending}
-                  onOrder={() => {
-                    setActiveTableId(selection.tableId);
-                    setOverlay('order');
-                    setSelection(null);
-                  }}
-                  onClose={() => {
-                    const tableId = selection.tableId;
-                    setSelection(null);
-                    // Back to the card it was opened from, not the top of the page.
-                    document
-                      .querySelector<HTMLElement>(
-                        `.table-row[data-table-id="${CSS.escape(tableId)}"]`,
-                      )
-                      ?.focus();
-                  }}
-                />
-              ) : null}
             </>
           ) : offline ? (
             <div className="floor-note">
@@ -897,7 +923,59 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           )}
         </section>
 
+        {/* The table's panel takes the rail's place, as on the Table artboard;
+            the rail stays mounted under it (hidden), so an answer in flight,
+            a half-typed decline and the countdowns are all still there when
+            the panel closes. */}
+        {selection && selectedTable ? (
+          <TableActionPanel
+            // A fresh panel per table: a question opened, a reason picked or a
+            // party counted on one table never carries over to the next.
+            key={selection.tableId}
+            table={selectedTable}
+            detail={selectedDetail}
+            timeZoneId={timeZoneId}
+            projectedStatus={queue.projected(selection.tableId)}
+            tab={selectedTabQuery.data ?? null}
+            billRequest={billRequestsFor(selectedTabId)[0] ?? null}
+            pending={pendingTableIds.has(selection.tableId)}
+            online={queue.online}
+            affectedReservations={affected.get(selection.tableId) ?? []}
+            releasing={releaseReservation.isPending}
+            onAct={act}
+            onRelease={release}
+            onOpenTab={() => {
+              setActiveTableId(selection.tableId);
+              setCashFirst(false);
+              setOverlay('tab');
+              setSelection(null);
+            }}
+            onCash={() => {
+              setActiveTableId(selection.tableId);
+              setCashFirst(true);
+              setOverlay('tab');
+              setSelection(null);
+            }}
+            onStartTab={() => startTab(selection.tableId)}
+            startingTab={openTabForStaff.isPending}
+            onOrder={() => {
+              setActiveTableId(selection.tableId);
+              setOverlay('order');
+              setSelection(null);
+            }}
+            onClose={() => {
+              const tableId = selection.tableId;
+              setSelection(null);
+              // Back to the card it was opened from, not the top of the page.
+              document
+                .querySelector<HTMLElement>(`.table-row[data-table-id="${CSS.escape(tableId)}"]`)
+                ?.focus();
+            }}
+          />
+        ) : null}
+
         <FloorRail
+          hidden={panelOpen}
           summary={summary}
           requests={requestsQuery.data ?? []}
           requestsFailed={
@@ -1123,10 +1201,46 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             abandonTab.mutate({ tabId, reason, clientCommandId: newCommandId() });
             setUnresolved((current) => current.filter((entry) => entry.tabId !== tabId));
           }}
+          openOnCash={cashFirst}
           onOrder={() => setOverlay('order')}
-          onClose={() => setOverlay('none')}
+          onClose={() => {
+            setCashFirst(false);
+            setOverlay('none');
+          }}
         />
       ) : null}
     </div>
   );
+}
+
+/**
+ * What a table action just did, for the notice: the Table artboard's toasts,
+ * without their undo — every action is a command on its way to the server,
+ * and not every one has an inverse the server would accept.
+ */
+function actedNotice(
+  t: TFunction,
+  kind: TableActionKind,
+  label: string,
+  partySize: number | null | undefined,
+): string | null {
+  switch (kind) {
+    case 'seatWalkIn':
+    case 'seatHeldParty':
+      return partySize
+        ? t('notice.acted.seated', { label, count: partySize })
+        : t('notice.acted.seatedBooking', { label });
+    case 'seatReservation':
+      return t('notice.acted.seatedBooking', { label });
+    case 'hold':
+      return t('notice.acted.held', { label });
+    case 'releaseHold':
+      return t('notice.acted.holdReleased', { label });
+    case 'outOfService':
+      return t('notice.acted.outOfService', { label });
+    case 'returnToService':
+      return t('notice.acted.returned', { label });
+    case 'freeTable':
+      return t('notice.acted.freed', { label });
+  }
 }

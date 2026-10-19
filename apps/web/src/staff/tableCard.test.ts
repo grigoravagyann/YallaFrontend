@@ -95,6 +95,20 @@ describe('a booked or held table', () => {
     });
   });
 
+  it('says in words that a booking whose time has passed is late (live QA)', () => {
+    const t = table({ state: 'reservedSoon', nextReservationStartUtc: minutesAgo(99) });
+    expect(card(t, detail({ nextReservationPartySize: 2 }))).toEqual({
+      state: 'Late · booked 13:21',
+      sub: '2 guests',
+      long: false,
+      late: true,
+    });
+    // At the minute itself it is not late yet.
+    expect(
+      card(table({ state: 'reservedSoon', nextReservationStartUtc: minutesAgo(0) })).late,
+    ).toBeFalsy();
+  });
+
   it('says a held table is running late, with the booking time from the detail first', () => {
     const t = table({ state: 'held', nextReservationStartUtc: '2026-10-19T14:30:00Z' });
     expect(card(t, detail({ nextReservationStartUtc: '2026-10-19T14:45:00Z' }))).toEqual({

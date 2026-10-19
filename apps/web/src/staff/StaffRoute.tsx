@@ -107,6 +107,14 @@ export function StaffRoute() {
         <div className="staff-shell" inert={locked ? true : undefined}>
           <StaffFloor paused={locked} identity={identity} device={snapshot.device} />
         </div>
+      ) : locked ? (
+        // Nobody has signed in since launch, so there is no floor to blur:
+        // its outline stands in, as on the Pin artboard.
+        <div className="ft-ghost" aria-hidden="true">
+          {Array.from({ length: 15 }, (_, index) => (
+            <span key={index} />
+          ))}
+        </div>
       ) : null}
 
       {locked ? <PinScreen device={snapshot.device} lastSignOut={snapshot.lastSignOut} /> : null}

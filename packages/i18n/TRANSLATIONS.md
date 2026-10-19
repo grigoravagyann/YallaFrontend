@@ -850,6 +850,49 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     hy `floor.card.walkInOnly` "միայն առանց ամրագրման" (it read as "nobody
     booked it"), ru `connection.chip.stale_*` "Данные устарели на … мин".
 
+- `staff` — the floor tablet redesign, phase 2 (2026-10-19): the table panel
+  and the PIN gate. The `hy` copy is the approved Table and Pin artboards'
+  where they have it; `ru` and `en` were written from it and are **not**
+  reviewed. From the artboards: `table.close`, `table.fact.*`,
+  `table.overSeats_*`, `table.billAsked_*`, `table.warn.bookedAt` / `.freeBy`,
+  `table.action.seatBooking` / `.cash` / `.seatHeld`, `table.free.title` /
+  `.owed` (must keep saying the tab stays **open** and goes to "Needs
+  resolving"), `table.held.title`, `table.release.ask` / `.why` /
+  `.noShowTitle` / `.noShowNote` / `.cancelledTitle` / `.cancelledNote` /
+  `.confirm`, `table.affected.count_*`, `pin.onShift`, `pin.byId`,
+  `pin.promptSub`, `pin.promptSubTyping`, `pin.connected` / `.noConnection`,
+  `pin.foot`, `pin.otherKey` / `.otherKeyName`, `pin.keypad`, and in `hy` only
+  the reworded `table.offlineNote`, `table.action.holdLate` / `.takeOrder` /
+  `.outOfService` / `.returnToService`, `table.affected.release`, and
+  `pin.lockedByIdle` / `.whoTitle` / `.rosterFailed` / `.staffId` /
+  `.staffIdWhy` / `.prompt` / `.promptNamed` (the first name now) / `.wrong` /
+  `.locked` / `.offline`. Not in an artboard, so **not** read by the user even
+  in `hy`: `table.subRoom`, `table.cashNeedsOnline`, `table.warn.long` /
+  `.longNext` / `.longPromised`, `table.held.body` (the hold has no expiry a
+  tablet can read — it must not promise a time), `pin.someoneElseMore_*`,
+  `pin.byStaffId`, `pin.until` / `.from` / `.meta`, `pin.role.*` (short role
+  names for the PIN rows) and `notice.acted.*` (what a table action just did;
+  `.queued` must keep saying it is sent **when the connection returns**).
+  Reworded: `table.release.difference` names the new choices ("They didn't
+  come" / "They let us know") and must keep saying only the first goes on the
+  diner's record; `pin.askManager` now names the console's Staff → Unlock PIN.
+  Removed: `table.seatsHint_*`, `table.warn.balance`, `table.release.noShow` /
+  `.cancelled` and `pin.submit`.
+  - Review and live QA (2026-10-19), **not** in an artboard: `table.late.body`
+    and `table.held.body` now say how late (`table.lateFor_*`,
+    `table.lateForHours`: "20 min late", "1 h 39 min late") instead of
+    "held until", which used a time that meant something else; `table.held.kept`
+    (a hold with nothing due — it must not say anybody failed to arrive);
+    `floor.card.late` (a booking past its time, on the card). Reworded:
+    `table.release.difference` quotes the full second choice; hy
+    `pin.staffIdWhy` has the console's Edit step back; hy
+    `table.affected.body` says «սպասարկումից» like the actions; ru
+    `table.affected.release` means "our doing" like hy and en.
+    `notice.releaseNotDue` (the server refused a no-show before the booking's
+    start — it must keep saying **nothing was released**).
+    And `admin` `overview.bookings.refused.notStarted`, the console row menu's
+    sentence for the same refusal (must keep saying **nothing was changed**).
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

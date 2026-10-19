@@ -1,6 +1,7 @@
 import type { ApiClient } from '../client';
 import type { ConsoleBooking } from '../contracts/approvals';
 import {
+  asNotStarted,
   LineAlreadyPaidError,
   MenuItemUnavailableError,
   PaymentExceedsRemainingError,
@@ -236,13 +237,19 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
     async releaseReservation(
       command: ReleaseReservationCommand,
     ): Promise<ReservationReleaseResult> {
-      const { data } = await client.post<
-        Schemas['Yalla.Application.Reservations.ReservationReleaseResult']
-      >(`/api/reservations/${command.reservationId}/release`, {
-        clientCommandId: command.clientCommandId,
-        outcome: RELEASE_OUTCOME[command.outcome],
-        ...(command.reason ? { reason: command.reason } : {}),
-      } satisfies Schemas['Yalla.Api.Endpoints.ReleaseReservationRequest']);
+      const { data } = await client
+        .post<Schemas['Yalla.Application.Reservations.ReservationReleaseResult']>(
+          `/api/reservations/${command.reservationId}/release`,
+          {
+            clientCommandId: command.clientCommandId,
+            outcome: RELEASE_OUTCOME[command.outcome],
+            ...(command.reason ? { reason: command.reason } : {}),
+          } satisfies Schemas['Yalla.Api.Endpoints.ReleaseReservationRequest'],
+        )
+        // A no-show before the booking's start: the panel says when it is due.
+        .catch((error: unknown) => {
+          throw asNotStarted(error);
+        });
 
       return {
         reservationId: data.reservation.id,

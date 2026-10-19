@@ -194,6 +194,7 @@ export type {
 export type { BranchReadiness } from './contracts/readiness';
 export {
   BookingNotChangeableError,
+  ReservationNotStartedError,
   BookingsNotAcceptedError,
   CannotReportOwnReviewError,
   FloorPlanChangedError,
@@ -695,13 +696,24 @@ export type {
   PinSignInCommand,
   StaffCredentialStorage,
   StaffRosterEntry,
+  StaffRosterShift,
   StaffSessionIdentity,
   StaffSessionTokens,
   StaffSignInResult,
   StaffSignOutReason,
 } from './contracts/staffAuth';
-export { createStaffRosterMock, mockStaffRoster } from './mocks/staffRosterMock';
-export type { MockRosterDevice, StaffRosterMockOptions } from './mocks/staffRosterMock';
+export { isOnShiftAt } from './contracts/staffAuth';
+export {
+  createStaffRosterMock,
+  mockRosterShiftsAround,
+  mockStaffRoster,
+} from './mocks/staffRosterMock';
+export type {
+  MockRosterDevice,
+  MockRosterShift,
+  MockRosterShifts,
+  StaffRosterMockOptions,
+} from './mocks/staffRosterMock';
 export {
   DeviceRevokedError,
   EnrolmentCodeSpentError,

@@ -152,6 +152,9 @@ describe('F13 — a mock tablet enrols with a console code, signs in by PIN, and
     for (const entry of roster) expect(consoleIds.has(entry.staffMemberId)).toBe(true);
     // The waiter at another branch is not on this tablet.
     expect(roster.some((entry) => entry.staffMemberId === 'b-lumen-cascade-waiter-1')).toBe(false);
+    // Some of the branch are on shift, so the PIN gate's grouping shows in mock mode.
+    expect(roster.some((entry) => entry.onShiftNow && entry.shift !== null)).toBe(true);
+    expect(roster.some((entry) => !entry.onShiftNow)).toBe(true);
 
     const kitchen = 'b-lumen-north-kitchen';
     expect(

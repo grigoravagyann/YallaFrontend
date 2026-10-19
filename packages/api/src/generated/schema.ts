@@ -301,7 +301,11 @@ export interface paths {
          *     M:Yalla.Api.Endpoints.AuthEndpoints.GetEnrolledDeviceAsync(Yalla.Application.Auth.IStaffAuthService,Microsoft.AspNetCore.Http.HttpContext,System.Threading.CancellationToken) does, so the two refuse the same callers the same way.
          * @description For the PIN screen, so a first sign-in is a name to tap rather than a staff member id to type. Exactly the people `POST /api/auth/staff/pin` would accept here: active, of this device's venue, and either at this device's branch or at no particular branch. Sorted by name.
          *
-         *     Three fields per person and nothing else - no phone, email or PIN state - because whoever holds the tablet can read it.
+         *     Each person also says whether they are on shift, so the screen can list those people first - an order left to the client, as is re-reading it on a screen left open. The shift is the one at this device's branch: the one running now (`onShiftNow`; last night's still running past midnight included), else the next to start within 12 hours, across midnight too. Its `startsAt` / `endsAt` (branch wall clock), `endsNextDay` and `startsAtUtc` / `endsAtUtc` read as on `GET /api/branches/{branchId}/shifts`, and are absent when there is none to report: every shift is over or more than 12 hours off, at another branch, or a day off.
+         *
+         *     `onShiftNow` is `startsAtUtc <= now < endsAtUtc` - decided on the instants, not the wall clock, so an hour a clock change repeats does not put an ended shift back on. Both instants are always present with a shift, so a screen can re-check it against its own clock and agree: a start in an hour the clocks skip is read on the clock from before the change (02:30 that night is 03:30 summer time), a time in a repeated hour as its first pass. Shifts never narrow the list: everybody the PIN exchange accepts is on it.
+         *
+         *     Nothing else per person - no phone, email or PIN state - because whoever holds the tablet can read it.
          *
          *     Authenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.
          */
@@ -5505,10 +5509,27 @@ export interface components {
             /** @description What the manager called it. */
             name: string;
         };
-        /** @description One person who may tap a PIN on this tablet, as its PIN screen lists them. */
+        /**
+         * @description One person who may tap a PIN on this tablet, as its PIN screen lists them - and whether they are on
+         *     shift, so the screen can put those people first.
+         */
         "Yalla.Application.Auth.StaffRosterEntry": {
+            /**
+             * Format: time
+             * @description Its end, branch wall clock, on the next date when EndsNextDay; absent with no shift.
+             */
+            endsAt?: string | null;
+            /**
+             * Format: date-time
+             * @description The end as an instant, so a screen left open can tell when it is over; absent with no shift.
+             */
+            endsAtUtc?: string | null;
+            /** @description The shift ends after midnight - including at exactly 00:00. False with no shift. */
+            endsNextDay: boolean;
             /** @description The name to tap. */
             fullName: string;
+            /** @description A shift at this branch runs now: StartsAtUtc at or before now, EndsAtUtc after it. */
+            onShiftNow: boolean;
             /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
             role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
             /**
@@ -5516,6 +5537,17 @@ export interface components {
              * @description What `POST /api/auth/staff/pin` takes.
              */
             staffMemberId: string;
+            /**
+             * Format: time
+             * @description The shift's start, branch wall clock; absent with no shift to report.
+             */
+            startsAt?: string | null;
+            /**
+             * Format: date-time
+             * @description The start as an instant, so a screen left open can tell when it begins; absent with no shift. A start in an hour
+             *     the clocks skip is read on the clock from before the change: 02:30 that night is 03:30 summer time.
+             */
+            startsAtUtc?: string | null;
         };
         /** @description A staff member's session on a tablet, opened by a PIN. */
         "Yalla.Application.Auth.StaffSessionResult": {

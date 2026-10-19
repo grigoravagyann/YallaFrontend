@@ -31,6 +31,8 @@ export interface FloorRailProps {
   readonly onAdvance: (order: OrderQueueEntry, next: OrderStatus) => void;
   readonly unresolved: readonly UnresolvedTab[];
   readonly onSettle: (tabId: string) => void;
+  /** Under the table panel: kept mounted, so nothing in it is lost, but out of sight. */
+  readonly hidden?: boolean | undefined;
 }
 
 /**
@@ -56,7 +58,7 @@ export function FloorRail(props: FloorRailProps) {
     order.lines.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
-    <aside className="ft-rail" aria-label={t('rail.label')}>
+    <aside className="ft-rail" aria-label={t('rail.label')} hidden={props.hidden}>
       <div className="ft-rail-head">
         <h2>{t('rail.title')}</h2>
         <span>{props.summary}</span>
