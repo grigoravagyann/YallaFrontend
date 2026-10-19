@@ -1,8 +1,16 @@
 import type { DerivedTableState, FloorPlanData } from '../contracts/tableFloor';
 import { cafeFloorPlan } from './roomFloors';
 import type { Menu } from '../contracts/menu';
-import { ConcurrencyConflictError, InvalidTransitionError, NotFoundError } from '../errors';
 import {
+  ConcurrencyConflictError,
+  InvalidTransitionError,
+  NotFoundError,
+  ValidationError,
+} from '../errors';
+import {
+  LineAlreadyPaidError,
+  OrderGuestUnavailableError,
+  TabNotAcceptingOrdersError,
   PaymentExceedsRemainingError,
   ReservationNotStartedError,
   TableNotSeatedError,
@@ -39,8 +47,10 @@ import type {
   TabAdjustment,
   TabEvent,
   TabLine,
+  TabParticipantStatusCode,
   VoidLineCommand,
 } from '../contracts/ordering';
+import { voidReasonText } from '../contracts/ordering';
 import {
   APPROVAL_EXPIRED_CODE,
   EARLIER_GUEST_WINDOW_MINUTES,
@@ -124,6 +134,15 @@ export interface StaffMockOptions {
    * next booking. Off in tests, which read the room as it always was.
    */
   readonly seedBookingTimes?: boolean;
+  /**
+   * More people on the first seeded tab, beside Anahit and Karen, in a state a
+   * waiter cannot order for: still waiting for the host, or taken off. For the
+   * per-line "who" rules; off by default.
+   */
+  readonly extraGuests?: readonly {
+    readonly displayName: string;
+    readonly status: 'pendingApproval' | 'removed';
+  }[];
 }
 
 interface MockTableState {
@@ -162,6 +181,8 @@ interface MockParticipant {
   readonly id: string;
   readonly displayName: string | null;
   readonly isHost: boolean;
+  /** Approved unless a test seeded somebody else (`extraGuests`). */
+  readonly status: TabParticipantStatusCode;
   /** The photo of the account they scanned in with, when it has one. */
   readonly photo: Photo | null;
   /**
@@ -311,6 +332,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   const releasedCommands = new Map<string, ReservationReleaseResult>();
   /** Staff tab openings by command id, so a second tap answers with the same tab. */
   const openedTabs = new Map<string, string>();
+  /** Cash by `clientCommandId`: a retry gets the first payment back, as on the server. */
+  const payments = new Map<string, PaymentResult>();
   let counter = 0;
 
   const id = (prefix: string) => `${prefix}-${(counter += 1)}`;
@@ -570,6 +593,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       id: id('p'),
       displayName: 'Anahit',
       isHost: true,
+      status: 'approved',
       photo: mockPhoto('avatar-anahit'),
       paidDram: 0,
     };
@@ -577,6 +601,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       id: id('p'),
       displayName: 'Karen',
       isHost: false,
+      status: 'approved',
       photo: null,
       paidDram: 0,
     };
@@ -611,6 +636,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
   }
 
   const seededTab = [...tabs.values()][0];
+  for (const guest of options.extraGuests ?? []) {
+    seededTab?.participants.push({
+      id: id('p'),
+      displayName: guest.displayName,
+      isHost: false,
+      status: guest.status,
+      photo: null,
+      paidDram: 0,
+    });
+  }
   if (seededTab) {
     const seedOrder: MockOrder = {
       id: id('order'),
@@ -645,6 +680,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         ownerParticipantId: owner,
         participantId: null,
         orderedByName: null,
+        onBehalfOfParticipantId: owner,
         // Zero, because this line is not shared. The wire's
         // `sharedWithParticipantIds` is "who it splits across, snapshotted at
         // order time", and an unshared line splits across nobody. This used to
@@ -770,7 +806,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         isSplitAcrossParticipants: line.isShared || line.isTableAttributed,
         shareParticipantIds:
           line.isShared || line.isTableAttributed
-            ? tab.participants.slice(0, Math.max(1, line.sharedWithCount)).map((p) => p.id)
+            ? approvedOn(tab)
+                .slice(0, Math.max(1, line.sharedWithCount))
+                .map((p) => p.id)
             : [],
       })),
       adjustments: tab.adjustments.map((adjustment) => ({
@@ -778,16 +816,24 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         percent: adjustment.percent,
         amountDram: adjustment.amountDram,
       })),
-      participants: tab.participants.map((person) => ({
-        participantId: person.id,
-        displayName: person.displayName,
-        isHost: person.isHost,
-        status: 'approved' as const,
-        paidDram: person.paidDram,
-      })),
+      // Nobody still waiting to be let on is part of the bill.
+      participants: tab.participants
+        .filter((person) => person.status !== 'pendingApproval')
+        .map((person) => ({
+          participantId: person.id,
+          displayName: person.displayName,
+          isHost: person.isHost,
+          status: person.status,
+          paidDram: person.paidDram,
+        })),
       serviceChargePercent: SERVICE_CHARGE_PERCENT,
       paidDram: tab.paidDram,
     });
+  }
+
+  /** Who a shared line splits across: the people the host has let on. */
+  function approvedOn(tab: MockTab): readonly MockParticipant[] {
+    return tab.participants.filter((person) => person.status === 'approved');
   }
 
   function totalsFor(tab: MockTab): TabTotals {
@@ -821,9 +867,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         id: person.id,
         displayName: person.displayName,
         isHost: person.id === tab.hostParticipantId,
-        status: 'approved' as const,
+        status: person.status,
         canOrder: true,
-        canOrderNow: tab.status === 'open',
+        canOrderNow: person.status === 'approved' && tab.status === 'open',
         canSeeTableTotal: true,
         photo: person.photo,
       })),
@@ -831,10 +877,15 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       // What `recordCashPayment` took as tips, beside the totals, never in them.
       tipsDram: tab.tipDram,
       serviceChargePercent: SERVICE_CHARGE_PERCENT,
-      lines: [],
-      linesKnown: false,
-      adjustments: [],
-      adjustmentsKnown: false,
+      // As `GET /api/tabs/{id}/participants`: the lines and every adjustment,
+      // from the same moment as the totals.
+      lines: tab.lines.map(({ ownerParticipantId: _owner, ...line }) => ({
+        ...line,
+        lineTotalDram: line.status === 'voided' ? 0 : line.unitPriceDram * line.quantity,
+      })),
+      linesKnown: true,
+      adjustments: [...tab.adjustments],
+      adjustmentsKnown: true,
     };
   }
 
@@ -1567,10 +1618,62 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         lineIds: [],
       };
 
+      // A tab that takes no more orders says why, as the server's `context.status`.
+      if (tab.status !== 'open') {
+        throw new TabNotAcceptingOrdersError({
+          url: `/api/tabs/${tab.id}/staff-orders`,
+          tabId: tab.id,
+          tabStatus: tab.status,
+        });
+      }
+
+      // Refused whole, as on the server: nothing is placed when one line is wrong.
+      command.lines.forEach((line, index) => {
+        if (!line.participantId) return;
+        const url = `/api/tabs/${tab.id}/staff-orders`;
+        // A shared line is the table's; naming a guest on it contradicts itself.
+        if (line.isShared) {
+          throw new ValidationError({
+            url,
+            status: 400,
+            problem: {
+              type: 'about:blank',
+              title: 'Invalid request',
+              status: 400,
+              detail: 'A shared line belongs to the table and cannot name a guest.',
+              code: 'invalid-request',
+              traceId: 'mock',
+              context: { field: `items[${index}].participantId` },
+            },
+          });
+        }
+        const named = tab.participants.find((person) => person.id === line.participantId);
+        const field = `items[${index}].participantId`;
+        if (!named) {
+          throw new OrderGuestUnavailableError({
+            url,
+            status: 404,
+            participantId: line.participantId,
+            guestState: 'notOnTab',
+            field,
+          });
+        }
+        if (named.status !== 'approved') {
+          throw new OrderGuestUnavailableError({
+            url,
+            status: 409,
+            participantId: named.id,
+            guestState: named.status === 'removed' ? 'removed' : 'pending',
+            field,
+          });
+        }
+      });
+
       for (const line of command.lines) {
         const item = menuItems.get(line.menuItemId);
         if (!item) continue;
         const lineId = id('line');
+        const owner = line.isShared ? null : line.participantId;
         tab.lines.push({
           id: lineId,
           orderId: order.id,
@@ -1581,22 +1684,25 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
           lineTotalDram: item.priceDram * line.quantity,
           note: line.note ?? null,
           isShared: line.isShared,
-          isTableAttributed: line.participantId === null,
-          ownerParticipantId: line.participantId,
+          // As the server: a line nobody owns and nobody shares is the table's,
+          // and says the waiter did not know.
+          isTableAttributed: !line.isShared && owner === null,
+          ownerParticipantId: owner,
           // Null even here, because `OrderLineView` carries neither and the
           // panel must not be built against something the wire never sends.
           participantId: null,
           orderedByName: null,
+          onBehalfOfParticipantId: owner,
           /*
-           * Snapshotted now, and zero when the line is not shared.
+           * Snapshotted now, and zero when the line does not split.
            *
            * The count is `sharedWithParticipantIds.length` on the wire, so an
-           * unshared line is 0 rather than "everyone currently here". Reporting
+           * owned line is 0 rather than "everyone currently here". Reporting
            * the roster size for every line was the mock's own version of the
            * bug its comment warns about — it just made the error on the
            * *unshared* lines instead of the late-arriving ones.
            */
-          sharedWithCount: line.isShared ? tab.participants.length : 0,
+          sharedWithCount: owner === null ? approvedOn(tab).length : 0,
           status: 'active',
           voidReason: null,
           voidedByName: null,
@@ -1680,7 +1786,19 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const index = tab.lines.findIndex((line) => line.id === command.lineId);
       const line = tab.lines[index];
       if (!line) throw new NotFoundError({ url: `/api/tabs/${command.tabId}` });
-      tab.lines[index] = { ...line, status: 'voided', lineTotalDram: 0 };
+      // As the server: once the tab has been paid against, a void is a refund.
+      if (tab.paidDram > 0) {
+        throw new LineAlreadyPaidError({
+          url: `/api/tabs/${command.tabId}/lines/${command.lineId}/void`,
+          lineId: command.lineId,
+        });
+      }
+      tab.lines[index] = {
+        ...line,
+        status: 'voided',
+        lineTotalDram: 0,
+        voidReason: voidReasonText(command),
+      };
       pushEvent(tab, 'lineVoided', now());
       // The endpoint answers with the whole order's lines, not the tab's.
       const orderId = line.orderId;
@@ -1737,6 +1855,8 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
     },
 
     async recordCashPayment(command: RecordCashPaymentCommand): Promise<PaymentResult> {
+      const replayed = payments.get(command.clientCommandId);
+      if (replayed) return settle({ ...replayed, wasReplay: true });
       const tab = requireTab(command.tabId);
       const at = now();
       const before = totalsFor(tab);
@@ -1784,7 +1904,7 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       }
       pushEvent(tab, 'paymentRecorded', at);
 
-      return settle({
+      const result: PaymentResult = {
         paymentId: id('pay'),
         tabId: tab.id,
         amountDram: command.amountDram,
@@ -1795,7 +1915,9 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
         // explicit action, because physical and financial state are independent.
         tableSessionClosed: closed,
         wasReplay: false,
-      });
+      };
+      payments.set(command.clientCommandId, result);
+      return settle(result);
     },
 
     async abandonTab(command: AbandonTabCommand): Promise<AbandonTabResult> {

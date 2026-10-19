@@ -1,10 +1,12 @@
 import type { Menu, MenuItem, PlaceOrderLine, StaffTab } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { OrderRefusal } from './commands/types';
+import { OverlayBar } from './OverlayBar';
 import { useBranchFormat } from './useBranchFormat';
 
 /**
- * Spoken order entry.
+ * Spoken order entry (floor-tablet `Order`).
  *
  * This is the screen that decides whether the tablet beats the notepad, so it
  * is a speed problem rather than a forms problem. A waiter standing at a table
@@ -16,13 +18,33 @@ import { useBranchFormat } from './useBranchFormat';
  * - **Under three taps per item**: category, item, done. Quantity is a stepper
  *   on the line already added, never a dialog before adding, because a dialog
  *   before adding turns "two cappuccinos" into four taps and a decision.
- * - **No page transitions.** Category, grid and the running order are on screen
- *   together. A waiter who loses the list they are building loses the order.
- * - **Search exists and is never required.** A waiter who has to type has
- *   already lost to paper, and on a tablet with a soft keyboard they have lost
- *   half the screen too.
+ * - **No page transitions.** Categories, the dishes and the order being built
+ *   are on screen together (184 / 1fr / 420). A waiter who loses the list they
+ *   are building loses the order.
+ * - **Search exists and is never required**, and says so when it found
+ *   nothing rather than showing an empty grid.
+ * - **Who each line is for is one tap on the line**: the table, shared — the
+ *   default — or one guest the host has let on. The whole draft goes as one
+ *   order, one kitchen ticket, each line on the person who ate it.
  * - **Nothing here needs typing** except the optional per-line note.
+ *
+ * After a send the screen says what became of it — on its way, in the kitchen,
+ * kept on the tablet while offline, or refused and why — rather than claiming
+ * the kitchen has something it does not.
  */
+
+/** What became of the last send, while its confirmation is up. */
+export interface OrderSent {
+  readonly count: number;
+  /**
+   * `saved`: queued with no connection. `sending`: on its way. `sent`: the
+   * server took it. `refused`: the server said no; nothing was placed.
+   */
+  readonly state: 'saved' | 'sending' | 'sent' | 'refused';
+  readonly refusal: OrderRefusal | null;
+  /** When the waiter sent it. */
+  readonly atUtc: string;
+}
 
 export interface OrderEntryProps {
   readonly menu: Menu | null;
@@ -43,24 +65,38 @@ export interface OrderEntryProps {
    * to send it.
    */
   readonly noTab: boolean;
+  /** Who is taking the order, for the bar. */
+  readonly staffName?: string | null | undefined;
+  /** How many sat down, from the floor. */
+  readonly partySize?: number | null | undefined;
+  readonly sent: OrderSent | null;
   readonly onSubmit: (lines: readonly PlaceOrderLine[]) => void;
+  /** The confirmation is put away; `restored` when the refused draft came back. */
+  readonly onSentDismiss: (how: { readonly restored: boolean }) => void;
   readonly onClose: () => void;
 }
+
+/** The table, shared, or one guest's id. */
+type Who = 'table' | string;
 
 interface DraftLine {
   readonly key: string;
   readonly item: MenuItem;
-  quantity: number;
-  note: string;
-  isShared: boolean;
-  /** `null` is the table. The default, and the one with a cost. */
-  participantId: string | null;
+  readonly quantity: number;
+  readonly note: string;
+  readonly who: Who;
+  /** The guest's name when it was picked, to say who went if they leave the tab. */
+  readonly whoName: string | null;
 }
+
+/** How long a "sold out" word stays at the foot of the screen. */
+const NOTICE_MS = 3_000;
 
 export function OrderEntry(props: OrderEntryProps) {
   const { menu, tab, tableLabel, timeZoneId, online, loading, menuUnavailable, noTab } = props;
   const { t } = useTranslation(['staff', 'common']);
   const format = useBranchFormat(timeZoneId);
+  const ids = useId();
 
   // Memoised so the item list below is not recomputed on every keystroke
   // just because `?? []` produced a new array.
@@ -68,37 +104,83 @@ export function OrderEntry(props: OrderEntryProps) {
   const [sectionId, setSectionId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [lines, setLines] = useState<readonly DraftLine[]>([]);
-  const [sharedExplained, setSharedExplained] = useState(false);
+  /** The draft as it was sent, to give back if the server refuses it. */
+  const [sentDraft, setSentDraft] = useState<readonly DraftLine[]>([]);
+  /**
+   * Guests the server refused to name, kept off the lines until the tab is
+   * read again: the tablet's copy of the tab can still list them as approved.
+   */
+  const [refusedGuests, setRefusedGuests] = useState<ReadonlySet<string>>(new Set());
   const [noteFor, setNoteFor] = useState<string | null>(null);
+  /** Photos that did not load, by item: the tile draws the letter instead. */
+  const [brokenPhotos, setBrokenPhotos] = useState<ReadonlySet<string>>(new Set());
+  const [notice, setNotice] = useState('');
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    },
+    [],
+  );
 
   const activeSection = sectionId ?? sections[0]?.id ?? null;
+  const query = search.trim();
 
   const items = useMemo(() => {
-    if (search.trim().length > 0) {
-      const needle = search.trim().toLocaleLowerCase();
+    if (query.length > 0) {
+      const needle = query.toLocaleLowerCase();
       return sections.flatMap((section) =>
         section.items.filter((item) => item.name.toLocaleLowerCase().includes(needle)),
       );
     }
     return sections.find((section) => section.id === activeSection)?.items ?? [];
-  }, [sections, activeSection, search]);
+  }, [sections, activeSection, query]);
 
-  // `canOrderNow` is the flag the ordering endpoints actually enforce, computed
-  // by the same rule. Offering a name the server will then refuse is worse than
-  // not offering it.
-  const participants = (tab?.participants ?? []).filter((person) => person.canOrderNow);
+  // The rule the server names a guest by (`RequireNameable`): approved on this
+  // tab. Not `canOrderNow`, which is the guest's own phone permission — a child
+  // whose host turned their ordering off still eats their own dish. Somebody
+  // still waiting for the host is not offered, and nobody is on a tab that no
+  // longer takes orders.
+  const participants =
+    tab?.status === 'open' ? tab.participants.filter((person) => person.status === 'approved') : [];
+  const guestName = (id: string): string => {
+    const index = participants.findIndex((person) => person.id === id);
+    const person = participants[index];
+    return person?.displayName ?? t('order.whoGuest', { n: index + 1 });
+  };
+  /**
+   * Who a line is really for now: its guest while they can still be named, the
+   * table once they cannot — taken off by the host, or refused on the last send.
+   */
+  const whoOf = (line: DraftLine): Who =>
+    line.who === 'table' ||
+    (participants.some((person) => person.id === line.who) && !refusedGuests.has(line.who))
+      ? line.who
+      : 'table';
+
+  function say(text: string): void {
+    setNotice(text);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(''), NOTICE_MS);
+  }
 
   /**
    * Adding is one tap, always.
    *
    * A second tap on the same item bumps the quantity rather than adding a
    * second line — that is what a waiter means, and it keeps a round of four
-   * coffees at four taps instead of four taps plus a stepper.
+   * coffees at four taps instead of four taps plus a stepper. Only a line still
+   * as it was added: one already put on a guest or given a note is its own.
    */
   function add(item: MenuItem): void {
+    if (!item.isAvailable) {
+      say(t('order.soldOutNotice', { name: item.name }));
+      return;
+    }
     setLines((current) => {
       const existing = current.find(
-        (line) => line.item.id === item.id && line.note === '' && line.participantId === null,
+        (line) => line.item.id === item.id && line.note === '' && whoOf(line) === 'table',
       );
       if (existing) {
         return current.map((line) =>
@@ -112,8 +194,8 @@ export function OrderEntry(props: OrderEntryProps) {
           item,
           quantity: 1,
           note: '',
-          isShared: false,
-          participantId: null,
+          who: 'table',
+          whoName: null,
         },
       ];
     });
@@ -127,243 +209,443 @@ export function OrderEntry(props: OrderEntryProps) {
     );
   }
 
+  function send(): void {
+    if (lines.length === 0) return;
+    props.onSubmit(
+      lines.map((line): PlaceOrderLine => ({
+        menuItemId: line.item.id,
+        quantity: line.quantity,
+        // The table's line is shared and names nobody; a guest's is theirs
+        // alone. Never both: the server refuses a line that is.
+        isShared: whoOf(line) === 'table',
+        participantId: whoOf(line) === 'table' ? null : whoOf(line),
+        ...(line.note.trim() ? { note: line.note.trim() } : {}),
+      })),
+    );
+    setSentDraft(lines);
+    setLines([]);
+    setNoteFor(null);
+  }
+
+  const quantityIn = (itemId: string) =>
+    lines.filter((line) => line.item.id === itemId).reduce((sum, line) => sum + line.quantity, 0);
   const total = lines.reduce((sum, line) => sum + line.item.priceDram * line.quantity, 0);
-  const anyToTable = lines.some((line) => line.participantId === null);
+  const count = lines.reduce((sum, line) => sum + line.quantity, 0);
+
+  const sub = [
+    tab ? t('order.tabOpen', { time: format.time(tab.openedAtUtc) }) : t('order.noTab'),
+    props.partySize ? t('order.people', { count: props.partySize }) : null,
+    props.staffName ?? null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div
-      className="staff-overlay order-entry"
+      className="staff-overlay ft-order"
       role="dialog"
       aria-label={t('order.title', { label: tableLabel })}
     >
-      <header className="staff-overlay-head">
-        <div>
-          <h1>{t('order.title', { label: tableLabel })}</h1>
-          {/* Never "a tab will be opened": nothing on this screen can open
-              one. Either the tab is here, with when it opened, or it is not. */}
-          <p>
-            {tab ? t('order.tabOpen', { time: format.time(tab.openedAtUtc) }) : t('order.noTab')}
-          </p>
-        </div>
-        <button type="button" className="button big" onClick={props.onClose}>
-          {t('common:action.close')}
-        </button>
-      </header>
+      <OverlayBar
+        back={t('order.back', { label: tableLabel })}
+        backName={t('order.backName', { label: tableLabel })}
+        title={t('order.title', { label: tableLabel })}
+        sub={sub}
+        online={online}
+        offlineText={t('order.offline')}
+        onBack={props.onClose}
+      />
 
       {noTab ? (
         <div className="staff-overlay-body">
-          <p className="table-warn">{t('order.noTab')}</p>
-          <p className="table-note">{t('order.noTabWhy')}</p>
+          <p className="ft-note ft-note-waiting">{t('order.noTab')}</p>
+          <p className="ft-hint">{t('order.noTabWhy')}</p>
         </div>
       ) : menuUnavailable ? (
         <div className="staff-overlay-body">
-          <p className="table-warn">{t('order.menuOffline')}</p>
+          <p className="ft-note ft-note-waiting">{t('order.menuOffline')}</p>
         </div>
       ) : loading ? (
         <div className="staff-overlay-body">
           <p className="floor-todo">{t('floor.loading')}</p>
         </div>
       ) : (
-        <div className="order-body">
-          {/* Left: category strip and the grid. */}
-          <div className="order-menu">
-            {/* Said once, at the top, and never as a blocking state: a cached
-                menu is a working menu, and a price that moved last week is a
-                conversation rather than a reason to stop taking the order. */}
-            {props.menuFromCache ? <p className="table-note">{t('order.menuFromCache')}</p> : null}
-            <div className="order-categories" role="tablist" aria-label={t('order.categories')}>
-              {sections.map((section) => (
+        <div className="ft-order-body">
+          {/* --- Categories, each with how many dishes it has ---------------- */}
+          <nav className="ft-cats" aria-label={t('order.categories')}>
+            {sections.map((section) => {
+              const on = section.id === activeSection && query === '';
+              return (
                 <button
                   key={section.id}
                   type="button"
-                  role="tab"
-                  aria-selected={section.id === activeSection && search === ''}
-                  className={`order-category ${
-                    section.id === activeSection && search === '' ? 'is-active' : ''
-                  }`}
+                  aria-pressed={on}
+                  aria-label={t('order.categoryName', {
+                    name: section.name,
+                    count: section.items.length,
+                  })}
                   onClick={() => {
                     setSearch('');
                     setSectionId(section.id);
                   }}
                 >
-                  {section.name}
+                  <span>{section.name}</span>
+                  <span className="ft-cats-count" aria-hidden="true">
+                    {section.items.length}
+                  </span>
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </nav>
 
-            {/* Available, never required. It is deliberately below the
-                categories and half the width, so it is never the first thing
-                a thumb lands on. */}
-            <input
-              className="field order-search"
-              type="search"
-              value={search}
-              placeholder={t('order.search')}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-
-            <div className="order-grid">
-              {items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="order-item"
-                  disabled={!item.isAvailable}
-                  onClick={() => add(item)}
-                  // Name, price, and whether it is off: the three things a
-                  // sighted waiter reads off the tile, in that order.
-                  aria-label={[
-                    item.name,
-                    format.dram(item.priceDram),
-                    item.isAvailable ? null : t('order.unavailable'),
-                  ]
-                    .filter(Boolean)
-                    .join(', ')}
+          {/* --- Search and the dishes ---------------------------------------- */}
+          <section className="ft-menu" aria-label={t('order.menu')}>
+            <div className="ft-search">
+              <label className="ft-search-field">
+                <span className="visually-hidden">{t('order.searchLabel')}</span>
+                <svg
+                  className="ft-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
                 >
-                  <span className="order-item-name">{item.name}</span>
-                  <span className="order-item-price">{format.dram(item.priceDram)}</span>
-                  {!item.isAvailable ? (
-                    <span className="order-item-out">{t('order.unavailable')}</span>
-                  ) : null}
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+                <input
+                  type="search"
+                  value={search}
+                  placeholder={t('order.searchPlaceholder')}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </label>
+              {/* Said once, beside the search, never as a blocking state: a
+                  cached menu is a working menu, and a price that moved last
+                  week is a conversation rather than a reason to stop. */}
+              {props.menuFromCache ? (
+                <span className="ft-search-note">{t('order.menuFromCache')}</span>
+              ) : null}
+            </div>
+
+            {query.length > 0 && items.length === 0 ? (
+              <div className="ft-empty">
+                <p>{t('order.noMatch', { query })}</p>
+                <button
+                  type="button"
+                  className="ft-btn ft-btn-secondary"
+                  onClick={() => setSearch('')}
+                >
+                  {t('order.clearSearch')}
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Right: the order being built. Always on screen. */}
-          <div className="order-draft">
-            <h2>{t('order.draft')}</h2>
-
-            {lines.length === 0 ? (
-              <p className="floor-todo">{t('order.empty')}</p>
+              </div>
             ) : (
-              <ul className="order-lines">
-                {lines.map((line) => (
-                  <li key={line.key} className="order-line">
-                    <div className="order-line-head">
-                      <span className="order-line-name">{line.item.name}</span>
-                      <span className="order-line-total">
-                        {format.dram(line.item.priceDram * line.quantity)}
+              <div className="ft-dishes">
+                {items.map((item) => {
+                  const inDraft = quantityIn(item.id);
+                  const out = !item.isAvailable;
+                  const photo =
+                    item.photo && !brokenPhotos.has(item.id) ? item.photo.thumbnailUrl : null;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`ft-dish ${inDraft > 0 ? 'is-in' : ''} ${out ? 'is-out' : ''}`}
+                      aria-disabled={out}
+                      onClick={() => add(item)}
+                      // Name, price, and whether it is off or already in: what a
+                      // sighted waiter reads off the tile, in that order.
+                      aria-label={[
+                        item.name,
+                        format.dram(item.priceDram),
+                        out
+                          ? t('order.tileSoldOut')
+                          : inDraft > 0
+                            ? t('order.tileInOrder', { count: inDraft })
+                            : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    >
+                      {photo ? (
+                        <img
+                          src={photo}
+                          alt=""
+                          onError={() =>
+                            setBrokenPhotos((current) => new Set(current).add(item.id))
+                          }
+                        />
+                      ) : (
+                        <span className="ft-dish-letter" aria-hidden="true">
+                          {item.name.charAt(0)}
+                        </span>
+                      )}
+                      <span className="ft-dish-text">
+                        <b>{item.name}</b>
+                        <span>{format.dram(item.priceDram)}</span>
                       </span>
-                    </div>
-
-                    <div className="order-line-controls">
-                      <div className="stepper" role="group" aria-label={t('order.quantity')}>
-                        <button
-                          type="button"
-                          className="stepper-button"
-                          onClick={() => update(line.key, { quantity: line.quantity - 1 })}
-                          aria-label={t('table.fewer')}
-                        >
-                          −
-                        </button>
-                        <output className="stepper-value">{line.quantity}</output>
-                        <button
-                          type="button"
-                          className="stepper-button"
-                          onClick={() => update(line.key, { quantity: line.quantity + 1 })}
-                          aria-label={t('table.more')}
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={`chip ${line.isShared ? 'is-on' : ''}`}
-                        aria-pressed={line.isShared}
-                        onClick={() => {
-                          update(line.key, { isShared: !line.isShared });
-                          setSharedExplained(true);
-                        }}
-                      >
-                        {t('order.shared')}
-                      </button>
-
-                      <button
-                        type="button"
-                        className={`chip ${line.note ? 'is-on' : ''}`}
-                        onClick={() => setNoteFor(noteFor === line.key ? null : line.key)}
-                      >
-                        {t('order.note')}
-                      </button>
-                    </div>
-
-                    {/* Explained once, the first time it is used. A permanent
-                        caption under every line would be noise after day one. */}
-                    {line.isShared && !sharedExplained ? (
-                      <p className="table-note">{t('order.sharedExplained')}</p>
-                    ) : null}
-
-                    {noteFor === line.key ? (
-                      <input
-                        className="field"
-                        value={line.note}
-                        autoFocus
-                        placeholder={t('order.notePlaceholder')}
-                        onChange={(event) => update(line.key, { note: event.target.value })}
-                        onBlur={() => setNoteFor(null)}
-                      />
-                    ) : line.note ? (
-                      <p className="order-line-note">{line.note}</p>
-                    ) : null}
-
-                    {/* Who ordered it. Defaults to the table, and says what
-                        that costs — a waiter who leaves the default on for
-                        everything quietly destroys the split-the-bill mode. */}
-                    <label className="labelled small">
-                      {t('order.who')}
-                      <select
-                        value={line.participantId ?? ''}
-                        onChange={(event) =>
-                          update(line.key, { participantId: event.target.value || null })
-                        }
-                      >
-                        <option value="">{t('order.whoTable')}</option>
-                        {participants.map((person) => (
-                          <option key={person.id} value={person.id}>
-                            {person.displayName ?? t('order.whoUnnamed')}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </li>
-                ))}
-              </ul>
+                      {inDraft > 0 ? (
+                        <span className="ft-dish-count" aria-hidden="true">
+                          {inDraft}
+                        </span>
+                      ) : null}
+                      {out ? <span className="ft-dish-out">{t('order.soldOut')}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
             )}
+          </section>
 
-            {anyToTable && lines.length > 0 ? (
-              <p className="table-note">{t('order.tableDefaultCost')}</p>
-            ) : null}
-
-            <div className="order-total">
-              <span>{t('order.total')}</span>
-              <strong>{format.dram(total)}</strong>
+          {/* --- The order being built. Always on screen. --------------------- */}
+          <aside className="ft-draft" aria-labelledby={`${ids}-draft`}>
+            <div className="ft-draft-head">
+              <h2 id={`${ids}-draft`}>{t('order.draft')}</h2>
+              <span>{count > 0 ? t('order.dishes', { count }) : t('order.draftEmpty')}</span>
             </div>
 
-            {!online ? <p className="table-note">{t('order.offlineNote')}</p> : null}
+            <div className="ft-draft-lines">
+              {lines.length === 0 ? (
+                <p className="ft-empty">{t('order.emptyDraft')}</p>
+              ) : (
+                <ul>
+                  {lines.map((line) => {
+                    const editing = noteFor === line.key;
+                    return (
+                      <li key={line.key} className={editing ? 'is-editing' : undefined}>
+                        <div className="ft-draft-line">
+                          <b>{line.item.name}</b>
+                          <div
+                            className="ft-stepper"
+                            role="group"
+                            aria-label={`${line.item.name}, ${line.quantity}`}
+                          >
+                            <button
+                              type="button"
+                              aria-label={t('order.less', { name: line.item.name })}
+                              onClick={() => update(line.key, { quantity: line.quantity - 1 })}
+                            >
+                              −
+                            </button>
+                            <span>{line.quantity}</span>
+                            <button
+                              type="button"
+                              aria-label={t('order.more', { name: line.item.name })}
+                              onClick={() => update(line.key, { quantity: line.quantity + 1 })}
+                            >
+                              +
+                            </button>
+                          </div>
+                          <span className="ft-draft-total">
+                            {format.dram(line.item.priceDram * line.quantity)}
+                          </span>
+                        </div>
 
-            <button
-              type="button"
-              className="floor-button big full"
-              disabled={lines.length === 0}
-              onClick={() =>
-                props.onSubmit(
-                  lines.map((line): PlaceOrderLine => ({
-                    menuItemId: line.item.id,
-                    quantity: line.quantity,
-                    isShared: line.isShared,
-                    participantId: line.participantId,
-                    ...(line.note.trim() ? { note: line.note.trim() } : {}),
-                  })),
-                )
-              }
-            >
-              {t('order.send', { count: lines.reduce((sum, line) => sum + line.quantity, 0) })}
-            </button>
-          </div>
+                        <div className="ft-draft-meta">
+                          {tab?.status === 'open' ? (
+                            <div className="ft-order-who" role="group" aria-label={t('order.who')}>
+                              {(['table', ...participants.map((person) => person.id)] as const).map(
+                                (who) => (
+                                  <button
+                                    key={who}
+                                    type="button"
+                                    aria-pressed={whoOf(line) === who}
+                                    onClick={() =>
+                                      update(line.key, {
+                                        who,
+                                        whoName: who === 'table' ? null : guestName(who),
+                                      })
+                                    }
+                                  >
+                                    {who === 'table' ? t('order.whoTable') : guestName(who)}
+                                  </button>
+                                ),
+                              )}
+                            </div>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={`ft-note-pill ${line.note ? 'has-note' : ''}`}
+                            aria-expanded={editing}
+                            onClick={() => setNoteFor(editing ? null : line.key)}
+                          >
+                            {line.note || t('order.note')}
+                          </button>
+                        </div>
+
+                        {whoOf(line) !== line.who ? (
+                          // Said on the line, so the waiter sees which one moved.
+                          <p className="ft-line-flag">
+                            {t('order.guestGone', {
+                              name: line.whoName ?? t('order.whoUnnamed'),
+                            })}
+                          </p>
+                        ) : null}
+
+                        {editing ? (
+                          <div className="ft-note-edit">
+                            <input
+                              className="ft-field"
+                              aria-label={t('order.noteLabel')}
+                              value={line.note}
+                              autoFocus
+                              placeholder={t('order.notePlaceholder')}
+                              onChange={(event) => update(line.key, { note: event.target.value })}
+                            />
+                            <button
+                              type="button"
+                              className="ft-btn ft-btn-secondary"
+                              onClick={() => setNoteFor(null)}
+                            >
+                              {t('order.noteDone')}
+                            </button>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="ft-draft-foot">
+              <p className="ft-hint">{t('order.whoExplained')}</p>
+              <div className="ft-draft-sum">
+                <span>{t('order.total')}</span>
+                <span>{format.dram(total)}</span>
+              </div>
+              <button
+                type="button"
+                className="ft-btn ft-btn-primary ft-btn-big"
+                aria-disabled={count === 0}
+                onClick={send}
+              >
+                {count > 0 ? t('order.send', { count }) : t('order.sendNothing')}
+              </button>
+            </div>
+          </aside>
         </div>
       )}
+
+      {/* The foot-of-screen word: a dish that cannot be added. */}
+      <p className={notice ? 'floor-notice ft-order-notice' : 'visually-hidden'} role="status">
+        {notice}
+      </p>
+
+      {props.sent ? (
+        <SentCard
+          sent={props.sent}
+          guestName={(id) =>
+            sentDraft.find((line) => line.who === id)?.whoName ??
+            tab?.participants.find((person) => person.id === id)?.displayName ??
+            t('order.whoUnnamed')
+          }
+          tableLabel={tableLabel}
+          time={format.time(props.sent.atUtc)}
+          onMore={() => props.onSentDismiss({ restored: false })}
+          onBack={() => {
+            const refusal = props.sent?.refusal;
+            if (refusal?.kind === 'guestUnavailable' && refusal.participantId) {
+              const refused = refusal.participantId;
+              setRefusedGuests((current) => new Set(current).add(refused));
+            }
+            setLines(sentDraft);
+            props.onSentDismiss({ restored: true });
+          }}
+          onFloor={props.onClose}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function SentCard(props: {
+  readonly sent: OrderSent;
+  /** The name of a guest the refusal named, as the draft knew them. */
+  readonly guestName: (participantId: string) => string;
+  readonly tableLabel: string;
+  readonly time: string;
+  readonly onMore: () => void;
+  readonly onBack: () => void;
+  readonly onFloor: () => void;
+}) {
+  const { t } = useTranslation('staff');
+  const headingId = useId();
+  const first = useRef<HTMLButtonElement>(null);
+  const { sent } = props;
+  const refused = sent.state === 'refused';
+
+  useEffect(() => {
+    first.current?.focus();
+  }, []);
+
+  const title = refused
+    ? t('order.refusedTitle')
+    : sent.state === 'sent'
+      ? t('order.sentTitle', { count: sent.count })
+      : sent.state === 'sending'
+        ? t('order.sendingTitle', { count: sent.count })
+        : t('order.savedTitle', { count: sent.count });
+  const refusal = sent.refusal;
+  const body = refused
+    ? refusal?.kind === 'soldOut'
+      ? t('order.refused.soldOut', { name: refusal.itemName })
+      : refusal?.kind === 'guestUnavailable' && refusal.participantId && refusal.guestState
+        ? t(`order.refused.guest.${refusal.guestState}`, {
+            name: props.guestName(refusal.participantId),
+          })
+        : refusal?.kind === 'notAccepting' && refusal.tabStatus
+          ? t(`order.refused.tab.${refusal.tabStatus}`)
+          : t(`order.refused.${refusal?.kind ?? 'other'}`)
+    : sent.state === 'sent'
+      ? t('order.sentBody', { label: props.tableLabel, time: props.time })
+      : sent.state === 'sending'
+        ? t('order.sendingBody')
+        : t('order.savedBody');
+
+  return (
+    <div className="ft-scrim">
+      <div
+        className="ft-done"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        data-state={sent.state}
+      >
+        <span className="ft-done-mark" aria-hidden="true">
+          {refused ? '!' : '✓'}
+        </span>
+        <h2 id={headingId} aria-live="polite">
+          {title}
+        </h2>
+        <p>{body}</p>
+        <div className="ft-done-actions">
+          {refused ? (
+            <button
+              ref={first}
+              type="button"
+              className="ft-btn ft-btn-secondary"
+              onClick={props.onBack}
+            >
+              {t('order.backToOrder')}
+            </button>
+          ) : (
+            <button
+              ref={first}
+              type="button"
+              className="ft-btn ft-btn-secondary"
+              onClick={props.onMore}
+            >
+              {t('order.addMore')}
+            </button>
+          )}
+          <button type="button" className="ft-btn ft-btn-primary" onClick={props.onFloor}>
+            {t('order.toFloor')}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

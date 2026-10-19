@@ -223,6 +223,34 @@ describe('order entry with the wifi off', () => {
     expect(state.fromCache).toBe(true);
   });
 
+  it('does not call a cached copy stale while the network is refreshing it or could (live QA 3)', () => {
+    // Opened online: the disk copy is shown at once and the read is in flight,
+    // or fresh enough not to be re-read. Neither is "from the tablet's copy"
+    // in the sense the note means — that the network could not be reached.
+    for (const fetchStatus of ['fetching', 'idle']) {
+      const state = resolveMenuState({
+        seed: { menu: MENU, storedAtMs: 1_000 },
+        queryData: MENU,
+        fetchStatus,
+        isLoading: false,
+        isError: false,
+      });
+      expect(state.data).toBe(MENU);
+      expect(state.fromCache).toBe(false);
+    }
+  });
+
+  it('says it is the cached copy when the refresh failed', () => {
+    const state = resolveMenuState({
+      seed: { menu: MENU, storedAtMs: 1_000 },
+      queryData: MENU,
+      fetchStatus: 'idle',
+      isLoading: false,
+      isError: true,
+    });
+    expect(state.fromCache).toBe(true);
+  });
+
   it('says the menu is unavailable rather than loading when there is no cached copy', () => {
     const state = resolveMenuState({
       seed: null,

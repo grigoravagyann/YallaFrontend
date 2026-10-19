@@ -4,7 +4,10 @@ import {
   asNotStarted,
   LineAlreadyPaidError,
   MenuItemUnavailableError,
+  OrderGuestUnavailableError,
   PaymentExceedsRemainingError,
+  type OrderGuestState,
+  type TabNotAcceptingStatus,
   TabNotAcceptingOrdersError,
   TableNotSeatedError,
 } from '../contracts/errors';
@@ -36,6 +39,7 @@ import type {
   TabLine,
   VoidLineCommand,
 } from '../contracts/ordering';
+import { voidReasonText } from '../contracts/ordering';
 import { ApiError, NotFoundError } from '../errors';
 import type { components } from '../generated/schema';
 import type {
@@ -113,6 +117,44 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
    * mapping, because a screen that switches on a code it does not handle
    * specially is a screen with a dead branch in it.
    */
+  /**
+   * A command queued by a build from before per-line guests: one order per
+   * guest, each under the id it was first sent with. Replayed exactly as that
+   * build sent it, so the server matches every group it already has and places
+   * the ones it does not. Sent in a single order instead, the replay of the
+   * first group would answer for all of it and the rest would never reach the
+   * kitchen.
+   */
+  async function placeLegacyOrder(command: PlaceOrderCommand): Promise<PlaceOrderResult> {
+    const groups = new Map<string, PlaceOrderLine[]>();
+    for (const line of command.lines) {
+      const key = line.participantId ?? '';
+      groups.set(key, [...(groups.get(key) ?? []), line]);
+    }
+    let last: PlaceOrderResult | null = null;
+    for (const [index, [key, lines]] of [...groups.entries()].entries()) {
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Ordering.OrderView']>(
+          `/api/tabs/${command.tabId}/staff-orders`,
+          {
+            clientCommandId: derivedCommandId(command.clientCommandId, index),
+            items: lines.map((line) => ({
+              menuItemId: line.menuItemId,
+              quantity: line.quantity,
+              isShared: line.isShared,
+              ...(line.note ? { note: line.note } : {}),
+            })),
+            ...(key ? { onBehalfOfParticipantId: key } : {}),
+          } satisfies Schemas['Yalla.Api.Endpoints.PlaceOrderRequest'],
+        );
+        last = placeOrderResult(data);
+      } catch (error) {
+        rethrow(error);
+      }
+    }
+    return last!;
+  }
+
   function rethrow(error: unknown): never {
     if (!(error instanceof ApiError) || !error.problem) throw error;
     const context = error.problem.context ?? {};
@@ -136,6 +178,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         throw new TabNotAcceptingOrdersError({
           url: error.url,
           tabId: String(context['tabId'] ?? ''),
+          tabStatus: TAB_NOT_ACCEPTING[Number(context['status'])] ?? null,
           requestId: error.requestId,
         });
       case 'table-not-seated':
@@ -359,7 +402,7 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         const { data } = await client.get<Schemas['Yalla.Application.Menus.BranchMenuView']>(
           `/api/branches/${branchId}/menu`,
         );
-        return menuFrom(data, new Date().toISOString());
+        return menuFrom(data, new Date().toISOString(), client.baseUrl);
       } catch (error) {
         if (error instanceof NotFoundError) return null;
         throw error;
@@ -367,35 +410,35 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
     },
 
     async placeOrder(command: PlaceOrderCommand): Promise<PlaceOrderResult> {
-      const groups = groupByParticipant(command.lines);
+      if (command.lines.length === 0) throw new Error('placeOrder was called with no lines.');
+      if (command.shape !== 2) return placeLegacyOrder(command);
 
-      // Sequential, not parallel. Two orders arriving at once on the same tab is
-      // a race the client has no reason to create, and the last answer carries
-      // the totals after all of them — which is the number the caller wants.
-      let last: PlaceOrderResult | null = null;
-      for (const [index, group] of groups.entries()) {
-        try {
-          const { data } = await client.post<Schemas['Yalla.Application.Ordering.OrderView']>(
-            `/api/tabs/${command.tabId}/staff-orders`,
-            {
-              clientCommandId: derivedCommandId(command.clientCommandId, index),
-              items: group.lines.map((line) => ({
-                menuItemId: line.menuItemId,
-                quantity: line.quantity,
-                isShared: line.isShared,
-                ...(line.note ? { note: line.note } : {}),
-              })),
-              ...(group.participantId ? { onBehalfOfParticipantId: group.participantId } : {}),
-            } satisfies Schemas['Yalla.Api.Endpoints.PlaceOrderRequest'],
-          );
-          last = placeOrderResult(data);
-        } catch (error) {
-          rethrow(error);
-        }
+      // One send, one order, one kitchen ticket: each line names its own guest.
+      try {
+        const { data } = await client.post<Schemas['Yalla.Application.Ordering.OrderView']>(
+          `/api/tabs/${command.tabId}/staff-orders`,
+          {
+            clientCommandId: orderCommandId(command.clientCommandId),
+            items: command.lines.map((line) => ({
+              menuItemId: line.menuItemId,
+              quantity: line.quantity,
+              isShared: line.isShared,
+              // A shared line is the table's and names nobody: the server refuses
+              // both together, so the draft can never send them both.
+              ...(!line.isShared && line.participantId
+                ? { participantId: line.participantId }
+                : {}),
+              ...(line.note ? { note: line.note } : {}),
+            })),
+          } satisfies Schemas['Yalla.Api.Endpoints.PlaceOrderRequest'],
+        );
+        return placeOrderResult(data);
+      } catch (error) {
+        // Only a refusal naming the guest is about the guest (FT3 wire, S7).
+        const guest = guestRefusal(error);
+        if (guest) throw guest;
+        return rethrow(error);
       }
-
-      if (!last) throw new Error('placeOrder was called with no lines.');
-      return last;
     },
 
     async listOrderQueue(branchId): Promise<readonly OrderQueueEntry[]> {
@@ -439,11 +482,8 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
         const { data } = await client.post<Schemas['Yalla.Application.Ordering.OrderView']>(
           `/api/tabs/${command.tabId}/lines/${command.lineId}/void`,
           {
-            // The server stores free text and the diner reads it on their phone,
-            // so the preset is sent as a sentence rather than as a slug —
-            // `guestChangedMind` is a developer's word on somebody's bill. A
-            // waiter's own typed detail wins.
-            reason: command.detail?.trim() || VOID_REASON_TEXT[command.reason],
+            // The server stores free text and the diner reads it on their phone.
+            reason: voidReasonText(command),
             clientCommandId: command.clientCommandId,
           } satisfies Schemas['Yalla.Api.Endpoints.VoidLineRequest'],
         );
@@ -512,54 +552,63 @@ export function createStaffHttpGateway(client: ApiClient): StaffGateway {
 }
 
 /**
- * The English the server stores for each preset void reason.
- *
- * The diner reads this string on their phone. Sending the slug would put
- * `guestChangedMind` on a bill somebody is looking at, and the server has no
- * vocabulary to translate it back.
+ * The idempotency key of one group of a legacy order: the caller's id with its
+ * last four hex digits replaced by the group's index, as the build that queued
+ * it sent it.
  */
-const VOID_REASON_TEXT: Readonly<Record<VoidLineCommand['reason'], string>> = {
-  wrongItem: 'Wrong item',
-  guestChangedMind: 'Guest changed their mind',
-  kitchenError: 'Kitchen error',
-  spilled: 'Spilled',
-  other: 'Removed by staff',
+/** `TabStatus` on a `tab-not-accepting-orders` refusal. */
+const TAB_NOT_ACCEPTING: Readonly<Record<number, TabNotAcceptingStatus>> = {
+  2: 'closing',
+  3: 'closed',
+  4: 'abandoned',
 };
 
-interface OrderGroup {
-  readonly participantId: string | null;
-  readonly lines: readonly PlaceOrderLine[];
-}
+/** `ParticipantStatus` on a guest refusal: 1 pending approval, 3 removed. */
+const GUEST_STATE: Readonly<Record<number, OrderGuestState>> = { 1: 'pending', 3: 'removed' };
 
 /**
- * One group per person named on the draft, plus one for the table.
- *
- * Insertion-ordered, so the same draft always produces the same groups in the
- * same order — which is what makes {@link derivedCommandId} stable across a
- * replay.
+ * A staff order refused because of a guest it named, or null. Only a refusal
+ * that carries `context.participantId` is about a guest: the same 404 and 409
+ * without it are a dish or the tab, and must not be blamed on anybody.
  */
-function groupByParticipant(lines: readonly PlaceOrderLine[]): readonly OrderGroup[] {
-  const groups = new Map<string, PlaceOrderLine[]>();
-  for (const line of lines) {
-    const key = line.participantId ?? '';
-    const existing = groups.get(key);
-    if (existing) existing.push(line);
-    else groups.set(key, [line]);
+function guestRefusal(error: unknown): OrderGuestUnavailableError | null {
+  if (!(error instanceof ApiError) || !error.problem) return null;
+  const context = error.problem.context ?? {};
+  const participantId = context['participantId'];
+  if (typeof participantId !== 'string' || participantId === '') return null;
+  const field = typeof context['field'] === 'string' ? context['field'] : null;
+  if (error.status === 404 && error.code === 'not-found') {
+    return new OrderGuestUnavailableError({
+      url: error.url,
+      status: 404,
+      participantId,
+      guestState: 'notOnTab',
+      field,
+      requestId: error.requestId,
+    });
   }
-  return [...groups.entries()].map(([key, grouped]) => ({
-    participantId: key === '' ? null : key,
-    lines: grouped,
-  }));
+  if (error.status === 409 && error.code === 'conflicting-state') {
+    return new OrderGuestUnavailableError({
+      url: error.url,
+      status: 409,
+      participantId,
+      guestState: GUEST_STATE[Number(context['participantStatus'])] ?? null,
+      field,
+      requestId: error.requestId,
+    });
+  }
+  return null;
 }
 
-/**
- * A stable per-group idempotency key.
- *
- * The last four hex digits of the caller's own id are replaced with the group
- * index. Every group therefore gets a distinct Guid, the same one on every
- * replay, and — because the caller's value itself is never reused — a draft
- * whose id happens to end `0001` cannot collide with its own second group.
- */
 function derivedCommandId(base: string, index: number): string {
   return `${base.slice(0, -4)}${index.toString(16).padStart(4, '0')}`;
+}
+
+/**
+ * The idempotency key an order goes with: the key the per-guest split gave its
+ * first group, so a draft that build sent as a single group and this one
+ * retries lands on the order already placed.
+ */
+function orderCommandId(base: string): string {
+  return derivedCommandId(base, 0);
 }

@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5203/swagger/v1/swagger.json
+ * Source: http://127.0.0.1:5199/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -3277,6 +3277,8 @@ export interface paths {
          *     `estimatedReadyAtUtc` comes from the longest prep time on the order, not the sum - a kitchen cooks an order together.
          *
          *     `totals` is the tab's, so it follows `tableTotalVisible` on your tab: **absent**, with `tableTotalVisible: false` beside it, when the host hid the total from you. Read it as optional.
+         *
+         *     `onBehalfOfParticipantId` and a line's `participantId` are the waiter's: a phone sending either is refused with 403 `forbidden`, its own id included.
          */
         post: operations["placeOrder"];
         delete?: never;
@@ -3517,6 +3519,10 @@ export interface paths {
          * @description The same code path as a diner's order, deliberately: the total is only right if **every** order goes through the system.
          *
          *     `onBehalfOfParticipantId` is what keeps "everyone pays their own" working. Without it the line is **attributed to the table** and splits across everyone present - a real answer rather than a wrong one, and one whose cost the venue can see in its own numbers.
+         *
+         *     **Who, per line.** `items[i].participantId` names the guest one line is for and overrides `onBehalfOfParticipantId` for that line alone, so a round with the table's latte, Narine's steak and Aram's coffee is **one order and one kitchen ticket**, each dish on the person who ate it. Every line in the response carries `onBehalfOfParticipantId`: its own guest, else the order's, and absent on a shared line. `onBehalfOfParticipantId` on the order is a default for the lines that name nobody, not a claim on the order. Both fields are checked by one rule - an approved participant on this tab.
+         *
+         *     **A shared line has no owner.** `isShared` splits the line across everyone present whatever `onBehalfOfParticipantId` says, as it always did; a line that is `isShared` **and** names a `participantId` contradicts itself and is refused. Every refusal refuses the whole send.
          */
         post: operations["placeOrderAsStaff"];
         delete?: never;
@@ -4123,6 +4129,17 @@ export interface components {
             /** @description What the guest asked for. Goes to the kitchen, not the bill. */
             note?: string | null;
             /**
+             * Format: uuid
+             * @description <b>Staff only.</b> Who this one line is for - a named guest's dish in a round that is otherwise
+             *                 the table's, or another guest's. Overrides the order's `onBehalfOfParticipantId` for this
+             *                 line alone, so one send stays one order and one kitchen ticket. Checked exactly as that field is:
+             *                 not on this tab is 404 `not-found`, not approved yet is 409 `conflicting-state`, and from
+             *                 a diner's phone it is 403 `forbidden`. <b>Never with `isShared`</b>: a shared line belongs
+             *                 to the table, so naming a guest on it is 400 `invalid-request` with
+             *                 `context.field``items[i].participantId`. Leave it out to take the order's answer.
+             */
+            participantId?: string | null;
+            /**
              * Format: int32
              * @description How many. At least one.
              */
@@ -4143,7 +4160,8 @@ export interface components {
             /**
              * Format: uuid
              * @description <b>Staff only.</b> Who the spoken order was for. Leave it out when the waiter did not know, and
-             *                 the lines are attributed to the table and split across everyone present.
+             *                 the lines are attributed to the table and split across everyone present. A line's own
+             *                 `participantId` overrides it for that line; a shared line splits whatever it says.
              */
             onBehalfOfParticipantId?: string | null;
         };
@@ -5004,6 +5022,57 @@ export interface components {
             code: string;
             /** @description A dish on the order has sold out. */
             context: components["schemas"]["Yalla.Api.Errors.MenuItemUnavailableContext"];
+            /** @description What went wrong this time, in words. */
+            detail: string;
+            /** @description Field-level complaints, when the failure was about the payload. */
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            /** @description The request path this happened on. */
+            instance?: string | null;
+            /**
+             * Format: int32
+             * @description The HTTP status code, repeated in the body.
+             */
+            status: number;
+            /** @description Short, stable summary of the kind of problem. */
+            title: string;
+            /** @description Correlates this response with the one log entry written for it. */
+            traceId: string;
+            /** @description A URI naming the problem type, built from Yalla.Api.Errors.ProblemShape.Code. */
+            type: string;
+        };
+        /** @description The guest a staff order named, when the refusal is about them. */
+        "Yalla.Api.Errors.NamedGuestContext": {
+            /**
+             * @description Which field named them: `onBehalfOfParticipantId`, or `items[i].participantId` with the
+             *     line's index in `items`.
+             */
+            field: string;
+            /**
+             * Format: uuid
+             * @description The guest named.
+             */
+            participantId: string;
+            /**
+             * @description On the 409 only: 1 PendingApproval (not let on yet) or 3 Removed (taken off by the host). Absent on
+             *     the 404, where the guest is not on this tab at all.
+             */
+            participantStatus?: components["schemas"]["Yalla.Domain.Enums.ParticipantStatus"] | null;
+        };
+        /**
+         * @description `not-found` (404) or `conflicting-state` (409) on a staff order, told apart by its
+         *                 context: present only when a guest the order named is the cause.
+         */
+        "Yalla.Api.Errors.NamedGuestRefusedProblem": {
+            /** @description The stable kebab-case slug. <b>This is what a client branches on.</b> */
+            code: string;
+            /**
+             * @description The guest and the field that named them. <b>Absent</b> for every other cause of the same status
+             *     and code - a dish not on any menu, another branch's dish, an unknown tab - which is how a
+             *     client tells "that guest is no longer orderable for" from those.
+             */
+            context?: components["schemas"]["Yalla.Api.Errors.NamedGuestContext"] | null;
             /** @description What went wrong this time, in words. */
             detail: string;
             /** @description Field-level complaints, when the failure was about the payload. */
@@ -7185,6 +7254,13 @@ export interface components {
             name: string;
             /** @description The kitchen note. */
             note?: string | null;
+            /**
+             * Format: uuid
+             * @description Who a waiter keyed this line in for: the line's own `participantId` when one was sent,
+             *     otherwise the order's `onBehalfOfParticipantId`. Null on a diner's own order (the line is
+             *     the orderer's), when the waiter named nobody, and on a shared line, which is the table's.
+             */
+            onBehalfOfParticipantId?: string | null;
             /**
              * Format: int32
              * @description How many.
@@ -10515,8 +10591,11 @@ export interface components {
             note?: string | null;
             /**
              * Format: uuid
-             * @description Who a waiter keyed the order in for, when the waiter knew. The line is that person's - on their
-             *     `myLines` and their share - though PlacedByParticipantId is null.
+             * @description Who a waiter keyed this line in for, when the waiter knew: the guest named on the line itself, or
+             *     else the one named on its order. The line is that person's - on their `myLines` and their
+             *     share - though PlacedByParticipantId is null. Null on a shared or
+             *     table-attributed line, which is the table's whoever the order was for; one round can carry a
+             *     different guest on every line.
              */
             onBehalfOfParticipantId?: string | null;
             /**
@@ -23951,7 +24030,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs. */
+            /** @description This token is for a different tab, the participant was removed, or the tab closed longer ago than the receipt grace period. Decided by the policy, before the handler runs. Or the body named a guest: `onBehalfOfParticipantId` and `items[i].participantId` are staff only. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -24842,7 +24921,7 @@ export interface operations {
                     "application/json": components["schemas"]["Yalla.Application.Ordering.OrderView"];
                 };
             };
-            /** @description The request violated a domain rule or arrived malformed. */
+            /** @description `invalid-request`: a shared line named a guest. `context.field` is `items[i].participantId`. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -24869,13 +24948,22 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description `tab-not-accepting-orders`: the bill has been asked for. */
+            /** @description `not-found`. When `onBehalfOfParticipantId` or a line's `participantId` is not on this tab - made up, or a guest at another table - `context` names it: `field` (`onBehalfOfParticipantId` or `items[i].participantId`) and `participantId`. Any other 404 here (a dish on no menu, an unknown tab) has no `context`. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.NamedGuestRefusedProblem"];
+                };
+            };
+            /** @description `tab-not-accepting-orders`: the tab takes no more orders. `context.status` says why - 2 Closing (the bill has been asked for), 3 Closed (paid and settled), 4 Abandoned (written off). Also `menu-item-unavailable`, with the dish named, and `conflicting-state`: with `context.participantId` when a guest the order named is not orderable for (not let on yet, or taken off), without it for anything else. */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.MenuItemUnavailableProblem"] | components["schemas"]["Yalla.Api.Errors.TabNotAcceptingOrdersProblem"];
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.NamedGuestRefusedProblem"] | components["schemas"]["Yalla.Api.Errors.MenuItemUnavailableProblem"] | components["schemas"]["Yalla.Api.Errors.TabNotAcceptingOrdersProblem"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

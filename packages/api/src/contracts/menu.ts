@@ -1,3 +1,5 @@
+import type { Photo } from './menuAdmin';
+
 /**
  * The menu, as the diner app reads it.
  *
@@ -19,6 +21,12 @@ export interface MenuItem {
   readonly priceDram: number;
   /** False when the kitchen has 86'd it. Still listed, visibly unavailable. */
   readonly isAvailable: boolean;
+  /**
+   * The dish's photo, links absolute. Optional because a menu this tablet
+   * cached before photos were mapped has none; the tile draws the name's
+   * first letter then, as it does when a photo fails to load.
+   */
+  readonly photo?: Photo | null | undefined;
 }
 
 export interface MenuSection {

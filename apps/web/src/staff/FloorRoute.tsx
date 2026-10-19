@@ -1,4 +1,7 @@
 import {
+  ApiError,
+  LineAlreadyPaidError,
+  isOffline,
   TableNotSeatedError,
   isPaymentExceedsRemaining,
   ReservationNotStartedError,
@@ -15,7 +18,6 @@ import {
   type ServiceRequest,
   type StaffFloor,
   type StaffSessionIdentity,
-  type TabAdjustment,
   type TabLine,
   type TableActionKind,
   type TableActionResult,
@@ -36,7 +38,6 @@ import {
   useStaffFloor,
   useStaffGateway,
   useStaffTab,
-  useTabLines,
   useVoidLine,
 } from '@yalla/api/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -53,7 +54,8 @@ import type { NewCommand, QueuedCommand } from './commands/types';
 import { applyFloorChanges } from './live/sequence';
 import { createPollingLiveStream } from './live/stream';
 import { FloorRail, type UnresolvedTab } from './FloorRail';
-import { OrderEntry } from './OrderEntry';
+import type { CashOutcome } from './CashKeypad';
+import { OrderEntry, type OrderSent } from './OrderEntry';
 import { kitchenWaiting, OrderQueuePanel } from './OrderQueuePanel';
 import { StaffHeader, type StaffView } from './StaffHeader';
 import { TableActionPanel } from './TableActionPanel';
@@ -139,6 +141,25 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
   const [selection, setSelection] = useState<Selection | null>(null);
   const [overlay, setOverlay] = useState<'none' | 'conflicts' | 'order' | 'tab'>('none');
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
+  /**
+   * The tab an overlay was opened on, held while it is open.
+   *
+   * The floor drops a tab the moment it is paid in full — the table stays
+   * occupied with no tab — and the next floor read or change poll would blank
+   * the bill, and its "paid" card, under the waiter's hands. Only that gap is
+   * filled: while the floor names a tab for the table, that one is used.
+   */
+  const [overlayTabId, setOverlayTabId] = useState<string | null>(null);
+  /**
+   * The order just sent from order entry, while its confirmation is up. What
+   * became of it is read off the queue, so the card follows it from "on its
+   * way" (or "kept on the tablet") to "the kitchen has it" or "refused".
+   */
+  const [orderSend, setOrderSend] = useState<{
+    readonly id: string;
+    readonly count: number;
+    readonly atUtc: string;
+  } | null>(null);
   /** The tab overlay was opened from the table panel's "Take cash": keypad first. */
   const [cashFirst, setCashFirst] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -161,10 +182,6 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
     remainingDram: number;
     requestedDram: number;
   } | null>(null);
-  /** Adjustments this device has applied this session; nothing lists them back. */
-  const [sessionAdjustments, setSessionAdjustments] = useState<
-    ReadonlyMap<string, readonly TabAdjustment[]>
-  >(new Map());
   /**
    * Bill requests this device answered "On my way" to, by request id.
    *
@@ -407,17 +424,22 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
    * opened was invisible until somebody seated the table again; that workaround
    * is gone.
    */
-  const activeTabId =
+  const floorTabId =
     activeTableId === UNRESOLVED_KEY
       ? unresolvedTabId
       : (tableDetail(floor, activeTableId)?.openTabId ?? null);
+  // The floor's tab while it lists one — a new tab opened on the table while
+  // the overlay is up is the one to act on — and the pinned one once the floor
+  // drops it on payment.
+  const activeTabId =
+    overlay === 'tab' || overlay === 'order' ? (floorTabId ?? overlayTabId) : floorTabId;
+  const activePartySize =
+    activeTableId === UNRESOLVED_KEY
+      ? null
+      : (tableDetail(floor, activeTableId)?.partySize ?? null);
 
+  // The tab with its lines and adjustments: one read, one moment.
   const tabQuery = useStaffTab(active ? activeTabId : null);
-  const linesQuery = useTabLines({
-    branchId,
-    tabId: activeTabId,
-    enabled: active && overlay === 'tab',
-  });
 
   /**
    * The menu, from disk first and the network second.
@@ -464,6 +486,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
    */
   const settleUnresolved = useCallback((tabId: string) => {
     setUnresolvedTabId(tabId);
+    setOverlayTabId(tabId);
     setActiveTableId(UNRESOLVED_KEY);
     setCashFirst(false);
     setOverlay('tab');
@@ -718,14 +741,35 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           tabId: activeTabId,
           itemCount: count,
         },
-        body: { kind: 'placeOrder', command: { tabId: activeTabId, clientCommandId, lines } },
+        body: {
+          kind: 'placeOrder',
+          command: { tabId: activeTabId, clientCommandId, lines, shape: 2 },
+        },
       });
       queue.sync();
-      setOverlay('none');
-      setNotice({ kind: 'info', text: t('order.sent', { count }) });
+      // Order entry stays up and says what became of it.
+      setOrderSend({ id: clientCommandId, count, atUtc: new Date().toISOString() });
     },
     [activeTabId, activeTableId, plan, queue, t],
   );
+
+  const orderSent = useMemo((): OrderSent | null => {
+    if (!orderSend) return null;
+    const conflict = queue.state.conflicts.find((entry) => entry.command.id === orderSend.id);
+    const waiting = queue.state.queue.some((command) => command.id === orderSend.id);
+    return {
+      count: orderSend.count,
+      atUtc: orderSend.atUtc,
+      state: conflict ? 'refused' : waiting ? (queue.online ? 'sending' : 'saved') : 'sent',
+      refusal: conflict ? (conflict.refusal ?? { kind: 'other' }) : null,
+    };
+  }, [orderSend, queue.state, queue.online]);
+
+  const closeOverlay = useCallback(() => {
+    setCashFirst(false);
+    setOrderSend(null);
+    setOverlay('none');
+  }, []);
 
   // --- Render ---------------------------------------------------------------
 
@@ -946,12 +990,14 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             onRelease={release}
             onOpenTab={() => {
               setActiveTableId(selection.tableId);
+              setOverlayTabId(selectedTabId);
               setCashFirst(false);
               setOverlay('tab');
               setSelection(null);
             }}
             onCash={() => {
               setActiveTableId(selection.tableId);
+              setOverlayTabId(selectedTabId);
               setCashFirst(true);
               setOverlay('tab');
               setSelection(null);
@@ -960,6 +1006,7 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             startingTab={openTabForStaff.isPending}
             onOrder={() => {
               setActiveTableId(selection.tableId);
+              setOverlayTabId(selectedTabId);
               setOverlay('order');
               setSelection(null);
             }}
@@ -1051,21 +1098,28 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           loading={menu.loading}
           menuUnavailable={menu.unavailable}
           noTab={activeTabId === null}
+          staffName={identity.fullName}
+          partySize={activePartySize}
+          sent={orderSent}
           onSubmit={submitOrder}
-          onClose={() => setOverlay('none')}
+          onSentDismiss={({ restored }) => {
+            // The draft is back on screen to be changed and sent again; the
+            // refused copy would only be a second thing to decide about.
+            if (restored && orderSend) queue.discard(orderSend.id);
+            setOrderSend(null);
+          }}
+          onClose={closeOverlay}
         />
       ) : null}
 
       {overlay === 'tab' ? (
         <TabPanel
           tab={tabQuery.data ?? null}
-          lines={linesQuery.data ?? []}
-          linesLoading={linesQuery.isLoading && !isOfflinePaused(linesQuery)}
-          linesKnown={linesQuery.data !== undefined}
-          adjustments={activeTabId ? (sessionAdjustments.get(activeTabId) ?? []) : []}
           tableLabel={activeTabLabel}
           timeZoneId={timeZoneId}
           role={identity.role}
+          staffName={identity.fullName}
+          partySize={activePartySize}
           online={queue.online}
           loading={tabQuery.isLoading && !isOfflinePaused(tabQuery)}
           // A paused query is not an empty tab. Saying "no tab is open" for a
@@ -1083,13 +1137,27 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           }
           onVoid={(line: TabLine, reason: VoidReason, detail?: string) => {
             if (!activeTabId) return;
-            voidLine.mutate({
-              tabId: activeTabId,
-              lineId: line.id,
-              reason,
-              clientCommandId: newCommandId(),
-              ...(detail ? { detail } : {}),
-            });
+            voidLine.mutate(
+              {
+                tabId: activeTabId,
+                lineId: line.id,
+                reason,
+                clientCommandId: newCommandId(),
+                ...(detail ? { detail } : {}),
+              },
+              {
+                onSuccess: () =>
+                  setNotice({ kind: 'info', text: t('tab.notice.voided', { name: line.name }) }),
+                onError: (error) =>
+                  setNotice({
+                    kind: 'warning',
+                    text:
+                      error instanceof LineAlreadyPaidError
+                        ? t('tab.notice.lineAlreadyPaid')
+                        : t('tab.notice.failed'),
+                  }),
+              },
+            );
           }}
           onAdjust={(input: {
             lineId: string | null;
@@ -1100,15 +1168,24 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
           }) => {
             if (!activeTabId) return;
             const tabId = activeTabId;
+            const lineName = input.lineId
+              ? tabQuery.data?.lines.find((line) => line.id === input.lineId)?.name
+              : undefined;
             compLine.mutate(
               { tabId, ...input, clientCommandId: newCommandId() },
               {
-                // Nothing lists a tab's adjustments back, so the only copy of
-                // this row is the one the response just handed us.
-                onSuccess: (adjustment) =>
-                  setSessionAdjustments((current) =>
-                    new Map(current).set(tabId, [...(current.get(tabId) ?? []), adjustment]),
-                  ),
+                // The tab's own read lists it once the refetch lands.
+                onSuccess: (adjustment) => {
+                  setNotice({
+                    kind: 'info',
+                    text: lineName
+                      ? t('tab.notice.comped', { name: lineName })
+                      : t('tab.notice.discounted', {
+                          amount: format.dram(adjustment.reductionDram),
+                        }),
+                  });
+                },
+                onError: () => setNotice({ kind: 'warning', text: t('tab.notice.failed') }),
               },
             );
           }}
@@ -1116,8 +1193,13 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             if (!activeTabId) return;
             beginClosing.mutate({ tabId: activeTabId, clientCommandId: newCommandId() });
           }}
-          onCash={({ amountDram, tipDram, billRequest: request }) => {
-            if (!activeTabId) return;
+          onCash={async ({
+            amountDram,
+            tipDram,
+            clientCommandId,
+            billRequest: request,
+          }): Promise<CashOutcome> => {
+            if (!activeTabId) return { kind: 'failed' };
             const tabId = activeTabId;
             // A "my share" request is one person's money, so the cash is theirs
             // and the server credits their share. The whole bill names nobody:
@@ -1126,91 +1208,113 @@ export function FloorRoute({ identity, device = null, paused }: FloorRouteProps)
             // Whether this device already answered it with "On my way".
             const acknowledgedHere = request ? acknowledgedBills.has(request.id) : false;
             setCashRefusal(null);
-            recordCash.mutate(
-              {
+            try {
+              const result = await recordCash.mutateAsync({
                 tabId,
                 amountDram,
                 tipDram,
-                clientCommandId: newCommandId(),
+                // The keypad's: the same on a retry, so a lost answer replays.
+                clientCommandId,
                 ...(payer ? { participantId: payer } : {}),
-              },
-              {
-                onSuccess: (result) => {
-                  if (request) {
-                    // Only the request this cash answered is done with, whether
-                    // or not anyone tapped "On my way" for it. The others at
-                    // the table are still waiting.
-                    setSettledBillIds((current) => new Set(current).add(request.id));
-                    // With it go this device's copies of the same person's
-                    // earlier requests on the tab: they were already replaced,
-                    // and must not resurface as the newest once this one is gone.
-                    const answered = (candidate: ServiceRequest) =>
-                      candidate.id === request.id ||
-                      (request.requestedByParticipantId !== null &&
-                        candidate.tabId === request.tabId &&
-                        candidate.requestedByParticipantId === request.requestedByParticipantId &&
-                        candidate.requestedAtUtc <= request.requestedAtUtc);
-                    setAcknowledgedBills((current) => {
-                      const next = new Map(
-                        [...current].filter(([, candidate]) => !answered(candidate)),
-                      );
-                      return next.size === current.size ? current : next;
-                    });
-                    // And answered on the server when nobody has yet, so a
-                    // reload or the other tablet does not show it again.
-                    const stillOpen = (
-                      queryClient.getQueryData<readonly ServiceRequest[]>(
-                        queryKeys.serviceRequests(branchId),
-                      ) ?? []
-                    ).some(
-                      (candidate) =>
-                        candidate.id === request.id && candidate.acknowledgedAtUtc === null,
-                    );
-                    if (stillOpen && !acknowledgedHere) sendAcknowledge(request);
-                  }
-                  setNotice({
-                    kind: 'info',
-                    text: result.tabClosed
-                      ? t('cash.closed')
-                      : t('cash.recorded', { amount: format.dram(amountDram) }),
-                  });
-                  setUnresolved((current) =>
-                    result.tabClosed ? current.filter((entry) => entry.tabId !== tabId) : current,
+              });
+              if (request) {
+                // Only the request this cash answered is done with, whether
+                // or not anyone tapped "On my way" for it. The others at the
+                // table are still waiting.
+                setSettledBillIds((current) => new Set(current).add(request.id));
+                // With it go this device's copies of the same person's
+                // earlier requests on the tab: they were already replaced,
+                // and must not resurface as the newest once this one is gone.
+                const answered = (candidate: ServiceRequest) =>
+                  candidate.id === request.id ||
+                  (request.requestedByParticipantId !== null &&
+                    candidate.tabId === request.tabId &&
+                    candidate.requestedByParticipantId === request.requestedByParticipantId &&
+                    candidate.requestedAtUtc <= request.requestedAtUtc);
+                setAcknowledgedBills((current) => {
+                  const next = new Map(
+                    [...current].filter(([, candidate]) => !answered(candidate)),
                   );
-                },
-                onError: (error) => {
-                  // The refusal carries the real balance. Shown against the
-                  // bill, and never retried: the hook has `retry: false` and
-                  // this handler adds nothing that would send it again.
-                  if (isPaymentExceedsRemaining(error)) {
-                    setCashRefusal({
-                      tabId,
-                      remainingDram: error.remainingDram,
-                      requestedDram: error.requestedDram,
-                    });
-                    return;
-                  }
-                  setNotice({ kind: 'info', text: t('cash.failed') });
-                },
-              },
-            );
+                  return next.size === current.size ? current : next;
+                });
+                // And answered on the server when nobody has yet, so a
+                // reload or the other tablet does not show it again.
+                const stillOpen = (
+                  queryClient.getQueryData<readonly ServiceRequest[]>(
+                    queryKeys.serviceRequests(branchId),
+                  ) ?? []
+                ).some(
+                  (candidate) =>
+                    candidate.id === request.id && candidate.acknowledgedAtUtc === null,
+                );
+                if (stillOpen && !acknowledgedHere) sendAcknowledge(request);
+              }
+              setUnresolved((current) =>
+                result.tabClosed ? current.filter((entry) => entry.tabId !== tabId) : current,
+              );
+              // The keypad's own card says what was taken and the change.
+              return { kind: 'recorded', tabClosed: result.tabClosed };
+            } catch (error) {
+              // The refusal carries the real balance. Shown against the bill,
+              // and never retried: the hook has `retry: false` and nothing
+              // here sends it again.
+              if (isPaymentExceedsRemaining(error)) {
+                setCashRefusal({
+                  tabId,
+                  remainingDram: error.remainingDram,
+                  requestedDram: error.requestedDram,
+                });
+                return { kind: 'refused' };
+              }
+              // Only an answer from the server means nothing was taken. No
+              // answer — offline, a timeout, a server fault — may have landed:
+              // read the tab again so the waiter checks it before retrying.
+              if (isServerRefusal(error)) return { kind: 'failed' };
+              void queryClient.invalidateQueries({ queryKey: queryKeys.staffTab(tabId) });
+              return { kind: 'unknown' };
+            }
           }}
           onAbandon={(reason) => {
             if (!activeTabId) return;
             const tabId = activeTabId;
-            abandonTab.mutate({ tabId, reason, clientCommandId: newCommandId() });
+            abandonTab.mutate(
+              { tabId, reason, clientCommandId: newCommandId() },
+              {
+                onSuccess: (result) =>
+                  setNotice({
+                    kind: 'info',
+                    text: t('tab.notice.markedUnpaid', {
+                      amount: format.dram(result.writtenOffDram),
+                    }),
+                  }),
+                onError: () => setNotice({ kind: 'warning', text: t('tab.notice.failed') }),
+              },
+            );
             setUnresolved((current) => current.filter((entry) => entry.tabId !== tabId));
           }}
           openOnCash={cashFirst}
           onOrder={() => setOverlay('order')}
-          onClose={() => {
-            setCashFirst(false);
-            setOverlay('none');
+          onFreeTable={() => {
+            // Back to the table's own panel, where freeing it is one more tap
+            // behind its confirm. A tab settled from "Needs resolving" has no
+            // table left to free.
+            const tableId = activeTableId;
+            closeOverlay();
+            if (tableId && tableId !== UNRESOLVED_KEY) setSelection({ tableId });
           }}
+          onClose={closeOverlay}
         />
       ) : null}
     </div>
   );
+}
+
+/**
+ * The server answered, and said no. Not a dropped connection, a timeout or a
+ * 5xx, after any of which the write may still have happened.
+ */
+function isServerRefusal(error: unknown): boolean {
+  return error instanceof ApiError && !isOffline(error) && error.status < 500;
 }
 
 /**

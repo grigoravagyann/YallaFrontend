@@ -26,6 +26,10 @@ const REDESIGNED = [
   'TableActionPanel.tsx',
   'StaffRoute.tsx',
   'auth/PinScreen.tsx',
+  'OrderEntry.tsx',
+  'TabPanel.tsx',
+  'CashKeypad.tsx',
+  'OverlayBar.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */

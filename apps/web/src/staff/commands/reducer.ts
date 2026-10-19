@@ -75,6 +75,7 @@ export type CommandAction =
       readonly observed: TableConflictState | null;
       readonly reason: ConflictEntry['reason'];
       readonly atMs: number;
+      readonly refusal?: ConflictEntry['refusal'];
     }
   | { readonly type: 'discardConflict'; readonly id: string }
   /** "Apply anyway": back to the queue with no precondition. */
@@ -174,6 +175,7 @@ export function commandReducer(state: CommandState, action: CommandAction): Comm
             detectedAtMs: action.atMs,
             observed: action.observed,
             reason: action.reason,
+            ...(action.refusal ? { refusal: action.refusal } : {}),
           },
         ],
       };
