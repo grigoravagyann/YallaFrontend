@@ -1755,6 +1755,26 @@ textarea.yc-ctl {
   color: var(--console-red);
 }
 
+/* An item shown but not available, with its reason under it. */
+.yc-menu-item[aria-disabled='true'] {
+  height: auto;
+  min-height: 38px;
+  padding-block: 6px;
+  color: var(--console-muted);
+  cursor: not-allowed;
+}
+
+.yc-menu-t {
+  display: flex;
+  flex-direction: column;
+  white-space: normal;
+}
+
+.yc-menu-t small {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
 .yc-menu-sep {
   height: 1px;
   margin: 6px var(--space-xs);

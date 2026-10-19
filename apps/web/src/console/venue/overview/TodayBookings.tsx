@@ -1,4 +1,5 @@
 import {
+  ApiError,
   minutesLate,
   newCommandId,
   overviewRowState,
@@ -212,7 +213,34 @@ export function TodayBookings({
     }
   }
 
-  function refusal(error: unknown): string {
+  /** Why the booking's table cannot take its party now, or `null` when it can. */
+  function seatBlocker(booking: OverviewBooking): string | null {
+    const table = t('approvals.table', { label: booking.tableLabel });
+    if (booking.tableStatus === 'occupied') return t('overview.bookings.tableTaken', { table });
+    if (booking.tableStatus === 'outOfService') {
+      return t('overview.bookings.tableOutOfService', { table });
+    }
+    return null;
+  }
+
+  function refusal(
+    error: unknown,
+    command: ConsoleBookingActionCommand,
+    booking: OverviewBooking,
+  ): string {
+    // The table could not take the party: say which table, as the menu would have.
+    if (
+      command.kind === 'seat' &&
+      error instanceof ApiError &&
+      error.code === 'invalid-table-transition'
+    ) {
+      return (
+        seatBlocker(booking) ??
+        t('overview.bookings.tableTaken', {
+          table: t('approvals.table', { label: booking.tableLabel }),
+        })
+      );
+    }
     return bookingActionFailureText(error, {
       moved: t('overview.bookings.refused.moved'),
       tableTaken: t('overview.bookings.refused.tableTaken'),
@@ -250,7 +278,7 @@ export function TodayBookings({
         moved.current = { id: booking.id, status: result.status };
       }
     } catch (error) {
-      toast.say(refusal(error), { tone: 'error' });
+      toast.say(refusal(error, command, booking), { tone: 'error' });
     } finally {
       if (mounted.current) {
         mark(booking.id, false);
@@ -312,12 +340,17 @@ export function TodayBookings({
       // A no-show only once the grace is up: until then the table is still theirs.
       (kind) => kind !== 'noShow' || minutesLate(row.booking, now) >= overview.graceMinutes,
     );
+    // Seat only at a table that can take the party: one free, or held for
+    // them. Somebody sitting there, or a table out of service, is said here
+    // rather than refused by the server after the click.
+    const blocked = seatBlocker(row.booking);
     return kinds.map((kind) => ({
       key: kind,
       label: t(`overview.bookings.action.${kind}`),
       // The artboard's menu is words only.
       icon: null,
       danger: DANGER.has(kind),
+      ...(kind === 'seat' && blocked ? { disabled: true, hint: blocked } : {}),
       onSelect: () => run(kind, row.booking),
     }));
   }

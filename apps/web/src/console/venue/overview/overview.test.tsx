@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   ConcurrencyConflictError,
+  InvalidTransitionError,
   createConsoleMockGateway,
   overviewRowState,
   type BranchReadiness,
@@ -380,6 +381,71 @@ describe("today's bookings", () => {
     );
     await user.click(within(card).getByRole('button', { name: 'In the room now' }));
     expect(within(rowOf(card, late.guestName)).getByText('Seated')).toBeTruthy();
+  });
+
+  it('offers Seat only when the table is free, and says why not, keeping Cancel', async () => {
+    const base = mockGateway();
+    const upcoming = firstIn(await rowsOf(base), 'confirmed');
+    const act = vi.fn(base.actOnBooking);
+    const { user } = renderOverview({
+      ...base,
+      actOnBooking: act,
+      getBranchOverview: async (branchId) => {
+        const overview = await base.getBranchOverview(branchId);
+        return {
+          ...overview,
+          todayBookings: overview.todayBookings.map((row) =>
+            row.id === upcoming.id ? { ...row, tableStatus: 'occupied' as const } : row,
+          ),
+        };
+      },
+    });
+    const card = await bookingsCard();
+
+    const menu = await openMenu(user, card, upcoming.guestName);
+    const seat = within(menu).getByRole('menuitem', { name: /^Mark seated/u });
+    expect(seat.getAttribute('aria-disabled')).toBe('true');
+    expect(seat.textContent).toContain(`Table ${upcoming.tableLabel} is taken right now`);
+    // Still in the menu's keyboard order, and does nothing when chosen.
+    await waitFor(() => expect(document.activeElement).toBe(seat));
+    await user.keyboard('{Enter}');
+    expect(act).not.toHaveBeenCalled();
+    const cancel = within(screen.getByRole('menu')).getByRole('menuitem', {
+      name: 'Cancel the booking',
+    });
+    expect(cancel.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('says the table is taken when the server refuses a seat as not possible for the table', async () => {
+    const base = mockGateway();
+    const { user } = renderOverview({
+      ...base,
+      actOnBooking: () =>
+        Promise.reject(
+          new InvalidTransitionError({
+            url: 'mock://seat',
+            problem: {
+              type: 'about:blank',
+              title: 'Not a legal transition',
+              status: 422,
+              detail: 'Cannot seatReservation a table that is occupied.',
+              code: 'invalid-table-transition',
+              traceId: 'mock',
+            },
+          }),
+        ),
+    });
+    const card = await bookingsCard();
+    const upcoming = firstIn(await rowsOf(base), 'confirmed');
+
+    await user.click(
+      within(await openMenu(user, card, upcoming.guestName)).getByRole('menuitem', {
+        name: 'Mark seated',
+      }),
+    );
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      `Table ${upcoming.tableLabel} is taken right now`,
+    );
   });
 
   it('finishes a sitting naming its booking', async () => {

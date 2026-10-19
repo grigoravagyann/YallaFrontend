@@ -638,6 +638,11 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     bars); `load.aria` now names the hour now; `attn.device` / `.deviceOn` /
     `.deviceBody` say "not heard from since", never "lost its connection" — a
     tablet's last-seen moves only on a sign-in or a renewal.
+  - QA fix (2026-10-19), **not** in an artboard: `overview.bookings.tableTaken`
+    and `.tableOutOfService`, the reason under a disabled "Mark seated" in the
+    row menu when the booking's table is occupied or out of service, and the
+    sentence for the server's `invalid-table-transition` on a seat. `hy` names
+    the table without a glued case ending ("Սեղան 1 հիմա զբաղված է").
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

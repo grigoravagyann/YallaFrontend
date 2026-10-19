@@ -2051,7 +2051,9 @@
         "gone": "This booking is no longer there.",
         "offline": "You are offline. Nothing was sent.",
         "generic": "That did not go through. Try again."
-      }
+      },
+      "tableTaken": "{{table}} is taken right now",
+      "tableOutOfService": "{{table}} is out of service right now"
     },
     "load": {
       "title": "Load today",
