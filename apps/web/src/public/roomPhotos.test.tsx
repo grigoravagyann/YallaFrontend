@@ -208,7 +208,6 @@ describe('the room section on the page', () => {
         <RoomSection
           branch={branch!}
           selection={selection}
-          onSelectionChange={() => {}}
           slotUtc={slotInstant(selection, branch!.timeZoneId)!.toISOString()}
           selectedTableId={null}
           onTableTap={onTableTap}

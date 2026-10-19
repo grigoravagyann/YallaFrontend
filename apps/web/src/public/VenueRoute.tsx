@@ -1,8 +1,9 @@
-import { isOfflinePaused, usePublicVenue } from '@yalla/api/react';
+import { usePublicVenue } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { Link, useParams } from 'react-router-dom';
+import { useLangPath } from './language';
 import { OpenBadge } from './LiveCount';
-import { FailedPage, LoadingPage, NotFoundPage } from './PageStates';
+import { FailedPage, LoadingPage, NotFoundPage, pageState, StaleNotice } from './PageStates';
 
 /**
  * `/{venueSlug}` — a chain, and which of its branches to open.
@@ -19,12 +20,14 @@ export function VenueRoute() {
   const { t } = useTranslation('public');
   const { locale } = useLocale();
   const venueQuery = usePublicVenue(venueSlug);
+  const langPath = useLangPath();
+  const state = pageState(venueQuery);
 
-  if (venueQuery.isLoading) return <LoadingPage />;
-  if (venueQuery.isError || isOfflinePaused(venueQuery)) {
+  if (state === 'loading') return <LoadingPage shape="single" />;
+  if (state) {
     return (
       <FailedPage
-        offline={isOfflinePaused(venueQuery)}
+        offline={state === 'offline'}
         error={venueQuery.error}
         onRetry={() => void venueQuery.refetch()}
       />
@@ -42,6 +45,7 @@ export function VenueRoute() {
           {t(`venue.type.${venue.type}`, { ns: 'diner' })}
           {venue.description ? ` · ${venue.description}` : ''}
         </p>
+        <StaleNotice query={venueQuery} />
       </header>
 
       <section className="pub-section" aria-labelledby="branches">
@@ -60,7 +64,7 @@ export function VenueRoute() {
                   answers nothing; a dead link would waste the tap instead.
                 */}
                 {branch.status === 'live' ? (
-                  <Link className="pub-branch-card" to={`/${venue.slug}/${branch.slug}`}>
+                  <Link className="pub-branch-card" to={langPath(`/${venue.slug}/${branch.slug}`)}>
                     <span className="pub-branch-card-name">{branch.name}</span>
                     <span className="pub-muted">{branch.addressLine}</span>
                     <span className="pub-branch-card-free">

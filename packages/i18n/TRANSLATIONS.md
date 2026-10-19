@@ -993,6 +993,23 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `order.soldOutNotice`, `order.refused.soldOut`, `order.refused.guest.*`,
     `order.guestGone`, `cash.takenBy` put the name after «՝» or in brackets.
 
+- `public` — the public page redesign, phase 1 (2026-10-20): the page
+  states and the booking column. The `hy` copy is the approved States and
+  Main artboards'; `ru` and `en` were written from it and are **not**
+  reviewed. From the artboards: `page.notAvailable.title` / `.body` (must keep
+  saying the venue's phone and door **still work**), `page.notFound.body`,
+  `page.offline.*` (must keep saying the page opens **by itself** when the
+  connection is back — it does), `page.error.*` (must keep saying nothing the
+  visitor entered is lost), `page.retry`, `page.call` (the number follows
+  «·»), `booking.offTitle`. The language buttons show «Հայ», «Рус», «Eng» —
+  names, the same in every language, kept in `language.tsx`, not here.
+  - Review fixes (2026-10-20), **not** in an artboard, so **not** read by the
+    user even in `hy`: `page.stale.offline` / `.error`, the quiet line on a
+    page that stays on screen while it may be out of date (must keep saying
+    what is shown **may be out of date**, never that it is gone). ru
+    `page.notAvailable.title` now «Сейчас нет на Yalla» and `page.error.title`
+    «У нас что-то пошло не так» (was a calque).
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

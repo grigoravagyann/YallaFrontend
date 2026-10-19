@@ -1,32 +1,13 @@
-import {
-  isShortNotice,
-  unavailableCopy,
-  type PublicBranch,
-  type TableAvailability,
-} from '@yalla/api';
-import {
-  isOfflinePaused,
-  PUBLIC_REFRESH_MS,
-  useDaySlots,
-  useNow,
-  useSlotFloor,
-} from '@yalla/api/react';
-import { formatTime } from '@yalla/format';
-import { useLocale, useTranslation } from '@yalla/i18n';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { unavailableCopy, type PublicBranch, type TableAvailability } from '@yalla/api';
+import { isOfflinePaused, PUBLIC_REFRESH_MS, useSlotFloor } from '@yalla/api/react';
+import { useTranslation } from '@yalla/i18n';
+import { useEffect, useRef, useState } from 'react';
 import RoomPhotos from './RoomPhotos';
-import {
-  PARTY_SIZES,
-  addDays,
-  branchToday,
-  nearestChoice,
-  slotProblem,
-  timeChoices,
-  type SlotSelection,
-} from './slots';
+import type { SlotSelection } from './slots';
 
 /**
- * The rooms, the three controls above them, and nothing else.
+ * The rooms, and nothing else: the day, the time and the party are chosen on
+ * the booking card (`BookingCard`), in the booking column beside or above this.
  *
  * The photos are behind an intersection observer: a visitor who reads the
  * free-table count and closes the tab — which is most of them — never
@@ -69,7 +50,6 @@ function useHasApproached(ref: React.RefObject<HTMLElement | null>): boolean {
 export interface RoomSectionProps {
   readonly branch: PublicBranch;
   readonly selection: SlotSelection;
-  readonly onSelectionChange: (next: SlotSelection) => void;
   readonly slotUtc: string;
   readonly selectedTableId: string | null;
   readonly onTableTap: (availability: TableAvailability) => void;
@@ -80,59 +60,14 @@ export interface RoomSectionProps {
 export function RoomSection({
   branch,
   selection,
-  onSelectionChange,
   slotUtc,
   selectedTableId,
   onTableTap,
   takenTableLabel,
 }: RoomSectionProps) {
   const { t } = useTranslation('public');
-  const { locale } = useLocale();
   const holder = useRef<HTMLDivElement | null>(null);
   const approached = useHasApproached(holder);
-
-  /*
-   * The day's times, from the server's day of slots: every quarter hour whose
-   * whole sitting fits the hours — a time that would run past closing is not
-   * an option — struck when no table can be had, "on request" when only a
-   * table somebody booked shortly before is left. The phone app's rules, from
-   * the same read; the published hours stand in until it answers.
-   */
-  const daySlotsQuery = useDaySlots({
-    branchId: branch.acceptsWebBookings ? branch.id : undefined,
-    date: selection.date,
-    partySize: selection.partySize,
-  });
-  const dayAnswer = daySlotsQuery.isError ? undefined : daySlotsQuery.data;
-  const choices = useMemo(
-    () =>
-      timeChoices({
-        date: selection.date,
-        day: dayAnswer,
-        weeklyHours: branch.weeklyHours,
-        turnTimeMinutes: branch.policy.turnTimeMinutes,
-        timeZoneId: branch.timeZoneId,
-      }),
-    [
-      selection.date,
-      dayAnswer,
-      branch.weeklyHours,
-      branch.policy.turnTimeMinutes,
-      branch.timeZoneId,
-    ],
-  );
-  const chosen = choices.find((choice) => choice.time === selection.time) ?? null;
-
-  /*
-   * Never left on a time that cannot be had: once the day has answered, a
-   * struck or absent selection moves to the nearest time that can.
-   */
-  useEffect(() => {
-    if (!dayAnswer || dayAnswer.date !== selection.date) return;
-    if (chosen && chosen.state !== 'busy') return;
-    const next = nearestChoice(choices, selection.time);
-    if (next && next.time !== selection.time) onSelectionChange({ ...selection, time: next.time });
-  }, [dayAnswer, chosen, choices, selection, onSelectionChange]);
 
   /*
    * The tables **as they will be at the chosen slot** — each with its pin on a
@@ -157,52 +92,6 @@ export function RoomSection({
     timeZoneId: branch.timeZoneId,
     pollMs: PUBLIC_REFRESH_MS,
   });
-
-  const today = branchToday(branch.timeZoneId);
-  // Short notice is the server's rule, by the instant: today, or under six hours.
-  const now = useNow();
-
-  /**
-   * Apply a change to one control, refusing to store an unusable selection.
-   *
-   * A `type="date"` input is **empty** between a clear and the next keystroke,
-   * and stays empty for as long as somebody leaves it that way. That used to
-   * reach `slotInstant`, throw inside `Intl` during render, and white-screen
-   * the page — on the one surface in the product that is opened by strangers
-   * from a link, who have no reason to try again.
-   *
-   * So the control falls back rather than clearing: an empty date is not a
-   * state a diner ever *means* to be in, and the nearest thing they do mean is
-   * today. The room stays on screen throughout, which is the actual
-   * requirement — a diner mid-edit has not asked to stop seeing the room.
-   */
-  const applySelection = (next: SlotSelection) => {
-    const problem = slotProblem(next);
-    if (problem === null) {
-      onSelectionChange(next);
-      return;
-    }
-
-    onSelectionChange({
-      ...next,
-      // Only the broken half is replaced; the other keeps whatever was picked.
-      ...(problem === 'date' ? { date: today } : { time: selection.time }),
-    });
-  };
-  /*
-   * The venue's own horizon, so the platform's date picker cannot offer a day
-   * the server will refuse once a table has already been chosen.
-   *
-   * Undefined when the branch does not publish a window — the public API serves
-   * it only to authenticated console callers. An unbounded picker is the right
-   * degradation rather than a guessed horizon: `availability` answers every slot
-   * with `OutsideBookingWindow` when it is beyond the window, and the rejection
-   * below is rendered as a sentence *before* a table is chosen, so the late
-   * refusal this bound exists to prevent does not happen either way. A guessed
-   * `max` would instead forbid days the venue really does take.
-   */
-  const lastBookableDay =
-    branch.bookingWindowDays === null ? undefined : addDays(today, branch.bookingWindowDays);
 
   const handleTap = (tableId: string) => {
     if (!branch.acceptsWebBookings) return;
@@ -246,91 +135,6 @@ export function RoomSection({
   return (
     <section className="pub-section" aria-labelledby="room" ref={holder}>
       <h2 id="room">{t('section.room')}</h2>
-
-      {branch.acceptsWebBookings ? (
-        <div className="pub-slot">
-          <label className="pub-field">
-            <span>{t('booking.date', { ns: 'diner' })}</span>
-            <input
-              type="date"
-              value={selection.date}
-              min={today}
-              max={lastBookableDay}
-              onChange={(event) =>
-                applySelection({ ...selection, date: event.currentTarget.value })
-              }
-            />
-          </label>
-          <label className="pub-field">
-            <span>{t('booking.time', { ns: 'diner' })}</span>
-            <select
-              value={selection.time}
-              onChange={(event) =>
-                applySelection({ ...selection, time: event.currentTarget.value })
-              }
-            >
-              {/* Quarter-hourly rather than a free-form time input: the backend
-                  reasons in slots, and a 20:07 request is one nobody can fill.
-                  A struck time is drawn and named, never chosen. */}
-              {chosen === null ? <option value={selection.time}>{selection.time}</option> : null}
-              {choices.map((choice) => (
-                <option key={choice.time} value={choice.time} disabled={choice.state === 'busy'}>
-                  {choice.state === 'busy'
-                    ? t('book.slotFull', { ns: 'diner', time: choice.time })
-                    : choice.state === 'requestable'
-                      ? t('booking.timeOnRequest', { time: choice.time })
-                      : choice.time}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="pub-field">
-            <span>{t('booking.partySize', { ns: 'diner' })}</span>
-            <select
-              value={selection.partySize}
-              onChange={(event) => {
-                // `Number('')` is `NaN`, which would reach the availability
-                // query as a party size and come back as a refusal nobody
-                // asked for. The list is fixed, so anything off it is a bug
-                // rather than a choice.
-                const partySize = Number(event.currentTarget.value);
-                applySelection({
-                  ...selection,
-                  partySize: PARTY_SIZES.includes(partySize) ? partySize : selection.partySize,
-                });
-              }}
-            >
-              {PARTY_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {t('booking.guests', { ns: 'diner', count: size })}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      ) : (
-        <p className="pub-notice">{t('booking.notOffered')}</p>
-      )}
-
-      {/* What the chosen time comes with: asked for, and freed by when. */}
-      {branch.acceptsWebBookings && chosen?.state === 'requestable' ? (
-        <p className="pub-muted">
-          {t(
-            isShortNotice({ startUtc: slotUtc, timeZoneId: branch.timeZoneId, now })
-              ? 'booking.approval.why'
-              : 'table.requestable.earlierGuest',
-            { ns: 'diner' },
-          )}
-        </p>
-      ) : null}
-      {branch.acceptsWebBookings && chosen?.mustFreeByUtc ? (
-        <p className="pub-muted">
-          {t('table.mustFreeBy', {
-            ns: 'diner',
-            time: formatTime(chosen.mustFreeByUtc, branch.timeZoneId, locale),
-          })}
-        </p>
-      ) : null}
 
       {/*
         A lost table is information with a next step attached, not an error

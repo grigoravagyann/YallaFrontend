@@ -1,18 +1,22 @@
 import type { PublicBranch, TableAvailability } from '@yalla/api';
-import {
-  isOfflinePaused,
-  usePublicBranch,
-  usePublicGateway,
-  usePublicMenu,
-} from '@yalla/api/react';
+import { usePublicBranch, usePublicGateway, usePublicMenu } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
+import { BookingCard } from './BookingCard';
 import { FindUs, OpeningHours } from './BranchDetails';
+import { isBookingColumnSticky } from './layout';
 import { BranchStatus } from './LiveCount';
 import { MenuSection } from './MenuSection';
 import { applyPageMeta } from './meta';
-import { FailedPage, LoadingPage, NotAvailablePage, NotFoundPage } from './PageStates';
+import {
+  FailedPage,
+  LoadingPage,
+  NotAvailablePage,
+  NotFoundPage,
+  pageState,
+  StaleNotice,
+} from './PageStates';
 import { RoomSection } from './RoomSection';
 import { defaultSelection, slotInstant, type SlotSelection } from './slots';
 
@@ -41,13 +45,14 @@ const BookingSheet = lazy(() => import('./BookingSheet'));
 export function BranchRoute() {
   const { venueSlug, branchSlug } = useParams<{ venueSlug: string; branchSlug: string }>();
   const branchQuery = usePublicBranch({ venueSlug, branchSlug });
+  const state = pageState(branchQuery);
 
-  if (branchQuery.isLoading) return <LoadingPage />;
+  if (state === 'loading') return <LoadingPage />;
 
-  if (branchQuery.isError || isOfflinePaused(branchQuery)) {
+  if (state) {
     return (
       <FailedPage
-        offline={isOfflinePaused(branchQuery)}
+        offline={state === 'offline'}
         error={branchQuery.error}
         onRetry={() => void branchQuery.refetch()}
       />
@@ -60,13 +65,25 @@ export function BranchRoute() {
   if (!branchQuery.data) return <NotFoundPage />;
 
   if (branchQuery.data.status !== 'live') {
-    return <NotAvailablePage venueName={branchQuery.data.venue.name} />;
+    return (
+      <NotAvailablePage
+        venueName={branchQuery.data.venue.name}
+        phoneE164={branchQuery.data.phoneE164}
+      />
+    );
   }
 
-  return <BranchPage branch={branchQuery.data} />;
+  return <BranchPage branch={branchQuery.data} stale={<StaleNotice query={branchQuery} />} />;
 }
 
-function BranchPage({ branch }: { readonly branch: PublicBranch }) {
+function BranchPage({
+  branch,
+  stale,
+}: {
+  readonly branch: PublicBranch;
+  /** The line saying the page may be out of date, when it may. */
+  readonly stale: ReactNode;
+}) {
   const { t } = useTranslation('public');
   const { locale } = useLocale();
   const publicGateway = usePublicGateway();
@@ -88,6 +105,14 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
   );
   const [chosen, setChosen] = useState<TableAvailability | null>(null);
   const [takenTableLabel, setTakenTableLabel] = useState<string | null>(null);
+  /**
+   * Which column the booking panel opens in: the booking column when it is
+   * sticky beside the room, under the room otherwise. Decided when the panel
+   * opens and kept for its life, through taps on other tables too — a window
+   * resized mid-booking must not remount a panel holding a verified phone.
+   */
+  const [panelInAside, setPanelInAside] = useState(false);
+  const bookingHeadingId = useId();
 
   /*
    * Defence in depth behind `RoomSection`, which already refuses to store an
@@ -148,53 +173,82 @@ function BranchPage({ branch }: { readonly branch: PublicBranch }) {
     };
   }, [publicGateway, branch.id, branch.venue.slug, branch.slug, locale]);
 
+  const panel =
+    chosen && branch.acceptsWebBookings ? (
+      <Suspense fallback={<div className="pub-sheet is-loading" aria-hidden="true" />}>
+        <BookingSheet
+          branch={branch}
+          availability={chosen}
+          slotUtc={slotUtc}
+          partySize={selection.partySize}
+          onClose={() => setChosen(null)}
+          onTableTaken={setTakenTableLabel}
+        />
+      </Suspense>
+    ) : null;
+
+  /*
+   * Three slots, in the order a phone reads them: the top (photos, name, open
+   * state), the booking column, and the rest (room, menu, address, hours).
+   * From 960px the booking column moves to the right of both and stays there
+   * as the page scrolls (public-page HANDOFF §3, the Desktop artboard).
+   */
   return (
-    <main className="pub-page">
-      <Cover branch={branch} />
+    <main className="pub-layout">
+      <div className="pub-col pub-col-top">
+        <Cover branch={branch} />
 
-      <header className="pub-head">
-        <h1 className="display">{branch.venue.name}</h1>
-        <p className="pub-branch-name">{branch.name}</p>
-        <p className="pub-muted">
-          {t(`venue.type.${branch.venue.type}`, { ns: 'diner' })}
-          {branch.venue.description ? ` · ${branch.venue.description}` : ''}
-        </p>
+        <header className="pub-head">
+          <h1 className="display">{branch.venue.name}</h1>
+          <p className="pub-branch-name">{branch.name}</p>
+          <p className="pub-muted">
+            {t(`venue.type.${branch.venue.type}`, { ns: 'diner' })}
+            {branch.venue.description ? ` · ${branch.venue.description}` : ''}
+          </p>
 
-        <BranchStatus branch={branch} locale={locale} />
-      </header>
+          <div className="pub-now">
+            <BranchStatus branch={branch} locale={locale} />
+          </div>
+          {stale}
+        </header>
+      </div>
 
-      <RoomSection
-        branch={branch}
-        selection={selection}
-        onSelectionChange={(next) => {
-          setSelection(next);
-          setChosen(null);
-        }}
-        slotUtc={slotUtc}
-        selectedTableId={chosen?.tableId ?? null}
-        onTableTap={(availability) => {
-          setTakenTableLabel(null);
-          setChosen(availability);
-        }}
-        takenTableLabel={takenTableLabel}
-      />
+      {/* A region rather than an `<aside>`: booking is the page's main task,
+          not complementary to it. */}
+      <section className="pub-aside" id="book" aria-labelledby={bookingHeadingId}>
+        <BookingCard
+          branch={branch}
+          selection={selection}
+          onSelectionChange={(next) => {
+            setSelection(next);
+            setChosen(null);
+          }}
+          slotUtc={slotUtc}
+          headingId={bookingHeadingId}
+        />
+        {panelInAside ? panel : null}
+      </section>
 
-      {chosen && branch.acceptsWebBookings ? (
-        <Suspense fallback={<div className="pub-sheet is-loading" aria-hidden="true" />}>
-          <BookingSheet
-            branch={branch}
-            availability={chosen}
-            slotUtc={slotUtc}
-            partySize={selection.partySize}
-            onClose={() => setChosen(null)}
-            onTableTaken={setTakenTableLabel}
-          />
-        </Suspense>
-      ) : null}
+      <div className="pub-col pub-col-rest">
+        <RoomSection
+          branch={branch}
+          selection={selection}
+          slotUtc={slotUtc}
+          selectedTableId={chosen?.tableId ?? null}
+          onTableTap={(availability) => {
+            setTakenTableLabel(null);
+            // Only for a panel about to open: an open one stays where it is.
+            if (!chosen) setPanelInAside(isBookingColumnSticky());
+            setChosen(availability);
+          }}
+          takenTableLabel={takenTableLabel}
+        />
+        {panelInAside ? null : panel}
 
-      <MenuSection menu={menuQuery.data} />
-      <FindUs branch={branch} />
-      <OpeningHours branch={branch} locale={locale} />
+        <MenuSection menu={menuQuery.data} />
+        <FindUs branch={branch} />
+        <OpeningHours branch={branch} locale={locale} />
+      </div>
     </main>
   );
 }
