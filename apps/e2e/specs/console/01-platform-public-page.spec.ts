@@ -111,7 +111,8 @@ test('Platform admin edits the demo branch: listing, cover, address and a table 
   const key = before!.photoY <= 0.9 ? 'Shift+ArrowDown' : 'Shift+ArrowUp';
   await tableOne.press(key);
   await page.getByRole('button', { name: 'Save rooms' }).click();
-  await expect(page.getByText('Rooms saved.')).toBeVisible();
+  // The save is said in the console's toast (venue console phase 3).
+  await expect(page.getByRole('status').getByText('Rooms saved', { exact: true })).toBeVisible();
 
   const expectedY = before!.photoY + (key === 'Shift+ArrowDown' ? 0.05 : -0.05);
   await expect
