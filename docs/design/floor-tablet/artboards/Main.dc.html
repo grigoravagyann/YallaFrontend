@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Սրահ — Yalla պլանշետ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.y{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--line-2:#F1E9DF;--hover:#FBF6EF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--grey:#57534E;--grey-bg:#EEE8E1;--free:#35B37E;--free-ink:#1E7350;--booked:#C98A0E;--booked-ink:#8A5E08;--held:#3B6FD4;--occ:#B93B3B;--out:#8B95A1;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:18px;line-height:1.4;color:var(--ink);background:var(--bg);width:1280px;height:800px;display:flex;flex-direction:column;overflow:hidden;user-select:none;-webkit-tap-highlight-color:transparent}
+.y *{box-sizing:border-box}
+.top{height:72px;flex:none;background:var(--bar);color:#E9D9C6;display:flex;align-items:center;gap:12px;padding:0 16px}
+.brand{font-family:'Noto Serif Armenian',Georgia,serif;font-size:22px;font-weight:700;color:#FFF3E4;padding-right:12px;border-right:1px solid rgba(255,243,228,.18);line-height:1}
+.where{display:flex;flex-direction:column;min-width:0}
+.where b{font-size:16px;font-weight:600;color:#FFF3E4;white-space:nowrap}
+.where span{font-size:13px;color:#BFA88F;white-space:nowrap}
+.views{display:flex;gap:4px;margin-left:12px;background:rgba(255,243,228,.08);padding:4px;border-radius:12px}
+.views a{height:48px;padding:0 18px;border-radius:9px;display:inline-flex;align-items:center;gap:8px;font-size:16px;font-weight:600;color:#D9C5B0;text-decoration:none;white-space:nowrap}
+.views a.on{background:#FFF3E4;color:var(--brand)}
+.views a .n{min-width:24px;height:24px;padding:0 7px;border-radius:999px;font-size:13px;font-weight:700;display:grid;place-items:center;background:var(--amber);color:#FFF3E4}
+.views a.on .n{background:var(--brand);color:#FFF3E4}
+.sp{flex:1}
+.chip{height:48px;padding:0 16px;border-radius:999px;border:1.5px solid rgba(255,243,228,.3);background:none;color:#F3E6D6;font:inherit;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer}
+.chip i{width:9px;height:9px;border-radius:50%;flex:none}
+.chip.live{border-color:#5BC78F}.chip.live i{background:#5BC78F}
+.chip.off{border-color:#E2B77A;color:#F3D9B8}.chip.off i{background:#E2B77A}
+.chip.bad{border-color:#F08A80;color:#FFD6D1}.chip.bad i{background:#F08A80}
+.who{height:48px;padding:0 6px 0 14px;border-radius:999px;border:0;background:rgba(255,243,228,.1);color:#FFF3E4;font:inherit;font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:10px;cursor:pointer}
+.who .av{width:36px;height:36px;border-radius:50%;background:#C3B59F;color:#2B1608;display:grid;place-items:center;font-size:13px;font-weight:700}
+.body{flex:1;min-height:0;display:flex}
+.floor{flex:1;min-width:0;display:flex;flex-direction:column}
+.fh{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:12px 20px;border-bottom:1px solid var(--line)}
+.rooms{display:flex;gap:6px}
+.rooms button{height:44px;padding:0 16px;border-radius:999px;border:1.5px solid #D8C8B6;background:var(--paper);font:inherit;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap}
+.rooms button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted);list-style:none;margin:0;padding:0;width:100%}
+.legend li{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:14px;height:14px;border-radius:4px;border:1.5px solid}
+.grid{flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:124px;gap:12px;align-content:start}
+.tbl{position:relative;border-radius:14px;border:2px solid;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;font:inherit;cursor:pointer;color:var(--ink);transition:transform .08s;text-decoration:none}
+.tbl:hover{color:var(--ink)}
+.tbl .txt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.tbl:active{transform:scale(.97)}
+.tbl.sel{box-shadow:0 0 0 4px #FFF3E4,0 0 0 7px var(--brand)}
+.tbl.free{background:#E6F5EC;border-color:var(--free)}
+.tbl.booked{background:#FBF0DA;border-color:var(--booked);background-image:repeating-linear-gradient(135deg,transparent 0 10px,rgba(201,138,14,.12) 10px 12px)}
+.tbl.held{background:#E6EEFA;border-color:var(--held);border-style:dashed}
+.tbl.occ{background:#F7E1E0;border-color:var(--occ)}
+.tbl.out{background:#ECEEF0;border-color:var(--out);background-image:repeating-linear-gradient(45deg,transparent 0 6px,rgba(139,149,161,.25) 6px 8px);color:var(--muted)}
+.tbl .lab{font-family:'Noto Serif Armenian',Georgia,serif;font-size:30px;font-weight:700;line-height:1}
+.tbl .seats{position:absolute;top:10px;right:12px;font-size:13px;color:var(--muted);font-weight:600}
+.tbl .st{font-size:14px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbl .sub{font-size:13px;color:var(--muted);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbl .st.g{color:var(--free-ink)}.tbl .st.b{color:var(--booked-ink)}.tbl .st.h{color:#2A54A8}.tbl .st.r{color:var(--red)}
+.tbl .over{color:var(--red);font-weight:700}
+.pend{position:absolute;bottom:10px;right:12px;font-size:12px;font-weight:700;color:var(--amber);background:var(--amber-bg);border-radius:999px;padding:1px 7px}
+.rail{width:380px;flex:none;border-left:1px solid var(--line);background:var(--paper);display:flex;flex-direction:column;min-height:0}
+.rail-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line-2)}
+.rail-h h2{margin:0;font-family:'Noto Serif Armenian',Georgia,serif;font-size:18px;font-weight:700}
+.badge{min-width:26px;height:26px;padding:0 8px;border-radius:999px;font-size:14px;font-weight:700;display:grid;place-items:center}
+.badge.a{background:var(--amber-bg);color:var(--amber)}.badge.r{background:var(--red-bg);color:var(--red)}
+.rail-b{flex:1;min-height:0;overflow-y:auto}
+.item{display:flex;flex-direction:column;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line-2)}
+.item.urgent{background:#FFF6F4}
+.it-top{display:flex;align-items:center;gap:10px}
+.it-top b{font-size:17px;font-weight:700}
+.it-top .t{margin-left:auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.it-top .t.hot{color:var(--red);font-weight:700}
+.item p{margin:0;font-size:15px;color:var(--muted)}
+.it-acts{display:flex;gap:8px}
+.btn{height:48px;padding:0 16px;border-radius:12px;border:2px solid transparent;font:inherit;font-size:16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;text-decoration:none;transition:transform .08s}
+.btn:active{transform:scale(.97)}
+.btn-pri{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}
+.btn-ok{background:var(--green);color:#fff;border-color:var(--green)}
+.btn-sm{height:48px;padding:0 12px;font-size:15px;border-radius:10px}
+.btn-full{flex:1}
+.empty{padding:24px 18px;color:var(--muted);font-size:15px}
+.rsec{border-bottom:1px solid var(--line-2)}
+.rsec summary{display:flex;align-items:center;gap:8px;padding:12px 18px;font-size:15px;font-weight:700;cursor:pointer;list-style:none}
+.rsec summary::-webkit-details-marker{display:none}
+.rsec summary .badge{margin-left:auto}
+.toast{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:12px;background:var(--ink);color:#FFF3E4;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:600;box-shadow:0 10px 30px rgba(42,26,16,.3);max-width:calc(100% - 40px)}
+.toast svg{color:#9FD9BD;width:20px;height:20px;flex:none}
+.tbtn{border:0;background:rgba(255,243,228,.12);color:#F3D9B8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;height:36px;padding:0 12px;border-radius:8px}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.top :focus-visible{outline-color:#F3D9B8}
+svg.i{width:20px;height:20px;flex:none}
+@media (prefers-reduced-motion:reduce){.y *{transition:none!important}}
+</style>
+</helmet>
+<div class="y" style="position: relative">
+<header class="top">
+<span class="brand">Yalla</span>
+<div class="where"><b>Cascade Cafe · Կասկադ</b><span>Շաբաթ, 18:42 · բաց է մինչև 00:00</span></div>
+<nav class="views" aria-label="Էկրաններ"><a href="Main.dc.html" class="on" aria-current="page">Սրահ</a><a href="Kitchen.dc.html">Խոհանոց <span class="n" aria-label="4 պատվեր պատրաստ է">4</span></a></nav>
+<span class="sp"></span>
+<button type="button" class="{{ connCls }}" onClick="{{ toggleConn }}" aria-label="{{ connAria }}"><i aria-hidden="true"></i>{{ connText }}</button>
+<a class="chip bad" href="Conflicts.dc.html" style="{{ conflictStyle }}"><i aria-hidden="true"></i>2 որոշում է պետք</a>
+<a class="who" href="Pin.dc.html" aria-label="Narek Petrosyan · սեղմեք՝ դուրս գալու և պլանշետը փոխանցելու համար"><span class="av" aria-hidden="true">NP</span>Narek<svg class="i" style="width: 18px; height: 18px; opacity: .7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg></a>
+</header>
+
+<div class="body">
+<section class="floor" aria-label="Սեղաններ">
+<div class="fh">
+<div class="rooms" role="group" aria-label="Սրահ"><sc-for list="{{ rooms }}" as="r" hint-placeholder-count="4"><button type="button" aria-pressed="{{ r.on }}" onClick="{{ r.pick }}">{{ r.label }}</button></sc-for></div>
+<ul class="legend" aria-label="Գույների նշանակությունը"><li><i style="background: #E6F5EC; border-color: #35B37E"></i>Ազատ</li><li><i style="background: #FBF0DA; border-color: #C98A0E"></i>Ամրագրված</li><li><i style="background: #E6EEFA; border-color: #3B6FD4; border-style: dashed"></i>Պահված</li><li><i style="background: #F7E1E0; border-color: #B93B3B"></i>Զբաղված</li><li><i style="background: #ECEEF0; border-color: #8B95A1"></i>Չի սպասարկվում</li></ul>
+</div>
+<div class="grid" role="list">
+<sc-for list="{{ tables }}" as="t" hint-placeholder-count="15">
+<a class="{{ t.cls }}" href="Table.dc.html" role="listitem" aria-label="{{ t.aria }}"><span class="seats" aria-hidden="true">{{ t.seats }} տեղ</span><span class="lab">{{ t.label }}</span><span class="txt"><span class="{{ t.stCls }}">{{ t.st }}</span><sc-if value="{{ t.hasSub }}" hint-placeholder-val="{{ true }}"><span class="sub">{{ t.sub }}</span></sc-if></span><sc-if value="{{ t.pending }}" hint-placeholder-val="{{ false }}"><span class="pend">չի ուղարկվել</span></sc-if></a>
+</sc-for>
+</div>
+</section>
+
+<aside class="rail" aria-label="Ուշադրություն պահանջող">
+<div class="rail-h"><h2>Հիմա</h2><span class="muted" style="font-size: 13px; color: var(--muted)">{{ nowSummary }}</span></div>
+<div class="rail-b">
+<details class="rsec" open=""><summary><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect></svg>Հաստատել ամրագրումը<span class="badge a">{{ apprCount }}</span></summary>
+<sc-for list="{{ approvals }}" as="a" hint-placeholder-count="2"><div class="{{ a.cls }}"><div class="it-top"><b>{{ a.time }}</b><span>{{ a.who }}</span><span class="{{ a.tCls }}" role="timer">{{ a.left }}</span></div><p>{{ a.meta }}</p><div class="it-acts"><button type="button" class="btn btn-sec btn-sm btn-full" onClick="{{ a.decline }}">Մերժել</button><button type="button" class="btn btn-ok btn-sm btn-full" onClick="{{ a.approve }}">Հաստատել</button></div></div></sc-for>
+<sc-if value="{{ noAppr }}" hint-placeholder-val="{{ false }}"><p class="empty">Ոչ մի ամրագրում չի սպասում։</p></sc-if>
+</details>
+<details class="rsec" open=""><summary><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>Կանչում են<span class="badge r">{{ callCount }}</span></summary>
+<sc-for list="{{ calls }}" as="c" hint-placeholder-count="2"><div class="{{ c.cls }}"><div class="it-top"><b>Սեղան {{ c.table }}</b><span>{{ c.why }}</span><span class="{{ c.tCls }}">{{ c.age }}</span></div><div class="it-acts"><button type="button" class="btn btn-pri btn-sm btn-full" onClick="{{ c.ack }}">Գնում եմ</button></div></div></sc-for>
+<sc-if value="{{ noCalls }}" hint-placeholder-val="{{ false }}"><p class="empty">Ոչ ոք չի սպասում։</p></sc-if>
+</details>
+<details class="rsec" open=""><summary><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>Պատրաստ է մատուցման<span class="badge a">{{ readyCount }}</span></summary>
+<sc-for list="{{ ready }}" as="o" hint-placeholder-count="2"><div class="item"><div class="it-top"><b>Սեղան {{ o.table }}</b><span>{{ o.items }}</span><span class="t">{{ o.age }}</span></div><div class="it-acts"><button type="button" class="btn btn-sec btn-sm btn-full" onClick="{{ o.served }}">Մատուցված է</button></div></div></sc-for>
+<sc-if value="{{ noReady }}" hint-placeholder-val="{{ false }}"><p class="empty">Պատրաստ պատվեր չկա։</p></sc-if>
+</details>
+<details class="rsec"><summary><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>Պետք է լուծել<span class="badge r">1</span></summary>
+<div class="item"><div class="it-top"><b>Սեղան 9</b><span>ազատվել է ֏ 12 400 պարտքով</span></div><p>Հաշիվը դեռ բաց է։ Գումարը վերցրեք, հետո փակեք։</p><div class="it-acts"><a class="btn btn-sec btn-sm btn-full" href="Cash.dc.html">Վճարում ընդունել</a></div></div>
+</details>
+</div>
+</aside>
+</div>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div class="toast" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>{{ toast }}</span><sc-if value="{{ hasUndo }}" hint-placeholder-val="{{ false }}"><button type="button" class="tbtn" onClick="{{ undo }}">Հետարկել</button></sc-if></div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"connection":{"editor":"enum","options":["online","offline","stale"],"default":"online","section":"Վիճակ"},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      room: 'all', conn: null, toast: null, sel: null,
+      tables: [
+        { id: 1, label: '1', seats: 2, room: 'hall', s: 'free' }, { id: 2, label: '2', seats: 2, room: 'hall', s: 'occ', since: 48, bill: 18400 },
+        { id: 3, label: '3', seats: 4, room: 'hall', s: 'booked', at: '19:00', who: 'Narine T.', n: 2 }, { id: 4, label: '4', seats: 4, room: 'hall', s: 'occ', since: 134, bill: 42600, over: true },
+        { id: 5, label: '5', seats: 6, room: 'hall', s: 'held', at: '18:30', who: 'Արմեն Դ.', until: '18:45' }, { id: 6, label: '6', seats: 2, room: 'hall', s: 'free', walk: true },
+        { id: 7, label: '7', seats: 4, room: 'terrace', s: 'booked', at: '21:15', who: 'Լուսինե Գ.', n: 4 }, { id: 8, label: '8', seats: 4, room: 'terrace', s: 'occ', since: 22, bill: 6200, pending: true },
+        { id: 9, label: '9', seats: 2, room: 'terrace', s: 'free', unresolved: true }, { id: 10, label: '10', seats: 8, room: 'vip', s: 'booked', at: '19:45', who: 'Gor A.', n: 5 },
+        { id: 11, label: '11', seats: 4, room: 'terrace', s: 'out' }, { id: 12, label: '12', seats: 6, room: 'hall', s: 'booked', at: '19:30', who: 'Աննա Պ.', n: 6 },
+        { id: 13, label: '13', seats: 2, room: 'hall', s: 'free' }, { id: 14, label: '14', seats: 4, room: 'hall', s: 'occ', since: 61, bill: 23800 }, { id: 15, label: '15', seats: 2, room: 'terrace', s: 'free' }
+      ],
+      approvals: [{ id: 1, time: '19:30', who: 'Աննա Պ.', meta: '6 հոգի · սեղան 12 · մեծ խումբ', left: 14 * 60 + 5 }, { id: 2, time: '20:00', who: 'Karen M.', meta: '2 հոգի · սեղան 4 · կարճ ծանուցում', left: 48 }],
+      calls: [{ id: 1, table: '4', why: 'հաշիվ', age: 6 }, { id: 2, table: '14', why: 'ջուր', age: 1 }],
+      ready: [{ id: 1, table: '2', items: '2 ուտեստ', age: 3 }, { id: 2, table: '8', items: '1 ուտեստ', age: 9 }]
+    };
+  }
+  componentDidMount() { this._iv = setInterval(() => this.setState({ approvals: this.state.approvals.map((a) => (a.left > 0 ? Object.assign({}, a, { left: a.left - 1 }) : a)) }), 1000); }
+  componentWillUnmount() { clearInterval(this._iv); clearTimeout(this._t); }
+  say(msg, undo) { this.setState({ toast: { msg: msg, undo: undo || null } }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), undo ? 7000 : 3500); }
+  renderVals() {
+    const s = this.state;
+    const conn = s.conn || this.props.connection || 'online';
+    const mmss = (n) => Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+    const dram = (n) => '֏ ' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    const list = s.tables.filter((t) => s.room === 'all' || t.room === s.room);
+    const roomName = { hall: 'Գլխավոր սրահ', terrace: 'Տեռաս', vip: 'VIP' };
+    const stOf = (t) => {
+      if (t.s === 'free') return t.unresolved ? ['Ազատ', 'st g', '֏ 12 400 պարտք մնաց', true] : t.walk ? ['Ազատ', 'st g', 'առանց ամրագրման', true] : ['Ազատ', 'st g', '', false];
+      if (t.s === 'booked') return ['Ամրագրված ' + t.at, 'st b', t.who + ' · ' + t.n + ' հոգի', true];
+      if (t.s === 'held') return ['Պահված · ուշանում են', 'st h', t.who + ' · մինչև ' + t.until, true];
+      if (t.s === 'occ') return [(t.over ? 'Նստած ' + t.since + ' ր · երկար' : 'Նստած ' + t.since + ' ր'), t.over ? 'st r' : 'st r', dram(t.bill) + ' բաց', true];
+      return ['Չի սպասարկվում', 'st', '', false];
+    };
+    return {
+      connCls: 'chip ' + (conn === 'online' ? 'live' : conn === 'offline' ? 'off' : 'bad'),
+      connText: conn === 'online' ? 'Կապ կա · 18:42' : conn === 'offline' ? 'Օֆլայն · 3 գործողություն սպասում է' : 'Տվյալները 4 րոպե հին են',
+      connAria: conn === 'online' ? 'Կապ կա, թարմացվել է 18:42-ին' : conn === 'offline' ? 'Կապ չկա, 3 գործողություն կուղարկվի, երբ կապը վերադառնա' : 'Տվյալները 4 րոպե հին են, սեղմեք՝ թարմացնելու համար',
+      toggleConn: () => { this.setState({ conn: conn === 'online' ? 'offline' : 'online' }); this.say(conn === 'online' ? 'Կապը կորավ. գործողությունները պահվում են պլանշետում' : 'Կապը վերադարձավ · 3 գործողություն ուղարկվեց'); },
+      conflictStyle: conn === 'online' ? 'display: none' : '',
+      rooms: [['all', 'Բոլորը · ' + s.tables.length], ['hall', 'Գլխավոր սրահ'], ['terrace', 'Տեռաս'], ['vip', 'VIP']].map((r) => ({ label: r[1], on: s.room === r[0] ? 'true' : 'false', pick: () => this.setState({ room: r[0] }) })),
+      tables: list.map((t) => { const st = stOf(t); return { label: t.label, seats: t.seats, cls: 'tbl ' + t.s + (s.sel === t.id ? ' sel' : ''), st: st[0], stCls: st[1] + (t.over ? ' over' : ''), sub: st[2], hasSub: st[3], pending: !!t.pending, aria: 'Սեղան ' + t.label + ', ' + t.seats + ' տեղ, ' + st[0] + (st[2] ? ', ' + st[2] : '') + ', ' + roomName[t.room] }; }),
+      nowSummary: '9 սեղան զբաղված · 34 հոգի',
+      apprCount: s.approvals.length, noAppr: s.approvals.length === 0,
+      approvals: s.approvals.map((a) => ({ time: a.time, who: a.who, meta: a.meta, left: a.left > 0 ? 'մնաց ' + mmss(a.left) : 'ժամանակն անցավ', tCls: 't' + (a.left <= 60 ? ' hot' : ''), cls: 'item' + (a.left <= 60 ? ' urgent' : ''),
+        approve: () => { this.setState({ approvals: s.approvals.filter((x) => x.id !== a.id) }); this.say(a.who + ' · հաստատվեց, հյուրը ծանուցում կստանա'); },
+        decline: () => { this.setState({ approvals: s.approvals.filter((x) => x.id !== a.id) }); this.say(a.who + ' · մերժվեց', () => this.setState({ approvals: s.approvals })); } })),
+      callCount: s.calls.length, noCalls: s.calls.length === 0,
+      calls: s.calls.map((c) => ({ table: c.table, why: 'խնդրում է ' + c.why, age: c.age + ' ր', tCls: 't' + (c.age >= 5 ? ' hot' : ''), cls: 'item' + (c.age >= 5 ? ' urgent' : ''), ack: () => { this.setState({ calls: s.calls.filter((x) => x.id !== c.id) }); this.say('Սեղան ' + c.table + ' · հյուրը տեսավ, որ գալիս եք'); } })),
+      readyCount: s.ready.length, noReady: s.ready.length === 0,
+      ready: s.ready.map((o) => ({ table: o.table, items: o.items, age: o.age + ' ր', served: () => { this.setState({ ready: s.ready.filter((x) => x.id !== o.id) }); this.say('Սեղան ' + o.table + ' · մատուցված է'); } })),
+      hasToast: !!s.toast, toast: s.toast ? s.toast.msg : '', hasUndo: !!(s.toast && s.toast.undo),
+      undo: () => { const u = s.toast && s.toast.undo; this.setState({ toast: null }); if (u) u(); }
+    };
+  }
+}
+</script>
+</body>
+</html>
