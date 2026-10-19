@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Cascade Cafe · Կասկադ — համակարգիչ</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#F7F1E8}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+</style>
+</helmet>
+<div style="width: 100%; min-height: 100%; background: #F7F1E8">
+<dc-import name="Main" bookings="{{ bookings }}" open="{{ open }}" hint-size="100%,3820px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"bookings":{"editor":"boolean","default":true,"section":"Վայր"},"open":{"editor":"boolean","default":true,"section":"Վայր"},"$preview":{"width":1440,"height":3820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { bookings: this.props.bookings !== false, open: this.props.open !== false };
+  }
+}
+</script>
+</body>
+</html>

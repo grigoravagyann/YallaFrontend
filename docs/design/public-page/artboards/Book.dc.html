@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="hy">
+<head>
+<meta charset="utf-8">
+<title>Ամրագրում — Yalla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&amp;family=Noto+Serif+Armenian:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#3A1D0C}a:hover{color:#5A2E14}
+.b{--bg:#F7F1E8;--paper:#FFFFFF;--bar:#2B1608;--brand:#3A1D0C;--brand-ink:#FFF3E4;--ink:#2A1A10;--muted:#6B5A4F;--line:#E8DDD0;--soft:#F1E9DF;--amber:#8A4B08;--amber-bg:#FDF1DE;--red:#A8261B;--red-bg:#FCEAE7;--green:#0F6A4B;--green-bg:#E4F2EA;--blue:#2A54A8;--blue-bg:#E6EEFA;width:390px;height:844px;position:relative;overflow:hidden;font-family:'Noto Sans Armenian','Noto Sans',system-ui,sans-serif;font-size:16px;line-height:1.5;color:var(--ink);background:var(--bg)}
+.b *{box-sizing:border-box}
+.b :focus-visible{outline:3px solid #3A1D0C;outline-offset:2px;border-radius:6px}
+.b h2,.b h3{font-family:'Noto Serif Armenian',Georgia,serif;margin:0;text-wrap:balance}
+.bar{height:60px;background:var(--bar);display:flex;align-items:center;padding:0 16px;font-family:'Noto Serif Armenian',Georgia,serif;font-weight:700;font-size:22px;color:#FFF3E4}
+.bg{height:300px;overflow:hidden}
+.bg img{width:100%;height:100%;object-fit:cover;display:block}
+.dim{position:absolute;inset:0;background:rgba(20,10,4,.55)}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:700px;background:var(--bg);border-radius:24px 24px 0 0;display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.25)}
+.grab{width:40px;height:5px;border-radius:3px;background:#D8C8B6;margin:8px auto 0}
+.sh{display:flex;align-items:center;gap:10px;padding:8px 12px 10px 20px}
+.sh h2{font-size:20px;flex:1}
+.x{width:44px;height:44px;border-radius:50%;border:0;background:var(--soft);display:grid;place-items:center;cursor:pointer;color:var(--ink)}
+.x svg{width:20px;height:20px}
+.prog{display:flex;gap:6px;padding:0 20px 12px;list-style:none;margin:0}
+.prog li{flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
+.prog li i{height:4px;border-radius:2px;background:#E2D6C8}
+.prog li.done i,.prog li.cur i{background:var(--brand)}
+.prog li.cur{color:var(--ink)}
+.body{flex:1;overflow-y:auto;padding:0 20px 20px;display:flex;flex-direction:column;gap:14px}
+.sum{background:var(--paper);border:1px solid var(--line);border-radius:16px;margin:0;padding:4px 14px}
+.sum div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.sum div:last-child{border-bottom:0}
+.sum dt{color:var(--muted)}
+.sum dd{margin:0;font-weight:700;text-align:right}
+.note{border-radius:12px;padding:10px 12px;font-size:14px;display:flex;gap:8px;align-items:flex-start}
+.note svg{width:18px;height:18px;flex:none;margin-top:2px}
+.note.green{background:var(--green-bg);color:var(--green)}
+.note.amber{background:var(--amber-bg);color:var(--amber)}
+.note.red{background:var(--red-bg);color:var(--red)}
+.note.blue{background:var(--blue-bg);color:var(--blue)}
+.chk{display:flex;gap:12px;align-items:flex-start;background:var(--paper);border:1.5px solid #D8C8B6;border-radius:14px;padding:12px;cursor:pointer;font-size:15px}
+.chk input{width:24px;height:24px;margin:0;flex:none;accent-color:#3A1D0C}
+.chk.on{border-color:var(--brand)}
+.muted{color:var(--muted);font-size:14px;margin:0}
+.btn{min-height:52px;padding:0 18px;border-radius:999px;border:1.5px solid transparent;font:inherit;font-size:16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;cursor:pointer;width:100%}
+.btn svg{width:20px;height:20px;flex:none}
+.btn-pri{background:var(--brand);color:var(--brand-ink)}
+.btn-sec{background:var(--paper);color:var(--brand);border-color:#D8C8B6}
+.btn-tg{background:#2A6FB0;color:#FFFFFF}
+.btn-ghost{background:none;color:var(--brand);min-height:44px;text-decoration:underline;text-underline-offset:3px}
+.btn[aria-disabled="true"]{background:#E7DED3;border-color:#E7DED3;color:#5E4F45;cursor:not-allowed}
+.foot{padding:12px 20px 20px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld label{font-size:14px;font-weight:700}
+.ctl{height:52px;border:1.5px solid #D8C8B6;border-radius:12px;padding:0 14px;font:inherit;font-size:17px;color:var(--ink);background:var(--paper);width:100%}
+.ctl.bad{border-color:var(--red)}
+.phone{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px}
+.err{color:var(--red);font-size:14px;font-weight:600;display:flex;gap:6px;align-items:center}
+.ta{height:auto;min-height:88px;padding:12px 14px;resize:vertical;line-height:1.4}
+.otp{letter-spacing:.5em;text-align:center;font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;height:64px}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+.or::before,.or::after{content:'';flex:1;height:1px;background:var(--line)}
+.wait{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:16px 0}
+.ring{width:64px;height:64px;border-radius:50%;border:5px solid #E2D6C8;border-top-color:#2A6FB0;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ok{width:72px;height:72px;border-radius:50%;background:var(--green-bg);color:var(--green);display:grid;place-items:center;margin:4px auto 0}
+.ok svg{width:38px;height:38px}
+.ok.pend{background:var(--blue-bg);color:var(--blue)}
+.ok.no{background:var(--soft);color:var(--muted)}
+.ttl{text-align:center;font-size:24px}
+.code{border:2px solid var(--brand);border-radius:16px;padding:12px;text-align:center;background:var(--paper)}
+.code.pend{border-style:dashed;border-color:var(--blue)}
+.code span{display:block;font-size:13px;font-weight:700;color:var(--muted)}
+.code b{display:block;font-size:34px;letter-spacing:.12em;font-variant-numeric:tabular-nums;font-family:'Noto Serif Armenian',Georgia,serif}
+.link{display:flex;gap:8px;align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:6px 6px 6px 12px}
+.link code{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.link .btn{width:auto;min-height:44px;font-size:14px;padding:0 14px}
+.alts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.alt{width:100%;min-height:56px;border:1.5px solid var(--line);border-radius:14px;background:var(--paper);font:inherit;color:var(--ink);display:flex;align-items:center;gap:12px;padding:6px 12px;cursor:pointer;text-align:left}
+.alt .tn{width:40px;height:40px;border-radius:10px;background:var(--green-bg);color:#1E7350;display:grid;place-items:center;font-weight:700;flex:none}
+.alt b{display:block;font-size:15px}.alt span{font-size:13px;color:var(--muted)}
+.cnt{font-variant-numeric:tabular-nums;font-weight:700}
+.sw{position:absolute;top:66px;left:8px;right:8px;display:flex;flex-wrap:wrap;gap:4px;z-index:3}
+.sw button{height:30px;padding:0 8px;border-radius:8px;border:0;background:rgba(255,243,228,.92);font:inherit;font-size:12px;font-weight:600;color:var(--ink);cursor:pointer}
+.sw button[aria-pressed="true"]{background:var(--brand);color:#FFF3E4}
+@media (prefers-reduced-motion:reduce){.ring{animation:none}}
+</style>
+</helmet>
+<div class="b">
+<div class="bar" aria-hidden="true">Yalla</div>
+<div class="bg" aria-hidden="true"><img src="/_blob/1522d0c226a849d926e6f4c3f938ceb8" alt=""></div>
+<div class="dim" aria-hidden="true"></div>
+<div class="sw" aria-label="Դիզայնի վիճակ">
+<sc-for list="{{ cases }}" as="c" hint-placeholder-count="9"><button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.pick }}">{{ c.label }}</button></sc-for>
+</div>
+<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="s-h">
+<div class="grab" aria-hidden="true"></div>
+<div class="sh">
+<sc-if value="{{ canBack }}" hint-placeholder-val="{{ false }}"><button type="button" class="x" aria-label="Հետ" onClick="{{ back }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button></sc-if>
+<h2 id="s-h">{{ head }}</h2>
+<a class="x" href="Main.dc.html" aria-label="Փակել"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></a>
+</div>
+<sc-if value="{{ showProg }}" hint-placeholder-val="{{ true }}"><ol class="prog" aria-label="{{ progAria }}">
+<sc-for list="{{ prog }}" as="p" hint-placeholder-count="3"><li class="{{ p.cls }}"><i aria-hidden="true"></i>{{ p.label }}</li></sc-for>
+</ol></sc-if>
+
+<sc-if value="{{ isTable }}" hint-placeholder-val="{{ true }}">
+<div class="body">
+<dl class="sum"><div><dt>Երբ</dt><dd>Երկ, 19 հոկտ · 19:30</dd></div><div><dt>Հյուրեր</dt><dd>2</dd></div><div><dt>Սեղան</dt><dd>6 · 4 տեղ · Գլխավոր սրահ</dd></div></dl>
+<div class="note green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>Սեղանը ձեզ համար պահված է 19:30–21:00։ Հաջորդ ամրագրումը՝ 21:15։</span></div>
+<label class="{{ chkCls }}"><input type="checkbox" checked="{{ agreed }}" onChange="{{ toggleAgree }}"><span>Կազատեմ սեղանը մինչև <b>21:00</b>, որ հաջորդ հյուրերը չսպասեն։</span></label>
+<p class="muted">Անվճար չեղարկում մինչև 17:30։ Ավելի ուշ չեղարկելն էլ հնարավոր է, պարզապես վայրը կտեսնի այն։</p>
+</div>
+<div class="foot"><button type="button" class="btn btn-pri" aria-disabled="{{ contDis }}" onClick="{{ goPhone }}">Շարունակել</button><sc-if value="{{ needAgree }}" hint-placeholder-val="{{ false }}"><p class="muted" style="text-align: center">Նշեք վերևի համաձայնությունը՝ շարունակելու համար</p></sc-if></div>
+</sc-if>
+
+<sc-if value="{{ isTaken }}" hint-placeholder-val="{{ false }}">
+<div class="body">
+<div class="note red" role="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg><span>Սեղան 6-ը հենց նոր ամրագրեց մեկ ուրիշը։ Ձեր օրը, ժամը և հյուրերը պահպանված են, ընտրեք մեկ այլ սեղան։</span></div>
+<h3 style="font-size: 17px">Նույն ժամին ազատ են</h3>
+<ul class="alts">
+<sc-for list="{{ alts }}" as="a" hint-placeholder-count="3"><li><button type="button" class="alt" onClick="{{ a.pick }}"><span class="tn" aria-hidden="true">{{ a.n }}</span><span><b>Սեղան {{ a.n }} · {{ a.seats }} տեղ</b><span>{{ a.room }}</span></span></button></li></sc-for>
+</ul>
+</div>
+<div class="foot"><a class="btn btn-sec" href="Main.dc.html">Տեսնել սրահը</a></div>
+</sc-if>
+
+<sc-if value="{{ isPhone }}" hint-placeholder-val="{{ false }}">
+<div class="body">
+<p style="margin: 0">Համարը պետք է միայն սեղանը պահելու համար, որ վայրը կարողանա կապվել ձեզ հետ։ Այն չի հրապարակվում։</p>
+<div class="fld"><label for="ph">Հեռախոսահամար</label><div class="phone"><input class="ctl" id="cc" aria-label="Երկրի կոդ" value="+374" inputmode="tel" autocomplete="tel-country-code"><input class="{{ phCls }}" id="ph" value="{{ phone }}" onChange="{{ onPhone }}" inputmode="tel" autocomplete="tel-national" placeholder="77 123456" aria-invalid="{{ phoneInvalid }}" aria-describedby="ph-e"></div></div>
+<sc-if value="{{ phoneBad }}" hint-placeholder-val="{{ false }}"><p class="err" id="ph-e" role="alert">Գրեք համարն ամբողջությամբ, օրինակ՝ 77 123456</p></sc-if>
+<div class="note blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"></path></svg><span>Ամենաարագը՝ Telegram-ով. մեկ հպում, կոդ գրելու կարիք չկա։</span></div>
+</div>
+<div class="foot">
+<button type="button" class="btn btn-tg" onClick="{{ goTg }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"></path></svg>Հաստատել Telegram-ով</button>
+<button type="button" class="btn btn-sec" onClick="{{ goCode }}">Ստանալ կոդ SMS-ով</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isTg }}" hint-placeholder-val="{{ false }}">
+<div class="body">
+<div class="wait" role="status"><div class="ring" aria-hidden="true"></div><h3 style="font-size: 19px">Սպասում ենք Telegram-ին…</h3><p class="muted">Telegram-ում սեղմեք «Start», ապա «Կիսվել համարով»։ Այս էջը ինքը կշարունակի, հենց համարը հաստատվի։</p><p class="muted">Հղումը գործում է ևս <span class="cnt">4:52</span></p></div>
+</div>
+<div class="foot">
+<a class="btn btn-tg" href="https://t.me/YallaSMSBot" target="_blank" rel="noopener">Բացել Telegram-ը կրկին ↗</a>
+<button type="button" class="btn btn-sec" onClick="{{ tgDone }}">Ստուգել հիմա</button>
+<button type="button" class="btn btn-ghost" onClick="{{ goCode }}">Փոխարենը ստանալ կոդ</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCode }}" hint-placeholder-val="{{ false }}">
+<div class="body">
+<p style="margin: 0">6-նիշ կոդն ուղարկեցինք <b>+374 77 123456</b> համարին։</p>
+<div class="fld"><label for="otp">Կոդը</label><input class="{{ otpCls }}" id="otp" value="{{ otp }}" onChange="{{ onOtp }}" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-invalid="{{ otpInvalid }}" aria-describedby="otp-e"></div>
+<sc-if value="{{ otpBad }}" hint-placeholder-val="{{ false }}"><p class="err" id="otp-e" role="alert">Կոդը սխալ է։ Մնաց 2 փորձ։</p></sc-if>
+<p class="muted">Կոդը չե՞կավ։ Կրկին ուղարկել՝ <span class="cnt">0:41</span> հետո</p>
+<button type="button" class="btn btn-ghost" style="width: auto; align-self: flex-start; padding: 0" onClick="{{ goPhoneBack }}">Օգտագործել այլ համար</button>
+</div>
+<div class="foot"><button type="button" class="btn btn-pri" aria-disabled="{{ otpDis }}" onClick="{{ checkOtp }}">Հաստատել կոդը</button></div>
+</sc-if>
+
+<sc-if value="{{ isName }}" hint-placeholder-val="{{ false }}">
+<div class="body">
+<div class="note green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg><span>+374 77 123456 համարը հաստատված է։</span></div>
+<div class="fld"><label for="nm">Ում անունով պահենք</label><input class="{{ nameCls }}" id="nm" value="{{ name }}" onChange="{{ onName }}" autocomplete="name" maxlength="200" aria-invalid="{{ nameInvalid }}" aria-describedby="nm-h"><span class="muted" id="nm-h">Այս անունը կհարցնեն մուտքի մոտ։</span></div>
+<sc-if value="{{ nameBad }}" hint-placeholder-val="{{ false }}"><p class="err" role="alert">Գրեք անունը</p></sc-if>
+<div class="fld"><label for="nt">Նշում վայրին <span style="font-weight: 400; color: var(--muted)">(ոչ պարտադիր)</span></label><textarea class="ctl ta" id="nt" maxlength="300" placeholder="Օրինակ՝ ծննդյան օր, մանկական աթոռ, ալերգիա" value="{{ note }}" onChange="{{ onNote }}" aria-describedby="nt-h"></textarea><span class="muted" id="nt-h">{{ noteLen }} / 300 · կտեսնի միայն վայրը</span></div>
+<dl class="sum"><div><dt>Երբ</dt><dd>Երկ, 19 հոկտ · 19:30</dd></div><div><dt>Հյուրեր</dt><dd>2</dd></div><div><dt>Սեղան</dt><dd>6 · Գլխավոր սրահ</dd></div><div><dt>Ազատել մինչև</dt><dd>21:00</dd></div></dl>
+</div>
+<div class="foot"><button type="button" class="btn btn-pri" onClick="{{ confirm }}">{{ confirmText }}</button></div>
+</sc-if>
+
+<sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+<div class="body" role="status">
+<div class="{{ okCls }}" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="{{ okPath }}"></path></svg></div>
+<h3 class="ttl">{{ doneTitle }}</h3>
+<p class="muted" style="text-align: center">{{ doneBody }}</p>
+<sc-if value="{{ hasCode }}" hint-placeholder-val="{{ true }}"><div class="{{ codeCls }}"><span>Ձեր կոդը</span><b>YL-4827</b><span>Ցույց տվեք մուտքի մոտ</span></div></sc-if>
+<dl class="sum"><div><dt>Որտեղ</dt><dd>Cascade Cafe · Կասկադ</dd></div><div><dt>Երբ</dt><dd>Երկ, 19 հոկտ · 19:30</dd></div><div><dt>Սեղան</dt><dd>6 · 2 հյուր</dd></div></dl>
+<sc-if value="{{ isOk }}" hint-placeholder-val="{{ true }}"><div class="fld"><span style="font-size: 14px; font-weight: 700">Ձեր ամրագրման հղումը</span><div class="link"><code>yalla.am/cascade/kaskad/booking/7Hq2…</code><button type="button" class="btn btn-sec" onClick="{{ copy }}">{{ copyText }}</button></div><span class="muted">Պահեք այն՝ ժամը փոխելու կամ չեղարկելու համար։ Էլ. նամակ չենք ուղարկում։</span></div></sc-if>
+</div>
+<div class="foot">
+<sc-if value="{{ isOk }}" hint-placeholder-val="{{ true }}"><button type="button" class="btn btn-pri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>Ավելացնել օրացույցում</button></sc-if>
+<sc-if value="{{ isPend }}" hint-placeholder-val="{{ false }}"><a class="btn btn-sec" href="Manage.dc.html">Բացել ամրագրման էջը</a></sc-if>
+<sc-if value="{{ isNo }}" hint-placeholder-val="{{ false }}"><a class="btn btn-pri" href="Main.dc.html">Ընտրել այլ ժամ</a></sc-if>
+<a class="btn btn-ghost" href="Main.dc.html">Վերադառնալ վայրի էջ</a>
+</div>
+</sc-if>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"step":{"editor":"enum","options":["table","taken","phone","telegram","code","name","done","pending","declined"],"default":"table","section":"Քայլ"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { st: null, phoneBad: false, note: '', agreed: false, phone: '77 123456', otp: '', otpBad: false, name: 'Անի Մարտիրոսյան', nameBad: false, copied: false, viaTg: true };
+  }
+  componentWillUnmount() { clearTimeout(this._t); }
+  renderVals() {
+    const s = this.state;
+    const st = s.st || this.props.step || 'table';
+    const go = (x, extra) => this.setState(Object.assign({ st: x }, extra || {}));
+    const order = ['table', 'phone', 'name'];
+    const stepNo = st === 'table' || st === 'taken' ? 0 : st === 'phone' || st === 'telegram' || st === 'code' ? 1 : 2;
+    const heads = { table: 'Սեղան 6', taken: 'Սեղանն այլևս ազատ չէ', phone: 'Ձեր հեռախոսը', telegram: 'Հաստատում Telegram-ով', code: 'Գրեք կոդը', name: 'Վերջին քայլ', done: 'Պատրաստ է', pending: 'Հայտն ուղարկված է', declined: 'Չստացվեց' };
+    const isDoneLike = st === 'done' || st === 'pending' || st === 'declined';
+    const digits = s.phone.replace(/\D/g, '');
+    const otpDigits = s.otp.replace(/\D/g, '');
+    const kind = st === 'pending' ? 'pend' : st === 'declined' ? 'no' : 'ok';
+    return {
+      cases: [['table', 'Սեղան'], ['taken', 'Զբաղվեց'], ['phone', 'Հեռախոս'], ['telegram', 'Telegram'], ['code', 'Կոդ'], ['name', 'Անուն'], ['done', 'Պատրաստ'], ['pending', 'Հայտ'], ['declined', 'Մերժված']].map((c) => ({ label: c[1], on: st === c[0] ? 'true' : 'false', pick: () => go(c[0], { otpBad: false, nameBad: false }) })),
+      head: heads[st],
+      canBack: st === 'phone' || st === 'code' || st === 'telegram' || st === 'name',
+      back: () => go(st === 'phone' ? 'table' : st === 'name' ? 'phone' : 'phone'),
+      showProg: !isDoneLike && st !== 'taken', progAria: 'Քայլ ' + (stepNo + 1) + '՝ 3-ից',
+      prog: [['Սեղան'], ['Հեռախոս'], ['Անուն']].map((p, i) => ({ label: p[0], cls: i < stepNo ? 'done' : i === stepNo ? 'cur' : '' })),
+      isTable: st === 'table', isTaken: st === 'taken', isPhone: st === 'phone', isTg: st === 'telegram', isCode: st === 'code', isName: st === 'name', isDone: isDoneLike,
+      agreed: s.agreed, chkCls: 'chk' + (s.agreed ? ' on' : ''), toggleAgree: () => this.setState({ agreed: !s.agreed }),
+      contDis: s.agreed ? 'false' : 'true', needAgree: !s.agreed,
+      goPhone: () => { if (s.agreed) go('phone'); },
+      alts: [[3, 4, 'Գլխավոր սրահ'], [13, 4, 'Տեռաս'], [2, 2, 'Գլխավոր սրահ · պատուհանի մոտ']].map((a) => ({ n: a[0], seats: a[1], room: a[2], pick: () => go('table', { agreed: false }) })),
+      phone: s.phone, onPhone: (e) => this.setState({ phone: e.target.value, phoneBad: false }), phoneBad: s.phoneBad, phoneInvalid: s.phoneBad ? 'true' : 'false', phCls: 'ctl' + (s.phoneBad ? ' bad' : ''),
+      goTg: () => { if (digits.length >= 6) go('telegram'); else this.setState({ phoneBad: true }); }, goCode: () => { if (digits.length >= 6) go('code', { otp: '', otpBad: false }); else this.setState({ st: 'phone', phoneBad: true }); },
+      tgDone: () => go('name'), goPhoneBack: () => go('phone'),
+      otp: s.otp, onOtp: (e) => this.setState({ otp: e.target.value, otpBad: false }), otpBad: s.otpBad, otpInvalid: s.otpBad ? 'true' : 'false',
+      otpCls: 'ctl otp' + (s.otpBad ? ' bad' : ''), otpDis: otpDigits.length === 6 ? 'false' : 'true',
+      checkOtp: () => { if (otpDigits.length !== 6) return; if (otpDigits.charAt(0) !== '0') go('name'); else this.setState({ otpBad: true }); },
+      name: s.name, onName: (e) => this.setState({ name: e.target.value, nameBad: false }), nameBad: s.nameBad, nameInvalid: s.nameBad ? 'true' : 'false', nameCls: 'ctl' + (s.nameBad ? ' bad' : ''),
+      confirmText: 'Հաստատել ամրագրումը', note: s.note, onNote: (e) => this.setState({ note: e.target.value }), noteLen: String(s.note.length),
+      confirm: () => { if (!s.name.trim()) { this.setState({ nameBad: true }); return; } go('done'); },
+      okCls: 'ok' + (kind === 'pend' ? ' pend' : kind === 'no' ? ' no' : ''),
+      okPath: kind === 'ok' ? 'M20 6 9 17l-5-5' : kind === 'pend' ? 'M12 6v6l4 2M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z' : 'M18 6 6 18M6 6l12 12',
+      doneTitle: kind === 'ok' ? 'Սեղանն ամրագրված է' : kind === 'pend' ? 'Հայտն ուղարկված է' : 'Վայրը չկարողացավ ընդունել',
+      doneBody: kind === 'ok' ? 'Սպասում ենք ձեզ երկուշաբթի՝ 19:30-ին։ Անվճար չեղարկում՝ մինչև 17:30։' : kind === 'pend' ? 'Ժամը մոտ է, ուստի վայրը նախ ստուգում է սեղանը։ Պատասխանը՝ մնացել է 14:32։ Այս էջը կթարմանա ինքնաբերաբար։' : 'Այդ ժամին սեղանը պատրաստ չէ։ Ոչինչ չի գանձվել, ընտրեք մեկ այլ ժամ։',
+      hasCode: kind !== 'no', codeCls: 'code' + (kind === 'pend' ? ' pend' : ''),
+      isOk: kind === 'ok', isPend: kind === 'pend', isNo: kind === 'no',
+      copyText: s.copied ? 'Պատճենվեց' : 'Պատճենել',
+      copy: () => { this.setState({ copied: true }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ copied: false }), 2500); },
+    };
+  }
+}
+</script>
+</body>
+</html>
