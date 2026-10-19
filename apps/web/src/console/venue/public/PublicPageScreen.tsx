@@ -1,126 +1,189 @@
 import { ValidationError, type BranchPublicProfile, type Photo } from '@yalla/api';
-import { usePublicProfile, useSavePublicProfile } from '@yalla/api/react';
+import { usePublicProfile, useSavePublicProfile, useVenueBranchReviews } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { CheckIcon } from '../../ui/icons';
+import { PageHeader } from '../../ui/PageHeader';
+import { useToast } from '../../ui/toast';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
 import { useVenueOutlet } from '../VenueLayout';
-import { ListingSection, type ListingDraft } from './ListingSection';
+import { AppCardPreview, type ListingDraft, type PublicPageDraft } from './AppCardPreview';
+import { ListingSection } from './ListingSection';
 
-/** What the app card shows from the public-page form, as typed. */
-export interface PublicPageDraft {
-  readonly acceptsWebBookings: boolean;
-  readonly cover: Photo | null;
-}
+export type { ListingDraft, PublicPageDraft } from './AppCardPreview';
+
+/** Who is editing: the venue's own people, or the Yalla team from the platform section. */
+export type PublicPageAudience = 'venue' | 'platform';
 
 /**
- * What this branch says to strangers on the internet: the number, whether the
- * public page takes bookings, and the venue card's picture.
- *
- * None of the three could be set from the console before this screen. The
- * backend had the route, the readiness checklist counted the switch, and the
- * public page and the diner app drew the picture — but the only way to change
- * any of it was a hand call to the API. The picker is the menu editor's, so a
- * cover photo is cropped against the same 4:3 card a dish is.
- *
- * Explicit save, like the hours and the policy: three fields that are read by
- * strangers should not change one keystroke at a time.
+ * The venue console's Public page (Public artboard): what strangers see on the
+ * branch's link and what diners read in the app, as two forms saved apart,
+ * beside the app card as typed.
  */
 export function PublicPageScreen() {
   const { t } = useTranslation(['admin', 'common']);
-  const { branchId, canRelocate } = useVenueOutlet();
+  const { branchId, branchName, venueName, publicPath, canRelocate } = useVenueOutlet();
+  // The card's stars are the reviews' own average, as the app shows it.
+  const reviews = useVenueBranchReviews(branchId ?? undefined, { pageSize: 1 });
+  const link = publicPath ? `${window.location.host}${publicPath}` : null;
 
-  if (!branchId) {
-    return (
-      <section className="page">
-        <h1>{t('nav.public')}</h1>
-        <p className="muted">{t('publicPage.noBranch')}</p>
-      </section>
-    );
-  }
-  // The venue console's page: its title is the page's one h1.
-  return <PublicPageEditor branchId={branchId} canRelocate={canRelocate} titleLevel={1} />;
+  return (
+    <div className="yc-page">
+      <PageHeader
+        title={t('nav.public')}
+        sub={t('publicPage.sub', { branch: branchName ?? '' })}
+        actions={
+          link ? (
+            <a
+              className="yc-pp-link"
+              href={`${window.location.protocol}//${link}`}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {link}
+            </a>
+          ) : null
+        }
+      />
+      {branchId ? (
+        <PublicPageEditor
+          branchId={branchId}
+          canRelocate={canRelocate}
+          venueName={venueName ?? ''}
+          branchName={branchName ?? ''}
+          rating={reviews.data?.summary?.rating ?? null}
+          audience="venue"
+        />
+      ) : (
+        <p className="yc-card yc-empty-line">{t('publicPage.noBranch')}</p>
+      )}
+    </div>
+  );
 }
 
 /**
- * The screen for one explicit branch, so the platform section can render it
- * for a branch its admin holds no scope claim for — the branch id is theirs to
- * name, and the server checks it either way.
+ * The two forms and the card, for one explicit branch, so the platform section
+ * can render it for a branch its admin holds no scope claim for — the branch id
+ * is theirs to name, and the server checks it either way.
  */
 export function PublicPageEditor({
   branchId,
   canRelocate,
-  onDraft,
-  onListingDraft,
-  titleLevel = 2,
+  venueName,
+  branchName,
+  rating,
+  audience,
 }: {
   readonly branchId: string;
   /** Owner or platform admin: may move the map pin and change the address (K5). */
   readonly canRelocate: boolean;
-  /**
-   * 1 where the form is the page (the venue console); 2 under the platform's
-   * branch header, which carries the page's h1.
-   */
-  readonly titleLevel?: 1 | 2;
-  /** Told what the card would show from each form, for a live preview beside them. */
-  readonly onDraft?: ((draft: PublicPageDraft) => void) | undefined;
-  readonly onListingDraft?: ((draft: ListingDraft) => void) | undefined;
+  readonly venueName: string;
+  readonly branchName: string;
+  /** The visible reviews' average, for the card's stars; null when not known. */
+  readonly rating: number | null;
+  readonly audience: PublicPageAudience;
 }) {
-  const { t } = useTranslation(['admin', 'common']);
   const query = usePublicProfile(branchId);
+  const [page, setPage] = useState<PublicPageDraft | null>(null);
+  const [listing, setListing] = useState<ListingDraft | null>(null);
 
-  if (query.isLoading || !query.data) {
-    if (query.isError) {
-      return <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />;
-    }
-    return <p className="muted">{t('loading')}</p>;
+  let pageForm;
+  if (query.data) {
+    // The form owns its draft from the moment the profile arrives. Keyed on the
+    // branch so switching branches starts a fresh draft rather than copying the
+    // new profile into the old one from an effect.
+    pageForm = (
+      <PageForm
+        key={branchId}
+        branchId={branchId}
+        initial={query.data}
+        audience={audience}
+        onDraft={setPage}
+      />
+    );
+  } else if (query.isError) {
+    pageForm = (
+      <div className="yc-card yc-ov-pad">
+        <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
+      </div>
+    );
+  } else {
+    pageForm = <LoadingCard />;
   }
 
-  // The form owns its draft from the moment the profile arrives. Keyed on the
-  // branch so switching branches starts a fresh draft rather than copying the
-  // new profile into the old one from an effect.
   return (
-    <PublicPageForm
-      key={branchId}
-      branchId={branchId}
-      initial={query.data}
-      canRelocate={canRelocate}
-      onDraft={onDraft}
-      onListingDraft={onListingDraft}
-      titleLevel={titleLevel}
-    />
+    <div className="yc-pp-layout">
+      <div className="yc-pp-forms">
+        {pageForm}
+        <ListingSection
+          branchId={branchId}
+          canRelocate={canRelocate}
+          audience={audience}
+          onDraft={setListing}
+        />
+      </div>
+      <AppCardPreview
+        venueName={venueName}
+        branchName={branchName}
+        rating={rating}
+        page={page}
+        listing={listing}
+      />
+    </div>
   );
 }
 
-function PublicPageForm({
+export function LoadingCard() {
+  const { t } = useTranslation(['admin', 'common']);
+  return (
+    <p className="yc-card yc-empty-line" role="status">
+      {t('loading')}
+    </p>
+  );
+}
+
+/** International format: a plus and eight to fifteen digits, spaces allowed between them. */
+const PHONE = /^\+\d{8,15}$/u;
+
+function phoneProblem(phone: string): boolean {
+  const typed = phone.trim();
+  return typed !== '' && !PHONE.test(typed.replace(/\s+/gu, ''));
+}
+
+/**
+ * Page and booking: the cover, the number, and whether the public page takes
+ * bookings. Explicit save, like the listing beside it: three things strangers
+ * read should not change one keystroke at a time.
+ */
+function PageForm({
   branchId,
   initial,
-  canRelocate,
+  audience,
   onDraft,
-  onListingDraft,
-  titleLevel,
 }: {
-  readonly titleLevel: 1 | 2;
   readonly branchId: string;
   readonly initial: BranchPublicProfile;
-  readonly canRelocate: boolean;
-  readonly onDraft?: ((draft: PublicPageDraft) => void) | undefined;
-  readonly onListingDraft?: ((draft: ListingDraft) => void) | undefined;
+  readonly audience: PublicPageAudience;
+  readonly onDraft: (draft: PublicPageDraft) => void;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  const toast = useToast();
   const save = useSavePublicProfile(branchId);
+  const titleId = useId();
 
   const [saved, setSaved] = useState<BranchPublicProfile>(initial);
   const [phone, setPhone] = useState(initial.phoneE164 ?? '');
   const [acceptsWebBookings, setAcceptsWebBookings] = useState(initial.acceptsWebBookings);
   const [cover, setCover] = useState<Photo | null>(initial.coverPhoto);
-  const [phoneRefusal, setPhoneRefusal] = useState<string | null>(null);
+  const [tried, setTried] = useState(false);
+  const [refused, setRefused] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   useEffect(() => {
-    onDraft?.({ acceptsWebBookings, cover });
+    onDraft({ acceptsWebBookings, cover });
   }, [onDraft, acceptsWebBookings, cover]);
-  const [outcome, setOutcome] = useState<'saved' | 'failed' | null>(null);
 
   const dirty =
     phone !== (saved.phoneE164 ?? '') ||
@@ -128,98 +191,131 @@ function PublicPageForm({
     (cover?.photoId ?? null) !== (saved.coverPhoto?.photoId ?? null);
   useUnsavedChangesGuard(dirty);
 
-  async function submit() {
-    setPhoneRefusal(null);
-    setOutcome(null);
+  const phoneBad = (tried && phoneProblem(phone)) || refused;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (save.isPending) return;
+    if (phoneProblem(phone)) {
+      setTried(true);
+      document.getElementById('pp-phone')?.focus();
+      return;
+    }
+    setTried(false);
+    setRefused(false);
     try {
       const result = await save.mutateAsync({
-        phoneE164: phone.trim() === '' ? null : phone,
+        phoneE164: phone.trim() === '' ? null : phone.trim(),
         acceptsWebBookings,
         coverPhotoId: cover?.photoId ?? null,
       });
       setSaved(result);
       setPhone(result.phoneE164 ?? '');
       setCover(result.coverPhoto);
-      setOutcome('saved');
+      setAcceptsWebBookings(result.acceptsWebBookings);
+      setJustSaved(true);
+      toast.say(t('publicPage.page.savedToast'));
     } catch (error) {
-      // The server names the field, so the refusal goes under that input
-      // rather than at the top of a form that was otherwise fine.
+      // The server names the field: the refusal goes under the number rather
+      // than at the top of a form that was otherwise fine.
       if (error instanceof ValidationError && error.problem?.context?.['field'] === 'phoneE164') {
-        setPhoneRefusal(error.message);
+        setRefused(true);
+        document.getElementById('pp-phone')?.focus();
         return;
       }
-      setOutcome('failed');
+      toast.say(t('publicPage.failed'), { tone: 'error' });
     }
   }
 
   return (
-    <section className="page">
-      <header className="page-head">
+    <form className="yc-card" aria-labelledby={titleId} noValidate onSubmit={submit}>
+      <div className="yc-card-h">
         <div>
-          {titleLevel === 1 ? <h1>{t('nav.public')}</h1> : <h2>{t('nav.public')}</h2>}
-          <p className="muted">{t('publicPage.intro')}</p>
-        </div>
-      </header>
-
-      <form
-        className="card"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <div className="field-group">
-          <h3>{t('publicPage.cover.title')}</h3>
-          <p className="muted small">{t('publicPage.cover.help')}</p>
-          <PhotoPicker branchId={branchId} photo={cover} onChange={setCover} />
-        </div>
-
-        <label className="labelled">
-          <span>{t('publicPage.phone.label')}</span>
-          <input
-            className="field"
-            type="tel"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="+374 11 22 33 44"
-            autoComplete="tel"
-            aria-invalid={phoneRefusal ? true : undefined}
-            aria-describedby={phoneRefusal ? 'public-phone-refusal' : undefined}
-          />
-          <span className="muted small">{t('publicPage.phone.help')}</span>
-        </label>
-        {phoneRefusal ? (
-          <p id="public-phone-refusal" className="error small" role="alert">
-            {phoneRefusal}
+          <h2 className="yc-h2" id={titleId}>
+            {t('publicPage.page.title')}
+          </h2>
+          <p className="yc-cap">
+            {audience === 'venue' ? t('publicPage.page.cap') : t('publicPage.page.capPlatform')}
           </p>
-        ) : null}
-
-        <label className="labelled inline">
-          <input
-            type="checkbox"
-            checked={acceptsWebBookings}
-            onChange={(event) => setAcceptsWebBookings(event.target.checked)}
+        </div>
+      </div>
+      <div className="yc-pp-b">
+        <div className="yc-fld">
+          <span className="yc-lbl">{t('publicPage.cover.title')}</span>
+          <span className="yc-help">{t('publicPage.cover.help')}</span>
+          <PhotoPicker
+            branchId={branchId}
+            photo={cover}
+            onChange={(photo) => {
+              setCover(photo);
+              setJustSaved(false);
+              toast.say(t('publicPage.cover.changed'));
+            }}
           />
-          <span>{t('publicPage.bookings.label')}</span>
-        </label>
-        <p className="muted small">{t('publicPage.bookings.help')}</p>
+        </div>
 
-        <div className="actions">
-          <button type="submit" className="button button-primary" disabled={save.isPending}>
-            {save.isPending ? t('publicPage.saving') : t('publicPage.save')}
-          </button>
-          {outcome === 'saved' ? (
-            <span className="muted" role="status">
-              {t('publicPage.saved')}
+        <div className="yc-fld">
+          <label htmlFor="pp-phone">{t('publicPage.phone.label')}</label>
+          <input
+            id="pp-phone"
+            className="yc-ctl"
+            type="tel"
+            inputMode="tel"
+            autoComplete="off"
+            value={phone}
+            placeholder="+374 11 22 33 44"
+            aria-invalid={phoneBad}
+            aria-describedby={phoneBad ? 'pp-phone-help pp-phone-err' : 'pp-phone-help'}
+            onChange={(event) => {
+              setPhone(event.target.value);
+              setRefused(false);
+              setJustSaved(false);
+            }}
+          />
+          <span className="yc-help" id="pp-phone-help">
+            {t('publicPage.phone.help')}
+          </span>
+          {phoneBad ? (
+            <span className="yc-err" id="pp-phone-err">
+              {t('publicPage.phone.invalid')}
             </span>
           ) : null}
-          {outcome === 'failed' ? <span className="error">{t('publicPage.failed')}</span> : null}
         </div>
-      </form>
 
-      {/* The diner app's listing sits next to the cover it describes. Tables
-          are pinned on room photos in the rooms editor, not on the cover. */}
-      <ListingSection branchId={branchId} canRelocate={canRelocate} onDraft={onListingDraft} />
-    </section>
+        <div className="yc-pp-switch">
+          <button
+            type="button"
+            className="yc-sw"
+            role="switch"
+            aria-checked={acceptsWebBookings}
+            aria-labelledby="pp-bookings-l"
+            aria-describedby="pp-bookings-d"
+            onClick={() => {
+              setAcceptsWebBookings((on) => !on);
+              setJustSaved(false);
+            }}
+          />
+          <span className="yc-pp-sw-t">
+            <b id="pp-bookings-l">{t('publicPage.bookings.label')}</b>
+            <span className="yc-help" id="pp-bookings-d">
+              {t('publicPage.bookings.help')}
+            </span>
+          </span>
+        </div>
+      </div>
+      <div className="yc-pp-f">
+        <button type="submit" className="yc-btn yc-btn-pri" aria-busy={save.isPending}>
+          {save.isPending ? <span className="yc-spin" aria-hidden="true" /> : null}
+          {save.isPending ? t('publicPage.saving') : t('publicPage.save')}
+        </button>
+        {dirty ? <span className="yc-dirty">{t('publicPage.unsaved')}</span> : null}
+        {justSaved && !dirty ? (
+          <span className="yc-saved" role="status">
+            <CheckIcon />
+            {t('publicPage.saved')}
+          </span>
+        ) : null}
+      </div>
+    </form>
   );
 }

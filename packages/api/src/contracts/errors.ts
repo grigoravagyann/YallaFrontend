@@ -1574,6 +1574,24 @@ export class ReviewHiddenByPlatformError extends ApiError {
   }
 }
 
+/**
+ * A hidden review takes no reply — `conflicting-state`, 409 (VC4 wire §1).
+ * One the venue hid can be shown again first; one Yalla hid never can.
+ */
+export class ReviewHiddenNoReplyError extends ApiError {
+  readonly reviewId: string;
+
+  constructor(options: RefusalOptions & { reviewId: string }) {
+    super('A hidden review cannot be replied to.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ReviewHiddenNoReplyError';
+    this.reviewId = options.reviewId;
+  }
+}
+
 export function isAccountTaken(
   error: unknown,
 ): error is UsernameTakenError | EmailTakenError | PhoneInUseError {

@@ -30,34 +30,35 @@
     }
   },
   "publicPage": {
-    "intro": "What anybody with your link sees: your picture, your number, and whether they can book.",
     "noBranch": "Pick a branch to edit its public page.",
     "cover": {
       "title": "Cover photo",
-      "help": "The picture on your card in the app and at the top of your public page. Cropped to the same 4:3 frame as a dish."
+      "help": "On the card in the app and at the top of the public page. Cropped to a 4:3 frame, like a dish photo.",
+      "changed": "The new cover is cropped to 4:3 · save for guests to see it"
     },
     "phone": {
       "label": "Phone",
-      "help": "Published on the page. International format, like +374 11 22 33 44. Leave empty to publish no number."
+      "help": "Published on the page. International format: +374 11 22 33 44. Leave empty to publish no number.",
+      "invalid": "The number must start with + and have 8–15 digits"
     },
     "bookings": {
       "label": "Take bookings from the public page",
-      "help": "Off until you switch it on. While it is off the page still shows the room, the menu and the hours, and simply offers no booking."
+      "help": "While it is off, the page still shows the room, the menu and the hours, but offers no booking."
     },
     "save": "Save",
     "saving": "Saving…",
-    "saved": "Saved.",
+    "saved": "Saved",
     "failed": "That did not save. Nothing changed — try again.",
     "listing": {
       "title": "In the Yalla app",
-      "intro": "What diners read on your card and your page in the app. It has its own save button, apart from the settings above.",
+      "intro": "What guests read on your card and your page. It has its own save button.",
       "cuisine": {
         "label": "Cuisine",
-        "help": "One line, like “Armenian & Mediterranean”. Up to 120 characters."
+        "help": "One line, like “Armenian and Mediterranean”"
       },
       "about": {
         "label": "About",
-        "help": "A short paragraph about the place. Up to 2000 characters."
+        "help": "A short paragraph about the place"
       },
       "price": {
         "label": "Price level",
@@ -69,7 +70,7 @@
       },
       "website": {
         "label": "Website",
-        "help": "The full address, starting with https://. Leave empty to show none."
+        "help": "The full address, with https://. Leave empty if there is no website."
       },
       "amenities": {
         "label": "Amenities",
@@ -85,25 +86,25 @@
         "latitude": "Latitude",
         "longitude": "Longitude",
         "bothOrNeither": "Enter both latitude and longitude, or leave both empty to keep the current pin.",
-        "openMap": "Check this pin on OpenStreetMap",
+        "openMap": "Check the pin on OpenStreetMap ↗",
         "notANumber": "Enter each coordinate as a decimal number, like 40.1843.",
         "outOfRange": "Latitude must be between -90 and 90, and longitude between -180 and 180. Check they are not swapped."
       },
       "gallery": {
         "title": "Gallery",
-        "help": "Photos shown after the cover, in this order. Up to {{max}}.",
-        "summary": "{{used}} of {{max}} photos",
-        "empty": "No gallery photos yet.",
+        "help": "Shown after the cover, in this order. Use the arrows to move a photo.",
+        "summary": "{{used}} / {{max}} photos",
         "full": "The gallery is full. Remove a photo to add another.",
         "add": "Add a photo",
         "photoAlt": "Gallery photo {{position}}",
-        "moveEarlier": "Move earlier",
-        "moveLater": "Move later",
-        "remove": "Remove"
+        "moveEarlier": "Photo {{position}}: move earlier",
+        "moveLater": "Photo {{position}}: move later",
+        "remove": "Remove photo {{position}}",
+        "removed": "Photo {{position}} removed · save the listing for guests to see it"
       },
       "save": "Save listing",
       "saving": "Saving…",
-      "saved": "Listing saved.",
+      "saved": "Listing saved",
       "failed": "The listing did not save. Nothing changed — try again.",
       "photoMissing": "One of the gallery photos was not uploaded for this branch. Remove it and upload it again.",
       "address": {
@@ -113,9 +114,9 @@
       },
       "district": {
         "label": "District / neighbourhood",
-        "help": "The area diners know you by, like “Kentron”. The app shows it under your name. Up to {{max}} characters."
+        "help": "The area people know you by, like “Kentron”. Up to {{max}} characters."
       },
-      "relocateOwnerOnly": "Only an owner can move the map pin or change the address.",
+      "relocateOwnerOnly": "Only the owner can move the map pin or change the address. If the branch has moved, contact the owner.",
       "errors": {
         "priceLevel": {
           "range": "Pick a price level from {{min}} to {{max}}."
@@ -157,8 +158,19 @@
           "tooLong": "The district can be at most {{max}} characters."
         },
         "generic": "Something in the form was not accepted. Check the fields and try again."
-      }
-    }
+      },
+      "introPlatform": "What guests read on the card and the page. It has its own save button.",
+      "savedToast": "The app listing is saved",
+      "checkFields": "Check the fields marked in red"
+    },
+    "sub": "{{branch}} · What anyone with your link sees, and what guests read in the Yalla app.",
+    "page": {
+      "title": "Page and booking",
+      "cap": "Your picture, your number, and whether people can book",
+      "capPlatform": "What anyone with the link sees",
+      "savedToast": "Page settings saved"
+    },
+    "unsaved": "Unsaved changes"
   },
   "shell": {
     "devRole": "Dev only — view as",
@@ -985,12 +997,10 @@
     "on": "On",
     "off": "Off",
     "noLimit": "no limit",
-    "shipped": "Ships as {{value}}",
-    "reset": "Reset to default",
-    "outOfBounds": "Must be between {{min}} and {{max}}.",
-    "changedCount_one": "{{count}} field differs from the default.",
-    "changedCount_other": "{{count}} fields differ from the defaults.",
-    "serviceChargeNote": "The service charge appears on every diner's bill as its own line, from the first item. It is snapshotted onto a tab when the tab opens, so changing it does not affect tabs already open.",
+    "reset": "Reset",
+    "outOfBounds": "Must be between {{min}} and {{max}}",
+    "changedCount_one": "{{count}} field differs from the default",
+    "changedCount_other": "{{count}} fields differ from the defaults",
     "unit": {
       "minutes": "minutes",
       "days": "days",
@@ -1008,7 +1018,7 @@
       },
       "lateness": {
         "title": "When somebody is late",
-        "body": "Nothing is cancelled automatically. These decide when staff are prompted."
+        "body": "Nothing is cancelled automatically. These decide when staff get a prompt."
       },
       "approval": {
         "title": "What needs a person",
@@ -1016,74 +1026,121 @@
       },
       "money": {
         "title": "What goes on the bill",
-        "body": "Both of these are visible to every diner."
+        "body": "Both of these are visible to every guest."
       }
     },
     "field": {
       "turnTimeMinutes": {
         "label": "How long a table is held",
-        "why": "How long a table is kept for a booking. It is why a diner is told “available 18:00 – 19:45”."
+        "why": "How long a table is kept for one booking. It is why a guest is told “the table is yours 18:00–19:45”."
       },
       "bufferMinutes": {
-        "label": "Turnaround between bookings",
-        "why": "Extra time between two bookings for clearing the table. Not shown to the diner."
+        "label": "Break between bookings",
+        "why": "Extra time between two bookings to clear the table. Not shown to the guest."
       },
       "walkInHoldbackMinutes": {
-        "label": "Walk-in warning window",
-        "why": "How close to a booking a walk-in may still be seated before staff are warned."
+        "label": "Walk-in warning",
+        "why": "How long before a booking a walk-in guest may still be seated before staff are warned."
       },
       "maxSeatOverhang": {
         "label": "People over the seat count",
-        "why": "How many more than a table seats may be sat at it. Five at a four-top is normal."
+        "why": "How many more people than a table is set for may sit at it. Five at a table for four is normal."
       },
       "graceMinutes": {
         "label": "How long a late party keeps the table",
-        "why": "How long past the booked time the table is still theirs before it may be released."
+        "why": "How long after the booked time the table is still theirs, before it may be released."
       },
       "lateNudgeAfterMinutes": {
         "label": "When to ask if they are coming",
-        "why": "How long past the start before the diner is asked to confirm they are on their way."
+        "why": "How long after the start the guest is asked to confirm they are on their way."
       },
       "graceExtensionMinutes": {
-        "label": "What “we're on our way” buys",
-        "why": "How much longer one tap from the diner keeps the table."
+        "label": "What “on our way” buys",
+        "why": "How much longer one tap from the guest keeps the table."
       },
       "minLeadMinutes": {
         "label": "Shortest notice",
-        "why": "How close to a slot a booking may still be made. Thirty minutes means a 19:00 table cannot be booked at 18:45."
+        "why": "How close to the time a booking can still be made."
       },
       "bookingWindowDays": {
-        "label": "How far ahead the calendar goes",
-        "why": "How far into the future a diner can book."
+        "label": "How far the calendar opens",
+        "why": "How far into the future a guest can book."
       },
       "cancellationDeadlineMinutes": {
         "label": "Free cancellation deadline",
-        "why": "How long before the booking a diner may cancel without it going on their record."
+        "why": "How long before the booking a guest may cancel without it going on their record."
       },
       "autoConfirm": {
         "label": "Confirm bookings automatically",
-        "why": "Off sends every booking to you to approve."
+        "why": "When it is off, every booking comes to you for approval."
       },
       "approvalRequiredAbovePartySize": {
         "label": "Party size that needs approval",
-        "why": "Parties above this wait for you even when automatic confirmation is on."
+        "why": "Parties larger than this wait for your decision, even when automatic confirmation is on."
       },
       "serviceChargePercent": {
         "label": "Service charge",
-        "why": "Added to every bill as its own line, from the first item."
+        "why": "Added to every bill as its own line, from the first dish. Fixed onto a bill when the bill is opened."
       },
       "pricesIncludeVat": {
         "label": "Prices include VAT",
-        "why": "Affects how the bill is presented, nothing else."
+        "why": "Affects only how the bill is presented."
       }
     },
-    "affected": {
-      "label": "Existing bookings",
-      "body_one": "{{count}} existing booking no longer fits the new rules.",
-      "body_other": "{{count}} existing bookings no longer fit the new rules.",
-      "none": "No existing booking was affected.",
-      "explain": "They were not changed and not cancelled — a settings edit never rewrites a booking. The new rules apply to future bookings only."
-    }
+    "sub": "{{branch}} · How bookings fit onto tables, and when your decision is needed. Changes apply to future bookings only.",
+    "allDefault": "All at the defaults",
+    "tocLabel": "Policy groups",
+    "tocChanged_one": "{{count}} changed field",
+    "tocChanged_other": "{{count}} changed fields",
+    "changed": "Changed",
+    "default": "Default: {{value}}",
+    "defaultOn": "on",
+    "defaultOff": "off",
+    "decrease": "Decrease: {{field}}",
+    "increase": "Increase: {{field}}",
+    "atLeast": "Must be at least {{min}}",
+    "refused": "The server did not accept this value. Check it and save again.",
+    "guestSees": "The guest will see:",
+    "lead": {
+      "zero": "Zero means a table can be booked right up to its time.",
+      "until": "{{minutes}} minutes means a 19:00 table cannot be booked after {{time}}.",
+      "sameDay": "{{minutes}} minutes means a 19:00 table cannot be booked on the same day."
+    },
+    "example": {
+      "quote": "“{{text}}”",
+      "window_one": "You can book up to {{count}} day ahead.",
+      "window_other": "You can book up to {{count}} days ahead.",
+      "cancel_one": "Free cancellation up to {{hours}} hour before",
+      "cancel_other": "Free cancellation up to {{hours}} hours before",
+      "holding": "The table is yours {{start}}–{{end}}",
+      "lateness_one": "At {{nudgeAt}}: “On your way? The table is held until {{heldUntil}}” · the “On our way” button adds {{count}} more minute",
+      "lateness_other": "At {{nudgeAt}}: “On your way? The table is held until {{heldUntil}}” · the “On our way” button adds {{count}} more minutes",
+      "approvalAbove_one": "Bookings of up to {{count}} person are confirmed at once; larger ones wait for you",
+      "approvalAbove_other": "Bookings of up to {{count}} people are confirmed at once; larger ones wait for you",
+      "approvalAll": "Every booking is confirmed at once",
+      "approvalManual": "Every booking waits for your decision",
+      "serviceCharge": "A separate line on the bill: “Service {{percent}} %”",
+      "noServiceCharge": "No service charge is added"
+    },
+    "result": {
+      "affectedTitle_one": "{{count}} existing booking no longer fits the new rules.",
+      "affectedTitle_other": "{{count}} existing bookings no longer fit the new rules.",
+      "affectedBody": "They were not changed and not cancelled: a settings change never rewrites a booking. The new rules apply to future bookings only. The details are on the floor screen.",
+      "noneTitle": "The policy is saved. No existing booking was affected.",
+      "noneBody": "The new rules apply to future bookings."
+    },
+    "saveBar": "Saving",
+    "bar": {
+      "outOfBounds": "The fields marked in red are out of bounds",
+      "unsaved_one": "{{count}} unsaved change",
+      "unsaved_other": "{{count}} unsaved changes",
+      "saved": "Saved",
+      "unreviewed": "Not confirmed yet: save to confirm these rules"
+    },
+    "discard": "Discard changes",
+    "discarded": "Changes discarded",
+    "fixFirst": "First fix the fields that are out of bounds",
+    "noChanges": "No changes"
   },
   "checklist": {
     "title": "What is still needed before guests can come",
@@ -1483,22 +1540,37 @@
   },
   "reviews": {
     "title": "Reviews",
-    "filter": {
-      "all": "All",
-      "reported": "Reported",
-      "hidden": "Hidden"
-    },
-    "hiddenBadge": "Hidden",
-    "hide": "Hide",
-    "unhide": "Show again",
     "reason": "Reason",
-    "hiddenReasonLine": "Reason: {{reason}}",
-    "reasonRequired": "Give a reason for hiding this review.",
-    "reports_one": "{{count}} report",
-    "reports_other": "{{count}} reports",
-    "platformHidden": "Hidden by the Yalla team. Only they can show it again.",
-    "empty": "No reviews match this filter.",
-    "failed": "That did not go through. Nothing changed — try again."
+    "platformHidden": "Hidden by the Yalla team. Only they can bring it back.",
+    "empty": "No review matches the filter.",
+    "failed": "That did not go through. Nothing changed — try again.",
+    "sub": "{{branch}} · What guests write. Hide only what breaks the rules, never just a bad rating.",
+    "reasonHelp": "The guest will not see the reason. The Yalla team sees every hidden review.",
+    "hiddenByYalla": "Yalla team, {{date}}",
+    "hiddenByName": "Hidden by {{name}}, {{date}}",
+    "hiddenByVenue": "Hidden by the venue, {{date}}",
+    "reply": {
+      "signature": "{{name}}, {{role}}",
+      "by": "Reply from {{by}}",
+      "edited": "edited",
+      "form": "Reply to the review",
+      "field": "Reply to the guest",
+      "help": "Public: everyone sees it under the review, signed “{{signature}}”.",
+      "required": "Write the reply",
+      "publish": "Publish the reply",
+      "start": "Reply",
+      "edit": "Change the reply",
+      "published": "The reply is published · the guest will get a notification",
+      "updated": "The reply is changed",
+      "hidden": "A hidden review cannot be replied to. Show it again first."
+    },
+    "summary": {
+      "up": "↑ {{change}} in the last 30 days",
+      "down": "↓ {{change}} in the last 30 days"
+    },
+    "rules": {
+      "lowRating": "A bad rating alone is not a reason. The Yalla team can bring back hides that have none."
+    }
   },
   "unsavedChanges": {
     "leave": "You have unsaved changes. Leave without saving them?",

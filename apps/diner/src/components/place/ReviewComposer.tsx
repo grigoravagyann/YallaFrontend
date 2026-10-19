@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'rea
 import { useDinerProfile } from '../../data/accountQueries';
 import { myReviewKey } from '../../data/dinerScope';
 import { placeKeys } from '../../places/hooks';
+import { ReplyView } from '../../places/ReviewList';
 import { useSession } from '../../stores/session';
 import { colors, fontWeight, iconSize, layout, radius, space, typography } from '../../theme';
 import { Button } from '../Button';
@@ -157,6 +158,18 @@ function VerifiedComposer({ placeId, initialRating, style }: ReviewComposerProps
         <Text style={styles.hidden} accessibilityRole="alert">
           {t('place.review.hidden')}
         </Text>
+      ) : null}
+      {/* The venue's answer: its author reads it here even while the review is hidden. */}
+      {mine.data?.reply ? (
+        <ReplyView
+          reply={{
+            text: mine.data.reply.text,
+            authorName: mine.data.reply.authorName,
+            authorRole: mine.data.reply.authorRole,
+            date: mine.data.reply.updatedAtUtc.slice(0, 10),
+            edited: mine.data.reply.edited,
+          }}
+        />
       ) : null}
       {/* Five buttons, each a full touch target and each saying what it sets. */}
       <View style={styles.stars}>

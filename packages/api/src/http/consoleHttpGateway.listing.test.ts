@@ -469,6 +469,9 @@ describe('review moderation over HTTP', () => {
           hiddenReason: null,
           hiddenAtUtc: null,
           hiddenByPlatform: false,
+          // No reply and nobody's hide: the API leaves null properties out.
+          hiddenByName: null,
+          reply: null,
           // How often diners reported it: the platform list says so too.
           reportCount: 0,
           lastReportedAtUtc: null,
@@ -477,6 +480,8 @@ describe('review moderation over HTTP', () => {
       page: 2,
       pageSize: 20,
       total: 21,
+      // A server that sends no summary (VC4 wire §1 adds it).
+      summary: null,
     });
   });
 

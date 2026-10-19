@@ -247,6 +247,7 @@ describe('createHttpPlaceRepository', () => {
           createdAtUtc: '2026-09-01T10:00:00Z',
           updatedAtUtc: '2026-09-01T10:00:00Z',
           edited: false,
+          reply: null,
         },
       ],
     };

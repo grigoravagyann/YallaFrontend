@@ -13,16 +13,24 @@ import {
 import { useBranchListing, useSaveBranchListing } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import type { TFunction } from 'i18next';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, LockIcon, TrashIcon } from '../../ui/icons';
+import { useToast } from '../../ui/toast';
 import { PhotoPicker } from '../menu/PhotoPicker';
 import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
+import type { ListingDraft } from './AppCardPreview';
+import type { PublicPageAudience } from './PublicPageScreen';
+
+/** The longest cuisine line and description the server takes (`ListingLimits`). */
+export const MAX_CUISINE = 120;
+export const MAX_ABOUT = 2000;
 
 /**
  * What the diner app reads about a branch beyond the public page: cuisine,
  * a paragraph, the price level, the website, amenities, the map pin with its
  * street address, the district diners know the area by, and the gallery after
- * the cover.
+ * the cover ("In the Yalla app" on the Public artboard).
  *
  * Its own form with its own save, because it is its own endpoint
  * (`PUT /api/branches/{id}/listing`) and replaces every field at once. The
@@ -31,40 +39,41 @@ import { useUnsavedChangesGuard } from '../useUnsavedChangesGuard';
  *
  * **Moving the branch is an owner's.** The pin and the address together say
  * where diners are sent, so changing either is a relocation, which the server
- * allows an owner or the platform team only and audits (K5). A manager sees
- * both read-only with a line saying who can change them, rather than an editor
- * whose save would be refused. The district is not part of that: it names the
- * area for diners ("Kentron") rather than moving anyone's pin, so whoever may
- * edit the cuisine may edit it.
+ * allows an owner or the platform team only and audits (K5). Anybody else sees
+ * both read-only under a line saying who can change them, rather than an
+ * editor whose save would be refused. The district is not part of that: it
+ * names the area for diners ("Kentron") rather than moving anyone's pin, so
+ * whoever may edit the cuisine may edit it.
  */
-/** What the app card shows from this form, as typed: for a live preview beside it. */
-export interface ListingDraft {
-  readonly cuisine: string;
-  readonly about: string;
-  readonly priceLevel: number | null;
-  readonly amenities: readonly string[];
-  readonly district: string;
-}
-
 export function ListingSection({
   branchId,
   canRelocate,
+  audience,
   onDraft,
 }: {
   readonly branchId: string;
   /** Owner or platform admin. Anyone else gets the pin and the address read-only. */
   readonly canRelocate: boolean;
+  readonly audience: PublicPageAudience;
   /** Told what the card would show, on every change, before anything is saved. */
   readonly onDraft?: ((draft: ListingDraft) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
   const query = useBranchListing(branchId);
 
-  if (query.isLoading || !query.data) {
-    if (query.isError) {
-      return <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />;
-    }
-    return <p className="muted">{t('loading')}</p>;
+  if (query.isError && !query.data) {
+    return (
+      <div className="yc-card yc-ov-pad">
+        <QueryFailureNotice error={query.error} onRetry={() => void query.refetch()} />
+      </div>
+    );
+  }
+  if (!query.data) {
+    return (
+      <p className="yc-card yc-empty-line" role="status">
+        {t('loading')}
+      </p>
+    );
   }
   return (
     <ListingForm
@@ -72,14 +81,15 @@ export function ListingSection({
       branchId={branchId}
       initial={query.data}
       canRelocate={canRelocate}
+      audience={audience}
       onDraft={onDraft}
     />
   );
 }
 
-const PRICE_LEVELS = [1, 2, 3, 4] as const;
+const PRICE_LEVELS = [null, 1, 2, 3, 4] as const;
 
-/** The fields this form draws an error under; anything else the server names gets the outcome line. */
+/** The fields this form draws an error under; anything else the server names gets the footer line. */
 const RENDERED_FIELDS: ReadonlySet<string> = new Set([
   'cuisine',
   'about',
@@ -91,6 +101,16 @@ const RENDERED_FIELDS: ReadonlySet<string> = new Set([
   'district',
   'galleryPhotoIds',
 ]);
+
+/** The first field with an error, in the order the form reads, for the focus. */
+const FIELD_ORDER: readonly (readonly [string, string])[] = [
+  ['cuisine', 'pp-cuisine'],
+  ['about', 'pp-about'],
+  ['websiteUrl', 'pp-web'],
+  ['address', 'pp-addr'],
+  ['district', 'pp-dist'],
+  ['latitude', 'pp-lat'],
+];
 
 /** Coordinates as typed: strings, so a half-typed "40." is not rewritten under the cursor. */
 function coordinateText(value: number): string {
@@ -126,9 +146,9 @@ export function listingViolationText(violation: FieldViolation, t: TFunction): s
         ? t(key('websiteUrl.tooLong'), { max: max ?? 2048 })
         : t(key('websiteUrl.scheme'));
     case 'cuisine':
-      return t(key('cuisine.tooLong'), { max: max ?? 120 });
+      return t(key('cuisine.tooLong'), { max: max ?? MAX_CUISINE });
     case 'about':
-      return t(key('about.tooLong'), { max: max ?? 2000 });
+      return t(key('about.tooLong'), { max: max ?? MAX_ABOUT });
     case 'galleryPhotoIds':
       return bound === 'conflict'
         ? t(key('galleryPhotoIds.duplicate'))
@@ -146,7 +166,7 @@ export function listingViolationText(violation: FieldViolation, t: TFunction): s
     case 'address':
       return bound === 'required'
         ? t('publicPage.listing.address.required')
-        : t(key('address.tooLong'), { max: max ?? 500 });
+        : t(key('address.tooLong'), { max: max ?? 400 });
     case 'district':
       return t(key('district.tooLong'), { max: max ?? MAX_DISTRICT_LENGTH });
     default:
@@ -157,19 +177,25 @@ export function listingViolationText(violation: FieldViolation, t: TFunction): s
   }
 }
 
+type Outcome = 'failed' | 'photoMissing' | 'relocateOwnerOnly' | 'checkFields' | null;
+
 function ListingForm({
   branchId,
   initial,
   canRelocate,
+  audience,
   onDraft,
 }: {
   readonly branchId: string;
   readonly initial: VenueListing;
   readonly canRelocate: boolean;
+  readonly audience: PublicPageAudience;
   readonly onDraft?: ((draft: ListingDraft) => void) | undefined;
 }) {
   const { t } = useTranslation(['admin', 'common']);
+  const toast = useToast();
   const save = useSaveBranchListing(branchId);
+  const titleId = useId();
 
   const [saved, setSaved] = useState<VenueListing>(initial);
   const [cuisine, setCuisine] = useState(initial.cuisine ?? '');
@@ -183,17 +209,16 @@ function ListingForm({
   const [district, setDistrict] = useState(initial.district ?? '');
   const [gallery, setGallery] = useState<readonly Photo[]>(initial.gallery);
 
-  // The preview beside the form, when there is one, follows the typing.
+  // The preview beside the form follows the typing.
   useEffect(() => {
-    onDraft?.({ cuisine, about, priceLevel, amenities, district });
-  }, [onDraft, cuisine, about, priceLevel, amenities, district]);
+    onDraft?.({ cuisine, about, priceLevel, amenities, district, gallery });
+  }, [onDraft, cuisine, about, priceLevel, amenities, district, gallery]);
   // A fresh picker after each upload, so the drop zone is empty for the next photo.
   const [pickerKey, setPickerKey] = useState(0);
 
   const [fieldErrors, setFieldErrors] = useState<Readonly<Record<string, string>>>({});
-  const [outcome, setOutcome] = useState<
-    'saved' | 'failed' | 'photoMissing' | 'relocateOwnerOnly' | null
-  >(null);
+  const [outcome, setOutcome] = useState<Outcome>(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   const lat = parseCoordinate(latitude);
   const lng = parseCoordinate(longitude);
@@ -211,28 +236,57 @@ function ListingForm({
     gallery.map((p) => p.photoId).join() !== saved.gallery.map((p) => p.photoId).join();
   useUnsavedChangesGuard(dirty);
 
+  /** Any change: the "saved" line is about the listing as it was. */
+  function edited<T>(set: (value: T) => void): (value: T) => void {
+    return (value) => {
+      set(value);
+      setJustSaved(false);
+    };
+  }
+
   function toggleAmenity(key: string) {
+    setJustSaved(false);
     setAmenities((current) =>
       current.includes(key) ? current.filter((k) => k !== key) : [...current, key],
     );
   }
 
   function move(index: number, by: -1 | 1) {
-    setGallery((current) => {
-      const target = index + by;
-      if (target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target]!, next[index]!];
-      return next;
+    const target = index + by;
+    if (target < 0 || target >= gallery.length) return;
+    const next = [...gallery];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    setGallery(next);
+    setJustSaved(false);
+    // The photo moved; the focus goes with it, onto the same arrow.
+    requestAnimationFrame(() =>
+      document.getElementById(`pp-gal-${by < 0 ? 'earlier' : 'later'}-${target}`)?.focus(),
+    );
+  }
+
+  function remove(index: number) {
+    const before = gallery;
+    setGallery(gallery.filter((_, position) => position !== index));
+    setJustSaved(false);
+    toast.say(t('publicPage.listing.gallery.removed', { position: index + 1 }), {
+      undo: () => setGallery(before),
+      fallbackFocus: () => document.getElementById('pp-gallery-l'),
     });
   }
 
-  async function submit() {
-    setOutcome(null);
+  function checkLocally(): Record<string, string> {
     const errors: Record<string, string> = {};
     const hasPin = lat !== null && lng !== null;
     const addressText = address.trim();
-    const districtText = district.trim();
+    if (cuisine.length > MAX_CUISINE) {
+      errors['cuisine'] = t('publicPage.listing.errors.cuisine.tooLong', { max: MAX_CUISINE });
+    }
+    if (about.length > MAX_ABOUT) {
+      errors['about'] = t('publicPage.listing.errors.about.tooLong', { max: MAX_ABOUT });
+    }
+    if (website.trim() !== '' && !/^https?:\/\//iu.test(website.trim())) {
+      errors['websiteUrl'] = t('publicPage.listing.errors.websiteUrl.scheme');
+    }
     if ((lat === null) !== (lng === null)) {
       errors['latitude'] = t('publicPage.listing.location.bothOrNeither');
     } else if (Number.isNaN(lat) || Number.isNaN(lng)) {
@@ -251,22 +305,41 @@ function ListingForm({
     }
     // No `maxLength` on the input: a pasted name cut short without a word is
     // worse than being told it is too long.
-    if (districtText.length > MAX_DISTRICT_LENGTH) {
+    if (district.trim().length > MAX_DISTRICT_LENGTH) {
       errors['district'] = t('publicPage.listing.errors.district.tooLong', {
         max: MAX_DISTRICT_LENGTH,
       });
     }
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    return errors;
+  }
 
+  function focusFirst(errors: Readonly<Record<string, string>>) {
+    const first = FIELD_ORDER.find(([field]) => errors[field]);
+    if (first) document.getElementById(first[1])?.focus();
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (save.isPending) return;
+    setOutcome(null);
+    const errors = checkLocally();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setOutcome('checkFields');
+      focusFirst(errors);
+      return;
+    }
+
+    const hasPin = lat !== null && lng !== null;
+    const districtText = district.trim();
     const listing: VenueListingInput = {
       cuisine: cuisine.trim() === '' ? null : cuisine,
       about: about.trim() === '' ? null : about,
       priceLevel,
-      websiteUrl: website.trim() === '' ? null : website,
+      websiteUrl: website.trim() === '' ? null : website.trim(),
       amenities,
       galleryPhotoIds: gallery.map((p) => p.photoId),
-      address: hasPin ? addressText : null,
+      address: hasPin ? address.trim() : null,
       district: districtText === '' ? null : districtText,
       latitude: lat,
       longitude: lng,
@@ -285,7 +358,8 @@ function ListingForm({
       setAddress(result.address ?? '');
       setDistrict(result.district ?? '');
       setGallery(result.gallery);
-      setOutcome('saved');
+      setJustSaved(true);
+      toast.say(t('publicPage.listing.savedToast'));
     } catch (error) {
       if (error instanceof RelocationNotAllowedError) {
         setOutcome('relocateOwnerOnly');
@@ -314,8 +388,11 @@ function ListingForm({
         const fields = Object.keys(named);
         if (fields.some((field) => RENDERED_FIELDS.has(field))) {
           setFieldErrors(named);
+          focusFirst(named);
           // A field with no control of its own still says the save failed.
-          if (!fields.every((field) => RENDERED_FIELDS.has(field))) setOutcome('failed');
+          setOutcome(
+            fields.every((field) => RENDERED_FIELDS.has(field)) ? 'checkFields' : 'failed',
+          );
           return;
         }
       }
@@ -323,303 +400,355 @@ function ListingForm({
     }
   }
 
-  const describedBy = (field: string) =>
-    fieldErrors[field] ? `listing-${field}-error` : undefined;
   const fieldError = (field: string) =>
     fieldErrors[field] ? (
-      <span id={`listing-${field}-error`} className="field-error" role="alert">
+      <span id={`pp-${field}-err`} className="yc-err">
         {fieldErrors[field]}
       </span>
     ) : null;
+  const described = (field: string, help: string) =>
+    fieldErrors[field] ? `${help} pp-${field}-err` : help;
 
   const mapUrl =
     lat !== null && lng !== null && !Number.isNaN(lat) && !Number.isNaN(lng)
-      ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`
+      ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`
       : null;
 
+  const outcomeText =
+    outcome === 'failed'
+      ? t('publicPage.listing.failed')
+      : outcome === 'photoMissing'
+        ? t('publicPage.listing.photoMissing')
+        : outcome === 'relocateOwnerOnly'
+          ? t('publicPage.listing.relocateOwnerOnly')
+          : outcome === 'checkFields'
+            ? t('publicPage.listing.checkFields')
+            : null;
+
   return (
-    <form
-      className="card listing-form"
-      aria-labelledby="listing-title"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void submit();
-      }}
-    >
-      <div className="field-group">
-        <h3 id="listing-title">{t('publicPage.listing.title')}</h3>
-        <p className="muted small">{t('publicPage.listing.intro')}</p>
-      </div>
-
-      <label className="labelled">
-        <span>{t('publicPage.listing.cuisine.label')}</span>
-        <input
-          className="field"
-          value={cuisine}
-          maxLength={120}
-          onChange={(event) => setCuisine(event.target.value)}
-          aria-invalid={fieldErrors['cuisine'] ? true : undefined}
-          aria-describedby={describedBy('cuisine')}
-        />
-        <span className="muted small">{t('publicPage.listing.cuisine.help')}</span>
-        {fieldError('cuisine')}
-      </label>
-
-      <label className="labelled">
-        <span>{t('publicPage.listing.about.label')}</span>
-        <textarea
-          className="field"
-          rows={4}
-          value={about}
-          maxLength={2000}
-          onChange={(event) => setAbout(event.target.value)}
-          aria-invalid={fieldErrors['about'] ? true : undefined}
-          aria-describedby={describedBy('about')}
-        />
-        <span className="muted small">{t('publicPage.listing.about.help')}</span>
-        {fieldError('about')}
-      </label>
-
-      <fieldset className="field-group">
-        <legend>{t('publicPage.listing.price.label')}</legend>
-        <div className="chip-row" role="group" aria-describedby={describedBy('priceLevel')}>
-          <button
-            type="button"
-            className={`chip${priceLevel === null ? ' is-on' : ''}`}
-            aria-pressed={priceLevel === null}
-            onClick={() => setPriceLevel(null)}
-          >
-            {t('publicPage.listing.price.unset')}
-          </button>
-          {PRICE_LEVELS.map((level) => (
-            <button
-              key={level}
-              type="button"
-              className={`chip${priceLevel === level ? ' is-on' : ''}`}
-              aria-pressed={priceLevel === level}
-              onClick={() => setPriceLevel(level)}
-            >
-              {'֏'.repeat(level)} · {t(`publicPage.listing.price.level${level}`)}
-            </button>
-          ))}
-        </div>
-        {fieldError('priceLevel')}
-      </fieldset>
-
-      <label className="labelled">
-        <span>{t('publicPage.listing.website.label')}</span>
-        <input
-          className="field"
-          type="url"
-          inputMode="url"
-          value={website}
-          placeholder="https://"
-          onChange={(event) => setWebsite(event.target.value)}
-          aria-invalid={fieldErrors['websiteUrl'] ? true : undefined}
-          aria-describedby={describedBy('websiteUrl')}
-        />
-        <span className="muted small">{t('publicPage.listing.website.help')}</span>
-        {fieldError('websiteUrl')}
-      </label>
-
-      <fieldset className="field-group">
-        <legend>{t('publicPage.listing.amenities.label')}</legend>
-        <div className="chip-row">
-          {AMENITY_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={`chip${amenities.includes(key) ? ' is-on' : ''}`}
-              aria-pressed={amenities.includes(key)}
-              onClick={() => toggleAmenity(key)}
-            >
-              {t(`publicPage.listing.amenities.${key}`)}
-            </button>
-          ))}
-        </div>
-        {fieldError('amenities')}
-      </fieldset>
-
-      <fieldset className="field-group">
-        <legend>{t('publicPage.listing.location.title')}</legend>
-        <p className="muted small">{t('publicPage.listing.location.help')}</p>
-        {canRelocate ? null : (
-          <p className="muted small" data-testid="relocate-owner-only">
-            {t('publicPage.listing.relocateOwnerOnly')}
+    <form className="yc-card" aria-labelledby={titleId} noValidate onSubmit={submit}>
+      <div className="yc-card-h">
+        <div>
+          <h2 className="yc-h2" id={titleId}>
+            {t('publicPage.listing.title')}
+          </h2>
+          <p className="yc-cap">
+            {audience === 'venue'
+              ? t('publicPage.listing.intro')
+              : t('publicPage.listing.introPlatform')}
           </p>
-        )}
-        <label className="labelled">
-          <span>{t('publicPage.listing.address.label')}</span>
-          <input
-            className="field"
-            value={address}
-            maxLength={500}
-            autoComplete="street-address"
-            disabled={!canRelocate}
-            onChange={(event) => setAddress(event.target.value)}
-            aria-invalid={fieldErrors['address'] ? true : undefined}
-            aria-describedby={describedBy('address')}
-          />
-          <span className="muted small">{t('publicPage.listing.address.help')}</span>
-          {fieldError('address')}
-        </label>
-        <label className="labelled">
-          <span>{t('publicPage.listing.district.label')}</span>
-          <input
-            className="field"
-            value={district}
-            autoComplete="off"
-            onChange={(event) => setDistrict(event.target.value)}
-            aria-invalid={fieldErrors['district'] ? true : undefined}
-            aria-describedby={describedBy('district')}
-          />
-          <span className="muted small">
-            {t('publicPage.listing.district.help', { max: MAX_DISTRICT_LENGTH })}
-          </span>
-          {fieldError('district')}
-        </label>
-        <div className="listing-grid">
-          <label className="labelled">
-            <span>{t('publicPage.listing.location.latitude')}</span>
-            <input
-              className="field"
-              inputMode="decimal"
-              value={latitude}
-              disabled={!canRelocate}
-              onChange={(event) => setLatitude(event.target.value)}
-              aria-invalid={fieldErrors['latitude'] ? true : undefined}
-              aria-describedby={describedBy('latitude')}
-            />
-          </label>
-          <label className="labelled">
-            <span>{t('publicPage.listing.location.longitude')}</span>
-            <input
-              className="field"
-              inputMode="decimal"
-              value={longitude}
-              disabled={!canRelocate}
-              onChange={(event) => setLongitude(event.target.value)}
-              aria-invalid={fieldErrors['latitude'] ? true : undefined}
-              aria-describedby={describedBy('latitude')}
-            />
-          </label>
         </div>
-        {fieldError('latitude')}
-        {mapUrl ? (
-          <a
-            className="small listing-map-link"
-            href={mapUrl}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            {t('publicPage.listing.location.openMap')}
-          </a>
-        ) : null}
-      </fieldset>
-
-      <fieldset className="field-group">
-        <legend>{t('publicPage.listing.gallery.title')}</legend>
-        <p className="muted small">
-          {t('publicPage.listing.gallery.help', { max: MAX_GALLERY_PHOTOS })}{' '}
-          {t('publicPage.listing.gallery.summary', {
-            used: gallery.length,
-            max: MAX_GALLERY_PHOTOS,
-          })}
-        </p>
-        {gallery.length === 0 ? (
-          <p className="muted small">{t('publicPage.listing.gallery.empty')}</p>
-        ) : (
-          <ol className="gallery-grid">
-            {gallery.map((photo, index) => (
-              <li key={photo.photoId} className="gallery-tile">
-                <img
-                  src={photo.cardUrl}
-                  alt={t('publicPage.listing.gallery.photoAlt', { position: index + 1 })}
-                />
-                <div className="gallery-tile-actions">
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => move(index, -1)}
-                    disabled={index === 0}
-                    aria-label={`${t('publicPage.listing.gallery.moveEarlier')} (${index + 1})`}
-                  >
-                    ←
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-small"
-                    onClick={() => move(index, 1)}
-                    disabled={index === gallery.length - 1}
-                    aria-label={`${t('publicPage.listing.gallery.moveLater')} (${index + 1})`}
-                  >
-                    →
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-small button-danger"
-                    onClick={() =>
-                      setGallery((current) => current.filter((p) => p.photoId !== photo.photoId))
-                    }
-                    aria-label={`${t('publicPage.listing.gallery.remove')} (${index + 1})`}
-                  >
-                    {t('publicPage.listing.gallery.remove')}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-        {fieldError('galleryPhotoIds')}
-        {gallery.length < MAX_GALLERY_PHOTOS ? (
-          <div>
-            <p className="small">{t('publicPage.listing.gallery.add')}</p>
-            <PhotoPicker
-              key={pickerKey}
-              branchId={branchId}
-              photo={null}
-              onChange={(photo) => {
-                // The server deduplicates an identical upload into the same
-                // photo, so a second copy of one picture is not added twice.
-                setGallery((current) =>
-                  current.some((p) => p.photoId === photo.photoId)
-                    ? current
-                    : [...current, photo].slice(0, MAX_GALLERY_PHOTOS),
-                );
-                setPickerKey((key) => key + 1);
-              }}
-            />
+      </div>
+      <div className="yc-pp-b">
+        <div className="yc-fld">
+          <label htmlFor="pp-cuisine">{t('publicPage.listing.cuisine.label')}</label>
+          <input
+            id="pp-cuisine"
+            className="yc-ctl"
+            value={cuisine}
+            aria-invalid={cuisine.length > MAX_CUISINE || Boolean(fieldErrors['cuisine'])}
+            aria-describedby={described('cuisine', 'pp-cuisine-help pp-cuisine-c')}
+            onChange={(event) => edited(setCuisine)(event.target.value)}
+          />
+          <div className="yc-cnt-row">
+            <span className="yc-help" id="pp-cuisine-help">
+              {t('publicPage.listing.cuisine.help')}
+            </span>
+            <Counter id="pp-cuisine-c" used={cuisine.length} max={MAX_CUISINE} />
           </div>
-        ) : (
-          <p className="muted small">{t('publicPage.listing.gallery.full')}</p>
-        )}
-      </fieldset>
+          {fieldError('cuisine')}
+        </div>
 
-      <div className="actions">
-        <button type="submit" className="button button-primary" disabled={save.isPending}>
+        <div className="yc-fld">
+          <label htmlFor="pp-about">{t('publicPage.listing.about.label')}</label>
+          <textarea
+            id="pp-about"
+            className="yc-ctl"
+            rows={4}
+            value={about}
+            aria-invalid={about.length > MAX_ABOUT || Boolean(fieldErrors['about'])}
+            aria-describedby={described('about', 'pp-about-help pp-about-c')}
+            onChange={(event) => edited(setAbout)(event.target.value)}
+          />
+          <div className="yc-cnt-row">
+            <span className="yc-help" id="pp-about-help">
+              {t('publicPage.listing.about.help')}
+            </span>
+            <Counter id="pp-about-c" used={about.length} max={MAX_ABOUT} />
+          </div>
+          {fieldError('about')}
+        </div>
+
+        <div className="yc-fld">
+          <span className="yc-lbl" id="pp-price-l">
+            {t('publicPage.listing.price.label')}
+          </span>
+          <div className="yc-seg" role="group" aria-labelledby="pp-price-l">
+            {PRICE_LEVELS.map((level) => (
+              <button
+                key={level ?? 'unset'}
+                type="button"
+                aria-pressed={priceLevel === level}
+                onClick={() => edited(setPriceLevel)(level)}
+              >
+                {level === null
+                  ? t('publicPage.listing.price.unset')
+                  : `${'֏'.repeat(level)} ${t(`publicPage.listing.price.level${level}`)}`}
+              </button>
+            ))}
+          </div>
+          {fieldError('priceLevel')}
+        </div>
+
+        <div className="yc-fld">
+          <label htmlFor="pp-web">{t('publicPage.listing.website.label')}</label>
+          <input
+            id="pp-web"
+            className="yc-ctl"
+            type="url"
+            inputMode="url"
+            placeholder="https://"
+            value={website}
+            aria-invalid={Boolean(fieldErrors['websiteUrl'])}
+            aria-describedby={described('websiteUrl', 'pp-web-help')}
+            onChange={(event) => edited(setWebsite)(event.target.value)}
+          />
+          <span className="yc-help" id="pp-web-help">
+            {t('publicPage.listing.website.help')}
+          </span>
+          {fieldError('websiteUrl')}
+        </div>
+
+        <fieldset className="yc-amen">
+          <legend>{t('publicPage.listing.amenities.label')}</legend>
+          {AMENITY_KEYS.map((key) => {
+            const on = amenities.includes(key);
+            return (
+              <label key={key} className={on ? 'yc-ach is-on' : 'yc-ach'}>
+                <input type="checkbox" checked={on} onChange={() => toggleAmenity(key)} />
+                {t(`publicPage.listing.amenities.${key}`)}
+              </label>
+            );
+          })}
+          {fieldError('amenities')}
+        </fieldset>
+
+        {canRelocate ? null : (
+          <div className="yc-pp-lock" data-testid="relocate-owner-only">
+            <LockIcon />
+            <span>{t('publicPage.listing.relocateOwnerOnly')}</span>
+          </div>
+        )}
+
+        <div className="yc-row2">
+          <div className="yc-fld">
+            <label htmlFor="pp-addr">
+              {t('publicPage.listing.address.label')}
+              <span className="yc-req" aria-hidden="true">
+                *
+              </span>
+            </label>
+            <input
+              id="pp-addr"
+              className="yc-ctl"
+              value={address}
+              autoComplete="street-address"
+              readOnly={!canRelocate}
+              aria-invalid={Boolean(fieldErrors['address'])}
+              aria-describedby={described('address', 'pp-addr-help')}
+              onChange={(event) => edited(setAddress)(event.target.value)}
+            />
+            <span className="yc-help" id="pp-addr-help">
+              {t('publicPage.listing.address.help')}
+            </span>
+            {fieldError('address')}
+          </div>
+          <div className="yc-fld">
+            <label htmlFor="pp-dist">{t('publicPage.listing.district.label')}</label>
+            <input
+              id="pp-dist"
+              className="yc-ctl"
+              value={district}
+              autoComplete="off"
+              aria-invalid={Boolean(fieldErrors['district'])}
+              aria-describedby={described('district', 'pp-dist-help')}
+              onChange={(event) => edited(setDistrict)(event.target.value)}
+            />
+            <span className="yc-help" id="pp-dist-help">
+              {t('publicPage.listing.district.help', { max: MAX_DISTRICT_LENGTH })}
+            </span>
+            {fieldError('district')}
+          </div>
+        </div>
+
+        <div className="yc-fld">
+          <span className="yc-lbl">{t('publicPage.listing.location.title')}</span>
+          <div className="yc-row2">
+            <div className="yc-fld">
+              <label htmlFor="pp-lat" className="yc-help yc-strong">
+                {t('publicPage.listing.location.latitude')}
+              </label>
+              <input
+                id="pp-lat"
+                className="yc-ctl"
+                inputMode="decimal"
+                value={latitude}
+                readOnly={!canRelocate}
+                aria-invalid={Boolean(fieldErrors['latitude'])}
+                aria-describedby={described('latitude', 'pp-pin-help')}
+                onChange={(event) => edited(setLatitude)(event.target.value)}
+              />
+            </div>
+            <div className="yc-fld">
+              <label htmlFor="pp-lng" className="yc-help yc-strong">
+                {t('publicPage.listing.location.longitude')}
+              </label>
+              <input
+                id="pp-lng"
+                className="yc-ctl"
+                inputMode="decimal"
+                value={longitude}
+                readOnly={!canRelocate}
+                aria-invalid={Boolean(fieldErrors['latitude'])}
+                aria-describedby={described('latitude', 'pp-pin-help')}
+                onChange={(event) => edited(setLongitude)(event.target.value)}
+              />
+            </div>
+          </div>
+          <span className="yc-help" id="pp-pin-help">
+            {t('publicPage.listing.location.help')}
+          </span>
+          {fieldError('latitude')}
+          {mapUrl ? (
+            <a className="yc-pp-map" href={mapUrl} target="_blank" rel="noreferrer noopener">
+              {t('publicPage.listing.location.openMap')}
+            </a>
+          ) : null}
+        </div>
+
+        <div className="yc-fld">
+          <div className="yc-pp-gal-h">
+            <span className="yc-lbl" id="pp-gallery-l" tabIndex={-1}>
+              {t('publicPage.listing.gallery.title')}
+            </span>
+            <span className="yc-count">
+              {t('publicPage.listing.gallery.summary', {
+                used: gallery.length,
+                max: MAX_GALLERY_PHOTOS,
+              })}
+            </span>
+          </div>
+          <span className="yc-help">{t('publicPage.listing.gallery.help')}</span>
+          {gallery.length > 0 ? (
+            <ol className="yc-pp-gal" aria-labelledby="pp-gallery-l">
+              {gallery.map((photo, index) => (
+                <li key={photo.photoId} className="yc-pp-tile">
+                  <img
+                    src={photo.cardUrl}
+                    alt={t('publicPage.listing.gallery.photoAlt', { position: index + 1 })}
+                  />
+                  <span className="yc-pp-pos" aria-hidden="true">
+                    {index + 1}
+                  </span>
+                  <div className="yc-pp-tile-a">
+                    <button
+                      type="button"
+                      id={`pp-gal-earlier-${index}`}
+                      className="yc-mini"
+                      aria-label={t('publicPage.listing.gallery.moveEarlier', {
+                        position: index + 1,
+                      })}
+                      aria-disabled={index === 0}
+                      onClick={() => move(index, -1)}
+                    >
+                      <ChevronLeftIcon />
+                    </button>
+                    <button
+                      type="button"
+                      id={`pp-gal-later-${index}`}
+                      className="yc-mini"
+                      aria-label={t('publicPage.listing.gallery.moveLater', {
+                        position: index + 1,
+                      })}
+                      aria-disabled={index === gallery.length - 1}
+                      onClick={() => move(index, 1)}
+                    >
+                      <ChevronRightIcon />
+                    </button>
+                    <button
+                      type="button"
+                      className="yc-mini yc-mini-del"
+                      aria-label={t('publicPage.listing.gallery.remove', { position: index + 1 })}
+                      onClick={() => remove(index)}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+          {fieldError('galleryPhotoIds')}
+          {gallery.length < MAX_GALLERY_PHOTOS ? (
+            <div className="yc-pp-add">
+              <span className="yc-lbl">{t('publicPage.listing.gallery.add')}</span>
+              <PhotoPicker
+                key={pickerKey}
+                branchId={branchId}
+                photo={null}
+                onChange={(photo) => {
+                  // The server deduplicates an identical upload into the same
+                  // photo, so a second copy of one picture is not added twice.
+                  setGallery((current) =>
+                    current.some((p) => p.photoId === photo.photoId)
+                      ? current
+                      : [...current, photo].slice(0, MAX_GALLERY_PHOTOS),
+                  );
+                  setJustSaved(false);
+                  setPickerKey((key) => key + 1);
+                }}
+              />
+            </div>
+          ) : (
+            <p className="yc-help">{t('publicPage.listing.gallery.full')}</p>
+          )}
+        </div>
+      </div>
+      <div className="yc-pp-f">
+        <button type="submit" className="yc-btn yc-btn-pri" aria-busy={save.isPending}>
+          {save.isPending ? <span className="yc-spin" aria-hidden="true" /> : null}
           {save.isPending ? t('publicPage.listing.saving') : t('publicPage.listing.save')}
         </button>
-        {outcome === 'saved' ? (
-          <span className="muted" role="status">
+        {dirty ? <span className="yc-dirty">{t('publicPage.unsaved')}</span> : null}
+        {justSaved && !dirty ? (
+          <span className="yc-saved" role="status">
+            <CheckIcon />
             {t('publicPage.listing.saved')}
           </span>
         ) : null}
-        {outcome === 'failed' ? (
-          <span className="error" role="alert">
-            {t('publicPage.listing.failed')}
-          </span>
-        ) : null}
-        {outcome === 'photoMissing' ? (
-          <span className="error" role="alert">
-            {t('publicPage.listing.photoMissing')}
-          </span>
-        ) : null}
-        {outcome === 'relocateOwnerOnly' ? (
-          <span className="error" role="alert">
-            {t('publicPage.listing.relocateOwnerOnly')}
+        {outcomeText ? (
+          <span className="yc-err" role="alert">
+            {outcomeText}
           </span>
         ) : null}
       </div>
     </form>
+  );
+}
+
+/** "37 / 120": red once it is over. */
+function Counter({
+  id,
+  used,
+  max,
+}: {
+  readonly id: string;
+  readonly used: number;
+  readonly max: number;
+}) {
+  return (
+    <span id={id} className={used > max ? 'yc-count is-over' : 'yc-count'}>
+      {used} / {max}
+    </span>
   );
 }

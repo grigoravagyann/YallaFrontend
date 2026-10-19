@@ -121,6 +121,49 @@ describe('Report on a list of reviews', () => {
   });
 });
 
+describe("the venue's reply", () => {
+  const REPLY = {
+    text: 'Thank you, come again!',
+    authorName: 'Aram Hakobyan',
+    authorRole: 'owner' as const,
+    date: '2026-09-02',
+    edited: false,
+  };
+
+  it('is shown under the review, signed by its writer and their role', () => {
+    withClient(
+      <ReviewList placeId="b1" reviews={[{ ...review('r2', 'Tigran M.'), reply: REPLY }]} />,
+    );
+
+    // The test's `t` joins the values: the signature's own key and its parts.
+    expect(
+      screen.getByText(
+        /^place\.review\.reply\.from place\.review\.reply\.signature Aram Hakobyan place\.review\.reply\.role\.owner$/u,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Thank you, come again!')).toBeTruthy();
+  });
+
+  it("is read by the review's author on their own review, hidden or not", async () => {
+    useSession.setState({ signedIn: true, profile: PROFILE as never });
+    gateway.getMyBranchReview.mockResolvedValue(
+      mine({
+        hidden: true,
+        reply: {
+          text: 'Sorry to hear it.',
+          authorName: 'Aram Hakobyan',
+          authorRole: 'owner',
+          createdAtUtc: '2026-09-02T10:00:00Z',
+          updatedAtUtc: '2026-09-02T10:00:00Z',
+          edited: false,
+        },
+      }),
+    );
+    withClient(<ReviewComposer placeId="b1" />);
+    expect(await screen.findByText('Sorry to hear it.')).toBeTruthy();
+  });
+});
+
 describe('ReportReviewSheet', () => {
   it('sends one of the five reasons with the optional note', async () => {
     gateway.reportReview.mockResolvedValue(undefined);

@@ -274,6 +274,8 @@ export interface PublicReview {
   readonly authorName: string;
   readonly rating: number;
   readonly text?: string;
+  /** The venue's reply; the API leaves it out when there is none. */
+  readonly reply?: { readonly text: string; readonly authorName: string };
 }
 
 export async function publicBranches(api: APIRequestContext): Promise<PublicListing[]> {

@@ -91,6 +91,18 @@ export interface Review {
   readonly date: string;
   /** Revised since it was first written. Absent in the mock seeds, which are never edited. */
   readonly edited?: boolean;
+  /** The venue's public answer under it. Absent in the mock seeds, which have none. */
+  readonly reply?: ReviewReplyView | null;
+}
+
+/** The venue's reply as the place page shows it: the words, who signed them, and the day. */
+export interface ReviewReplyView {
+  readonly text: string;
+  readonly authorName: string;
+  readonly authorRole: 'owner' | 'generalManager' | 'manager';
+  /** ISO-8601 date, `YYYY-MM-DD`, of the last change, in the branch's zone. */
+  readonly date: string;
+  readonly edited: boolean;
 }
 
 /** One page of a place's reviews, newest first. */

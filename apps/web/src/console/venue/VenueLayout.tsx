@@ -1,4 +1,4 @@
-import type { ConsoleUser, ManagedBranch } from '@yalla/api';
+import type { ConsoleUser, ManagedBranch, VenueType } from '@yalla/api';
 import { useVenueProfile } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
@@ -156,6 +156,9 @@ export function VenueLayout({ user }: VenueLayoutProps) {
         {
           branchId,
           branchName: current?.name ?? null,
+          venueName: venue.data?.name ?? null,
+          venueType: venue.data?.type ?? null,
+          publicPath: venue.data && current ? `/${venue.data.slug}/${current.slug}` : null,
           timeZoneId: current?.timeZoneId ?? 'Asia/Yerevan',
           branchCount: branches.length,
           // The server allows the venue-wide report rollup to an owner, a
@@ -306,6 +309,12 @@ export interface VenueOutletContext {
   readonly branchId: string | null;
   /** The branch's name, for a screen that says which branch it is about (Overview's subtitle). */
   readonly branchName?: string | null;
+  /** The venue's name: the app card on the Public page is "venue · branch". */
+  readonly venueName?: string | null;
+  /** What the policy's defaults fall back to for a server that cannot say. */
+  readonly venueType?: VenueType | null;
+  /** The branch's public page, `/{venueSlug}/{branchSlug}`: what a stranger opens. */
+  readonly publicPath?: string | null;
   readonly timeZoneId: string;
   /**
    * How many branches this person actually covers.

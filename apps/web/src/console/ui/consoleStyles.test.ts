@@ -51,6 +51,11 @@ function redesignFiles(): string[] {
     ...inFolder(join(SRC, 'console', 'venue', 'menu')),
     ...inFolder(join(SRC, 'console', 'venue', 'rooms')),
     ...inFolder(join(SRC, 'console', 'venue', 'hours')),
+    // Policy, Public and Reviews, with the review card both consoles share (phase 4).
+    ...inFolder(join(SRC, 'console', 'venue', 'policy')),
+    ...inFolder(join(SRC, 'console', 'venue', 'public')),
+    ...inFolder(join(SRC, 'console', 'venue', 'reviews')),
+    ...inFolder(join(SRC, 'console', 'reviews')),
     join(SRC, 'auth', 'AuthLayout.tsx'),
     join(SRC, 'auth', 'SignInRoute.tsx'),
     join(SRC, 'auth', 'ResetPasswordRoute.tsx'),
@@ -77,6 +82,9 @@ describe('the console redesign', () => {
     expect(files.some((file) => file.endsWith('RoomsEditor.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('DishDrawer.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('OpeningHoursScreen.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('ReservationPolicyScreen.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('AppCardPreview.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('ReviewCard.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {

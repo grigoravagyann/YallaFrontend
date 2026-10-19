@@ -27,6 +27,7 @@ import type {
 import type {
   PolicyChangeResult,
   ReservationPolicy,
+  ReservationPolicyDefaults,
   WeeklyHours,
 } from '../contracts/branchSettings';
 import type { AdminMenuCategory, AdminMenuItem, MenuItemDeletion } from '../contracts/menuAdmin';
@@ -45,6 +46,7 @@ import {
   RelocationNotAllowedError,
   ReportRangeTooLongError,
   ReviewHiddenByPlatformError,
+  ReviewHiddenNoReplyError,
   StaffPermissionError,
   StaffPinTakenError,
   FloorPlanInvalidError,
@@ -60,6 +62,7 @@ import {
   NetworkError,
   TimeoutError,
   UnauthorizedError,
+  ValidationError,
 } from '../errors';
 import type { components } from '../generated/schema';
 import { parseProblem } from '../problem';
@@ -74,6 +77,7 @@ import {
   venuePageFromWire,
   venueReviewFromWire,
   type WireManagedVenue,
+  type WireModeratedReview,
 } from './consoleMapping';
 import { branchOverviewFromWire, type WireBranchOverview } from './branchOverviewMapping';
 import { STATUS_AFTER } from '../contracts/branchOverview';
@@ -120,6 +124,7 @@ import {
   photo,
   policyChangeResult,
   policyCommand,
+  policyDefaults,
   policyFieldFromMessage,
   reservationPolicy,
   specialDaysListFromWire,
@@ -127,6 +132,7 @@ import {
   specialDaysToWire,
   spiceCode,
   weeklyHours,
+  type WirePolicyDefaults,
 } from './venueSettingsMapping';
 import { venueTypeCode } from './venueTypeMapping';
 
@@ -1170,6 +1176,14 @@ export function createConsoleHttpGateway(
       return reservationPolicy(data);
     },
 
+    async getReservationPolicyDefaults(branchId: string): Promise<ReservationPolicyDefaults> {
+      // gateway-schema: awaiting-route — VC4 wire §2, regenerate once the backend ships it
+      const { data } = await client.get<WirePolicyDefaults>(
+        `${BRANCHES}/${branchId}/reservation-policy/defaults`,
+      );
+      return policyDefaults(data);
+    },
+
     // --- Bookings waiting for approval ------------------------------------------
 
     async listPendingReservations(branchId: string) {
@@ -1294,7 +1308,7 @@ export function createConsoleHttpGateway(
           },
         },
       );
-      return reviewPageFromWire(data, venueReviewFromWire);
+      return reviewPageFromWire(data);
     },
 
     async dismissReviewReports(reviewId) {
@@ -1330,7 +1344,35 @@ export function createConsoleHttpGateway(
           },
         },
       );
-      return reviewPageFromWire(data, venueReviewFromWire);
+      return reviewPageFromWire(data);
+    },
+
+    async replyToReview(branchId, reviewId, text) {
+      try {
+        // gateway-schema: awaiting-route — VC4 wire §1, regenerate once the backend ships it
+        const { data } = await client.put<WireModeratedReview>(
+          `${BRANCHES}/${branchId}/reviews/${reviewId}/reply`,
+          { text },
+        );
+        return venueReviewFromWire(data);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          throw new ReviewHiddenNoReplyError({
+            url: error.url,
+            requestId: error.requestId,
+            reviewId,
+          });
+        }
+        throw error;
+      }
+    },
+
+    async removeReviewReply(branchId, reviewId) {
+      // gateway-schema: awaiting-route — VC4 wire §1, regenerate once the backend ships it
+      const { data } = await client.delete<WireModeratedReview>(
+        `${BRANCHES}/${branchId}/reviews/${reviewId}/reply`,
+      );
+      return venueReviewFromWire(data);
     },
 
     async setVenueReviewVisibility(branchId, reviewId, command) {
@@ -1509,11 +1551,19 @@ export function createConsoleHttpGateway(
         );
         return policyChangeResult(data);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 400) {
+        // Today a `422 validation-failed` naming every field out of bounds
+        // (`ReservationPolicyLimits.Check`); an older server answered 400 with
+        // the field only in its prose. Either way the first field named is
+        // the one the form puts the refusal under.
+        if (error instanceof ApiError && (error.status === 400 || error.status === 422)) {
           const detail = error.problem?.detail ?? error.message;
+          const named =
+            error instanceof ValidationError
+              ? (error.violations[0]?.field ?? error.field ?? null)
+              : null;
           throw new PolicyBoundsError({
             url: error.url,
-            field: policyFieldFromMessage(detail),
+            field: named ?? policyFieldFromMessage(detail),
             detail,
             requestId: error.requestId,
           });

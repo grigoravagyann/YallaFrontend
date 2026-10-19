@@ -113,8 +113,12 @@ describe('the public page', () => {
       { timeout: 5000 },
     );
     expect(within(listing).getByRole('button', { name: 'Save listing' })).toBeTruthy();
-    const cover = screen.getByRole('heading', { name: 'Cover photo' }).closest('form')!;
+    const cover = await screen.findByRole('form', { name: 'Page and booking' });
     expect(within(cover).getByRole('button', { name: 'Save' })).toBeTruthy();
+    // The platform admin may move the branch (K5): no owner-only lock here.
+    expect((within(listing).getByLabelText(/street address/i) as HTMLInputElement).readOnly).toBe(
+      false,
+    );
 
     const preview = screen.getByRole('complementary', { name: 'Preview' });
     expect(within(preview).getByText('Cascade Cafe · Կենտրոն')).toBeTruthy();
@@ -125,7 +129,7 @@ describe('the public page', () => {
     expect(within(preview).getByText('Grill and coffee')).toBeTruthy();
 
     // The booking switch is on the other form, and the preview follows it too.
-    const bookings = within(cover).getByRole('checkbox');
+    const bookings = within(cover).getByRole('switch', { name: /take bookings/i });
     const before = within(preview).getByText(/Book a table|Booking is closed/u).textContent;
     await user.click(bookings);
     expect(within(preview).getByText(/Book a table|Booking is closed/u).textContent).not.toBe(

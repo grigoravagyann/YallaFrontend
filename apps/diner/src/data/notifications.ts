@@ -28,6 +28,7 @@ const COPY_KEY: Readonly<Record<KnownDinerNotificationKind, string>> = {
   'booking-cancelled-by-venue': 'bookingCancelledByVenue',
   'order-ready': 'orderReady',
   'review-hidden': 'reviewHidden',
+  'review-replied': 'reviewReplied',
   'table-request': 'tableRequest',
   'table-request-decided': 'tableRequestAccepted',
 };
@@ -208,6 +209,7 @@ export function notificationRoute(
     case 'order-ready':
       return orderRoute(orderId) ?? tabRoute(tabId) ?? placeRoute(branchId);
     case 'review-hidden':
+    case 'review-replied':
       return placeRoute(branchId);
     default:
       return (

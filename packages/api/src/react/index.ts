@@ -299,6 +299,7 @@ export const queryKeys = {
   openingHours: (branchId: string) => ['console', 'hours', branchId] as const,
   specialDays: (branchId: string) => ['console', 'specialDays', branchId] as const,
   reservationPolicy: (branchId: string) => ['console', 'policy', branchId] as const,
+  reservationPolicyDefaults: (branchId: string) => ['console', 'policyDefaults', branchId] as const,
   publicProfile: (branchId: string) => ['console', 'publicProfile', branchId] as const,
   branchListing: (branchId: string) => ['console', 'listing', branchId] as const,
   pendingReservations: (branchId: string) => ['console', 'pendingReservations', branchId] as const,
@@ -1739,6 +1740,23 @@ export function useReservationPolicy(branchId: string | undefined) {
   });
 }
 
+/**
+ * What the branch's policy ships with, and the server's bounds: the "Default"
+ * and "Reset" beside every field. Not retried: a server that predates the
+ * route answers 404, and the screen falls back to its own copy at once.
+ */
+export function useReservationPolicyDefaults(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.reservationPolicyDefaults(branchId ?? ''),
+    queryFn: () => gateway.getReservationPolicyDefaults(branchId!),
+    enabled: Boolean(branchId),
+    staleTime: staleTime.reference,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
 // --- The public page --------------------------------------------------------------
 
 export function usePublicProfile(branchId: string | undefined) {
@@ -2177,6 +2195,28 @@ export function useSetVenueReviewVisibility(branchId: string | undefined) {
     (gateway, input: { reviewId: string; command: SetReviewVisibilityCommand }) =>
       gateway.setVenueReviewVisibility(branchId!, input.reviewId, input.command),
   );
+}
+
+/**
+ * The venue's reply under a review: written, changed or taken down. Settles
+ * once both moderation lists have refetched, as a hide does, so the row on
+ * screen already shows the reply when the focus moves back to it.
+ */
+export function useReviewReply(branchId: string | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { reviewId: string; text: string | null }) =>
+      input.text === null
+        ? gateway.removeReviewReply(branchId!, input.reviewId)
+        : gateway.replyToReview(branchId!, input.reviewId, input.text),
+    retry: false,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['console', 'venueReviews'] }),
+        queryClient.invalidateQueries({ queryKey: ['console', 'platformReviews'] }),
+      ]),
+  });
 }
 
 // --- Bookings waiting for approval ------------------------------------------

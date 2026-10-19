@@ -924,6 +924,16 @@
         "done": "Thanks. Your report was sent.",
         "own": "This is your own review, so it cannot be reported.",
         "failed": "The report did not send. Try again."
+      },
+      "reply": {
+        "from": "Reply from {{by}}",
+        "signature": "{{name}}, {{role}}",
+        "editedOn": "edited {{date}}",
+        "role": {
+          "owner": "owner",
+          "generalManager": "general manager",
+          "manager": "branch manager"
+        }
       }
     },
     "favorite": "Save to favorites",
@@ -1261,6 +1271,10 @@
       "bookingDeclinedEarlierGuestNoAnswer": {
         "title": "No answer in time",
         "body": "The guest before you at {{place}} did not answer in time. Try another time or another table."
+      },
+      "reviewReplied": {
+        "title": "The place replied to your review",
+        "body": "Read the reply on the page of {{place}}."
       }
     },
     "yesterday": "Yesterday",

@@ -88,10 +88,14 @@ describe('the platform branch routes', () => {
 
   it('give a platform admin the branch public page, with the pin editable', async () => {
     renderAt('platformAdmin', `${BASE}/public`);
-    expect(await screen.findByRole('heading', { name: /^public page$/i })).toBeTruthy();
+    // The branch header's tab names the page; the forms carry no title of
+    // their own since the venue console redesign (phase 4, BranchPublic artboard).
+    expect(
+      (await screen.findByRole('link', { name: /^public page$/i })).getAttribute('aria-current'),
+    ).toBe('page');
     const form = await screen.findByRole('form', { name: /in the yalla app/i });
     expect(
-      (form.querySelector('input[autocomplete="street-address"]') as HTMLInputElement).disabled,
+      (form.querySelector('input[autocomplete="street-address"]') as HTMLInputElement).readOnly,
     ).toBe(false);
   });
 

@@ -506,3 +506,31 @@ export function TabletIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Information, not a warning: a result that is said and kept on the page. */
+export function InfoIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4M12 8h.01" />
+    </Icon>
+  );
+}
+
+/** A guest's phone: what a diner sees (Policy's examples). */
+export function PhoneIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <rect width="14" height="20" x="5" y="2" rx="2" />
+      <path d="M12 18h.01" />
+    </Icon>
+  );
+}
+
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={2} {...props}>
+      <path d="m15 18-6-6 6-6" />
+    </Icon>
+  );
+}
