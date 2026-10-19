@@ -165,10 +165,11 @@ export interface StaffGateway {
   /**
    * Key in a spoken order.
    *
-   * `PlaceOrderRequest` carries one `onBehalfOfParticipantId` for the whole
-   * order and the draft attributes per line, so an order naming two people is
-   * sent as two requests. Each carries a `clientCommandId` derived
-   * deterministically from the caller's, so a replay is still idempotent.
+   * One draft is one order and one kitchen ticket: each line names its own
+   * guest (`OrderItemRequest.participantId`), a shared line nobody. A command
+   * an earlier build queued (no `shape`) is replayed the way that build sent
+   * it — one request per guest, under ids derived from the caller's — so a
+   * group that never landed still does.
    */
   placeOrder(command: PlaceOrderCommand): Promise<PlaceOrderResult>;
 

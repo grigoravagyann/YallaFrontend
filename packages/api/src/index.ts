@@ -719,6 +719,7 @@ export {
   EnrolmentCodeSpentError,
   LineAlreadyPaidError,
   MenuItemUnavailableError,
+  OrderGuestUnavailableError,
   PaymentExceedsRemainingError,
   PinLockedError,
   PinRejectedError,
@@ -727,6 +728,8 @@ export {
   isDeviceRevoked,
   isPaymentExceedsRemaining,
   isPinLocked,
+  type OrderGuestState,
+  type TabNotAcceptingStatus,
 } from './contracts/errors';
 
 // Shapes the shipped OpenAPI document describes.

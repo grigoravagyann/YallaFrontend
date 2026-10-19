@@ -342,6 +342,20 @@ export const consoleSize = {
   floorPinSide: 420,
   floorPinKey: 96,
   floorPinKeyHeight: 76,
+  /** Order entry's three columns: categories, the dishes between, and the draft. */
+  floorOrderCats: 184,
+  floorOrderDraft: 420,
+  /** A dish tile's row, and its photo. */
+  floorDishRow: 112,
+  floorDishPhoto: 72,
+  /** The tab's money column, and the cash screen's keypad column. */
+  floorTabSide: 460,
+  floorCashSide: 520,
+  /** The confirmation card after a send or a payment. */
+  floorDoneCard: 520,
+  /** A face in the tab's people pills, a dish's count badge, and a bill request's radio. */
+  floorFace: 30,
+  floorRadio: 22,
 } as const;
 
 export const consoleRadius = {

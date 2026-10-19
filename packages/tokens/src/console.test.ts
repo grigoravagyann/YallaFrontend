@@ -363,6 +363,17 @@ describe('the floor tablet', () => {
     expect(ratio(consoleColor.amber, consoleColor.surface)).toBeGreaterThanOrEqual(AA_BODY);
   });
 
+  it('keeps the order, tab and cash words readable where they sit', () => {
+    // Change to hand back, on the cash summary; a tile's "sold out" badge; the
+    // bill request's words on its blue; the button text on the green "Take cash".
+    expect(ratio(consoleColor.green, consoleColor.surface)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.red, consoleColor.redBg)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.ink, consoleColor.floorHeld)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.surface, consoleColor.green)).toBeGreaterThanOrEqual(AA_BODY);
+    // A sold-out tile's muted words on the canvas it greys to.
+    expect(ratio(consoleColor.muted, consoleColor.canvas)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
   it('keeps red for failures: waiting is amber, and no table state is red but occupied', () => {
     expect(consoleColor.floorBookedInk).not.toBe(consoleColor.red);
     expect(consoleColor.floorHeldInk).not.toBe(consoleColor.red);

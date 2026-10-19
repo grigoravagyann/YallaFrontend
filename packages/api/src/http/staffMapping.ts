@@ -60,6 +60,8 @@ export type RequestView = Schemas['Yalla.Application.Ordering.ServiceRequestView
 type MenuView = Schemas['Yalla.Application.Menus.BranchMenuView'];
 type TotalsSnapshot = Schemas['Yalla.Application.Ordering.TabTotalsSnapshot'];
 type TotalsView = Schemas['Yalla.Application.Tabs.TabTotalsView'];
+type StaffLineView = Schemas['Yalla.Application.Tabs.TabLineView'];
+type StaffAdjustmentView = Schemas['Yalla.Application.Tabs.TabAdjustmentView'];
 type ChangePage = Schemas['Yalla.Application.Floor.BranchChangePage'];
 type EventPage = Schemas['Yalla.Application.Ordering.TabEventPage'];
 
@@ -436,13 +438,14 @@ export function serviceChargePercentFrom(source: TabTotals): number | null {
 // --- Lines ---------------------------------------------------------------------
 
 /**
- * One order line.
+ * One order line, as the kitchen queue and the order routes carry it.
  *
- * The status is **inferred**, and this is the only place it happens. No read
- * model carries a void flag; the server zeroes `lineTotalAmd` for a voided line
- * while `unitPriceAmd` and `quantity` keep their order-time snapshots, so a
- * positive gross with a zero total is a void and nothing else produces that.
- * A genuinely free item has a zero unit price and reads as active, correctly.
+ * The status is **inferred** here: `OrderLineView` has no void flag (the tab's
+ * own snapshot does — see {@link staffTabLine}). The server zeroes
+ * `lineTotalAmd` for a voided line while `unitPriceAmd` and `quantity` keep
+ * their order-time snapshots, so a positive gross with a zero total is a void
+ * and nothing else produces that. A genuinely free item has a zero unit price
+ * and reads as active, correctly.
  */
 export function tabLine(
   line: OrderLine,
@@ -463,6 +466,9 @@ export function tabLine(
     // `OrderLineView` names neither. See the contract.
     participantId: null,
     orderedByName: null,
+    // Omitted on the wire when the line is nobody's (shared, table-attributed,
+    // or no guest named).
+    onBehalfOfParticipantId: line.onBehalfOfParticipantId ?? null,
     sharedWithCount: line.sharedWithParticipantIds.length,
     status: gross > 0 && line.lineTotalAmd === 0 ? 'voided' : 'active',
     // Stored on `TabOrderLine`, projected into nothing. See `contracts/ordering.ts`.
@@ -488,7 +494,7 @@ export function tabLinesFromOrders(
         }),
       ),
     )
-    .sort((a, b) => a.placedAtUtc.localeCompare(b.placedAtUtc));
+    .sort((a, b) => (a.placedAtUtc ?? '').localeCompare(b.placedAtUtc ?? ''));
 }
 
 export function orderQueueEntry(order: KitchenOrder): OrderQueueEntry {
@@ -689,7 +695,7 @@ export function branchMenu(view: MenuView, fetchedAtUtc: string): BranchMenu {
 }
 
 /** The narrower shape order entry renders. Same source, fewer fields. */
-export function menuFrom(view: MenuView, fetchedAtUtc: string): Menu {
+export function menuFrom(view: MenuView, fetchedAtUtc: string, baseUrl: string): Menu {
   const full = branchMenu(view, fetchedAtUtc);
   return {
     branchId: full.branchId,
@@ -703,6 +709,8 @@ export function menuFrom(view: MenuView, fetchedAtUtc: string): Menu {
         description: item.description || null,
         priceDram: item.priceDram,
         isAvailable: item.isAvailable,
+        // Server-relative on the wire; the tablet's page is not the API's origin.
+        photo: absolutePhoto(baseUrl, item.photo),
       })),
     })),
   };
@@ -711,26 +719,18 @@ export function menuFrom(view: MenuView, fetchedAtUtc: string): Menu {
 // --- Tabs -------------------------------------------------------------------
 
 /**
- * The staff tab view.
+ * The staff tab view, from **one** snapshot.
  *
- * `lines` arrive separately, from the branch order queue filtered to this tab,
- * because nothing staff-readable returns a tab's lines. `linesKnown` and
- * `adjustmentsKnown` say which of the two lists were actually fetched, so the
- * panel can distinguish "nothing was ordered" from "not read", which are two
- * very different things to tell somebody holding a bill.
+ * `GET /api/tabs/{id}/participants` carries the lines (voided ones too, with
+ * the reason), every adjustment on the tab from whichever device applied it,
+ * and the service percentage the tab opened with — beside the totals they make
+ * up. All of it is read here, together, so the panel never adds a total from
+ * one moment to lines from another.
  *
  * `baseUrl` is the API's origin, for the participants' photos, whose links
  * arrive server-relative.
  */
-export function staffTabFromView(
-  view: StaffView,
-  baseUrl: string,
-  extra: {
-    readonly lines?: readonly TabLine[] | undefined;
-    readonly linesKnown?: boolean | undefined;
-    readonly adjustments?: readonly TabAdjustment[] | undefined;
-  } = {},
-): StaffTab {
+export function staffTabFromView(view: StaffView, baseUrl: string): StaffTab {
   const tabTotals = totals(view.totals);
 
   return {
@@ -757,12 +757,60 @@ export function staffTabFromView(
     totals: tabTotals,
     // Outside `totals`: a tip is never part of what the table owes.
     tipsDram: typeof view.tipsAmd === 'number' ? view.tipsAmd : null,
-    serviceChargePercent: serviceChargePercentFrom(tabTotals),
-    lines: extra.lines ?? [],
-    linesKnown: extra.linesKnown ?? false,
-    adjustments: extra.adjustments ?? [],
-    // Nothing lists a tab's adjustments back. Always false; see the contract.
-    adjustmentsKnown: false,
+    // The tab's own, snapshotted when it opened: not worked back out of the
+    // totals, which rounds and says nothing on an empty tab.
+    serviceChargePercent:
+      typeof view.serviceChargePercent === 'number'
+        ? view.serviceChargePercent
+        : serviceChargePercentFrom(tabTotals),
+    lines: (view.lines ?? []).map(staffTabLine),
+    linesKnown: true,
+    adjustments: (view.adjustments ?? []).map(staffTabAdjustment),
+    adjustmentsKnown: true,
+  };
+}
+
+/** One line of the staff snapshot. A voided line stays, worth nothing, with its reason. */
+export function staffTabLine(line: StaffLineView): TabLine {
+  return {
+    id: line.lineId,
+    orderId: line.orderId,
+    menuItemId: line.menuItemId,
+    name: line.name,
+    quantity: line.quantity,
+    unitPriceDram: line.unitPriceAmd,
+    lineTotalDram: line.lineTotalAmd,
+    note: line.note ?? null,
+    isShared: line.isShared,
+    isTableAttributed: line.isTableAttributed,
+    // Who ordered it from their phone; null when a waiter keyed it in.
+    participantId: line.placedByParticipantId ?? null,
+    orderedByName: line.placedByDisplayName ?? null,
+    onBehalfOfParticipantId: line.onBehalfOfParticipantId ?? null,
+    sharedWithCount: line.sharedWithCount,
+    status: line.isVoided ? 'voided' : 'active',
+    voidReason: line.voidReason ?? null,
+    // No view names the member of staff.
+    voidedByName: null,
+    // The snapshot lists lines in the order they were placed and carries no time.
+    placedAtUtc: null,
+    orderStatus: orderStatus(line.orderStatus),
+  };
+}
+
+/** One adjustment of the staff snapshot, reversed ones included and marked. */
+export function staffTabAdjustment(view: StaffAdjustmentView): TabAdjustment {
+  return {
+    id: view.adjustmentId,
+    kind: ADJUSTMENT_KIND[view.kind] ?? 'discount',
+    lineId: view.lineId ?? null,
+    percent: view.percent ?? null,
+    amountDram: view.amountAmd ?? null,
+    reductionDram: view.reductionAmd,
+    reason: view.reason,
+    isVoided: view.isVoided,
+    byName: null,
+    atUtc: view.appliedAtUtc,
   };
 }
 

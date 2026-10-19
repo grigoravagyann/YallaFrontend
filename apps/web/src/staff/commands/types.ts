@@ -1,5 +1,7 @@
 import type {
   AcknowledgeServiceRequestCommand,
+  OrderGuestState,
+  TabNotAcceptingStatus,
   PlaceOrderCommand,
   RecordCashPaymentCommand,
   SetOrderStatusCommand,
@@ -162,7 +164,29 @@ export interface ConflictEntry {
    *   so it is never resolved automatically in either direction.
    */
   readonly reason: 'precondition' | 'conflict' | 'refused';
+  /**
+   * For a refused order, what the server said was wrong with it, so the order
+   * screen can say it in words. Absent on everything else, and on entries a
+   * build from before this field stored.
+   */
+  readonly refusal?: OrderRefusal | undefined;
 }
+
+/** Why the server would not take an order. The whole send was refused; nothing was placed. */
+export type OrderRefusal =
+  /**
+   * A guest named on a line is not on the tab, not let on yet, or taken off.
+   * Who and why are absent on an entry stored before the server said.
+   */
+  | {
+      readonly kind: 'guestUnavailable';
+      readonly participantId?: string | null | undefined;
+      readonly guestState?: OrderGuestState | null | undefined;
+    }
+  | { readonly kind: 'soldOut'; readonly itemName: string }
+  /** The tab takes no more orders: the bill asked for, paid and closed, or written off. */
+  | { readonly kind: 'notAccepting'; readonly tabStatus?: TabNotAcceptingStatus | null | undefined }
+  | { readonly kind: 'other' };
 
 export interface CommandState {
   readonly queue: readonly QueuedCommand[];

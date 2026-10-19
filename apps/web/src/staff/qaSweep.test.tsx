@@ -345,13 +345,15 @@ describe('the order and tab dialogs', () => {
           loading={false}
           menuUnavailable={false}
           noTab={false}
+          sent={null}
           onSubmit={() => {}}
+          onSentDismiss={() => {}}
           onClose={() => {}}
         />,
       ),
     );
 
-    expect(screen.getByRole('dialog', { name: 'Order for table 4' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Order · table 4' })).toBeTruthy();
     expect(screen.queryByText('A tab will be opened for this table.')).toBeNull();
     // "Name, price" — the tile's own label, not its two spans run together
     // ("Lahmajun1,200 ֏"), which is what a tile with no name is read as.
@@ -365,10 +367,6 @@ describe('the order and tab dialogs', () => {
         createStaffMockGateway({ latencyMs: 0, branchId: BRANCH }),
         <TabPanel
           tab={null}
-          lines={[]}
-          linesLoading={false}
-          linesKnown
-          adjustments={[]}
           tableLabel="4"
           timeZoneId="Asia/Yerevan"
           role="waiter"
@@ -378,7 +376,7 @@ describe('the order and tab dialogs', () => {
           cashRefusal={null}
           onVoid={() => {}}
           onAdjust={() => {}}
-          onCash={() => {}}
+          onCash={async () => ({ kind: 'failed' as const })}
           onAskForBill={() => {}}
           onAbandon={() => {}}
           onOrder={() => {}}

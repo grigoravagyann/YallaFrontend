@@ -4,6 +4,9 @@ import {
   tableConflictFrom,
   ApiError,
   InvalidTransitionError,
+  MenuItemUnavailableError,
+  OrderGuestUnavailableError,
+  TabNotAcceptingOrdersError,
   type ConcurrencyConflictError,
   type StaffFloor,
   type StaffGateway,
@@ -11,7 +14,7 @@ import {
   type TableActionResult,
 } from '@yalla/api';
 import { localConflict, preconditionHolds } from './reducer';
-import { isTableAction, type QueuedCommand } from './types';
+import { isTableAction, type OrderRefusal, type QueuedCommand } from './types';
 import type { CommandAction } from './reducer';
 
 /**
@@ -103,6 +106,18 @@ export async function sendCommand(
       return { type: 'deferred', id: command.id };
     }
 
+    // An order refused on its own merits: never a table race, and it says why.
+    if (command.body.kind === 'placeOrder') {
+      return {
+        type: 'conflicted',
+        id: command.id,
+        observed: null,
+        reason: 'refused',
+        atMs: nowMs(),
+        refusal: orderRefusal(error),
+      };
+    }
+
     if (isConcurrencyConflict(error)) {
       const conflict = error as ConcurrencyConflictError;
       return {
@@ -162,6 +177,28 @@ function withPrecondition(command: QueuedCommand): TableActionCommand {
     precondition: command.precondition,
     queued: command.attempts > 0 || command.takenOffline,
   };
+}
+
+/**
+ * Why an order was refused, in the terms the order screen speaks. A 409 here is
+ * the guest, the dish or the bill — never somebody else at the table — so it is
+ * never read as a race.
+ */
+function orderRefusal(error: unknown): OrderRefusal {
+  if (error instanceof OrderGuestUnavailableError) {
+    return {
+      kind: 'guestUnavailable',
+      participantId: error.participantId,
+      guestState: error.guestState,
+    };
+  }
+  if (error instanceof MenuItemUnavailableError) {
+    return { kind: 'soldOut', itemName: error.itemName };
+  }
+  if (error instanceof TabNotAcceptingOrdersError) {
+    return { kind: 'notAccepting', tabStatus: error.tabStatus };
+  }
+  return { kind: 'other' };
 }
 
 function isServerFault(error: unknown): boolean {

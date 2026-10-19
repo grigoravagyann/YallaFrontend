@@ -893,6 +893,59 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     And `admin` `overview.bookings.refused.notStarted`, the console row menu's
     sentence for the same refusal (must keep saying **nothing was changed**).
 
+- `staff` — the floor tablet redesign, phase 3 (2026-10-19): order entry, the
+  tab and cash. The `hy` copy is the approved Order, Tab and Cash artboards'
+  where they have it; `ru` and `en` were written from it and are **not**
+  reviewed. From the artboards: `order.title` / `.back` / `.tabOpen` /
+  `.offline` / `.searchPlaceholder` / `.menuFromCache` / `.noMatch` /
+  `.clearSearch` / `.soldOut` / `.soldOutNotice` / `.draft` / `.draftEmpty` /
+  `.emptyDraft` / `.less` / `.more` / `.whoTable` / `.whoGuest` / `.noteLabel` /
+  `.noteDone` / `.whoExplained` / `.send_*` / `.sendNothing` / `.sentTitle_*` /
+  `.savedTitle_*` / `.sentBody` / `.savedBody` (must keep saying the kitchen
+  **cannot see it yet**) / `.addMore` / `.toFloor`; `tab.ordered`, `tab.lines_*`,
+  `tab.lineStatus.*`, `tab.whoShared`, `tab.voidLine`, `tab.compLine`,
+  `tab.voidWhy`, `tab.voidReason.*`, `tab.reasonPlaceholder`, `tab.pickReason`,
+  `tab.compTitle`, `tab.discountWhole`, `tab.compSeen`, `tab.compReason.*`,
+  `tab.discountSize`, `tab.compGive`, `tab.discountApplyPercent`,
+  `tab.markUnpaid*` (the typed word is `ԿՈՐՈՒՍՏ`; `en` LOSS, `ru` УБЫТОК; the
+  warning must keep the amount and **cannot be undone**), `tab.dishes`,
+  `tab.serviceCharge`, `tab.toPay`, `tab.takeCash*`, `tab.addDish`,
+  `tab.sharesStaffBlind`, `tab.notice.voided`; `cash.heading`, `.back`,
+  `.takenBy`, `.breakdown`, `.amount`, `.all`, `.half`, `.noTip`, `.over`,
+  `.partial` (must keep saying the tab **stays open**), `.applied`, `.tipLine`,
+  `.tipNone`, `.change`, `.left`, `.keypadAmount` / `.keypadTip`, `.clear`,
+  `.recordAmount` / `.recordWithTip` / `.recordEmpty` / `.recordOffline`,
+  `.paidAll`, `.recordedTitle`, `.changeCaption`, `.closedBody` (the table
+  stays **occupied**), `.tipBody`, `.openBody`, `.freeTable`, `.notAReceipt`
+  (hy reworded); `billRequest.pickTitle` / `.pickNote` / `.prefilled` /
+  `.askedAgo_*` and `tab.managerOnly` (HANDOFF §3: "Զեղչ և չվճարված հաշիվ՝
+  մենեջերը"). Not in an artboard, so **not** read by the user even in `hy`:
+  `order.backName`, `.people_*`, `.live`, `.categoryName_*`, `.menu`,
+  `.searchLabel`, `.tileSoldOut`, `.tileInOrder`, `.dishes_*`, `.who`,
+  `.sendingTitle_*`, `.sendingBody`, `.refusedTitle`, `.refused.*` (each must
+  keep saying **nothing was sent**), `.backToOrder`; `tab.openSince`,
+  `tab.tableAttributed`, `tab.lineActions`, `tab.reason`, `tab.discountAmount` /
+  `.discountAmountLabel`, `tab.enterAmount`, `tab.discountApplyAmount`,
+  `tab.dishesAfter`, `tab.adjusted`, `tab.notice.*` except `.voided`
+  (`.lineAlreadyPaid` and `.failed` must keep saying **nothing changed**);
+  `cash.backName`, `.typing`, `.quick`, `.recording`, `.backToTab`, and hy
+  `cash.delete` («Ջնջել վերջին թիվը»). Removed: `order.unavailable`, `.shared`,
+  `.sharedExplained`, `.tableDefaultCost`, `.offlineNote`, `.sent_*`, `.empty`,
+  `.search`, `.quantity`; `tab.openedAt`, `.void`, `.voidTitle`,
+  `.voidConfirm`, `.voidDetail`, `.comp`, `.compConfirm`, `.compWhole`,
+  `.percentOff`, `.compReasonSeen`, `.voidReasonSeen`, `.adjustments`,
+  `.adjustmentsUnknown`, `.items`, `.sharedWith_*`, `.abandon*` (now
+  `markUnpaid*`; `abandonReason` stays), `.remaining`, `.addItems`; `cash.remaining`,
+  `.tipNote`, `.confirmLine`, `.overpaying`, `.record`, `.recorded`, `.closed`.
+  - Review and live QA (2026-10-19), **not** in an artboard: `cash.unknown` (a
+    payment whose answer was lost: it must **not** say nothing was taken, and
+    must say to check the tab first), `tab.voidAfterPayment`, `order.guestGone`,
+    `order.refused.guest.*` (names the guest; each keeps **nothing was sent**),
+    `order.refused.tab.*` (bill asked for / paid and closed / written off) and a
+    general `order.refused.notAccepting`. hy `tab.whoShared` is now «Սեղանը ·
+    կիսվող» like the Order screen, and hy `tab.adjustmentKind.comp` «Նվեր
+    ռեստորանից» like the line menu. Removed: `tab.linesLoading`.
+
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
 `pnpm i18n:check` verifies each language has exactly the categories

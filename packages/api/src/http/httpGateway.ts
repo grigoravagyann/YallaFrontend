@@ -1918,9 +1918,10 @@ export function createHttpGateway(client: ApiClient, options: HttpGatewayOptions
     /**
      * One order for the whole tray.
      *
-     * No grouping by participant, unlike the staff path: `onBehalfOfParticipantId`
-     * is staff-only on the wire, and a diner's lines are their own by
-     * construction. `isShared` is the only per-line attribution a phone can send.
+     * Naming a guest — `onBehalfOfParticipantId`, or a line's `participantId` —
+     * is staff-only on the wire (a phone gets 403), and a diner's lines are
+     * their own by construction. `isShared` is the only per-line attribution a
+     * phone can send.
      */
     async placeOrder(command): Promise<PlaceOrderResult> {
       try {

@@ -28,7 +28,7 @@ export interface CachedMenuResult {
   readonly loading: boolean;
   /** Nothing on disk and nothing reachable. The screen says so rather than spinning. */
   readonly unavailable: boolean;
-  /** What is on screen came off this device, not off the network. */
+  /** What is on screen came off this device because the network could not refresh it. */
   readonly fromCache: boolean;
 }
 
@@ -60,7 +60,10 @@ export function resolveMenuState(input: {
     // loading is what produced a spinner that never resolved.
     loading: !ready || (input.isLoading && !paused && data === null),
     unavailable: data === null && (paused || input.isError),
-    fromCache: data !== null && data === input.seed?.menu,
+    // Said only when the network could not replace it — paused offline, or the
+    // read failed. A disk copy on screen while the read is in flight, or one
+    // fresh enough not to be re-read, is not stale and is not called so.
+    fromCache: data !== null && data === input.seed?.menu && (paused || input.isError),
   };
 }
 

@@ -293,6 +293,8 @@ export function createTabOrders(options: TabOrdersOptions) {
           isTableAttributed: requested.participantId === null,
           participantId: requested.participantId,
           orderedByName: shortName(owner),
+          // A diner's own order: the line is the orderer's, named by nobody.
+          onBehalfOfParticipantId: null,
           // Zero when it does not split, matching the share record written
           // two lines below — which already stored an empty array here while
           // this said 1.

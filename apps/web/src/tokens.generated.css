@@ -333,6 +333,15 @@
   --console-size-floor-pin-side: 420px;
   --console-size-floor-pin-key: 96px;
   --console-size-floor-pin-key-height: 76px;
+  --console-size-floor-order-cats: 184px;
+  --console-size-floor-order-draft: 420px;
+  --console-size-floor-dish-row: 112px;
+  --console-size-floor-dish-photo: 72px;
+  --console-size-floor-tab-side: 460px;
+  --console-size-floor-cash-side: 520px;
+  --console-size-floor-done-card: 520px;
+  --console-size-floor-face: 30px;
+  --console-size-floor-radio: 22px;
   --console-radius-card: 12px;
   --console-radius-control: 10px;
   --console-radius-small: 8px;

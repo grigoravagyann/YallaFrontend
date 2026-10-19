@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  NetworkError,
   createQueryClient,
   createStaffMockGateway,
   tableDetail,
   type EnrolledDevice,
   type ServiceRequest,
+  type StaffFloor,
   type StaffGateway,
   type StaffSessionSnapshot,
   type TabStaffParticipant,
@@ -14,7 +16,7 @@ import { GatewayProvider } from '@yalla/api/react';
 import { formatDram, formatDramAmount } from '@yalla/format';
 import { I18nextProvider, i18next } from '@yalla/i18n';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -129,12 +131,12 @@ async function openTabOf(user: ReturnType<typeof userEvent.setup>, tableLabel: s
   await user.click(within(actions).getByRole('button', { name: 'View the tab' }));
   const tab = await screen.findByRole('dialog', { name: `Tab · table ${tableLabel}` });
   // The tab itself, not its loading line.
-  await within(tab).findByText('Still owed');
+  await within(tab).findAllByText('Still to pay');
   return tab;
 }
 
 async function openKeypad(user: ReturnType<typeof userEvent.setup>, tab: HTMLElement) {
-  await user.click(within(tab).getByRole('button', { name: 'Take cash' }));
+  await user.click(within(tab).getByRole('button', { name: /^Take cash/u }));
   const keypad = screen.getByRole('dialog', { name: 'Take cash' });
   return {
     keypad,
@@ -142,6 +144,13 @@ async function openKeypad(user: ReturnType<typeof userEvent.setup>, tab: HTMLEle
     tip: within(keypad).getByRole('button', { name: /^Tip/u }),
     press: async (...keys: string[]) => {
       for (const key of keys) await user.click(within(keypad).getByRole('button', { name: key }));
+    },
+    /** "Record ֏ 5,005", "Record ֏ 5,005 + tip": the button says what it records. */
+    record: async () => user.click(within(keypad).getByRole('button', { name: /^Record /u })),
+    /** The card that says it was recorded, back to the tab under it. */
+    backToTab: async () => {
+      const card = await within(keypad).findByRole('dialog', { name: / recorded$/u });
+      await user.click(within(card).getByRole('button', { name: 'Back to the tab' }));
     },
   };
 }
@@ -220,15 +229,15 @@ describe('a bill request from the app', () => {
     const tab = await openTabOf(user, tableLabel);
     await user.click(within(tab).getByRole('radio', { name: 'Anahit' }));
 
-    const { keypad, amount, tip, press } = await openKeypad(user, tab);
+    const { keypad, amount, tip, press, record: recordIt } = await openKeypad(user, tab);
     expect(amount.textContent).toContain(formatDramAmount(whole.bill!.amountDram, 'en'));
     expect(tip.textContent).toContain(formatDramAmount(whole.bill!.tipDram, 'en'));
     expect(within(keypad).getByText(/filled in from what the table asked for/iu)).toBeTruthy();
 
     // They round the tip up at the table: the waiter types over it.
     await user.click(tip);
-    await press(...Array.from(String(whole.bill!.tipDram), () => 'Delete'), '1', '00');
-    await press('Record it');
+    await press(...Array.from(String(whole.bill!.tipDram), () => 'Delete'), '1', '0', '0');
+    await recordIt();
 
     await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
     const sent = record.mock.calls[0]![0];
@@ -252,6 +261,72 @@ describe('a bill request from the app', () => {
     expect(open.map((request) => request.id)).not.toContain(whole.id);
   });
 
+  it('retries a payment whose answer was lost with the same id, and never says nothing was taken', async () => {
+    signIn();
+    const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
+    const { tableLabel } = await seededBills(gateway);
+    const real = gateway.recordCashPayment.bind(gateway);
+    const record = vi
+      .spyOn(gateway, 'recordCashPayment')
+      // The request landed and the answer did not.
+      .mockImplementationOnce(async (command) => {
+        await real(command);
+        throw new NetworkError({ url: '/api/tabs/x/payments/cash' });
+      });
+    const user = userEvent.setup({ delay: null });
+    renderFloor(gateway);
+
+    const tab = await openTabOf(user, tableLabel);
+    const { keypad, record: recordIt } = await openKeypad(user, tab);
+    await recordIt();
+    expect(
+      await within(keypad).findByText(
+        'We could not tell whether that payment was recorded. Check the tab before you take it again.',
+      ),
+    ).toBeTruthy();
+    expect(within(keypad).queryByText(/Nothing was taken/u)).toBeNull();
+
+    await recordIt();
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(2));
+    expect(record.mock.calls[1]![0].clientCommandId).toBe(record.mock.calls[0]![0].clientCommandId);
+  });
+
+  it('keeps the paid tab on screen when the floor stops listing it', async () => {
+    // Paying in full closes the tab and the table drops it: the next floor read
+    // or change poll says the table has no tab. That used to blank the panel
+    // ("No tab is open") under the waiter, and it is what made the test above
+    // flaky — whichever of the tab's refetch and the floor's landed first won.
+    signIn();
+    const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
+    const { whole, tableLabel } = await seededBills(gateway);
+    const record = vi.spyOn(gateway, 'recordCashPayment');
+    const user = userEvent.setup({ delay: null });
+    renderFloor(gateway);
+
+    const tab = await openTabOf(user, tableLabel);
+    await user.click(within(tab).getByRole('radio', { name: 'Anahit' }));
+    const { record: recordIt } = await openKeypad(user, tab);
+    await recordIt();
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
+    // Every query read again, the floor among them; then the query cache's
+    // notifications (a zero-delay timer) and the renders they cause.
+    await act(async () => {
+      await renderedClient!.refetchQueries();
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    // The floor now says the table has no tab…
+    const floor = renderedClient!.getQueryData<StaffFloor>(['staff', 'floor', BRANCH])!;
+    const table = floor.details.find((detail) => detail.label === tableLabel)!;
+    expect(table.openTabId).toBeNull();
+    // …and the panel still shows the tab that was paid.
+    expect(screen.getByRole('dialog', { name: `Tab · table ${tableLabel}` })).toBe(tab);
+    expect(within(tab).queryByText('No tab is open on this table.')).toBeNull();
+    expect(
+      within(tab).getByText(`Tips taken: ${dram(whole.bill!.tipDram)} · on top of the bill`),
+    ).toBeTruthy();
+  });
+
   it('credits a "my share" payment to the person who asked, and clears only their request', async () => {
     signIn();
     const gateway = createStaffMockGateway({ latencyMs: 0, branchId: BRANCH });
@@ -263,10 +338,10 @@ describe('a bill request from the app', () => {
 
     const tab = await openTabOf(user, tableLabel);
     // Karen is the default: the newest.
-    const { amount, tip, press } = await openKeypad(user, tab);
+    const { amount, tip, record: recordIt } = await openKeypad(user, tab);
     expect(amount.textContent).toContain(formatDramAmount(mine.bill!.amountDram, 'en'));
     expect(tip.textContent).toContain(formatDramAmount(mine.bill!.tipDram, 'en'));
-    await press('Record it');
+    await recordIt();
 
     await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
     expect(record.mock.calls[0]![0]).toMatchObject({
@@ -300,7 +375,7 @@ describe('a bill request from the app', () => {
 
     const tab = await openTabOf(user, tableLabel);
     // Karen is the default: the newest.
-    const { press } = await openKeypad(user, tab);
+    const { record: recordIt } = await openKeypad(user, tab);
     // Another tablet answers her request meanwhile, and the next poll drops it.
     await gateway.acknowledgeServiceRequest({
       requestId: mine.id,
@@ -308,7 +383,7 @@ describe('a bill request from the app', () => {
     });
     await renderedClient!.invalidateQueries();
     await waitFor(() => expect(within(tab).queryByRole('radio', { name: 'Karen' })).toBeNull());
-    await press('Record it');
+    await recordIt();
 
     await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
     expect(record.mock.calls[0]![0]).toMatchObject({
@@ -338,13 +413,16 @@ describe('a bill request from the app', () => {
       within(first.keypad).queryByText(/filled in from what the table asked for/iu),
     ).toBeNull();
     await first.press(...Array.from(String(staffTab.totals.remainingDram), () => 'Delete'));
-    await first.press('4', '00', '0', 'Record it');
+    await first.press('4', '0', '0', '0');
+    await first.record();
 
     await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
     expect(record.mock.calls[0]![0]).toMatchObject({ amountDram: 4000, tipDram: 0 });
     expect(record.mock.calls[0]![0].participantId).toBeUndefined();
     const left = staffTab.totals.remainingDram - 4000;
     expect(left).toBeLessThan(mine.bill!.amountDram);
+    // A part payment: the keypad's card says what is left, and goes back to the tab.
+    await first.backToTab();
     await within(tab).findByText(`Take cash starts from the balance: ${dram(left)}`);
     // Nobody's request was answered by it.
     expect(within(tab).getByRole('radio', { name: 'Karen' })).toBeTruthy();
@@ -378,8 +456,8 @@ describe('a bill request from the app', () => {
     expect(within(tab).getByText(wantsMine(mine))).toBeTruthy();
 
     await user.click(within(tab).getByRole('radio', { name: 'Anahit' }));
-    const { press } = await openKeypad(user, tab);
-    await press('Record it');
+    const { record: recordIt } = await openKeypad(user, tab);
+    await recordIt();
     await waitFor(() => expect(record).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(within(tab).queryByText(wantsWhole(whole))).toBeNull());
     // Already answered from here: no second acknowledgement.
@@ -397,14 +475,22 @@ describe('a bill request from the app', () => {
       (table) => table.label !== tableLabel && tableDetail(floor, table.id)?.openTabId,
     );
     expect(other, 'the fixture has a second table with a tab').toBeTruthy();
+    // Something on it, so there is a balance to take: nothing owed offers no cash.
+    const otherTabId = tableDetail(floor, other!.id)!.openTabId!;
+    const placed = await gateway.placeOrder({
+      tabId: otherTabId,
+      clientCommandId: '7a7a7a7a-0000-4000-8000-000000000001',
+      lines: [{ menuItemId: 'espresso', quantity: 2, isShared: true, participantId: null }],
+    });
     const user = userEvent.setup({ delay: null });
     renderFloor(gateway);
 
     const tab = await openTabOf(user, other!.label);
     expect(within(tab).queryByText(/^Wants to pay/u)).toBeNull();
     expect(within(tab).queryByRole('radio')).toBeNull();
-    const { keypad, tip } = await openKeypad(user, tab);
+    const { keypad, amount, tip } = await openKeypad(user, tab);
     expect(within(keypad).queryByText(/filled in from what the table asked for/iu)).toBeNull();
+    expect(amount.textContent).toContain(formatDramAmount(placed.totals!.remainingDram, 'en'));
     expect(tip.textContent).toContain('0');
   });
 });
@@ -418,7 +504,7 @@ describe('the people on a tab', () => {
     renderFloor(gateway);
 
     const tab = await openTabOf(user, tableLabel);
-    const people = tab.querySelector<HTMLElement>('.tab-shares')!;
+    const people = tab.querySelector<HTMLElement>('.ft-people')!;
     const anahit = within(people)
       .getByText(/^Anahit/u)
       .closest('li')!;

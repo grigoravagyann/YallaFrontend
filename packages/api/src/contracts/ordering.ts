@@ -138,14 +138,14 @@ export interface PlaceOrderLine {
    */
   readonly isShared: boolean;
   /**
-   * Who it is for. `null` attributes the line to the table, which is what a
-   * waiter keying in a spoken order usually has to do.
+   * Who it is for: an approved guest on the tab. `null` is nobody in
+   * particular — with `isShared` the table's, without it attributed to the
+   * table, which splits the same way and says the waiter did not know.
    *
-   * On the wire this is **not** per line: `PlaceOrderRequest` carries one
-   * `onBehalfOfParticipantId` for the whole order. The gateway groups a draft
-   * by this field and sends one request per distinct value, so the screen can
-   * keep offering it per line — which is what a waiter taking a round for a
-   * table of four actually needs.
+   * Per line on the wire too (`OrderItemRequest.participantId`), so a round
+   * with the table's latte, Narine's steak and Aram's coffee is **one order and
+   * one kitchen ticket**. Never sent on a shared line: the server refuses a
+   * line that is both, and the gateway drops the guest from a shared one.
    */
   readonly participantId: string | null;
 }
@@ -155,6 +155,14 @@ export interface PlaceOrderCommand {
   /** Generated once per user action and reused on every retry. */
   readonly clientCommandId: string;
   readonly lines: readonly PlaceOrderLine[];
+  /**
+   * How this command goes on the wire. `2`: one order, each line naming its
+   * own guest. Absent on a command an earlier build queued, which went as one
+   * order per guest under derived ids; it is replayed that way, so a group
+   * that never landed still does instead of being answered by the replay of a
+   * group that did.
+   */
+  readonly shape?: 2 | undefined;
 }
 
 export interface PlaceOrderResult {
@@ -235,16 +243,19 @@ export interface TabLine {
   /** True when a waiter keyed it in and could not say who asked for it. */
   readonly isTableAttributed: boolean;
   /**
-   * Who ordered it. `null` for a line attributed to the table.
-   *
-   * From `TabLineView.placedByParticipantId` on the diner's own tab read. **Null
-   * on the staff path**, whatever the truth: `OrderLineView` — the only line
-   * shape a staff token can reach — carries neither the participant nor a name,
-   * so the counter screen shows the line and not who asked for it.
+   * Who ordered it from their phone — `TabLineView.placedByParticipantId`.
+   * `null` when a waiter keyed it in, and on a line assembled from the kitchen
+   * queue (`OrderLineView` carries neither the participant nor a name).
    */
   readonly participantId: string | null;
-  /** Short name or initials. Null on the staff path, for the same reason. */
+  /** Their name at the time of reading. Null whenever `participantId` is. */
   readonly orderedByName: string | null;
+  /**
+   * The guest a waiter keyed the line in for — `OrderLineView.onBehalfOfParticipantId`:
+   * the line's own guest, else its order's. `null` on a shared or
+   * table-attributed line, which is the table's, and when nobody was named.
+   */
+  readonly onBehalfOfParticipantId: string | null;
   /**
    * How many ways a shared line splits, snapshotted when it was ordered.
    *
@@ -256,24 +267,24 @@ export interface TabLine {
   /**
    * Whether the line still counts.
    *
-   * **Inferred, not reported.** No read model carries a void flag; the only
-   * signal on the wire is that the server zeroes `lineTotalAmd` for a voided
-   * line while `unitPriceAmd` and `quantity` keep their snapshots. A line whose
-   * gross is positive and whose total is zero has been voided, and there is no
-   * other way to produce that combination.
+   * `TabLineView.isVoided` on the tab's own snapshot. A line assembled from the
+   * kitchen queue has no flag and is inferred: the server zeroes `lineTotalAmd`
+   * for a voided line while `unitPriceAmd` and `quantity` keep their snapshots.
    */
   readonly status: OrderLineStatus;
   /**
-   * Why it was voided. **Always `null` today.**
-   *
-   * `TabOrderLine.VoidReason` is stored, required by the domain, and projected
-   * into nothing. Rendering a reason the server never sent would be worse than
-   * rendering none, so the panel says "removed by staff" and stops there.
+   * Why it was voided, in the waiter's words — `TabLineView.voidReason`. `null`
+   * on an active line, and on a line assembled from the kitchen queue, which
+   * carries no reason.
    */
   readonly voidReason: string | null;
   /** Who voided it. Always `null`: no view carries an actor's name. */
   readonly voidedByName: string | null;
-  readonly placedAtUtc: string;
+  /**
+   * When its order was placed. `null` from the tab's snapshot, which lists the
+   * lines in order but carries no time.
+   */
+  readonly placedAtUtc: string | null;
   readonly orderStatus: OrderStatus;
 }
 
@@ -719,6 +730,24 @@ export interface VoidLineCommand {
 }
 
 /**
+ * The words the server stores for a void, which the diner reads on their
+ * phone: the waiter's own when they typed some, else the English sentence for
+ * the preset. Never the slug — `guestChangedMind` on a bill somebody is
+ * looking at — and the server has no vocabulary to translate it back.
+ */
+export function voidReasonText(command: Pick<VoidLineCommand, 'reason' | 'detail'>): string {
+  return command.detail?.trim() || VOID_REASON_TEXT[command.reason];
+}
+
+const VOID_REASON_TEXT: Readonly<Record<VoidReason, string>> = {
+  wrongItem: 'Wrong item',
+  guestChangedMind: 'Guest changed their mind',
+  kitchenError: 'Kitchen error',
+  spilled: 'Spilled',
+  other: 'Removed by staff',
+};
+
+/**
  * A discount or a comp. Manager only, enforced server-side.
  *
  * Exactly one of `percent` and `amountDram`, matching `AddAdjustmentRequest`.
@@ -951,16 +980,15 @@ export interface StaffTab {
    * line claiming nothing is charged.
    */
   readonly serviceChargePercent: number | null;
+  /** The lines, voided ones included, from the same snapshot as `totals`. */
   readonly lines: readonly TabLine[];
-  /** False when the lines were not fetched. Empty and unknown are not the same. */
+  /** False when the lines were not read. Empty and unknown are not the same. */
   readonly linesKnown: boolean;
   /**
-   * Adjustments applied in this session only.
-   *
-   * Nothing lists a tab's adjustments back, so this holds the ones this device
-   * has just made and is empty on a cold load. `adjustmentsKnown` is false
-   * always, and the panel says so rather than implying there are none.
+   * Every adjustment on the tab, from whichever device applied it, reversed
+   * ones included and marked — from the same snapshot as `totals`.
    */
   readonly adjustments: readonly TabAdjustment[];
+  /** False when they were not read: none and unknown are not the same. */
   readonly adjustmentsKnown: boolean;
 }
