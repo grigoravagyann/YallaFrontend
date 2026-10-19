@@ -1,44 +1,25 @@
 import { groupByRoom, type DerivedTableState, type FloorTable } from '@yalla/api';
 import { useTranslation } from '@yalla/i18n';
 import { useEffect, useRef } from 'react';
+import { tableTone, type TableCardText } from './tableCard';
 
-/**
- * The four colours a waiter reads the floor by.
- *
- * Booked-soon and held are one colour on purpose: both mean "somebody is
- * coming for this table", and the row's text says which.
- */
-export type TableTone = 'free' | 'booked' | 'occupied' | 'out';
-
-export function tableTone(state: DerivedTableState): TableTone {
-  switch (state) {
-    case 'free':
-      return 'free';
-    case 'reservedSoon':
-    case 'held':
-      return 'booked';
-    case 'occupied':
-      return 'occupied';
-    case 'outOfService':
-      return 'out';
-  }
-}
-
-const LEGEND: readonly { readonly tone: TableTone; readonly key: string }[] = [
-  { tone: 'free', key: 'common:tableStatus.free' },
-  { tone: 'booked', key: 'floor.legend.booked' },
-  { tone: 'occupied', key: 'common:tableStatus.occupied' },
-  { tone: 'out', key: 'common:tableStatus.outOfService' },
+const LEGEND: readonly DerivedTableState[] = [
+  'free',
+  'reservedSoon',
+  'held',
+  'occupied',
+  'outOfService',
 ];
 
+/** The key to the cards: each state's swatch is the card's own tint and edge. */
 export function TableLegend() {
   const { t } = useTranslation(['staff', 'common']);
   return (
-    <ul className="table-legend" aria-label={t('floor.legend.label')}>
-      {LEGEND.map(({ tone, key }) => (
-        <li key={tone}>
-          <span className={`table-dot tone-${tone}`} aria-hidden="true" />
-          {t(key)}
+    <ul className="ft-legend" aria-label={t('floor.legend.label')}>
+      {LEGEND.map((state) => (
+        <li key={state}>
+          <i className="ft-swatch" data-tone={tableTone(state)} aria-hidden="true" />
+          {t(`common:tableStatus.${state}`)}
         </li>
       ))}
     </ul>
@@ -50,89 +31,138 @@ export interface TableListProps {
   readonly selectedTableId: string | null;
   readonly pendingTableIds: ReadonlySet<string>;
   readonly onSelect: (tableId: string) => void;
-  /** "Seated 25 min" for an occupied table, or null. */
-  readonly seatedFor: (table: FloorTable) => string | null;
+  /** What the card says. The screen knows the clock, the details and the debts. */
+  readonly describe: (table: FloorTable) => TableCardText;
+  /**
+   * The room chip that is on, by {@link roomKey}, or null for all of them.
+   * Kept by the screen, so the kitchen tab and back finds the same room.
+   */
+  readonly room: string | null;
+  readonly onRoom: (room: string | null) => void;
+}
+
+/** A room's key: by id, or by name for a room with no id. */
+export function roomKey(roomId: string | null, roomName: string | null): string {
+  return roomId !== null ? `id:${roomId}` : `name:${roomName ?? ''}`;
 }
 
 /**
- * The floor as a list: every table, grouped by room in the venue's room order
- * and by label within a room.
+ * The floor: a room filter, the legend, and a grid of table cards (the Main
+ * artboard).
  *
- * Each row is a button, so the floor is walked with Tab and opened with Enter
- * or Space as well as by touch, and a screen reader hears "Table 4, 2 seats,
- * occupied" — the state the colour shows, in words.
+ * The cards are in the venue's room order and then by label, so "All" reads
+ * the room the way a waiter walks it; a chip narrows it to one room. Each card
+ * is a button, so the floor is walked with Tab and opened with Enter or Space
+ * as well as by touch, and a screen reader hears "Table 4, 2 seats, Occupied,
+ * seated 48 min, Bar" — the state the tint and the edge show, in words, as the
+ * card itself says it.
  */
 export function TableList({
   tables,
   selectedTableId,
   pendingTableIds,
   onSelect,
-  seatedFor,
+  describe,
+  room,
+  onRoom,
 }: TableListProps) {
   const { t } = useTranslation(['staff', 'common']);
   const groups = groupByRoom(tables);
-  const listRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLUListElement>(null);
 
-  // The panel takes room beside the list and can push the chosen row below
-  // the fold (QA 2026-10-16): keep it in view.
+  // A room that has gone (renamed, emptied) falls back to every room rather
+  // than to an empty grid.
+  const shown =
+    room === null
+      ? groups
+      : groups.filter((group) => roomKey(group.roomId, group.roomName) === room);
+  const visible = (shown.length > 0 ? shown : groups).flatMap((group) => group.tables);
+  const current = shown.length > 0 ? room : null;
+
+  // The panel can cover the chosen card (QA 2026-10-16): keep it in view.
   useEffect(() => {
     if (!selectedTableId) return;
-    const row = Array.from(
-      listRef.current?.querySelectorAll<HTMLElement>('.table-row[data-table-id]') ?? [],
+    const card = Array.from(
+      gridRef.current?.querySelectorAll<HTMLElement>('.table-row[data-table-id]') ?? [],
     ).find((candidate) => candidate.dataset['tableId'] === selectedTableId);
-    row?.scrollIntoView?.({ block: 'nearest' });
+    card?.scrollIntoView?.({ block: 'nearest' });
   }, [selectedTableId]);
 
   return (
-    <div className="table-rooms" ref={listRef}>
-      {groups.map((group) => {
-        const name = group.roomName ?? t('floor.noRoom');
-        const headingId = `room-${group.roomId ?? 'none'}`;
-        return (
-          <section key={group.roomId ?? 'none'} className="table-room" aria-labelledby={headingId}>
-            <h2 id={headingId} className="table-room-name">
-              {name}
-            </h2>
-            <ul className="table-rows" aria-labelledby={headingId}>
-              {group.tables.map((table) => {
-                const status = t(`common:tableStatus.${table.state}`);
-                const pending = pendingTableIds.has(table.id);
-                const seated = table.state === 'occupied' ? seatedFor(table) : null;
-                return (
-                  <li key={table.id}>
-                    <button
-                      type="button"
-                      data-table-id={table.id}
-                      className="table-row"
-                      data-tone={tableTone(table.state)}
-                      aria-pressed={table.id === selectedTableId}
-                      aria-label={t('common:floorPlan.table', {
-                        label: table.label,
-                        count: table.seats,
-                        status,
-                      })}
-                      onClick={() => onSelect(table.id)}
-                    >
-                      <span className={`table-dot tone-${tableTone(table.state)}`} />
-                      <span className="table-row-label">{table.label}</span>
-                      <span className="table-row-seats">
-                        {t('table.seats', { count: table.seats })}
-                      </span>
-                      <span className="table-row-state">
-                        {status}
-                        {seated ? ` · ${seated}` : ''}
-                      </span>
-                      {pending ? (
-                        <span className="table-row-pending">{t('floor.pendingMark')}</span>
-                      ) : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        );
-      })}
-    </div>
+    <>
+      <div className="ft-floor-head">
+        {groups.length > 1 ? (
+          <div className="ft-rooms" role="group" aria-label={t('floor.rooms.label')}>
+            <button type="button" aria-pressed={current === null} onClick={() => onRoom(null)}>
+              {t('floor.rooms.all', { count: tables.length })}
+            </button>
+            {groups.map((group) => {
+              const key = roomKey(group.roomId, group.roomName);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={current === key}
+                  onClick={() => onRoom(key)}
+                >
+                  {group.roomName ?? t('floor.noRoom')}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        <TableLegend />
+      </div>
+
+      <ul className="ft-grid" ref={gridRef} aria-label={t('floor.tables')}>
+        {visible.map((table) => {
+          const card = describe(table);
+          const pending = pendingTableIds.has(table.id);
+          const status = t(`common:tableStatus.${table.state}`);
+          const tone = tableTone(table.state);
+          // The card's own words where they begin with the state's ("Reserved
+          // 19:00", "Held · running late"), so the state is not said twice.
+          const leads = card.state.startsWith(status);
+          const name = [
+            t('common:floorPlan.table', {
+              label: table.label,
+              count: table.seats,
+              status: leads ? card.state : status,
+            }),
+            leads ? null : card.state,
+            card.sub,
+            pending ? t('floor.pendingMark') : null,
+            table.floorAreaName,
+          ]
+            .filter(Boolean)
+            .join(', ');
+          return (
+            <li key={table.id}>
+              <button
+                type="button"
+                data-table-id={table.id}
+                className="table-row"
+                data-tone={tone}
+                aria-pressed={table.id === selectedTableId}
+                aria-label={name}
+                onClick={() => onSelect(table.id)}
+              >
+                <span className="ft-table-seats">{t('table.seats', { count: table.seats })}</span>
+                <span className="ft-table-label">{table.label}</span>
+                <span className="ft-table-text">
+                  <span className={`ft-table-state${card.long ? ' is-long' : ''}`}>
+                    {card.state}
+                  </span>
+                  {card.sub ? <span className="ft-table-sub">{card.sub}</span> : null}
+                </span>
+                {pending ? (
+                  <span className="ft-table-pending">{t('floor.pendingMark')}</span>
+                ) : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }

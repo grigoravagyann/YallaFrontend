@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConflictList } from './ConflictList';
 import { useCommandQueue } from './commands/useCommandQueue';
 import type { QueuedCommand } from './commands/types';
-import { OrderQueuePanel } from './OrderQueuePanel';
+import { kitchenWaiting, OrderQueuePanel } from './OrderQueuePanel';
 import { StaffHeader } from './StaffHeader';
 import { useConnectionState } from './useConnectionState';
 
@@ -58,7 +58,7 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
   const branchId = identity.branchId;
   const active = !paused;
   // Polled by the hook itself, foreground only, exactly as on the floor screen.
-  const ordersQuery = useOrderQueue(active ? branchId : undefined);
+  const ordersQuery = useOrderQueue(branchId, active);
 
   const onSettled = useCallback(
     (command: QueuedCommand) => {
@@ -110,30 +110,34 @@ export function KitchenRoute({ identity, device, paused }: KitchenRouteProps) {
 
   return (
     <div className="floor" data-surface="staff">
+      {/* The floor's own bar. The kitchen is refused the floor, so its bar
+          offers the kitchen alone. */}
       <StaffHeader
         title={t('kitchen.title')}
-        subtitle={
+        place={
           device
             ? t('floor.branch', { venue: device.venueName, branch: device.branchName })
             : branchId
               ? ''
               : t('floor.noBranch')
         }
+        timeZoneId={TIME_ZONE_ID}
         who={identity.fullName}
         state={state}
+        updatedAt={ordersQuery.dataUpdatedAt || null}
         pending={queue.pending}
         conflicts={queue.conflicts}
-        syncing={queue.syncing}
         online={queue.online}
         onOpenConflicts={() => setConflictsOpen(true)}
         onRefresh={() => void refetch()}
         refreshLabel={t('connection.refreshQueue')}
+        view="kitchen"
+        kitchenWaiting={kitchenWaiting(ordersQuery.data ?? [])}
       />
 
       <div className="floor-body kitchen-body">
         <OrderQueuePanel
           orders={ordersQuery.data ?? []}
-          requests={null}
           timeZoneId={TIME_ZONE_ID}
           role={identity.role}
           onAdvance={advanceOrder}

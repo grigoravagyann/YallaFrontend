@@ -85,8 +85,7 @@ input,
 
 /* Numbers align. Prices, counts and times all sit in columns somewhere. */
 .num,
-.table td,
-.status-chip {
+.table td {
   font-variant-numeric: tabular-nums;
   font-feature-settings: var(--font-feature-tabular);
 }
@@ -96,7 +95,6 @@ input,
 .brand,
 .page h1,
 .venue-name,
-.floor-where h1,
 .tokens-page h1 {
   font-family: var(--font-family-display);
   font-weight: var(--font-weight-semibold);

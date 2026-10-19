@@ -127,6 +127,16 @@ async function panel(): Promise<HTMLElement> {
   return screen.findByRole('region', { name: /bookings to approve/i });
 }
 
+/** The count beside the section's title — the badge itself, not any "2" on a card. */
+function badge(section: HTMLElement, count: string): Promise<HTMLElement> {
+  return within(section).findByText(count, { selector: '.ft-badge' }, { timeout: 5000 });
+}
+
+/** The floor's live region for new requests. */
+function announcer(): HTMLElement {
+  return document.querySelector<HTMLElement>('[data-testid="approval-announcer"]')!;
+}
+
 async function card(table: string): Promise<HTMLElement> {
   const section = await panel();
   const label = await within(section).findByText(new RegExp(`^Table ${table}\\b`, 'u'));
@@ -276,13 +286,13 @@ describe('the words on a request', () => {
 });
 
 describe('the floor tablet', () => {
-  it('counts the waiting bookings in the header and shows each with its clock and its table', async () => {
+  it('counts the waiting bookings on their rail section and shows each with its clock and its table', async () => {
     signIn();
     renderFloor(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now }));
 
-    expect(
-      await screen.findByRole('button', { name: '2 bookings to approve' }, { timeout: 5000 }),
-    ).toBeTruthy();
+    // The count sits beside the section's title, which the top bar no longer
+    // repeats: the rail is always beside the floor.
+    expect(await badge(await panel(), '2')).toBeTruthy();
     const request = await card('7');
 
     // Made two minutes before the mock started: about thirteen left.
@@ -335,15 +345,18 @@ describe('the floor tablet', () => {
     ).toBeTruthy();
   });
 
-  it('takes the waiter to the requests from the header count', async () => {
-    const user = userEvent.setup();
+  it('comes first in the rail, open, so the clocks are the first thing in view', async () => {
     signIn();
     renderFloor(createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: mockClock().now }));
 
-    await user.click(
-      await screen.findByRole('button', { name: '2 bookings to approve' }, { timeout: 5000 }),
-    );
-    expect(document.activeElement).toBe(await panel());
+    const section = await panel();
+    const rail = screen.getByRole('complementary', { name: 'Needs attention' });
+    expect(within(rail).getAllByRole('region')[0]).toBe(section);
+    expect(
+      within(section)
+        .getByRole('button', { name: /^Bookings to approve/u })
+        .getAttribute('aria-expanded'),
+    ).toBe('true');
   });
 
   it('approves in one tap: the card goes, the count goes, the floor says so', async () => {
@@ -372,7 +385,7 @@ describe('the floor tablet', () => {
         ),
       ).toBeNull(),
     );
-    expect(screen.getByRole('button', { name: '1 booking to approve' })).toBeTruthy();
+    expect(await badge(await panel(), '1')).toBeTruthy();
   });
 
   it('takes one answer only: a second tap sends nothing, and the card says it is done', async () => {
@@ -638,7 +651,10 @@ describe('the floor tablet', () => {
     );
 
     await card('7');
-    const status = within(await panel()).getByRole('status');
+    // Outside the folding panel and the floor body, so it is heard whatever
+    // the panel or the screen is showing.
+    const status = announcer();
+    expect((await panel()).contains(status)).toBe(false);
     // Nothing new on the first read: those were on screen at once.
     expect(status.textContent).toBe('');
     expect(chime.played).toBe(0);
@@ -656,9 +672,30 @@ describe('the floor tablet', () => {
     );
     expect(arrived.className).toContain('is-fresh');
     expect((await card('7')).className).not.toContain('is-fresh');
-    expect(screen.getByRole('button', { name: '3 bookings to approve' }).className).toContain(
-      'is-fresh',
+    expect(await badge(await panel(), '3')).toBeTruthy();
+    await waitFor(() => expect(chime.played).toBe(1));
+  });
+
+  it('announces and counts a request that arrives while the kitchen tab shows', async () => {
+    signIn();
+    const clock = mockClock();
+    const user = userEvent.setup({ delay: null });
+    const queryClient = renderFloor(
+      createStaffMockGateway({ latencyMs: 0, branchId: BRANCH, now: clock.now }),
     );
+    await card('7');
+
+    await user.click(screen.getByRole('button', { name: /^Kitchen/u }));
+    clock.skip(50_000);
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.awaitingApproval(BRANCH) });
+    });
+
+    await waitFor(() =>
+      expect(announcer().textContent).toMatch(/^New booking request: table 4 (?:on .+ )?at /u),
+    );
+    // The floor's tab says something is waiting there; the chime rang once.
+    expect(screen.getByRole('button', { name: /^Floor, \d+ waiting on the floor$/u })).toBeTruthy();
     await waitFor(() => expect(chime.played).toBe(1));
   });
 

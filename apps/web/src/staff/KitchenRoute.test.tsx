@@ -17,6 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initConsoleTestI18n } from '../console/venue/reports/testHarness';
+import { resetCommandStore } from './testCommandStore';
 import type * as CurrentUserModule from '../auth/useCurrentUser';
 
 /**
@@ -31,6 +32,11 @@ import type * as CurrentUserModule from '../auth/useCurrentUser';
  */
 
 const snapshot = vi.hoisted(() => ({ current: null as unknown }));
+
+// The queue's store in memory: see `testCommandStore.ts`.
+vi.mock('../offline/commandStore', async (importOriginal) =>
+  (await import('./testCommandStore')).withMemoryStore(await importOriginal()),
+);
 
 vi.mock('./auth/staffSession', () => ({
   staffAuthAvailable: true,
@@ -142,6 +148,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   cleanup();
+  resetCommandStore();
 });
 
 describe('a kitchen account on the tablet', () => {

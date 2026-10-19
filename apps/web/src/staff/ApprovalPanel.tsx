@@ -15,6 +15,7 @@ import {
   requestTable,
 } from './approvalRequests';
 import { playChime } from './chime';
+import { ICONS, RailSection } from './FloorRail';
 import { useBranchFormat } from './useBranchFormat';
 
 /**
@@ -33,8 +34,8 @@ import { useBranchFormat } from './useBranchFormat';
  * - **Declining asks, once.** The guest is told no; the reason is optional and
  *   stays with the booking, never shown to them.
  *
- * A new request arrives with a soft chime, a pulse on its card and the header
- * count, and a sentence for a screen reader. Reduced motion keeps the
+ * A new request arrives with a soft chime, a pulse on its card and the count
+ * on its rail section, and a sentence for a screen reader. Reduced motion keeps the
  * highlight and drops the pulse; a browser that refuses sound gets none.
  */
 export interface ApprovalPanelProps {
@@ -47,8 +48,6 @@ export interface ApprovalPanelProps {
   readonly online: boolean;
   /** Requests that arrived since the last read, pulsed. */
   readonly fresh: ReadonlySet<string>;
-  /** What the live region says about them. */
-  readonly announcement: string;
   /** A decision landed: the floor says so in its notice. */
   readonly onDecided: (outcome: {
     readonly approved: boolean;
@@ -65,42 +64,28 @@ export interface ApprovalPanelProps {
   }) => void;
 }
 
-/** The section's id, so the header count can take the waiter to it. */
-export const APPROVAL_PANEL_ID = 'floor-approvals';
-
 export function ApprovalPanel(props: ApprovalPanelProps) {
   const { requests, loading, failed } = props;
   const { t } = useTranslation(['staff', 'common']);
-  const titleId = useId();
   // One clock for every card, read each second: the countdowns are seconds.
   const now = useNow(1000);
 
+  // First in the rail: each of these has a clock running on it.
   return (
-    <section
-      id={APPROVAL_PANEL_ID}
-      className={`queue-block approvals-block${requests.length > 0 ? ' has-requests' : ''}`}
-      aria-labelledby={titleId}
-      tabIndex={-1}
+    <RailSection
+      title={t('approvals.title')}
+      count={requests.length}
+      tone="waiting"
+      icon={ICONS.calendar}
     >
-      <h2 id={titleId} className="approvals-heading">
-        {t('approvals.title')}
-        {requests.length > 0 ? <span className="approvals-count">{requests.length}</span> : null}
-      </h2>
-
-      {/* Always in the tree, so a screen reader is already listening when a
-          request arrives; only its text changes. */}
-      <p className="visually-hidden" role="status">
-        {props.announcement}
-      </p>
-
       {failed && requests.length === 0 ? (
-        <p className="table-warn">{t('approvals.unreachable')}</p>
+        <p className="ft-rail-empty is-failed">{t('approvals.unreachable')}</p>
       ) : loading ? (
-        <p className="floor-todo">{t('floor.loading')}</p>
+        <p className="ft-rail-empty">{t('floor.loading')}</p>
       ) : requests.length === 0 ? (
-        <p className="floor-todo">{t('approvals.empty')}</p>
+        <p className="ft-rail-empty">{t('approvals.empty')}</p>
       ) : (
-        <ul className="queue-list">
+        <ul className="ft-items">
           {requests.map((request) => (
             <ApprovalCard
               key={request.id}
@@ -116,7 +101,7 @@ export function ApprovalPanel(props: ApprovalPanelProps) {
           ))}
         </ul>
       )}
-    </section>
+    </RailSection>
   );
 }
 
@@ -216,7 +201,7 @@ function ApprovalCard({
   return (
     <li
       className={[
-        'approval-card',
+        'ft-item approval-card',
         fresh ? 'is-fresh' : '',
         countdown?.urgent ? 'is-urgent' : '',
         closed ? 'is-closed' : '',
@@ -224,8 +209,8 @@ function ApprovalCard({
         .filter(Boolean)
         .join(' ')}
     >
-      <div className="approval-head">
-        <span className="queue-table">{requestTable(request, t)}</span>
+      <div className="ft-item-top approval-head">
+        <b>{requestTable(request, t)}</b>
         {countdown && !guestAnswers ? (
           <span className="approval-countdown">
             <span className="approval-countdown-label">{t('approvals.answerWithin')}</span>{' '}
@@ -301,7 +286,7 @@ function ApprovalCard({
           <div className="approval-actions">
             <button
               type="button"
-              className="button big"
+              className="ft-btn ft-btn-secondary"
               disabled={busy}
               onClick={() => {
                 setDeclining(false);
@@ -312,7 +297,7 @@ function ApprovalCard({
             </button>
             <button
               type="button"
-              className="button big approval-decline-confirm"
+              className="ft-btn ft-btn-danger"
               disabled={busy || !online}
               onClick={() => decide(false)}
             >
@@ -324,7 +309,7 @@ function ApprovalCard({
         <div className="approval-actions">
           <button
             type="button"
-            className="button big"
+            className="ft-btn ft-btn-secondary"
             disabled={busy}
             onClick={() => setDeclining(true)}
           >
@@ -332,7 +317,7 @@ function ApprovalCard({
           </button>
           <button
             type="button"
-            className="floor-button big"
+            className="ft-btn ft-btn-ok"
             disabled={busy || !online}
             onClick={() => decide(true)}
           >

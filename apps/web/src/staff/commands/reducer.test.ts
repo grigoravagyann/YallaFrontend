@@ -600,6 +600,39 @@ describe('what survives a restart', () => {
     expect(conflictCount(after)).toBe(0);
     expect(after.nextSeq).toBe(1);
   });
+
+  /*
+   * The store is read asynchronously after the floor mounts. A tap that lands
+   * before the read finishes — right after the PIN, or on a slow device — was
+   * replaced by whatever the store held: the command vanished without a trace,
+   * which is exactly the invisible bug this file exists to pin. (Found by a
+   * test that flaked under load: "On my way" was never sent.)
+   */
+  it('keeps a command taken before the store finished reading, after the stored ones', () => {
+    const stored = enqueue(initialCommandState, seatWalkIn('cmd-old', 't2', 'free'), 1_000);
+    const early = enqueue(initialCommandState, seatWalkIn('cmd-new', 't4', 'free'), 2_000);
+
+    const after = commandReducer(early, {
+      type: 'hydrated',
+      queue: stored.queue,
+      conflicts: [],
+    });
+
+    expect(after.queue.map((command) => command.id)).toEqual(['cmd-old', 'cmd-new']);
+    // Renumbered behind what was on disk, so the replay order is unambiguous.
+    expect(after.queue[1]!.seq).toBeGreaterThan(after.queue[0]!.seq);
+    expect(after.nextSeq).toBeGreaterThan(after.queue[1]!.seq);
+  });
+
+  it('does not double a command that was both stored and still in memory', () => {
+    const stored = enqueue(initialCommandState, seatWalkIn('cmd-1', 't2', 'free'), 1_000);
+    const after = commandReducer(stored, {
+      type: 'hydrated',
+      queue: stored.queue,
+      conflicts: [],
+    });
+    expect(after.queue.map((command) => command.id)).toEqual(['cmd-1']);
+  });
 });
 
 // --- Order within a table, across a failure ---------------------------------

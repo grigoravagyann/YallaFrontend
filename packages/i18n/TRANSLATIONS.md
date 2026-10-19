@@ -42,8 +42,9 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   `publicPage.markers.*`, so the `publicPage.markers.*` notes above describe
   keys that no longer exist.
 - Rooms on the staff floor and the public page (2026-10-16), provisional and
-  **not** reviewed: `staff` `floor.legend.label`, `floor.legend.booked` (one
-  colour for booked soon **and** held) and `floor.noRoom`; `public`
+  **not** reviewed: `staff` `floor.legend.label` and `floor.noRoom`
+  (`floor.legend.booked` went with the floor tablet redesign, which keys held
+  apart from booked soon); `public`
   `room.rooms`, `room.photoOf`, `room.previous`, `room.next`, `room.pin`,
   `room.status.*` (lower case, read after the table number: "Table 4, free")
   and `room.legend.*`. Written ungendered; ru `room.status.*` agree with
@@ -812,6 +813,42 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `venues.once.pinNag` warns once before "Try again" closes a dialog that
     shows a PIN (it must keep saying the PIN will **not** be seen again).
     Removed: `reports.occupancy.sittings_*`.
+
+- `staff` — the floor tablet redesign, phase 1 (2026-10-19): the top bar, the
+  floor grid and the "Now" rail. The `hy` copy is the approved Main artboard's
+  (`docs/design/floor-tablet`) where it has it; `ru` and `en` were written from
+  it and are **not** reviewed. From the artboard: `views.label`,
+  `connection.chip.live` / `.offlinePending_*` / `.stale_*`, `floor.rooms.*`,
+  `floor.tables`, `floor.card.*` (the card's state line — `seated_*` and
+  `seatedLong_*` use "ր", the artboard's short minute — and the line under
+  it), `floor.pendingMark` ("չի ուղարկվել"), `rail.label`, `rail.title`,
+  `rail.occupied_*`, `rail.minutes_*`, `rail.calls.reason.*` (read after the
+  table: "Սեղան 4 խնդրում է հաշիվ"), `rail.calls.ackNotice`, `rail.ready.*`,
+  `rail.unresolved.line`, `unresolved.body` / `.settle`, and in `hy` only
+  `approvals.title`, `approvals.empty`, `approvals.answerWithin` ("մնաց",
+  before the clock), `panel.calls.title`, `panel.orders.advance.served` and
+  `queue.conflicts_*`. Not in the artboard, so **not** read by the user even
+  in `hy`: `views.kitchenWaiting_*` (the Kitchen tab's count: orders new or
+  cooking), `connection.chip.livePending_*` and `.offline`,
+  `session.switchPerson` (the person button's name — must keep saying a tap
+  signs out and hands the tablet over), `floor.card.heldFor`, `.walkInOnly`
+  and `.debt`, and `rail.toSend.title` (orders nobody has sent to the kitchen
+  stay on the rail, because only a waiter can send them). Removed with the
+  old header and panel: `approvals.headerCount_*`, `queue.pending_*`,
+  `.synced`, `.syncing`, `.offline`, `session.signedInAs`, `.handOverHint`,
+  `panel.calls.line_*` and `panel.calls.reason.*`.
+  - Review round 1 (2026-10-19), **not** in an artboard: `views.floorWaiting_*`
+    (the Floor tab's count while the kitchen shows: bookings to answer and
+    calls), `connection.chip.waiting_*` (the queue's count beside a failing or
+    connecting state — it must keep saying the actions are **waiting**, not
+    lost), `connection.chip.name` (the chip's accessible name: its words, then
+    what a tap refreshes; hy ends the first with "։"), `rail.calls.ackQueued`
+    (offline "On my way" — it must keep saying the guest sees it only **when
+    the connection returns**), and `rail.ready.placed_*` (the age on a rail
+    order counts from when it was **ordered**). Reworded: hy
+    `floor.rooms.label` "Սրահներ" (it named the same thing as the Floor tab),
+    hy `floor.card.walkInOnly` "միայն առանց ամրագրման" (it read as "nobody
+    booked it"), ru `connection.chip.stale_*` "Данные устарели на … мин".
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and
