@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { overviewRowState, type BranchOverview } from '../contracts/branchOverview';
+import { ReservationNotStartedError } from '../contracts/errors';
 import { ConcurrencyConflictError, ForbiddenError } from '../errors';
 import { newCommandId } from '../ids';
 import { createConsoleMockGateway } from './consoleMock';
@@ -136,6 +137,18 @@ describe('the console mock — the row menu', () => {
     expect(after.todayBookings.find((row) => row.id === late.id)!.status).toBe('seated');
     expect(after.bookings.seated).toBe(before.bookings.seated + 1);
     expect(after.bookings.late).toBe(before.bookings.late - 1);
+  });
+
+  it('refuses a no-show before the booking starts, as the server does (FT2 wire)', async () => {
+    const gateway = gatewayAt();
+    const ahead = (await gateway.getBranchOverview(BRANCH)).todayBookings.find(
+      (row) => row.status === 'confirmed' && Date.parse(row.startUtc) > EVENING.getTime(),
+    )!;
+    const error = await gateway
+      .actOnBooking({ ...command(ahead), kind: 'noShow' })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ReservationNotStartedError);
+    expect((error as ReservationNotStartedError).startUtc).toBe(ahead.startUtc);
   });
 
   it('marks a late booking a no-show, freeing the table held for it, and only once', async () => {

@@ -96,6 +96,48 @@ export interface StaffRosterEntry {
   readonly staffMemberId: string;
   readonly fullName: string;
   readonly role: UserRole;
+  /**
+   * A shift at this branch was running when the roster was read. The PIN gate
+   * lists these people first; it never hides or refuses anybody else.
+   *
+   * True *at the moment of the read* (`startsAtUtc <= now < endsAtUtc` on
+   * the server): a gate left open re-reads it against the clock with
+   * {@link isOnShiftAt}.
+   */
+  readonly onShiftNow: boolean;
+  /**
+   * The shift the server reports: the one running now, else the next one to
+   * start within twelve hours at this branch (across midnight: at 23:50,
+   * tomorrow's 00:10). Null when there is none — their shifts are over, start
+   * further ahead, are elsewhere, or they are off.
+   */
+  readonly shift: StaffRosterShift | null;
+}
+
+/** A roster entry's shift, as `GET /api/branches/{id}/shifts` words it. */
+export interface StaffRosterShift {
+  /** `HH:mm`, the branch's wall clock. */
+  readonly startsAt: string;
+  /** `HH:mm`; at or before `startsAt` means after midnight. */
+  readonly endsAt: string;
+  /** Ends on the next date, including at exactly 00:00. */
+  readonly endsNextDay: boolean;
+  readonly startsAtUtc: string;
+  readonly endsAtUtc: string;
+}
+
+/**
+ * Whether the person is on shift at `now`, from the shift's own instants.
+ *
+ * The roster's `onShiftNow` is the server's answer at the read; a PIN gate
+ * left open over a shift change must not keep listing the lunch waiter first
+ * at nine at night, nor the evening one last once they have started. With no
+ * shift to time, the read is all there is.
+ */
+export function isOnShiftAt(entry: StaffRosterEntry, now: Date): boolean {
+  if (!entry.shift) return entry.onShiftNow;
+  const at = now.getTime();
+  return Date.parse(entry.shift.startsAtUtc) <= at && at < Date.parse(entry.shift.endsAtUtc);
 }
 
 export interface PinSignInCommand {

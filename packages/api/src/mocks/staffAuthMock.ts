@@ -18,7 +18,7 @@ import type {
 import { UnauthorizedError } from '../errors';
 import { mockRegistry, type MockRegistry } from './mockRegistry';
 import { MOCK_STAFF_PIN, fixtureStaffFor } from './staffFixture';
-import { mockStaffRoster } from './staffRosterMock';
+import { mockRosterShiftsAround, mockStaffRoster } from './staffRosterMock';
 import { mockVenues } from './venues';
 
 /**
@@ -154,10 +154,17 @@ export function createMockStaffAuth(options: StaffAuthMockOptions = {}): StaffAu
 
     async getRoster(deviceToken: string): Promise<readonly StaffRosterEntry[]> {
       const found = device(deviceToken);
-      return mockStaffRoster(staffOf(found.venue.id), {
-        venueId: found.venue.id,
-        branchId: found.branchId,
-      });
+      const people = staffOf(found.venue.id);
+      const at = now();
+      return mockStaffRoster(
+        people,
+        { venueId: found.venue.id, branchId: found.branchId },
+        {
+          now: at,
+          timeZone: found.branch.timeZoneId,
+          shifts: mockRosterShiftsAround(people, found.branchId, at),
+        },
+      );
     },
 
     async signInWithPin(deviceToken: string, command: PinSignInCommand) {

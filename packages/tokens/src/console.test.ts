@@ -286,6 +286,9 @@ describe('the floor tablet', () => {
       expect(ratio(consoleColor.muted, ground)).toBeGreaterThanOrEqual(AA_BODY);
     }
     expect(ratio(consoleColor.muted, outStripe)).toBeGreaterThanOrEqual(AA_BODY);
+    // A late booking's words are amber on the same striped tint.
+    expect(ratio(consoleColor.amber, consoleColor.floorBooked)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.amber, bookedStripe)).toBeGreaterThanOrEqual(AA_BODY);
   });
 
   it("says every table state in an ink that reads on the state's own tint", () => {
@@ -311,6 +314,36 @@ describe('the floor tablet', () => {
     // The current tab is cream with brown on it; its count is amber with cream.
     expect(ratio(consoleColor.brand, consoleColor.brandForeground)).toBeGreaterThanOrEqual(AA_BODY);
     expect(ratio(consoleColor.brandForeground, consoleColor.amber)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it('keeps the table panel readable: facts, notes and its filled buttons', () => {
+    // Facts on the canvas, the three notes on their own tints.
+    expect(ratio(consoleColor.muted, consoleColor.canvas)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.red, consoleColor.canvas)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.amber, consoleColor.amberBg)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.red, consoleColor.redBg)).toBeGreaterThanOrEqual(AA_BODY);
+    // Seat (green), free (red) and the primary (brown), with their words.
+    expect(ratio(consoleColor.brandForeground, consoleColor.green)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.redForeground, consoleColor.red)).toBeGreaterThanOrEqual(AA_BODY);
+    expect(ratio(consoleColor.red, consoleColor.surface)).toBeGreaterThanOrEqual(AA_BODY);
+  });
+
+  it("keeps the PIN gate's names readable on their rows", () => {
+    // A row is a light wash over the bar; a chosen row is cream with brown.
+    const row = over(consoleColor.sidebarPanel, consoleColor.sidebar);
+    for (const text of [
+      consoleColor.sidebarFieldText,
+      consoleColor.sidebarMuted,
+      consoleColor.sidebarGroup,
+    ]) {
+      expect(ratio(text, row)).toBeGreaterThanOrEqual(AA_BODY);
+    }
+    expect(ratio(consoleColor.brand, consoleColor.sidebarTextStrong)).toBeGreaterThanOrEqual(
+      AA_BODY,
+    );
+    expect(ratio(consoleColor.muted, consoleColor.sidebarTextStrong)).toBeGreaterThanOrEqual(
+      AA_BODY,
+    );
   });
 
   it("draws each connection state's dot and edge at 3:1 on the bar", () => {

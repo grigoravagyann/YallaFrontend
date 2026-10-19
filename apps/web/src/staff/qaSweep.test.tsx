@@ -226,7 +226,7 @@ describe('the staff floor, read without a pointer', () => {
     expect(row.getAttribute('aria-pressed')).toBe('true');
     expect(within(panel).getByRole('button', { name: 'Seat a walk-in' })).toBeTruthy();
 
-    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    await user.click(within(panel).getByRole('button', { name: 'Close and go back to the floor' }));
     expect(screen.queryByRole('dialog', { name: 'Actions for table 2' })).toBeNull();
   });
 });
@@ -284,6 +284,7 @@ function showPanel(
         onAct={() => {}}
         onRelease={() => {}}
         onOpenTab={() => {}}
+        onCash={() => {}}
         onStartTab={options.onStartTab ?? (() => {})}
         startingTab={false}
         onOrder={() => {}}
@@ -427,6 +428,7 @@ describe('the next booking on the table panel (QA 2026-10-16, P-B2)', () => {
           onAct={() => {}}
           onRelease={() => {}}
           onOpenTab={() => {}}
+          onCash={() => {}}
           onStartTab={() => {}}
           startingTab={false}
           onOrder={() => {}}

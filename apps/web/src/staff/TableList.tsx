@@ -143,6 +143,7 @@ export function TableList({
                 data-table-id={table.id}
                 className="table-row"
                 data-tone={tone}
+                data-late={card.late ? 'true' : undefined}
                 aria-pressed={table.id === selectedTableId}
                 aria-label={name}
                 onClick={() => onSelect(table.id)}

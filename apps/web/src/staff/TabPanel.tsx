@@ -92,6 +92,12 @@ export interface TabPanelProps {
   readonly onAbandon: (reason: string) => void;
   readonly onOrder: () => void;
   readonly onClose: () => void;
+  /**
+   * Opened from the table panel's "Take cash": the keypad comes up at once, on
+   * the newest bill request as the tab's own button would, instead of one tap
+   * later. It still waits for the tab to load, and needs the connection.
+   */
+  readonly openOnCash?: boolean | undefined;
 }
 
 /** Two letters for a face with no photo: the first of the first two words that are names. */
@@ -161,7 +167,10 @@ export function TabPanel(props: TabPanelProps) {
    * request arriving while the waiter types cannot change whose cash this is.
    */
   const [takingCash, setTakingCash] = useState<{ readonly request: ServiceRequest | null } | null>(
-    null,
+    () =>
+      props.openOnCash && online
+        ? { request: (props.billRequests ?? []).find((request) => request.bill !== null) ?? null }
+        : null,
   );
   /** The waiter's pick among the bill requests: an id, {@link NO_REQUEST}, or null for the newest. */
   const [billChoice, setBillChoice] = useState<string | null>(null);
@@ -651,7 +660,8 @@ export function TabPanel(props: TabPanelProps) {
       ) : null}
 
       {/* --- Cash ------------------------------------------------------------ */}
-      {takingCash && totals ? (
+      {/* Never on a closed or abandoned tab, however the keypad was asked for. */}
+      {takingCash && totals && !closed ? (
         <CashKeypad
           remainingDram={totals.remainingDram}
           prefill={takingCash.request?.bill ?? null}

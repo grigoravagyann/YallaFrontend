@@ -1,4 +1,4 @@
-import { ApiError, describeFailure } from '@yalla/api';
+import { ApiError, ReservationNotStartedError, describeFailure } from '@yalla/api';
 
 /** The console's sentences for a refused row action, by what went wrong. */
 export interface BookingActionFailureCopy {
@@ -10,6 +10,8 @@ export interface BookingActionFailureCopy {
   readonly sittingChanged: string;
   /** `invalid-table-transition`: the table cannot take that step as it stands. */
   readonly tableCannot: string;
+  /** `reservation-not-started`: a no-show before the booking's start; nothing changed. */
+  readonly notStarted: string;
   /** A 403: not this person's branch. */
   readonly forbidden: string;
   /** A 404: the booking or the table is gone. */
@@ -28,6 +30,7 @@ export interface BookingActionFailureCopy {
  * of its own; anything else is the generic one.
  */
 export function bookingActionFailureText(error: unknown, copy: BookingActionFailureCopy): string {
+  if (error instanceof ReservationNotStartedError) return copy.notStarted;
   if (error instanceof ApiError) {
     switch (error.code) {
       case 'conflicting-state':

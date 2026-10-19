@@ -565,6 +565,16 @@
   color: var(--console-floor-booked-ink);
 }
 
+/* A booking past its time with nobody seated: amber, edge and words, so it
+   does not read as one still to come. The words say "late" as well. */
+[data-surface='staff'] .table-row[data-late='true'] {
+  border-color: var(--console-amber);
+}
+
+[data-surface='staff'] .table-row[data-late='true'] .ft-table-state {
+  color: var(--console-amber);
+}
+
 [data-surface='staff'] [data-tone='held'] .ft-table-state {
   color: var(--console-floor-held-ink);
 }
@@ -589,24 +599,6 @@
   color: var(--console-amber);
   font-size: var(--console-text-label);
   font-weight: var(--font-weight-bold);
-}
-
-/* The table's actions open over the floor, at its right, until phase 2 gives
-   them their own panel. */
-.ft-floor > .table-panel {
-  position: absolute;
-  top: var(--space-md);
-  right: var(--space-md);
-  bottom: var(--space-md);
-  width: min(440px, 60%);
-  max-height: none;
-}
-
-/* With the panel open the grid narrows to two columns beside it, so the
-   chosen card is never under the panel. */
-.ft-floor:has(> .table-panel) .ft-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding-right: calc(min(440px, 60%) + 2 * var(--space-md));
 }
 
 /* --------------------------------------------------------------------------
@@ -944,4 +936,847 @@
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--console-radius-control);
   resize: vertical;
+}
+
+/* --------------------------------------------------------------------------
+ * The table panel (Table artboard): 560px in the rail's place, the floor
+ * dimmed behind it to three columns with the chosen card still lit
+ * -------------------------------------------------------------------------- */
+.ft-rail[hidden] {
+  display: none;
+}
+
+.ft-body[data-panel] .ft-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ft-body[data-panel] .ft-grid .table-row:not([aria-pressed='true']) {
+  opacity: 0.5;
+  filter: saturate(0.5);
+}
+
+.tp {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--console-size-floor-panel);
+  min-height: 0;
+  border-left: 1px solid var(--console-line);
+  background: var(--console-surface);
+  box-shadow: var(--console-shadow-dialog);
+}
+
+.tp:focus-visible {
+  outline-offset: -3px;
+}
+
+.tp-head {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.tp-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid;
+  border-radius: var(--console-radius-floor-table);
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-ink);
+}
+
+.tp-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.tp-title h2 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.tp-title p {
+  margin: 0;
+}
+
+.tp-state {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tp-state[data-ink='free'] {
+  color: var(--console-floor-free-ink);
+}
+
+.tp-state[data-ink='booked'] {
+  color: var(--console-floor-booked-ink);
+}
+
+.tp-state[data-ink='held'] {
+  color: var(--console-floor-held-ink);
+}
+
+.tp-state[data-ink='occupied'] {
+  color: var(--console-red);
+}
+
+.tp-state[data-ink='out'] {
+  color: var(--console-muted);
+}
+
+.tp-sub {
+  font-size: var(--font-size-xs);
+  color: var(--console-muted);
+}
+
+.tp-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--touch-regular);
+  height: var(--touch-regular);
+  border: 0;
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-grey-bg);
+  color: var(--console-ink);
+  cursor: pointer;
+}
+
+.tp-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px 22px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tp-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.tp-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px var(--space-md);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-canvas);
+}
+
+.tp-fact dt {
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--console-muted);
+}
+
+.tp-fact dd {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+  overflow-wrap: anywhere;
+}
+
+.tp-fact dd.is-warn {
+  color: var(--console-red);
+}
+
+.tp-fact dd small {
+  display: block;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--console-muted);
+}
+
+/* A note never blocks: amber is waiting, blue is the guest's side, red is a
+   real problem. Its first words are bold, so the line reads at a glance. */
+.tp-warn {
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-floor-button);
+  font-size: var(--console-text-nav);
+  line-height: 1.4;
+}
+
+.tp-warn[data-tone='amber'] {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.tp-warn[data-tone='blue'] {
+  background: var(--console-floor-held);
+  color: var(--console-floor-held-ink);
+}
+
+.tp-warn[data-tone='red'] {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.tp-late,
+.tp-affected,
+.tp-acts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tp-row {
+  display: flex;
+  gap: 10px;
+}
+
+.tp-row > .tp-btn {
+  flex: 1 1 0;
+}
+
+.tp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 0 20px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  font: inherit;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.tp-btn:active:not(:disabled),
+.tp-choice:active,
+.tp-stepper button:active:not(:disabled),
+.tp-close:active {
+  transform: scale(var(--scale-press));
+}
+
+.tp-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tp-pri {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+}
+
+.tp-sec {
+  border-color: var(--console-button-edge);
+  background: var(--console-surface);
+  color: var(--console-brand);
+}
+
+.tp-ok {
+  border-color: var(--console-green);
+  background: var(--console-green);
+  color: var(--console-brand-foreground);
+}
+
+.tp-danger {
+  border-color: var(--console-red-line);
+  background: var(--console-surface);
+  color: var(--console-red);
+}
+
+.tp-danger-fill {
+  border-color: var(--console-red);
+  background: var(--console-red);
+  color: var(--console-red-foreground);
+}
+
+.tp-ghost {
+  min-height: var(--touch-regular);
+  background: none;
+  color: var(--console-muted);
+  font-size: var(--console-text-nav);
+}
+
+.tp-small {
+  flex: none;
+  min-height: var(--touch-minimum);
+  padding: 0 var(--space-md);
+  font-size: var(--font-size-xs);
+}
+
+.tp-sep {
+  width: 100%;
+  height: 1px;
+  margin: var(--space-xs) 0;
+  border: 0;
+  background: var(--console-line-soft);
+}
+
+.tp-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  color: var(--console-muted);
+}
+
+.tp-pending {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 4px solid var(--console-amber);
+  border-radius: var(--console-radius-small);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tp-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 1.5px solid var(--console-line);
+  border-radius: 14px;
+  background: var(--console-canvas);
+}
+
+.tp-confirm h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.tp-party {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 14px;
+  border: 1.5px solid var(--console-line);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+}
+
+.tp-party-label {
+  flex: 1;
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tp-stepper {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1.5px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+}
+
+.tp-stepper button {
+  width: var(--touch-staff);
+  height: var(--touch-staff);
+  border: 0;
+  background: var(--console-surface);
+  color: var(--console-brand);
+  font: inherit;
+  font-size: 26px;
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.tp-stepper button:disabled {
+  color: var(--console-muted);
+  cursor: not-allowed;
+}
+
+.tp-stepper output {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: var(--touch-staff);
+  border-inline: 1px solid var(--console-line);
+  font-size: 24px;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+}
+
+.tp-cap {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--console-amber);
+}
+
+.tp-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.tp-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: var(--touch-staff);
+  padding: 10px 14px;
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+/* Chosen: the brand edge, doubled, on a warmer ground. The state itself is
+   `aria-pressed`, which a reader hears. */
+.tp-choice[aria-pressed='true'] {
+  border-color: var(--console-brand);
+  box-shadow: inset 0 0 0 1px var(--console-brand);
+  background: var(--console-surface-muted);
+}
+
+.tp-choice small,
+.tp-affected-row small {
+  font-size: var(--console-text-label);
+  color: var(--console-muted);
+}
+
+.tp-affected-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tp-affected-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: var(--touch-staff);
+  padding: 10px 14px;
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-button);
+}
+
+.tp-affected-row > span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* The number is the point of the list. A tablet can dial it. */
+.tp-affected-row a {
+  color: var(--console-brand);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* --------------------------------------------------------------------------
+ * The PIN gate (Pin artboard): one card over the blurred floor — who is
+ * signing in on the dark side, the prompt, the dots and the pad on the light
+ * -------------------------------------------------------------------------- */
+.staff-shell[inert] {
+  filter: blur(6px) saturate(0.5);
+}
+
+/* First launch: nobody has signed in, so the floor's outline stands in. */
+.ft-ghost {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: 120px;
+  align-content: start;
+  gap: var(--space-md);
+  padding: 88px 20px 20px;
+  background: var(--console-canvas);
+  opacity: 0.25;
+  filter: blur(2px);
+}
+
+.ft-ghost span {
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--console-radius-floor-table);
+  background: var(--console-surface);
+}
+
+.staff-gate.ft-gate {
+  padding: var(--space-xl);
+  background: var(--console-scrim);
+}
+
+.ft-pin {
+  display: grid;
+  grid-template-columns: var(--console-size-floor-pin-side) minmax(0, 1fr);
+  width: min(var(--console-size-floor-pin-card), 100%);
+  height: min(var(--console-size-floor-pin-card-height), 100%);
+  overflow: hidden;
+  border-radius: 22px;
+  background: var(--console-surface);
+  box-shadow: var(--console-shadow-dialog);
+}
+
+.ft-pin-left {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 28px;
+  background: var(--console-sidebar);
+  color: var(--console-floor-bar-text);
+}
+
+.ft-pin-left :focus-visible {
+  outline-color: var(--console-sidebar-focus);
+}
+
+.ft-pin-brand {
+  font-family: var(--font-family-display);
+  font-size: var(--console-text-brand);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  color: var(--console-sidebar-text-strong);
+}
+
+.ft-pin-where {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ft-pin-where b {
+  font-size: var(--console-text-section);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-sidebar-text-strong);
+}
+
+.ft-pin-where span {
+  font-size: var(--console-text-label);
+  color: var(--console-sidebar-muted);
+}
+
+.ft-pin-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-floor-bar-tabs);
+  color: var(--console-sidebar-field-text);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.ft-pin-people {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 0;
+}
+
+.ft-pin-people h2 {
+  margin: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--console-sidebar-group);
+}
+
+/* Room around the rows for their focus ring, inside the scroller. */
+.ft-pin-scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-height: 0;
+  margin: -6px;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ft-pin-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.ft-pin-list[hidden] {
+  display: none;
+}
+
+.ft-pin-person {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: var(--touch-staff);
+  padding: 0 var(--space-md);
+  border: 1.5px solid transparent;
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-sidebar-panel);
+  color: var(--console-sidebar-field-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ft-pin-person:active {
+  transform: scale(var(--scale-press));
+}
+
+.ft-pin-person[aria-pressed='true'] {
+  border-color: var(--console-sidebar-text-strong);
+  background: var(--console-sidebar-text-strong);
+  color: var(--console-brand);
+}
+
+.ft-pin-person[aria-expanded='true'] {
+  border-color: var(--console-sidebar-field-edge);
+}
+
+.ft-pin-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--console-size-floor-avatar);
+  height: var(--console-size-floor-avatar);
+  border-radius: 50%;
+  background: var(--console-avatar);
+  color: var(--console-avatar-foreground);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.ft-pin-person.is-other .ft-pin-avatar {
+  background: var(--console-floor-bar-who);
+  color: var(--console-sidebar-field-text);
+}
+
+.ft-pin-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ft-pin-meta {
+  flex: none;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--console-sidebar-muted);
+}
+
+.ft-pin-person[aria-pressed='true'] .ft-pin-meta {
+  color: var(--console-muted);
+}
+
+/* The staff id goes under the names it stands in for: the pad on the right
+   keeps its height, and the card does not scroll to reach it. */
+.ft-pin-id {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--console-sidebar-text-strong);
+}
+
+.ft-pin-id input {
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1.5px solid var(--console-sidebar-field-edge);
+  border-radius: var(--console-radius-floor-button);
+  background: var(--console-sidebar-field);
+  color: var(--console-sidebar-field-text);
+  font: inherit;
+  font-size: var(--font-size-md);
+}
+
+.ft-pin-id small {
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-regular);
+  line-height: 1.4;
+  color: var(--console-sidebar-muted);
+}
+
+.ft-pin-stale {
+  margin: 0;
+  font-size: var(--console-text-label);
+  line-height: 1.4;
+  color: var(--console-sidebar-focus);
+}
+
+.ft-pin-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  min-height: 0;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+.ft-pin-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  text-align: center;
+}
+
+.ft-pin-prompt h1 {
+  margin: 0;
+  font-family: var(--font-family-display);
+  font-size: 26px;
+  line-height: 1.25;
+}
+
+.ft-pin-prompt p {
+  margin: 0;
+  font-size: var(--console-text-nav);
+  color: var(--console-muted);
+}
+
+/* Dots, never digits. This screen is held at chest height in a room with
+   other people in it. */
+.ft-pin-dots {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  height: 28px;
+}
+
+.ft-pin-dots span {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid var(--console-button-edge);
+  border-radius: 50%;
+  background: var(--console-surface);
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ft-pin-dots span.is-filled {
+  border-color: var(--console-brand);
+  background: var(--console-brand);
+  transform: scale(1.1);
+}
+
+.ft-pin-dots.is-wrong span {
+  border-color: var(--console-red);
+  background: var(--console-red-bg);
+}
+
+.ft-pin-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--touch-regular);
+}
+
+.ft-pin-msg p {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--console-radius-control);
+  font-size: var(--console-text-nav);
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+.ft-pin-msg .is-error {
+  background: var(--console-red-bg);
+  color: var(--console-red);
+}
+
+.ft-pin-msg .is-error small {
+  display: block;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-medium);
+}
+
+.ft-pin-msg .is-offline {
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+}
+
+.ft-pin-keys {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(3, var(--console-size-floor-pin-key));
+  grid-auto-rows: var(--console-size-floor-pin-key-height);
+  gap: 10px;
+}
+
+.ft-pin-key {
+  border: 2px solid var(--console-button-edge);
+  border-radius: var(--space-lg);
+  background: var(--console-surface);
+  color: var(--console-ink);
+  font: inherit;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: var(--font-feature-tabular);
+  cursor: pointer;
+  transition: transform var(--duration-control) var(--easing-standard);
+}
+
+.ft-pin-key:active:not(:disabled) {
+  transform: scale(0.94);
+  background: var(--console-canvas);
+}
+
+.ft-pin-key.is-fn {
+  background: var(--console-surface-muted);
+  color: var(--console-brand);
+  font-size: var(--console-text-nav);
+}
+
+.ft-pin-key:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ft-pin-foot {
+  margin: auto 0 0;
+  font-size: var(--console-text-label);
+  line-height: 1.4;
+  text-align: center;
+  color: var(--console-muted);
 }

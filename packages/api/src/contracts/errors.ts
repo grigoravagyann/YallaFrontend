@@ -550,6 +550,44 @@ export class BookingNotChangeableError extends ApiError {
   }
 }
 
+/**
+ * A no-show before the booking's start — `reservation-not-started`, 409.
+ *
+ * Nobody can have failed to come to a booking that has not begun. The server
+ * accepts a no-show from `startUtc` on, with no grace on top; before that the
+ * booking and the table's hold are left as they were. Releasing it as "they
+ * let us know" (outcome 2) and releasing the table's hold are still allowed.
+ */
+export class ReservationNotStartedError extends ApiError {
+  readonly reservationId: string | null;
+  /** From this instant on a no-show is accepted. Null when the server did not say. */
+  readonly startUtc: string | null;
+
+  constructor(options: BookingRefusal) {
+    super('That booking has not started yet.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+    });
+    this.name = 'ReservationNotStartedError';
+    this.reservationId = options.reservationId ?? null;
+    this.startUtc = options.startUtc ?? null;
+  }
+}
+
+/** The 409 for a no-show before the start, as its own error; anything else unchanged. */
+export function asNotStarted(error: unknown): unknown {
+  if (!(error instanceof ApiError) || error.code !== 'reservation-not-started') return error;
+  const context = error.problem?.context as
+    { reservationId?: unknown; startUtc?: unknown } | undefined;
+  return new ReservationNotStartedError({
+    url: error.url,
+    requestId: error.requestId,
+    reservationId: typeof context?.reservationId === 'string' ? context.reservationId : undefined,
+    startUtc: typeof context?.startUtc === 'string' ? context.startUtc : undefined,
+  });
+}
+
 /** The action needs the host, and the caller is not it. */
 export class NotTabHostError extends ApiError {
   constructor(options: { url: string }) {

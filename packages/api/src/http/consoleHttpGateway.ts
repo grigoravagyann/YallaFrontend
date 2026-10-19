@@ -54,6 +54,7 @@ import {
   PolicyBoundsError,
   SignInUnknownError,
   SlugTakenError,
+  asNotStarted,
 } from '../contracts/errors';
 import {
   ApiError,
@@ -1284,9 +1285,14 @@ export function createConsoleHttpGateway(
         }
         case 'noShow': {
           // Counts against the diner, as on the floor tablet.
-          const { data } = await client.post<Release>(`${RESERVATIONS}/${reservationId}/no-show`, {
-            clientCommandId,
-          } satisfies Schemas['Yalla.Api.Endpoints.MarkNoShowRequest']);
+          const { data } = await client
+            .post<Release>(`${RESERVATIONS}/${reservationId}/no-show`, {
+              clientCommandId,
+            } satisfies Schemas['Yalla.Api.Endpoints.MarkNoShowRequest'])
+            // Before the booking's start nobody can have failed to come.
+            .catch((error: unknown) => {
+              throw asNotStarted(error);
+            });
           return fromRelease(data);
         }
         case 'cancel': {

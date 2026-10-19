@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ApiClient } from '../client';
 import { DeviceRevokedError } from '../contracts/errors';
-import type { StaffCredentialStorage } from '../contracts/staffAuth';
+import {
+  isOnShiftAt,
+  type StaffCredentialStorage,
+  type StaffRosterEntry,
+} from '../contracts/staffAuth';
 import { UnauthorizedError } from '../errors';
 import { createStaffAuth, type StaffAuth } from './staffEndpoints';
 import { createStaffSession } from './staffSession';
@@ -23,9 +27,47 @@ describe('GET /api/auth/staff/roster', () => {
       headers: { authorization: 'Bearer device-token' },
     });
     expect(roster).toEqual([
-      { staffMemberId: 'a', fullName: 'Anna', role: 'owner' },
-      { staffMemberId: 'k', fullName: 'Kara', role: 'kitchen' },
+      { staffMemberId: 'a', fullName: 'Anna', role: 'owner', onShiftNow: false, shift: null },
+      { staffMemberId: 'k', fullName: 'Kara', role: 'kitchen', onShiftNow: false, shift: null },
     ]);
+  });
+
+  it('reads who is on shift, and the shift, with its wall clock cut to minutes', async () => {
+    const get = vi.fn().mockResolvedValue({
+      data: [
+        {
+          staffMemberId: 'n',
+          fullName: 'Narek',
+          role: 3,
+          onShiftNow: true,
+          startsAt: '18:00:00',
+          endsAt: '02:00:00',
+          endsNextDay: true,
+          startsAtUtc: '2026-10-19T14:00:00Z',
+          endsAtUtc: '2026-10-19T22:00:00Z',
+        },
+        // Nothing to report: the fields are omitted, as the server omits nulls.
+        { staffMemberId: 's', fullName: 'Sona', role: 3, onShiftNow: false, endsNextDay: false },
+      ],
+    });
+    const auth = createStaffAuth({ get } as unknown as ApiClient);
+
+    const [narek, sona] = await auth.getRoster('device-token');
+
+    expect(narek).toEqual({
+      staffMemberId: 'n',
+      fullName: 'Narek',
+      role: 'waiter',
+      onShiftNow: true,
+      shift: {
+        startsAt: '18:00',
+        endsAt: '02:00',
+        endsNextDay: true,
+        startsAtUtc: '2026-10-19T14:00:00Z',
+        endsAtUtc: '2026-10-19T22:00:00Z',
+      },
+    });
+    expect(sona).toMatchObject({ onShiftNow: false, shift: null });
   });
 
   it('turns a 401 into a revoked device', async () => {
@@ -67,5 +109,33 @@ describe('the session roster', () => {
     await expect(s.roster()).rejects.toBeInstanceOf(DeviceRevokedError);
     expect(storage.clearDeviceToken).toHaveBeenCalled();
     expect(s.getSnapshot().state).toBe('unenrolled');
+  });
+});
+
+describe('on shift, re-read against the clock', () => {
+  const shift = {
+    startsAt: '18:00',
+    endsAt: '02:00',
+    endsNextDay: true,
+    startsAtUtc: '2026-10-19T14:00:00Z',
+    endsAtUtc: '2026-10-19T22:00:00Z',
+  };
+  const entry = (onShiftNow: boolean, withShift = true): StaffRosterEntry => ({
+    staffMemberId: 'n',
+    fullName: 'Narek',
+    role: 'waiter',
+    onShiftNow,
+    shift: withShift ? shift : null,
+  });
+
+  it('starts at the start and is over at the end, whatever the read said', () => {
+    expect(isOnShiftAt(entry(false), new Date('2026-10-19T13:59:59Z'))).toBe(false);
+    expect(isOnShiftAt(entry(false), new Date('2026-10-19T14:00:00Z'))).toBe(true);
+    expect(isOnShiftAt(entry(true), new Date('2026-10-19T21:59:59Z'))).toBe(true);
+    expect(isOnShiftAt(entry(true), new Date('2026-10-19T22:00:00Z'))).toBe(false);
+  });
+
+  it('takes the read as it was when there is no shift to time', () => {
+    expect(isOnShiftAt(entry(false, false), new Date('2026-10-19T15:00:00Z'))).toBe(false);
   });
 });

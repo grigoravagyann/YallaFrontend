@@ -2291,7 +2291,8 @@
         "forbidden": "You cannot change this branch's bookings.",
         "gone": "This booking is no longer there.",
         "offline": "You are offline. Nothing was sent.",
-        "generic": "That did not go through. Try again."
+        "generic": "That did not go through. Try again.",
+        "notStarted": "This booking has not started yet, so it cannot be a no-show. Nothing was changed."
       },
       "tableTaken": "{{table}} is taken right now",
       "tableOutOfService": "{{table}} is out of service right now"

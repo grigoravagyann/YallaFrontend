@@ -327,6 +327,12 @@
   --console-size-floor-rail: 380px;
   --console-size-floor-table-row: 124px;
   --console-size-floor-avatar: 36px;
+  --console-size-floor-panel: 560px;
+  --console-size-floor-pin-card: 980px;
+  --console-size-floor-pin-card-height: 640px;
+  --console-size-floor-pin-side: 420px;
+  --console-size-floor-pin-key: 96px;
+  --console-size-floor-pin-key-height: 76px;
   --console-radius-card: 12px;
   --console-radius-control: 10px;
   --console-radius-small: 8px;

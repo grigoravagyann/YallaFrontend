@@ -334,6 +334,14 @@ export const consoleSize = {
   floorTableRow: 124,
   /** The person's initials in the top bar. */
   floorAvatar: 36,
+  /** The table panel, in the rail's place: wide enough for the held actions on one line each. */
+  floorPanel: 560,
+  /** The PIN gate's card, its people column, and one key of its pad. */
+  floorPinCard: 980,
+  floorPinCardHeight: 640,
+  floorPinSide: 420,
+  floorPinKey: 96,
+  floorPinKeyHeight: 76,
 } as const;
 
 export const consoleRadius = {

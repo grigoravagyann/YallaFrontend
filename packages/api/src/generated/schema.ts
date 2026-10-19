@@ -1,7 +1,7 @@
 /**
  * GENERATED FILE — do not edit.
  *
- * Source: http://localhost:5199/swagger/v1/swagger.json
+ * Source: http://localhost:5203/swagger/v1/swagger.json
  * Regenerate with: pnpm api:generate
  */
 
@@ -301,7 +301,11 @@ export interface paths {
          *     M:Yalla.Api.Endpoints.AuthEndpoints.GetEnrolledDeviceAsync(Yalla.Application.Auth.IStaffAuthService,Microsoft.AspNetCore.Http.HttpContext,System.Threading.CancellationToken) does, so the two refuse the same callers the same way.
          * @description For the PIN screen, so a first sign-in is a name to tap rather than a staff member id to type. Exactly the people `POST /api/auth/staff/pin` would accept here: active, of this device's venue, and either at this device's branch or at no particular branch. Sorted by name.
          *
-         *     Three fields per person and nothing else - no phone, email or PIN state - because whoever holds the tablet can read it.
+         *     Each person also says whether they are on shift, so the screen can list those people first - an order left to the client, as is re-reading it on a screen left open. The shift is the one at this device's branch: the one running now (`onShiftNow`; last night's still running past midnight included), else the next to start within 12 hours, across midnight too. Its `startsAt` / `endsAt` (branch wall clock), `endsNextDay` and `startsAtUtc` / `endsAtUtc` read as on `GET /api/branches/{branchId}/shifts`, and are absent when there is none to report: every shift is over or more than 12 hours off, at another branch, or a day off.
+         *
+         *     `onShiftNow` is `startsAtUtc <= now < endsAtUtc` - decided on the instants, not the wall clock, so an hour a clock change repeats does not put an ended shift back on. Both instants are always present with a shift, so a screen can re-check it against its own clock and agree: a start in an hour the clocks skip is read on the clock from before the change (02:30 that night is 03:30 summer time), a time in a repeated hour as its first pass. Shifts never narrow the list: everybody the PIN exchange accepts is on it.
+         *
+         *     Nothing else per person - no phone, email or PIN state - because whoever holds the tablet can read it.
          *
          *     Authenticated by the device token, and refused exactly as `GET /api/auth/staff/device` refuses: no token, or a revoked device, is a 401.
          */
@@ -2850,6 +2854,8 @@ export interface paths {
          *     **Never automatic.** Prompt 2's rule that the decision belongs to a waiter applies here more than anywhere: only a person standing in the room knows whether the party is late or absent.
          *
          *     Counts toward the diner's rolling no-show threshold. If they telephoned to say they could not come, use `release` with `outcome: 2` instead - a diner who let the venue know must not be punished for it.
+         *
+         *     **Only from the booking's start.** Before `startUtc` nobody can have failed to come, so the answer is `409 reservation-not-started` (`context.reservationId`, `context.startUtc`) and nothing changes - the hold stays, the booking stays confirmed. From the start itself there is no further wait: the branch's grace period times the late nudge, and whether a party past their time is late or absent is the waiter's call. To let a booking go earlier, use `release` with `outcome: 2`.
          */
         post: operations["markReservationNoShow"];
         delete?: never;
@@ -2901,6 +2907,8 @@ export interface paths {
          *     Render these as two buttons - *release, marked no-show* and *release, they let us know*. With one button a busy waiter taps it for both, and the threshold ends up punishing the people who phoned ahead. A table out of service is always the second one: a broken chair is the venue's doing.
          *
          *     The table is freed when it is **held for this booking**, through the state machine, so the audit row is written and the branch change sequence moves. A table somebody is **sitting at** is left alone - the booking is released either way, and a floor plan that shows an occupied table as free costs more than a stale hold.
+         *
+         *     **`outcome: 1` only from the booking's start.** Before `startUtc` a no-show is refused with `409 reservation-not-started` (`context.reservationId`, `context.startUtc`) and nothing changes. `outcome: 2` is allowed at any time, and so is the table's own `release-hold`.
          */
         post: operations["releaseReservation"];
         delete?: never;
@@ -5505,10 +5513,27 @@ export interface components {
             /** @description What the manager called it. */
             name: string;
         };
-        /** @description One person who may tap a PIN on this tablet, as its PIN screen lists them. */
+        /**
+         * @description One person who may tap a PIN on this tablet, as its PIN screen lists them - and whether they are on
+         *     shift, so the screen can put those people first.
+         */
         "Yalla.Application.Auth.StaffRosterEntry": {
+            /**
+             * Format: time
+             * @description Its end, branch wall clock, on the next date when EndsNextDay; absent with no shift.
+             */
+            endsAt?: string | null;
+            /**
+             * Format: date-time
+             * @description The end as an instant, so a screen left open can tell when it is over; absent with no shift.
+             */
+            endsAtUtc?: string | null;
+            /** @description The shift ends after midnight - including at exactly 00:00. False with no shift. */
+            endsNextDay: boolean;
             /** @description The name to tap. */
             fullName: string;
+            /** @description A shift at this branch runs now: StartsAtUtc at or before now, EndsAtUtc after it. */
+            onShiftNow: boolean;
             /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
             role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
             /**
@@ -5516,6 +5541,17 @@ export interface components {
              * @description What `POST /api/auth/staff/pin` takes.
              */
             staffMemberId: string;
+            /**
+             * Format: time
+             * @description The shift's start, branch wall clock; absent with no shift to report.
+             */
+            startsAt?: string | null;
+            /**
+             * Format: date-time
+             * @description The start as an instant, so a screen left open can tell when it begins; absent with no shift. A start in an hour
+             *     the clocks skip is read on the clock from before the change: 02:30 that night is 03:30 summer time.
+             */
+            startsAtUtc?: string | null;
         };
         /** @description A staff member's session on a tablet, opened by a PIN. */
         "Yalla.Application.Auth.StaffSessionResult": {
@@ -22508,7 +22544,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The booking cannot be released. */
+            /** @description `reservation-not-started`: the booking has not started yet. Otherwise the booking cannot be released - it was already seated, completed or cancelled by the diner. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -22686,7 +22722,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
-            /** @description The booking is not in a state that can be released - it was already seated, completed or cancelled by the diner. */
+            /** @description `reservation-not-started`: `outcome: 1` before the booking's start. Otherwise the booking is not in a state that can be released - it was already seated, completed or cancelled by the diner. */
             409: {
                 headers: {
                     [name: string]: unknown;

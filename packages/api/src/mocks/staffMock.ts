@@ -2,7 +2,11 @@ import type { DerivedTableState, FloorPlanData } from '../contracts/tableFloor';
 import { cafeFloorPlan } from './roomFloors';
 import type { Menu } from '../contracts/menu';
 import { ConcurrencyConflictError, InvalidTransitionError, NotFoundError } from '../errors';
-import { PaymentExceedsRemainingError, TableNotSeatedError } from '../contracts/errors';
+import {
+  PaymentExceedsRemainingError,
+  ReservationNotStartedError,
+  TableNotSeatedError,
+} from '../contracts/errors';
 import type {
   AffectedReservation,
   StaffFloor,
@@ -1342,6 +1346,16 @@ export function createStaffMockGateway(options: StaffMockOptions = {}): StaffGat
       const reservation = reservations.get(command.reservationId);
       if (!reservation) {
         throw new NotFoundError({ url: `/api/reservations/${command.reservationId}` });
+      }
+
+      // The server's rule (FT2 wire): no no-show before the booking's start,
+      // and nothing changes when it is refused.
+      if (command.outcome === 'noShow' && Date.parse(reservation.startUtc) > now().getTime()) {
+        throw new ReservationNotStartedError({
+          url: `/api/reservations/${reservation.id}/release`,
+          reservationId: reservation.id,
+          startUtc: reservation.startUtc,
+        });
       }
 
       reservations.set(reservation.id, { ...reservation, released: true });

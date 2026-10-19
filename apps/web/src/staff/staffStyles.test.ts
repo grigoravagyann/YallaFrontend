@@ -23,6 +23,9 @@ const REDESIGNED = [
   'FloorRail.tsx',
   'ApprovalPanel.tsx',
   'FloorRoute.tsx',
+  'TableActionPanel.tsx',
+  'StaffRoute.tsx',
+  'auth/PinScreen.tsx',
 ];
 
 /** Comments may quote a value; only code is checked. */

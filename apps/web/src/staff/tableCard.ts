@@ -38,6 +38,12 @@ export interface TableCardText {
    * words ("· long") as well as the weight.
    */
   readonly long: boolean;
+  /**
+   * A booking whose time has passed with nobody seated: said in words ("Late
+   * · booked 17:05") and in amber, so a waiter sees it from across the room
+   * rather than reading it as one still to come (live QA 2026-10-19).
+   */
+  readonly late?: boolean;
 }
 
 export interface TableCardInput {
@@ -81,14 +87,24 @@ export function tableCardText({
             : t('floor.card.walkInOnly'),
         long: false,
       };
-    case 'reservedSoon':
+    case 'reservedSoon': {
+      const start = table.nextReservationStartUtc;
+      if (start && minutesSince(start) > 0) {
+        return {
+          state: t('floor.card.late', { time: time(start) }),
+          sub: party(detail?.nextReservationPartySize),
+          long: false,
+          late: true,
+        };
+      }
       return {
-        state: table.nextReservationStartUtc
-          ? t('floor.card.booked', { time: time(table.nextReservationStartUtc) })
+        state: start
+          ? t('floor.card.booked', { time: time(start) })
           : t('common:tableStatus.reservedSoon'),
         sub: party(detail?.nextReservationPartySize),
         long: false,
       };
+    }
     case 'held': {
       const start = detail?.nextReservationStartUtc ?? table.nextReservationStartUtc;
       return {

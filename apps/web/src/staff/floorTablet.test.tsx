@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import {
+  ReservationNotStartedError,
   createQueryClient,
   createStaffMockGateway,
   type EnrolledDevice,
@@ -317,6 +318,118 @@ describe('the top bar on the floor', () => {
   });
 });
 
+describe('the table panel (Table artboard)', () => {
+  it('takes the rail’s place with the chosen card still marked, and says what it did', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(gatewayWith());
+
+    const card = await screen.findByRole('button', { name: /^Table 2, 2 seats, Free/u });
+    await rail();
+    await user.click(card);
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 2' });
+    expect(card.getAttribute('aria-pressed')).toBe('true');
+    // Kept mounted under the panel, out of sight and out of the reading order.
+    expect(screen.queryByRole('complementary', { name: 'Needs attention' })).toBeNull();
+
+    await user.click(within(panel).getByRole('button', { name: 'Hold for a late party' }));
+    expect(await screen.findByText('Table 2 is held for the late party')).toBeTruthy();
+    expect(await rail()).toBeTruthy();
+  });
+
+  it('starts afresh on another table: no question carried over from the last (review S1)', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(gatewayWith());
+
+    await user.click(await screen.findByRole('button', { name: /^Table 1, 2 seats, Occupied/u }));
+    const first = await screen.findByRole('dialog', { name: 'Actions for table 1' });
+    await user.click(within(first).getByRole('button', { name: 'Free the table' }));
+    expect(screen.getByRole('group', { name: 'Free table 1?' })).toBeTruthy();
+
+    // The dimmed floor still takes a tap: another occupied table.
+    await user.click(screen.getByRole('button', { name: /^Table 7, 4 seats, Occupied/u }));
+    const second = await screen.findByRole('dialog', { name: 'Actions for table 7' });
+    expect(within(second).queryByRole('group', { name: /^Free table/u })).toBeNull();
+    expect(within(second).getByRole('button', { name: 'Free the table' })).toBeTruthy();
+  });
+
+  it('still says a booking answer failed while a table panel hides the rail (review S8)', async () => {
+    signIn();
+    const user = setupUser();
+    let fail: (error: Error) => void = () => undefined;
+    renderFloor(
+      gatewayWith({
+        approveReservation: () =>
+          new Promise((_, reject) => {
+            fail = reject;
+          }),
+      }),
+    );
+
+    const approvals = await within(await rail()).findByRole('region', {
+      name: /bookings to approve/iu,
+    });
+    await user.click((await within(approvals).findAllByRole('button', { name: 'Approve' }))[0]!);
+    await user.click(screen.getByRole('button', { name: /^Table 2, 2 seats, Free/u }));
+    await screen.findByRole('dialog', { name: 'Actions for table 2' });
+
+    await act(async () => fail(new Error('socket hang up')));
+    expect(await screen.findByText(/That did not go through\. Try again\.$/u)).toBeTruthy();
+  });
+
+  it('says when a booking is due if the server refuses a no-show before its start', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(
+      gatewayWith({
+        releaseReservation: async () => {
+          throw new ReservationNotStartedError({
+            url: '/api/reservations/r/release',
+            startUtc: new Date(Date.now() + 40 * 60_000).toISOString(),
+          });
+        },
+      }),
+    );
+
+    await user.click(await screen.findByRole('button', { name: /^Table 6, /u }));
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 6' });
+    await user.click(within(panel).getByRole('button', { name: 'Release the booking' }));
+    await user.click(within(panel).getByRole('button', { name: /They didn't come/u }));
+    await user.click(within(panel).getByRole('button', { name: 'Release' }));
+    expect(
+      await screen.findByText(/^Table 6 · not due until \d\d:\d\d\. Nothing was released\.$/u),
+    ).toBeTruthy();
+  });
+
+  it('says an action taken offline waits for the connection', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(gatewayWith());
+
+    await user.click(await screen.findByRole('button', { name: /^Table 2, 2 seats, Free/u }));
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 2' });
+    act(() => setOnline(false));
+    await user.click(within(panel).getByRole('button', { name: 'Out of service' }));
+    expect(
+      await screen.findByText('Table 2 is out of service · sent when the connection returns'),
+    ).toBeTruthy();
+  });
+
+  it('takes cash from the panel on the tab’s own keypad', async () => {
+    signIn();
+    const user = setupUser();
+    renderFloor(gatewayWith());
+
+    await user.click(await screen.findByRole('button', { name: /^Table 1, 2 seats, Occupied/u }));
+    const panel = await screen.findByRole('dialog', { name: 'Actions for table 1' });
+    await user.click(await within(panel).findByRole('button', { name: /^Take cash/u }));
+
+    expect(await screen.findByRole('dialog', { name: 'Take cash' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: /tab/iu })).toBeTruthy();
+  });
+});
+
 describe('the table grid', () => {
   it('says every state in words on the card, with the state on its edge as well', async () => {
     signIn();
@@ -331,9 +444,12 @@ describe('the table grid', () => {
     expect(within(held).getByText('Held · running late')).toBeTruthy();
     expect(held.getAttribute('data-tone')).toBe('held');
 
-    const booked = await card(/^Table 6, 4 seats, Reserved/u);
-    expect(within(booked).getByText(/^Reserved \d\d:\d\d$/u)).toBeTruthy();
+    // The mock's table 6 booking is twenty minutes past, with nobody seated:
+    // said as late, in words and in amber, not as one still to come.
+    const booked = await card(/^Table 6, 4 seats, Reserved, Late · booked \d\d:\d\d/u);
+    expect(within(booked).getByText(/^Late · booked \d\d:\d\d$/u)).toBeTruthy();
     expect(booked.getAttribute('data-tone')).toBe('booked');
+    expect(booked.getAttribute('data-late')).toBe('true');
 
     const occupied = await card(/^Table 1, 2 seats, Occupied/u);
     expect(within(occupied).getByText(/^(?:Seated \d+ min(?: · long)?|Occupied)$/u)).toBeTruthy();

@@ -246,6 +246,7 @@ export function TodayBookings({
       tableTaken: t('overview.bookings.refused.tableTaken'),
       sittingChanged: t('overview.bookings.refused.sittingChanged'),
       tableCannot: t('overview.bookings.refused.tableCannot'),
+      notStarted: t('overview.bookings.refused.notStarted'),
       forbidden: t('overview.bookings.refused.forbidden'),
       gone: t('overview.bookings.refused.gone'),
       offline: t('overview.bookings.refused.offline'),
