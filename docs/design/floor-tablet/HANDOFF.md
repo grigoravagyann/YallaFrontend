@@ -50,7 +50,10 @@ there are any, and the signed-in person (tap → PIN gate to switch).
 
 - **Landscape tablet only.** No phone layout.
 - **Staff sizes, not console sizes:** 18px base text, running text at least 13px (12px only for count badges), primary actions 56–64px tall, every target at least 44×44 with 8px between neighbours, pressed state instead of hover. Use `min-height` on buttons: a fixed `height` with `flex: 1` collapsed to 28px inside a column in the review.
-- **Money controls stay manager-only.** `isTabManager` in `TabPanel.tsx` (owner, general manager, manager) gates void, comp, discount, cash and mark-unpaid, matching the server's `ManagerOrAbove`. The artboards show a manager signed in. For a waiter, render the lines, totals and the bill request read-only and put one line in place of the controls: "Գումարի հետ կապված գործողությունները՝ մենեջերը". Do not loosen the server policy without the user's decision (section 6).
+- **Who may do what on a tab** (server policy and `TabPanel.tsx` agree today; keep it):
+  - **Waiter and above:** take cash (with tip), void a line with a reason, answer the bill request.
+  - **Manager and above only** (`isTabManager`, server `ManagerOrAbove`): comp a line, % or amount off the whole tab, mark unpaid (ԿՈՐՈՒՍՏ).
+  The artboards show a manager signed in. For a waiter, leave out the line menu's "Զեղչ / նվեր", "Զեղչ ամբողջ հաշվին" and "Գրանցել որպես չվճարված", and put one muted line where they were: "Զեղչ և չվճարված հաշիվ՝ մենեջերը". The doc comment on `isTabManager` still lists void and cash; correct it to comp, discount and abandon.
 - **Kitchen moves InKitchen → Ready only.** Serving is the waiter's.
 - **Release as no-show vs cancelled** is the existing `onRelease(id, 'noShow' | …)` path in `TableActionPanel.tsx`; keep its explanation text, the design only restyles it.
 - **Offline:** every mutation goes through the command queue as today; the design's offline states are the existing ones, restyled. PIN sign-in needs the network and says so.
@@ -75,9 +78,9 @@ the console ones.
 2. **Who sent a kitchen ticket.** `KitchenOrderView` has no sender. Add `placedByName`: the staff member's display name, or null when a diner ordered from the app (the ticket then says "Հավելվածից").
 3. **"Who" per line, not per order.** `PlaceOrderRequest.onBehalfOfParticipantId` is order-wide; the design assigns each line. Add an optional `participantId` to `OrderItemRequest` that overrides the order-level one, validated against the tab's approved participants, so one send stays one kitchen ticket.
 
-## 6. Open for the user
+## 6. Decided by the user on 2026-10-19 (do not ask again)
 
-- **Should waiters take cash?** Today only a manager or above may record cash, comp or void. If the user wants waiters to take cash (common in Yerevan), it is one policy change on `…/payments/cash` plus a test that comp, void and abandon stay manager-only. Until the user decides, follow section 3.
+- **Waiters take cash.** Already true: `POST /api/tabs/{id}/payments/cash` is `WaiterOrAbove` and branch-scoped (`MoneyEndpointTests`, `AuthorizationBoundaryTests` cover the other-branch refusal), and the Tab panel shows "Կանխիկ ընդունել" to every role. No change; keep it that way when restyling, and keep comp, discount and mark-unpaid manager-only as in section 3.
 
 ## 7. Suggested order
 
