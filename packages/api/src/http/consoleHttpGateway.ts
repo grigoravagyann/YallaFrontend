@@ -1486,7 +1486,6 @@ export function createConsoleHttpGateway(
     // --- Shifts ---------------------------------------------------------------
 
     async listBranchShifts({ branchId, from, to }) {
-      // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
       const { data } = await client.get<WireBranchShifts>(`${BRANCHES}/${branchId}/shifts`, {
         query: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
       });
@@ -1495,10 +1494,13 @@ export function createConsoleHttpGateway(
 
     async createShift({ branchId, staffMemberId, shift }) {
       try {
-        // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
+        const body = shiftBody(shift);
         const { data } = await client.post<WireStaffShift>(`${BRANCHES}/${branchId}/shifts`, {
           staffMemberId,
-          ...shiftBody(shift),
+          date: body.date,
+          dayOff: body.dayOff,
+          ...(body.startsAt ? { startsAt: body.startsAt } : {}),
+          ...(body.endsAt ? { endsAt: body.endsAt } : {}),
         });
         return staffShift(data);
       } catch (error) {
@@ -1510,7 +1512,6 @@ export function createConsoleHttpGateway(
 
     async updateShift({ branchId, shiftId, shift }) {
       try {
-        // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
         const { data } = await client.put<WireStaffShift>(
           `${BRANCHES}/${branchId}/shifts/${shiftId}`,
           shiftBody(shift),
@@ -1523,7 +1524,6 @@ export function createConsoleHttpGateway(
 
     async deleteShift({ branchId, shiftId }) {
       try {
-        // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
         await client.delete<void>(`${BRANCHES}/${branchId}/shifts/${shiftId}`);
       } catch (error) {
         return staffRefusal(error);

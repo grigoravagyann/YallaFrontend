@@ -48,7 +48,6 @@ export interface MockShiftStore {
     serviceDate: string;
     from?: string | undefined;
     to?: string | undefined;
-    active: (staffMemberId: string) => boolean;
   }): BranchShifts;
   create(input: {
     branchId: string;
@@ -62,7 +61,7 @@ export interface MockShiftStore {
     shiftId: string;
     shift: ShiftInput;
   }): StaffShift;
-  remove(input: { branchId: string; shiftId: string }): StaffShift | null;
+  remove(input: { branchId: string; serviceDate: string; shiftId: string }): StaffShift | null;
   find(branchId: string, shiftId: string): StaffShift | undefined;
 }
 
@@ -70,15 +69,42 @@ export function createMockShiftStore(options: {
   readonly url: string;
   readonly nextId: () => string;
   /** Seeds a branch's first read: today and tomorrow for some of its people. */
-  readonly seed?: (branchId: string, serviceDate: string) => readonly StaffShift[];
+  readonly seed?: (
+    branchId: string,
+    serviceDate: string,
+  ) => readonly Omit<StaffShift, 'endsAtUtc'>[];
+  /**
+   * Whether a shift still counts: its person is active and still works at its
+   * branch (theirs, or venue-wide). One left behind is hidden from every read
+   * and from the overlap check (VC5 wire, round 1).
+   */
+  readonly counts?: (shift: StaffShift) => boolean;
+  /** The instant a working shift ends, in its branch's zone. */
+  readonly endsAtUtc?: (shift: Omit<StaffShift, 'endsAtUtc'>) => string | null;
+  readonly now?: () => Date;
+  /** The 409 for changing or removing a shift that has ended before today. */
+  readonly history?: () => Error;
 }): MockShiftStore {
+  const counts = options.counts ?? (() => true);
+  const now = options.now ?? (() => new Date());
+  const withEnd = (shift: Omit<StaffShift, 'endsAtUtc'>): StaffShift => ({
+    ...shift,
+    endsAtUtc: shift.dayOff ? null : (options.endsAtUtc?.(shift) ?? null),
+  });
+  /** Dated before the service day and over: history, kept as it was. */
+  const ended = (shift: StaffShift, serviceDate: string) =>
+    shift.date < serviceDate &&
+    (shift.endsAtUtc === null || Date.parse(shift.endsAtUtc) <= now().getTime());
+  const refuseHistory = (shift: StaffShift, serviceDate: string) => {
+    if (ended(shift, serviceDate)) throw options.history?.() ?? new Error('history');
+  };
   const all: StaffShift[] = [];
   const seeded = new Set<string>();
 
   function ensureSeeded(branchId: string, serviceDate: string) {
     if (seeded.has(branchId)) return;
     seeded.add(branchId);
-    all.push(...(options.seed?.(branchId, serviceDate) ?? []));
+    all.push(...(options.seed?.(branchId, serviceDate) ?? []).map(withEnd));
   }
 
   function check(
@@ -86,11 +112,12 @@ export function createMockShiftStore(options: {
     staffMemberId: string,
     shift: ShiftInput,
     ignoreId: string | null,
+    earliest: string = serviceDate,
   ): void {
     const problems: MockViolation[] = [];
     const last = addDayKeys(serviceDate, SHIFT_HORIZON_DAYS);
     if (!shift.date) problems.push({ field: 'date', message: 'Choose a date.', bound: 'required' });
-    else if (shift.date < serviceDate)
+    else if (shift.date < earliest)
       problems.push({
         field: 'date',
         message: 'A shift cannot be planned in the past.',
@@ -134,7 +161,7 @@ export function createMockShiftStore(options: {
     }
 
     const theirs = all.filter(
-      (other) => other.staffMemberId === staffMemberId && other.id !== ignoreId,
+      (other) => other.staffMemberId === staffMemberId && other.id !== ignoreId && counts(other),
     );
     if (shift.date) {
       const sameDate = theirs.filter((other) => other.date === shift.date);
@@ -173,23 +200,23 @@ export function createMockShiftStore(options: {
   }
 
   function stored(
-    base: { id: string; staffMemberId: string; branchId: string },
+    base: { readonly id: string; readonly staffMemberId: string; readonly branchId: string },
     shift: ShiftInput,
   ): StaffShift {
     const startsAt = shift.dayOff ? null : hhmm(shift.startsAt);
     const endsAt = shift.dayOff ? null : hhmm(shift.endsAt);
-    return {
+    return withEnd({
       ...base,
       date: shift.date,
       dayOff: shift.dayOff,
       startsAt,
       endsAt,
       endsNextDay: Boolean(startsAt && endsAt && minutesOf(endsAt) <= minutesOf(startsAt)),
-    };
+    });
   }
 
   return {
-    list({ branchId, serviceDate, from, to, active }) {
+    list({ branchId, serviceDate, from, to }) {
       ensureSeeded(branchId, serviceDate);
       const start = from ?? serviceDate;
       const end = to ?? addDayKeys(start, 13);
@@ -214,7 +241,7 @@ export function createMockShiftStore(options: {
             shift.branchId === branchId &&
             shift.date >= start &&
             shift.date <= end &&
-            active(shift.staffMemberId),
+            counts(shift),
         )
         .sort(
           (a, b) =>
@@ -230,7 +257,7 @@ export function createMockShiftStore(options: {
               shift.branchId === branchId &&
               shift.date === serviceDate &&
               !shift.dayOff &&
-              active(shift.staffMemberId),
+              counts(shift),
           )
           .map((shift) => shift.staffMemberId),
       ).size;
@@ -250,15 +277,24 @@ export function createMockShiftStore(options: {
       const index = all.findIndex((entry) => entry.id === shiftId && entry.branchId === branchId);
       const current = all[index];
       if (!current) throw new Error('unknown shift');
-      check(serviceDate, current.staffMemberId, shift, current.id);
+      refuseHistory(current, serviceDate);
+      // A shift still running from before today may be corrected on its own date.
+      check(
+        serviceDate,
+        current.staffMemberId,
+        shift,
+        current.id,
+        current.date < serviceDate ? current.date : serviceDate,
+      );
       const next = stored(current, shift);
       all[index] = next;
       return next;
     },
 
-    remove({ branchId, shiftId }) {
+    remove({ branchId, serviceDate, shiftId }) {
       const index = all.findIndex((entry) => entry.id === shiftId && entry.branchId === branchId);
       if (index < 0) return null;
+      refuseHistory(all[index]!, serviceDate);
       const [gone] = all.splice(index, 1);
       return gone ?? null;
     },

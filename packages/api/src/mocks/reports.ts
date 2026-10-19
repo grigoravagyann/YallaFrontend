@@ -220,10 +220,11 @@ const TABLES_PER_BRANCH = 9;
 /**
  * A measure beside the previous equivalent period.
  *
- * `previous` is **null, not zero**, when the prior period has no trading in it
- * at all. That is the rule the whole comparison story rests on: a venue's first
- * week has no previous week, and rendering "down 100%" against a period that
- * did not exist is a lie the screen would state confidently.
+ * When the prior period has no trading in it at all, the server sums it to
+ * **0** and sends no `changeFraction` — growth from nothing has no percentage.
+ * The mock does the same, so the console's "a previous total of 0 is no
+ * previous period" rule is tested against what it will meet: a venue's first
+ * week has no previous week, and "down 100%" against it would be a lie.
  */
 function compare(
   current: readonly TradingDay[],
@@ -232,7 +233,7 @@ function compare(
 ): Compared {
   const value = sum(current, of);
   const hadTrading = prior.some((day) => day.sessions > 0);
-  if (!hadTrading) return { value, previous: null, changeFraction: null };
+  if (!hadTrading) return { value, previous: 0, changeFraction: null };
 
   const previous = sum(prior, of);
   return {
@@ -258,7 +259,7 @@ function turns(
       : Math.round((sum(days, (day) => day.sessions) / (tables * days.length)) * 100) / 100;
   const value = rate(current);
   if (!prior.some((day) => day.sessions > 0)) {
-    return { value, previous: null, changeFraction: null };
+    return { value, previous: 0, changeFraction: null };
   }
   const previous = rate(prior);
   return {
@@ -282,7 +283,7 @@ function compareRate(
 
   const value = rate(current);
   if (!prior.some((day) => day.sessions > 0)) {
-    return { value, previous: null, changeFraction: null };
+    return { value, previous: 0, changeFraction: null };
   }
   const previous = rate(prior);
   return {
@@ -506,7 +507,7 @@ export function createMockReports(world: MockReportWorld): MockReports {
       /** An average is a ratio of two sums, never a mean of daily averages. */
       const average = (top: number, bottom: number, priorTop: number, priorBottom: number) => {
         const value = bottom === 0 ? 0 : Math.round(top / bottom);
-        if (!hadPrior) return { value, previous: null, changeFraction: null };
+        if (!hadPrior) return { value, previous: 0, changeFraction: null };
         const previous = priorBottom === 0 ? 0 : Math.round(priorTop / priorBottom);
         return {
           value,

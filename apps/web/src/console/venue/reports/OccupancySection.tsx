@@ -44,16 +44,9 @@ function turnTimeReading(
   });
 }
 
-/** Guests by kind when the server counts people; sittings from an older one. */
+/** Guests by kind: people, not sittings. */
 function mixOf(report: OccupancyReport) {
-  if (report.walkInGuests && report.reservationGuests) {
-    return {
-      people: true,
-      walkIns: report.walkInGuests.value,
-      booked: report.reservationGuests.value,
-    };
-  }
-  return { people: false, walkIns: report.walkIns.value, booked: report.fromReservations.value };
+  return { walkIns: report.walkInGuests.value, booked: report.reservationGuests.value };
 }
 
 /**
@@ -93,9 +86,7 @@ export function OccupancySection({ query, locale, onCsv }: OccupancySectionProps
   const seated = mix ? mix.walkIns + mix.booked : 0;
   const walkShare = seated === 0 ? 0 : (mix?.walkIns ?? 0) / seated;
   const amount = (count: number) =>
-    mix?.people
-      ? t('reports.occupancy.people', { count, formatted: number.format(count) })
-      : t('reports.occupancy.sittings', { count, formatted: number.format(count) });
+    t('reports.occupancy.people', { count, formatted: number.format(count) });
 
   return (
     <ReportCard

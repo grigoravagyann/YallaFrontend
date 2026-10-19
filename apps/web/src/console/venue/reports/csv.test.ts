@@ -1,6 +1,7 @@
 import { createConsoleMockGateway } from '@yalla/api';
 import { describe, expect, it } from 'vitest';
 import {
+  allCsv,
   csvBlob,
   csvCell,
   csvFileName,
@@ -18,6 +19,7 @@ import {
  * spreadsheet reads in any locale.
  */
 
+const CRLF = String.fromCharCode(13, 10);
 const query = { branchId: 'b-lumen-north', from: '2026-08-31', to: '2026-09-06' };
 
 describe('a CSV cell', () => {
@@ -62,14 +64,21 @@ describe('the section files', () => {
     expect(revenueCsv(report).endsWith('\r\n')).toBe(true);
   });
 
-  it('leaves the previous value empty when there was no previous period, never 0', async () => {
-    // The mock venue's first week: nothing before it.
+  it('leaves every previous value empty when the previous total is 0, never writing 0', async () => {
+    // The mock venue's first week: the server sums the week before it to 0.
     const first = { branchId: 'b-lumen-north', from: '2026-08-20', to: '2026-08-26' };
     const occupancy = await gateway.getOccupancyReport(first);
     const revenue = await gateway.getRevenueReport(first);
-    const lines = summaryCsv(occupancy, revenue).split('\r\n');
-    expect(lines[0]).toBe('measure,value,previous,changeFraction');
-    expect(lines[1]).toBe(`guests,${occupancy.seatsFilled.value},,`);
+    expect(revenue.totalAmd.previous).toBe(0);
+
+    const summary = summaryCsv(occupancy, revenue).split(CRLF);
+    expect(summary[0]).toBe('measure,value,previous,changeFraction');
+    expect(summary[1]).toBe(`guests,${occupancy.seatsFilled.value},,`);
+
+    const days = revenueCsv(revenue).split(CRLF);
+    const day = revenue.byDay[0]!;
+    expect(days[1]).toBe(`${day.localDate},${day.revenueAmd},${day.tabs},,,`);
+    expect(revenueCsv(revenue)).toContain(`${CRLF}totalAmd,${revenue.totalAmd.value},,${CRLF}`);
   });
 
   it('writes the open-ended bucket with no top', async () => {
@@ -87,6 +96,23 @@ describe('the section files', () => {
     expect(text).toContain('list,rank,menuItemId,name,category,quantity,revenueAmd');
     expect(text).toContain('\r\n\r\nmenuItemId,name,reason,count\r\n');
     expect(text).toContain(`topByCount,1,${report.topByCount[0]!.menuItemId},`);
+  });
+});
+
+describe('everything in one file', () => {
+  it('puts each section under its title, a blank line between, with one BOM', async () => {
+    const gateway = createConsoleMockGateway({ latencyMs: 0 });
+    const revenue = revenueCsv(await gateway.getRevenueReport(query));
+    const menu = menuCsv(await gateway.getMenuReport(query));
+    const text = allCsv([
+      ['revenue', revenue],
+      ['menu', menu],
+    ]);
+    expect(text.startsWith(`revenue${CRLF}localDate,`)).toBe(true);
+    expect(text).toContain(`${CRLF}${CRLF}menu${CRLF}list,rank,`);
+    expect(text.endsWith(`${CRLF}`)).toBe(true);
+    expect(text.endsWith(`${CRLF}${CRLF}`)).toBe(false);
+    expect(csvFileName('report', query)).toBe('report-2026-08-31-to-2026-09-06.csv');
   });
 });
 

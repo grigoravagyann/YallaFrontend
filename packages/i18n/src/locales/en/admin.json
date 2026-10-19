@@ -411,7 +411,8 @@
       "pinHelp": "For signing in on a tablet. This too is shown only now.",
       "nag": "Copy the link first: once this closes you will not see it again. Press Done again to close anyway.",
       "openVenue": "Open the venue page",
-      "done": "Done"
+      "done": "Done",
+      "pinNag": "Write the PIN down first: once you try again you will not see it any more. Press again to go on anyway."
     }
   },
   "status": {
@@ -1197,10 +1198,9 @@
       "csv": "CSV",
       "all": "Export everything (CSV)",
       "working": "Preparing…",
-      "readyAll_one": "{{count}} CSV file is ready for {{scope}}",
-      "readyAll_other": "{{count}} CSV files are ready for {{scope}}",
       "csvFor": "CSV: {{section}}",
-      "ready": "{{section}} · {{period}}: the CSV is ready"
+      "ready": "{{section}} · {{period}}: the CSV is ready",
+      "readyAll": "The CSV file is ready for {{scope}}"
     },
     "empty": {
       "title": "No data in this range",
@@ -1264,8 +1264,6 @@
     "occupancy": {
       "people_one": "{{formatted}} person",
       "people_other": "{{formatted}} people",
-      "sittings_one": "{{formatted}} sitting",
-      "sittings_other": "{{formatted}} sittings",
       "title": "Occupancy",
       "cap": "When the room fills, and how long people really stay",
       "turnTitle": "How long sittings lasted",

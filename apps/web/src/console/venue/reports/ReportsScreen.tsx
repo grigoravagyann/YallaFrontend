@@ -6,12 +6,13 @@ import {
   useRevenueReport,
 } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '../../ui/PageHeader';
 import { DownloadIcon } from '../../ui/icons';
 import { useToast } from '../../ui/toast';
 import { useVenueOutlet } from '../VenueLayout';
 import {
+  allCsv,
   csvBlob,
   csvFileName,
   menuCsv,
@@ -59,11 +60,16 @@ export function ReportsScreen() {
   const toast = useToast();
   const { branchId, branchName, timeZoneId, canRollUpVenue } = useVenueOutlet();
 
-  const today = useMemo(() => branchToday(timeZoneId), [timeZoneId]);
+  const today = useBranchToday(timeZoneId);
   const [preset, setPreset] = useState<RangePreset>(DEFAULT_PRESET);
-  const [range, setRange] = useState<DateRange>(
-    () => rangeFor(DEFAULT_PRESET, branchToday(timeZoneId)) ?? { from: today, to: today },
+  /** The dates typed under Custom; a preset's range is worked out from today. */
+  const [custom, setCustom] = useState<DateRange>(
+    () => rangeFor(DEFAULT_PRESET, today) ?? { from: today, to: today },
   );
+  // Derived, not stored: a page left open past midnight moves its preset to
+  // the new day ("this week" gains a day, "yesterday" moves on), while a
+  // custom range stays as typed.
+  const range: DateRange = (preset === 'custom' ? null : rangeFor(preset, today)) ?? custom;
   const [rollUpVenue, setRollUpVenue] = useState(false);
   const [exporting, setExporting] = useState(false);
   const problem = problemWith(range);
@@ -115,11 +121,10 @@ export function ReportsScreen() {
   }
 
   function choosePreset(next: RangePreset) {
+    // Custom starts from the dates on screen: snapping them when somebody
+    // picks "Custom" would undo the change they are about to make.
+    if (next === 'custom') setCustom(range);
     setPreset(next);
-    // Custom keeps the dates on screen: snapping them when somebody picks
-    // "Custom" would undo the change they are about to make.
-    const resolved = rangeFor(next, today);
-    if (resolved) setRange(resolved);
   }
 
   function save(section: CsvSection, text: string) {
@@ -142,21 +147,22 @@ export function ReportsScreen() {
         }
       : null;
 
+  /** One file: every section a titled block, as on screen. */
   function exportEverything() {
-    if (!everything || exporting) return;
+    if (!everything || exporting || !query) return;
     setExporting(true);
-    // A frame for the busy state to show before the files are written.
+    // A frame for the busy state to show before the file is written.
     requestAnimationFrame(() => {
-      const files: [CsvSection, string][] = [
+      const text = allCsv([
         ['summary', summaryCsv(everything.occupancy, everything.revenue)],
         ['revenue', revenueCsv(everything.revenue)],
         ['reservations', reservationsCsv(everything.reservations)],
         ['occupancy', occupancyCsv(everything.occupancy)],
         ['menu', menuCsv(everything.menu)],
-      ];
-      for (const [section, text] of files) save(section, text);
+      ]);
+      saveFile(csvFileName('report', query), csvBlob(text));
       setExporting(false);
-      toast.say(t('reports.export.readyAll', { count: files.length, scope: scopeLine }));
+      toast.say(t('reports.export.readyAll', { scope: scopeLine }));
     });
   }
 
@@ -238,7 +244,7 @@ export function ReportsScreen() {
               {...(rangeError ? { 'aria-describedby': 'r-err' } : {})}
               onChange={(event) => {
                 const from = event.currentTarget.value;
-                setRange((was) => ({ ...was, from }));
+                setCustom((was) => ({ ...was, from }));
               }}
             />
           </div>
@@ -254,7 +260,7 @@ export function ReportsScreen() {
               {...(rangeError ? { 'aria-describedby': 'r-err' } : {})}
               onChange={(event) => {
                 const to = event.currentTarget.value;
-                setRange((was) => ({ ...was, to }));
+                setCustom((was) => ({ ...was, to }));
               }}
             />
           </div>
@@ -276,13 +282,47 @@ export function ReportsScreen() {
             })}
       </p>
 
-      <SummarySection query={query} locale={locale} />
-      <RevenueSection query={query} locale={locale} periodName={periodName} onCsv={saveSection} />
-      <div className="yc-rp-pair">
-        <ReservationsSection query={query} locale={locale} onCsv={saveSection} />
-        <OccupancySection query={query} locale={locale} onCsv={saveSection} />
-      </div>
-      <MenuSection query={query} locale={locale} onCsv={saveSection} />
+      {/* Nothing is asked for an invalid range: the line above says why, and
+          no section sits on a "loading" that would never end. */}
+      {query ? (
+        <>
+          <SummarySection query={query} locale={locale} />
+          <RevenueSection
+            query={query}
+            locale={locale}
+            periodName={periodName}
+            onCsv={saveSection}
+          />
+          <div className="yc-rp-pair">
+            <ReservationsSection query={query} locale={locale} onCsv={saveSection} />
+            <OccupancySection query={query} locale={locale} onCsv={saveSection} />
+          </div>
+          <MenuSection query={query} locale={locale} onCsv={saveSection} />
+        </>
+      ) : null}
     </div>
   );
+}
+
+/** How often the page checks whether the branch's day has turned. */
+const DAY_CHECK_MS = 60_000;
+
+/**
+ * The branch's date today, kept current: checked every minute and when the
+ * tab comes back into view, so a Reports page left open overnight answers
+ * for the new day.
+ */
+function useBranchToday(timeZoneId: string): string {
+  const [today, setToday] = useState(() => branchToday(timeZoneId));
+  useEffect(() => {
+    const check = () => setToday(branchToday(timeZoneId));
+    check();
+    const timer = setInterval(check, DAY_CHECK_MS);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [timeZoneId]);
+  return today;
 }

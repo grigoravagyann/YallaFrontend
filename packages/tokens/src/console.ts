@@ -224,10 +224,18 @@ export const consoleColor = {
   capacityLine: '#D2BFA8',
 
   // --- Reports (venue-console Reports artboard) ----------------------------------
-  /** A bar of shares (revenue by hour, lead time, turn time); a peak is `brand`, past the policy `amber`. */
-  reportBar: '#B89B7E',
-  /** The previous period's line behind this one: dashed, in a muted tan. */
-  reportPreviousLine: '#B8A28A',
+  /**
+   * A bar of shares (revenue by hour, lead time, turn time); a peak is
+   * `brand`, past the policy `amber`. 3.58:1 on white, 3.41:1 on
+   * `surfaceMuted`: darker than the artboards' #B89B7E (2.62:1), on purpose —
+   * a bar is the chart's whole message, so it is held to WCAG 1.4.11's 3:1.
+   */
+  reportBar: '#A08262',
+  /**
+   * The previous period's line behind this one, dashed. 3.52:1 on white; the
+   * artboards' #B8A28A was 2.45:1, so it is darker for the same reason.
+   */
+  reportPreviousLine: '#9A8570',
   /** The fill under this period's revenue line: the brand at 7%, over a white card only. */
   reportArea: 'rgba(58, 29, 12, 0.07)',
 } as const;

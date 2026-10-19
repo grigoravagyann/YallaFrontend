@@ -24,6 +24,7 @@ const TODAY = new Date('2026-09-08T09:00:00Z');
 /** The mock venue's first trading day — `MOCK_LIVE_FROM` in `@yalla/api`. */
 const LIVE_FROM = '2026-08-20';
 const BRANCH = 'b-lumen-north';
+const CRLF = String.fromCharCode(13, 10);
 
 beforeAll(async () => {
   await initConsoleTestI18n();
@@ -116,12 +117,13 @@ async function bytesOf(blob: Blob): Promise<Uint8Array> {
 }
 
 describe('the range', () => {
-  it('opens on last week, and says what it is compared with', async () => {
+  it('opens on this week, and says what it is compared with', async () => {
     renderReports();
-    expect(screen.getByRole('button', { name: 'Last week' }).getAttribute('aria-pressed')).toBe(
+    // The artboard's default: Monday to today, against the same days before.
+    expect(screen.getByRole('button', { name: 'This week' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
-    expect(screen.getByText(/^Aug 31 – Sep 6 · 7 days · Compared with Aug 24 – 30$/u)).toBeTruthy();
+    expect(screen.getByText(/^Sep 7 – 8 · 2 days · Compared with Sep 5 – 6$/u)).toBeTruthy();
     // The dates are asked for only under Custom.
     expect(screen.queryByLabelText('From')).toBeNull();
   });
@@ -157,6 +159,19 @@ describe('the range', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/at most 92 days/u);
     expect(screen.getByLabelText('From').getAttribute('aria-invalid')).toBe('true');
     expect(seen).not.toContain('2026-05-01');
+    // Nothing sits on a "loading" that would never end: the sections wait for a range.
+    expect(screen.queryByText('Working it out…')).toBeNull();
+    expect(screen.queryByText('Guests')).toBeNull();
+  });
+
+  it('moves to the new day when the page is still open past midnight', async () => {
+    renderReports();
+    expect(screen.getByText(/^Sep 7 – 8 · 2 days/u)).toBeTruthy();
+
+    // 00:30 on Wednesday at the branch, and the tab comes back into view.
+    vi.setSystemTime(new Date('2026-09-08T20:30:00Z'));
+    fireEvent(document, new Event('visibilitychange'));
+    expect(await screen.findByText(/^Sep 7 – 9 · 3 days/u)).toBeTruthy();
   });
 });
 
@@ -216,6 +231,10 @@ describe('revenue', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderReports();
     await waitForSummary();
+    await user.click(screen.getByRole('button', { name: 'Last week' }));
+    await waitFor(() =>
+      expect(within(card('Revenue')).getByRole('group', { name: /7 days/u })).toBeTruthy(),
+    );
 
     const revenue = card('Revenue');
     expect(within(revenue).getByText('Previous period')).toBeTruthy();
@@ -321,6 +340,10 @@ describe('the CSV', () => {
     const harness = renderReports();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     await waitForSummary();
+    await user.click(screen.getByRole('button', { name: 'Last week' }));
+    await waitFor(() =>
+      expect(within(card('Revenue')).getByRole('group', { name: /7 days/u })).toBeTruthy(),
+    );
 
     await user.click(within(card('Revenue')).getByRole('button', { name: 'CSV: Revenue' }));
     await waitFor(() => expect(saved).toHaveLength(1));
@@ -337,7 +360,7 @@ describe('the CSV', () => {
     expect(await screen.findByText('Revenue · Last week: the CSV is ready')).toBeTruthy();
   });
 
-  it('writes one file a section for "Export everything"', async () => {
+  it('writes "Export everything" as one file, every section a titled block', async () => {
     renderReports();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     await waitForSummary();
@@ -345,15 +368,19 @@ describe('the CSV', () => {
     const all = screen.getByRole('button', { name: 'Export everything (CSV)' });
     await waitFor(() => expect((all as HTMLButtonElement).disabled).toBe(false));
     await user.click(all);
-    await waitFor(() => expect(saved).toHaveLength(5));
-    expect(saved.map((file) => file.name.split('-')[0])).toEqual([
-      'summary',
-      'revenue',
-      'reservations',
-      'occupancy',
-      'menu',
-    ]);
-    expect(await screen.findByText('5 CSV files are ready for Northern Avenue')).toBeTruthy();
+    await waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]!.name).toBe('report-2026-09-07-to-2026-09-08.csv');
+
+    const bytes = await bytesOf(saved[0]!.blob);
+    expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf]);
+    const blocks = new TextDecoder()
+      .decode(bytes.slice(3))
+      .split(CRLF + CRLF)
+      .map((block) => block.split(CRLF)[0]);
+    for (const title of ['summary', 'revenue', 'reservations', 'occupancy', 'menu']) {
+      expect(blocks).toContain(title);
+    }
+    expect(await screen.findByText('The CSV file is ready for Northern Avenue')).toBeTruthy();
   });
 });
 

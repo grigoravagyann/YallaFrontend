@@ -4,24 +4,26 @@ import {
   StaffPermissionError,
   ValidationError,
   describeFailure,
-  type BranchShifts,
   type ShiftInput,
   type StaffMember,
   type StaffShift,
 } from '@yalla/api';
-import { useShiftMutations } from '@yalla/api/react';
+import { useBranchShiftsAhead, useShiftMutations } from '@yalla/api/react';
 import { useLocale, useTranslation } from '@yalla/i18n';
 import { useMemo, useState, type FormEvent } from 'react';
 import { Dialog } from '../../ui/Dialog';
 import { useToast } from '../../ui/toast';
+import { branchToday } from '../reports/range';
 import { addDays, minutesOf, shiftLength, shiftTimes } from './staffShifts';
 
 export interface ShiftDialogProps {
   readonly member: StaffMember;
   readonly branchId: string;
   readonly branchName: string;
-  /** The branch's shifts, as the page read them; the dialog lists this person's. */
-  readonly shifts: BranchShifts | undefined;
+  /** The branch's service day, as the page's shift read said it; null until it has. */
+  readonly serviceDate: string | null;
+  /** The branch's zone: "today" before the server has said which day it is. */
+  readonly timeZoneId: string;
   readonly onClose: () => void;
   /** The row's ⋮ button: the menu item that opened this is gone. */
   readonly returnFocusTo?: () => HTMLElement | null;
@@ -65,7 +67,8 @@ export function ShiftDialog({
   member,
   branchId,
   branchName,
-  shifts,
+  serviceDate,
+  timeZoneId,
   onClose,
   returnFocusTo,
 }: ShiftDialogProps) {
@@ -74,18 +77,33 @@ export function ShiftDialog({
   const toast = useToast();
   const { create, update, remove } = useShiftMutations(branchId);
 
-  const today = shifts?.serviceDate ?? new Date().toISOString().slice(0, 10);
+  // The branch's day, never the device's UTC one: the server's service day
+  // once read, the branch's own date until then.
+  const today = serviceDate ?? branchToday(timeZoneId);
   const lastDay = addDays(today, SHIFT_HORIZON_DAYS);
   const [draft, setDraft] = useState<Draft>(() => blank(today));
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
+  // Its own read, as far ahead as a shift may be planned: every shift this
+  // form lets you plan is listed here with Change and Remove.
+  const ahead = useBranchShiftsAhead(branchId, today);
+  /** When the dialog opened: what "still running" is measured against. */
+  const [openedAt] = useState(() => Date.now());
   const theirs = useMemo(
     () =>
-      (shifts?.shifts ?? []).filter(
-        (shift) => shift.staffMemberId === member.id && shift.date >= today,
+      (ahead.data?.shifts ?? []).filter(
+        (shift) =>
+          shift.staffMemberId === member.id &&
+          // Before today only while it is still running: an ended one is
+          // history, and the server keeps it as it was.
+          (shift.date >= today ||
+            (shift.endsAtUtc !== null && Date.parse(shift.endsAtUtc) > openedAt)),
       ),
-    [shifts, member.id, today],
+    [ahead.data, member.id, today, openedAt],
   );
+  /** A shift still running from before today may be corrected on its own date. */
+  const earliest =
+    theirs.find((shift) => shift.id === draft.editing && shift.date < today)?.date ?? today;
 
   const dayFormat = useMemo(
     () =>
@@ -105,7 +123,7 @@ export function ShiftDialog({
         : dayFormat.format(new Date(`${date}T12:00:00Z`));
   const nextDay = t('hours.nextDay');
 
-  const busy = create.isPending || update.isPending;
+  const busy = create.isPending || update.isPending || remove.isPending;
   const overnight =
     !draft.dayOff &&
     Boolean(draft.startsAt && draft.endsAt) &&
@@ -121,7 +139,7 @@ export function ShiftDialog({
   function problems(): Partial<Record<Field, string>> {
     const found: Partial<Record<Field, string>> = {};
     if (!draft.date) found.date = t('staff.shift.error.dateRequired');
-    else if (draft.date < today) found.date = t('staff.shift.error.past');
+    else if (draft.date < earliest) found.date = t('staff.shift.error.past');
     else if (draft.date > lastDay)
       found.date = t('staff.shift.error.tooFar', { days: SHIFT_HORIZON_DAYS });
     if (!draft.dayOff) {
@@ -206,31 +224,35 @@ export function ShiftDialog({
     }
   }
 
-  function removeShift(shift: StaffShift) {
-    remove.mutate(shift.id, {
-      onSuccess: () => {
-        if (draft.editing === shift.id) setDraft(blank(today));
-        toast.say(t('staff.shift.removed', { day: dayLabel(shift.date) }), {
-          undo: () =>
-            create.mutate(
-              {
-                staffMemberId: member.id,
-                shift: {
-                  date: shift.date,
-                  dayOff: shift.dayOff,
-                  startsAt: shift.startsAt,
-                  endsAt: shift.endsAt,
-                },
-              },
-              {
-                onSuccess: () => toast.say(t('staff.shift.restored')),
-                onError: () => toast.say(t('staff.shift.restoreFailed'), { tone: 'error' }),
-              },
-            ),
-          fallbackFocus: () => document.getElementById('sh-date'),
-        });
+  /**
+   * Remove one, and offer it back. Promises rather than `mutate` callbacks:
+   * the toast outlives this dialog, and a callback given to `mutate` is
+   * dropped once the dialog has closed — the undo would plan the shift with
+   * nothing said, or say nothing when it failed.
+   */
+  async function removeShift(shift: StaffShift) {
+    if (busy) return;
+    try {
+      await remove.mutateAsync(shift.id);
+    } catch (error) {
+      setErrors(refused(error));
+      return;
+    }
+    if (draft.editing === shift.id) setDraft(blank(today));
+    const again: ShiftInput = {
+      date: shift.date,
+      dayOff: shift.dayOff,
+      startsAt: shift.startsAt,
+      endsAt: shift.endsAt,
+    };
+    toast.say(t('staff.shift.removed', { day: dayLabel(shift.date) }), {
+      undo: () => {
+        create.mutateAsync({ staffMemberId: member.id, shift: again }).then(
+          () => toast.say(t('staff.shift.restored')),
+          () => toast.say(t('staff.shift.restoreFailed'), { tone: 'error' }),
+        );
       },
-      onError: (error) => setErrors(refused(error)),
+      fallbackFocus: () => document.getElementById('sh-date'),
     });
   }
 
@@ -281,8 +303,8 @@ export function ShiftDialog({
                 type="button"
                 className="yc-btn yc-btn-ghost-red yc-btn-sm"
                 aria-label={t('staff.shift.removeNamed', { day: dayLabel(shift.date) })}
-                disabled={remove.isPending}
-                onClick={() => removeShift(shift)}
+                disabled={busy}
+                onClick={() => void removeShift(shift)}
               >
                 {t('staff.shift.remove')}
               </button>
@@ -327,7 +349,7 @@ export function ShiftDialog({
               className="yc-ctl"
               type="date"
               data-autofocus=""
-              min={today}
+              min={earliest}
               max={lastDay}
               value={draft.date}
               {...describe('date')}

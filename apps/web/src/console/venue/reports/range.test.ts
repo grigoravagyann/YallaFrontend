@@ -26,10 +26,8 @@ import {
 const TUESDAY = '2026-09-08';
 
 describe('the default', () => {
-  it('is last week', () => {
-    // Not yesterday — one service, too noisy to conclude from. Not this month —
-    // incomplete, and always a decline against a whole previous one.
-    expect(DEFAULT_PRESET).toBe('lastWeek');
+  it('is this week, as the artboard opens', () => {
+    expect(DEFAULT_PRESET).toBe('thisWeek');
   });
 });
 

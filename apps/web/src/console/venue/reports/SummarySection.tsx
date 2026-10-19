@@ -64,7 +64,6 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
     maximumFractionDigits: 2,
   });
   const dram = (value: number) => formatDram(Math.round(value), locale);
-  const tabsClosed = money.byDay.reduce((sum, day) => sum + day.tabs, 0);
 
   const stats: { key: string; label: string; value: string; compared: Compared | null }[] = [
     {
@@ -82,7 +81,7 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
     {
       key: 'tabs',
       label: t('reports.summary.tabsClosed'),
-      value: number.format(money.tabs?.value ?? tabsClosed),
+      value: number.format(money.tabs.value),
       compared: money.tabs,
     },
     {
@@ -97,16 +96,12 @@ export function SummarySection({ query, locale }: SummarySectionProps) {
       value: dram(money.averagePerHeadAmd.value),
       compared: money.averagePerHeadAmd,
     },
-    ...(room.turnsPerTable
-      ? [
-          {
-            key: 'turnover',
-            label: t('reports.summary.turnover'),
-            value: decimal.format(room.turnsPerTable.value),
-            compared: room.turnsPerTable,
-          },
-        ]
-      : []),
+    {
+      key: 'turnover',
+      label: t('reports.summary.turnover'),
+      value: decimal.format(room.turnsPerTable.value),
+      compared: room.turnsPerTable,
+    },
   ];
 
   // A range that starts before the venue was trading. Said out loud so a ramp

@@ -807,6 +807,11 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     `.code.instructions`, `.code.expires`, and the old reports' `intro`,
     `comparedWith`, `chart.*`, `range.showing`, `export.failed`,
     `summary.covers` / `.tablesTurned` and the section blurbs.
+  - Review round 1 (2026-10-19), **not** in an artboard: `reports.export.readyAll`
+    is one sentence now ("Export everything" writes **one** file), and
+    `venues.once.pinNag` warns once before "Try again" closes a dialog that
+    shows a PIN (it must keep saying the PIN will **not** be seen again).
+    Removed: `reports.occupancy.sittings_*`.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

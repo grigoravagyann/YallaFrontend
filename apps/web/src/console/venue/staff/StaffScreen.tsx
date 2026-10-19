@@ -690,7 +690,8 @@ export function StaffScreen() {
           member={open.member}
           branchId={branchId}
           branchName={here}
-          shifts={shifts.data}
+          serviceDate={shifts.data?.serviceDate ?? null}
+          timeZoneId={timeZoneId}
           returnFocusTo={kebab(open.member.id)}
           onClose={() => setOpen(null)}
         />
@@ -733,6 +734,7 @@ export function StaffScreen() {
             ? {}
             : { pinLabel: t('staff.once.pinLabel'), doneLabel: t('staff.pin.written') })}
           failure={open.failure}
+          retryClosesPin
           onRetry={
             open.retry
               ? () => {

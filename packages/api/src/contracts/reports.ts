@@ -115,19 +115,15 @@ export interface OccupancyReport {
   readonly seatsAvailable: number;
   readonly walkIns: Compared;
   readonly fromReservations: Compared;
-  /**
-   * People rather than sittings, for the "without a booking / from a booking"
-   * split. Null from a server older than the venue console's phase 5.
-   */
-  readonly walkInGuests: Compared | null;
-  readonly reservationGuests: Compared | null;
+  /** People rather than sittings, for the "without a booking / from a booking" split. */
+  readonly walkInGuests: Compared;
+  readonly reservationGuests: Compared;
   /**
    * Sittings per active table per day, to two decimals — "table turnover".
-   * The previous period divides by today's table count too. Null from an
-   * older server.
+   * The previous period divides by today's table count too.
    */
-  readonly turnsPerTable: Compared | null;
-  readonly activeTables: number | null;
+  readonly turnsPerTable: Compared;
+  readonly activeTables: number;
 }
 
 // --- Reservations ------------------------------------------------------------
@@ -205,11 +201,11 @@ export interface RevenueReport {
   readonly byDay: readonly DailyRevenue[];
   /**
    * The previous equivalent period, day by day, the same length as `byDay`:
-   * `previousByDay[i]` pairs with `byDay[i]`. Null from an older server.
+   * `previousByDay[i]` pairs with `byDay[i]`.
    */
-  readonly previousByDay: readonly DailyRevenue[] | null;
-  /** Closed bills, compared. Null from an older server. */
-  readonly tabs: Compared | null;
+  readonly previousByDay: readonly DailyRevenue[];
+  /** Closed bills, compared. */
+  readonly tabs: Compared;
   readonly byHour: readonly HourlyRevenue[];
   readonly cashAmd: Compared;
   /** Zero until there is a wallet rail. Shown anyway, because 100% cash is the finding. */

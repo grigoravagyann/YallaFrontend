@@ -336,6 +336,13 @@ export interface StaffShift {
    * drawn "16:00–00:00" without "(next day)", as the opening hours draw it.
    */
   readonly endsNextDay: boolean;
+  /**
+   * When it ends, as an instant; null on a day off. A shift dated before the
+   * service day is history once this has passed, and the server refuses to
+   * change or remove it — one still running (last night's 18:00–02:00 at
+   * 00:30) may still be corrected.
+   */
+  readonly endsAtUtc: string | null;
 }
 
 /** A branch's shifts over a window, with the counts the Staff page heads with. */

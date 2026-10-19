@@ -942,13 +942,43 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
   const shiftStore = createMockShiftStore({
     url: `${URL_TAG}/shifts`,
     nextId: () => nextId('shift'),
+    now,
+    history: () => conflict('That shift is over: past shifts are kept as they were.'),
+    // A shift counts while its person is active and still works at its branch.
+    counts: (shift) => {
+      const venueId = venueOfBranch(shift.branchId);
+      const member = venueId
+        ? staffFor(venueId).find((candidate) => candidate.id === shift.staffMemberId)
+        : undefined;
+      return Boolean(member?.isActive && worksAt(member, shift.branchId));
+    },
+    endsAtUtc: (shift) => {
+      if (!shift.endsAt) return null;
+      const [year, month, day] = addDayKeys(shift.date, shift.endsNextDay ? 1 : 0)
+        .split('-')
+        .map(Number);
+      const [hour, minute] = shift.endsAt.split(':').map(Number);
+      return instantFromZonedClock(
+        {
+          year: year ?? 1970,
+          month: month ?? 1,
+          day: day ?? 1,
+          hour: hour ?? 0,
+          minute: minute ?? 0,
+        },
+        branchTimeZone(shift.branchId) as TimeZone,
+      ).toISOString();
+    },
     seed: (branchId, today) => {
       const venueId = venueOfBranch(branchId);
       if (!venueId) return [];
       const people = staffFor(venueId).filter(
         (member) => member.isActive && member.branchId === branchId,
       );
-      const plans: readonly (Omit<StaffShift, 'id' | 'staffMemberId' | 'branchId'> | null)[] = [
+      const plans: readonly (Omit<
+        StaffShift,
+        'id' | 'staffMemberId' | 'branchId' | 'endsAtUtc'
+      > | null)[] = [
         { date: today, dayOff: false, startsAt: '10:00', endsAt: '19:00', endsNextDay: false },
         { date: today, dayOff: false, startsAt: '16:00', endsAt: '00:00', endsNextDay: true },
         {
@@ -983,7 +1013,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       : undefined;
     if (!venueId || !subject || !worksAt(subject, branchId)) throw new NotFoundError({ url });
     const actor = actingStaff(venueId);
-    if (actor.role === 'manager' && actor.branchId !== branchId) {
+    // A branch manager plans their own branch's people: not another branch,
+    // and not a venue-wide waiter, who is further than they reach.
+    if (
+      actor.role === 'manager' &&
+      (actor.branchId !== branchId || (actor.id !== subject.id && subject.branchId !== branchId))
+    ) {
       throw staffPermission('Planning shifts at another branch', 'generalManager');
     }
     if (actor.id !== subject.id && !assignableRoles(actor.role).includes(subject.role)) {
@@ -4572,15 +4607,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     async listBranchShifts({ branchId, from, to }) {
       await wait();
       requireManagerAtBranch(branchId, `${URL_TAG}/branches/${branchId}/shifts`);
-      const venueId = venueOfBranch(branchId);
-      const people = venueId ? staffFor(venueId) : [];
-      return shiftStore.list({
-        branchId,
-        serviceDate: shiftServiceDate(branchId),
-        from,
-        to,
-        active: (id) => people.some((member) => member.id === id && member.isActive),
-      });
+      return shiftStore.list({ branchId, serviceDate: shiftServiceDate(branchId), from, to });
     },
 
     async createShift({ branchId, staffMemberId, shift }) {
@@ -4612,7 +4639,7 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       const current = shiftStore.find(branchId, shiftId);
       if (!current) throw new NotFoundError({ url: `${URL_TAG}/branches/${branchId}/shifts` });
       shiftSubject(branchId, current.staffMemberId);
-      shiftStore.remove({ branchId, shiftId });
+      shiftStore.remove({ branchId, serviceDate: shiftServiceDate(branchId), shiftId });
     },
 
     // --- Devices --------------------------------------------------------------

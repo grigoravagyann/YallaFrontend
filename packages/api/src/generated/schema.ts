@@ -1083,6 +1083,8 @@ export interface paths {
          *     **`turnTime` is a distribution, not an average, and it is the most useful number in the whole set.** A cafe whose policy says 120 minutes and whose real median is 165 is refusing a 20:00 sitting because it believes the 18:00 one ends at 20:00 - and half the time it does not. It is losing bookings it has no other way to see. An average hides exactly that: a fast lunch and a slow dinner average to something plausible and describe neither service. Read `medianMinutes`, `p90Minutes` and `overPolicyFraction` together.
          *
          *     A sitting is counted in **every hour it spans**, not only the one it started in: "how busy is the room at eight" is a question about occupancy, and counting arrivals makes a restaurant look empty at its busiest hour.
+         *
+         *     `turnTime.buckets` are half-hour bars, `upToMinutes` 60 to 240 (each up to and including) and an open-ended last one. `walkInGuests` and `reservationGuests` split the people, not the sittings; `turnsPerTable` is sittings per active table per day (`activeTables`), two decimals, both periods over today's tables.
          */
         get: operations["getOccupancyReport"];
         put?: never;
@@ -1104,7 +1106,7 @@ export interface paths {
          * Bookings, and what became of them
          * @description Booked, seated, cancelled and no-show with their rates, late cancellations against the branch's own deadline, and how far ahead people book.
          *
-         *     `leadTime` is what `bookingWindowDays` should be set from - a venue taking bookings 30 days out when nobody books more than 5 days ahead is holding tables against demand that does not exist.
+         *     `leadTime` is what `bookingWindowDays` should be set from - a venue taking bookings 30 days out when nobody books more than 5 days ahead is holding tables against demand that does not exist. Its buckets are `upToHours` 2, 6, 24, 72, 168 and an open-ended last one, each **strictly less than** - a booking made exactly two hours ahead is in the 6.
          *
          *     **`webBookingsWithoutAnApp` is the number that decides a commercial question.** Somebody who booked from the public page and has no registered device cannot be reached by the reminder, the late nudge or one-tap cancel - the entire no-show story. If that number is large, an SMS or Telegram channel is worth paying for; if it is small, the install prompt on the confirmation screen is enough. See `docs/reports.md`.
          */
@@ -1131,6 +1133,8 @@ export interface paths {
          *     That last part is why adjustments are manager-only: an owner asking "what did we give away last month, and who decided" is asking both halves.
          *
          *     Revenue is counted on the tab **closing**, so a sitting that starts at 23:30 and settles at 00:40 belongs to the night it was taken - which is the day the venue counted its drawer.
+         *
+         *     `byDay` has one entry for every local date of the range, zero days included, and `previousByDay` the same for the previous equivalent period, so the two pair by index. `tabs` is the closed tabs with their comparison.
          */
         get: operations["getRevenueReport"];
         put?: never;
@@ -1355,6 +1359,64 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The branch's shifts over a window, and how many people are on shift today
+         * @description The minimal shift model: one person, one branch, one `date` (the branch's local date it starts on) with `startsAt` and `endsAt`, or `dayOff` with no times. `endsNextDay` when the end is at or before the start - overnight, including an end at exactly 00:00.
+         *
+         *     `serviceDate` is today at the branch, as on the Overview: its own date, or yesterday while last night's opening block still runs past midnight. `from` defaults to it and `to` to two weeks from `from`; at most 92 days (`to` `min` / `max` otherwise). `onShiftToday` counts the active people with a working shift here dated `serviceDate`. Only the shifts of active people who still work at this branch (theirs, or the whole venue) are listed, by date, then start (days off first).
+         *
+         *     An owner or general manager at any branch of their venue, a branch manager at their own, a platform admin anywhere.
+         */
+        get: operations["listBranchShifts"];
+        put?: never;
+        /**
+         * Plan a shift, or a day off, for one person
+         * @description `staffMemberId` must work at this branch (its own people, or an owner or general manager of the venue) and be active. The caller must be able to manage them - the staff edit's rank check: an owner anyone including a co-owner, a general manager branch managers, waiters and kitchen, a branch manager waiters and kitchen of their own branch only (not one who works the whole venue) - or be them. Times are whole minutes; seconds are dropped.
+         *
+         *     **Every refusal names its field**: `staffMemberId` `required`; `date` `required`, `min` (before the service date), `max` (more than 92 days after it) or `conflict` (a day off and anything else on one date for the person); `startsAt`/`endsAt` `required` for a working shift; `startsAt` `conflict` for times on a day off, or when it overlaps another of the person's shifts at any branch of the venue, compared as instants in each branch's zone (touching is fine); `endsAt` `conflict` (no length) or `max` (longer than 16 hours, `max` 960 minutes).
+         *
+         *     Writes for one person queue on their staff row, so two overlapping shifts saved at once cannot both land.
+         */
+        post: operations["createShift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/branches/{branchId}/shifts/{shiftId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Move or retime a shift
+         * @description The whole shift again - `date`, and `startsAt` and `endsAt` or `dayOff` - with the same rules and refusals as planning one; the person does not change. Last write wins.
+         *
+         *     A shift dated before the service date is history: 409 `conflicting-state` - unless it is still running (its end is after now at the branch), when its times may be corrected on its own date (`date` `min` is then that date).
+         */
+        put: operations["updateShift"];
+        post?: never;
+        /**
+         * Remove a shift
+         * @description Gone, not hidden. To undo, plan it again. A second delete of the same shift is 404. A past shift that has ended is history (409 `conflicting-state`). A shift left at a branch its person no longer works at may be removed by anybody of the venue who outranks them.
+         */
+        delete: operations["deleteShift"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4482,6 +4544,31 @@ export interface components {
             /** @description The name the console shows and the activity feed records. 1-200 characters. */
             fullName?: string | null;
         };
+        /** @description Body of `POST /api/branches/{branchId}/shifts`. */
+        "Yalla.Api.Endpoints.VenueAdminEndpoints.CreateShiftRequest": {
+            /**
+             * Format: date
+             * @description The branch's local date it starts on. <b>Required.</b>
+             */
+            date: string;
+            /** @description A day off on the date: send no times. */
+            dayOff: boolean;
+            /**
+             * Format: time
+             * @description Wall clock; at or before StartsAt means after midnight. Required unless DayOff.
+             */
+            endsAt?: string | null;
+            /**
+             * Format: uuid
+             * @description Whose shift. <b>Required.</b>
+             */
+            staffMemberId: string;
+            /**
+             * Format: time
+             * @description Wall clock, `HH:mm`. Required unless DayOff.
+             */
+            startsAt?: string | null;
+        };
         /** @description Body of the sign-in issue. */
         "Yalla.Api.Endpoints.VenueAdminEndpoints.IssueSignInRequest": {
             /** @description The address this person will sign in with. Stored lowercased. */
@@ -4494,6 +4581,26 @@ export interface components {
         /** @description Body of the PIN reset. */
         "Yalla.Api.Endpoints.VenueAdminEndpoints.SetPinRequest": {
             pin: string;
+        };
+        /** @description Body of `PUT /api/branches/{branchId}/shifts/{shiftId}`: the whole shift again. */
+        "Yalla.Api.Endpoints.VenueAdminEndpoints.UpdateShiftRequest": {
+            /**
+             * Format: date
+             * @description The branch's local date it starts on. <b>Required.</b>
+             */
+            date: string;
+            /** @description A day off on the date: send no times. */
+            dayOff: boolean;
+            /**
+             * Format: time
+             * @description Wall clock. Required unless DayOff.
+             */
+            endsAt?: string | null;
+            /**
+             * Format: time
+             * @description Wall clock. Required unless DayOff.
+             */
+            startsAt?: string | null;
         };
         /** @description Body of `POST /api/auth/venue/sign-in`. */
         "Yalla.Api.Endpoints.VenueUserSignInRequest": {
@@ -9033,12 +9140,19 @@ export interface components {
             voids: components["schemas"]["Yalla.Application.Reports.VoidLine"][];
         };
         "Yalla.Application.Reports.OccupancyReport": {
+            /**
+             * Format: int32
+             * @description The active tables now, which TurnsPerTable divides by.
+             */
+            activeTables: number;
             /** @description In progress by local hour of day. */
             byHour: components["schemas"]["Yalla.Application.Reports.HourBucket"][];
             /** @description Started, by local weekday. */
             byWeekday: components["schemas"]["Yalla.Application.Reports.WeekdayBucket"][];
             /** @description Sittings seated against a booking. */
             fromReservations: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description People at the sittings seated against a booking. */
+            reservationGuests: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description What was asked for. */
             scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
             /**
@@ -9050,8 +9164,19 @@ export interface components {
             seatsFilled: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Sittings that started in the period. */
             sessions: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /**
+             * @description Sittings per active table per day, to two decimals - the "table turnover" card. The previous period is divided
+             *     by today's table count too: the tables a branch had last month are not kept, and the card compares use, not
+             *     furniture.
+             */
+            turnsPerTable: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Actual against policy. */
             turnTime: components["schemas"]["Yalla.Application.Reports.TurnTimeDistribution"];
+            /**
+             * @description People at the sittings with no booking behind them - the walk-in half of the console's people split, which is
+             *     about guests, not tables: a walk-in couple and a booked party of eight are one sitting each.
+             */
+            walkInGuests: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Sittings with no booking behind them. */
             walkIns: components["schemas"]["Yalla.Application.Reports.Compared"];
         };
@@ -9121,7 +9246,7 @@ export interface components {
             averagePerHeadAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Per tab. */
             averageTabAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
-            /** @description Day by day, in local dates. */
+            /** @description Day by day, in local dates: every date of the range, zero days included. */
             byDay: components["schemas"]["Yalla.Application.Reports.DailyRevenue"][];
             /** @description Hour by hour, in local hours. */
             byHour: components["schemas"]["Yalla.Application.Reports.HourlyRevenue"][];
@@ -9129,10 +9254,17 @@ export interface components {
             cashAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Taken in the app. Zero until there is a wallet rail; the column is here so the day it exists nothing has to change. */
             inAppAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /**
+             * @description The previous equivalent period, day by day - the chart's dashed line. Like ByDay it has one entry
+             *     for every local date of its period, zero days included, so the two have the same length and pair by index.
+             */
+            previousByDay: components["schemas"]["Yalla.Application.Reports.DailyRevenue"][];
             /** @description What was asked for. */
             scope: components["schemas"]["Yalla.Application.Reports.ReportScope"];
             /** @description Of which service charge. */
             serviceChargeAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
+            /** @description Tabs closed - the "closed bills" card. */
+            tabs: components["schemas"]["Yalla.Application.Reports.Compared"];
             /** @description Taken in the period. */
             totalAmd: components["schemas"]["Yalla.Application.Reports.Compared"];
         };
@@ -9994,6 +10126,41 @@ export interface components {
              */
             stars: number;
         };
+        /** @description A branch's shifts over a window, with what the Staff screen's header counts. */
+        "Yalla.Application.Staff.BranchShiftsView": {
+            /**
+             * Format: uuid
+             * @description The branch.
+             */
+            branchId: string;
+            /**
+             * Format: date
+             * @description First date answered.
+             */
+            from: string;
+            /**
+             * Format: int32
+             * @description "On shift today: N people" - the active people with a working shift (not a day off) at this branch dated
+             *     ServiceDate.
+             */
+            onShiftToday: number;
+            /**
+             * Format: date
+             * @description "Today" at the branch: its own date, or yesterday while last night's opening block still runs past midnight - the
+             *     Overview's service day. The shift line reads the shifts dated this.
+             */
+            serviceDate: string;
+            /**
+             * @description This branch's shifts dated From to To, active people only, by date, then
+             *     start (days off first), then person.
+             */
+            shifts: components["schemas"]["Yalla.Application.Staff.StaffShiftView"][];
+            /**
+             * Format: date
+             * @description Last date answered.
+             */
+            to: string;
+        };
         /** @description A new staff member. A PIN is required; email and password are for owners and managers. */
         "Yalla.Application.Staff.CreateStaffCommand": {
             /** Format: uuid */
@@ -10021,6 +10188,53 @@ export interface components {
             role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
             /** Format: uuid */
             venueId?: string | null;
+        };
+        /** @description One shift as every read returns it. */
+        "Yalla.Application.Staff.StaffShiftView": {
+            /**
+             * Format: uuid
+             * @description Where.
+             */
+            branchId: string;
+            /**
+             * Format: date
+             * @description The branch's local date it starts on.
+             */
+            date: string;
+            /** @description A day off on the date; no times then. */
+            dayOff: boolean;
+            /**
+             * Format: time
+             * @description Wall clock, on the next date when EndsNextDay; absent on a day off.
+             */
+            endsAt?: string | null;
+            /**
+             * Format: date-time
+             * @description The end as an instant; absent on a day off.
+             */
+            endsAtUtc?: string | null;
+            /** @description Ends after midnight - including at exactly 00:00. False on a day off. */
+            endsNextDay: boolean;
+            /**
+             * Format: uuid
+             * @description The shift.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Whose.
+             */
+            staffMemberId: string;
+            /**
+             * Format: time
+             * @description Wall clock; absent on a day off.
+             */
+            startsAt?: string | null;
+            /**
+             * Format: date-time
+             * @description The start as an instant; absent on a day off.
+             */
+            startsAtUtc?: string | null;
         };
         /**
          * @description A freshly issued sign-in link. ResetLink exists only here: the server keeps
@@ -15939,6 +16153,375 @@ export interface operations {
             };
             /** @description Not staff at this branch. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listBranchShifts: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Staff.BranchShiftsView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller is authenticated but not allowed to perform this action. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `to` before `from` (`min`), or more than 92 days (`max`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createShift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.VenueAdminEndpoints.CreateShiftRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Staff.StaffShiftView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller may not manage this person. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such branch, or the person does not work here. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `conflicting-state`: the person is deactivated. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A field breaks a rule; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateShift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+                shiftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.VenueAdminEndpoints.UpdateShiftRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Staff.StaffShiftView"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller may not manage this person. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such shift at this branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `conflicting-state`: the person is deactivated, or the shift is past and over. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description A field breaks a rule; `context.fields` names each. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deleteShift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                branchId: string;
+                shiftId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description The caller may not manage this person. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No such shift at this branch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `conflicting-state`: a past shift that has ended. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

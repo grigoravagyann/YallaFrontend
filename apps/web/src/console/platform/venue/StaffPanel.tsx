@@ -304,6 +304,7 @@ export function StaffPanel({ venue, canChange }: StaffPanelProps) {
           pinHelp={t('venuePage.once.pinHelp')}
           linkHelp={(when) => t('venuePage.once.help', { when })}
           failure={shown.failure}
+          retryClosesPin
           onRetry={
             shown.retry
               ? () => {

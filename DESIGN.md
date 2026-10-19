@@ -95,7 +95,11 @@ booking still to come: a state, not a warning), `loadBar` and `capacityLine`
 20px `bookingTime` (a waiting booking's start). Reports (phase 5) adds
 `reportBar` (a bar of shares; a peak is `brand`, past the policy `amber`),
 `reportPreviousLine` (the previous period, dashed) and `reportArea` (the fill
-under this period's line, the brand at 7%).
+under this period's line, the brand at 7%). The bar and the line are darker
+than the artboards' #B89B7E and #B8A28A (2.62:1 and 2.45:1 on white), on
+purpose and for the reason the branch switcher's edge is lighter than theirs:
+a chart's marks are its message, so they are held to WCAG 1.4.11's 3:1 on a
+card (`#A08262` 3.58:1, `#9A8570` 3.52:1).
 
 The values are tokens like every other value in the product:
 `packages/tokens/src/console.ts`, emitted as `--console-*` custom properties

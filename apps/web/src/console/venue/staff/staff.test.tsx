@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { StaffPinTakenError, createConsoleMockGateway, type ConsoleGateway } from '@yalla/api';
+import { formatDate, formatTime } from '@yalla/format';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Outlet, Route, Routes } from 'react-router-dom';
@@ -646,5 +647,166 @@ describe('shifts', () => {
       }),
     );
     expect(await within(dialog).findByText('11:00–19:00')).toBeTruthy();
+  });
+});
+
+describe('shifts, round 1', () => {
+  async function openShifts(user: User, name: string) {
+    await user.click(within(rowOf(name)).getByRole('button', { name: /^More actions for/u }));
+    await user.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /^Shifts$/u }));
+    return screen.getByRole('dialog', { name: `Shifts: ${name}` });
+  }
+
+  it('lists a shift planned weeks ahead, past the page’s two weeks, to change or remove', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const { serviceDate } = await gateway.listBranchShifts({ branchId: NORTH });
+    const far = new Date(Date.parse(`${serviceDate}T00:00:00Z`) + 80 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    await gateway.createShift({
+      branchId: NORTH,
+      staffMemberId: `${NORTH}-kitchen`,
+      shift: { date: far, dayOff: false, startsAt: '09:00', endsAt: '15:00' },
+    });
+    renderStaff({ gateway });
+    await waitForList();
+
+    const dialog = await openShifts(user, SONA);
+    expect(await within(dialog).findByText('09:00–15:00')).toBeTruthy();
+    expect(within(dialog).getAllByRole('button', { name: /^Remove / })).toHaveLength(2);
+  });
+
+  it('plans the same shift again from the toast after the dialog has closed', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const create = vi.spyOn(gateway, 'createShift');
+    renderStaff({ gateway });
+    await waitForList();
+    await screen.findByText('Tomorrow 11:00–19:00');
+
+    const dialog = await openShifts(user, SONA);
+    const removed = (await within(dialog).findAllByRole('button', { name: /^Remove / }))[0]!;
+    await user.click(removed);
+    expect(await screen.findByText('Removed: Tomorrow')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(within(rowOf(SONA)).getByText('No shift set')).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText('The shift is back')).toBeTruthy();
+    const again = create.mock.calls[0]?.[0];
+    const { serviceDate } = await gateway.listBranchShifts({ branchId: NORTH });
+    const tomorrow = new Date(Date.parse(`${serviceDate}T00:00:00Z`) + 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    expect(again?.shift).toEqual({
+      date: tomorrow,
+      dayOff: false,
+      startsAt: '11:00',
+      endsAt: '19:00',
+    });
+    await waitFor(() => expect(within(rowOf(SONA)).getByText('Tomorrow 11:00–19:00')).toBeTruthy());
+  });
+
+  it('refreshes the shift lines when somebody is deactivated', async () => {
+    const user = userEvent.setup();
+    renderStaff();
+    await waitForList();
+    expect(await screen.findByText(/on shift today: 2 people/u)).toBeTruthy();
+
+    await user.click(within(rowOf(ANI)).getByRole('button', { name: /^More actions for/u }));
+    await user.click(
+      within(screen.getByRole('menu')).getByRole('menuitem', { name: /^Deactivate$/u }),
+    );
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Deactivate' }),
+    );
+    expect(await screen.findByText(/on shift today: 1 person/u)).toBeTruthy();
+  });
+
+  it("opens on the branch's date, not the device's UTC one", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date'] });
+    // 01:30 on Tuesday the 20th at the branch; still Monday the 19th in UTC.
+    vi.setSystemTime(new Date('2026-10-19T21:30:00Z'));
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderStaff();
+      await waitForList();
+      const dialog = await openShifts(user, SONA);
+      expect((within(dialog).getByLabelText('Date') as HTMLInputElement).value).toBe('2026-10-20');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lets a shift still running from last night be corrected, on its own date', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date'] });
+    let clock = new Date('2026-10-19T10:00:00Z');
+    vi.setSystemTime(clock);
+    try {
+      const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner', now: () => clock });
+      await gateway.createShift({
+        branchId: NORTH,
+        staffMemberId: 'v-lumen-general-manager',
+        shift: { date: '2026-10-19', dayOff: false, startsAt: '18:00', endsAt: '02:00' },
+      });
+      // 00:30 at the branch: a new day, and the shift still running.
+      clock = new Date('2026-10-19T20:30:00Z');
+      vi.setSystemTime(clock);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderStaff({ gateway });
+      await waitForList();
+
+      const dialog = await openShifts(user, 'Hasmik Karapetyan');
+      expect(await within(dialog).findByText('18:00–02:00 (next day)')).toBeTruthy();
+      await user.click(within(dialog).getByRole('button', { name: /^Change / }));
+      expect((within(dialog).getByLabelText('Date') as HTMLInputElement).min).toBe('2026-10-19');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('warns once before "Try again" takes away the PIN of a hire whose link was refused', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    vi.spyOn(gateway, 'issueStaffSignIn').mockRejectedValueOnce(new Error('down'));
+    renderStaff({ gateway });
+    await waitForList();
+
+    await user.click(screen.getByRole('button', { name: 'Add staff' }));
+    await user.type(within(wizard()).getByLabelText(/^Full name/u), 'Marine Sahakyan');
+    await user.type(within(wizard()).getByLabelText(/^Phone/u), '+37477123456');
+    await user.click(within(wizard()).getByRole('button', { name: 'Continue →' }));
+    await user.click(within(wizard()).getByRole('radio', { name: /^Branch manager/u }));
+    await user.click(within(wizard()).getByRole('button', { name: 'Continue →' }));
+    await user.type(within(wizard()).getByLabelText(/^Tablet PIN/u), '4821');
+    await user.click(within(wizard()).getByRole('button', { name: 'Continue →' }));
+    await user.type(within(wizard()).getByLabelText(/^Email for the console/u), 'm@lumen.am');
+    await user.click(within(wizard()).getByRole('button', { name: 'Add' }));
+
+    const once = await screen.findByRole('dialog', { name: 'Marine Sahakyan was added' });
+    await user.click(within(once).getByRole('button', { name: 'Try again' }));
+    expect(within(once).getByText(/Write the PIN down first/u)).toBeTruthy();
+    expect(within(once).getByText('4821')).toBeTruthy();
+    await user.click(within(once).getByRole('button', { name: 'Try again' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Sign-in link: Marine Sahakyan' }),
+    ).toBeTruthy();
+  });
+
+  it('shows when an enrolment code stops working, date and time', async () => {
+    const user = userEvent.setup();
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    const make = vi.spyOn(gateway, 'createEnrolmentCode');
+    renderStaff({ gateway });
+    await screen.findByText('Counter tablet');
+
+    await user.click(screen.getByRole('button', { name: 'Generate a code' }));
+    const once = await screen.findByRole('dialog', { name: 'Tablet enrolment code' });
+    const code = await make.mock.results[0]!.value;
+    const day = formatDate(code.expiresAtUtc, 'Asia/Yerevan', 'en');
+    const time = formatTime(code.expiresAtUtc, 'Asia/Yerevan', 'en');
+    expect(within(once).getByText(new RegExp(`until ${day} ${time}`, 'u'))).toBeTruthy();
   });
 });

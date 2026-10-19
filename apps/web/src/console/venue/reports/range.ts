@@ -12,10 +12,9 @@ import { branchDayKey, type TimeZone } from '@yalla/format';
  * second interpretation of what a day is.
  *
  * The presets are the questions an owner actually asks, in the order they ask
- * them, and the default is **last week** rather than yesterday or this month.
- * Yesterday is one service and too noisy to conclude anything from; this month
- * is incomplete and always looks like a decline against a full previous one.
- * Last week is the shortest range that is both finished and representative.
+ * them, and the page opens on **this week** (the Reports artboard): the week
+ * so far, Monday to today, against the same days of the week before — so a
+ * part-week is never set against a whole one.
  */
 export type RangePreset =
   'yesterday' | 'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom';
@@ -29,8 +28,8 @@ export const RANGE_PRESETS: readonly RangePreset[] = [
   'custom',
 ];
 
-/** The preset the screen opens on. See above for why it is not "yesterday". */
-export const DEFAULT_PRESET: RangePreset = 'lastWeek';
+/** The preset the screen opens on (the artboard's). */
+export const DEFAULT_PRESET: RangePreset = 'thisWeek';
 
 export interface DateRange {
   /** Inclusive `YYYY-MM-DD` in the branch's zone. */

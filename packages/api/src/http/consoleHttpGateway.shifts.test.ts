@@ -83,6 +83,7 @@ describe('shifts over HTTP', () => {
           startsAt: null,
           endsAt: null,
           endsNextDay: false,
+          endsAtUtc: null,
         },
         {
           id: 's-1',
@@ -93,6 +94,8 @@ describe('shifts over HTTP', () => {
           startsAt: '16:00',
           endsAt: '00:00',
           endsNextDay: true,
+          // When it ends, kept: a shift from before today is history once this has passed.
+          endsAtUtc: '2026-10-19T20:00:00Z',
         },
       ],
     });

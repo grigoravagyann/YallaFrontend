@@ -429,7 +429,8 @@
       "pinHelp": "Для входа на планшете. Он тоже показывается только сейчас.",
       "nag": "Сначала скопируйте ссылку: после закрытия вы её больше не увидите. Нажмите «Готово» ещё раз, чтобы всё равно закрыть.",
       "openVenue": "Открыть страницу заведения",
-      "done": "Готово"
+      "done": "Готово",
+      "pinNag": "Сначала запишите PIN: после повторной попытки вы его больше не увидите. Нажмите ещё раз, чтобы всё равно продолжить."
     }
   },
   "status": {
@@ -1285,12 +1286,9 @@
       "csv": "CSV",
       "all": "Выгрузить всё (CSV)",
       "working": "Готовим…",
-      "readyAll_one": "Готово файлов CSV: {{count}} — {{scope}}",
-      "readyAll_few": "Готово файлов CSV: {{count}} — {{scope}}",
-      "readyAll_many": "Готово файлов CSV: {{count}} — {{scope}}",
-      "readyAll_other": "Готово файлов CSV: {{count}} — {{scope}}",
       "csvFor": "CSV: {{section}}",
-      "ready": "CSV готов: {{section}} · {{period}}"
+      "ready": "CSV готов: {{section}} · {{period}}",
+      "readyAll": "CSV-файл готов: {{scope}}"
     },
     "empty": {
       "title": "За этот период данных нет",
@@ -1364,10 +1362,6 @@
       "people_few": "{{formatted}} человека",
       "people_many": "{{formatted}} человек",
       "people_other": "{{formatted}} человека",
-      "sittings_one": "{{formatted}} посадка",
-      "sittings_few": "{{formatted}} посадки",
-      "sittings_many": "{{formatted}} посадок",
-      "sittings_other": "{{formatted}} посадки",
       "title": "Загрузка",
       "cap": "Когда зал заполняется и сколько гости на самом деле сидят",
       "turnTitle": "Сколько длились посадки",

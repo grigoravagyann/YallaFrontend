@@ -188,7 +188,8 @@ export function DevicesPanel({ branchId, branchName, timeZoneId, locale }: Devic
           title={t('devices.code.title')}
           body={t('devices.code.lead', {
             branch: branchName,
-            when: formatTime(code.expiresAtUtc, timeZoneId, locale),
+            // Date and time: a code made at 23:00 is good until tomorrow.
+            when: when(code.expiresAtUtc),
           })}
           link={null}
           pin={spaced(code.code)}

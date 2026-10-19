@@ -65,10 +65,22 @@ function file(...tables: readonly string[]): string {
   return `${tables.join('\r\n\r\n')}\r\n`;
 }
 
+/**
+ * Whether a section had a previous period at all, read off its total.
+ *
+ * The server sums a previous period with no trading to 0 (and a server could
+ * send no previous at all): either way there was nothing to compare with, and
+ * every previous figure of that section is left empty rather than written as
+ * a 0 that reads like a measured one.
+ */
+export function hadPreviousPeriod(total: Compared): boolean {
+  return total.previous !== null && total.previous !== 0;
+}
+
 /** A compared measure's row: `measure,value,previous,changeFraction`. */
-function measure(name: string, value: Compared | null): Cell[] {
+function measure(name: string, value: Compared | null, prior: boolean): Cell[] {
   if (!value) return [name, null, null, null];
-  return [name, value.value, value.previous, value.changeFraction];
+  return [name, value.value, prior ? value.previous : null, prior ? value.changeFraction : null];
 }
 
 const MEASURE_HEADER = ['measure', 'value', 'previous', 'changeFraction'] as const;
@@ -80,20 +92,22 @@ function bucketEnds(tops: readonly number[], index: number): [number, number | n
 }
 
 export function summaryCsv(occupancy: OccupancyReport, revenue: RevenueReport): string {
+  const prior = hadPreviousPeriod(revenue.totalAmd) || hadPreviousPeriod(occupancy.sessions);
   return file(
     table(MEASURE_HEADER, [
-      measure('guests', occupancy.seatsFilled),
-      measure('revenueAmd', revenue.totalAmd),
-      measure('tabsClosed', revenue.tabs),
-      measure('averageTabAmd', revenue.averageTabAmd),
-      measure('averagePerHeadAmd', revenue.averagePerHeadAmd),
-      measure('turnsPerTable', occupancy.turnsPerTable),
+      measure('guests', occupancy.seatsFilled, prior),
+      measure('revenueAmd', revenue.totalAmd, prior),
+      measure('tabsClosed', revenue.tabs, prior),
+      measure('averageTabAmd', revenue.averageTabAmd, prior),
+      measure('averagePerHeadAmd', revenue.averagePerHeadAmd, prior),
+      measure('turnsPerTable', occupancy.turnsPerTable, prior),
     ]),
   );
 }
 
 export function revenueCsv(report: RevenueReport): string {
-  const previous = report.previousByDay;
+  const prior = hadPreviousPeriod(report.totalAmd);
+  const previous = prior ? report.previousByDay : null;
   return file(
     table(
       [
@@ -121,27 +135,28 @@ export function revenueCsv(report: RevenueReport): string {
       report.byHour.map((hour) => [hour.hour, Math.round(hour.revenueAmd)]),
     ),
     table(MEASURE_HEADER, [
-      measure('totalAmd', report.totalAmd),
-      measure('tabs', report.tabs),
-      measure('serviceChargeAmd', report.serviceChargeAmd),
-      measure('cashAmd', report.cashAmd),
-      measure('inAppAmd', report.inAppAmd),
+      measure('totalAmd', report.totalAmd, prior),
+      measure('tabs', report.tabs, prior),
+      measure('serviceChargeAmd', report.serviceChargeAmd, prior),
+      measure('cashAmd', report.cashAmd, prior),
+      measure('inAppAmd', report.inAppAmd, prior),
     ]),
   );
 }
 
 export function reservationsCsv(report: ReservationReport): string {
   const tops = report.leadTime.map((bucket) => bucket.upToHours);
+  const prior = hadPreviousPeriod(report.booked);
   return file(
     table(MEASURE_HEADER, [
-      measure('booked', report.booked),
-      measure('seated', report.seated),
-      measure('cancelled', report.cancelled),
-      measure('lateCancellations', report.lateCancellations),
-      measure('noShow', report.noShow),
-      measure('cancellationRate', report.cancellationRate),
-      measure('noShowRate', report.noShowRate),
-      measure('webBookingsWithoutAnApp', report.webBookingsWithoutAnApp),
+      measure('booked', report.booked, prior),
+      measure('seated', report.seated, prior),
+      measure('cancelled', report.cancelled, prior),
+      measure('lateCancellations', report.lateCancellations, prior),
+      measure('noShow', report.noShow, prior),
+      measure('cancellationRate', report.cancellationRate, prior),
+      measure('noShowRate', report.noShowRate, prior),
+      measure('webBookingsWithoutAnApp', report.webBookingsWithoutAnApp, prior),
     ]),
     table(
       ['fromHours', 'toHours', 'bookings'],
@@ -153,13 +168,14 @@ export function reservationsCsv(report: ReservationReport): string {
 export function occupancyCsv(report: OccupancyReport): string {
   const turn = report.turnTime;
   const tops = turn.buckets.map((bucket) => bucket.upToMinutes);
+  const prior = hadPreviousPeriod(report.sessions);
   return file(
     table(MEASURE_HEADER, [
-      measure('sittings', report.sessions),
-      measure('guests', report.seatsFilled),
-      measure('walkInGuests', report.walkInGuests),
-      measure('reservationGuests', report.reservationGuests),
-      measure('turnsPerTable', report.turnsPerTable),
+      measure('sittings', report.sessions, prior),
+      measure('guests', report.seatsFilled, prior),
+      measure('walkInGuests', report.walkInGuests, prior),
+      measure('reservationGuests', report.reservationGuests, prior),
+      measure('turnsPerTable', report.turnsPerTable, prior),
       ['medianMinutes', turn.medianMinutes, null, null],
       ['p90Minutes', turn.p90Minutes, null, null],
       ['policyTurnTimeMinutes', turn.policyTurnTimeMinutes, null, null],
@@ -199,8 +215,21 @@ export function menuCsv(report: MenuReport): string {
   );
 }
 
-/** `revenue-2026-10-12-to-2026-10-18[-all-branches].csv`, as the server names it. */
-export function csvFileName(section: CsvSection, query: ReportQuery): string {
+/**
+ * "Export everything": one file, every section a block under its own title
+ * line, a blank line between blocks, the same escaping and numbers as the
+ * section files.
+ */
+export function allCsv(sections: readonly (readonly [CsvSection, string])[]): string {
+  const blocks = sections.map(([title, part]) => `${title}\r\n${part.replace(/\r\n$/u, '')}`);
+  return `${blocks.join('\r\n\r\n')}\r\n`;
+}
+
+/**
+ * `revenue-2026-10-12-to-2026-10-18[-all-branches].csv`, as the server names
+ * a section; `report-…` for everything in one file.
+ */
+export function csvFileName(section: CsvSection | 'report', query: ReportQuery): string {
   return `${section}-${query.from}-to-${query.to}${query.rollUpVenue ? '-all-branches' : ''}.csv`;
 }
 

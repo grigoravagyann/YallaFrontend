@@ -4,7 +4,8 @@ import { formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useMemo, useState } from 'react';
 import { BarChart, type Bar } from './BarChart';
-import { revenueCsv } from './csv';
+import { hadPreviousPeriod, revenueCsv } from './csv';
+import { serviceHours } from './hours';
 import { CsvButton, ReportCard } from './ReportCard';
 import { RevenueLine, type RevenuePoint } from './RevenueLine';
 import { everyDayIn } from './range';
@@ -47,9 +48,9 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
       timeZone: 'UTC',
     });
     const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
-    // No previous period at all (a venue's first weeks): no dashed line of
-    // zeroes behind this one, the same rule as the deltas.
-    const previous = data.totalAmd.previous === null ? null : data.previousByDay;
+    // No previous period (a venue's first weeks, summed to 0 by the server):
+    // no dashed line of zeroes behind this one, the same rule as the deltas.
+    const previous = hadPreviousPeriod(data.totalAmd) ? data.previousByDay : null;
     return days.map((day, index) => {
       const date = new Date(`${day.localDate}T12:00:00Z`);
       return {
@@ -59,21 +60,23 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
             ? `${weekday.format(date)} ${date.getUTCDate()}`
             : short.format(date),
         value: day.revenueAmd,
-        previous:
-          previous && previous.length === days.length ? (previous[index]?.revenueAmd ?? 0) : null,
+        previous: previous ? (previous[index]?.revenueAmd ?? 0) : null,
       };
     });
   }, [data, query, locale]);
 
   const hours: Bar[] = useMemo(() => {
     if (!data || data.totalAmd.value === 0) return [];
-    const lit = data.byHour.filter((hour) => hour.revenueAmd > 0).map((hour) => hour.hour);
-    if (lit.length === 0) return [];
-    const first = Math.min(...lit);
-    const last = Math.max(...lit);
-    const shares = data.byHour
-      .filter((hour) => hour.hour >= first && hour.hour <= last)
-      .map((hour) => ({ hour: hour.hour, share: hour.revenueAmd / data.totalAmd.value }));
+    const amounts = Array.from(
+      { length: 24 },
+      (_, hour) => data.byHour.find((entry) => entry.hour === hour)?.revenueAmd ?? 0,
+    );
+    // In service order: a bar open past midnight keeps 23, 00 and 01 together.
+    const shares = serviceHours(amounts).map((hour) => ({
+      hour,
+      share: (amounts[hour] ?? 0) / data.totalAmd.value,
+    }));
+    if (shares.length === 0) return [];
     const peak = Math.max(...shares.map((entry) => entry.share));
     return shares.map((entry) => ({
       key: String(entry.hour),
@@ -126,18 +129,20 @@ export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSect
       {data ? (
         <div className="yc-rp-split">
           <div className="yc-rp-body yc-rp-divide">
-            <div className="yc-rp-legend">
-              <span>
-                <i className="yc-lg-now" aria-hidden="true" />
-                {periodName}
-              </span>
-              {hasPrevious ? (
+            {points.length > 1 ? (
+              <div className="yc-rp-legend">
                 <span>
-                  <i className="yc-lg-prev" aria-hidden="true" />
-                  {t('reports.revenue.previous')}
+                  <i className="yc-lg-now" aria-hidden="true" />
+                  {periodName}
                 </span>
-              ) : null}
-            </div>
+                {hasPrevious ? (
+                  <span>
+                    <i className="yc-lg-prev" aria-hidden="true" />
+                    {t('reports.revenue.previous')}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             {points.length > 1 ? (
               <RevenueLine
                 points={points}

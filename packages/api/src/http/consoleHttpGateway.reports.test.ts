@@ -9,7 +9,7 @@ import { fakeBackend, type FakeRoute } from './fakeBackend.testkit';
 /**
  * The reports' phase-5 fields (VC5 wire §2): closed bills compared and the
  * previous period day by day on revenue; guests by kind and table turnover on
- * occupancy. Absent from an older server, they are null — never zero.
+ * occupancy.
  */
 
 function gatewayOver(routes: Record<string, FakeRoute>) {
@@ -48,6 +48,8 @@ function revenue(extra: Record<string, unknown> = {}) {
     inAppAmd: none,
     adjustments: [],
     adjustmentsTotalAmd: none,
+    tabs: none,
+    previousByDay: [],
     ...extra,
   };
 }
@@ -68,6 +70,10 @@ function occupancy(extra: Record<string, unknown> = {}) {
     seatsAvailable: 0,
     walkIns: none,
     fromReservations: none,
+    walkInGuests: none,
+    reservationGuests: none,
+    turnsPerTable: none,
+    activeTables: 0,
     ...extra,
   };
 }
@@ -87,7 +93,7 @@ describe('the phase-5 report fields over HTTP', () => {
     });
     const report = await gateway.getRevenueReport(query);
     expect(report.tabs).toEqual({ value: 3, previous: 4, changeFraction: -0.25 });
-    expect(report.previousByDay?.map((day) => day.revenueAmd)).toEqual([50, 150]);
+    expect(report.previousByDay.map((day) => day.revenueAmd)).toEqual([50, 150]);
   });
 
   it('reads guests by kind and the table turnover', async () => {
@@ -103,21 +109,9 @@ describe('the phase-5 report fields over HTTP', () => {
     });
     const report = await gateway.getOccupancyReport(query);
     expect(report.walkInGuests).toEqual({ value: 40, previous: null, changeFraction: null });
-    expect(report.reservationGuests?.previous).toBe(50);
-    expect(report.turnsPerTable?.value).toBe(3.1);
+    expect(report.reservationGuests.previous).toBe(50);
+    expect(report.turnsPerTable.value).toBe(3.1);
     expect(report.activeTables).toBe(12);
-  });
-
-  it('says nothing, rather than zero, when an older server sends none of them', async () => {
-    const gateway = gatewayOver({
-      'GET /api/branches/b-1/reports/revenue': { body: revenue() },
-      'GET /api/branches/b-1/reports/occupancy': { body: occupancy() },
-    });
-    const money = await gateway.getRevenueReport(query);
-    expect(money.tabs).toBeNull();
-    expect(money.previousByDay).toBeNull();
-    const room = await gateway.getOccupancyReport(query);
-    expect([room.walkInGuests, room.turnsPerTable, room.activeTables]).toEqual([null, null, null]);
   });
 });
 

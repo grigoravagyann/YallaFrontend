@@ -166,4 +166,56 @@ describe('console mock — shifts', () => {
       }),
     ).resolves.toBeTruthy();
   });
+
+  it('keeps an ended shift as it was, and lets one still running be corrected', async () => {
+    let clock = NOW;
+    const gateway = createConsoleMockGateway({ latencyMs: 0, role: 'owner', now: () => clock });
+    const sona = `${NORTH}-kitchen`;
+    const late = await gateway.createShift({
+      branchId: NORTH,
+      staffMemberId: sona,
+      shift: work(TODAY, '18:00', '02:00'),
+    });
+    expect(late.endsAtUtc).toBe('2026-10-19T22:00:00.000Z');
+
+    // 00:30 at the branch: a new day, and last night's shift still running.
+    clock = new Date('2026-10-19T20:30:00Z');
+    await expect(
+      gateway.updateShift({
+        branchId: NORTH,
+        shiftId: late.id,
+        shift: work(TODAY, '18:00', '01:00'),
+      }),
+    ).resolves.toMatchObject({ endsAt: '01:00' });
+
+    // 03:00: it is over, and history.
+    clock = new Date('2026-10-19T23:00:00Z');
+    expect(
+      await failing(
+        gateway.updateShift({
+          branchId: NORTH,
+          shiftId: late.id,
+          shift: work(TODAY, '18:00', '00:00'),
+        }),
+      ),
+    ).toBeInstanceOf(ConcurrencyConflictError);
+    expect(
+      await failing(gateway.deleteShift({ branchId: NORTH, shiftId: late.id })),
+    ).toBeInstanceOf(ConcurrencyConflictError);
+  });
+
+  it("drops a person's shifts from a branch they no longer work at", async () => {
+    const gateway = mock();
+    const sona = `${NORTH}-kitchen`;
+    const before = await gateway.listBranchShifts({ branchId: NORTH });
+    expect(before.shifts.some((shift) => shift.staffMemberId === sona)).toBe(true);
+
+    await gateway.updateStaff({
+      venueId: 'v-lumen',
+      staffMemberId: sona,
+      patch: { setBranch: true, branchId: 'b-lumen-cascade' },
+    });
+    const after = await gateway.listBranchShifts({ branchId: NORTH });
+    expect(after.shifts.filter((shift) => shift.staffMemberId === sona)).toEqual([]);
+  });
 });
