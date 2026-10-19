@@ -3,8 +3,9 @@ import { useIssueStaffSignIn } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useState, type FormEvent } from 'react';
 import { Dialog } from '../../ui/Dialog';
-import { issueFailureText } from '../../venue/staff/signInIssue';
-import { Required, usePendingFocus } from './venueFields';
+import { Required, usePendingFocus } from '../../platform/venue/venueFields';
+import { EMAIL_MAX_LENGTH } from './AddStaffWizard';
+import { issueFailureText } from './signInIssue';
 
 /** The artboard's check: something, an @, something, a dot, something. */
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
@@ -46,8 +47,14 @@ export function IssueSignInDialog({
   const [failure, setFailure] = useState<string | null>(initialFailure);
 
   const trimmed = email.trim();
-  const invalid = !trimmed || !EMAIL_SHAPE.test(trimmed);
-  const shownError = tried && invalid ? t('venuePage.issue.error') : failure;
+  const tooLong = trimmed.length > EMAIL_MAX_LENGTH;
+  const invalid = !trimmed || !EMAIL_SHAPE.test(trimmed) || tooLong;
+  const shownError =
+    tried && invalid
+      ? tooLong
+        ? t('staff.signIn.emailTooLong')
+        : t('venuePage.issue.error')
+      : failure;
 
   const old = member.email;
   const help =
@@ -109,6 +116,7 @@ export function IssueSignInDialog({
             inputMode="email"
             autoComplete="off"
             spellCheck={false}
+            maxLength={EMAIL_MAX_LENGTH}
             data-autofocus=""
             aria-required="true"
             aria-invalid={Boolean(shownError)}

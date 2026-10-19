@@ -1,55 +1,42 @@
-import type { ReportQuery, TurnTimeDistribution } from '@yalla/api';
+import {
+  OPEN_ENDED_BUCKET,
+  type OccupancyReport,
+  type ReportQuery,
+  type TurnTimeDistribution,
+} from '@yalla/api';
 import { useOccupancyReport } from '@yalla/api/react';
 import type { Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { useMemo } from 'react';
-import { Bars, ChartFrame, Histogram, type ChartDatum } from './Chart';
-import { ReportSectionFrame } from './ReportSection';
-import { Stat } from './Stat';
-import { daysInRange } from './range';
+import { BarChart, type Bar } from './BarChart';
+import { occupancyCsv } from './csv';
+import { CsvButton, ReportCard } from './ReportCard';
 
 export interface OccupancySectionProps {
   readonly query: ReportQuery | null;
   readonly locale: Locale;
-}
-
-/** Weekday names in the console's language, not the device's. */
-function weekdayNames(locale: Locale): string[] {
-  const format = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
-  // 2026-03-01 is a Sunday, so index 0 is Sunday — matching `DayOfWeek`.
-  return Array.from({ length: 7 }, (_, i) => format.format(new Date(Date.UTC(2026, 2, 1 + i))));
+  readonly onCsv: (title: string, fileSection: 'occupancy', text: string) => void;
 }
 
 /**
- * The sentence a chart cannot say.
- *
- * `overPolicyFraction` and the median are the two numbers that decide whether
- * a policy needs changing, and leaving an owner to compare a dashed line
- * against a pile of bars is leaving the finding on the floor. So the reading is
- * written out — but only when it is actually true, and never as a
- * recommendation the software is not in a position to make.
+ * The sentence a chart cannot say: whether the middle sitting runs past the
+ * policy, and by how much — only when it is true, and never as an instruction
+ * the software is not in a position to give.
  */
 function turnTimeReading(
   turnTime: TurnTimeDistribution,
   t: (key: string, values: Record<string, unknown>) => string,
 ): string | null {
   if (turnTime.closedSessions === 0 || turnTime.medianMinutes === null) return null;
-
   const overBy = turnTime.medianMinutes - turnTime.policyTurnTimeMinutes;
   const percent = Math.round(turnTime.overPolicyFraction * 100);
-
-  // Only when the *middle* sitting runs past the policy. A long tail alone is
-  // normal in any room; a median past the policy means the policy describes a
-  // service the venue is not running.
   if (overBy <= 0) {
-    return t('reports.occupancy.turnTime.withinPolicy', {
+    return t('reports.occupancy.withinPolicy', {
       median: turnTime.medianMinutes,
       policy: turnTime.policyTurnTimeMinutes,
       percent,
     });
   }
-
-  return t('reports.occupancy.turnTime.overPolicy', {
+  return t('reports.occupancy.overPolicy', {
     median: turnTime.medianMinutes,
     policy: turnTime.policyTurnTimeMinutes,
     overBy,
@@ -57,183 +44,165 @@ function turnTimeReading(
   });
 }
 
+/** Guests by kind when the server counts people; sittings from an older one. */
+function mixOf(report: OccupancyReport) {
+  if (report.walkInGuests && report.reservationGuests) {
+    return {
+      people: true,
+      walkIns: report.walkInGuests.value,
+      booked: report.reservationGuests.value,
+    };
+  }
+  return { people: false, walkIns: report.walkIns.value, booked: report.fromReservations.value };
+}
+
 /**
- * When the room is full, and how long people actually stay.
- *
- * The by-hour chart is the one that tells a venue when to staff, and it counts
- * sittings **in progress** rather than arrivals — the server does that, and it
- * is why a restaurant does not look empty at its busiest hour.
+ * When the room fills and how long people really stay (Reports artboard,
+ * "Occupancy"): the sittings by length against the policy — the one finding
+ * a venue gets nowhere else — with the median, the 90th percentile and the
+ * policy beside it in words, and the guests who walked in against those who
+ * booked.
  */
-export function OccupancySection({ query, locale }: OccupancySectionProps) {
+export function OccupancySection({ query, locale, onCsv }: OccupancySectionProps) {
   const { t } = useTranslation(['admin', 'common']);
   const report = useOccupancyReport(query);
-
-  const comparedDays = query ? daysInRange({ from: query.from, to: query.to }) : 0;
   const data = report.data;
+  const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 });
+  const number = new Intl.NumberFormat(locale);
+  const title = t('reports.occupancy.title');
+  const empty = Boolean(data) && data!.sessions.value === 0;
 
-  const byHour: ChartDatum[] = useMemo(
-    () =>
-      (data?.byHour ?? []).map((bucket) => ({
-        label: `${String(bucket.hour).padStart(2, '0')}:00`,
-        value: bucket.sessions,
-      })),
-    [data],
-  );
+  const turn = data?.turnTime;
+  const closed = turn?.buckets.reduce((sum, bucket) => sum + bucket.sessions, 0) ?? 0;
+  const tops = turn?.buckets.map((bucket) => bucket.upToMinutes) ?? [];
+  const bars: Bar[] = (turn?.buckets ?? []).map((bucket, index) => ({
+    key: String(bucket.upToMinutes),
+    label:
+      bucket.upToMinutes === OPEN_ENDED_BUCKET
+        ? t('reports.occupancy.over', { minutes: tops[index - 1] ?? 0 })
+        : t('reports.occupancy.upTo', { minutes: bucket.upToMinutes }),
+    share: closed === 0 ? 0 : bucket.sessions / closed,
+    ...(turn && bucket.upToMinutes > turn.policyTurnTimeMinutes ? { tone: 'over' as const } : {}),
+  }));
+  // After the last bucket the policy still covers (VC5 wire §2).
+  const markerAfter = turn
+    ? tops.reduce((last, top, index) => (top <= turn.policyTurnTimeMinutes ? index : last), -1)
+    : -1;
 
-  const byWeekday: ChartDatum[] = useMemo(() => {
-    const names = weekdayNames(locale);
-    // Rendered Monday-first, because a trading week starts on Monday here and
-    // a chart that split the weekend across both ends would be unreadable.
-    const order = [1, 2, 3, 4, 5, 6, 0];
-    return order.map((day) => ({
-      label: names[day] ?? String(day),
-      value: data?.byWeekday.find((bucket) => bucket.day === day)?.sessions ?? 0,
-    }));
-  }, [data, locale]);
-
-  const turnTimeData: ChartDatum[] = useMemo(
-    () =>
-      (data?.turnTime.buckets ?? []).map((bucket) => ({
-        label: t('reports.occupancy.turnTime.bucket', { minutes: bucket.upToMinutes }),
-        value: bucket.sessions,
-      })),
-    [data, t],
-  );
-
-  /** The bar the policy line sits on: the first bucket that reaches it. */
-  const policyBucket = useMemo(() => {
-    const buckets = data?.turnTime.buckets ?? [];
-    const policy = data?.turnTime.policyTurnTimeMinutes ?? 0;
-    const found = buckets.find((bucket) => bucket.upToMinutes >= policy);
-    return found ? t('reports.occupancy.turnTime.bucket', { minutes: found.upToMinutes }) : null;
-  }, [data, t]);
-
-  const walkIns = data?.walkIns.value ?? 0;
-  const booked = data?.fromReservations.value ?? 0;
-  const seated = walkIns + booked;
+  const mix = data ? mixOf(data) : null;
+  const seated = mix ? mix.walkIns + mix.booked : 0;
+  const walkShare = seated === 0 ? 0 : (mix?.walkIns ?? 0) / seated;
+  const amount = (count: number) =>
+    mix?.people
+      ? t('reports.occupancy.people', { count, formatted: number.format(count) })
+      : t('reports.occupancy.sittings', { count, formatted: number.format(count) });
 
   return (
-    <ReportSectionFrame
-      section="occupancy"
-      titleKey="reports.occupancy.title"
-      blurbKey="reports.occupancy.blurb"
-      query={query}
+    <ReportCard
+      title={title}
+      cap={t('reports.occupancy.cap')}
       isLoading={report.isLoading}
       error={report.error}
       onRetry={() => void report.refetch()}
-      isEmpty={Boolean(data) && data!.sessions.value === 0}
+      isEmpty={empty}
+      actions={
+        <CsvButton
+          label={title}
+          disabled={!data || empty}
+          onClick={() => data && onCsv(title, 'occupancy', occupancyCsv(data))}
+        />
+      }
     >
-      {data ? (
-        <>
-          <ChartFrame
-            titleKey="reports.occupancy.byHour"
-            labelHeaderKey="reports.occupancy.hour"
-            valueHeaderKey="reports.occupancy.sittings"
-            data={byHour}
-          >
-            <Bars data={byHour} />
-          </ChartFrame>
-
-          <ChartFrame
-            titleKey="reports.occupancy.byWeekday"
-            labelHeaderKey="reports.occupancy.weekday"
-            valueHeaderKey="reports.occupancy.sittings"
-            data={byWeekday}
-          >
-            <Bars data={byWeekday} />
-          </ChartFrame>
-
-          <div className="report-block">
-            <h4 className="report-chart-title">{t('reports.occupancy.mix.title')}</h4>
-            <div className="report-stats">
-              <Stat
-                labelKey="reports.occupancy.mix.walkIns"
-                value={
-                  seated === 0
-                    ? '—'
-                    : t('reports.occupancy.mix.share', {
-                        value: walkIns,
-                        percent: Math.round((walkIns / seated) * 100),
-                      })
+      {data && turn ? (
+        <div className="yc-rp-body">
+          <h3 className="yc-h3">{t('reports.occupancy.turnTitle')}</h3>
+          {turn.closedSessions === 0 ? (
+            <p className="yc-help">{t('reports.occupancy.noSittings')}</p>
+          ) : (
+            <>
+              <BarChart
+                showValues
+                bars={bars}
+                marker={
+                  markerAfter >= 0
+                    ? {
+                        afterIndex: markerAfter,
+                        label: t('reports.occupancy.policyMarker', {
+                          minutes: turn.policyTurnTimeMinutes,
+                        }),
+                      }
+                    : null
                 }
-                compared={data.walkIns}
-                comparedDays={comparedDays}
+                description={t('reports.occupancy.turnAria', {
+                  buckets: bars
+                    .map((bar) => `${bar.label} ${percent.format(bar.share)}`)
+                    .join(', '),
+                  policy: turn.policyTurnTimeMinutes,
+                })}
               />
-              <Stat
-                labelKey="reports.occupancy.mix.fromReservations"
-                value={
-                  seated === 0
-                    ? '—'
-                    : t('reports.occupancy.mix.share', {
-                        value: booked,
-                        percent: Math.round((booked / seated) * 100),
-                      })
-                }
-                compared={data.fromReservations}
-                comparedDays={comparedDays}
-              />
-            </div>
+              <ul className="yc-rp-kv">
+                <li>
+                  <span>{t('reports.occupancy.median')}</span>
+                  <b>{t('reports.minutes', { count: turn.medianMinutes ?? 0 })}</b>
+                </li>
+                <li>
+                  <span>{t('reports.occupancy.p90')}</span>
+                  <b>{t('reports.minutes', { count: turn.p90Minutes ?? 0 })}</b>
+                </li>
+                <li>
+                  <span>{t('reports.occupancy.policy')}</span>
+                  <b>{t('reports.minutes', { count: turn.policyTurnTimeMinutes })}</b>
+                </li>
+              </ul>
+              {turnTimeReading(turn, t) ? (
+                <p className="yc-rp-reading">{turnTimeReading(turn, t)}</p>
+              ) : null}
+            </>
+          )}
+
+          <h3 className="yc-h3">{t('reports.occupancy.mixTitle')}</h3>
+          <div
+            className="yc-rp-bar2"
+            role="img"
+            aria-label={t('reports.occupancy.mixAria', {
+              walkIns: percent.format(walkShare),
+              booked: percent.format(seated === 0 ? 0 : 1 - walkShare),
+            })}
+          >
+            <span className="yc-rp-a" style={{ width: `${(walkShare * 100).toFixed(1)}%` }} />
+            <span
+              className="yc-rp-b"
+              style={{ width: `${((seated === 0 ? 0 : 1 - walkShare) * 100).toFixed(1)}%` }}
+            />
           </div>
-
-          {/*
-            Its own block, and the most useful one on the screen.
-
-            A cafe whose policy says 120 minutes and whose real median is 165 is
-            refusing a 20:00 sitting because it believes the 18:00 one ends at
-            20:00 — and half the time it does not. Nothing else in the product
-            surfaces that, which is why the policy is drawn *on* the chart and
-            the reading is written underneath in words.
-          */}
-          <div className="report-block report-turn-time">
-            <h4 className="report-chart-title">{t('reports.occupancy.turnTime.title')}</h4>
-            <p className="muted">{t('reports.occupancy.turnTime.blurb')}</p>
-
-            {data.turnTime.closedSessions === 0 ? (
-              <p className="report-notice" role="status">
-                {t('reports.occupancy.turnTime.noSittings')}
-              </p>
-            ) : (
-              <ChartFrame
-                titleKey="reports.occupancy.turnTime.chartTitle"
-                labelHeaderKey="reports.occupancy.turnTime.bucketHeader"
-                valueHeaderKey="reports.occupancy.sittings"
-                data={turnTimeData}
-                reading={turnTimeReading(data.turnTime, t)}
-              >
-                <Histogram
-                  data={turnTimeData}
-                  markerAt={policyBucket}
-                  markerLabel={t('reports.occupancy.turnTime.policyMarker', {
-                    minutes: data.turnTime.policyTurnTimeMinutes,
-                  })}
-                />
-              </ChartFrame>
-            )}
-
-            {data.turnTime.closedSessions > 0 ? (
-              <div className="report-stats">
-                <Stat
-                  labelKey="reports.occupancy.turnTime.median"
-                  value={t('reports.minutes', { count: data.turnTime.medianMinutes ?? 0 })}
-                  comparedDays={comparedDays}
-                />
-                <Stat
-                  labelKey="reports.occupancy.turnTime.p90"
-                  value={t('reports.minutes', { count: data.turnTime.p90Minutes ?? 0 })}
-                  comparedDays={comparedDays}
-                />
-                <Stat
-                  labelKey="reports.occupancy.turnTime.policy"
-                  value={t('reports.minutes', {
-                    count: data.turnTime.policyTurnTimeMinutes,
-                  })}
-                  comparedDays={comparedDays}
-                />
-              </div>
-            ) : null}
-          </div>
-        </>
+          <ul className="yc-rp-kv">
+            <li>
+              <span>
+                <i className="yc-rp-sw yc-rp-a" aria-hidden="true" />
+                {t('reports.occupancy.walkIns')}
+              </span>
+              <b>
+                {t('reports.share', {
+                  value: amount(mix?.walkIns ?? 0),
+                  percent: percent.format(walkShare),
+                })}
+              </b>
+            </li>
+            <li>
+              <span>
+                <i className="yc-rp-sw yc-rp-b" aria-hidden="true" />
+                {t('reports.occupancy.fromBookings')}
+              </span>
+              <b>
+                {t('reports.share', {
+                  value: amount(mix?.booked ?? 0),
+                  percent: percent.format(seated === 0 ? 0 : 1 - walkShare),
+                })}
+              </b>
+            </li>
+          </ul>
+        </div>
       ) : null}
-    </ReportSectionFrame>
+    </ReportCard>
   );
 }

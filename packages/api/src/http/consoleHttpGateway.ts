@@ -98,6 +98,13 @@ import {
   updateStaffBody,
 } from './staffAdminMapping';
 import {
+  branchShifts,
+  shiftBody,
+  staffShift,
+  type WireBranchShifts,
+  type WireStaffShift,
+} from './shiftMapping';
+import {
   otherSessionsEndedFromWire,
   venueProfileFromWire,
   venueSessionsFromWire,
@@ -1474,6 +1481,53 @@ export function createConsoleHttpGateway(
 
     async clearPinLockout({ branchId, staffMemberId }) {
       await client.post<void>(`${BRANCHES}/${branchId}/staff/${staffMemberId}/clear-pin-lockout`);
+    },
+
+    // --- Shifts ---------------------------------------------------------------
+
+    async listBranchShifts({ branchId, from, to }) {
+      // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
+      const { data } = await client.get<WireBranchShifts>(`${BRANCHES}/${branchId}/shifts`, {
+        query: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
+      });
+      return branchShifts(data);
+    },
+
+    async createShift({ branchId, staffMemberId, shift }) {
+      try {
+        // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
+        const { data } = await client.post<WireStaffShift>(`${BRANCHES}/${branchId}/shifts`, {
+          staffMemberId,
+          ...shiftBody(shift),
+        });
+        return staffShift(data);
+      } catch (error) {
+        // The rank rule is the staff routes' 403; the 422s and 409s carry the
+        // server's own sentence and go through as they are.
+        return staffRefusal(error);
+      }
+    },
+
+    async updateShift({ branchId, shiftId, shift }) {
+      try {
+        // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
+        const { data } = await client.put<WireStaffShift>(
+          `${BRANCHES}/${branchId}/shifts/${shiftId}`,
+          shiftBody(shift),
+        );
+        return staffShift(data);
+      } catch (error) {
+        return staffRefusal(error);
+      }
+    },
+
+    async deleteShift({ branchId, shiftId }) {
+      try {
+        // gateway-schema: awaiting-route — the VC5 shift endpoints (backend in flight)
+        await client.delete<void>(`${BRANCHES}/${branchId}/shifts/${shiftId}`);
+      } catch (error) {
+        return staffRefusal(error);
+      }
     },
 
     // --- Devices --------------------------------------------------------------

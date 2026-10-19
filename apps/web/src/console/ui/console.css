@@ -6838,3 +6838,928 @@ textarea.yc-ctl {
     transition: none !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+ * Staff (venue-console Staff artboard): people by role, the tablets beside them
+ * -------------------------------------------------------------------------- */
+.yc-st-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.yc-st-groups,
+.yc-st-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+/* The rows line up in columns once the list is wide enough, and wrap below it. */
+.yc-st-groups {
+  container-type: inline-size;
+}
+
+/* The search box carries a visible label: the icon sits in the field under it. */
+.yc-st-search {
+  flex: 1 1 220px;
+}
+
+.yc-st-search .yc-i {
+  top: 35px;
+}
+
+.yc .yc-st-search .yc-ctl {
+  width: 100%;
+}
+
+.yc-st-count {
+  color: var(--console-muted);
+  font-family: var(--font-family);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-st-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: var(--space-md) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-st-row:last-child {
+  border-bottom: 0;
+}
+
+/* Deactivated: still listed, quieter. Opacity, so every colour inside keeps its pair. */
+.yc-st-row.is-off .yc-person,
+.yc-st-row.is-off .yc-st-branch {
+  opacity: 0.65;
+}
+
+.yc-st-row .yc-person {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.yc-st-who {
+  min-width: 0;
+}
+
+.yc-st-who .yc-pn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.yc-st-who .yc-pe {
+  overflow-wrap: anywhere;
+}
+
+.yc-you {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-brand);
+  color: var(--console-brand-foreground);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-st-branch {
+  min-width: 110px;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-st-shift {
+  min-width: 150px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--console-text-label);
+}
+
+.yc-st-shift.is-quiet {
+  color: var(--console-muted);
+}
+
+/* The dot says it in shape and place too: the line's words carry the meaning. */
+.yc-st-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--console-line);
+}
+
+.yc-st-dot.is-today {
+  background: var(--console-green);
+}
+
+.yc-st-dot.is-later {
+  background: var(--console-load-bar);
+}
+
+.yc-st-status {
+  min-width: 170px;
+}
+
+.yc-st-acts {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.yc-above {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-above .yc-i {
+  width: 14px;
+  height: 14px;
+}
+
+.yc-st-pad {
+  margin: var(--space-lg) 20px;
+}
+
+.yc-st-id {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--console-text-caption);
+}
+
+/* The tablets. */
+.yc-devs {
+  margin: 0;
+  padding: var(--space-xs) 0;
+  list-style: none;
+}
+
+.yc-dev {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 20px;
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-dev:last-child {
+  border-bottom: 0;
+}
+
+.yc-dev-ic {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--console-radius-small);
+  background: var(--console-brand-tint);
+  color: var(--console-brand);
+}
+
+.yc-dev-ic.is-gone {
+  background: var(--console-grey-bg);
+  color: var(--console-grey);
+}
+
+.yc-dev-t {
+  flex: 1;
+  min-width: 0;
+}
+
+.yc-dev-t b {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-dev-t small {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-dev-foot {
+  padding: var(--space-md) 20px;
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.yc-dev-note {
+  margin: 0;
+  padding: var(--space-md) 20px;
+  border-top: 1px solid var(--console-line-soft);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+/* A person's shifts: the days to come, then the one-line form. */
+.yc-h3 {
+  margin: 0;
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-shifts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--console-line);
+  border-radius: var(--console-radius-control);
+}
+
+.yc-shifts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--console-line-soft);
+}
+
+.yc-shifts li:last-child {
+  border-bottom: 0;
+}
+
+.yc-shifts li.is-editing {
+  background: var(--console-surface-muted);
+}
+
+.yc-shift-day {
+  min-width: 110px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-shift-t {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-shift-form {
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--console-line-soft);
+}
+
+/* Works or day off: two radios side by side, the height of a control. */
+.yc-radios.yc-shift-kind {
+  flex-direction: row;
+  flex-wrap: wrap;
+  padding: 0;
+}
+
+.yc-shift-kind .yc-radio {
+  height: var(--console-size-button);
+}
+
+.yc-shift-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+@container (min-width: 700px) {
+  .yc-st-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.6fr) minmax(150px, 1fr) 140px 146px;
+  }
+
+  .yc-st-row .yc-person,
+  .yc-st-branch,
+  .yc-st-shift,
+  .yc-st-status {
+    min-width: 0;
+  }
+
+  .yc-st-acts {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 1180px) {
+  .yc-st-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .yc-shift-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Reports (venue-console Reports artboard): the range, six numbers, a card a section
+ * -------------------------------------------------------------------------- */
+.yc-rp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.yc-rp-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.yc-rp-custom .yc-err {
+  align-self: center;
+}
+
+.yc-rp-line {
+  margin: 0;
+  color: var(--console-muted);
+  font-size: var(--console-text-label);
+}
+
+.yc-rp-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.yc-rp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px var(--space-lg);
+}
+
+.yc-rp-stat-l {
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-rp-stat-n {
+  font-family: var(--font-family-display);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+}
+
+/* Direction in an arrow and a word as well as the colour. */
+.yc-delta {
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+}
+
+.yc-delta.is-up {
+  color: var(--console-green);
+}
+
+.yc-delta.is-down {
+  color: var(--console-red);
+}
+
+.yc-delta.is-flat {
+  color: var(--console-muted);
+}
+
+.yc-rp-split {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.yc-rp-split.is-even {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.yc-rp-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-lg);
+}
+
+.yc-rp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--space-lg) 20px;
+  min-width: 0;
+}
+
+.yc-rp-divide {
+  align-self: stretch;
+  border-right: 1px solid var(--console-line-soft);
+}
+
+.yc-rp-top {
+  border-top: 1px solid var(--console-line-soft);
+}
+
+.yc-rp-pad {
+  margin: var(--space-lg) 20px;
+}
+
+.yc-rp-sk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-lg) 20px;
+}
+
+.yc-rp-sk .yc-sk {
+  height: 14px;
+}
+
+.yc-rp-sk .yc-sk:first-of-type {
+  width: 40%;
+}
+
+.yc-rp-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: 28px 20px;
+  text-align: center;
+}
+
+.yc-rp-empty p {
+  margin: 0;
+}
+
+.yc-rp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  color: var(--console-muted);
+  font-size: var(--console-text-caption);
+}
+
+.yc-rp-legend i {
+  display: inline-block;
+  width: 18px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.yc-lg-now {
+  border-top: 3px solid var(--console-brand);
+}
+
+.yc-lg-prev {
+  border-top: 2px dashed var(--console-report-previous-line);
+}
+
+.yc-rp-reading {
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-surface-muted);
+  font-size: var(--console-text-label);
+}
+
+/* Revenue by day: the line, the previous period dashed, and a point per day. */
+.yc-rl {
+  position: relative;
+  height: 220px;
+}
+
+.yc-rl-y {
+  position: absolute;
+  left: 0;
+  transform: translateY(-50%);
+  color: var(--console-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-rl-plot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 24px;
+  left: 44px;
+}
+
+.yc-rl-plot svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.yc-rl-grid,
+.yc-rl-base {
+  vector-effect: non-scaling-stroke;
+}
+
+.yc-rl-grid {
+  stroke: var(--console-line-soft);
+}
+
+.yc-rl-base {
+  stroke: var(--console-line);
+}
+
+.yc-rl-area {
+  fill: var(--console-report-area);
+}
+
+.yc-rl-prev {
+  fill: none;
+  stroke: var(--console-report-previous-line);
+  stroke-dasharray: 5 4;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.yc-rl-line {
+  fill: none;
+  stroke: var(--console-brand);
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.yc-rl-pt {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 2.5px solid var(--console-brand);
+  border-radius: 50%;
+  background: var(--console-surface);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.yc-rl-pt.is-on {
+  background: var(--console-brand);
+}
+
+.yc-rl-tip {
+  position: absolute;
+  z-index: 2;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: var(--console-toast);
+  color: var(--console-toast-foreground);
+  font-size: var(--console-text-caption);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+}
+
+/* At the ends the tip hangs inward, so it never leaves the card. */
+.yc-rl-tip.is-start {
+  transform: translate(-12px, calc(-100% - 12px));
+}
+
+.yc-rl-tip.is-end {
+  transform: translate(calc(-100% + 12px), calc(-100% - 12px));
+}
+
+.yc-rl-x {
+  position: absolute;
+  bottom: -22px;
+  transform: translateX(-50%);
+  color: var(--console-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Bars of shares, with their y-axis; room on top for the values and the policy's label. */
+.yc-bchart {
+  display: flex;
+  gap: var(--space-sm);
+  padding-top: 20px;
+}
+
+.yc-bc-y {
+  width: 38px;
+  height: 140px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--console-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.yc-bchart.is-short .yc-bc-y,
+.yc-bchart.is-short .yc-bc-bars {
+  height: 100px;
+}
+
+.yc-bc-plot {
+  flex: 1;
+  min-width: 0;
+}
+
+.yc-bc-bars {
+  position: relative;
+  height: 140px;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  border-bottom: 1px solid var(--console-line);
+}
+
+.yc-bc-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.yc-bc-bar {
+  position: relative;
+  width: 100%;
+  max-width: 34px;
+  border-radius: 5px 5px 0 0;
+  background: var(--console-report-bar);
+}
+
+.yc-bc-bar.is-hot {
+  background: var(--console-brand);
+}
+
+.yc-bc-bar.is-over {
+  background: var(--console-amber);
+}
+
+.yc-bc-v {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--console-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+/* The policy's line; its label sits above the values, clear of every bar's. */
+.yc-bchart.has-marker {
+  padding-top: 40px;
+}
+
+.yc-bc-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px dashed var(--console-red);
+}
+
+.yc-bc-marker span {
+  position: absolute;
+  top: -38px;
+  left: 6px;
+  padding: 0 var(--space-xs);
+  background: var(--console-surface);
+  color: var(--console-red);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+
+.yc-bc-x {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--console-muted);
+  font-size: 11px;
+}
+
+.yc-bc-x span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Two shares of one whole: cash and in-app, walk-ins and bookings. */
+.yc-rp-bar2 {
+  display: flex;
+  height: 14px;
+  overflow: hidden;
+  border-radius: var(--console-radius-pill);
+  background: var(--console-line-soft);
+}
+
+.yc-rp-bar2 span {
+  display: block;
+  height: 100%;
+}
+
+.yc-rp-a {
+  background: var(--console-step-done);
+}
+
+.yc-rp-b {
+  background: var(--console-brand);
+}
+
+.yc-rp-sw {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+.yc-rp-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-rp-kv li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-size: var(--console-text-label);
+}
+
+.yc-rp-kv b {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The funnel: booked, then what became of them. */
+.yc-rp-funnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+.yc-rp-fr {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: var(--console-text-label);
+}
+
+.yc-rp-fr dt,
+.yc-rp-fr dd {
+  margin: 0;
+}
+
+.yc-rp-fr .yc-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.yc-rp-funnel .yc-fill {
+  background: var(--console-brand);
+}
+
+.yc-rp-funnel .yc-fill.is-ok {
+  background: var(--console-green);
+}
+
+.yc-rp-funnel .yc-fill.is-cancel {
+  background: var(--console-bar-muted);
+}
+
+.yc-rp-funnel .yc-fill.is-late {
+  background: var(--console-amber);
+}
+
+.yc-rp-funnel .yc-fill.is-noshow {
+  background: var(--console-red);
+}
+
+.yc-rp-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: var(--space-md) 14px;
+  border-radius: var(--console-radius-control);
+  background: var(--console-amber-bg);
+  color: var(--console-amber);
+  font-size: var(--console-text-label);
+}
+
+.yc-rp-callout b {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Menu rankings: a number, the dish, its figure. */
+.yc-rp-rank {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: yc-rank;
+}
+
+.yc-rp-rank li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--console-line-soft);
+  font-size: var(--console-text-label);
+  counter-increment: yc-rank;
+}
+
+.yc-rp-rank li:last-child {
+  border-bottom: 0;
+}
+
+.yc-rp-rank li::before {
+  content: counter(yc-rank);
+  color: var(--console-muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+}
+
+.yc-rp-rank a {
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.yc-rp-rank span {
+  font-variant-numeric: tabular-nums;
+}
+
+.yc-rp-never {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.yc-rp-never a {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 var(--space-md);
+  border-radius: var(--console-radius-pill);
+  background: var(--console-brand-tint);
+  font-size: var(--console-text-label);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+@media (max-width: 1280px) {
+  .yc-rp-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .yc-rp-split,
+  .yc-rp-split.is-even,
+  .yc-rp-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .yc-rp-divide {
+    border-right: 0;
+    border-bottom: 1px solid var(--console-line-soft);
+  }
+}
+
+@media (max-width: 560px) {
+  .yc-rp-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .yc-rp-fr {
+    grid-template-columns: 110px minmax(0, 1fr) 96px;
+  }
+}

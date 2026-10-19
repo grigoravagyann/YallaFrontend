@@ -62,7 +62,7 @@ import type {
   ChangePlatformPasswordCommand,
   PlatformActivityQuery,
 } from '../contracts/platformHome';
-import type { CreateStaffInput, UpdateStaffInput } from '../contracts/staff';
+import type { CreateStaffInput, ShiftInput, UpdateStaffInput } from '../contracts/staff';
 import { ReportRangeTooLongError } from '../contracts/errors';
 import {
   applyVenueTier,
@@ -324,6 +324,7 @@ export const queryKeys = {
     ] as const,
   staff: (venueId: string) => ['console', 'staff', venueId] as const,
   devices: (branchId: string) => ['console', 'devices', branchId] as const,
+  shifts: (branchId: string) => ['console', 'shifts', branchId] as const,
   platformOverview: ['console', 'platformOverview'] as const,
   outboxHealth: ['console', 'outboxHealth'] as const,
   platformActivity: (query: PlatformActivityQuery) =>
@@ -2016,6 +2017,48 @@ export function useClearPinLockout(venueId: string | undefined) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.staff(venueId ?? '') });
     },
   });
+}
+
+// --- Shifts --------------------------------------------------------------------
+
+/**
+ * A branch's shifts from its service day for two weeks, and today's head count.
+ *
+ * The Staff page's shift line and "on shift today" read this. It turns over
+ * at midnight on its own, so it is not reference data: read again when the
+ * tab comes back, and kept for a minute.
+ */
+export function useBranchShifts(branchId: string | null | undefined) {
+  const gateway = useConsoleGateway();
+  return useQuery({
+    queryKey: queryKeys.shifts(branchId ?? ''),
+    queryFn: () => gateway.listBranchShifts({ branchId: branchId! }),
+    enabled: Boolean(branchId),
+    staleTime: 60_000,
+  });
+}
+
+/** Plan, change or remove one shift; each refreshes the branch's list. */
+export function useShiftMutations(branchId: string | null | undefined) {
+  const gateway = useConsoleGateway();
+  const queryClient = useQueryClient();
+  const refresh = () =>
+    void queryClient.invalidateQueries({ queryKey: queryKeys.shifts(branchId ?? '') });
+  const create = useMutation({
+    mutationFn: (input: { staffMemberId: string; shift: ShiftInput }) =>
+      gateway.createShift({ branchId: branchId!, ...input }),
+    onSuccess: refresh,
+  });
+  const update = useMutation({
+    mutationFn: (input: { shiftId: string; shift: ShiftInput }) =>
+      gateway.updateShift({ branchId: branchId!, ...input }),
+    onSuccess: refresh,
+  });
+  const remove = useMutation({
+    mutationFn: (shiftId: string) => gateway.deleteShift({ branchId: branchId!, shiftId }),
+    onSuccess: refresh,
+  });
+  return { create, update, remove };
 }
 
 /**

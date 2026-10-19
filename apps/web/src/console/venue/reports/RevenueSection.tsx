@@ -2,205 +2,237 @@ import type { ReportQuery } from '@yalla/api';
 import { useRevenueReport } from '@yalla/api/react';
 import { formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
-import { useMemo } from 'react';
-import { Bars, ChartFrame, TrendLine, type ChartDatum } from './Chart';
-import { ReportSectionFrame } from './ReportSection';
-import { Stat } from './Stat';
-import { daysInRange, everyDayIn } from './range';
+import { useId, useMemo, useState } from 'react';
+import { BarChart, type Bar } from './BarChart';
+import { revenueCsv } from './csv';
+import { CsvButton, ReportCard } from './ReportCard';
+import { RevenueLine, type RevenuePoint } from './RevenueLine';
+import { everyDayIn } from './range';
 
 export interface RevenueSectionProps {
   readonly query: ReportQuery | null;
   readonly locale: Locale;
-  /** The branch's zone, so a day labelled Tuesday is the venue's Tuesday. */
-  readonly timeZoneId: string;
+  /** The legend's name for this period: the pressed preset, or "Selected range". */
+  readonly periodName: string;
+  readonly onCsv: (title: string, fileSection: 'revenue', text: string) => void;
 }
 
+/** Up to a week, the x-axis says the weekday; past it, the date. */
+const WEEKDAY_LIMIT = 7;
+
 /**
- * What was taken, by day and by hour.
+ * What was taken (Reports artboard, "Revenue"): by day against the previous
+ * period, with the days as a table one click away; by hour as shares; cash
+ * against in-app, and the service charge.
  *
- * Every amount goes through `formatDram` and every date through a formatter
- * given the **branch's** zone explicitly. A report labelled Tuesday has to mean
- * the venue's Tuesday, and the console is opened from laptops that are not
- * always set to Yerevan.
+ * Every date is a local date key of the branch, labelled as such: parsed at
+ * noon UTC and formatted in UTC, so no device zone can move it a day.
  */
-export function RevenueSection({ query, locale, timeZoneId }: RevenueSectionProps) {
+export function RevenueSection({ query, locale, periodName, onCsv }: RevenueSectionProps) {
   const { t } = useTranslation(['admin', 'common']);
   const report = useRevenueReport(query);
   const data = report.data;
+  const [table, setTable] = useState(false);
+  const tableId = useId();
+  const money = (amount: number) => formatDram(Math.round(amount), locale);
 
-  const comparedDays = query ? daysInRange({ from: query.from, to: query.to }) : 0;
+  const points: RevenuePoint[] = useMemo(() => {
+    if (!data || !query) return [];
+    // Dense from the server since VC5; filled anyway, so an older sparse
+    // series never draws a straight slope across days the venue was shut.
+    const days = everyDayIn({ from: query.from, to: query.to }, data.byDay);
+    const short = new Intl.DateTimeFormat(locale, {
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC',
+    });
+    const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
+    // No previous period at all (a venue's first weeks): no dashed line of
+    // zeroes behind this one, the same rule as the deltas.
+    const previous = data.totalAmd.previous === null ? null : data.previousByDay;
+    return days.map((day, index) => {
+      const date = new Date(`${day.localDate}T12:00:00Z`);
+      return {
+        key: day.localDate,
+        label:
+          days.length <= WEEKDAY_LIMIT
+            ? `${weekday.format(date)} ${date.getUTCDate()}`
+            : short.format(date),
+        value: day.revenueAmd,
+        previous:
+          previous && previous.length === days.length ? (previous[index]?.revenueAmd ?? 0) : null,
+      };
+    });
+  }, [data, query, locale]);
 
-  const dayLabel = useMemo(
-    () => new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: timeZoneId }),
-    [locale, timeZoneId],
-  );
+  const hours: Bar[] = useMemo(() => {
+    if (!data || data.totalAmd.value === 0) return [];
+    const lit = data.byHour.filter((hour) => hour.revenueAmd > 0).map((hour) => hour.hour);
+    if (lit.length === 0) return [];
+    const first = Math.min(...lit);
+    const last = Math.max(...lit);
+    const shares = data.byHour
+      .filter((hour) => hour.hour >= first && hour.hour <= last)
+      .map((hour) => ({ hour: hour.hour, share: hour.revenueAmd / data.totalAmd.value }));
+    const peak = Math.max(...shares.map((entry) => entry.share));
+    return shares.map((entry) => ({
+      key: String(entry.hour),
+      label: String(entry.hour).padStart(2, '0'),
+      share: entry.share,
+      ...(entry.share >= peak * 0.75 ? { tone: 'hot' as const } : {}),
+    }));
+  }, [data]);
 
-  /*
-   * Gaps filled before plotting.
-   *
-   * `byDay` is sparse — the server sends a row only for a day a tab closed — so
-   * plotting it straight would draw a straight line across the days the venue
-   * was shut and read as steady trade through them.
-   */
-  const byDay: ChartDatum[] = useMemo(
-    () =>
-      (query && data ? everyDayIn({ from: query.from, to: query.to }, data.byDay) : []).map(
-        (day) => ({
-          // Parsed as UTC midnight and formatted in the branch's zone. The key is
-          // already a local date key, so this is a label for a day rather than a
-          // conversion of an instant.
-          label: dayLabel.format(new Date(`${day.localDate}T12:00:00Z`)),
-          value: day.revenueAmd,
-        }),
-      ),
-    [data, query, dayLabel],
-  );
-
-  const byHour: ChartDatum[] = useMemo(
-    () =>
-      (data?.byHour ?? []).map((hour) => ({
-        label: `${String(hour.hour).padStart(2, '0')}:00`,
-        value: hour.revenueAmd,
-      })),
-    [data],
-  );
-
+  const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 });
   const cash = data?.cashAmd.value ?? 0;
   const inApp = data?.inAppAmd.value ?? 0;
-  const taken = cash + inApp;
+  const paid = cash + inApp;
+  const cashShare = paid === 0 ? 0 : cash / paid;
+  const appShare = paid === 0 ? 0 : 1 - cashShare;
+  const total = points.reduce((sum, point) => sum + point.value, 0);
+  const hasPrevious = points.length > 0 && points[0]!.previous !== null;
+  const empty = Boolean(data) && data!.totalAmd.value === 0;
+  const title = t('reports.revenue.title');
 
   return (
-    <ReportSectionFrame
-      section="revenue"
-      titleKey="reports.revenue.title"
-      blurbKey="reports.revenue.blurb"
-      query={query}
+    <ReportCard
+      title={title}
+      cap={t('reports.revenue.cap')}
       isLoading={report.isLoading}
       error={report.error}
       onRetry={() => void report.refetch()}
-      isEmpty={Boolean(data) && data!.totalAmd.value === 0}
+      isEmpty={empty}
+      actions={
+        <>
+          {points.length > 1 && !empty ? (
+            <button
+              type="button"
+              className="yc-btn yc-btn-ghost yc-btn-sm"
+              aria-expanded={table}
+              aria-controls={tableId}
+              onClick={() => setTable((was) => !was)}
+            >
+              {table ? t('reports.revenue.hideTable') : t('reports.revenue.showTable')}
+            </button>
+          ) : null}
+          <CsvButton
+            label={title}
+            disabled={!data || empty}
+            onClick={() => data && onCsv(title, 'revenue', revenueCsv(data))}
+          />
+        </>
+      }
     >
       {data ? (
-        <>
-          <div className="report-stats">
-            <Stat
-              large
-              labelKey="reports.revenue.total"
-              value={formatDram(Math.round(data.totalAmd.value), locale)}
-              compared={data.totalAmd}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.revenue.serviceCharge"
-              value={formatDram(Math.round(data.serviceChargeAmd.value), locale)}
-              compared={data.serviceChargeAmd}
-              comparedDays={comparedDays}
-            />
-          </div>
-
-          <ChartFrame
-            titleKey="reports.revenue.byDay"
-            labelHeaderKey="reports.revenue.day"
-            valueHeaderKey="reports.revenue.taken"
-            data={byDay}
-            formatValue={(value) => formatDram(Math.round(value), locale)}
-          >
-            <TrendLine data={byDay} />
-          </ChartFrame>
-
-          <ChartFrame
-            titleKey="reports.revenue.byHour"
-            labelHeaderKey="reports.revenue.hour"
-            valueHeaderKey="reports.revenue.taken"
-            data={byHour}
-            formatValue={(value) => formatDram(Math.round(value), locale)}
-          >
-            <Bars data={byHour} />
-          </ChartFrame>
-
-          {/*
-            Cash against in-app, which reads 100% cash today and is correct:
-            there is no wallet rail yet. Shown rather than hidden, because "all
-            of it was cash" is itself the finding — and the day a rail exists
-            nothing on this screen has to change.
-          */}
-          <div className="report-block">
-            <h4 className="report-chart-title">{t('reports.revenue.howPaid.title')}</h4>
-            <div className="report-stats">
-              <Stat
-                labelKey="reports.revenue.howPaid.cash"
-                value={t('reports.revenue.howPaid.value', {
-                  amount: formatDram(Math.round(cash), locale),
-                  percent: taken === 0 ? 0 : Math.round((cash / taken) * 100),
-                })}
-                compared={data.cashAmd}
-                comparedDays={comparedDays}
-              />
-              <Stat
-                labelKey="reports.revenue.howPaid.inApp"
-                value={t('reports.revenue.howPaid.value', {
-                  amount: formatDram(Math.round(inApp), locale),
-                  percent: taken === 0 ? 0 : Math.round((inApp / taken) * 100),
-                })}
-                compared={data.inAppAmd}
-                comparedDays={comparedDays}
-              />
+        <div className="yc-rp-split">
+          <div className="yc-rp-body yc-rp-divide">
+            <div className="yc-rp-legend">
+              <span>
+                <i className="yc-lg-now" aria-hidden="true" />
+                {periodName}
+              </span>
+              {hasPrevious ? (
+                <span>
+                  <i className="yc-lg-prev" aria-hidden="true" />
+                  {t('reports.revenue.previous')}
+                </span>
+              ) : null}
             </div>
-          </div>
-
-          {/*
-            Comps and discounts, with who authorised them.
-
-            This is why adjustments are manager-only, and an owner looks at it
-            first. The name is not decoration — "what did we give away last
-            month, and who decided" is one question with two halves.
-          */}
-          <div className="report-block report-highlight">
-            <h4 className="report-chart-title">{t('reports.revenue.adjustments.title')}</h4>
-            <div className="report-stats">
-              <Stat
-                labelKey="reports.revenue.adjustments.total"
-                value={formatDram(Math.round(data.adjustmentsTotalAmd.value), locale)}
-                compared={data.adjustmentsTotalAmd}
-                comparedDays={comparedDays}
+            {points.length > 1 ? (
+              <RevenueLine
+                points={points}
+                money={money}
+                description={t('reports.revenue.aria', {
+                  count: points.length,
+                  total: money(total),
+                })}
               />
-            </div>
-
-            {data.adjustments.length === 0 ? (
-              <p className="muted">{t('reports.revenue.adjustments.none')}</p>
             ) : (
-              <div className="report-table-wrap">
-                <table className="report-table">
+              <p className="yc-rp-reading">{t('reports.revenue.oneDay')}</p>
+            )}
+            {points.length > 1 ? (
+              <div id={tableId} hidden={!table} className="yc-tscroll">
+                <table className="yc-tbl">
+                  <caption className="yc-sr">{title}</caption>
                   <thead>
                     <tr>
-                      <th scope="col">{t('reports.revenue.adjustments.reason')}</th>
-                      <th scope="col">{t('reports.revenue.adjustments.kind')}</th>
-                      <th scope="col">{t('reports.revenue.adjustments.authorisedBy')}</th>
-                      <th scope="col" className="numeric">
-                        {t('reports.revenue.adjustments.count')}
+                      <th scope="col">{t('reports.revenue.day')}</th>
+                      <th scope="col" className="yc-num">
+                        {t('reports.revenue.taken')}
                       </th>
-                      <th scope="col" className="numeric">
-                        {t('reports.revenue.adjustments.amount')}
-                      </th>
+                      {hasPrevious ? (
+                        <th scope="col" className="yc-num">
+                          {t('reports.revenue.previousColumn')}
+                        </th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
-                    {data.adjustments.map((line) => (
-                      <tr key={`${line.staffMemberId}-${line.kind}-${line.reason}`}>
-                        <th scope="row">{line.reason}</th>
-                        <td>{t(`reports.revenue.adjustments.${line.kind}`)}</td>
-                        <td>{line.staffName}</td>
-                        <td className="numeric">{line.count.toLocaleString(locale)}</td>
-                        <td className="numeric">{formatDram(line.totalAmd, locale)}</td>
+                    {points.map((point) => (
+                      <tr key={point.key}>
+                        <th scope="row">{point.label}</th>
+                        <td className="yc-num">{money(point.value)}</td>
+                        {hasPrevious ? (
+                          <td className="yc-num">{money(point.previous ?? 0)}</td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : null}
           </div>
-        </>
+          <div className="yc-rp-body">
+            <h3 className="yc-h3">{t('reports.revenue.byHour')}</h3>
+            {hours.length > 0 ? (
+              <BarChart
+                bars={hours}
+                description={t('reports.revenue.byHourAria', {
+                  hours: hours
+                    .map((bar) => `${bar.label}:00 ${percent.format(bar.share)}`)
+                    .join(', '),
+                })}
+              />
+            ) : null}
+            <h3 className="yc-h3">{t('reports.revenue.howPaid')}</h3>
+            <div
+              className="yc-rp-bar2"
+              role="img"
+              aria-label={t('reports.revenue.payAria', {
+                cash: percent.format(cashShare),
+                app: percent.format(appShare),
+              })}
+            >
+              <span className="yc-rp-a" style={{ width: `${(cashShare * 100).toFixed(1)}%` }} />
+              <span className="yc-rp-b" style={{ width: `${(appShare * 100).toFixed(1)}%` }} />
+            </div>
+            <ul className="yc-rp-kv">
+              <li>
+                <span>
+                  <i className="yc-rp-sw yc-rp-a" aria-hidden="true" />
+                  {t('reports.revenue.cash')}
+                </span>
+                <b>
+                  {t('reports.share', { value: money(cash), percent: percent.format(cashShare) })}
+                </b>
+              </li>
+              <li>
+                <span>
+                  <i className="yc-rp-sw yc-rp-b" aria-hidden="true" />
+                  {t('reports.revenue.inApp')}
+                </span>
+                <b>
+                  {t('reports.share', { value: money(inApp), percent: percent.format(appShare) })}
+                </b>
+              </li>
+              <li>
+                <span>{t('reports.revenue.serviceCharge')}</span>
+                <b>{money(data.serviceChargeAmd.value)}</b>
+              </li>
+            </ul>
+          </div>
+        </div>
       ) : null}
-    </ReportSectionFrame>
+    </ReportCard>
   );
 }

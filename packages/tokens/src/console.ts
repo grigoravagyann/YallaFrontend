@@ -222,6 +222,14 @@ export const consoleColor = {
   loadBar: '#D9C3AA',
   /** The load chart's dashed "the room is full" line. */
   capacityLine: '#D2BFA8',
+
+  // --- Reports (venue-console Reports artboard) ----------------------------------
+  /** A bar of shares (revenue by hour, lead time, turn time); a peak is `brand`, past the policy `amber`. */
+  reportBar: '#B89B7E',
+  /** The previous period's line behind this one: dashed, in a muted tan. */
+  reportPreviousLine: '#B8A28A',
+  /** The fill under this period's revenue line: the brand at 7%, over a white card only. */
+  reportArea: 'rgba(58, 29, 12, 0.07)',
 } as const;
 
 export type ConsoleColorToken = keyof typeof consoleColor;

@@ -12,8 +12,8 @@ import { initialsOf } from '../../ui/ConsoleShell';
 import { PlusIcon } from '../../ui/icons';
 import { OnceLinkDialog } from '../../ui/OnceLinkDialog';
 import { useToast } from '../../ui/toast';
-import { AddStaffWizard, type Hired } from './AddStaffWizard';
-import { IssueSignInDialog } from './IssueSignInDialog';
+import { AddStaffWizard, type Hired } from '../../venue/staff/AddStaffWizard';
+import { IssueSignInDialog } from '../../venue/staff/IssueSignInDialog';
 
 /** Every venue in the pilot is in Yerevan. */
 const CONSOLE_TIME_ZONE = 'Asia/Yerevan';

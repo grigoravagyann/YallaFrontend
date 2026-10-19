@@ -17,8 +17,12 @@ export interface OnceLinkDialogProps {
   readonly pin?: string | null;
   /** The sentence under the title; the venue list's by default. */
   readonly body?: string;
+  /** The label over the PIN: "Tablet PIN" by default; "Code" for a tablet's enrolment code. */
+  readonly pinLabel?: string;
   /** The line under the PIN. */
   readonly pinHelp?: string;
+  /** The closing button: "Done" by default; "Written down" for a PIN alone. */
+  readonly doneLabel?: string;
   /** The line under the link, given when it stops working; the owner's by default. */
   readonly linkHelp?: (when: string) => string;
   /** Why no link was made, when the person exists but the server refused it. */
@@ -50,7 +54,9 @@ export function OnceLinkDialog({
   link,
   pin = null,
   body,
+  pinLabel,
   pinHelp,
+  doneLabel,
   linkHelp,
   failure = null,
   onRetry = null,
@@ -107,7 +113,7 @@ export function OnceLinkDialog({
       <p id={bodyId}>{body ?? t('venues.once.body')}</p>
       {pin ? (
         <div className="yc-once">
-          <span className="yc-help yc-strong">{t('venues.once.pin')}</span>
+          <span className="yc-help yc-strong">{pinLabel ?? t('venues.once.pin')}</span>
           {/* Spelled out for a screen reader: "7 3 1 5", not "seven thousand…". */}
           <span className="yc-pin" aria-label={pin.split('').join(' ')}>
             {pin}
@@ -183,7 +189,7 @@ export function OnceLinkDialog({
           {...(link ? {} : { 'data-autofocus': '' })}
           onClick={done}
         >
-          {t('venues.once.done')}
+          {doneLabel ?? t('venues.once.done')}
         </button>
       </div>
     </Dialog>

@@ -1,147 +1,134 @@
-import type { ReportQuery } from '@yalla/api';
-import { useOccupancyReport, useRevenueReport, useStaffReport } from '@yalla/api/react';
+import type { Compared, ReportQuery } from '@yalla/api';
+import { useOccupancyReport, useRevenueReport } from '@yalla/api/react';
 import { formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
-import { ComparisonLegend } from './Comparison';
-import { EmptyRange, ReportSkeleton } from './ReportSection';
-import { Stat } from './Stat';
-import { firstActiveDay, previousRange, daysInRange, type RangePreset } from './range';
+import { Delta, EmptyRange, ReportSkeleton } from './ReportCard';
+import { firstActiveDay } from './range';
 
 export interface SummarySectionProps {
   readonly query: ReportQuery | null;
   readonly locale: Locale;
-  /** What the heading says: the preset's own name, or "Selected range". */
-  readonly preset: RangePreset;
 }
 
 /**
- * The six numbers an owner opens the page for, and nothing else above the fold.
+ * The six numbers an owner opens the page for (Reports artboard): guests,
+ * revenue, bills closed, the average bill, per head and table turnover, each
+ * with its change on the previous period when the server sent one.
  *
- * Composed from three of the five report groups rather than fetched from a
- * summary endpoint, because there is no summary endpoint — covers come from
- * occupancy, the money from revenue, tables turned from staff. That is why this
- * section reads three queries and the other four read one each.
- *
- * **Tabs closed carries no comparison.** The count is available (it is the sum
- * of the daily `tabs`) but a *compared* version of it is not on the wire, and
- * the rule is that a comparison the server did not send is not rendered. Making
- * one up here — comparing against a previous period this section would have to
- * fetch and sum itself — is exactly the drift that ends with the screen and the
- * CSV disagreeing. So five tiles carry a delta and one does not.
+ * Composed from two report groups — guests and turnover from occupancy, the
+ * money from revenue — because there is no summary endpoint, and each tile is
+ * the server's own number: the client neither sums nor divides.
  */
-export function SummarySection({ query, locale, preset }: SummarySectionProps) {
+export function SummarySection({ query, locale }: SummarySectionProps) {
   const { t } = useTranslation(['admin', 'common']);
-  // The heading is the pill that is pressed. It used to say "This week"
-  // whatever the range was, which contradicted the control beside it.
-  const title =
-    preset === 'custom' ? t('reports.summary.customTitle') : t(`reports.range.${preset}`);
-
   const occupancy = useOccupancyReport(query);
   const revenue = useRevenueReport(query);
-  const staff = useStaffReport(query);
 
-  const loading = occupancy.isLoading || revenue.isLoading || staff.isLoading;
-  const error = occupancy.error ?? revenue.error ?? staff.error;
-
-  const comparedDays = query ? daysInRange({ from: query.from, to: query.to }) : 0;
-  const prior = query ? previousRange({ from: query.from, to: query.to }) : null;
-
-  if (error) {
+  if (occupancy.error || revenue.error) {
     return (
-      <section className="report-section report-summary">
-        <h3 className="report-section-title">{title}</h3>
+      <div className="yc-card yc-ov-pad">
         <QueryFailureNotice
-          error={error}
+          error={occupancy.error ?? revenue.error}
           onRetry={() => {
             void occupancy.refetch();
             void revenue.refetch();
-            void staff.refetch();
           }}
         />
-      </section>
+      </div>
     );
   }
 
-  if (loading || !occupancy.data || !revenue.data || !staff.data) {
+  if (!occupancy.data || !revenue.data) {
     return (
-      <section className="report-section report-summary">
-        <h3 className="report-section-title">{title}</h3>
-        <ReportSkeleton label={t('reports.loading')} />
-      </section>
+      <div className="yc-card">
+        <ReportSkeleton />
+      </div>
     );
   }
 
-  const tabsClosed = revenue.data.byDay.reduce((total, day) => total + day.tabs, 0);
-  const traded = occupancy.data.sessions.value > 0 || revenue.data.totalAmd.value > 0;
+  const room = occupancy.data;
+  const money = revenue.data;
+  const traded = room.sessions.value > 0 || money.totalAmd.value > 0;
+  if (!traded) {
+    return (
+      <div className="yc-card">
+        <EmptyRange />
+      </div>
+    );
+  }
+
+  const number = new Intl.NumberFormat(locale);
+  const decimal = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  });
+  const dram = (value: number) => formatDram(Math.round(value), locale);
+  const tabsClosed = money.byDay.reduce((sum, day) => sum + day.tabs, 0);
+
+  const stats: { key: string; label: string; value: string; compared: Compared | null }[] = [
+    {
+      key: 'guests',
+      label: t('reports.summary.guests'),
+      value: number.format(room.seatsFilled.value),
+      compared: room.seatsFilled,
+    },
+    {
+      key: 'revenue',
+      label: t('reports.summary.revenue'),
+      value: dram(money.totalAmd.value),
+      compared: money.totalAmd,
+    },
+    {
+      key: 'tabs',
+      label: t('reports.summary.tabsClosed'),
+      value: number.format(money.tabs?.value ?? tabsClosed),
+      compared: money.tabs,
+    },
+    {
+      key: 'averageTab',
+      label: t('reports.summary.averageTab'),
+      value: dram(money.averageTabAmd.value),
+      compared: money.averageTabAmd,
+    },
+    {
+      key: 'perHead',
+      label: t('reports.summary.averagePerHead'),
+      value: dram(money.averagePerHeadAmd.value),
+      compared: money.averagePerHeadAmd,
+    },
+    ...(room.turnsPerTable
+      ? [
+          {
+            key: 'turnover',
+            label: t('reports.summary.turnover'),
+            value: decimal.format(room.turnsPerTable.value),
+            compared: room.turnsPerTable,
+          },
+        ]
+      : []),
+  ];
 
   // A range that starts before the venue was trading. Said out loud so a ramp
-  // is not read as a decline — and phrased as what is actually known, because
-  // no go-live date exists on the wire to claim.
-  const startedOn = query
-    ? firstActiveDay({ from: query.from, to: query.to }, revenue.data.byDay)
-    : null;
+  // is not read as a decline — and only what is known: no go-live date exists.
+  const startedOn = query ? firstActiveDay({ from: query.from, to: query.to }, money.byDay) : null;
 
   return (
-    <section className="report-section report-summary" aria-labelledby="report-summary-title">
-      <h3 className="report-section-title" id="report-summary-title">
-        {title}
-      </h3>
-
-      {!traded ? (
-        <EmptyRange />
-      ) : (
-        <>
-          {startedOn ? (
-            <p className="report-notice" role="status">
-              {t('reports.partialRange', { date: startedOn })}
-            </p>
-          ) : null}
-
-          <div className="report-stats">
-            <Stat
-              large
-              labelKey="reports.summary.covers"
-              value={occupancy.data.seatsFilled.value.toLocaleString(locale)}
-              compared={occupancy.data.seatsFilled}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              large
-              labelKey="reports.summary.revenue"
-              value={formatDram(Math.round(revenue.data.totalAmd.value), locale)}
-              compared={revenue.data.totalAmd}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              large
-              labelKey="reports.summary.tabsClosed"
-              value={tabsClosed.toLocaleString(locale)}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.summary.averageTab"
-              value={formatDram(Math.round(revenue.data.averageTabAmd.value), locale)}
-              compared={revenue.data.averageTabAmd}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.summary.averagePerHead"
-              value={formatDram(Math.round(revenue.data.averagePerHeadAmd.value), locale)}
-              compared={revenue.data.averagePerHeadAmd}
-              comparedDays={comparedDays}
-            />
-            <Stat
-              labelKey="reports.summary.tablesTurned"
-              value={staff.data.tablesTurned.value.toLocaleString(locale)}
-              compared={staff.data.tablesTurned}
-              comparedDays={comparedDays}
-            />
+    <>
+      {startedOn ? (
+        <p className="yc-alert yc-alert-warn" role="status">
+          {t('reports.partialRange', { date: startedOn })}
+        </p>
+      ) : null}
+      <div className="yc-rp-stats">
+        {stats.map((stat) => (
+          <div key={stat.key} className="yc-card yc-rp-stat">
+            <span className="yc-rp-stat-l">{stat.label}</span>
+            <span className="yc-rp-stat-n">{stat.value}</span>
+            <Delta value={stat.compared} />
           </div>
-
-          {prior ? <ComparisonLegend range={prior} /> : null}
-        </>
-      )}
-    </section>
+        ))}
+      </div>
+    </>
   );
 }

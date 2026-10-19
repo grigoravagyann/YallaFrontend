@@ -15,6 +15,32 @@ import type {
 import type { components } from '../generated/schema';
 
 type Schemas = components['schemas'];
+type WireCompared = Schemas['Yalla.Application.Reports.Compared'];
+type WireDaily = Schemas['Yalla.Application.Reports.DailyRevenue'];
+
+/*
+ * The venue console phase 5 fields, written by hand from the backend's VC5
+ * wire until `generated/schema.ts` carries them. Optional on purpose: a
+ * server that predates them omits them, and the screen says less rather than
+ * something false.
+ */
+type WireOccupancyExtras = {
+  readonly walkInGuests?: WireCompared | null;
+  readonly reservationGuests?: WireCompared | null;
+  readonly turnsPerTable?: WireCompared | null;
+  readonly activeTables?: number | null;
+};
+type WireRevenueExtras = {
+  readonly tabs?: WireCompared | null;
+  readonly previousByDay?: readonly WireDaily[] | null;
+};
+
+const comparedOrNull = (wire: WireCompared | null | undefined): Compared | null =>
+  wire ? compared(wire) : null;
+
+function daily(wire: WireDaily) {
+  return { localDate: wire.localDate, revenueAmd: wire.revenueAmd, tabs: wire.tabs };
+}
 
 /**
  * Report wire shapes to screen shapes.
@@ -77,7 +103,7 @@ function turnTime(
 }
 
 export function occupancyReport(
-  wire: Schemas['Yalla.Application.Reports.OccupancyReport'],
+  wire: Schemas['Yalla.Application.Reports.OccupancyReport'] & WireOccupancyExtras,
 ): OccupancyReport {
   return {
     scope: scope(wire.scope),
@@ -89,6 +115,10 @@ export function occupancyReport(
     seatsAvailable: wire.seatsAvailable,
     walkIns: compared(wire.walkIns),
     fromReservations: compared(wire.fromReservations),
+    walkInGuests: comparedOrNull(wire.walkInGuests),
+    reservationGuests: comparedOrNull(wire.reservationGuests),
+    turnsPerTable: comparedOrNull(wire.turnsPerTable),
+    activeTables: wire.activeTables ?? null,
   };
 }
 
@@ -124,7 +154,7 @@ function adjustment(wire: Schemas['Yalla.Application.Reports.AdjustmentLine']): 
 }
 
 export function revenueReport(
-  wire: Schemas['Yalla.Application.Reports.RevenueReport'],
+  wire: Schemas['Yalla.Application.Reports.RevenueReport'] & WireRevenueExtras,
 ): RevenueReport {
   return {
     scope: scope(wire.scope),
@@ -132,11 +162,9 @@ export function revenueReport(
     serviceChargeAmd: compared(wire.serviceChargeAmd),
     averageTabAmd: compared(wire.averageTabAmd),
     averagePerHeadAmd: compared(wire.averagePerHeadAmd),
-    byDay: wire.byDay.map((day) => ({
-      localDate: day.localDate,
-      revenueAmd: day.revenueAmd,
-      tabs: day.tabs,
-    })),
+    byDay: wire.byDay.map(daily),
+    previousByDay: wire.previousByDay ? wire.previousByDay.map(daily) : null,
+    tabs: comparedOrNull(wire.tabs),
     byHour: wire.byHour.map((hour) => ({ hour: hour.hour, revenueAmd: hour.revenueAmd })),
     cashAmd: compared(wire.cashAmd),
     inAppAmd: compared(wire.inAppAmd),

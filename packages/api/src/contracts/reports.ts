@@ -61,8 +61,18 @@ export interface WeekdayBucket {
   readonly sessions: number;
 }
 
+/**
+ * The top of the last, open-ended bucket of a distribution: `int.MaxValue` on
+ * the wire. Drawn as "> 240" or "≥ 7 days", never as a number.
+ */
+export const OPEN_ENDED_BUCKET = 2147483647;
+
 export interface DurationBucket {
-  /** Top of this bucket in minutes; the last one is open-ended. */
+  /**
+   * Top of this bucket in minutes, inclusive (a 120-minute sitting is in the
+   * 120 bucket). The server's are 60, 90, 120, 150, 180, 210, 240 and the
+   * open-ended `OPEN_ENDED_BUCKET`.
+   */
   readonly upToMinutes: number;
   readonly sessions: number;
 }
@@ -105,12 +115,29 @@ export interface OccupancyReport {
   readonly seatsAvailable: number;
   readonly walkIns: Compared;
   readonly fromReservations: Compared;
+  /**
+   * People rather than sittings, for the "without a booking / from a booking"
+   * split. Null from a server older than the venue console's phase 5.
+   */
+  readonly walkInGuests: Compared | null;
+  readonly reservationGuests: Compared | null;
+  /**
+   * Sittings per active table per day, to two decimals — "table turnover".
+   * The previous period divides by today's table count too. Null from an
+   * older server.
+   */
+  readonly turnsPerTable: Compared | null;
+  readonly activeTables: number | null;
 }
 
 // --- Reservations ------------------------------------------------------------
 
 export interface LeadTimeBucket {
-  /** Top of this bucket, in hours before the sitting. */
+  /**
+   * Top of this bucket, in hours before the sitting: booked strictly less than
+   * this long ahead, and at least the previous bucket's. The server's buckets
+   * are 2, 6, 24, 72, 168 and an open-ended last one (`OPEN_ENDED_BUCKET`).
+   */
   readonly upToHours: number;
   readonly bookings: number;
 }
@@ -174,7 +201,15 @@ export interface RevenueReport {
   readonly averageTabAmd: Compared;
   /** A different question from average tab, and the one a menu is priced against. */
   readonly averagePerHeadAmd: Compared;
+  /** One entry per local date of the range, zero days included. */
   readonly byDay: readonly DailyRevenue[];
+  /**
+   * The previous equivalent period, day by day, the same length as `byDay`:
+   * `previousByDay[i]` pairs with `byDay[i]`. Null from an older server.
+   */
+  readonly previousByDay: readonly DailyRevenue[] | null;
+  /** Closed bills, compared. Null from an older server. */
+  readonly tabs: Compared | null;
   readonly byHour: readonly HourlyRevenue[];
   readonly cashAmd: Compared;
   /** Zero until there is a wallet rail. Shown anyway, because 100% cash is the finding. */

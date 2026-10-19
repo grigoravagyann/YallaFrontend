@@ -4,225 +4,204 @@ import { formatDate, formatTime, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
 import { QueryFailureNotice } from '../../../components/QueryFailureNotice';
+import { Dialog } from '../../ui/Dialog';
+import { TabletIcon } from '../../ui/icons';
+import { OnceLinkDialog } from '../../ui/OnceLinkDialog';
+import { useToast } from '../../ui/toast';
 
 export interface DevicesPanelProps {
   readonly branchId: string;
+  readonly branchName: string;
   readonly timeZoneId: string;
   readonly locale: Locale;
 }
 
+/** "123 456": read out across a room in two halves, as the artboard shows it. */
+const spaced = (code: string) =>
+  code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
+
 /**
- * The tablets a branch runs on, and the code that enrols one.
+ * The tablets a branch runs on, and the code that enrols one (Staff artboard,
+ * the card beside the people).
  *
- * The other half of staff sign-in, and equally unbuilt until now: browser
- * enrolment worked and nothing generated the code, so a venue could not put the
- * counter screen on a tablet at all.
- *
- * The panel says plainly what a device grants, which is **nothing on its own**.
+ * The card says plainly what a device grants, which is **nothing on its own**.
  * Every action still needs a PIN on top, so a stolen tablet is not a stolen
  * till — and an owner who does not know that will not revoke one calmly.
  *
- * Each tablet says when it enrolled and when it was last seen, and nothing
+ * Each tablet says when it was last seen, or when it enrolled, and nothing
  * about being online: the API has a last-seen time, set on sign-in and on a
- * session renewal, and no presence. A green dot drawn from that would call an
- * idle tablet on the counter offline and a closed one online.
+ * session renewal, and no presence.
+ *
+ * The enrolment code is shown once, like a PIN: returned once, only its hash
+ * is stored, so it lives in this component's state and nowhere else.
  */
-export function DevicesPanel({ branchId, timeZoneId, locale }: DevicesPanelProps) {
+export function DevicesPanel({ branchId, branchName, timeZoneId, locale }: DevicesPanelProps) {
   const { t } = useTranslation(['admin', 'common']);
+  const toast = useToast();
+  const titleId = useId();
 
   const devices = useDevices(branchId);
   const createCode = useCreateEnrolmentCode();
   const revoke = useRevokeDevice();
 
-  /**
-   * The live code, held in component state and nowhere else.
-   *
-   * Not in a query cache: it is returned once, only its hash is stored, and a
-   * cached credential is one a later render can read. Regenerating is another
-   * call rather than a second look at this one, which is what it genuinely is.
-   */
   const [code, setCode] = useState<EnrolmentCode | null>(null);
   const [confirming, setConfirming] = useState<StaffDevice | null>(null);
 
   const when = (iso: string) =>
     `${formatDate(iso, timeZoneId, locale)} ${formatTime(iso, timeZoneId, locale)}`;
 
-  return (
-    <section className="page-section" aria-labelledby="devices-title">
-      <header className="section-head">
-        <div>
-          <h3 id="devices-title">{t('devices.title')}</h3>
-          <p className="muted">{t('devices.blurb')}</p>
-        </div>
-        <button
-          type="button"
-          className="button"
-          disabled={createCode.isPending}
-          onClick={() => {
-            createCode.mutate(branchId, { onSuccess: setCode });
-          }}
-        >
-          {code ? t('devices.regenerate') : t('devices.generate')}
-        </button>
-      </header>
+  const list = devices.data ?? [];
 
-      {code ? (
-        <div className="card enrolment-code">
-          <p className="muted small">{t('devices.code.instructions')}</p>
-          {/* Large, and spelled out for a screen reader: it is typed onto a
-              tablet from across a room. */}
-          <p className="enrolment-code-value" aria-label={code.code.split('').join(' ')}>
-            {code.code}
-          </p>
-          <p className="muted small">
-            {t('devices.code.expires', { when: when(code.expiresAtUtc) })}
-          </p>
-          <p className="muted small">{t('devices.code.onceOnly')}</p>
+  return (
+    <section className="yc-card" aria-labelledby={titleId}>
+      <div className="yc-card-h">
+        <div>
+          <h2 className="yc-h2" id={titleId}>
+            {t('devices.title')}
+          </h2>
+          <p className="yc-cap">{t('devices.blurb')}</p>
         </div>
-      ) : null}
+      </div>
 
       {devices.isError ? (
-        <QueryFailureNotice error={devices.error} onRetry={() => void devices.refetch()} />
+        <div className="yc-st-pad">
+          <QueryFailureNotice error={devices.error} onRetry={() => void devices.refetch()} />
+        </div>
       ) : devices.isLoading ? (
-        <p className="muted">{t('loading')}</p>
-      ) : (devices.data ?? []).length === 0 ? (
-        <p className="muted">{t('devices.empty')}</p>
+        <p className="yc-empty-line" role="status">
+          {t('loading')}
+        </p>
+      ) : list.length === 0 ? (
+        <p className="yc-empty-line">{t('devices.empty')}</p>
       ) : (
         // Revoked tablets stay listed: the list is an audit trail, not a roster.
-        <ul className="device-grid">
-          {(devices.data ?? []).map((device) => (
-            <DeviceCard
-              key={device.id}
-              device={device}
-              enrolled={t('devices.enrolledOn', { when: when(device.enrolledAtUtc) })}
-              seen={
-                device.lastSeenAtUtc
-                  ? t('devices.seen', { when: when(device.lastSeenAtUtc) })
-                  : t('devices.neverSeen')
-              }
-              revokedLabel={t('devices.revoked')}
-              revokeLabel={t('devices.revoke')}
-              onRevoke={() => setConfirming(device)}
-            />
+        <ul className="yc-devs">
+          {list.map((device) => (
+            <li key={device.id} className="yc-dev">
+              <span
+                className={device.isRevoked ? 'yc-dev-ic is-gone' : 'yc-dev-ic'}
+                aria-hidden="true"
+              >
+                <TabletIcon />
+              </span>
+              <span className="yc-dev-t">
+                <b>{device.name}</b>
+                <small>
+                  {device.lastSeenAtUtc
+                    ? t('devices.seen', { when: when(device.lastSeenAtUtc) })
+                    : t('devices.enrolledOn', { when: when(device.enrolledAtUtc) })}
+                </small>
+              </span>
+              {device.isRevoked ? (
+                <span className="yc-pill yc-pill-grey">{t('devices.revoked')}</span>
+              ) : (
+                <button
+                  type="button"
+                  className="yc-btn yc-btn-ghost-red yc-btn-sm"
+                  data-rev={device.id}
+                  aria-label={t('devices.revokeNamed', { name: device.name })}
+                  onClick={() => setConfirming(device)}
+                >
+                  {t('devices.revoke')}
+                </button>
+              )}
+            </li>
           ))}
         </ul>
       )}
 
-      {/*
-        Named in the confirmation, because revoking the wrong one takes a
-        venue's counter offline mid-service — and the two cards most likely to
-        be confused are "Counter tablet" and "Counter tablet (old)".
-      */}
+      <div className="yc-dev-foot">
+        <button
+          type="button"
+          className="yc-btn yc-btn-sec yc-btn-sm"
+          data-gen=""
+          aria-busy={createCode.isPending}
+          onClick={() => {
+            if (createCode.isPending) return;
+            createCode.mutate(branchId, {
+              onSuccess: (made) => {
+                setCode(made);
+                // The mutation keeps its result as `data`: the dialog's copy is the only one wanted.
+                createCode.reset();
+              },
+              onError: () => toast.say(t('devices.codeFailed'), { tone: 'error' }),
+            });
+          }}
+        >
+          {createCode.isPending ? <span className="yc-spin" aria-hidden="true" /> : null}
+          {t('devices.generate')}
+        </button>
+      </div>
+      {/* The sentence an owner needs before they can reason about a lost tablet. */}
+      <p className="yc-dev-note" role="note">
+        {t('devices.grantsNothing')}
+      </p>
+
       {confirming ? (
-        <div className="scrim" role="presentation">
-          <div className="card" role="dialog" aria-modal="true" aria-labelledby="revoke-title">
-            <h3 id="revoke-title">{t('devices.confirm.title', { name: confirming.name })}</h3>
-            <p>{t('devices.confirm.body', { name: confirming.name })}</p>
-            <p className="muted small">{t('devices.confirm.permanent')}</p>
-            <div className="actions">
-              <button
-                type="button"
-                className="button button-danger"
-                disabled={revoke.isPending}
-                onClick={() => {
-                  revoke.mutate(
-                    { branchId, deviceId: confirming.id },
-                    { onSuccess: () => setConfirming(null) },
-                  );
-                }}
-              >
-                {t('devices.confirm.revoke')}
-              </button>
-              <button
-                type="button"
-                className="button button-ghost"
-                onClick={() => setConfirming(null)}
-              >
-                {t('common:action.cancel')}
-              </button>
-            </div>
+        <Dialog
+          alert
+          title={t('devices.confirm.title', { name: confirming.name })}
+          description={t('devices.confirm.body', { name: confirming.name })}
+          onClose={revoke.isPending ? () => undefined : () => setConfirming(null)}
+          dismissible={!revoke.isPending}
+          returnFocusTo={() => document.querySelector<HTMLElement>('[data-gen]')}
+        >
+          <p className="yc-help">{t('devices.confirm.permanent')}</p>
+          <div className="yc-acts">
+            <button
+              type="button"
+              className="yc-btn yc-btn-sec"
+              data-autofocus=""
+              disabled={revoke.isPending}
+              onClick={() => setConfirming(null)}
+            >
+              {t('common:action.cancel')}
+            </button>
+            <button
+              type="button"
+              className="yc-btn yc-btn-danger"
+              aria-busy={revoke.isPending}
+              onClick={() => {
+                if (revoke.isPending) return;
+                const device = confirming;
+                revoke.mutate(
+                  { branchId, deviceId: device.id },
+                  {
+                    onSuccess: () => {
+                      setConfirming(null);
+                      toast.say(t('devices.revokedToast', { name: device.name }));
+                    },
+                    onError: () => toast.say(t('devices.revokeFailed'), { tone: 'error' }),
+                  },
+                );
+              }}
+            >
+              {revoke.isPending ? <span className="yc-spin" aria-hidden="true" /> : null}
+              {t('devices.confirm.revoke')}
+            </button>
           </div>
-        </div>
+        </Dialog>
       ) : null}
 
-      {/* The sentence an owner needs before they can reason about a lost
-          tablet at all. A note, so it is announced as one. */}
-      <div className="device-note" role="note">
-        <svg
-          className="device-note-icon"
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 16v-4" />
-          <path d="M12 8h.01" />
-        </svg>
-        <p className="small">{t('devices.grantsNothing')}</p>
-      </div>
+      {code ? (
+        <OnceLinkDialog
+          title={t('devices.code.title')}
+          body={t('devices.code.lead', {
+            branch: branchName,
+            when: formatTime(code.expiresAtUtc, timeZoneId, locale),
+          })}
+          link={null}
+          pin={spaced(code.code)}
+          pinLabel={t('devices.code.label')}
+          pinHelp={t('devices.code.onceOnly')}
+          doneLabel={t('staff.pin.written')}
+          timeZoneId={timeZoneId}
+          onDone={() => {
+            setCode(null);
+            document.querySelector<HTMLElement>('[data-gen]')?.focus();
+          }}
+        />
+      ) : null}
     </section>
-  );
-}
-
-interface DeviceCardProps {
-  readonly device: StaffDevice;
-  readonly enrolled: string;
-  readonly seen: string;
-  readonly revokedLabel: string;
-  readonly revokeLabel: string;
-  readonly onRevoke: () => void;
-}
-
-function DeviceCard({
-  device,
-  enrolled,
-  seen,
-  revokedLabel,
-  revokeLabel,
-  onRevoke,
-}: DeviceCardProps) {
-  const nameId = useId();
-  return (
-    <li>
-      <article
-        className={`card device-card${device.isRevoked ? ' is-deactivated' : ''}`}
-        aria-labelledby={nameId}
-      >
-        <div className="device-card-head">
-          <span className="device-card-icon" aria-hidden="true">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="16" height="20" x="4" y="2" rx="2" />
-              <path d="M12 18h.01" />
-            </svg>
-          </span>
-          <div className="roster-card-who">
-            <h4 id={nameId} className="roster-card-name">
-              {device.name}
-            </h4>
-            <p className="muted small">{seen}</p>
-            {device.isRevoked ? (
-              <p className="roster-card-tags">
-                <span className="badge badge-warn">{revokedLabel}</span>
-              </p>
-            ) : null}
-          </div>
-          {device.isRevoked ? null : (
-            <button type="button" className="button button-small button-danger" onClick={onRevoke}>
-              {revokeLabel}
-            </button>
-          )}
-        </div>
-        <p className="muted small device-card-foot">{enrolled}</p>
-      </article>
-    </li>
   );
 }

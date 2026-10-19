@@ -92,7 +92,10 @@ through `.yc-legacy`, as they already did inside the platform's branch pages.
 Overview (phase 2, the Main artboard) adds `blue` on `blueBg` (a confirmed
 booking still to come: a state, not a warning), `loadBar` and `capacityLine`
 (the load chart's hours to come and its dashed "room full" line) and the
-20px `bookingTime` (a waiting booking's start).
+20px `bookingTime` (a waiting booking's start). Reports (phase 5) adds
+`reportBar` (a bar of shares; a peak is `brand`, past the policy `amber`),
+`reportPreviousLine` (the previous period, dashed) and `reportArea` (the fill
+under this period's line, the brand at 7%).
 
 The values are tokens like every other value in the product:
 `packages/tokens/src/console.ts`, emitted as `--console-*` custom properties

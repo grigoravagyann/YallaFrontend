@@ -125,15 +125,21 @@ describe('local dates are the branch’s, not the device’s', () => {
   });
 });
 
-describe('a range the server will refuse', () => {
+describe('a range the console will not ask for', () => {
   it('names a backwards range before asking', () => {
     expect(problemWith({ from: '2026-09-08', to: '2026-09-01' })).toBe('backwards');
   });
 
-  it('names an over-long one', () => {
-    // 366 is the server's cap and is allowed; 367 is not.
-    expect(problemWith({ from: '2026-01-01', to: '2027-01-01' })).toBeNull();
-    expect(problemWith({ from: '2026-01-01', to: '2027-01-02' })).toBe('tooLong');
+  it('names one longer than 92 days, the artboard’s limit', () => {
+    // 92 days is a quarter and is allowed; 93 is not. The server's own cap
+    // (366) is wider and stays for API users.
+    expect(problemWith({ from: '2026-01-01', to: '2026-04-02' })).toBeNull();
+    expect(problemWith({ from: '2026-01-01', to: '2026-04-03' })).toBe('tooLong');
+  });
+
+  it('asks for nothing while a custom date is still empty', () => {
+    expect(problemWith({ from: '', to: '2026-09-06' })).toBe('incomplete');
+    expect(problemWith({ from: '2026-09-01', to: '' })).toBe('incomplete');
   });
 
   it('passes an ordinary range', () => {

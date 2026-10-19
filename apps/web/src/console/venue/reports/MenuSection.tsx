@@ -4,149 +4,155 @@ import { formatDram, type Locale } from '@yalla/format';
 import { useTranslation } from '@yalla/i18n';
 import { Link } from 'react-router-dom';
 import { menuItemHref } from '../menuAnchors';
-import { ReportSectionFrame } from './ReportSection';
+import { menuCsv } from './csv';
+import { CsvButton, ReportCard } from './ReportCard';
 
 export interface MenuSectionProps {
   readonly query: ReportQuery | null;
   readonly locale: Locale;
+  readonly onCsv: (title: string, fileSection: 'menu', text: string) => void;
 }
 
-function PerformanceList({
+/** The artboard's lists are five long: the head of each ranking. */
+const RANKED = 5;
+
+function Ranking({
+  title,
   items,
   valueOf,
 }: {
+  readonly title: string;
   readonly items: readonly MenuItemPerformance[];
-  /** Formats the one value column — a count in one list, dram in the other. */
   readonly valueOf: (item: MenuItemPerformance) => string;
 }) {
   const { t } = useTranslation(['admin', 'common']);
-
-  if (items.length === 0) return <p className="muted">{t('reports.menu.noneSold')}</p>;
-
   return (
-    <table className="report-table">
-      <thead>
-        <tr>
-          <th scope="col">{t('reports.menu.item')}</th>
-          <th scope="col">{t('reports.menu.category')}</th>
-          <th scope="col" className="numeric">
-            {t('reports.menu.value')}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.menuItemId}>
-            <th scope="row">
+    <div className="yc-rp-body">
+      <h3 className="yc-h3">{title}</h3>
+      {items.length === 0 ? (
+        <p className="yc-help">{t('reports.menu.noneSold')}</p>
+      ) : (
+        <ol className="yc-rp-rank">
+          {items.slice(0, RANKED).map((item) => (
+            <li key={item.menuItemId}>
               <Link to={menuItemHref(item.menuItemId)}>{item.name}</Link>
-            </th>
-            <td>{item.categoryName}</td>
-            <td className="numeric">{valueOf(item)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+              <span>{valueOf(item)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
 /**
- * What sold, what did not, and what got sent back.
+ * What sold, what did not, and what was sent back (Reports artboard, "Menu").
  *
- * Two lists rather than one combined score, because the dish everyone orders
- * and the dish that makes the money are usually different and a single ranking
- * hides both. The never-ordered list is given the most prominence of anything
- * in this section: it is the only report in the product that reliably changes
- * what a venue does tomorrow, and every row in it is a link into the editor.
+ * Two rankings rather than one score, because the dish everyone orders and
+ * the dish that brings the money in are usually different. The dishes nobody
+ * ordered are each a link into the menu editor — the one report that reliably
+ * changes what a venue does tomorrow — and the voided lines say why, in the
+ * waiter's words.
  */
-export function MenuSection({ query, locale }: MenuSectionProps) {
+export function MenuSection({ query, locale, onCsv }: MenuSectionProps) {
   const { t } = useTranslation(['admin', 'common']);
   const report = useMenuReport(query);
   const data = report.data;
+  const number = new Intl.NumberFormat(locale);
+  const title = t('reports.menu.title');
+  const empty = Boolean(data) && data!.topByCount.length === 0 && data!.neverOrdered.length === 0;
 
   return (
-    <ReportSectionFrame
-      section="menu"
-      titleKey="reports.menu.title"
-      blurbKey="reports.menu.blurb"
-      query={query}
+    <ReportCard
+      title={title}
+      cap={t('reports.menu.cap')}
       isLoading={report.isLoading}
       error={report.error}
       onRetry={() => void report.refetch()}
-      isEmpty={Boolean(data) && data!.topByCount.length === 0 && data!.neverOrdered.length === 0}
+      isEmpty={empty}
+      actions={
+        <CsvButton
+          label={title}
+          disabled={!data || empty}
+          onClick={() => data && onCsv(title, 'menu', menuCsv(data))}
+        />
+      }
     >
       {data ? (
         <>
-          <div className="report-columns">
-            <div className="report-block">
-              <h4 className="report-chart-title">{t('reports.menu.topByCount')}</h4>
-              <PerformanceList
+          <div className="yc-rp-split is-even">
+            <div className="yc-rp-divide">
+              <Ranking
+                title={t('reports.menu.topByCount')}
                 items={data.topByCount}
-                valueOf={(item) => item.quantity.toLocaleString(locale)}
+                valueOf={(item) =>
+                  t('reports.menu.times', {
+                    count: item.quantity,
+                    formatted: number.format(item.quantity),
+                  })
+                }
               />
             </div>
-
-            <div className="report-block">
-              <h4 className="report-chart-title">{t('reports.menu.topByRevenue')}</h4>
-              <PerformanceList
-                items={data.topByRevenue}
-                valueOf={(item) => formatDram(item.revenueAmd, locale)}
-              />
-            </div>
+            <Ranking
+              title={t('reports.menu.topByRevenue')}
+              items={data.topByRevenue}
+              valueOf={(item) => formatDram(Math.round(item.revenueAmd), locale)}
+            />
           </div>
-
-          <div className="report-block report-highlight">
-            <h4 className="report-chart-title">
+          <div className="yc-rp-body yc-rp-top">
+            <h3 className="yc-h3">
               {t('reports.menu.neverOrdered.title', { count: data.neverOrdered.length })}
-            </h4>
-            <p className="muted">{t('reports.menu.neverOrdered.blurb')}</p>
-
+            </h3>
             {data.neverOrdered.length === 0 ? (
-              <p className="muted">{t('reports.menu.neverOrdered.none')}</p>
+              <p className="yc-help">{t('reports.menu.neverOrdered.none')}</p>
             ) : (
-              <ul className="report-never-ordered">
-                {data.neverOrdered.map((item) => (
-                  <li key={item.menuItemId}>
-                    <Link to={menuItemHref(item.menuItemId)}>{item.name}</Link>
-                    <span className="muted small"> · {item.categoryName}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="report-block">
-            <h4 className="report-chart-title">{t('reports.menu.voids.title')}</h4>
-            <p className="muted">{t('reports.menu.voids.blurb')}</p>
-
-            {data.voids.length === 0 ? (
-              <p className="muted">{t('reports.menu.voids.none')}</p>
-            ) : (
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{t('reports.menu.item')}</th>
-                    <th scope="col">{t('reports.menu.voids.reason')}</th>
-                    <th scope="col" className="numeric">
-                      {t('reports.menu.voids.count')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.voids.map((line) => (
-                    <tr key={`${line.menuItemId}-${line.reason}`}>
-                      <th scope="row">
-                        <Link to={menuItemHref(line.menuItemId)}>{line.name}</Link>
-                      </th>
-                      <td>{line.reason}</td>
-                      <td className="numeric">{line.count.toLocaleString(locale)}</td>
-                    </tr>
+              <>
+                <p className="yc-help">{t('reports.menu.neverOrdered.blurb')}</p>
+                <ul className="yc-rp-never">
+                  {data.neverOrdered.map((item) => (
+                    <li key={item.menuItemId}>
+                      <Link to={menuItemHref(item.menuItemId)}>{item.name}</Link>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </>
+            )}
+            <h3 className="yc-h3">{t('reports.menu.voids.title')}</h3>
+            {data.voids.length === 0 ? (
+              <p className="yc-help">{t('reports.menu.voids.none')}</p>
+            ) : (
+              <>
+                <div className="yc-tscroll">
+                  <table className="yc-tbl">
+                    <caption className="yc-sr">{t('reports.menu.voids.title')}</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">{t('reports.menu.voids.item')}</th>
+                        <th scope="col">{t('reports.menu.voids.reason')}</th>
+                        <th scope="col" className="yc-num">
+                          {t('reports.menu.voids.count')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.voids.map((line) => (
+                        <tr key={`${line.menuItemId}-${line.reason}`}>
+                          <th scope="row">
+                            <Link to={menuItemHref(line.menuItemId)}>{line.name}</Link>
+                          </th>
+                          <td>{line.reason}</td>
+                          <td className="yc-num">{number.format(line.count)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="yc-help">{t('reports.menu.voids.help')}</p>
+              </>
             )}
           </div>
         </>
       ) : null}
-    </ReportSectionFrame>
+    </ReportCard>
   );
 }
