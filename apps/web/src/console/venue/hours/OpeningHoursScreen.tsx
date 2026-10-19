@@ -57,6 +57,7 @@ export function OpeningHoursScreen() {
   if (!branchId) {
     return (
       <section className="page">
+        <h1>{t('nav.hours')}</h1>
         <p className="muted">{t('menu.noBranch')}</p>
       </section>
     );
@@ -73,7 +74,7 @@ export function OpeningHoursScreen() {
   return (
     <section className="page hours-screen">
       <header className="page-head">
-        <h2>{t('nav.hours')}</h2>
+        <h1>{t('nav.hours')}</h1>
         <div className="page-actions">
           {dirty ? <span className="badge badge-warn">{t('hours.unsaved')}</span> : null}
           {savedAt !== null && !dirty ? (

@@ -811,7 +811,9 @@ function feedIcon(action: string): ReactNode {
   if (action === 'staff.create') return <UserIcon className="yc-fi-i" />;
   if (action === 'staff.sign-in-issued') return <SendIcon className="yc-fi-i" />;
   if (action.startsWith('review.')) return <EyeOffIcon className="yc-fi-i" />;
-  if (action.startsWith('admin.')) return <PadlockIcon className="yc-fi-i" />;
+  if (action.startsWith('admin.') || action.startsWith('account.')) {
+    return <PadlockIcon className="yc-fi-i" />;
+  }
   return <DotIcon className="yc-fi-i" />;
 }
 
@@ -861,10 +863,16 @@ function sentence(entry: PlatformActivityEntry, t: Translate): string {
       return t('home.activity.action.reviewRestore', { target });
     case 'table.regenerate-qr':
       return t('home.activity.action.tableQr', { target });
+    // The platform admin's own account, and a venue person's (My account):
+    // the same sentences after whoever's name it was.
     case 'admin.rename':
+    case 'account.rename':
       return t('home.activity.action.rename');
     case 'admin.password-change':
+    case 'account.password-change':
       return t('home.activity.action.password');
+    case 'account.sign-out-others':
+      return t('home.activity.action.signOutOthers');
     default:
       // An action this build has no words for: a neutral sentence, never the code.
       return t('home.activity.action.other');

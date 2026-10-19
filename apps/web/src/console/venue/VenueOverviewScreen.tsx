@@ -15,7 +15,7 @@ export function VenueOverviewScreen() {
 
   return (
     <section className="page venue-overview">
-      <h2>{t('nav.overview')}</h2>
+      <h1>{t('nav.overview')}</h1>
       <p className="muted">{t('checklist.body')}</p>
       <OnboardingChecklist />
     </section>

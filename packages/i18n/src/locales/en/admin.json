@@ -12,7 +12,22 @@
     "public": "Public page",
     "reviews": "Reviews",
     "home": "Home",
-    "settings": "Settings"
+    "settings": "Settings",
+    "account": "My account",
+    "group": {
+      "today": "Today",
+      "venue": "The venue",
+      "team": "Team",
+      "results": "Results"
+    },
+    "badge": {
+      "pendingApprovals_one": "{{count}} booking waits for a decision",
+      "pendingApprovals_other": "{{count}} bookings wait for a decision",
+      "incompleteDishes_one": "{{count}} unfinished dish",
+      "incompleteDishes_other": "{{count}} unfinished dishes",
+      "reportedReviews_one": "{{count}} reported review",
+      "reportedReviews_other": "{{count}} reported reviews"
+    }
   },
   "publicPage": {
     "intro": "What anybody with your link sees: your picture, your number, and whether they can book.",
@@ -146,15 +161,12 @@
     }
   },
   "shell": {
-    "title": "Yalla console",
-    "signedInAs": "Signed in as {{name}}",
     "devRole": "Dev only — view as",
     "devReset": "Reset mock data",
-    "openMenu": "Menu",
-    "closeMenu": "Close the menu",
     "signOut": "Sign out",
     "mainNav": "Main navigation",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "brandSub": "console"
   },
   "role": {
     "platformAdmin": "Platform admin",
@@ -416,7 +428,7 @@
   },
   "branchSwitcher": {
     "label": "Branch",
-    "onlyOne": "{{name}}"
+    "onlyOne": "{{name}} branch"
   },
   "state": {
     "offline": "You are offline. Check the connection and try again.",
@@ -1882,8 +1894,59 @@
         "tableQr": "replaced the QR code of table {{target}}",
         "rename": "changed their name",
         "password": "changed their password",
-        "other": "made a change"
+        "other": "made a change",
+        "signOutOthers": "signed out of their other devices"
       }
+    }
+  },
+  "account": {
+    "title": "My account",
+    "sub": "{{role}} · {{venue}}",
+    "signOutDialog": {
+      "title": "Sign out of the console?",
+      "body": "Unsaved changes will be lost. Your tablet PIN does not change.",
+      "stay": "Stay",
+      "confirm": "Sign out"
+    },
+    "profile": {
+      "emailByTeam": "The Yalla team changes the email",
+      "emailByOwner": "The owner changes the email, with a new sign-in link"
+    },
+    "password": {
+      "title": "Console password"
+    },
+    "pin": {
+      "title": "Tablet PIN",
+      "cap": "For signing in on the floor screen. It is never shown anywhere.",
+      "new": "New PIN",
+      "repeat": "Repeat the PIN",
+      "format": "The PIN is exactly 4 digits",
+      "mismatch": "The two PINs don't match",
+      "taken": "Somebody on the same tablet already uses this PIN. Choose another.",
+      "submit": "Change the PIN",
+      "changing": "Changing…",
+      "changed": "PIN changed · use it the next time you sign in on a tablet",
+      "failed": "The PIN wasn't changed. Try again."
+    },
+    "sessions": {
+      "title": "Where you're signed in",
+      "cap": "Yalla doesn't record devices or places, only when each sign-in started and was last used",
+      "signOutOthers": "Sign out everywhere else",
+      "signingOut": "Signing out…",
+      "thisDevice": "This device",
+      "thisBrowser": "This browser",
+      "other": "Another sign-in",
+      "activeNow": "Signed in {{signedIn}} · active now",
+      "lastActive": "Signed in {{signedIn}} · last active {{lastActive}}",
+      "today": "today, {{time}}",
+      "onDay": "{{date}}, {{time}}",
+      "ended_one": "You were signed out on {{count}} other device",
+      "ended_other": "You were signed out on {{count}} other devices",
+      "endedNone": "There were no other sign-ins",
+      "loadFailed": "The list of sign-ins didn't load. Try again.",
+      "failed": "Signing out everywhere else didn't work. Try again.",
+      "signInUnknown": "This sign-in is too old to tell apart from the others, so nothing was signed out. Sign in again, then try once more.",
+      "signInAgain": "Sign in again"
     }
   }
 }

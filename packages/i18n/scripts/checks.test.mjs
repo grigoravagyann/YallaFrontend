@@ -101,9 +101,9 @@ test('putting a glued {{name}}-ը back fails', (t) => {
 test('a glued {{date}}-ին in the console bundle fails too', (t) => {
   const { dir, edit } = copyOfLocales(t);
   edit('hy', 'admin', (bundle) => {
-    bundle.shell.signedInAs = 'Մուտք է գործել {{name}}-ին';
+    bundle.branchSwitcher.onlyOne = '{{name}}-ին մասնաճյուղ';
   });
   const result = run(PARITY, dir);
   assert.equal(result.code, 1, result.output);
-  assert.match(result.output, /hy\/admin\.json "shell\.signedInAs" glues a suffix/u);
+  assert.match(result.output, /hy\/admin\.json "branchSwitcher\.onlyOne" glues a suffix/u);
 });

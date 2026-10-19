@@ -8,7 +8,7 @@ import {
 import { useStaff } from '@yalla/api/react';
 import { useTranslation } from '@yalla/i18n';
 import { useId, useState } from 'react';
-import { initialsOf } from '../PlatformLayout';
+import { initialsOf } from '../../ui/ConsoleShell';
 import { PlusIcon } from '../../ui/icons';
 import { OnceLinkDialog } from '../../ui/OnceLinkDialog';
 import { useToast } from '../../ui/toast';

@@ -43,7 +43,7 @@ export {
 export type { ApiConfig, DataSource, ResolveApiConfigInput } from './config';
 
 // --- Auth --------------------------------------------------------------------
-export { createAuthSession } from './auth/session';
+export { createAuthSession, webLocksExclusive } from './auth/session';
 export type {
   AuthSession,
   AuthSessionConfig,
@@ -432,7 +432,11 @@ export type { Availability } from './contracts/helpers';
 export type { ConsoleGateway } from './consoleGateway';
 export { resolveConsoleGateway } from './resolveConsoleGateway';
 export type { ResolveConsoleGatewayOptions } from './resolveConsoleGateway';
-export { createConsoleMockGateway, MOCK_PLATFORM_PASSWORD } from './mocks/consoleMock';
+export {
+  createConsoleMockGateway,
+  MOCK_PLATFORM_PASSWORD,
+  MOCK_VENUE_PASSWORD,
+} from './mocks/consoleMock';
 export type { ConsoleMockOptions } from './mocks/consoleMock';
 export { createConsoleHttpGateway, createMemoryIdentityStore } from './http/consoleHttpGateway';
 export type { ConsoleHttpGatewayOptions, ConsoleIdentityStore } from './http/consoleHttpGateway';
@@ -482,6 +486,7 @@ export type {
   VenueTierMix,
 } from './contracts/platformHome';
 export { PLATFORM_NAME_MAX_LENGTH, PLATFORM_PASSWORD_MIN_LENGTH } from './contracts/platformHome';
+export type { OtherSessionsEnded, VenueSession, VenueStaffProfile } from './contracts/venueAccount';
 export {
   applyVenueTier,
   checkVenueTier,
@@ -538,6 +543,7 @@ export {
   SlugTakenError,
   ReportRangeTooLongError,
   StaffPermissionError,
+  SignInUnknownError,
   StaffPinTakenError,
   VenueDeletionBlockedError,
   isFloorPlanInvalid,

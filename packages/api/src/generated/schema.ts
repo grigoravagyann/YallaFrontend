@@ -1796,7 +1796,7 @@ export interface paths {
         };
         /**
          * The activity feed: the newest audit rows, newest first
-         * @description Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), and `admin.password-change-failed`, the password lockout's counter.
+         * @description Every change the audit log records that a member of staff made - the platform admin's own and the venues' teams' (adding staff, taking down a review, replacing a QR code). Each carries the `action` slug, the `actor` (`role` 5 is the platform admin; `displayName` as they were called then), the `target` (`type`, `id`, `displayName` then - for a review, the branch it is about, never the reviewer), the `venue` it concerns by its current name, and `detail`, the row's JSON as written (shapes in `docs/platform-admin.md`). Rows the log keeps that are not a change are left out: a diner deleting their own account (no staff member behind it), and `admin.password-change-failed` and `account.password-change-failed`, the password lockouts' counters.
          *
          *     `limit` 1-100 (default 20). `venueId` narrows it to one venue.
          */
@@ -3332,6 +3332,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/venue/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in owner's, general manager's or branch manager's own account
+         * @description `fullName` is theirs to change. `email` is the sign-in address and is not: whoever outranks them gives them a new sign-in link for a new address (`issueStaffSignIn`), and an owner's is changed by the platform. `role` 1 Owner, 6 GeneralManager, 2 Manager; `branchId` is a branch manager's home branch and is absent for the venue-wide ranks (an owner's row may name a branch; they still run every one). `staffMemberId` and `venueId` are what `setStaffPin` takes for their own tablet PIN.
+         */
+        get: operations["getVenueUserProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the signed-in venue user's name
+         * @description `fullName`, 1-200 characters after trimming. **Audited** as `account.rename`, with the venue; a name that does not change writes nothing.
+         */
+        patch: operations["updateVenueUserProfile"];
+        trace?: never;
+    };
+    "/api/venue/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the signed-in venue user's password
+         * @description The platform admin's change, for the venue console. `currentPassword` must be right and `newPassword` at least 12 characters - the one rule every console password follows. Everything wrong is reported in one 422: a wrong current password is `context.fields` naming `currentPassword` with `bound` `conflict`, not a 401, so the console stays signed in and shows it under the field.
+         *
+         *     **Answers a fresh token pair - store it.** The change ends every session the account has, at once: the session generation moves, so every admin-panel access token it holds - the one this request was sent with included - is refused from now on with `401 session-revoked`, every refresh token is revoked and every unused reset link is spent. The body (`accessToken`, `refreshToken`, `expiresInSeconds`, the refresh endpoint's shape) is how the sign-in that made the change carries on.
+         *
+         *     **Wrong current passwords are counted per account**: each is audited as `account.password-change-failed`, and after 10 inside 15 minutes the route answers `429 too-many-attempts` with `Retry-After` (and `context.retryAfterSeconds`) until the oldest leaves the window - right password or not. A successful change starts the count again. The route is also under the `auth` rate limit. **Audited** as `account.password-change`, with nothing about either password.
+         */
+        post: operations["changeVenueUserPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/venue/me/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where the signed-in venue user is signed in
+         * @description One row per admin-panel sign-in that can still carry on - a refresh chain neither revoked nor expired: `id`, `signedInAtUtc` (when the password was typed), `lastActiveAtUtc` (when it last renewed its access token, which a console in use does about every 15 minutes) and `isCurrent`, the sign-in this request's token belongs to. The current one first, then the most recently active.
+         *
+         *     **No device, browser or place**: nothing records them, so nothing here claims them.
+         */
+        get: operations["listVenueUserSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/venue/me/sessions/sign-out-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign the venue user out everywhere else
+         * @description Ends every other sign-in now: their refresh tokens are revoked and the session generation moves, so their access tokens are refused with `401 session-revoked` at once rather than when they expire. `endedSessions` counts the sign-ins that could still carry on and now cannot; 0 is an answer.
+         *
+         *     **This request's access token ends too, and its refresh token is kept**: refresh (`refreshVenueUserToken`) with the one you hold and carry on. No fresh pair is answered, on purpose - an access token alone must not be able to mint a new 30-day refresh token. **Audited** as `account.sign-out-others`.
+         *
+         *     A token that names no sign-in (no refresh-chain claim, from before the claim existed) cannot say which one to keep: `409 sign-in-unknown`, and nothing is changed - sign in again and retry.
+         */
+        post: operations["signOutOtherVenueUserSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/venues/{venueId}/manage": {
         parameters: {
             query?: never;
@@ -3522,6 +3616,13 @@ export interface components {
         /** @description Body of `POST /api/platform/me/password`. */
         "Yalla.Api.Endpoints.ChangePlatformAdminPasswordRequest": {
             /** @description The password the admin signs in with now. */
+            currentPassword?: string | null;
+            /** @description At least 12 characters. Length is the only rule. */
+            newPassword?: string | null;
+        };
+        /** @description Body of `POST /api/venue/me/password`. */
+        "Yalla.Api.Endpoints.ChangeVenueUserPasswordRequest": {
+            /** @description The password they sign in with now. */
             currentPassword?: string | null;
             /** @description At least 12 characters. Length is the only rule. */
             newPassword?: string | null;
@@ -4141,6 +4242,11 @@ export interface components {
         };
         /** @description Body of `PATCH /api/platform/me`. */
         "Yalla.Api.Endpoints.UpdatePlatformAdminProfileRequest": {
+            /** @description The name the console shows and the activity feed records. 1-200 characters. */
+            fullName?: string | null;
+        };
+        /** @description Body of `PATCH /api/venue/me`. */
+        "Yalla.Api.Endpoints.UpdateVenueUserProfileRequest": {
             /** @description The name the console shows and the activity feed records. 1-200 characters. */
             fullName?: string | null;
         };
@@ -5025,6 +5131,14 @@ export interface components {
             /** @description The successor handle. The one you sent is now dead. */
             refreshToken: string;
         };
+        /** @description What signing the other sign-ins out ended. */
+        "Yalla.Application.Auth.SignedOutElsewhere": {
+            /**
+             * Format: int32
+             * @description How many other sign-ins could still carry on and now cannot. Zero is an answer.
+             */
+            endedSessions: number;
+        };
         /** @description One enrolled tablet, as the admin panel lists it. */
         "Yalla.Application.Auth.StaffDeviceSummary": {
             /**
@@ -5156,6 +5270,61 @@ export interface components {
              * @description How long to wait between claims. Polling faster than this spends the claim rate limit for nothing.
              */
             pollAfterMs: number;
+        };
+        /** @description The signed-in owner's, general manager's or branch manager's own account. */
+        "Yalla.Application.Auth.VenueUserProfile": {
+            /**
+             * Format: uuid
+             * @description A branch manager's home branch. Absent on the wire (null) for an owner or general manager, who run every
+             *     branch - an owner's row may name a branch, and it is still not answered here.
+             */
+            branchId?: string | null;
+            /**
+             * @description The sign-in address. Not theirs to change: whoever outranks them gives them a new sign-in link for a
+             *     new address (`issueStaffSignIn`), and an owner's is changed by the platform.
+             */
+            email: string;
+            /** @description The name the console and the activity feed show. Theirs to change. */
+            fullName: string;
+            /** @description What a staff member is allowed to do, coarsely. Authorisation itself is a later task. */
+            role: components["schemas"]["Yalla.Domain.Enums.StaffRole"];
+            /**
+             * Format: uuid
+             * @description Their staff row - the one the staff routes, such as the PIN reset, address them by.
+             */
+            staffMemberId: string;
+            /**
+             * Format: uuid
+             * @description The venue they work for.
+             */
+            venueId: string;
+        };
+        /**
+         * @description One admin-panel sign-in that can still carry on: a refresh chain with a token that is neither
+         *     revoked, rotated nor expired.
+         */
+        "Yalla.Application.Auth.VenueUserSession": {
+            /**
+             * Format: uuid
+             * @description The sign-in (its refresh chain).
+             */
+            id: string;
+            /** @description The sign-in the request's own token belongs to. */
+            isCurrent: boolean;
+            /**
+             * Format: date-time
+             * @description When it last renewed its token; the sign-in itself until it first does.
+             */
+            lastActiveAtUtc: string;
+            /**
+             * Format: date-time
+             * @description When the password was typed.
+             */
+            signedInAtUtc: string;
+        };
+        /** @description Where the venue user is signed in: the current sign-in first, then the most recently active. */
+        "Yalla.Application.Auth.VenueUserSessions": {
+            sessions: components["schemas"]["Yalla.Application.Auth.VenueUserSession"][];
         };
         /** @description An owner or manager signed in to the admin panel. */
         "Yalla.Application.Auth.VenueUserSignInResult": {
@@ -6807,7 +6976,8 @@ export interface components {
              *     `venue.reactivate`, `venue.delete`, `branch.create`, `branch.update`,
              *     `branch.tier-change`, `branch.relocate`, `staff.create`, `staff.sign-in-issued`,
              *     `venue.restore`, `review.hide`, `review.unhide`, `review.dismiss-reports`, `table.regenerate-qr`,
-             *     `admin.rename`, `admin.password-change`.
+             *     `admin.rename`, `admin.password-change`, and a venue user's own `account.rename`,
+             *     `account.password-change`, `account.sign-out-others`.
              */
             action: string;
             /** @description Who did it, as they were called then. */
@@ -22665,6 +22835,366 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Yalla.Api.Errors.BookingTabRefusedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getVenueUserProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.VenueUserProfile"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not an owner, general manager or branch manager signed in to the admin panel. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateVenueUserProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.UpdateVenueUserProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.VenueUserProfile"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not an owner, general manager or branch manager signed in to the admin panel. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `fullName` missing, blank or over 200 characters. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    changeVenueUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Yalla.Api.Endpoints.ChangeVenueUserPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.RefreshResult"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not an owner, general manager or branch manager signed in to the admin panel. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `currentPassword` missing or wrong, or `newPassword` missing or too short - every one at once. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.ValidationFailedProblem"];
+                };
+            };
+            /** @description Too many wrong current passwords, or the `auth` rate limit; `Retry-After` says how long to wait. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listVenueUserSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.VenueUserSessions"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not an owner, general manager or branch manager signed in to the admin panel. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests in the window, or a one-time credential is out of attempts. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Unexpected failure. Quote the traceId from the body. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signOutOtherVenueUserSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Yalla.Application.Auth.SignedOutElsewhere"];
+                };
+            };
+            /** @description The request violated a domain rule or arrived malformed. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description No usable token was presented, or the one presented was rejected. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description Not an owner, general manager or branch manager signed in to the admin panel. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `sign-in-unknown`: the token names no sign-in to keep. Nothing changed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
                 };
             };
             /** @description Too many requests in the window, or a one-time credential is out of attempts. */

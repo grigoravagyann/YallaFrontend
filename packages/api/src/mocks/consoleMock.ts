@@ -77,6 +77,7 @@ import {
   type VenueListing,
 } from '../contracts/listing';
 import type { StaffRole } from '../contracts/console';
+import type { VenueSession, VenueStaffProfile } from '../contracts/venueAccount';
 import {
   PLATFORM_NAME_MAX_LENGTH,
   PLATFORM_PASSWORD_MIN_LENGTH,
@@ -300,6 +301,16 @@ export interface ConsoleMockOptions {
  */
 export const MOCK_PLATFORM_PASSWORD = 'yalla-mock-admin-0000';
 
+/**
+ * The mock owner's, general manager's and branch manager's password, for My
+ * account's "Change password": checked like the admin's, and changed for the
+ * session by a change there.
+ */
+export const MOCK_VENUE_PASSWORD = 'yalla-mock-venue-0000';
+
+/** The roles that have a My account page: a password sign-in to the venue console. */
+const VENUE_ACCOUNT_ROLES: readonly UserRole[] = ['owner', 'generalManager', 'manager'];
+
 /** Monday first: Friday and Saturday are the busy nights. */
 const WEEKDAY_SHARE = [0.1, 0.11, 0.11, 0.14, 0.2, 0.21, 0.13];
 
@@ -346,6 +357,20 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     email: 'admin@yalla.am',
     password: MOCK_PLATFORM_PASSWORD,
   };
+  /**
+   * `/api/venue/me*`: the signed-in venue staff member's own account. A name
+   * they changed, by their staff id — absent, the role's seeded name stands —
+   * so one person's rename never reaches another's row; the other sign-ins are
+   * seeded on first read, relative to `now`.
+   */
+  const venueSelf: {
+    names: Map<string, string>;
+    password: string;
+    others: VenueSession[] | null;
+  } = { names: new Map(), password: MOCK_VENUE_PASSWORD, others: null };
+  /** The signed-in venue staff member's name: theirs if they changed it, else the seeded one. */
+  const selfName = (staffMemberId: string, seeded: string) =>
+    venueSelf.names.get(staffMemberId) ?? seeded;
   /** The activity feed, newest first: a short seeded history, then what is done here. */
   const activity: PlatformActivityEntry[] = [];
   let activitySeeded = false;
@@ -1175,7 +1200,12 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     }));
 
     const staff: ConsoleStaffMember[] = [
-      { id: `${venue.id}-owner`, displayName: 'Aram Sargsyan', role: 'owner', branchId: null },
+      {
+        id: `${venue.id}-owner`,
+        displayName: 'Aram Sargsyan',
+        role: 'owner',
+        branchId: null,
+      },
       ...branches.map((branch, i) => ({
         id: `${branch.id}-manager`,
         displayName: ['Nare Petrosyan', 'Tigran Avetisyan', 'Lilit Grigoryan'][i % 3] ?? 'Manager',
@@ -1692,6 +1722,48 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
     if (role !== 'platformAdmin') throw new ForbiddenError({ url });
   }
 
+  /** `VenueStaffAccount`: an owner, a general manager or a branch manager, and nobody else. */
+  function requireVenueAccount(url: string): void {
+    if (!VENUE_ACCOUNT_ROLES.includes(role)) throw new ForbiddenError({ url });
+  }
+
+  /** The signed-in venue staff member, as `GET /api/venue/me` answers. */
+  function venueProfile(): VenueStaffProfile {
+    const user = currentUser();
+    const venueId = user.scope.venueId ?? '';
+    const row = staffFor(venueId).find((member) => member.id === user.id);
+    return {
+      staffMemberId: user.id,
+      fullName: user.displayName,
+      email:
+        row?.email ?? `${role.toLowerCase()}@${slugify(venues.get(venueId)?.name ?? 'venue')}.am`,
+      role,
+      venueId,
+      branchId: role === 'manager' ? (user.scope.branchIds[0] ?? null) : null,
+    };
+  }
+
+  /** The other sign-ins, seeded once: one from last night, one from last week. */
+  function otherSessions(): VenueSession[] {
+    if (venueSelf.others) return venueSelf.others;
+    const ago = (hours: number) => new Date(now().getTime() - hours * 3_600_000).toISOString();
+    venueSelf.others = [
+      {
+        id: 'session-phone',
+        signedInAtUtc: ago(5 * 24),
+        lastActiveAtUtc: ago(12),
+        isCurrent: false,
+      },
+      {
+        id: 'session-laptop',
+        signedInAtUtc: ago(9 * 24),
+        lastActiveAtUtc: ago(5 * 24),
+        isCurrent: false,
+      },
+    ];
+    return venueSelf.others;
+  }
+
   function requireVenue(venueId: string): VenueRecord {
     const record = venues.get(venueId);
     if (!record) throw new OutOfScopeError({ url: URL_TAG });
@@ -1724,32 +1796,38 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
           role,
           scope: { venueId: null, branchIds: [] },
         };
-      case 'owner':
+      case 'owner': {
+        const id = firstVenue ? `${firstVenue.id}-owner` : 'u-owner';
         return {
-          id: firstVenue ? `${firstVenue.id}-owner` : 'u-owner',
-          displayName: 'Aram Sargsyan',
+          id,
+          displayName: selfName(id, 'Aram Sargsyan'),
           role,
           scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
         };
-      case 'generalManager':
+      }
+      case 'generalManager': {
         // Venue-wide: the row names no branch, so neither does the token.
+        const id = firstVenue ? `${firstVenue.id}-general-manager` : 'u-general-manager';
         return {
-          id: firstVenue ? `${firstVenue.id}-general-manager` : 'u-general-manager',
-          displayName: 'Hasmik Karapetyan',
+          id,
+          displayName: selfName(id, 'Hasmik Karapetyan'),
           role,
           scope: { venueId: firstVenue?.id ?? null, branchIds: [] },
         };
-      case 'manager':
+      }
+      case 'manager': {
         // A branch manager's row always names their branch, and so does the token.
+        const id = homeBranch ? `${homeBranch}-manager` : 'u-manager';
         return {
-          id: homeBranch ? `${homeBranch}-manager` : 'u-manager',
-          displayName: 'Nare Petrosyan',
+          id,
+          displayName: selfName(id, 'Nare Petrosyan'),
           role,
           scope: {
             venueId: firstVenue?.id ?? null,
             branchIds: homeBranch ? [homeBranch] : [],
           },
         };
+      }
       default:
         // A waiter or a kitchen account is one branch and no more.
         return {
@@ -2501,6 +2579,106 @@ export function createConsoleMockGateway(options: ConsoleMockOptions = {}): Cons
       );
       // As the server will: every other session ended, this one renewed.
       return { sessionRenewed: true };
+    },
+
+    // --- My account (venue console) ------------------------------------------
+
+    async getVenueProfile() {
+      await wait();
+      requireVenueAccount(`${URL_TAG}/venue/me`);
+      return venueProfile();
+    },
+
+    async updateVenueProfile({ fullName }) {
+      await wait();
+      const url = `${URL_TAG}/venue/me`;
+      requireVenueAccount(url);
+      const name = fullName.trim();
+      if (name.length === 0) {
+        throw validationFailed(url, [
+          { field: 'fullName', message: 'The name is required.', bound: 'required' },
+        ]);
+      }
+      if (name.length > PLATFORM_NAME_MAX_LENGTH) {
+        throw validationFailed(url, [
+          {
+            field: 'fullName',
+            message: `The name is at most ${PLATFORM_NAME_MAX_LENGTH} characters.`,
+            bound: 'max',
+            max: PLATFORM_NAME_MAX_LENGTH,
+          },
+        ]);
+      }
+      // One person, one name: the staff list says what the account says.
+      const before = venueProfile();
+      venueSelf.names.set(before.staffMemberId, name);
+      const list = staffFor(before.venueId);
+      const index = list.findIndex((member) => member.id === before.staffMemberId);
+      if (index >= 0) list[index] = { ...list[index]!, fullName: name };
+      return venueProfile();
+    },
+
+    async changeVenuePassword({ currentPassword, newPassword }) {
+      await wait();
+      const url = `${URL_TAG}/venue/me/password`;
+      requireVenueAccount(url);
+      // One 422 naming every field, in the server's order, as the admin's.
+      const violations: MockViolation[] = [];
+      if (!currentPassword) {
+        violations.push({
+          field: 'currentPassword',
+          message: 'The current password is required.',
+          bound: 'required',
+        });
+      } else if (currentPassword !== venueSelf.password) {
+        violations.push({
+          field: 'currentPassword',
+          message: 'The current password is wrong.',
+          bound: 'conflict',
+        });
+      }
+      if (!newPassword) {
+        violations.push({
+          field: 'newPassword',
+          message: 'The new password is required.',
+          bound: 'required',
+        });
+      } else if (newPassword.length < PLATFORM_PASSWORD_MIN_LENGTH) {
+        violations.push({
+          field: 'newPassword',
+          message: `Password must be at least ${PLATFORM_PASSWORD_MIN_LENGTH} characters.`,
+          bound: 'min',
+          min: PLATFORM_PASSWORD_MIN_LENGTH,
+        });
+      }
+      if (violations.length > 0) throw validationFailed(url, violations);
+      venueSelf.password = newPassword;
+      // Every session of the account ends; this browser carries on with a fresh pair.
+      venueSelf.others = [];
+      return { sessionRenewed: true };
+    },
+
+    async listVenueSessions() {
+      await wait();
+      requireVenueAccount(`${URL_TAG}/venue/me/sessions`);
+      const current: VenueSession = {
+        id: 'session-current',
+        signedInAtUtc: new Date(now().getTime() - 2 * 3_600_000).toISOString(),
+        lastActiveAtUtc: now().toISOString(),
+        isCurrent: true,
+      };
+      const others = [...otherSessions()].sort((a, b) =>
+        b.lastActiveAtUtc.localeCompare(a.lastActiveAtUtc),
+      );
+      return [current, ...others];
+    },
+
+    async signOutOtherVenueSessions() {
+      await wait();
+      requireVenueAccount(`${URL_TAG}/venue/me/sessions/sign-out-others`);
+      const endedSessions = otherSessions().length;
+      venueSelf.others = [];
+      return { endedSessions };
     },
 
     // --- The floor plan editor ----------------------------------------------

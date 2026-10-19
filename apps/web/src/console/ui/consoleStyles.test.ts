@@ -40,6 +40,9 @@ function redesignFiles(): string[] {
     join(SRC, 'console', 'platform', 'SettingsRoute.tsx'),
     // Home (redesign phase 5).
     join(SRC, 'console', 'platform', 'HomeRoute.tsx'),
+    // The venue console's shell and My account (venue-console redesign phase 1).
+    join(SRC, 'console', 'venue', 'VenueLayout.tsx'),
+    ...inFolder(join(SRC, 'console', 'venue', 'account')),
     join(SRC, 'auth', 'AuthLayout.tsx'),
     join(SRC, 'auth', 'SignInRoute.tsx'),
     join(SRC, 'auth', 'ResetPasswordRoute.tsx'),
@@ -61,6 +64,8 @@ describe('the console redesign', () => {
     expect(files.some((file) => file.endsWith('TierDialog.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('AddStaffWizard.tsx'))).toBe(true);
     expect(files.some((file) => file.endsWith('BranchReviewsRoute.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('AccountScreen.tsx'))).toBe(true);
+    expect(files.some((file) => file.endsWith('ConsoleShell.tsx'))).toBe(true);
 
     const found: string[] = [];
     for (const file of files) {
@@ -119,6 +124,27 @@ describe('the console stylesheet keeps its contrast', () => {
     expect(legacy?.body).toMatch(
       /--color-primary-on-floor-plan-pressed:\s*var\(--console-brand-hover\)/u,
     );
+  });
+});
+
+describe('the console sidebar', () => {
+  // QA, venue console phase 1: on a long page the person at the foot — My
+  // account and sign-out — scrolled away with the page.
+  it('stays in view while the page scrolls, and scrolls on its own when it must', () => {
+    const side = consoleRules().find((rule) => rule.selector === '.yc-side');
+    expect(side?.body).toMatch(/position:\s*sticky/u);
+    expect(side?.body).toMatch(/top:\s*0/u);
+    expect(side?.body).toMatch(/height:\s*100vh/u);
+    expect(side?.body).toMatch(/overflow-y:\s*auto/u);
+  });
+
+  // A window shorter than the sidebar (768px tall, a venue's full nav) made the
+  // person at the foot need the sidebar's own scroll: it is pinned to the foot.
+  it('keeps the person at its foot in view when the sidebar itself scrolls', () => {
+    const foot = consoleRules().find((rule) => rule.selector === '.yc-side-foot');
+    expect(foot?.body).toMatch(/position:\s*sticky/u);
+    expect(foot?.body).toMatch(/bottom:\s*0/u);
+    expect(foot?.body).toMatch(/background:\s*var\(--console-sidebar\)/u);
   });
 });
 

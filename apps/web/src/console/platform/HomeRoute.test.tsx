@@ -246,6 +246,33 @@ describe('Home', () => {
     expect(within(feed).queryByText(/menu\.bulk-import/u)).toBeNull();
   });
 
+  it("says what a venue's own people did to their own accounts", async () => {
+    const source = gateway();
+    const entry = (id: string, action: string) => ({
+      id,
+      atUtc: NOW.toISOString(),
+      action,
+      actor: { id: 's-1', role: 'owner' as const, name: 'Aram Hakobyan' },
+      target: { type: 'StaffMember', id: 's-1', name: 'Aram Hakobyan' },
+      venue: { id: 'v-1', name: 'Cascade Cafe' },
+      tierTo: null,
+      staffRole: null,
+    });
+    renderHome({
+      ...source,
+      listPlatformActivity: async () => [
+        entry('a-1', 'account.rename'),
+        entry('a-2', 'account.password-change'),
+        entry('a-3', 'account.sign-out-others'),
+      ],
+    });
+    const feed = await screen.findByRole('region', { name: 'Recent activity' });
+    expect(await within(feed).findByText(/changed their name$/u)).toBeTruthy();
+    expect(within(feed).getByText(/changed their password$/u)).toBeTruthy();
+    expect(within(feed).getByText(/signed out of their other devices$/u)).toBeTruthy();
+    expect(within(feed).queryByText(/made a change$/u)).toBeNull();
+  });
+
   it('says the overview failed rather than showing zeros', async () => {
     const failing: ConsoleGateway = {
       ...gateway(),

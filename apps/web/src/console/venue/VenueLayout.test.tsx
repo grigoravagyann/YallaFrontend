@@ -309,6 +309,47 @@ function readiness(branchId: string) {
   };
 }
 
+/** `GET /api/venue/me` for one of the probe's accounts, from what its sign-in answered. */
+function venueMe(account: Account, venueId: string) {
+  return {
+    staffMemberId: CLAIMS[account].staffMemberId,
+    fullName: SIGN_IN[account].fullName,
+    email: SIGN_IN[account].email,
+    role: SIGN_IN[account].role,
+    venueId,
+    branchId: null,
+  };
+}
+
+/**
+ * One branch read's rows for every branch, with the scope the readiness rows
+ * spell out: every venue user on V's branches, the sole owner on theirs, and
+ * the platform admin everywhere.
+ */
+function branchScopedRows(read: string, body: () => unknown): Record<string, Row> {
+  const ok = () => json(200, body());
+  return {
+    [`GET /api/branches/${B1}/${read}`]: {
+      anonymous: () => bare(401),
+      ...toEveryAccount(ok),
+      soleOwner: () => bare(403),
+    },
+    [`GET /api/branches/${B2}/${read}`]: {
+      anonymous: () => bare(401),
+      ...toEveryAccount(ok),
+      soleOwner: () => bare(403),
+    },
+    [`GET /api/branches/${BS}/${read}`]: {
+      anonymous: () => bare(401),
+      admin: ok,
+      owner: () => bare(403),
+      manager: () => bare(403),
+      generalManager: () => bare(403),
+      soleOwner: ok,
+    },
+  };
+}
+
 // --- The backend, as the probe found it ----------------------------------------
 
 function json(status: number, body: unknown): Response {
@@ -450,6 +491,23 @@ const BACKEND: Readonly<Record<string, Row>> = {
     manager: () => bare(403),
     generalManager: () => bare(403),
     soleOwner: () => bare(403),
+  },
+
+  // Not probed: the sidebar's counts (pending approvals, reported reviews),
+  // branch-scoped like readiness, so they admit and refuse the same callers.
+  // An empty branch has nothing waiting and nothing reported.
+  ...branchScopedRows('reservations', () => []),
+  ...branchScopedRows('reviews', () => ({ items: [], total: 0, page: 1, pageSize: 1 })),
+
+  // Not probed: My account's read (VC1 wire), which the sidebar names the
+  // person from. A venue staff member's own; the platform admin is refused.
+  'GET /api/venue/me': {
+    anonymous: () => bare(401),
+    admin: () => bare(403),
+    owner: () => json(200, venueMe('owner', V)),
+    manager: () => json(200, { ...venueMe('manager', V), branchId: B2 }),
+    generalManager: () => json(200, venueMe('generalManager', V)),
+    soleOwner: () => json(200, venueMe('soleOwner', VS)),
   },
 
   // No read of a venue that venue users may call exists yet. These two are
@@ -738,8 +796,8 @@ describe('a manager whose token names their branch', () => {
       SETTLE,
     );
     expect(screen.queryByText(NO_BRANCH)).toBeNull();
-    // The header names the branch being worked on.
-    expect(screen.queryAllByText('Cascade')).not.toHaveLength(0);
+    // The sidebar names the branch being worked on.
+    expect(screen.queryAllByText('Cascade branch')).not.toHaveLength(0);
     // And only that branch: the console shows a branch manager their own.
     expect(screen.queryByLabelText(/^Branch$/u)).toBeNull();
 
@@ -795,8 +853,8 @@ describe('an owner whose venue has exactly one branch', () => {
       SETTLE,
     );
     expect(screen.queryByText(NO_BRANCH)).toBeNull();
-    // Named in the header, as a fact rather than a control with one option.
-    expect(screen.queryAllByText('Main Street')).not.toHaveLength(0);
+    // Named in the sidebar, as a fact rather than a control with one option.
+    expect(screen.queryAllByText('Main Street branch')).not.toHaveLength(0);
     expect(screen.queryByLabelText(/^Branch$/u)).toBeNull();
 
     expect(backend.unlisted()).toEqual([]);
@@ -941,7 +999,7 @@ ${backend.log()}`,
       SETTLE,
     );
     // Signed in and past the form, on the manager's own answer.
-    await screen.findByRole('navigation', { name: 'Yalla console' }, SETTLE);
+    await screen.findByRole('navigation', { name: 'Main navigation' }, SETTLE);
     await waitFor(
       () => expect(backend.statuses(`GET /api/venues/${V}/manage`), backend.log()).toHaveLength(2),
       SETTLE,

@@ -540,6 +540,51 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
   with its time and table; formal `Դուք`), and `overlapsOwnOn` /
   `overlapsOwnOnPlain` (the same, when that booking is on another day — last
   night's 23:30 — so the date comes first).
+- `admin` — the venue console redesign, phase 1 (2026-10-19): the shared
+  sidebar and My account. The `hy` copy is the approved artboards'
+  (`docs/design/venue-console`, Main and Account), so the user has read it,
+  except where marked; `ru` and `en` were written from it and are **not**
+  reviewed.
+  - The sidebar: `shell.brandSub` (the small "console" beside the brand),
+    `nav.group.*` (the four headings), `nav.account` (the line under the
+    person at the foot, which opens My account) and `nav.badge.*_*`, the
+    sentence a screen reader hears in place of a count on a link — pending
+    approvals, unfinished dishes, reported reviews. The badges' `hy` was the
+    artboards' aria-labels; `reportedReviews` adds "կարծիք" the artboard left
+    implied. Changed in `hy` to the artboards' words: `nav.overview`
+    ("Ամփոփում"), `nav.floorplan` ("Սրահներ և սեղաններ") and `nav.staff`
+    ("Աշխատողներ"); `ru` and `en` keep theirs. `branchSwitcher.onlyOne` now
+    says "{{name}} branch" in every language (hy "{{name}} մասնաճյուղ", the
+    artboard's), since it stands alone in the sidebar.
+  - My account (`account.*`): the title and `sub` (role · venue),
+    `signOutDialog.*` (the body must keep saying the **tablet PIN does not
+    change**), `profile.emailByTeam` / `emailByOwner` (who changes the email:
+    the Yalla team for an owner, the owner for everybody else),
+    `password.title`, `pin.*` and `sessions.*`. The name, password and
+    language cards reuse `settings.profile.*`, `settings.password.*` and
+    `settings.language.*`, the platform admin's, unchanged. Not in the
+    artboard, so **not** read by the user even in `hy`: `pin.taken` (somebody
+    on the same tablet has that PIN), `pin.changing`, `pin.failed`,
+    `sessions.cap` (must keep saying Yalla records **no devices or places**),
+    `sessions.thisBrowser`, `sessions.other`, `sessions.activeNow`,
+    `sessions.lastActive`, `sessions.today`, `sessions.onDay`,
+    `sessions.signingOut`, `sessions.endedNone`, `sessions.loadFailed` and
+    `sessions.failed`; `pin.repeat` is "Կրկնեք PIN-ը" where the artboard's
+    label was a bare "Կրկնեք". `sessions.ended_*` counts the **other**
+    sign-ins ended (the artboard's "Մյուս 2 սարքերից դուրս եկաք"). Formal
+    `Դուք` throughout.
+  - Review fixes: `home.activity.action.signOutOthers` (Home's feed line for a
+    venue person's "sign out everywhere else", **not** in an artboard); the
+    feed's `account.rename` and `account.password-change` lines reuse
+    `home.activity.action.rename` / `.password`. `nav.floor` is kept: a
+    branch manager's sidebar still links the floor screen, which the
+    artboards do not draw. Removed with the old sidebar, nothing renders them:
+    `shell.title`, `shell.signedInAs`, `shell.openMenu` and `shell.closeMenu`.
+  - `account.sessions.signInUnknown` and `.signInAgain` (2026-10-19, **not**
+    in an artboard): "sign out everywhere else" refused with 409
+    `sign-in-unknown` because the token predates sign-ins being named. Must
+    keep saying **nothing was signed out** and that signing in again is the
+    fix; the button signs this browser out to the sign-in page.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

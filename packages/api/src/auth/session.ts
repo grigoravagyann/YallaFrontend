@@ -31,6 +31,41 @@ export interface AuthSessionConfig {
   /** Route to sign-in from here, preserving where the user was. */
   readonly onSignedOut?: ((reason: SignOutReason) => void) | undefined;
   readonly now?: (() => number) | undefined;
+  /**
+   * Runs read → refresh → store as one step across every tab of the origin
+   * ({@link webLocksExclusive}). Absent, a refresh is single-flight within
+   * this session only, as before.
+   */
+  readonly exclusive?: Exclusive | undefined;
+}
+
+/** Runs `task` while no other holder of the same lock runs one. */
+export type Exclusive = <T>(task: () => Promise<T>) => Promise<T>;
+
+/** The slice of `navigator.locks` this needs, so a test can hand in its own. */
+export interface LockManagerLike {
+  request<T>(name: string, task: () => Promise<T>): Promise<T>;
+}
+
+/**
+ * A cross-tab {@link Exclusive} over the Web Locks API, or `undefined` where
+ * the browser has none (then each tab refreshes on its own, as before).
+ *
+ * Why it matters: the refresh token lives in storage every tab shares
+ * (IndexedDB in the console), and the server rotates it and revokes the
+ * whole chain when a spent one comes back. When every tab's access token dies
+ * at once — "sign out everywhere else", a password change — every tab
+ * refreshes at once; two that both read the same token sign the person out
+ * everywhere. Under the lock the second tab reads the token the first one
+ * stored, inside the lock, and spends that one.
+ */
+export function webLocksExclusive(
+  name: string,
+  locks: LockManagerLike | null = (globalThis as { navigator?: { locks?: LockManagerLike } })
+    .navigator?.locks ?? null,
+): Exclusive | undefined {
+  if (!locks) return undefined;
+  return (task) => locks.request(name, task);
 }
 
 export interface AuthSession {
@@ -105,10 +140,14 @@ export function createAuthSession(config: AuthSessionConfig): AuthSession {
     config.onSignedOut?.(reason);
   }
 
+  const exclusive: Exclusive = config.exclusive ?? ((task) => task());
+
   function refresh(): Promise<string | null> {
     if (inflight) return inflight;
 
-    inflight = (async () => {
+    // The token is read inside the lock, never before it: another tab may
+    // have spent and replaced it while this one waited.
+    inflight = exclusive(async () => {
       const started = generation;
       const superseded = () => generation !== started;
       const refreshToken = await config.storage.read();
@@ -136,7 +175,7 @@ export function createAuthSession(config: AuthSessionConfig): AuthSession {
         await forget('expired');
         return null;
       }
-    })().finally(() => {
+    }).finally(() => {
       inflight = null;
     });
 
