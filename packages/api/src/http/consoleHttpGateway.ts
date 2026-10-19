@@ -50,9 +50,17 @@ import {
   FloorPlanInvalidError,
   OverlappingHoursError,
   PolicyBoundsError,
+  SignInUnknownError,
   SlugTakenError,
 } from '../contracts/errors';
-import { ApiError, ForbiddenError, NetworkError, TimeoutError, UnauthorizedError } from '../errors';
+import {
+  ApiError,
+  ConcurrencyConflictError,
+  ForbiddenError,
+  NetworkError,
+  TimeoutError,
+  UnauthorizedError,
+} from '../errors';
 import type { components } from '../generated/schema';
 import { parseProblem } from '../problem';
 import {
@@ -688,10 +696,23 @@ export function createConsoleHttpGateway(
       // No fresh pair, by design: an access token alone must not mint a new
       // refresh token. This browser's access token dies with the others', and
       // the client's `session-revoked` refresh renews it on the next request.
-      const { data } = await client.post<WireOtherSessionsEnded>(
-        `${VENUE_ME}/sessions/sign-out-others`,
-      );
-      return otherSessionsEndedFromWire(data);
+      try {
+        const { data } = await client.post<WireOtherSessionsEnded>(
+          `${VENUE_ME}/sessions/sign-out-others`,
+        );
+        return otherSessionsEndedFromWire(data);
+      } catch (error) {
+        // A token from before tokens named their sign-in: nothing was ended,
+        // and only signing in again fixes it.
+        if (error instanceof ConcurrencyConflictError && error.code === 'sign-in-unknown') {
+          throw new SignInUnknownError({
+            url: error.url,
+            requestId: error.requestId,
+            problem: error.problem,
+          });
+        }
+        throw error;
+      }
     },
 
     // --- The rooms editor -------------------------------------------------

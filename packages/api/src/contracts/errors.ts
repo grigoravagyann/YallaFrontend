@@ -1321,6 +1321,29 @@ export class StaffPinTakenError extends ApiError {
   }
 }
 
+/**
+ * `409 sign-in-unknown` from "sign out everywhere else": the token names no
+ * sign-in to keep (it was issued before tokens carried their refresh chain),
+ * so the server cannot tell this browser from the others and changed
+ * nothing. Not a conflict a refresh gets past: signing in again issues a
+ * token that names its sign-in, and then it works.
+ */
+export class SignInUnknownError extends ApiError {
+  constructor(options: {
+    url: string;
+    requestId?: string | undefined;
+    problem?: ProblemDetails | undefined;
+  }) {
+    super(options.problem?.detail || 'This sign-in cannot be told apart from the others.', {
+      status: 409,
+      url: options.url,
+      requestId: options.requestId,
+      problem: options.problem,
+    });
+    this.name = 'SignInUnknownError';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Diner accounts
 // ---------------------------------------------------------------------------

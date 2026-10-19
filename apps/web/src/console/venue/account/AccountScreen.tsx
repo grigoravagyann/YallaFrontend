@@ -1,4 +1,4 @@
-import { StaffPinTakenError, type VenueSession } from '@yalla/api';
+import { SignInUnknownError, StaffPinTakenError, type VenueSession } from '@yalla/api';
 import {
   useChangeVenuePassword,
   useSetStaffPin,
@@ -249,7 +249,8 @@ function SessionsCard() {
   const toast = useToast();
   const titleId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const [failed, setFailed] = useState(false);
+  /** `unknown`: a sign-in the server cannot name (409 `sign-in-unknown`); nothing was ended. */
+  const [failed, setFailed] = useState<'unknown' | 'other' | null>(null);
 
   const rows = sessions.data ?? [];
   const hasOthers = rows.some((session) => !session.isCurrent);
@@ -271,7 +272,7 @@ function SessionsCard() {
 
   async function endOthers() {
     if (signOutOthers.isPending) return;
-    setFailed(false);
+    setFailed(null);
     try {
       const { endedSessions } = await signOutOthers.mutateAsync();
       // The button leaves with the others; the focus goes to the card, not <body>.
@@ -281,8 +282,8 @@ function SessionsCard() {
           ? t('account.sessions.ended', { count: endedSessions })
           : t('account.sessions.endedNone'),
       );
-    } catch {
-      setFailed(true);
+    } catch (caught) {
+      setFailed(caught instanceof SignInUnknownError ? 'unknown' : 'other');
     }
   }
 
@@ -308,7 +309,22 @@ function SessionsCard() {
           </button>
         ) : null}
       </div>
-      {failed ? (
+      {failed === 'unknown' ? (
+        // Only a new sign-in names itself to the server; retrying here would
+        // be refused the same way.
+        <div className="yc-sform-note yc-signin-again">
+          <p className="yc-alert" role="alert">
+            {t('account.sessions.signInUnknown')}
+          </p>
+          <button
+            type="button"
+            className="yc-btn yc-btn-sec yc-btn-sm"
+            onClick={() => void signOut()}
+          >
+            {t('account.sessions.signInAgain')}
+          </button>
+        </div>
+      ) : failed === 'other' ? (
         <p className="yc-alert yc-sform-note" role="alert">
           {t('account.sessions.failed')}
         </p>

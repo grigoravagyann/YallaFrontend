@@ -252,6 +252,9 @@ export interface ConsoleGateway {
    * `POST /api/venue/me/sessions/sign-out-others`. This browser's access token
    * dies with the others' but its refresh token is kept, so the next request
    * renews it (the client's `session-revoked` refresh).
+   *
+   * @throws {SignInUnknownError} 409 `sign-in-unknown`: the token names no
+   * sign-in to keep, and nothing changed. Signing in again fixes it.
    */
   signOutOtherVenueSessions(): Promise<OtherSessionsEnded>;
 

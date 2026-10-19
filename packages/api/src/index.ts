@@ -543,6 +543,7 @@ export {
   SlugTakenError,
   ReportRangeTooLongError,
   StaffPermissionError,
+  SignInUnknownError,
   StaffPinTakenError,
   VenueDeletionBlockedError,
   isFloorPlanInvalid,

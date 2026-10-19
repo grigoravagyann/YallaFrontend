@@ -21,7 +21,12 @@ export interface VenueStaffProfile {
   readonly email: string;
   readonly role: UserRole;
   readonly venueId: string;
-  /** The home branch of a branch manager; `null` for an owner or a general manager. */
+  /**
+   * The home branch of a branch manager; `null` for an owner or a general
+   * manager, whose answer leaves it out (an owner's row may name a branch, and
+   * they still run every one). Nothing in the console reads it: the branches
+   * a person covers are `getManagedVenue`'s answer.
+   */
   readonly branchId: string | null;
 }
 

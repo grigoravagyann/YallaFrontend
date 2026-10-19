@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { createConsoleMockGateway, ForbiddenError, type ConsoleGateway } from '@yalla/api';
+import {
+  createConsoleMockGateway,
+  ForbiddenError,
+  SignInUnknownError,
+  type ConsoleGateway,
+} from '@yalla/api';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
@@ -130,6 +135,32 @@ describe('when the venue read is refused (review, phase 1)', () => {
       .getAllByRole('button', { name: 'Sign out' })
       .find((button) => button.closest('[role="alertdialog"]'));
     await actor.click(confirm!);
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('"Sign out everywhere else" from a sign-in the server cannot name', () => {
+  /*
+   * A token from before tokens carried their sign-in is answered 409
+   * `sign-in-unknown`, and nothing is ended. The card says so plainly and
+   * offers the one thing that helps: signing in again.
+   */
+  it('says nothing was ended, asks them to sign in again, and offers it', async () => {
+    const actor = userEvent.setup();
+    const base = createConsoleMockGateway({ latencyMs: 0, role: 'owner' });
+    await renderAt('/venue/account', {
+      ...base,
+      signOutOtherVenueSessions: () =>
+        Promise.reject(new SignInUnknownError({ url: '/api/venue/me/sessions/sign-out-others' })),
+    });
+    await actor.click(await screen.findByRole('button', { name: 'Sign out everywhere else' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe(
+      'This sign-in is too old to tell apart from the others, so nothing was signed out. Sign in again, then try once more.',
+    );
+    // The other sign-ins are still there: nothing changed.
+    expect(screen.getByRole('button', { name: 'Sign out everywhere else' })).toBeTruthy();
+    await actor.click(screen.getByRole('button', { name: 'Sign in again' }));
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

@@ -1944,7 +1944,9 @@
       "ended_other": "You were signed out on {{count}} other devices",
       "endedNone": "There were no other sign-ins",
       "loadFailed": "The list of sign-ins didn't load. Try again.",
-      "failed": "Signing out everywhere else didn't work. Try again."
+      "failed": "Signing out everywhere else didn't work. Try again.",
+      "signInUnknown": "This sign-in is too old to tell apart from the others, so nothing was signed out. Sign in again, then try once more.",
+      "signInAgain": "Sign in again"
     }
   }
 }

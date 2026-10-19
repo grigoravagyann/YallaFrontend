@@ -580,6 +580,11 @@ review every string in `src/locales/hy` and `src/locales/ru`.**
     branch manager's sidebar still links the floor screen, which the
     artboards do not draw. Removed with the old sidebar, nothing renders them:
     `shell.title`, `shell.signedInAs`, `shell.openMenu` and `shell.closeMenu`.
+  - `account.sessions.signInUnknown` and `.signInAgain` (2026-10-19, **not**
+    in an artboard): "sign out everywhere else" refused with 409
+    `sign-in-unknown` because the token predates sign-ins being named. Must
+    keep saying **nothing was signed out** and that signing in again is the
+    fix; the button signs this browser out to the sign-in page.
 
 The Russian bundle carries four plural categories (`one`/`few`/`many`/`other`)
 where Armenian and English carry two. That is correct CLDR, not duplication, and

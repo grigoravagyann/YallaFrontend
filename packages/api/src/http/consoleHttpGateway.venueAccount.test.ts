@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createVenueUserAuth } from '../auth/endpoints';
 import { createAuthSession } from '../auth/session';
 import { createMemoryTokenStorage } from '../auth/storage';
+import { SignInUnknownError } from '../contracts/errors';
 import { TooManyRequestsError, ValidationError } from '../errors';
 import { createConsoleHttpGateway, createMemoryIdentityStore } from './consoleHttpGateway';
 import { fakeBackend, problemReply, type FakeRoute } from './fakeBackend.testkit';
@@ -58,6 +59,15 @@ describe('my account over HTTP', () => {
     expect(await gateway.getVenueProfile()).toMatchObject({ role: 'manager', branchId: 'b-2' });
     const gm = gatewayOver({ 'GET /api/venue/me': { body: { ...ME, role: 6 } } });
     expect((await gm.gateway.getVenueProfile()).role).toBe('generalManager');
+  });
+
+  it("reads an owner's or general manager's absent branch as none", async () => {
+    // The wire leaves `branchId` out for the venue-wide ranks, even where an
+    // owner's row names a branch: they still run every one.
+    const { branchId: _omitted, ...venueWide } = ME;
+    void _omitted;
+    const { gateway } = gatewayOver({ 'GET /api/venue/me': { body: venueWide } });
+    expect((await gateway.getVenueProfile()).branchId).toBeNull();
   });
 
   it('renames with the name alone', async () => {
@@ -174,6 +184,17 @@ describe('my account over HTTP', () => {
         isCurrent: false,
       },
     ]);
+  });
+
+  it('says a sign-in from before the server could name it cannot end the others', async () => {
+    // 409 `sign-in-unknown`: the token names no refresh chain to keep, and
+    // nothing was changed. Not a conflict to refresh past: sign in again.
+    const { gateway } = gatewayOver({
+      'POST /api/venue/me/sessions/sign-out-others': problemReply(409, 'sign-in-unknown'),
+    });
+    const error = await gateway.signOutOtherVenueSessions().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(SignInUnknownError);
+    expect((error as SignInUnknownError).status).toBe(409);
   });
 
   it('ends the other sign-ins, with no body, and says how many it ended', async () => {

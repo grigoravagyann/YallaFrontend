@@ -3341,7 +3341,7 @@ export interface paths {
         };
         /**
          * The signed-in owner's, general manager's or branch manager's own account
-         * @description `fullName` is theirs to change. `email` is the sign-in address and is not: whoever outranks them gives them a new sign-in link for a new address (`issueStaffSignIn`), and an owner's is changed by the platform. `role` 1 Owner, 6 GeneralManager, 2 Manager; `branchId` is a branch manager's home branch and null for the venue-wide ranks. `staffMemberId` and `venueId` are what `setStaffPin` takes for their own tablet PIN.
+         * @description `fullName` is theirs to change. `email` is the sign-in address and is not: whoever outranks them gives them a new sign-in link for a new address (`issueStaffSignIn`), and an owner's is changed by the platform. `role` 1 Owner, 6 GeneralManager, 2 Manager; `branchId` is a branch manager's home branch and is absent for the venue-wide ranks (an owner's row may name a branch; they still run every one). `staffMemberId` and `venueId` are what `setStaffPin` takes for their own tablet PIN.
          */
         get: operations["getVenueUserProfile"];
         put?: never;
@@ -3416,6 +3416,8 @@ export interface paths {
          * @description Ends every other sign-in now: their refresh tokens are revoked and the session generation moves, so their access tokens are refused with `401 session-revoked` at once rather than when they expire. `endedSessions` counts the sign-ins that could still carry on and now cannot; 0 is an answer.
          *
          *     **This request's access token ends too, and its refresh token is kept**: refresh (`refreshVenueUserToken`) with the one you hold and carry on. No fresh pair is answered, on purpose - an access token alone must not be able to mint a new 30-day refresh token. **Audited** as `account.sign-out-others`.
+         *
+         *     A token that names no sign-in (no refresh-chain claim, from before the claim existed) cannot say which one to keep: `409 sign-in-unknown`, and nothing is changed - sign in again and retry.
          */
         post: operations["signOutOtherVenueUserSessions"];
         delete?: never;
@@ -5273,7 +5275,8 @@ export interface components {
         "Yalla.Application.Auth.VenueUserProfile": {
             /**
              * Format: uuid
-             * @description A branch manager's home branch; null for an owner or general manager, who run every branch.
+             * @description A branch manager's home branch. Absent on the wire (null) for an owner or general manager, who run every
+             *     branch - an owner's row may name a branch, and it is still not answered here.
              */
             branchId?: string | null;
             /**
@@ -23178,6 +23181,15 @@ export interface operations {
             };
             /** @description Not an owner, general manager or branch manager signed in to the admin panel. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Yalla.Api.Errors.UnifiedErrorEnvelope"];
+                };
+            };
+            /** @description `sign-in-unknown`: the token names no sign-in to keep. Nothing changed. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
